@@ -1,17 +1,19 @@
-import { getEffectDefinitions } from '../utility/project-effects.ts';
+import * as z from 'zod';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { ref } from 'vue';
-import type { VisualModuleAssetPlacement } from '../utility/visual-module-asset-node.ts';
-import type { AssetImportPlacement } from '../utility/import-assets.ts';
+import { getEffectDefinitions } from '../utility/project-effects.ts';
 import { getScene } from '../utility/timeline-scene.ts';
-import type { AppStateChange, ProjectState, ProjectAsset } from '../Project.ts';
-import type { Player } from '@gs/shared/types.ts';
 import { getVisualModule, listVisualModules } from '../utility/visual-module-target.ts';
-import { defineCommand } from './definition.ts';
+import { defineCommand, definePublicCommand } from './definition.ts';
+import { playerSourceSchema } from './project-contract-schemas.ts';
 import { prepareProjectValueChange } from './prepared-value.ts';
 import { getTimelineAssetPlacementChanges, validateTimelineAssetPlacement, removeTimelineAssetPlacement } from './timeline.ts';
+import type { Player } from '@gs/shared/types.ts';
+import type { AppStateChange, ProjectState, ProjectAsset } from '../Project.ts';
+import type { VisualModuleAssetPlacement } from '../utility/visual-module-asset-node.ts';
+import type { AssetImportPlacement } from '../utility/import-assets.ts';
 
 // ファイルの読み込みやダイアログは呼び出し側が済ませ、取り込み済みの値だけを渡す。
 // 配置との参照関係を保つため、この内部取り込み操作では生成済みのIDを維持する。
@@ -36,22 +38,26 @@ export const insertImportedAssetsCommandDef = defineCommand<{ assets: ProjectAss
 			...getVisualModuleAssetPlacementChanges(saved.visualModule ?? null),
 		];
 		if (changes.length === 0) return { result: undefined, change: null };
-		return { result: undefined, change: { changes,
-			apply(current) {
-				current.assets.value.push(...deepClone(saved.assets));
-				current.players.value.push(...deepClone(saved.players));
-				if (saved.timeline != null) getScene(current, saved.timeline.sceneId).layers.unshift(...deepClone(saved.timeline.layers));
-				if (saved.visualModule != null) appendVisualModuleAssetNodes(current, saved.visualModule);
+		return {
+			result: undefined,
+			change: {
+				changes,
+				apply(current) {
+					current.assets.value.push(...deepClone(saved.assets));
+					current.players.value.push(...deepClone(saved.players));
+					if (saved.timeline != null) getScene(current, saved.timeline.sceneId).layers.unshift(...deepClone(saved.timeline.layers));
+					if (saved.visualModule != null) appendVisualModuleAssetNodes(current, saved.visualModule);
+				},
+				revert(current) {
+					const assetIds = new Set(saved.assets.map(asset => asset.id));
+					const playerIds = new Set(saved.players.map(player => player.id));
+					current.assets.value = current.assets.value.filter(asset => !assetIds.has(asset.id));
+					current.players.value = current.players.value.filter(player => !playerIds.has(player.id));
+					if (saved.timeline != null) removeTimelineAssetPlacement(current, saved.timeline);
+					if (saved.visualModule != null) removeVisualModuleAssetNodes(current, saved.visualModule);
+				},
 			},
-			revert(current) {
-				const assetIds = new Set(saved.assets.map(asset => asset.id));
-				const playerIds = new Set(saved.players.map(player => player.id));
-				current.assets.value = current.assets.value.filter(asset => !assetIds.has(asset.id));
-				current.players.value = current.players.value.filter(player => !playerIds.has(player.id));
-				if (saved.timeline != null) removeTimelineAssetPlacement(current, saved.timeline);
-				if (saved.visualModule != null) removeVisualModuleAssetNodes(current, saved.visualModule);
-			},
-		} };
+		};
 	},
 });
 
@@ -120,8 +126,12 @@ export const createAssetCommandDef = defineCommand<{ asset: Omit<ProjectAsset, '
 	},
 });
 
-export const removeAssetCommandDef = defineCommand<{ assetId: string }>({
+export const removeAssetCommandDef = definePublicCommand({
 	label: 'Remove asset',
+	inputSchema: z.object({ assetId: z.string().min(1) }),
+	resultSchema: z.null(),
+	description: 'Remove an existing Asset and clear Effect static-setting references to it. Other saved references can become unresolved. Undo restores the Asset and cleared references; no source file is deleted.',
+	examples: ['let assets = Query:listAssets()\nif (assets.len > 0) { Command:removeAsset(assets[0].target) }'],
 	prepare(state, { assetId }) {
 		const asset = deepClone(getAsset(state, assetId));
 		const assetIndex = state.assets.value.findIndex(candidate => candidate.id === assetId);
@@ -138,24 +148,37 @@ export const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 				if (node?.type === 'effect') node.staticSettings[reference.key] = value;
 			}
 		};
-		return { result: undefined, change: { changes,
-			apply(current) { current.assets.value = current.assets.value.filter(candidate => candidate.id !== assetId); setReferences(current, null); },
-			revert(current) {
-				// 別素材に対するUndo対象外のリロードを巻き戻さないよう、削除した値だけを戻す。
-				current.assets.value.splice(assetIndex, 0, deepClone(asset));
-				setReferences(current, assetId);
+		return {
+			result: undefined,
+			change: {
+				changes,
+				apply(current) { current.assets.value = current.assets.value.filter(candidate => candidate.id !== assetId); setReferences(current, null); },
+				revert(current) {
+					// 別素材に対するUndo対象外のリロードを巻き戻さないよう、削除した値だけを戻す。
+					current.assets.value.splice(assetIndex, 0, deepClone(asset));
+					setReferences(current, assetId);
+				},
 			},
-		} };
+		};
 	},
 });
 
-export const setAssetNameCommandDef = defineCommand<{ assetId: string; name: string }>({
+export const setAssetNameCommandDef = definePublicCommand({
 	label: 'Set asset name',
+	inputSchema: z.object({ assetId: z.string().min(1), name: z.string() }),
+	resultSchema: z.null(),
+	description: 'Rename an existing Asset in the project. The original file name and file contents are unchanged.',
+	examples: ['let assets = Query:listAssets()\nif (assets.len > 0) { Command:setAssetName({ assetId: assets[0].id, name: "Texture" }) }'],
 	getAutoMergeKey: input => `asset:${input.assetId}:name`,
 	prepare(state, { assetId, name }) {
 		if (typeof name !== 'string') throw new Error('Asset name must be a string');
-		return prepareProjectValueChange({ before: getAsset(state, assetId).name, after: name, result: undefined,
-			changes: [{ type: 'asset', assetId }], write(current, value) { getAsset(current, assetId).name = value; } });
+		return prepareProjectValueChange({
+			before: getAsset(state, assetId).name,
+			after: name,
+			result: undefined,
+			changes: [{ type: 'asset', assetId }],
+			write(current, value) { getAsset(current, assetId).name = value; },
+		});
 	},
 });
 
@@ -185,9 +208,14 @@ export const replaceAssetSourceCommandDef = defineCommand<{ assetId: string; sou
 				if (!Object.hasOwn(next, key)) delete (asset as Record<string, unknown>)[key];
 			}
 		};
-		return { result: undefined, change: { changes: [{ type: 'asset', assetId }],
-			apply(current) { write(current, after); }, revert(current) { write(current, before); },
-		} };
+		return {
+			result: undefined,
+			change: {
+				changes: [{ type: 'asset', assetId }],
+				apply(current) { write(current, after); },
+				revert(current) { write(current, before); },
+			},
+		};
 	},
 });
 
@@ -200,25 +228,42 @@ function playerSourceFields(state: ProjectState, source: PlayerSource): Pick<Pla
 	return { sourceType: source.type, assetId: source.type === 'asset' ? source.assetId : null };
 }
 
-export const createPlayerCommandDef = defineCommand<{ name?: string; source?: PlayerSource }, { playerId: string }>({
+export const createPlayerCommandDef = definePublicCommand({
 	label: 'Create player',
+	inputSchema: z.object({ name: z.string().nullish().describe('Omit or pass null for Player.'), source: playerSourceSchema.nullish().describe('Omit or pass null for an unassigned source.') }),
+	resultSchema: z.object({ playerId: z.string() }),
+	description: 'Create a Player and return its reference. Asset sources must already exist in the project. Selecting a capture source stores its type; this does not grant device permission or guarantee live input.',
+	examples: ['let player = Command:createPlayer({ name: "Input" })\n<: Query:getPlayer(player)'],
 	prepare(state, input) {
 		if (input.name != null && typeof input.name !== 'string') throw new Error('Player name must be a string');
 		const player: Player = { id: genId(), name: input.name ?? 'Player', ...playerSourceFields(state, input.source ?? null) };
-		return { result: { playerId: player.id }, change: { changes: [{ type: 'player', playerId: player.id }],
-			apply(current) { current.players.value.push(deepClone(player)); },
-			revert(current) { current.players.value = current.players.value.filter(candidate => candidate.id !== player.id); },
-		} };
+		return {
+			result: { playerId: player.id },
+			change: {
+				changes: [{ type: 'player', playerId: player.id }],
+				apply(current) { current.players.value.push(deepClone(player)); },
+				revert(current) { current.players.value = current.players.value.filter(candidate => candidate.id !== player.id); },
+			},
+		};
 	},
 });
 
-export const setPlayerSourceCommandDef = defineCommand<{ playerId: string; source: PlayerSource }>({
+export const setPlayerSourceCommandDef = definePublicCommand({
 	label: 'Set player source',
+	inputSchema: z.object({ playerId: z.string().min(1), source: playerSourceSchema }),
+	resultSchema: z.null(),
+	description: 'Replace a Player source. Pass null to disconnect it, an existing Asset ID for asset input, or a capture source type. This does not import files.',
+	examples: ['let player = Command:createPlayer({})\nCommand:setPlayerSource({ playerId: player.playerId, source: null })'],
 	prepare(state, { playerId, source }) {
 		const player = state.players.value.find(candidate => candidate.id === playerId);
 		if (player == null) throw new Error('Player not found');
-		return prepareProjectValueChange({ before: { sourceType: player.sourceType, assetId: player.assetId ?? null }, after: playerSourceFields(state, source), result: undefined,
-			changes: [{ type: 'player', playerId }], write(current, value) { Object.assign(current.players.value.find(candidate => candidate.id === playerId)!, value); } });
+		return prepareProjectValueChange({
+			before: { sourceType: player.sourceType, assetId: player.assetId ?? null },
+			after: playerSourceFields(state, source),
+			result: undefined,
+			changes: [{ type: 'player', playerId }],
+			write(current, value) { Object.assign(current.players.value.find(candidate => candidate.id === playerId)!, value); },
+		});
 	},
 });
 

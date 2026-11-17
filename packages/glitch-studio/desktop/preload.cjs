@@ -2,6 +2,26 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // 汎用的なIPC送信口ではなく、UIに必要な操作だけを公開する。
 contextBridge.exposeInMainWorld('desktop', {
+	getMcpServerState: () => ipcRenderer.invoke('desktop:get-mcp-server-state'),
+	setMcpServerSettings: settings => ipcRenderer.invoke('desktop:set-mcp-server-settings', settings),
+	regenerateMcpServerToken: () => ipcRenderer.invoke('desktop:regenerate-mcp-server-token'),
+	onMcpServerStateChanged: listener => {
+		const handler = (_event, state) => listener(state);
+		ipcRenderer.on('desktop:mcp-server-state-changed', handler);
+		return () => ipcRenderer.removeListener('desktop:mcp-server-state-changed', handler);
+	},
+	onMcpRequest: listener => {
+		const handler = (_event, request) => listener(request);
+		ipcRenderer.on('desktop:mcp-request', handler);
+		return () => ipcRenderer.removeListener('desktop:mcp-request', handler);
+	},
+	onMcpCancel: listener => {
+		const handler = (_event, requestId) => listener(requestId);
+		ipcRenderer.on('desktop:mcp-cancel', handler);
+		return () => ipcRenderer.removeListener('desktop:mcp-cancel', handler);
+	},
+	respondMcpRequest: response => ipcRenderer.invoke('desktop:mcp-response', response),
+	updateMcpProjectSessions: sessions => ipcRenderer.invoke('desktop:mcp-project-sessions', sessions),
 	buildPortableVisualModule: (requestId, requirements) => ipcRenderer.invoke('desktop:build-portable-visual-module', requestId, requirements),
 	cancelPortableVisualModule: requestId => ipcRenderer.invoke('desktop:cancel-portable-visual-module', requestId),
 	onProjectCloseRequested: listener => {

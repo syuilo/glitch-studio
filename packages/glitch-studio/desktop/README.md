@@ -10,6 +10,12 @@ Windows x64向けのNSISインストーラーと、macOSのApple Silicon（arm64
 
 desktopのパッケージ名は`@gs/glitch-studio_desktop`です。electron-builderがpnpmのworkspace一覧から実行時依存を収集する際にも使われるため、ルートと同名にしたり省略したりしないでください。`afterPack`では、ASAR内のnpmの実行時依存に加え、エントリ・preload・配布対象ファイルから静的にたどれる相対import・require先の存在も再帰的に検査します。新しい実装ファイルを追加した場合は、`electron-builder.config.cjs`の`applicationFiles`へ追加してください。実際の設定とソースをASARに詰める回帰テストでも、配布対象への追加漏れを検出します。
 
+## MCPサーバー
+
+`mcp-server-controller.mjs`が有効状態・ポート・編集許可・認証トークンの永続化と待ち受けの寿命を所有します。`mcp-http-server.mjs`は公式MCP SDKを使ってループバック上のStreamable HTTPを提供し、`mcp-editor-bridge.mjs`が明示的な編集セッションIDから編集ウィンドウへ要求を振り分けます。再読み込み・終了・サーバー停止で未完了の要求を中断し、遅れた応答を破棄します。Command・Queryの契約やプロジェクト状態の操作はUI側へ委譲します。
+
+設定画面・クライアント接続例・公開ツールは[MCPサーバー](../../../docs/mcp.md)を参照してください。`GLITCH_ELECTRON_TEST=1`で`node --test packages/glitch-studio/desktop/test/mcp-electron.test.mjs`を実行すると、実際のmain・preload・IPCからAiScriptによる編集とUndoまでを検証します。テスト専用の一時プロファイルとループバックのポートを使います。
+
 ## Visual ModuleのWeb書き出し
 
 HTML/JavaScriptの書き出しはElectron版限定です。UIで作品と素材を確定し、`portable-visual-module-ipc.mjs`が要求元ごとに一つのUtilityProcessを起動します。必要な機能の一覧だけをビルド処理へ渡し、生成結果をUIへ返します。キャンセル・画面破棄・プロセス異常で受付を解放します。HTML・ZIPの保存は既存のExportFilesによる一時保存と確定を使います。

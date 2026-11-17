@@ -30,7 +30,7 @@ function fixture(dialog = async () => null) {
 	const state = {
 		name: { value: 'Project' }, description: { value: '' }, author: { value: '' },
 		resolution: { value: { width: 1920, height: 1080 } }, timelineFps: { value: 30 },
-		timelineMotionBlur: { value: { enabled: false } }, exportSettings: { value: null },
+		timelineMotionBlur: { value: { enabled: false, shutterAngle: 180, samples: 8 } }, exportSettings: { value: null },
 		automationGraphs: { value: [] }, customShaderEffects: { value: [] }, generatedSpeech: { value: [] },
 		assets: { value: [] }, players: { value: [] }, visualModules: { value: [] }, timelineScenes: { value: [] },
 	};
@@ -236,4 +236,90 @@ test('serializes host commands invoked by concurrent array callbacks', async () 
 test('limits execution steps independently of dialog wait duration', async () => {
 	const runtime = new ProjectScriptRuntime({ commands: [], queries: {}, output() {}, dialog: async () => null, executeCommand: async () => null }, 100);
 	await assert.rejects(runtime.run('loop {}'), /max step exceeded/);
+});
+
+// 【外部実行はパネル本文と出力を保ち、成功済み編集だけを一履歴に残す】
+// MCPからの失敗をUIダイアログで表示したり、利用者の編集中スクリプトへ上書きしてはならない。
+test('keeps external script results separate and retains partial edits in one undo group', async () => {
+	const { controller, manager, state, errors } = fixture();
+	controller.source.value = '<: "Panel source"';
+	controller.output.value = ['Panel output'];
+	const result = await controller.runExternal(`Command:setProjectName({ name: "External" })
+Command:setProjectAuthor({ author: "Author" })
+<: Query:getProject().name
+Dialog:confirm({ text: "Unavailable" })
+Command:setProjectName({ name: "Must not run" })`, new AbortController().signal, 'MCP: Run script');
+	assert.deepEqual(result.output, ['External']);
+	assert.equal(result.commandsExecuted, 2);
+	assert.match(result.error, /Dialogs are unavailable/);
+	assert.deepEqual(errors, []);
+	assert.equal(controller.source.value, '<: "Panel source"');
+	assert.deepEqual(controller.output.value, ['Panel output']);
+	assert.equal(controller.isRunning.value, false);
+	assert.equal(state.name.value, 'External');
+	assert.equal(manager.undoStack.value.length, 1);
+	assert.equal(manager.undoStack.value[0].label, 'MCP: Run script');
+	manager.undo();
+	assert.equal(state.name.value, 'Project');
+	assert.equal(state.author.value, '');
+	manager.redo();
+	assert.equal(state.name.value, 'External');
+});
+
+// 【パネル実行中に外部実行を開始せず、同じセッションの履歴グループを重ねない】
+// パネルとMCPに別々の実行フラグを置くと、それぞれが他方の編集を包含してUndoが壊れる。
+test('rejects external execution while a panel script is waiting', async () => {
+	const entered = deferred();
+	const answer = deferred();
+	const { controller } = fixture(async () => { entered.resolve(); return answer.promise; });
+	controller.source.value = 'Dialog:confirm({})';
+	const panel = controller.run();
+	await entered.promise;
+	await assert.rejects(controller.runExternal('<: "Rejected"', new AbortController().signal), /PROJECT_BUSY/);
+	answer.resolve(true);
+	await panel;
+});
+
+// 【外部実行の中断は準備中Commandの適用を防ぎ、手動操作を含む成功済み履歴を確定する】
+// 中断の応答後に編集が遅れて適用されたり、パネル実行が同時に始まることを防ぐ。
+test('cancels pending external commands while preserving completed and manual changes', async () => {
+	const { controller, manager, state, errors } = fixture();
+	const entered = deferred();
+	const resume = deferred();
+	const execute = manager.execute.bind(manager);
+	manager.execute = async (...args) => {
+		if (args[1].name === 'Pending') { entered.resolve(); await resume.promise; }
+		return execute(...args);
+	};
+	controller.source.value = 'Command:setProjectName({ name: "Panel must not run" })';
+	const cancellation = new AbortController();
+	const execution = controller.runExternal('Command:setProjectName({ name: "Kept" })\nCommand:setProjectName({ name: "Pending" })', cancellation.signal);
+	await entered.promise;
+	await controller.run();
+	manager.commit('setProjectAuthor', { author: 'Manual edit' });
+	cancellation.abort(new Error('Cancelled by client'));
+	resume.resolve();
+	const result = await execution;
+	assert.match(result.error, /Cancelled by client/);
+	assert.equal(result.commandsExecuted, 1);
+	assert.equal(state.name.value, 'Kept');
+	assert.equal(state.author.value, 'Manual edit');
+	assert.equal(manager.undoStack.value.length, 1);
+	manager.undo();
+	assert.equal(state.name.value, 'Project');
+	assert.equal(state.author.value, '');
+	assert.deepEqual(errors, []);
+	assert.equal(controller.isRunning.value, false);
+});
+
+// 【外部出力は明示した上限を超えず、セッション終了後の要求を受け付けない】
+// クライアントへ無制限に結果を返すことと、終了したProjectの再編集を防ぐ。
+test('bounds external output and refuses disposed sessions', async () => {
+	const { controller } = fixture();
+	const result = await controller.runExternal('for 1100 { <: "line" }', new AbortController().signal);
+	assert.equal(result.error, null);
+	assert.equal(result.output.length, 1000);
+	assert.equal(result.outputTruncated, true);
+	controller.dispose();
+	await assert.rejects(controller.runExternal('<: "Closed"', new AbortController().signal), /PROJECT_CLOSED/);
 });

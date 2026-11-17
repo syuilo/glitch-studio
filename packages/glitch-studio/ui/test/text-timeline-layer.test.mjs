@@ -136,6 +136,6 @@ test('rejects unsupported bindings without committing changes', t => {
 	}
 	const invalid = createTextTimelineLayer(0);
 	invalid.textParamValues.color = { inputSource: 'lowerLayerOutput', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' };
-	assert.throws(() => f.history.commit('insertTimelineLayer', { sceneId: 'scene', layer: invalid }), /Timeline image input/);
+	assert.throws(() => f.history.commit('insertTimelineLayer', { sceneId: 'scene', layer: invalid }), /Insert timeline layer input:/);
 });
 

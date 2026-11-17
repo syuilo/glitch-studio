@@ -1,30 +1,32 @@
+import * as z from 'zod';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { getVisualModule, listVisualModules } from '../utility/visual-module-target.ts';
 import { getEffectDefinitions } from '../utility/project-effects.ts';
 import { getLayerParameterDefinitions, getLayerParameterTargets, getLayerParameterValues } from '../utility/timeline-scene.ts';
+import { parseProjectApiValue } from '../project-api/contract.ts';
+import { visualModuleTargetSchema, visualModuleNodeReferenceSchema } from '../commands/visual-module-contract-schemas.ts';
+import { timelineSceneReferenceSchema, timelineLayerReferenceSchema, timelineClipReferenceSchema } from '../commands/timeline-contract-schemas.ts';
+import {
+	assetReferenceSchema, playerReferenceSchema, effectReferenceSchema, projectAutomationGraphReferenceSchema, customShaderEffectReferenceSchema,
+	projectSummarySchema, visualModuleSummarySchema, visualModuleResultSchema, visualModuleNodeSummarySchema, visualModuleNodeResultSchema,
+	timelineSceneSummarySchema, timelineSceneResultSchema, timelineLayerSummarySchema, timelineLayerResultSchema, timelineClipResultSchema, timelineLayerParametersSchema,
+	assetMetadataSchema, playerResultSchema, effectSummarySchema, effectDefinitionResultSchema,
+	projectAutomationGraphResultSchema, customShaderEffectSummarySchema, customShaderEffectResultSchema,
+} from './project-script-query-schemas.ts';
+import type { ProjectApiContract } from '../project-api/contract.ts';
 import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
 import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { ProjectAsset, ProjectState } from '../Project.ts';
 
-type ProjectScriptQuery = (input: unknown) => unknown;
+export type ProjectScriptQueryDefinition<InputSchema extends z.ZodType = z.ZodType, ResultSchema extends z.ZodType = z.ZodType> = ProjectApiContract<InputSchema, ResultSchema> & {
+	argumentCount: 0 | 1;
+	execute(state: ProjectState, input: z.output<InputSchema>): z.input<ResultSchema>;
+};
 
-function inputObject(input: unknown): Record<string, unknown> {
-	if (input == null || typeof input !== 'object' || Array.isArray(input)) throw new Error('Query input must be an object');
-	return input as Record<string, unknown>;
-}
-
-function identifier(input: Record<string, unknown>, key: string): string {
-	const value = input[key];
-	if (typeof value !== 'string' || value.length === 0) throw new Error(`Query ${key} must be a non-empty string`);
-	return value;
-}
-
-function visualModuleTarget(input: unknown): VisualModuleTarget {
-	const reference = inputObject(input);
-	if (reference.visualModuleId != null) return { visualModuleId: identifier(reference, 'visualModuleId') };
-	return { sceneId: identifier(reference, 'sceneId'), inlineVisualModuleLayerId: identifier(reference, 'inlineVisualModuleLayerId') };
+function defineQuery<InputSchema extends z.ZodType, ResultSchema extends z.ZodType>(definition: ProjectScriptQueryDefinition<InputSchema, ResultSchema>) {
+	return definition;
 }
 
 function snapshot<Value>(value: Value): Value {
@@ -33,91 +35,102 @@ function snapshot<Value>(value: Value): Value {
 	return deepClone(value as never) as Value;
 }
 
+function sceneReference(state: ProjectState, input: { sceneId: string }) {
+	const scene = state.timelineScenes.value.find(candidate => candidate.id === input.sceneId);
+	if (scene == null) throw new Error(`Timeline Scene not found: ${input.sceneId}`);
+	return { scene, target: { sceneId: input.sceneId } };
+}
+
+function layerReference(state: ProjectState, input: { sceneId: string; layerId: string }) {
+	const { scene, target } = sceneReference(state, input);
+	const layer = findTimelineLayer(scene.layers, input.layerId);
+	if (layer == null) throw new Error(`Timeline Layer not found: ${input.layerId}`);
+	return { scene, layer, target: { ...target, layerId: input.layerId } };
+}
+
+function visualModuleName(state: ProjectState, target: VisualModuleTarget): string {
+	if ('visualModuleId' in target) {
+		const visualModule = state.visualModules.value.find(candidate => candidate.id === target.visualModuleId);
+		if (visualModule == null) throw new Error(`Visual Module not found: ${target.visualModuleId}`);
+		return visualModule.name;
+	}
+	return layerReference(state, { sceneId: target.sceneId, layerId: target.inlineVisualModuleLayerId }).layer.name;
+}
+
 function assetMetadata(asset: ProjectAsset) {
 	return {
-		target: { assetId: asset.id },
-		id: asset.id,
-		name: asset.name,
-		width: asset.width,
-		height: asset.height,
-		fileDataType: asset.fileDataType,
-		hash: asset.hash ?? null,
-		isExternalReference: asset.isExternalReference,
-		sourceFilePath: asset.sourceFilePath,
+		target: { assetId: asset.id }, id: asset.id, name: asset.name, width: asset.width, height: asset.height,
+		fileDataType: asset.fileDataType, hash: asset.hash ?? null, isExternalReference: asset.isExternalReference, sourceFilePath: asset.sourceFilePath,
 	};
 }
 
 /**
- * 検索時点の保存内容を返す。式の評価・描画待ち・UIの選択は扱わない。
- * 一覧のtargetをそのまま取得関数やCommandの対象指定に渡せるよう、所在の形を揃える。
+ * Queryの契約と実装を同じ定義に置く。呼び出し側と資料生成側で引数や戻り値を
+ * 別々に列挙すると、公開APIの変更時に説明だけ古くなるため、ここを唯一の一覧にする。
+ * 保存値を返すAPIなので、式の評価・描画待ち・UIの選択は扱わない。
  */
-export function createProjectScriptQueries(state: ProjectState): Record<string, ProjectScriptQuery> {
-	function sceneReference(input: unknown) {
-		const sceneId = identifier(inputObject(input), 'sceneId');
-		const scene = state.timelineScenes.value.find(candidate => candidate.id === sceneId);
-		if (scene == null) throw new Error(`Timeline Scene not found: ${sceneId}`);
-		return { scene, target: { sceneId } };
-	}
-
-	function layerReference(input: unknown) {
-		const { scene, target } = sceneReference(input);
-		const layerId = identifier(inputObject(input), 'layerId');
-		const layer = findTimelineLayer(scene.layers, layerId);
-		if (layer == null) throw new Error(`Timeline Layer not found: ${layerId}`);
-		return { scene, layer, target: { ...target, layerId } };
-	}
-
-	function visualModuleName(target: VisualModuleTarget): string {
-		if ('visualModuleId' in target) {
-			const visualModule = state.visualModules.value.find(candidate => candidate.id === target.visualModuleId);
-			if (visualModule == null) throw new Error(`Visual Module not found: ${target.visualModuleId}`);
-			return visualModule.name;
-		}
-		return layerReference({ sceneId: target.sceneId, layerId: target.inlineVisualModuleLayerId }).layer.name;
-	}
-
-	return {
-		'Query:getProject': () => snapshot({
-			name: state.name.value,
-			description: state.description.value,
-			author: state.author.value,
-			resolution: state.resolution.value,
-			timelineFps: state.timelineFps.value,
-			timelineMotionBlur: state.timelineMotionBlur.value,
-			exportSettings: state.exportSettings.value,
+export const PROJECT_SCRIPT_QUERY_DEFINITIONS = {
+	'Query:getProject': defineQuery({
+		argumentCount: 0, inputSchema: z.null(), resultSchema: projectSummarySchema,
+		description: 'Get the current Project metadata, pixel resolution, Timeline frame rate, motion blur and saved export settings. Does not include Visual Modules, Scenes or Asset bytes.',
+		examples: ['<: Query:getProject()'],
+		execute: state => snapshot({
+			name: state.name.value, description: state.description.value, author: state.author.value, resolution: state.resolution.value,
+			timelineFps: state.timelineFps.value, timelineMotionBlur: state.timelineMotionBlur.value, exportSettings: state.exportSettings.value,
 		}),
-		'Query:listVisualModules': () => listVisualModules(state).map(({ target }) => ({ target, name: visualModuleName(target) })),
-		'Query:getVisualModule': input => {
-			const target = visualModuleTarget(input);
-			const visualModule = getVisualModule(state, target);
-			return snapshot({ ...visualModule, target, name: visualModuleName(target) });
+	}),
+	'Query:listVisualModules': defineQuery({
+		argumentCount: 0, inputSchema: z.null(), resultSchema: z.array(visualModuleSummarySchema),
+		description: 'List registered and inline Visual Modules with their names and target references. Pass a returned target to Query:getVisualModule or a Command accepting a Visual Module reference.',
+		examples: ['<: Query:listVisualModules()'],
+		execute: state => listVisualModules(state).map(({ target }) => ({ target, name: visualModuleName(state, target) })),
+	}),
+	'Query:getVisualModule': defineQuery({
+		argumentCount: 1, inputSchema: visualModuleTargetSchema, resultSchema: visualModuleResultSchema,
+		description: 'Get a detached Visual Module definition including Nodes, bindings, public/custom parameters, outputs and Automation Graphs. Supports registered and inline Visual Modules. Values are stored bindings rather than evaluated values.',
+		examples: ['let visualModule = Command:createVisualModule({ name: "Generated" })\n<: Query:getVisualModule(visualModule)'],
+		execute(state, target) {
+			return snapshot({ ...getVisualModule(state, target), target, name: visualModuleName(state, target) });
 		},
-		'Query:listNodes': input => {
-			const visualModule = visualModuleTarget(input);
-			return snapshot(getVisualModule(state, visualModule).nodes.map(node => ({
-				target: { visualModule, nodeId: node.id },
-				id: node.id,
-				type: node.type,
-				effectId: node.type === 'effect' ? node.effectId : null,
-				displayName: node.type === 'effect' ? node.displayName : node.type === 'relay' ? node.label ?? '' : '',
-			})));
-		},
-		'Query:getNode': input => {
-			const reference = inputObject(input);
-			const visualModule = visualModuleTarget(reference.visualModule);
-			const nodeId = identifier(reference, 'nodeId');
+	}),
+	'Query:listNodes': defineQuery({
+		argumentCount: 1, inputSchema: visualModuleTargetSchema, resultSchema: z.array(visualModuleNodeSummarySchema),
+		description: 'List the Nodes of a Visual Module in stored order with their types, display names and target references. Includes input, output and relay Nodes; their effectId is null.',
+		examples: ['let visualModule = Command:createVisualModule({})\n<: Query:listNodes(visualModule)'],
+		execute: (state, visualModule) => snapshot(getVisualModule(state, visualModule).nodes.map(node => ({
+			target: { visualModule, nodeId: node.id }, id: node.id, type: node.type,
+			effectId: node.type === 'effect' ? node.effectId : null,
+			displayName: node.type === 'effect' ? node.displayName : node.type === 'relay' ? node.label ?? '' : '',
+		}))),
+	}),
+	'Query:getNode': defineQuery({
+		argumentCount: 1, inputSchema: visualModuleNodeReferenceSchema, resultSchema: visualModuleNodeResultSchema,
+		description: 'Get a detached Visual Module Node and its target reference. Effect Nodes include stored parameter bindings, static settings, resolution and bypass state. Obtain parameter definitions through Query:getEffect.',
+		examples: ['let visualModule = Command:createVisualModule({})\nlet node = Command:createVisualModuleEffectNode({ visualModule: visualModule, effectId: "fill" })\n<: Query:getNode(node)'],
+		execute(state, { visualModule, nodeId }) {
 			const node = getVisualModule(state, visualModule).nodes.find(candidate => candidate.id === nodeId);
 			if (node == null) throw new Error(`Visual Module Node not found: ${nodeId}`);
 			return snapshot({ ...node, target: { visualModule, nodeId } });
 		},
-		'Query:listTimelineScenes': () => snapshot(state.timelineScenes.value.map(scene => ({ target: { sceneId: scene.id }, name: scene.name, resolution: scene.resolution }))),
-		'Query:getTimelineScene': input => {
-			const { scene, target } = sceneReference(input);
-			return snapshot({ ...scene, target });
-		},
-		'Query:listTimelineLayers': input => {
-			const { scene, target } = sceneReference(input);
-			// 子孫を表示順に並べるが、参照先Sceneは辿らない。親IDで階層も復元できる。
+	}),
+	'Query:listTimelineScenes': defineQuery({
+		argumentCount: 0, inputSchema: z.null(), resultSchema: z.array(timelineSceneSummarySchema),
+		description: 'List Timeline Scenes with names, resolution settings and target references. A project resolution setting inherits the Project pixel dimensions.',
+		examples: ['<: Query:listTimelineScenes()'],
+		execute: state => snapshot(state.timelineScenes.value.map(scene => ({ target: { sceneId: scene.id }, name: scene.name, resolution: scene.resolution }))),
+	}),
+	'Query:getTimelineScene': defineQuery({
+		argumentCount: 1, inputSchema: timelineSceneReferenceSchema, resultSchema: timelineSceneResultSchema,
+		description: 'Get a detached Timeline Scene including its complete nested Layer tree and Clips. Layer arrays follow editor display order, from top to bottom. Scene references in Clips are not expanded.',
+		examples: ['let scene = Command:createTimelineScene({ name: "Generated" })\n<: Query:getTimelineScene(scene)'],
+		execute(state, input) { const { scene, target } = sceneReference(state, input); return snapshot({ ...scene, target }); },
+	}),
+	'Query:listTimelineLayers': defineQuery({
+		argumentCount: 1, inputSchema: timelineSceneReferenceSchema, resultSchema: z.array(timelineLayerSummarySchema),
+		description: 'List all Layers in a Scene, including descendants, in display order. parentLayerId preserves the tree structure and is null at the root. Referenced Scenes are not traversed.',
+		examples: ['let scene = Command:createTimelineScene({})\n<: Query:listTimelineLayers(scene)'],
+		execute(state, input) {
+			const { scene, target } = sceneReference(state, input);
 			const layers: { target: { sceneId: string; layerId: string }; parentLayerId: string | null; name: string; layerType: TimelineLayer['layerType']; isDisabled: boolean; isSolo: boolean }[] = [];
 			const visit = (children: readonly TimelineLayer[], parentLayerId: string | null) => {
 				for (const layer of children) {
@@ -128,66 +141,144 @@ export function createProjectScriptQueries(state: ProjectState): Record<string, 
 			visit(scene.layers, null);
 			return layers;
 		},
-		'Query:getTimelineLayer': input => {
-			const { layer, target } = layerReference(input);
-			return snapshot({ ...layer, target });
-		},
-		'Query:getTimelineLayerParameters': input => {
-			const { layer } = layerReference(input);
-			// Commandは省略語を公開しないため、内部のmodule群をvisualModuleに揃える。
+	}),
+	'Query:getTimelineLayer': defineQuery({
+		argumentCount: 1, inputSchema: timelineLayerReferenceSchema, resultSchema: timelineLayerResultSchema,
+		description: 'Get a detached Timeline Layer with stored bindings and Clips, or child Layers for a container. The result includes a target reference accepted by Layer Commands.',
+		examples: ['let scene = Command:createTimelineScene({})\nlet layer = Command:createTimelineLayer({ sceneId: scene.sceneId, layer: { layerType: "text" } })\n<: Query:getTimelineLayer(layer)'],
+		execute(state, input) { const { layer, target } = layerReference(state, input); return snapshot({ ...layer, target }); },
+	}),
+	'Query:getTimelineLayerParameters': defineQuery({
+		argumentCount: 1, inputSchema: timelineLayerReferenceSchema, resultSchema: timelineLayerParametersSchema,
+		description: 'Get available parameter groups, their definitions and stored bindings for a Timeline Layer. The public group name is visualModule. Missing stored bindings may use definition defaults; values are not evaluated at a playback time.',
+		examples: ['let scene = Command:createTimelineScene({})\nlet layer = Command:createTimelineLayer({ sceneId: scene.sceneId, layer: { layerType: "text" } })\n<: Query:getTimelineLayerParameters(layer)'],
+		execute(state, input) {
+			const { layer } = layerReference(state, input);
 			return snapshot(Object.fromEntries(getLayerParameterTargets(layer).map(group => [group === 'module' ? 'visualModule' : group, {
-				definitions: getLayerParameterDefinitions(state, layer, group),
-				values: getLayerParameterValues(layer, group),
+				definitions: getLayerParameterDefinitions(state, layer, group), values: getLayerParameterValues(layer, group),
 			}])));
 		},
-		'Query:listTimelineClips': input => {
-			const { layer, target } = layerReference(input);
+	}),
+	'Query:listTimelineClips': defineQuery({
+		argumentCount: 1, inputSchema: timelineLayerReferenceSchema, resultSchema: z.array(timelineClipResultSchema),
+		description: 'Get the Clips owned directly by a Timeline Layer with target references. Returns an empty array for containers. Timing fields ending in Ms are milliseconds; source timing and Scene placement are distinct.',
+		examples: ['let scene = Command:createTimelineScene({})\nlet layer = Command:createTimelineLayer({ sceneId: scene.sceneId, layer: { layerType: "text" } })\n<: Query:listTimelineClips(layer)'],
+		execute(state, input) {
+			const { layer, target } = layerReference(state, input);
 			return isTimelineContainerLayer(layer) ? [] : snapshot(layer.clips.map(clip => ({ ...clip, target: { ...target, clipId: clip.id } })));
 		},
-		'Query:getTimelineClip': input => {
-			const { layer, target } = layerReference(input);
-			const clipId = identifier(inputObject(input), 'clipId');
-			const clip = isTimelineContainerLayer(layer) ? null : layer.clips.find(candidate => candidate.id === clipId);
-			if (clip == null) throw new Error(`Timeline Clip not found: ${clipId}`);
-			return snapshot({ ...clip, target: { ...target, clipId } });
+	}),
+	'Query:getTimelineClip': defineQuery({
+		argumentCount: 1, inputSchema: timelineClipReferenceSchema, resultSchema: timelineClipResultSchema,
+		description: 'Get a detached Clip by its Scene, Layer and Clip IDs. Timing fields ending in Ms are milliseconds. The stored Clip variant determines whether it has an Asset, Scene source, loop or fixed video frame.',
+		examples: ['let scene = Command:createTimelineScene({})\nlet layer = Command:createTimelineLayer({ sceneId: scene.sceneId, layer: { layerType: "text" }, clips: [{ startMs: 0, durationMs: 1000, contentOffsetMs: 0 }] })\nlet clip = Query:listTimelineClips(layer)[0]\n<: Query:getTimelineClip(clip.target)'],
+		execute(state, input) {
+			const { layer, target } = layerReference(state, input);
+			const clip = isTimelineContainerLayer(layer) ? null : layer.clips.find(candidate => candidate.id === input.clipId);
+			if (clip == null) throw new Error(`Timeline Clip not found: ${input.clipId}`);
+			return snapshot({ ...clip, target: { ...target, clipId: input.clipId } });
 		},
-		'Query:listAssets': () => state.assets.value.map(assetMetadata),
-		'Query:getAsset': input => {
-			const assetId = identifier(inputObject(input), 'assetId');
+	}),
+	'Query:listAssets': defineQuery({
+		argumentCount: 0, inputSchema: z.null(), resultSchema: z.array(assetMetadataSchema),
+		description: 'List existing Asset metadata and target references. Includes MIME type, pixel dimensions and source path; excludes file bytes and thumbnails. Does not import or read new files.',
+		examples: ['<: Query:listAssets()'],
+		execute: state => state.assets.value.map(assetMetadata),
+	}),
+	'Query:getAsset': defineQuery({
+		argumentCount: 1, inputSchema: assetReferenceSchema, resultSchema: assetMetadataSchema,
+		description: 'Get existing Asset metadata by ID. Returns no file bytes or thumbnails, and does not resolve or read the external source path.',
+		examples: ['each (let asset, Query:listAssets()) { <: Query:getAsset(asset.target) }'],
+		execute(state, { assetId }) {
 			const asset = state.assets.value.find(candidate => candidate.id === assetId);
 			if (asset == null) throw new Error(`Asset not found: ${assetId}`);
 			return assetMetadata(asset);
 		},
-		'Query:listPlayers': () => snapshot(state.players.value.map(player => ({ ...player, target: { playerId: player.id } }))),
-		'Query:getPlayer': input => {
-			const playerId = identifier(inputObject(input), 'playerId');
+	}),
+	'Query:listPlayers': defineQuery({
+		argumentCount: 0, inputSchema: z.null(), resultSchema: z.array(playerResultSchema),
+		description: 'List stored Player definitions and target references. Describes source selection rather than live playback, capture permission or device state.',
+		examples: ['<: Query:listPlayers()'],
+		execute: state => snapshot(state.players.value.map(player => ({ ...player, target: { playerId: player.id } }))),
+	}),
+	'Query:getPlayer': defineQuery({
+		argumentCount: 1, inputSchema: playerReferenceSchema, resultSchema: playerResultSchema,
+		description: 'Get the stored Player source definition by ID. This does not start media playback or request webcam or microphone access.',
+		examples: ['each (let player, Query:listPlayers()) { <: Query:getPlayer(player.target) }'],
+		execute(state, { playerId }) {
 			const player = state.players.value.find(candidate => candidate.id === playerId);
 			if (player == null) throw new Error(`Player not found: ${playerId}`);
 			return snapshot({ ...player, target: { playerId } });
 		},
-		'Query:listEffects': () => snapshot(Object.values(getEffectDefinitions(state)).map(effect => ({
+	}),
+	'Query:listEffects': defineQuery({
+		argumentCount: 0, inputSchema: z.null(), resultSchema: z.array(effectSummarySchema),
+		description: 'List built-in Effects and the current Project custom Effects with display names, Japanese/English descriptions, kinds and tags. Use an effectId with Query:getEffect before constructing parameter bindings.',
+		examples: ['<: Query:listEffects()'],
+		execute: state => snapshot(Object.values(getEffectDefinitions(state)).map(effect => ({
 			target: { effectId: effect.id }, id: effect.id, displayName: effect.displayName, description: effect.description, kind: effect.kind, tags: effect.tags,
 		}))),
-		'Query:getEffect': input => {
-			const effectId = identifier(inputObject(input), 'effectId');
+	}),
+	'Query:getEffect': defineQuery({
+		argumentCount: 1, inputSchema: effectReferenceSchema, resultSchema: effectDefinitionResultSchema,
+		description: 'Get a complete Effect definition: parameter types, defaults, static settings, output ports and primary input/output selection. Color values use linear sRGB and may be outside 0..1; spatial values use the common long-edge unit. Does not include renderer implementation code.',
+		examples: ['<: Query:getEffect({ effectId: "fill" })'],
+		execute(state, { effectId }) {
 			const definitions = getEffectDefinitions(state);
 			if (!Object.hasOwn(definitions, effectId)) throw new Error(`Effect not found: ${effectId}`);
-			const effect = definitions[effectId];
-			return snapshot({ ...effect, target: { effectId } });
+			return snapshot({ ...definitions[effectId], target: { effectId } });
 		},
-		'Query:listProjectAutomationGraphs': () => snapshot(state.automationGraphs.value.map(graph => ({ ...graph, target: { automationGraphId: graph.id } }))),
-		'Query:getProjectAutomationGraph': input => {
-			const automationGraphId = identifier(inputObject(input), 'automationGraphId');
+	}),
+	'Query:listProjectAutomationGraphs': defineQuery({
+		argumentCount: 0, inputSchema: z.null(), resultSchema: z.array(projectAutomationGraphResultSchema),
+		description: 'List complete Project-level Automation Graph definitions with target references. Does not include Automation Graphs owned by Visual Modules or Timeline Layers.',
+		examples: ['<: Query:listProjectAutomationGraphs()'],
+		execute: state => snapshot(state.automationGraphs.value.map(graph => ({ ...graph, target: { automationGraphId: graph.id } }))),
+	}),
+	'Query:getProjectAutomationGraph': defineQuery({
+		argumentCount: 1, inputSchema: projectAutomationGraphReferenceSchema, resultSchema: projectAutomationGraphResultSchema,
+		description: 'Get a Project-level Automation Graph with its points, Bezier handles and normalization setting. Returns stored curve data, not its value evaluated at a time.',
+		examples: ['each (let graph, Query:listProjectAutomationGraphs()) { <: Query:getProjectAutomationGraph(graph.target) }'],
+		execute(state, { automationGraphId }) {
 			const graph = state.automationGraphs.value.find(candidate => candidate.id === automationGraphId);
 			if (graph == null) throw new Error(`Automation Graph not found: ${automationGraphId}`);
 			return snapshot({ ...graph, target: { automationGraphId } });
 		},
-		'Query:listCustomShaderEffects': () => state.customShaderEffects.value.map(effect => ({ target: { customShaderEffectId: effect.id }, name: effect.name, description: effect.description })),
-		'Query:getCustomShaderEffect': input => {
-			const customShaderEffectId = identifier(inputObject(input), 'customShaderEffectId');
+	}),
+	'Query:listCustomShaderEffects': defineQuery({
+		argumentCount: 0, inputSchema: z.null(), resultSchema: z.array(customShaderEffectSummarySchema),
+		description: 'List Project-owned Custom Shader Effects with names, descriptions and customShaderEffectId references. Use Query:getCustomShaderEffect to inspect the editable shader definition.',
+		examples: ['<: Query:listCustomShaderEffects()'],
+		execute: state => state.customShaderEffects.value.map(effect => ({ target: { customShaderEffectId: effect.id }, name: effect.name, description: effect.description })),
+	}),
+	'Query:getCustomShaderEffect': defineQuery({
+		argumentCount: 1, inputSchema: customShaderEffectReferenceSchema, resultSchema: customShaderEffectResultSchema,
+		description: 'Get a detached editable Custom Shader Effect definition including WGSL code, shader API version, parameters, output ports and primary connections. Uncompiled code may be present; retrieval does not validate GPU compilation.',
+		examples: ['let effect = Command:createCustomShaderEffect({ name: "Generated" })\n<: Query:getCustomShaderEffect(effect)'],
+		execute(state, { customShaderEffectId }) {
 			const effect = state.customShaderEffects.value.find(candidate => candidate.id === customShaderEffectId);
 			if (effect == null) throw new Error(`Custom Shader Effect not found: ${customShaderEffectId}`);
 			return snapshot({ ...effect, target: { customShaderEffectId } });
 		},
+	}),
+};
+
+export type ProjectScriptQueryName = keyof typeof PROJECT_SCRIPT_QUERY_DEFINITIONS;
+
+function bindQuery(state: ProjectState, name: string, definition: ProjectScriptQueryDefinition): (...args: unknown[]) => unknown {
+	const invoke = (input: unknown) => {
+		const parsedInput = parseProjectApiValue(definition.inputSchema, input, `${name} input`);
+		const result = definition.execute(state, parsedInput);
+		// 検証が返す複製や既知フィールドだけの値へ置き換えない。Queryが用意した
+		// 切り離し済みの結果を返し、保存値の省略・追加フィールドもそのまま保持する。
+		parseProjectApiValue(definition.resultSchema, result, `${name} result`);
+		return result;
 	};
+	// Runtimeはfunction.lengthで引数数を検査するため、引数なしQueryを
+	// 省略可能な一引数関数へ統一せず、公開呼び出し規約を維持する。
+	return definition.argumentCount === 0 ? () => invoke(null) : input => invoke(input);
+}
+
+export function createProjectScriptQueries(state: ProjectState): Record<ProjectScriptQueryName, (...args: unknown[]) => unknown> {
+	return Object.fromEntries(Object.entries(PROJECT_SCRIPT_QUERY_DEFINITIONS).map(([name, definition]) => [name, bindQuery(state, name, definition)])) as Record<ProjectScriptQueryName, (...args: unknown[]) => unknown>;
 }

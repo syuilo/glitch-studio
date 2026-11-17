@@ -1,6 +1,6 @@
 import { Interpreter, Parser, Scope, errors, values } from '@syuilo/aiscript';
-import type { values as AiScriptValues } from '@syuilo/aiscript';
 import { dataToScriptValue, scriptObject, scriptValueToData } from './script-values.ts';
+import type { values as AiScriptValues } from '@syuilo/aiscript';
 import type { ScriptData } from './script-values.ts';
 
 export type ScriptDialogRequest = {
@@ -17,6 +17,10 @@ export type ProjectScriptHost = {
 	queries: Record<string, (...args: any[]) => unknown>;
 	dialog(request: ScriptDialogRequest, signal: AbortSignal): Promise<string | boolean | null>;
 	output(value: AiScriptValues.Value): void;
+	apiReference?: {
+		describe(name: string): unknown;
+		search(query: string): unknown;
+	};
 };
 
 function dialogRequest(kind: ScriptDialogRequest['kind'], input: Record<string, ScriptData>): ScriptDialogRequest {
@@ -105,6 +109,17 @@ export class ProjectScriptRuntime {
 		for (const [name, query] of Object.entries(this.host.queries)) constants[name] = this.bind(name, query.length, query);
 		constants['Script:commands'] = this.bind('Script:commands', 0, () => this.host.commands.map(command => ({ ...command })));
 		constants['Script:queries'] = this.bind('Script:queries', 0, () => Object.keys(this.host.queries));
+		const apiReference = this.host.apiReference;
+		if (apiReference != null) {
+			constants['Script:describe'] = this.bind('Script:describe', 1, name => {
+				if (typeof name !== 'string') throw new Error('API name must be a string');
+				return apiReference.describe(name);
+			});
+			constants['Script:search'] = this.bind('Script:search', 1, query => {
+				if (typeof query !== 'string') throw new Error('Search query must be a string');
+				return apiReference.search(query);
+			});
+		}
 		constants['Script:exit'] = values.FN_NATIVE(() => {
 			this.exited = true;
 			this.lifetime.abort();

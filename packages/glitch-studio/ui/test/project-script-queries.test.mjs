@@ -8,7 +8,9 @@ const directory = fileURLToPath(new URL('../', import.meta.url));
 const bundled = await build({
 	absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', write: false,
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
-		export { createProjectScriptQueries } from './src/scripting/project-script-queries.ts';
+		export { createProjectScriptQueries, PROJECT_SCRIPT_QUERY_DEFINITIONS } from './src/scripting/project-script-queries.ts';
+		export { ProjectScriptRuntime } from './src/scripting/project-script-runtime.ts';
+		export { describeProjectApi } from './src/project-api/contract.ts';
 		export { SCRIPT_COMMAND_NAMES } from './src/scripting/script-command-names.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
@@ -30,13 +32,13 @@ const bundled = await build({
 });
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
-const { createProjectScriptQueries, SCRIPT_COMMAND_NAMES, COMMAND_DEFS, UndoRedo } = loaded.exports;
+const { createProjectScriptQueries, PROJECT_SCRIPT_QUERY_DEFINITIONS, ProjectScriptRuntime, describeProjectApi, SCRIPT_COMMAND_NAMES, COMMAND_DEFS, UndoRedo } = loaded.exports;
 
 function fixture() {
 	const state = {
 		name: { value: 'Project' }, description: { value: '' }, author: { value: '' },
 		resolution: { value: { width: 1920, height: 1080 } }, timelineFps: { value: 30 },
-		timelineMotionBlur: { value: { enabled: false } }, exportSettings: { value: null },
+		timelineMotionBlur: { value: { enabled: false, shutterAngle: 180, samples: 8 } }, exportSettings: { value: null },
 		automationGraphs: { value: [] }, customShaderEffects: { value: [] },
 		assets: { value: [] }, players: { value: [] }, visualModules: { value: [] }, timelineScenes: { value: [] },
 	};
@@ -117,7 +119,9 @@ test('returns asset metadata without binary data and detached effect definitions
 	const definition = query['Query:getEffect'](effect.target);
 	assert.equal(definition.primaryOutput, 'output');
 	definition.paramDefs.color.defaultValue.value[0] = 42;
+	definition.resolutionInputParameters.push('local');
 	assert.equal(query['Query:getEffect'](effect.target).paramDefs.color.defaultValue.value[0], 1);
+	assert.deepEqual(query['Query:getEffect'](effect.target).resolutionInputParameters, []);
 	const project = query['Query:getProject']();
 	project.resolution.width = 1;
 	assert.equal(state.resolution.value.width, 1920);
@@ -128,14 +132,88 @@ test('returns asset metadata without binary data and detached effect definitions
 // プロパティ名も定義として受け入れず、prototype由来の値を返さない。
 test('rejects malformed and missing query targets', () => {
 	const { query } = fixture();
-	assert.throws(() => query['Query:getVisualModule'](null), /must be an object/);
-	assert.throws(() => query['Query:getVisualModule']({ visualModuleId: 123 }), /non-empty string/);
+	assert.throws(() => query['Query:getVisualModule'](null), /Query:getVisualModule input/);
+	assert.throws(() => query['Query:getVisualModule']({ visualModuleId: 123 }), /Query:getVisualModule input/);
 	assert.throws(() => query['Query:getVisualModule']({ visualModuleId: 'missing' }), /not found/);
 	assert.throws(() => query['Query:getTimelineScene']({ sceneId: 'missing' }), /not found/);
 	assert.throws(() => query['Query:getAsset']({ assetId: 'missing' }), /not found/);
 	assert.throws(() => query['Query:getPlayer']({ playerId: 'missing' }), /not found/);
 	assert.throws(() => query['Query:getEffect']({ effectId: 'toString' }), /not found/);
 	assert.throws(() => query['Query:getEffect']({ effectId: '__proto__' }), /not found/);
+});
+
+// 【公開Queryの資料をJSONとして取得しても定義や呼び出し規約を失わない】
+// MCP側がVueや関数を受け取らずに資料を渡せるよう、再帰する戻り値もJSON Schemaへ
+// 変換できることと、引数なしのQueryが一引数として公開されないことを確認する。
+test('describes every Query with serializable schemas and the actual argument count', () => {
+	const { query } = fixture();
+	assert.deepEqual(Object.keys(query), Object.keys(PROJECT_SCRIPT_QUERY_DEFINITIONS));
+	for (const [name, definition] of Object.entries(PROJECT_SCRIPT_QUERY_DEFINITIONS)) {
+		const reference = describeProjectApi(name, 'query', definition.argumentCount, definition);
+		assert.equal(query[name].length, reference.argumentCount, name);
+		assert.ok(reference.description.length > 0, name);
+		assert.ok(reference.examples.length > 0, name);
+		assert.deepEqual(JSON.parse(JSON.stringify(reference)), reference, name);
+		assert.notDeepEqual(reference.resultSchema, {}, name);
+		if (reference.argumentCount === 0) assert.equal(reference.inputSchema.type, 'null', name);
+		reference.examples.length = 0;
+		assert.ok(definition.examples.length > 0, name);
+	}
+});
+
+// 【資料のAiScript例を実際の公開APIで実行できる】
+// 型と説明だけでは参照の渡し方やAiScript構文の誤りを検出できない。例ごとに独立した
+// Projectを用意し、既存素材等を参照する例も空配列による未実行で成功しないようにする。
+test('executes every documented Query example against the public Command and Query APIs', async () => {
+	for (const [name, definition] of Object.entries(PROJECT_SCRIPT_QUERY_DEFINITIONS)) {
+		for (const source of definition.examples) {
+			const { state, manager, query } = fixture();
+			state.assets.value.push({ id: 'asset', name: 'Image', width: 100, height: 50, fileDataType: 'image/png', fileData: new Blob(['image']), hash: 'hash', isExternalReference: false, sourceFilePath: null });
+			state.players.value.push({ id: 'player', name: 'Player', sourceType: 'asset', assetId: 'asset' });
+			manager.commit('createProjectAutomationGraph', {});
+			const output = [];
+			const runtime = new ProjectScriptRuntime({
+				commands: SCRIPT_COMMAND_NAMES.map(commandName => ({ name: commandName, label: COMMAND_DEFS[commandName].label })),
+				executeCommand: (commandName, input, signal) => manager.execute(commandName, input, null, signal),
+				queries: query,
+				dialog: async () => { throw new Error('Query examples must not require dialogs'); },
+				output: value => output.push(value),
+			});
+			try {
+				await assert.doesNotReject(() => runtime.run(source), name);
+				assert.ok(output.length > 0, name);
+			} finally { runtime.dispose(); }
+		}
+	}
+});
+
+// 【戻り値契約の不整合を隠さず、正当な追加フィールドは保持する】
+// スキーマ検証で保存値を加工すると既存の編集APIへ渡すデータを欠落させる。
+// 一方、必須フィールドが型を逸脱した場合は資料と異なる値を成功として返さない。
+test('validates Query results without stripping stored data', () => {
+	const { state, manager, query } = fixture();
+	const visualModule = manager.commit('createVisualModule', {});
+	const node = manager.commit('createVisualModuleEffectNode', { visualModule, effectId: 'fill' });
+	state.visualModules.value[0].nodes.find(candidate => candidate.id === node.nodeId).editorExtension = { note: 'keep' };
+	const result = query['Query:getNode'](node);
+	assert.deepEqual(result.editorExtension, { note: 'keep' });
+	result.editorExtension.note = 'local';
+	assert.equal(query['Query:getNode'](node).editorExtension.note, 'keep');
+	state.name.value = 123;
+	assert.throws(() => query['Query:getProject'](), /Query:getProject result: name/);
+});
+
+// 【書き出しダイアログの未確定値があってもProject概要を取得できる】
+// ダイアログを閉じる操作は範囲外の数値や未完成の時間文字列も保存するため、
+// 読み取り契約では書き出し可能性まで要求せず、保存された設定をそのまま報告する。
+test('describes unfinished export dialog settings without requiring export validity', () => {
+	const { state, query } = fixture();
+	state.exportSettings.value = {
+		sceneId: '', mode: 'video', videoFormat: 'mp4', stillFormat: 'webp', videoQuality: 'high', stillQuality: 'high', openExrCompression: 'zip',
+		resolutionScale: 'custom', customResolution: { width: 0, height: -1 }, effectRenderTiling: { mode: 'auto' },
+		fpsScale: 'custom', customFps: -1, startTime: 'unfinished', endTime: '',
+	};
+	assert.deepEqual(query['Query:getProject']().exportSettings, state.exportSettings.value);
 });
 
 // 【公開Commandは実在する編集操作に限定し、素材の取り込み用内部入力を公開しない】

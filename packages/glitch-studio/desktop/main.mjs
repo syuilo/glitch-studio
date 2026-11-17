@@ -22,6 +22,8 @@ import { registerClipboardIpc } from './clipboard-ipc.mjs';
 import { createStartupSplash } from './startup-splash.mjs';
 import { FileDialogDirectoryHistory } from './file-dialog-directory-history.mjs';
 import { FileDialogs } from './file-dialogs.mjs';
+import { McpEditorBridge, registerMcpIpc } from './mcp-editor-bridge.mjs';
+import { McpServerController } from './mcp-server-controller.mjs';
 
 // 小さなパスのGPU時間が量子化で0になることを避ける。
 // GPUプロセスの起動前に設定し、timestamp-queryの生の分解能で計測する。
@@ -59,6 +61,12 @@ const windowsAppUserModelId = app.isPackaged
 let desktopInstances = null;
 let desktopUpdateController = null;
 const editorWindows = new EditorWindows({ ipcMain, isAppUrl });
+const mcpEditorBridge = new McpEditorBridge();
+const mcpServerController = new McpServerController({
+	filePath: path.join(app.getPath('userData'), 'mcp-server.json'), version: app.getVersion(),
+	invoke: (operation, input, signal) => mcpEditorBridge.invoke(operation, input, signal),
+});
+mcpServerController.on('state', state => editorWindows.broadcast('desktop:mcp-server-state-changed', state));
 const fileDialogs = new FileDialogs(dialog,
 	new FileDialogDirectoryHistory(path.join(app.getPath('userData'), 'file-dialog-directories')), app.getPath('documents'));
 const externalAssetFiles = { respond(request, origin) {
@@ -146,6 +154,7 @@ function createWindow(startupFilePath = null) {
 		},
 	});
 	const context = editorWindows.add(mainWindow, startupFilePath);
+	mcpEditorBridge.addWindow(context);
 	if (getLaunchFileType(startupFilePath)?.kind === 'project') editorWindows.registerProject(context, startupFilePath, false, 'startup');
 	const registerProject = (filePath, saving, reservationId) => editorWindows.registerProject(context, filePath, saving, reservationId);
 	const { ipc, projectFiles, exportFiles } = context;
@@ -269,6 +278,8 @@ app.whenReady().then(async () => {
 	registerProjectCloseIpc(ipcMain, getTrustedMainWindow, window => editorWindows.contexts.get(window.webContents.id)?.closeController);
 	registerEditCommandIpc(ipcMain, getTrustedMainWindow);
 	registerClipboardIpc(ipcMain, clipboard, getTrustedMainWindow);
+	registerMcpIpc(ipcMain, { controller: mcpServerController, bridge: mcpEditorBridge, editorWindows });
+	await mcpServerController.initialize();
 	Menu.setApplicationMenu(null);
 	if (process.platform === 'win32') app.setAppUserModelId(windowsAppUserModelId);
 	if (process.platform === 'darwin') app.dock.setIcon(iconPath);
@@ -371,4 +382,8 @@ app.on('window-all-closed', () => {
 });
 
 // パイプはOSが異常終了時にも解放する。登録ファイルは次回の生存確認で整理する。
-app.on('will-quit', () => { void desktopInstances?.dispose().catch(console.error); });
+app.on('will-quit', () => {
+	mcpEditorBridge.dispose();
+	void mcpServerController.dispose().catch(console.error);
+	void desktopInstances?.dispose().catch(console.error);
+});

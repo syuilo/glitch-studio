@@ -576,7 +576,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 				try {
 					const nodeOutput = output ?? { kind: 'uniform' as const, value: [0, 0, 0, 0] as [number, number, number, number] };
 					this.updateCanvasResolution(nodeOutput.kind === 'texture' ? nodeOutput.texture : scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
-					this.canvasRenderer.renderToCanvas(this.outputTextures.resolve(nodeOutput), encoder);
+					this.canvasRenderer.renderToCanvas(this.outputTextures.resolve(nodeOutput), encoder, context.time, generation);
 					this.pointerPositionPrev = { ...context.pointerPosition };
 					if (this.staticOptions.enableStats) this.fpsAverage.addSample(1000 / timing.realTimeDelta);
 				} catch (error) {
@@ -697,6 +697,11 @@ export class VisualModuleRendererManager extends EventEmitter<{
 
 	public setHighResolutionImageAnalysis(enabled: boolean, settings: PreviewImageAnalysisSettings) {
 		return this.canvasRenderer.setHighResolutionImageAnalysis(enabled, settings);
+	}
+
+	public capturePreview(maximumSize: number) {
+		if (this.visualModuleLivePreviewVisualModuleId == null) return Promise.resolve(null);
+		return this.canvasRenderer.captureNextPreviewFrame(maximumSize, this.previewRenderGeneration);
 	}
 
 	public async setImageAnalysisDisplay(settings: PreviewImageAnalysisDisplaySettings, refresh: boolean) {

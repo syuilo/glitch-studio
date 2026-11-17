@@ -69,11 +69,11 @@ test('rejects invalid shader metadata and execution modes without mutating proje
 	manager.commit('createCustomShaderEffect', { name: 'Redo target' });
 	manager.undo();
 	const before = JSON.stringify(state.customShaderEffects.value);
-	assert.throws(() => manager.commit('createCustomShaderEffect', { name: 42 }), /name must be a string/);
-	assert.throws(() => manager.commit('duplicateCustomShaderEffect', { ...original, name: {} }), /name must be a string/);
+	assert.throws(() => manager.commit('createCustomShaderEffect', { name: 42 }), /input: name:/);
+	assert.throws(() => manager.commit('duplicateCustomShaderEffect', { ...original, name: {} }), /input: name:/);
 	for (const changes of [{ name: 42 }, { description: false }, { code: [] }, { codeLanguage: 'javascript' }, { kind: 'other' }]) {
 		const definition = { ...JSON.parse(before)[0], ...changes };
-		assert.throws(() => manager.commit('replaceCustomShaderEffectDefinition', { ...original, definition }), /must be a string|Unsupported Custom Shader Effect|Invalid Custom Shader Effect/);
+		assert.throws(() => manager.commit('replaceCustomShaderEffectDefinition', { ...original, definition }), new RegExp(`input: definition\\.${Object.keys(changes)[0]}:`));
 		assert.equal(JSON.stringify(state.customShaderEffects.value), before);
 		assert.equal(manager.redoStack.value.length, 1);
 	}
@@ -126,7 +126,7 @@ test('preserves compatible values and disconnects removed outputs atomically acr
 	manager.redo();
 	const changedType = structuredClone(updated);
 	changedType.paramDefs[1].dataType = { kind: 'vector' };
-	changedType.paramDefs[1].ui.control = {};
+	changedType.paramDefs[1].ui.control = { controlType: 'vector' };
 	changedType.paramDefs[1].defaultValue.value = [0.2, 0.4];
 	manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: (changedType).id, definition: changedType });
 	assert.deepEqual(JSON.parse(JSON.stringify(state.visualModules.value[0].nodes[0].params.amount.value)), [0.2, 0.4]);

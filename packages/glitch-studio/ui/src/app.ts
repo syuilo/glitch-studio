@@ -6,12 +6,14 @@ import { createProjectActions } from './project-actions.ts';
 import { isLocaleUnconfigured } from './i18n.ts';
 import { configureLocale } from './locale-settings-ui.ts';
 import { preferences } from './preferences.ts';
+import { connectMcpEditor } from './mcp/editor-connection.ts';
 
 if (isLocaleUnconfigured) {
 	void configureLocale().catch(console.error);
 }
 
 export const projectSessions = new ProjectSessionManager();
+const disconnectMcpEditor = window.desktop?.onMcpRequest == null ? null : connectMcpEditor(projectSessions, window.desktop);
 
 const stopProjectTitle = watch(() => projectSessions.activeSession.value?.projectDisplayName.value, name => {
 	window.document.title = name != null ? `Glitch Studio (${name})` : 'Glitch Studio';
@@ -68,6 +70,7 @@ const onPageHide = (event: PageTransitionEvent) => {
 window.addEventListener?.('pagehide', onPageHide);
 
 export function disposeApplication(): Promise<void> {
+	disconnectMcpEditor?.();
 	stopProjectTitle();
 	stopProjectActivation?.();
 	window.document.removeEventListener('keydown', listener);

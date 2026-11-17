@@ -88,7 +88,7 @@ test('synchronizes shader definitions and reconciled placements atomically throu
 	inline.visualModule = JSON.parse(JSON.stringify(visualModule));
 	f.manager.state.timelineScenes.value[0].layers.push(layer, inline);
 	const updated = structuredClone(customShaderEffect);
-	updated.paramDefs[1] = { ...updated.paramDefs[1], dataType: { kind: 'vector' }, ui: { label: 'Amount', control: {} }, defaultValue: { inputSource: 'literal', value: [0.1, 0.2] } };
+	updated.paramDefs[1] = { ...updated.paramDefs[1], dataType: { kind: 'vector' }, ui: { label: 'Amount', control: { controlType: 'vector' } }, defaultValue: { inputSource: 'literal', value: [0.1, 0.2] } };
 	updated.outputDefs = updated.outputDefs.filter(output => output.id !== 'mask');
 	f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.6 } });
 	f.manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: (updated).id, definition: updated });

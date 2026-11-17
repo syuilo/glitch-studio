@@ -48,9 +48,15 @@ Tablerのアイコンフォントは、開発時にはパッケージの通常�
 
 `GsWorkspacePanel.Scripting`でAiScriptの編集・実行と出力確認を行う。`ProjectSessionContext.scripting`が本文・出力を編集セッション内だけで保持し、プロジェクト保存には含めない。パネルの再表示やタブ切替では保持し、実行ごとにインタプリタを作り直す。
 
-`Command:<Command名>({ ... })`は公開リストの既存Commandをそのまま呼び出し、`Query:*`は切り離した保存内容を返す。`Dialog:*`の応答待ちを含む一実行を`UndoRedo.runGroup()`でまとめ、エラー時も成功済み変更を一履歴として残す。割り込みは発生しない前提とし、手動編集などに対する専用の排他制御は設けない。編集セッションの破棄時は実行と所属ダイアログを終了する。
+`Command:<Command名>({ ... })`は公開リストの既存Commandをそのまま呼び出し、`Query:*`は切り離した保存内容を返す。`Dialog:*`の応答待ちを含む一実行を`UndoRedo.runGroup()`でまとめ、エラー時も成功済み変更を一履歴として残す。手動編集などに対する専用の排他制御は設けず、同じUndo履歴に含まれることを許容する。編集セッションの破棄時は実行と所属ダイアログを終了する。
 
-API・参照形式・実行例・制限は[スクリプティング](../../../docs/scripting.md)を参照。
+公開CommandとQueryはZodの入力・結果スキーマ、説明、AiScript例を持つ。`project-api/contract.ts`が構造検証とJSON Schema化を行い、参照先の存在や編集条件は既存のドメイン検証に任せる。`commands/definition.ts`の`definePublicCommand()`はスキーマから型を推論し、`withCommandContract()`は既存のドメイン型を保って契約を付ける。検証はCommandのprepare前とapply前に行い、型の自動変換や未知フィールドの削除はしない。内部用Commandは契約を必須にしない。
+
+`PROJECT_SCRIPT_QUERY_DEFINITIONS`がQueryの契約と読み取りを一か所で定義する。`project-script-api-reference.ts`は公開Commandの契約漏れを型で検出し、公開APIだけの検索・説明取得を提供する。AiScriptでは`Script:search(text)`と`Script:describe("Command:createVisualModule")`から同じ資料を読める。MCPサーバーの通信処理はこの層に含めない。
+
+Electron版では`mcp/editor-connection.ts`が開いている編集セッションの一覧をmainへ通知し、指定セッションでのAiScript実行・API資料の取得・プレビュー画像の取得を受け付ける。`ProjectScriptingController.runExternal()`はScriptingパネルと実行中状態を共有し、本文・出力は変更しない。`mcp/capture-preview.ts`は保留中のプロジェクト変更を描画側へ同期し、選択中のプレビューの新しいフレームをPNGとして受け取る。設定画面と`desktop-mcp-settings.ts`はmainの状態を購読し、トークン再発行とクライアント設定のコピーを提供する。
+
+API・参照形式・実行例・制限は[スクリプティング](../../../docs/scripting.md)、MCPの接続・公開ツールは[MCPサーバー](../../../docs/mcp.md)を参照。
 
 ## 数値入力の式による確定
 

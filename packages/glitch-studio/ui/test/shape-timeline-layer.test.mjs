@@ -177,9 +177,9 @@ test('rejects unsupported shape bindings and unknown geometry without committing
 	}
 	const invalid = createShapeTimelineLayer('ellipse', 0);
 	invalid.shape.paramValues.size = { inputSource: 'lowerLayerOutput', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' };
-	assert.throws(() => f.history.commit('insertTimelineLayer', { sceneId: 'scene', layer: invalid }), /Timeline image input/);
+	assert.throws(() => f.history.commit('insertTimelineLayer', { sceneId: 'scene', layer: invalid }), /input: layer\.shape\.paramValues\.size/);
 	invalid.shape.type = 'future-shape';
-	assert.throws(() => f.history.commit('insertTimelineLayer', { sceneId: 'scene', layer: invalid }), /Unknown shape type/);
+	assert.throws(() => f.history.commit('insertTimelineLayer', { sceneId: 'scene', layer: invalid }), /input: layer\.shape\.type:/);
 	assert.equal(f.scene.layers.length, 1);
 });
 

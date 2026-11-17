@@ -1,12 +1,14 @@
-import { isCustomShaderEffectUsed, snapshotCustomShaderEffectUsages, reconcileCustomShaderEffectUsages } from '../utility/custom-shader-effect-usages.ts';
-import { createProjectCustomShaderEffect } from '../utility/custom-shader-effect.ts';
+import * as z from 'zod';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { validateCustomShaderEffectDefinition } from '@gs/subsystems_effect_shared/custom-shader-effect-definition.ts';
+import { createProjectCustomShaderEffect } from '../utility/custom-shader-effect.ts';
+import { isCustomShaderEffectUsed, snapshotCustomShaderEffectUsages, reconcileCustomShaderEffectUsages } from '../utility/custom-shader-effect-usages.ts';
+import { defineCommand, definePublicCommand } from './definition.ts';
+import { projectCustomShaderEffectDefinitionSchema } from './project-contract-schemas.ts';
+import { prepareProjectValueChange } from './prepared-value.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import type { ProjectState } from '../Project.ts';
-import { defineCommand } from './definition.ts';
-import { prepareProjectValueChange } from './prepared-value.ts';
 
 function validateProjectCustomShaderEffect(definition: ProjectCustomShaderEffect): void {
 	// UIの型付き入力以外からも呼び出す。作品側の文字列と実行方式を検証してから、
@@ -30,8 +32,11 @@ function prepareCustomShaderEffectCreation(state: ProjectState, definition: Proj
 	} };
 }
 
-const createCustomShaderEffect = defineCommand<{ name?: string }, { customShaderEffectId: string }>({
+const createCustomShaderEffect = definePublicCommand({
 	label: 'Create Custom Shader Effect',
+	inputSchema: z.object({ name: z.string().nullish() }), resultSchema: z.object({ customShaderEffectId: z.string() }),
+	description: 'Create a project Custom Shader Effect with default WGSL code and generated input/output IDs. Omit name or pass null to generate a unique default name. The result is a reference for Query and Command APIs.',
+	examples: ['let effect = Command:createCustomShaderEffect({ name: "My Effect" })\n<: Query:getCustomShaderEffect(effect)'],
 	prepare(state, input) {
 		const definition = createProjectCustomShaderEffect(state.customShaderEffects.value);
 		if (input.name != null) definition.name = input.name;
@@ -39,8 +44,11 @@ const createCustomShaderEffect = defineCommand<{ name?: string }, { customShader
 	},
 });
 
-const duplicateCustomShaderEffect = defineCommand<{ customShaderEffectId: string; name?: string }, { customShaderEffectId: string }>({
+const duplicateCustomShaderEffect = definePublicCommand({
 	label: 'Duplicate Custom Shader Effect',
+	inputSchema: z.object({ customShaderEffectId: z.string().min(1), name: z.string().nullish() }), resultSchema: z.object({ customShaderEffectId: z.string() }),
+	description: 'Duplicate a Custom Shader Effect with new Effect, parameter and output IDs. Internal references are remapped. Omit name or pass null to generate a unique name from the original.',
+	examples: ['let effect = Command:createCustomShaderEffect({})\nlet copy = Command:duplicateCustomShaderEffect(effect)'],
 	prepare(state, input) {
 		const source = state.customShaderEffects.value.find(candidate => candidate.id === input.customShaderEffectId);
 		if (source == null) throw new Error('Custom Shader Effect not found');
@@ -56,8 +64,11 @@ const insertCustomShaderEffect = defineCommand<{ definition: ProjectCustomShader
 	prepare: (state, { definition }) => prepareCustomShaderEffectCreation(state, definition),
 });
 
-const replaceCustomShaderEffectDefinition = defineCommand<{ customShaderEffectId: string; definition: Omit<ProjectCustomShaderEffect, 'id'> }>({
+const replaceCustomShaderEffectDefinition = definePublicCommand({
 	label: 'Replace Custom Shader Effect definition',
+	inputSchema: z.object({ customShaderEffectId: z.string().min(1), definition: projectCustomShaderEffectDefinitionSchema }), resultSchema: z.null(),
+	description: 'Replace the full Custom Shader Effect definition while retaining its ID. Reconciles existing Node and Layer uses with changed inputs and outputs. Interface validation runs immediately; WGSL compilation is checked by the renderer.',
+	examples: ['let effect = Command:createCustomShaderEffect({})\nlet definition = Obj:pick(Query:getCustomShaderEffect(effect), ["name", "description", "shaderApiVersion", "codeLanguage", "code", "kind", "paramDefs", "outputDefs", "primaryInputId", "primaryOutputId", "resolutionInputIds"])\ndefinition.description = "Updated description"\nCommand:replaceCustomShaderEffectDefinition({ customShaderEffectId: effect.customShaderEffectId, definition: definition })'],
 	prepare(state, { customShaderEffectId, definition }) {
 		const beforeDefinition = state.customShaderEffects.value.find(candidate => candidate.id === customShaderEffectId);
 		if (beforeDefinition == null) throw new Error('Custom Shader Effect not found');
@@ -81,17 +92,25 @@ const replaceCustomShaderEffectDefinition = defineCommand<{ customShaderEffectId
 	},
 });
 
-const removeCustomShaderEffect = defineCommand<{ customShaderEffectId: string }>({
+const removeCustomShaderEffect = definePublicCommand({
 	label: 'Remove Custom Shader Effect',
+	inputSchema: z.object({ customShaderEffectId: z.string().min(1) }),
+	resultSchema: z.null(),
+	description: 'Remove an unused Custom Shader Effect. Fails while any Node or Layer uses it; remove or replace those uses first.',
+	examples: ['let effect = Command:createCustomShaderEffect({})\nCommand:removeCustomShaderEffect(effect)'],
 	prepare(state, { customShaderEffectId }) {
 		if (isCustomShaderEffectUsed(state, customShaderEffectId)) throw new Error('Custom Shader Effect is in use. Remove its Nodes and Layers first.');
 		const index = state.customShaderEffects.value.findIndex(candidate => candidate.id === customShaderEffectId);
 		if (index < 0) throw new Error('Custom Shader Effect not found');
 		const saved = deepClone(state.customShaderEffects.value[index]);
-		return { result: undefined, change: { changes: [{ type: 'customShaderEffect', customShaderEffectId }],
-			apply: current => { current.customShaderEffects.value = current.customShaderEffects.value.filter(candidate => candidate.id !== customShaderEffectId); },
-			revert: current => { current.customShaderEffects.value.splice(index, 0, deepClone(saved)); },
-		} };
+		return {
+			result: undefined,
+			change: {
+				changes: [{ type: 'customShaderEffect', customShaderEffectId }],
+				apply: current => { current.customShaderEffects.value = current.customShaderEffects.value.filter(candidate => candidate.id !== customShaderEffectId); },
+				revert: current => { current.customShaderEffects.value.splice(index, 0, deepClone(saved)); },
+			},
+		};
 	},
 });
 

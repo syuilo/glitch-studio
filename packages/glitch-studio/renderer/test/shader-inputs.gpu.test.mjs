@@ -60,6 +60,11 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 // モーションブラーを有効にしたManagerも通し、表示用Canvasへの誤接続を検出する。
 test('reads linear HALF and straight sRGB scene images without applying display transforms', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/linear-image-export-gpu.ts', 8));
 
+// 【MCP用PNGはGPU・CPU表示の両方で新しい作品フレームと表示調整を保持する】
+// 転送済みOffscreenCanvasを所有するWorkerでPNG化まで行い、空画像・古いフレーム・
+// 縮小寸法のずれ・sRGBとalphaの誤変換を実GPUとデコード後の全画素で検出する。
+test('captures fresh preview PNG images from GPU and CPU displays', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/preview-capture-gpu.ts', 8));
+
 // 【ChromeのWebGPUで生成WGSLの実画素を比較する】
 // モックでは検出できないシェーダーとbindingの不整合を検出する。CIではChromeのパスを明示する。
 test('renders generated shader inputs on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/shader-input-gpu.ts', 20));

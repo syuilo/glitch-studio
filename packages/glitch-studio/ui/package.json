@@ -11,6 +11,7 @@
 		"lint": "pnpm typecheck && pnpm eslint"
 	},
 	"dependencies": {
+		"@gs/glitch-studio_embed": "workspace:*",
 		"@gs/glitch-studio_renderer": "workspace:*",
 		"@gs/glitch-studio_shared": "workspace:*",
 		"@gs/shared": "workspace:*",
@@ -33,7 +34,7 @@
 		"vue": "3.5.44",
 		"vue-component-type-helpers": "3.3.14",
 		"webgpu-utils": "2.1.1",
-		"@gs/glitch-studio_embed": "workspace:*"
+		"zod": "4.6.7"
 	},
 	"devDependencies": {
 		"@misskey-dev/eslint-plugin": "2.2.1",

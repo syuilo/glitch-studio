@@ -259,6 +259,10 @@ export class TimelineRendererManagerController extends RendererManagerController
 		this.call('renderTimelineAt', seekMode === 'precise' ? [time, requestId ?? null, seekMode] : requestId == null ? [time] : [time, requestId]);
 	}
 
+	public capturePreview(maximumSize: number, time: number) {
+		return this.callAndWaitReturn('capturePreview', [maximumSize, time]);
+	}
+
 	/** BAKEはキャッシュ済みでもGPU描画の完了を待つ。通常シークのスピナーとは分けて管理する。 */
 	public renderTimelineAtAndWait(time: number): Promise<boolean> {
 		this.cancelSeek();

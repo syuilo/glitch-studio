@@ -111,6 +111,8 @@
 							</div>
 						</GsFolder>
 
+						<GsMcpServerSettings v-if="isElectron"/>
+
 						<GsButton
 							danger icon="ti ti-refresh" data-test-reset-preferences
 							@click="resetPreferences"
@@ -134,6 +136,7 @@ import GsSelect from './common/GsSelect.vue';
 import GsEffectRenderTilingSettings from './GsEffectRenderTilingSettings.vue';
 import GsSwitch from './common/GsSwitch.vue';
 import GsFolder from './common/GsFolder.vue';
+import GsMcpServerSettings from './GsMcpServerSettings.vue';
 import { DEFAULT_LOCALE, i18n, resetLocale, SUPPORTED_LOCALES } from '@/i18n.ts';
 import { changeLocale } from '@/locale-settings-ui.ts';
 import { preferences } from '@/preferences.ts';

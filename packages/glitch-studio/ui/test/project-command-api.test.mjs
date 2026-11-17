@@ -45,7 +45,7 @@ test('rejects invalid Player names without changing state or redo', () => {
 	manager.undo();
 	const before = structuredClone(state.players.value);
 	for (const name of [123, false, {}, []]) {
-		assert.throws(() => manager.commit('createPlayer', { name }), /name must be a string/);
+		assert.throws(() => manager.commit('createPlayer', { name }), /input: name:/);
 		assert.deepEqual(state.players.value, before);
 		assert.equal(manager.redoStack.value.length, 1);
 	}
@@ -63,8 +63,8 @@ test('rejects unsupported Player sources for creation and updates', () => {
 	manager.undo();
 	const before = structuredClone(state.players.value);
 	for (const source of [{ type: 'unknown' }, { type: 42 }, {}]) {
-		assert.throws(() => manager.commit('createPlayer', { source }), /Invalid Player source type/);
-		assert.throws(() => manager.commit('setPlayerSource', { ...player, source }), /Invalid Player source type/);
+		assert.throws(() => manager.commit('createPlayer', { source }), /source.type:/);
+		assert.throws(() => manager.commit('setPlayerSource', { ...player, source }), /source.type:/);
 		assert.deepEqual(state.players.value, before);
 		assert.equal(manager.redoStack.value.length, 1);
 	}

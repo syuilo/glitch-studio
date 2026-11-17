@@ -38,8 +38,8 @@ test('rejects invalid Scene names before creation and duplication', () => {
 	manager.undo();
 	const before = structuredClone(state.timelineScenes.value);
 	for (const name of [123, false, {}, []]) {
-		assert.throws(() => manager.commit('createTimelineScene', { name }), /name must be a string/);
-		assert.throws(() => manager.commit('duplicateTimelineScene', { ...scene, name }), /name must be a string/);
+		assert.throws(() => manager.commit('createTimelineScene', { name }), /input: name:/);
+		assert.throws(() => manager.commit('duplicateTimelineScene', { ...scene, name }), /input: name:/);
 		assert.deepEqual(state.timelineScenes.value, before);
 		assert.equal(manager.redoStack.value.length, 1);
 	}
@@ -65,7 +65,7 @@ test('rejects invalid basic Timeline settings without changing state or redo', (
 		['setTimelineLayerCoordinateSpace', { ...layer, coordinateSpace: 'unknown' }],
 		['setTimelineLayerMotionBlurDisabled', { ...layer, forceDisableMotionBlur: 'false' }],
 	]) {
-		assert.throws(() => manager.commit(command, input), /must be a|Invalid timeline layer coordinate space/);
+		assert.throws(() => manager.commit(command, input), /input: (name|isDisabled|isSolo|coordinateSpace|forceDisableMotionBlur):/);
 		assert.deepEqual(state.timelineScenes.value, before);
 		assert.equal(manager.redoStack.value.length, 1);
 	}
@@ -81,7 +81,7 @@ test('validates Timeline label colors while accepting null and finite RGBA', () 
 	const scene = manager.commit('createTimelineScene', {});
 	const layer = manager.commit('createTimelineLayer', { ...scene, layer: { layerType: 'text' } });
 	for (const color of ['red', [], [1, 0, 0], [1, 0, 0, 1, 1], [NaN, 0, 0, 1], [Infinity, 0, 0, 1], [-0.1, 0, 0, 1], [2, 0, 0, 1], ['1', 0, 0, 1]]) {
-		assert.throws(() => manager.commit('setTimelineLayerColor', { ...layer, color }), /Layer color must/);
+		assert.throws(() => manager.commit('setTimelineLayerColor', { ...layer, color }), /input: color/);
 		assert.equal(state.timelineScenes.value[0].layers[0].color, null);
 	}
 	manager.commit('setTimelineLayerColor', { ...layer, color: [1, 0.2, 0.3, 1] });
@@ -101,9 +101,9 @@ test('rejects invalid video and audio enabled flags before changing a clip', () 
 	const layer = manager.commit('createTimelineLayer', { ...scene, layer: { layerType: 'video' }, clips: [{ assetId: 'video', startMs: 0, durationMs: 500, sourceInMs: 0, sourceOutMs: 500, playbackRate: 1, loop: false, audioEnabled: true, videoEnabled: true }] });
 	const target = { ...layer, clipId: state.timelineScenes.value[0].layers[0].clips[0].id };
 	const before = structuredClone(state.timelineScenes.value);
-	assert.throws(() => manager.commit('setTimelineVideoClipVideoEnabled', { ...target, videoEnabled: 'false' }), /must be a boolean/);
-	assert.throws(() => manager.commit('setTimelineVideoClipAudioEnabled', { ...target, audioEnabled: 0 }), /must be a boolean/);
-	assert.throws(() => manager.commit('setTimelineClipSource', { ...target, assetId: 'video', audioEnabled: 'true' }), /must be a boolean/);
+	assert.throws(() => manager.commit('setTimelineVideoClipVideoEnabled', { ...target, videoEnabled: 'false' }), /input: videoEnabled:/);
+	assert.throws(() => manager.commit('setTimelineVideoClipAudioEnabled', { ...target, audioEnabled: 0 }), /input: audioEnabled:/);
+	assert.throws(() => manager.commit('setTimelineClipSource', { ...target, assetId: 'video', audioEnabled: 'true' }), /input: audioEnabled:/);
 	assert.deepEqual(state.timelineScenes.value, before);
 });
 
@@ -259,4 +259,23 @@ test('duplicates layer subtrees from references and remaps internal image refere
 	manager.undo();
 	manager.redo();
 	assert.deepEqual(state.timelineScenes.value[0].layers.find(layer => layer.id === copy.layerId), snapshot);
+});
+
+// 【既定値に戻したTransformの省略されたBindingも、取得したLayerの再挿入で維持する】
+// Transform操作はnullで保存値を削除するため、完全なLayerスナップショットの契約で
+// 全パラメータキーを必須にすると、正常な編集後のQueryやコピーが失敗してしまう。
+test('accepts snapshots with unset transform bindings without materializing defaults', () => {
+	const { state, manager } = fixture();
+	const scene = manager.commit('createTimelineScene', {});
+	const layer = manager.commit('createTimelineLayer', { ...scene, layer: { layerType: 'text' } });
+	manager.commit('setTimelineLayerTransformBindings', { ...layer, bindings: { position: null, rotation: null } });
+	const snapshot = structuredClone(state.timelineScenes.value[0].layers[0]);
+	assert.equal('position' in snapshot.compositingParamValues, false);
+	const copy = manager.commit('insertTimelineLayer', { ...scene, layer: snapshot });
+	const inserted = state.timelineScenes.value[0].layers.find(candidate => candidate.id === copy.layerId);
+	assert.equal('position' in inserted.compositingParamValues, false);
+	assert.equal('rotation' in inserted.compositingParamValues, false);
+	manager.undo();
+	manager.redo();
+	assert.equal('position' in state.timelineScenes.value[0].layers.find(candidate => candidate.id === copy.layerId).compositingParamValues, false);
 });

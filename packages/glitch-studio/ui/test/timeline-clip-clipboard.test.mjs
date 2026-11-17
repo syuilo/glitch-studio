@@ -150,7 +150,7 @@ test('rejects conflicting or invalid batches before mutating any layer or histor
 	f.scene.layers.push({ ...structuredClone(f.layer), id: 'other', clips: [] });
 	const invalid = { layerId: 'other', clip: { ...clips[0].clip, id: 'invalid', durationMs: 0 } };
 	const before = structuredClone(f.scene);
-	assert.throws(() => f.history.commit('insertTimelineClips', { sceneId: 'scene', clips: [...clips, invalid] }), /Invalid clip timing/);
+	assert.throws(() => f.history.commit('insertTimelineClips', { sceneId: 'scene', clips: [...clips, invalid] }), /input: clips\.2\.clip\.durationMs:/);
 	assert.deepEqual(f.scene, before);
 	f.layer.clips.push({ id: 'blocking', startMs: 1300, durationMs: 1, contentOffsetMs: 0 });
 	assert.equal(canPasteTimelineClips(f.scene, clips), false);

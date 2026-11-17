@@ -3,21 +3,22 @@ import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
 import { areNodeDataTypesCompatible, getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
+import { z } from 'zod';
 import { getEffectDefinitions } from '../utility/project-effects.ts';
 import { createProjectVisualModule } from '../utility/project-visual-module.ts';
 import { getVisualModule } from '../utility/visual-module-target.ts';
 import { resolveNodeParam, walkNodeParams } from '../utility/node-params.ts';
 import { validateVisualModuleNodeParameterBinding } from './visual-module-parameter-validation.ts';
-import { defineCommand } from './definition.ts';
+import { defineCommand, definePublicCommand } from './definition.ts';
+import { staticSettingValuesSchema } from './parameter-contract-schemas.ts';
+import { connectionTypePolicySchema, registeredVisualModuleTargetSchema, visualModuleNodeReferenceSchema, visualModuleParameterBindingSchema, visualModuleTargetSchema } from './visual-module-contract-schemas.ts';
 import { prepareVisualModuleFields, prepareVisualModuleValue } from './visual-module-change.ts';
-import type { VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModuleEffectNode, VisualModuleNode, NodeOutputReference } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import type { ProjectState } from '../Project.ts';
 import type { VisualModuleImport } from '../gsvm.ts';
 import type { NodeParamTarget as EffectNodeParameterTarget } from '../utility/node-params.ts';
 import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
-import type { VisualModuleNodeReference } from './visual-module-change.ts';
 
 export type { VisualModuleNodeReference } from './visual-module-change.ts';
 export type NodeTarget = VisualModuleTarget & { nodeId: string };
@@ -36,8 +37,12 @@ export function canConnectVisualModuleTypes(output: TextureDataType | null | und
 	return policy === 'allowMismatch' || areNodeDataTypesCompatible(output, input);
 }
 
-const createVisualModule = defineCommand<{ name?: string }, { visualModuleId: string }>({
+const createVisualModule = definePublicCommand({
 	label: 'Create Visual Module',
+	description: 'Create a registered Visual Module with its default In/Out nodes and color output. An omitted or null name uses the next default name. Returns a target for subsequent Commands and Queries.',
+	examples: ['let visualModule = Command:createVisualModule({ name: "Generated" })\n<: Query:getVisualModule(visualModule)'],
+	inputSchema: z.object({ name: z.string().nullish() }),
+	resultSchema: registeredVisualModuleTargetSchema,
 	prepare(state, input) {
 		if (input.name != null && typeof input.name !== 'string') throw new Error('Visual Module name must be a string');
 		const visualModule = createProjectVisualModule(state.visualModules.value.length);
@@ -92,8 +97,12 @@ const importVisualModule = defineCommand<VisualModuleImport, { visualModuleId: s
 	},
 });
 
-const setVisualModuleName = defineCommand<{ target: { visualModuleId: string }; name: string }>({
+const setVisualModuleName = definePublicCommand({
 	label: 'Set Visual Module name',
+	description: 'Rename a registered Visual Module. To rename an inline Visual Module, rename its owning Timeline layer instead.',
+	examples: ['let visualModule = Command:createVisualModule({})\nCommand:setVisualModuleName({ target: visualModule, name: "Background" })'],
+	inputSchema: z.object({ target: registeredVisualModuleTargetSchema, name: z.string() }),
+	resultSchema: z.null(),
 	prepare(state, input) {
 		if (typeof input.name !== 'string') throw new Error('Visual Module name must be a string');
 		const getRegistered = (current: ProjectState) => {
@@ -107,15 +116,16 @@ const setVisualModuleName = defineCommand<{ target: { visualModuleId: string }; 
 	},
 });
 
-const createVisualModuleEffectNode = defineCommand<{
-	visualModule: VisualModuleTarget;
-	effectId: string;
-	staticSettings?: StaticSettingValues;
-	parameters?: Record<string, VisualModuleParameterBinding>;
-	connectionMode?: 'none' | 'appendToPrimaryOutput';
-	connectionTypePolicy?: ConnectionTypePolicy;
-}, VisualModuleNodeReference>({
+const createVisualModuleEffectNode = definePublicCommand({
 	label: 'Create Visual Module effect node',
+	description: 'Create an effect node using the current effect definition and defaults. parameters supplies complete bindings by parameter name; staticSettings contains plain static values. appendToPrimaryOutput connects compatible primary inputs/outputs to the existing chain. Omitted connectionMode is none, and omitted connectionTypePolicy is strict.',
+	examples: ['let visualModule = Command:createVisualModule({})\nlet node = Command:createVisualModuleEffectNode({ visualModule: visualModule, effectId: "fill", connectionMode: "appendToPrimaryOutput" })\n<: Query:getNode(node)'],
+	inputSchema: z.object({
+		visualModule: visualModuleTargetSchema, effectId: z.string(), staticSettings: staticSettingValuesSchema.optional(),
+		parameters: z.record(z.string(), visualModuleParameterBindingSchema).nullish(),
+		connectionMode: z.enum(['none', 'appendToPrimaryOutput']).nullish(), connectionTypePolicy: connectionTypePolicySchema.nullish(),
+	}),
+	resultSchema: visualModuleNodeReferenceSchema,
 	prepare(state, input) {
 		const definitions = getEffectDefinitions(state);
 		const definition = definitions[input.effectId];
@@ -162,8 +172,12 @@ const createVisualModuleEffectNode = defineCommand<{
 	},
 });
 
-const moveVisualModuleNode = defineCommand<{ target: VisualModuleNodeReference; index: number }>({
+const moveVisualModuleNode = definePublicCommand({
 	label: 'Move Visual Module node',
+	description: 'Move a node to an absolute zero-based index in the Visual Module node array. The In/Out nodes cannot move, and their reserved end positions cannot be occupied. This changes order, not canvas coordinates.',
+	examples: ['let visualModule = Command:createVisualModule({})\nlet node = Command:createVisualModuleEffectNode({ visualModule: visualModule, effectId: "fill" })\nCommand:moveVisualModuleNode({ target: node, index: 1 })'],
+	inputSchema: z.object({ target: visualModuleNodeReferenceSchema, index: z.number().int() }),
+	resultSchema: z.null(),
 	prepare(state, input) {
 		return prepareVisualModuleFields(state, input.target.visualModule, ['nodes'], visualModule => {
 			const nodes = visualModule.nodes;
@@ -179,12 +193,12 @@ const moveVisualModuleNode = defineCommand<{ target: VisualModuleNodeReference; 
 	},
 });
 
-const removeVisualModuleNode = defineCommand<{
-	target: VisualModuleNodeReference;
-	reconnection?: 'disconnect' | 'primaryInput';
-	connectionTypePolicy?: ConnectionTypePolicy;
-}>({
+const removeVisualModuleNode = definePublicCommand({
 	label: 'Remove Visual Module node',
+	description: 'Remove an effect or relay node. In/Out nodes cannot be removed. reconnection defaults to disconnect; primaryInput reconnects consumers to the removed node\'s compatible primary input when possible. Existing expressions are not rewritten.',
+	examples: ['let visualModule = Command:createVisualModule({})\nlet node = Command:createVisualModuleEffectNode({ visualModule: visualModule, effectId: "fill" })\nCommand:removeVisualModuleNode({ target: node, reconnection: "disconnect" })'],
+	inputSchema: z.object({ target: visualModuleNodeReferenceSchema, reconnection: z.enum(['disconnect', 'primaryInput']).nullish(), connectionTypePolicy: connectionTypePolicySchema.nullish() }),
+	resultSchema: z.null(),
 	prepare(state, input) {
 		const policy = input.connectionTypePolicy ?? 'strict';
 		if (policy !== 'strict' && policy !== 'allowMismatch') throw new Error('Invalid connection type policy');
