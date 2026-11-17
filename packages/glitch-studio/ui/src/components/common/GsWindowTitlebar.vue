@@ -13,7 +13,7 @@
 	line-height: 32px;
 	box-sizing: border-box;
 	app-region: drag;
-	background: linear-gradient(0deg, var(--THEME-panel), hsl(from var(--THEME-panel) h s calc(l + 5)));
+	background: linear-gradient(0deg, var(--THEME-panel), hsl(from var(--THEME-panel) h s calc(l + var(--GS-LIGHTING-BRIGHTNESS))));
 }
 
 .inner {

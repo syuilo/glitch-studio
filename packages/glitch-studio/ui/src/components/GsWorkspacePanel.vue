@@ -241,7 +241,7 @@ function popout() {
 		width: var(--headerHeight);
 		height: 100%;
 		padding: 14px 0 0;
-		background: linear-gradient(-90deg, var(--THEME-panel), hsl(from var(--THEME-panel) h s calc(l + 5)));
+		background: linear-gradient(-90deg, var(--THEME-panel), hsl(from var(--THEME-panel) h s calc(l + var(--GS-LIGHTING-BRIGHTNESS))));
 
 		> .tabShape {
 			display: none;
@@ -305,7 +305,7 @@ function popout() {
 	line-height: var(--headerHeight);
 	height: var(--headerHeight);
 	padding: 0 16px 0 30px;
-	background: linear-gradient(0deg, var(--THEME-panel), hsl(from var(--THEME-panel) h s calc(l + 5)));
+	background: linear-gradient(0deg, var(--THEME-panel), hsl(from var(--THEME-panel) h s calc(l + var(--GS-LIGHTING-BRIGHTNESS))));
 	//background: var(--THEME-panel);
 	user-select: none;
 }
