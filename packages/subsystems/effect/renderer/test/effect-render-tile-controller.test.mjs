@@ -313,7 +313,7 @@ test('scales down before workload increases and resets incompatible measurements
 });
 
 // 【入力を比較できない処理は描画ごとに小さいタイルから確認する】
-// カスタムシェーダーや動画入力の前フレームだけが軽かった場合にも、初回の安全策を残す。
+// 動画入力などで前フレームだけが軽かった場合にも、初回の安全策を残す。
 test('does not reuse a large initial tile without a workload hint', () => {
 	const controller = new EffectRenderTileController();
 	const plan = controller.beginPass(0, [], 1024, 1024, null);
