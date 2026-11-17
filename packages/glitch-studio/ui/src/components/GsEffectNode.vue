@@ -2,7 +2,13 @@
 <div :class="[$style.root, { [$style.isBypass]: node.isBypass }]">
 	<div :class="[$style.header, { [$style.hasStatus]: effectStatus?.type === 'loading' || effectStatus?.type === 'error' }]" :draggable="true" @dragstart.stop="emit('dragStart', $event)">
 		<div :class="$style.headerLeft">
-			<GsNodePort v-show="!expanded" :class="$style.allInPort" :dataType="{ kind: 'any' }" @update:element="allInPortEl = $event"/>
+			<GsNodePort
+				v-show="!expanded && connectedParameterPathKeys.size > 0"
+				data-test-node-collapsed-port
+				:class="$style.allInPort"
+				:dataType="{ kind: 'any' }"
+				@update:element="allInPortEl = $event"
+			/>
 			<div :class="$style.effectName">{{ name }}</div>
 			<div v-if="effectStatus?.type === 'loading'" :class="$style.headerButton" inline small iconOnly><i class="ti ti-loader-2" :class="$style.loading"></i></div>
 			<div v-else-if="effectStatus?.type === 'error'" :class="[$style.headerButton, $style.error]" inline small iconOnly :v-tooltip="effectStatus.message" @click.stop="showEffectError"><i class="ti ti-alert-triangle"></i></div>
@@ -65,7 +71,7 @@
 
 <script lang="ts" setup>
 import { IN_VISUAL_MODULE_VAR_DEFS } from '@gs/subsystems_visual-module_shared/expression.ts';
-import { ref, computed, shallowRef, watchEffect } from 'vue';
+import { ref, computed, provide, shallowRef, watchEffect } from 'vue';
 import { prettyId } from '@gs/shared/utility/id.ts';
 import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import GsNodeOutputs from './GsNodeOutputs.vue';
@@ -82,8 +88,8 @@ import type { VisualModule, VisualModuleEffectNode } from '@gs/subsystems_visual
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
-import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
-import { getNodeParamDefs } from '@/utility/node-params.ts';
+import { connectedNodeParameterPathKeysKey, useVisualModuleWires } from '@/utility/visual-module-wires.ts';
+import { getNodeParamDefs, paramPathKey, walkNodeParams } from '@/utility/node-params.ts';
 import { getEffectNodeName } from '@/utility/node-name.ts';
 import * as ui from '@/ui.ts';
 
@@ -116,6 +122,19 @@ const expanded = ref(true);
 const showSettings = ref(false);
 const allInPortEl = shallowRef<HTMLElement | null>(null);
 const effectStatus = computed(() => props.effectState?.status);
+const connectedParameterPathKeys = computed(() => {
+	const paths = new Set<string>();
+	// 未選択のnode入力や削除済みの出力への参照はワイヤーが描画されない。
+	// 実際の出力ポートが登録されている接続だけを数え、配下をノードごとに一度だけ走査する。
+	for (const { path, value } of walkNodeParams(props.node, effectDefinitions.value)) {
+		if (value.inputSource !== 'node' || value.nodeId == null || wireMap.out[value.nodeId]?.[value.outputPort] == null) continue;
+		for (let length = 1; length <= path.length; length++) {
+			paths.add(paramPathKey([path[0], ...path.slice(1, length)]));
+		}
+	}
+	return paths;
+});
+provide(connectedNodeParameterPathKeysKey, connectedParameterPathKeys);
 
 const resolutionModes: { value: EffectResolution['mode']; label: string }[] = [
 	{ value: 'context', label: i18n.ts._Node.ContextResolution },

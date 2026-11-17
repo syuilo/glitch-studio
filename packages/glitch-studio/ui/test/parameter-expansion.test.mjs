@@ -268,3 +268,92 @@ test('routes connected wires through visible collapsed ancestors and restores th
 	assert.equal(isVisible(arrayPort), false);
 	assert.deepEqual(f.destination(), f.position(leaf));
 });
+
+// 【配下に接続がある場合だけコンテナとノードの仮想ポートを表示する】
+// 空の配列や定数だけの構造体にポートを出すと、配線されているという誤った表示になる。
+// 折り畳み中の接続・切断にも追従し、関係ない兄弟コンテナのポートは表示しない。
+test('shows virtual ports only while their descendants have connected wires', async t => {
+	const f = await fixture(t);
+	const nodePort = findAll(f.root, hasAttribute('data-test-node-collapsed-port'))[0];
+	await f.toggle(['foo']);
+	await f.toggle(['bars']);
+	await f.toggle(['buzzs', 'first']);
+	await f.toggle(['buzzs']);
+	for (const path of [['foo'], ['bars'], ['buzzs'], ['buzzs', 'first']]) {
+		assert.equal(isVisible(f.collapsedPort(path)), false);
+	}
+	const nodeToggle = findAll(f.root, hasAttribute('data-test-node-toggle'))[0];
+	click(nodeToggle); await nextTick();
+	assert.equal(isVisible(nodePort), false);
+	const fields = f.owner.value.params.buzzs.value[0].binding.value;
+	fields.image = { inputSource: 'node', nodeId: 'source', outputPort: 'output' };
+	await nextTick();
+	assert.equal(isVisible(nodePort), true);
+	click(nodeToggle); await nextTick();
+	assert.equal(isVisible(f.collapsedPort(['buzzs'])), true);
+	assert.equal(isVisible(f.collapsedPort(['foo'])), false);
+	assert.equal(isVisible(f.collapsedPort(['bars'])), false);
+	await f.toggle(['buzzs']);
+	assert.equal(isVisible(f.collapsedPort(['buzzs', 'first'])), true);
+	fields.image = { inputSource: 'literal', value: [0, 0, 0, 0] };
+	await nextTick();
+	assert.equal(isVisible(f.collapsedPort(['buzzs', 'first'])), false);
+	await f.toggle(['buzzs']);
+	assert.equal(isVisible(f.collapsedPort(['buzzs'])), false);
+	click(nodeToggle); await nextTick();
+	assert.equal(isVisible(nodePort), false);
+});
+
+// 【複数の子に接続がある場合は最後の接続を切るまで仮想ポートを残す】
+// 一つの要素を切断しただけで親の仮想ポートを消すと、兄弟の配線まで見えなくなる。
+test('keeps a parent virtual port until the last descendant is disconnected', async t => {
+	const f = await fixture(t, { connected: true });
+	const values = f.owner.value.params.buzzs.value;
+	values.push({ id: 'second', binding: structuredClone(toRaw(values[0].binding)) });
+	await nextTick();
+	await f.toggle(['buzzs', 'first']);
+	await f.toggle(['buzzs', 'second']);
+	values[0].binding.value.image = { inputSource: 'node', nodeId: null, outputPort: 'output' };
+	await nextTick();
+	assert.equal(isVisible(f.collapsedPort(['buzzs', 'first'])), false);
+	assert.equal(isVisible(f.collapsedPort(['buzzs', 'second'])), true);
+	await f.toggle(['buzzs']);
+	assert.equal(isVisible(f.collapsedPort(['buzzs'])), true);
+	const nodeToggle = findAll(f.root, hasAttribute('data-test-node-toggle'))[0];
+	const nodePort = findAll(f.root, hasAttribute('data-test-node-collapsed-port'))[0];
+	click(nodeToggle); await nextTick();
+	assert.equal(isVisible(nodePort), true);
+	values[1].binding.value.image = { inputSource: 'literal', value: [0, 0, 0, 0] };
+	await nextTick();
+	assert.equal(isVisible(nodePort), false);
+	click(nodeToggle); await nextTick();
+	assert.equal(isVisible(f.collapsedPort(['buzzs'])), false);
+});
+
+// 【未選択や存在しない出力への参照を、接続済みのワイヤーとして扱わない】
+// 保存Bindingにnode入力が残っていても、実際に描画する出力ポートがなければ集約先は不要。
+// 出力ポートが再登録された場合は、接続値を変更せずに表示を復元する。
+test('hides virtual ports for missing source outputs and restores them when the source returns', async t => {
+	const f = await fixture(t, { connected: true });
+	await f.toggle(['buzzs']);
+	const fields = f.owner.value.params.buzzs.value[0].binding.value;
+	for (const source of [
+		{ nodeId: null, outputPort: 'output' },
+		{ nodeId: 'missing', outputPort: 'output' },
+		{ nodeId: 'source', outputPort: 'missing' },
+	]) {
+		fields.image = { inputSource: 'node', ...source };
+		await nextTick();
+		assert.equal(isVisible(f.collapsedPort(['buzzs'])), false);
+	}
+	fields.image = { inputSource: 'node', nodeId: 'source', outputPort: 'output' };
+	await nextTick();
+	assert.equal(isVisible(f.collapsedPort(['buzzs'])), true);
+	const sourcePort = f.wireMap.out.source.output;
+	delete f.wireMap.out.source.output;
+	await nextTick();
+	assert.equal(isVisible(f.collapsedPort(['buzzs'])), false);
+	f.wireMap.out.source.output = sourcePort;
+	await nextTick();
+	assert.equal(isVisible(f.collapsedPort(['buzzs'])), true);
+});

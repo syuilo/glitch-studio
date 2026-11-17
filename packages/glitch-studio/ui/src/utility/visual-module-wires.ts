@@ -1,5 +1,5 @@
 import { inject, provide, reactive } from 'vue';
-import type { InjectionKey } from 'vue';
+import type { ComputedRef, InjectionKey } from 'vue';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 
@@ -11,6 +11,8 @@ type WireMap = {
 };
 
 const wireMapKey: InjectionKey<WireMap> = Symbol('visual-module-wires');
+// 接続済みの末端だけでなく祖先のパスも含め、ノードと各コンテナの仮想ポートで共有する。
+export const connectedNodeParameterPathKeysKey: InjectionKey<ComputedRef<ReadonlySet<string>>> = Symbol('connected-node-parameter-path-keys');
 const createWireMap = (): WireMap => reactive({ in: {}, out: {}, allIn: {}, collapsedParameters: {} });
 
 export function getVisualModuleWireInputElements(wireMap: WireMap, nodeId: string, path: ParamPath): HTMLElement[] {

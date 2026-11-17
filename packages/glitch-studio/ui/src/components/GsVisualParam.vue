@@ -13,7 +13,7 @@
 				><i :class="expanded ? 'ti ti-chevron-down' : 'ti ti-chevron-right'"></i></button>
 				<GsNodePort
 					v-if="node != null"
-					v-show="!expanded"
+					v-show="!expanded && hasConnectedChildren"
 					data-test-parameter-collapsed-port
 					:dataType="{ kind: 'any' }"
 					@update:element="collapsedPortEl = $event"
@@ -285,7 +285,7 @@ import type { MenuItem } from '@/types/menu.ts';
 import type { TimelineLayerPublicParameterReferenceBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
 import { i18n } from '@/i18n.ts';
-import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
+import { connectedNodeParameterPathKeysKey, useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { timelineParameterEditorContextKey } from '@/utility/timeline-parameter-editor-context.ts';
 import { getTimelineLayerPublicParameterSources, areTimelinePublicParameterTypesCompatible } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import { paramPathKey } from '@/utility/node-params.ts';
@@ -307,6 +307,7 @@ const projectSession = useProjectSession();
 const effectDefinitions = computed(() => getEffectDefinitions(projectSession.projectContext.stateManager.state));
 
 const wireMap = useVisualModuleWires();
+const connectedParameterPathKeys = inject(connectedNodeParameterPathKeysKey, null);
 const timelineEditor = inject(timelineParameterEditorContextKey, null);
 
 const props = defineProps<{
@@ -339,6 +340,7 @@ const emit = defineEmits<{ edit: [event: ParamEdit] }>();
 const previewParameterHandle = usePreviewParameterHandle(projectSession, props);
 const expanded = useParameterExpansion(projectSession, props);
 const isContainer = computed(() => props.paramDef.dataType.kind === 'struct' || props.paramDef.dataType.kind === 'array');
+const hasConnectedChildren = computed(() => connectedParameterPathKeys?.value.has(paramPathKey(props.paramPath)) === true);
 
 const timelinePublicParameterItems = computed(() => {
 	const context = timelineEditor?.context.value;
