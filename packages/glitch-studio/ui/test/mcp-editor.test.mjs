@@ -9,7 +9,7 @@ const bundle = await build({
 	absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', write: false,
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
 		export { connectMcpEditor } from './src/mcp/editor-connection.ts';
-		export { captureProjectPreview } from './src/mcp/capture-preview.ts';
+		export { captureProjectPreview, seekTimelineAndCapture } from './src/mcp/capture-preview.ts';
 		export { ref, shallowRef, nextTick } from 'vue';
 	` },
 	plugins: [{ name: 'mcp-effects', setup(build) {
@@ -22,12 +22,12 @@ const bundle = await build({
 });
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
-const { connectMcpEditor, captureProjectPreview, ref, shallowRef, nextTick } = loaded.exports;
+const { connectMcpEditor, captureProjectPreview, seekTimelineAndCapture, ref, shallowRef, nextTick } = loaded.exports;
 const deferred = () => Promise.withResolvers();
 
 function session(id) {
 	const calls = [];
-	return { id, isDisposed: false, projectDisplayName: ref(`Unsaved ${id}`), calls,
+	return { id, isDisposed: false, projectDisplayName: ref(`Unsaved ${id}`), activeSceneId: ref('scene'), calls,
 		scripting: { isRunning: ref(false), runExternal: async (...args) => { calls.push(args); return { output: ['done'], error: null, outputTruncated: false, commandsExecuted: 0 }; } } };
 }
 
@@ -64,8 +64,8 @@ test('registers unsaved sessions and updates their active and running summaries'
 	const second = session('second');
 	const fixture = connection([first, second]);
 	assert.deepEqual(fixture.summaries.at(-1), [
-		{ projectSessionId: 'first', name: 'Unsaved first', isActive: true, isScriptRunning: false },
-		{ projectSessionId: 'second', name: 'Unsaved second', isActive: false, isScriptRunning: false },
+		{ projectSessionId: 'first', name: 'Unsaved first', isActive: true, isScriptRunning: false, activeSceneId: 'scene' },
+		{ projectSessionId: 'second', name: 'Unsaved second', isActive: false, isScriptRunning: false, activeSceneId: 'scene' },
 	]);
 	first.projectDisplayName.value = 'Renamed';
 	second.scripting.isRunning.value = true;
@@ -176,4 +176,76 @@ test('discards capture results after the preview target changes', async () => {
 	fixture.session.activeSceneId.value = 'different-scene';
 	fixture.capture.resolve({ blob: new Blob(['PNG']), width: 512, height: 288, time: 123 });
 	await assert.rejects(result, /PREVIEW_CHANGED/);
+});
+
+function seekFixture() {
+	const fixture = previewSession();
+	const playback = fixture.session.previewPlayback;
+	playback.isTimelinePlaying = ref(true);
+	playback.pauseTimeline = () => { playback.isTimelinePlaying.value = false; playback.state.value = { mode: 'timeline', playing: false }; };
+	playback.seekTimeline = time => { playback.currentTimelineTime.value = Math.round(time / 40) * 40; };
+	return fixture;
+}
+
+// 【再生を停止し通常のフレーム境界にシークして、描画された時刻を返す】
+// クライアントが要求時刻と実際の画面を区別でき、失敗時にも別Sceneを動かさない。
+test('seeks the selected Scene and returns the actual frame and playback state', async () => {
+	const fixture = seekFixture();
+	await assert.rejects(seekTimelineAndCapture(fixture.session, 'other', 101, 512, new AbortController().signal), /SCENE_NOT_ACTIVE/);
+	assert.equal(fixture.session.previewPlayback.isTimelinePlaying.value, true);
+	const result = seekTimelineAndCapture(fixture.session, 'scene', 101, 512, new AbortController().signal);
+	assert.deepEqual(await fixture.called.promise, [512, 120]);
+	fixture.capture.resolve({ blob: new Blob(['PNG']), width: 512, height: 288, time: 120 });
+	const image = await result;
+	assert.equal(image.requestedTimeMs, 101);
+	assert.equal(image.timeMs, 120);
+	assert.equal(image.wasPlaying, true);
+	assert.equal(fixture.session.previewPlayback.isTimelinePlaying.value, false);
+});
+
+// 【取得中に手動で移動して元へ戻しても別のフレームを返さない】
+// 同じ最終時刻だけを比べると、介在したユーザー操作と取得画像を誤って対応付ける。
+test('rejects intervening seeks and frames rendered at another time', async () => {
+	for (const change of ['seek', 'frame']) {
+		const fixture = seekFixture();
+		const result = seekTimelineAndCapture(fixture.session, 'scene', 120, 512, new AbortController().signal);
+		await fixture.called.promise;
+		if (change === 'seek') {
+			fixture.session.previewPlayback.currentTimelineTime.value = 160;
+			fixture.session.previewPlayback.currentTimelineTime.value = 120;
+		}
+		fixture.capture.resolve({ blob: new Blob(['PNG']), width: 512, height: 288, time: change === 'frame' ? 160 : 120 });
+		await assert.rejects(result, /PREVIEW_CHANGED/);
+	}
+});
+
+// 【シーク要求を選択中Projectへ振り分け、取得中の切替も検出する】
+// 切り替えた後に元へ戻した場合も、異なるセッションで取得された画像を成功として返さない。
+test('routes timeline seeking and rejects an intervening project selection', async () => {
+	const first = session('first');
+	const second = session('second');
+	const playback = seekFixture().session.previewPlayback;
+	first.previewPlayback = playback;
+	const image = deferred();
+	const fixture = connection([first, second], async () => image.promise);
+	const pending = fixture.request('seek_timeline_and_capture', { projectSessionId: 'first', sceneId: 'scene', timeMs: 120 });
+	fixture.projectSessions.activeSession.value = second;
+	fixture.projectSessions.activeSession.value = first;
+	image.resolve({ target: { kind: 'timeline', sceneId: 'scene' }, timeMs: 120 });
+	assert.equal((await pending.response).error.code, 'PREVIEW_CHANGED');
+	fixture.disconnect();
+});
+
+// 【シーク後の中断でユーザーの位置を巻き戻さない】
+// 取得待ちの間に操作された位置を、キャンセルの後始末が上書きしないようにする。
+test('leaves the current timeline position intact when capture is cancelled', async () => {
+	const fixture = seekFixture();
+	const controller = new AbortController();
+	const result = seekTimelineAndCapture(fixture.session, 'scene', 120, 512, controller.signal);
+	await fixture.called.promise;
+	fixture.session.previewPlayback.currentTimelineTime.value = 200;
+	controller.abort(new Error('cancelled'));
+	await assert.rejects(result, /cancelled/);
+	assert.equal(fixture.session.previewPlayback.currentTimelineTime.value, 200);
+	assert.equal(fixture.session.previewPlayback.isTimelinePlaying.value, false);
 });

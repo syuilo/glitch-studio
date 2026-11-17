@@ -44,11 +44,18 @@ test('connects the real Electron MCP server to project scripting, references and
 			});
 			scripting.source.value = 'draft for ' + id;
 			scripting.output.value = ['panel output for ' + id];
-			return { id, projectContext: { stateManager }, scripting, projectDisplayName: computed(() => state.name.value), isDisposed: false };
+			const playback = { state: ref({ mode: 'timeline', playing: true }), isTimelinePlaying: ref(true), currentTimelineTime: ref(0),
+				pauseTimeline() { this.isTimelinePlaying.value = false; this.state.value = { mode: 'timeline', playing: false }; },
+				seekTimeline(time) { this.currentTimelineTime.value = Math.round(time / 40) * 40; } };
+			return { id, projectContext: { stateManager }, scripting, projectDisplayName: computed(() => state.name.value), activeSceneId: ref('scene-' + id), previewPlayback: playback, isDisposed: false };
 		}
 		window.testSessions = [createSession('first', 'First project'), createSession('second', 'Second project')];
 		window.testProjectSessions = { sessions: shallowRef(window.testSessions), activeSession: shallowRef(window.testSessions[0]) };
-		window.disconnectMcp = connectMcpEditor(window.testProjectSessions, window.desktop);
+		window.disconnectMcp = connectMcpEditor(window.testProjectSessions, window.desktop, async session => ({
+			data: 'iVBORw0KGgo=', mimeType: 'image/png', width: 64, height: 64, projectSessionId: session.id,
+			target: { kind: 'timeline', sceneId: session.activeSceneId.value }, timeMs: session.previewPlayback.currentTimelineTime.value,
+			colorSpace: 'srgb', includesPreviewAdjustments: true,
+		}));
 		window.ready = true;
 	` }, bundle: true, format: 'esm', platform: 'browser', write: false,
 		define: { __ELECTRON__: 'true', 'import.meta.env.DEV': 'false' }, plugins: [{ name: 'mcp-test-effects', setup(builder) {
@@ -138,6 +145,14 @@ test('connects the real Electron MCP server to project scripting, references and
 			assert.deepEqual(sessions.map(session => [session.projectSessionId, session.name, session.isActive]), [
 				['first', 'First project', true], ['second', 'Second project', false],
 			]);
+			assert.equal(sessions[0].activeSceneId, 'scene-first');
+			stage = 'seeking timeline through MCP';
+			const image = await call('seek_timeline_and_capture', { projectSessionId: 'first', sceneId: 'scene-first', timeMs: 101, maxSize: 64 });
+			assert.equal(image.content[1].type, 'image');
+			assert.equal(data(image).timeMs, 120);
+			assert.equal(data(image).requestedTimeMs, 101);
+			assert.equal(data(image).wasPlaying, true);
+			assert.equal(await evaluate('window.testSessions[0].previewPlayback.isTimelinePlaying.value'), false);
 			const found = data(await call('search_scripting_api', { query: 'setProjectName' }));
 			assert.ok(found.some(entry => entry.name === 'Command:setProjectName'));
 			const reference = data(await call('get_scripting_api', { names: ['Command:setProjectName', 'Query:getProject'] }));

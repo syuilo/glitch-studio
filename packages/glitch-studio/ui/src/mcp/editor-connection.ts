@@ -1,6 +1,6 @@
 import { watch } from 'vue';
 import { getProjectScriptApiReference, searchProjectScriptApi } from '../scripting/project-script-api-reference.ts';
-import { captureProjectPreview } from './capture-preview.ts';
+import { captureProjectPreview, seekTimelineAndCapture } from './capture-preview.ts';
 import type { McpEditorRequest, McpEditorResponse } from '@gs/glitch-studio_shared/mcp.ts';
 import type { ProjectSessionManager } from '../ProjectSessionManager.ts';
 
@@ -26,7 +26,8 @@ export function connectMcpEditor(projectSessions: Pick<ProjectSessionManager, 's
 	});
 	// 初回の一覧通知でmain側から要求が届くため、受信口を先に登録しておく。
 	const stopSessions = watch(() => projectSessions.sessions.value.map(session => ({ projectSessionId: session.id,
-		name: session.projectDisplayName.value, isActive: session === projectSessions.activeSession.value, isScriptRunning: session.scripting.isRunning.value })), summaries => {
+		name: session.projectDisplayName.value, isActive: session === projectSessions.activeSession.value, isScriptRunning: session.scripting.isRunning.value,
+		activeSceneId: session.activeSceneId.value })), summaries => {
 		for (const request of pending.values()) {
 			if (request.projectSessionId != null && !summaries.some(session => session.projectSessionId === request.projectSessionId)) request.controller.abort(new Error('The project session has closed.'));
 		}
@@ -55,18 +56,25 @@ export function connectMcpEditor(projectSessions: Pick<ProjectSessionManager, 's
 			if (captures.has(session.id)) throw new Error('PROJECT_BUSY: A preview capture is already running.');
 			return session.scripting.runExternal(request.input.source, signal, 'MCP: Run script');
 		}
-		if (request.operation !== 'capture_preview') throw new Error('Unknown editor operation.');
+		if (request.operation !== 'capture_preview' && request.operation !== 'seek_timeline_and_capture') throw new Error('Unknown editor operation.');
 		if (session !== projectSessions.activeSession.value) throw new Error('PREVIEW_INACTIVE: Select this project tab before capturing its preview.');
 		if (captures.has(session.id) || session.scripting.isRunning.value) throw new Error('PROJECT_BUSY: A script or preview capture is already running.');
 		const maximumSize = request.input.maxSize ?? 1024;
 		if (typeof maximumSize !== 'number') throw new Error('maxSize must be a number.');
 		captures.add(session.id);
+		let selectionChanged = false;
+		const stopSelectionWatch = watch(projectSessions.activeSession, active => { if (active !== session) selectionChanged = true; }, { flush: 'sync' });
 		try {
-			const image = await capturePreview(session, maximumSize, signal);
+			let image;
+			if (request.operation === 'seek_timeline_and_capture') {
+				const { sceneId, timeMs } = request.input;
+				if (typeof sceneId !== 'string' || sceneId.length === 0 || typeof timeMs !== 'number' || !Number.isFinite(timeMs) || timeMs < 0) throw new Error('Invalid Scene ID or time.');
+				image = await seekTimelineAndCapture(session, sceneId, timeMs, maximumSize, signal, capturePreview);
+			} else image = await capturePreview(session, maximumSize, signal);
 			signal.throwIfAborted();
-			if (session !== projectSessions.activeSession.value) throw new Error('PREVIEW_CHANGED: The selected project changed while capturing.');
+			if (selectionChanged || session !== projectSessions.activeSession.value) throw new Error('PREVIEW_CHANGED: The selected project changed while capturing.');
 			return image;
-		} finally { captures.delete(session.id); }
+		} finally { stopSelectionWatch(); captures.delete(session.id); }
 	}
 
 	return () => {

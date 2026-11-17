@@ -10,6 +10,34 @@ function waitFor<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
 	});
 }
 
+/** 通常のシークと同じ操作を行い、操作後の表示時刻に対応する画像だけを返す。 */
+export async function seekTimelineAndCapture(session: ProjectSessionContext, sceneId: string, requestedTimeMs: number, maximumSize: number,
+	signal: AbortSignal, capturePreview = captureProjectPreview) {
+	signal.throwIfAborted();
+	if (session.isDisposed || session.activeSceneId.value !== sceneId) throw new Error('SCENE_NOT_ACTIVE: Select the requested Scene before seeking.');
+	if (!Number.isFinite(requestedTimeMs) || requestedTimeMs < 0) throw new Error('Invalid timeline time.');
+	if (!Number.isSafeInteger(maximumSize) || maximumSize < 64 || maximumSize > 2048) throw new Error('maximumSize must be an integer between 64 and 2048.');
+	const wasPlaying = session.previewPlayback.isTimelinePlaying.value;
+	session.previewPlayback.pauseTimeline();
+	session.previewPlayback.seekTimeline(requestedTimeMs);
+	const actualTimeMs = session.previewPlayback.currentTimelineTime.value;
+	let changed = false;
+	// 一度別の位置へ移動してから戻っても、途中の描画と結果を混同しない。
+	// 中断時に元の時刻を復元すると、後から行われた手動操作を上書きしてしまう。
+	const stopWatch = watch(() => [session.activeSceneId.value, session.previewPlayback.state.value.mode,
+		session.previewPlayback.isTimelinePlaying.value, session.previewPlayback.currentTimelineTime.value],
+		() => { changed = true; }, { flush: 'sync' });
+	try {
+		const image = await capturePreview(session, maximumSize, signal);
+		signal.throwIfAborted();
+		if (changed || session.isDisposed || session.activeSceneId.value !== sceneId || image.target.kind !== 'timeline'
+			|| image.target.sceneId !== sceneId || image.timeMs == null || Math.abs(image.timeMs - actualTimeMs) > 1e-7) {
+			throw new Error('PREVIEW_CHANGED: The timeline or captured frame changed while seeking.');
+		}
+		return { ...image, requestedTimeMs, wasPlaying };
+	} finally { stopWatch(); }
+}
+
 /** スナップショット用にプレビューを切り替えず、現在表示している作品の新しいフレームを取得する。 */
 export async function captureProjectPreview(session: ProjectSessionContext, maximumSize: number, signal: AbortSignal) {
 	const lifetime = AbortSignal.any([signal, AbortSignal.timeout(20_000)]);

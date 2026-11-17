@@ -29,9 +29,10 @@ export type McpProjectSessionSummary = {
 	name: string;
 	isActive: boolean;
 	isScriptRunning: boolean;
+	activeSceneId: string | null;
 };
 
-export type McpEditorOperation = 'search_scripting_api' | 'get_scripting_api' | 'execute_script' | 'capture_preview';
+export type McpEditorOperation = 'search_scripting_api' | 'get_scripting_api' | 'execute_script' | 'capture_preview' | 'seek_timeline_and_capture';
 
 export type McpEditorRequest = {
 	requestId: string;

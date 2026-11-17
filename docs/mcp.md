@@ -57,12 +57,13 @@ claude mcp add --scope user --transport http glitch_studio http://127.0.0.1:4572
 
 | ツール | 内容 |
 | --- | --- |
-| `list_project_sessions` | 開いているプロジェクトの編集セッションID、名前、選択状態、スクリプト実行状態 |
+| `list_project_sessions` | 開いているプロジェクトの編集セッションID、名前、選択中のScene ID、選択状態、スクリプト実行状態 |
 | `get_scripting_guide` | AiScriptとプロジェクト操作の短いガイド |
 | `search_scripting_api` | Command・Queryの名前や用途を検索 |
 | `get_scripting_api` | 指定したCommand・Queryの説明、入力・戻り値のスキーマ、使用例 |
 | `execute_script` | 指定した編集セッションでAiScriptを実行 |
 | `capture_preview` | 指定した編集セッションの、現在選択中のプレビューをPNGとして取得 |
+| `seek_timeline_and_capture` | 現在選択中のTimeline Sceneを指定時刻へシークし、プレビューをPNGとして取得 |
 
 編集を許可していない場合、`execute_script`は利用できません。API資料の取得、編集セッションの一覧、プレビュー画像の取得は利用できます。プロジェクト内容の詳細をQueryから取得する場合も、`execute_script`を使用するため編集の許可が必要です。
 
@@ -104,6 +105,14 @@ MCPの実行では`Dialog:*`と`readline`を使用できません。待ち時間
 返却する画像はPNGです。`maxSize`で長辺の上限を指定でき、既定は1024px、最大は2048pxです。縦横比を維持して縮小し、取得した画像の寸法や対象の情報も返します。任意のScene・Visual Moduleや時刻を指定して描画する書き出し機能ではありません。
 
 Commandの完了はプロジェクト状態への反映を意味し、描画の成功は別に確認します。描画できない場合や取得中に選択対象が変わった場合は、別の対象の画像を返さず失敗します。
+
+### Timelineの時刻を指定して取得
+
+`seek_timeline_and_capture`には`projectSessionId`、`sceneId`、0以上の有限値の`timeMs`を渡します。`sceneId`には`list_project_sessions`の`activeSceneId`を使用します。対象は選択中のプロジェクトとSceneに限り、タブやSceneを自動で切り替えません。`maxSize`は`capture_preview`と同じです。
+
+再生中であれば停止し、Timelineを表示して通常のフレーム単位のシークを行います。結果には要求時刻`requestedTimeMs`、実際の描画時刻`timeMs`、シーク前に再生していたかを示す`wasPlaying`、PNGと対象情報が含まれます。完了後もシーク位置で停止したままです。プロジェクトの編集やUndo履歴には含まれず、編集許可をオフにしていても利用できます。
+
+取得中に手動で時刻・Scene・プロジェクトなどを切り替えた場合、別のフレームを成功として返さず失敗します。中断や失敗後は時刻を自動で戻しません。描画履歴に依存するエフェクトでは、シーク画像が先頭から再生した結果や動画書き出しの結果と異なる場合があります。
 
 ## 接続・実行の確認
 

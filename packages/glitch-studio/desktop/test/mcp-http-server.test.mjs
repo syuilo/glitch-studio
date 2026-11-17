@@ -88,6 +88,29 @@ test('does not expose or execute scripts while editing is disabled', async t => 
 	assert.equal(invoked, false);
 });
 
+// 【編集禁止でもシーク画像を取得でき、画面への副作用をツール一覧で伝える】
+// 読み取り専用プロジェクトの確認を可能にしつつ、MCPクライアントがシークを純粋な読み取りと誤認しない。
+test('exposes timeline seek and image capture with editing disabled', async t => {
+	const calls = [];
+	const api = await start(t, { allowEditing: false, invoke: async (operation, input) => {
+		calls.push({ operation, input });
+		return { data: 'iVBORw0KGgo=', mimeType: 'image/png', timeMs: 120, requestedTimeMs: 110, wasPlaying: true };
+	} });
+	const listing = await readResult(await api.send('tools/list'));
+	const tool = listing.result.tools.find(candidate => candidate.name === 'seek_timeline_and_capture');
+	assert.equal(tool.annotations.readOnlyHint, false);
+	const input = { projectSessionId: 'project', sceneId: 'scene', timeMs: 110, maxSize: 64 };
+	const result = await api.call('seek_timeline_and_capture', input);
+	assert.deepEqual(calls, [{ operation: 'seek_timeline_and_capture', input }]);
+	assert.equal(JSON.parse(result.result.content[0].text).timeMs, 120);
+	assert.equal(result.result.content[1].type, 'image');
+	for (const timeMs of [-1, '100']) {
+		const invalid = await api.call('seek_timeline_and_capture', { ...input, timeMs });
+		assert.ok(invalid.error != null || invalid.result?.isError === true);
+	}
+	assert.equal(calls.length, 1);
+});
+
 // 【途中失敗の成功済み変更と画像をMCPの結果として区別する】
 // 編集済み状態を失敗だけで隠さず、画像は文字列ではなくモデルが読めるimageコンテンツにする。
 test('returns partial script failures and native images without recording source or output in activity', async t => {

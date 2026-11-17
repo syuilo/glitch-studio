@@ -10,7 +10,7 @@ const MAX_REQUEST_BYTES = 1024 * 1024;
 const MAX_RESULT_BYTES = 16 * 1024 * 1024;
 const MAX_SCRIPT_CHARACTERS = 100_000;
 
-const instructions = 'Control open Glitch Studio projects using AiScript. First call list_project_sessions and get_scripting_guide, then search_scripting_api and get_scripting_api for the exact Command/Query contracts. Always use an explicit projectSessionId. execute_script edits are undoable but successful edits remain after an error. capture_preview returns the selected preview as an image. Saving and importing files are not exposed.';
+const instructions = 'Control open Glitch Studio projects using AiScript. First call list_project_sessions and get_scripting_guide, then search_scripting_api and get_scripting_api for the exact Command/Query contracts. Always use an explicit projectSessionId. execute_script edits are undoable but successful edits remain after an error. capture_preview returns the selected preview as an image. seek_timeline_and_capture pauses and moves the active Timeline Scene. Saving and importing files are not exposed.';
 
 const scriptingGuide = `Glitch Studio project scripting uses AiScript, not JavaScript.
 Call list_project_sessions to select an explicit projectSessionId. Session IDs expire when the project is closed.
@@ -68,10 +68,10 @@ export async function startMcpHttpServer({ port, token, allowEditing, invoke, ve
 
 	const handler = createMcpHandler(() => {
 		const server = new McpServer({ name: 'glitch-studio', version }, { instructions });
-		const register = (name, description, inputSchema, readOnly, execute) => {
+		const register = (name, description, inputSchema, readOnly, execute, annotations = null) => {
 			server.registerTool(name, {
 				description, inputSchema,
-				annotations: { readOnlyHint: readOnly, destructiveHint: !readOnly, idempotentHint: readOnly, openWorldHint: false },
+				annotations: annotations ?? { readOnlyHint: readOnly, destructiveHint: !readOnly, idempotentHint: readOnly, openWorldHint: false },
 			}, async (input, context) => {
 				const startedAt = Date.now();
 				let failure = null;
@@ -97,7 +97,7 @@ export async function startMcpHttpServer({ port, token, allowEditing, invoke, ve
 				}
 			});
 		};
-		register('list_project_sessions', 'List open projects, their session IDs and active/running state. Always select an explicit projectSessionId before editing or capturing.',
+		register('list_project_sessions', 'List open projects, session IDs, selected Scene IDs and active/running state. Always select an explicit projectSessionId before editing or capturing.',
 			z.strictObject({}), true, async (input, signal) => textResult(await invoke('list_project_sessions', input, signal)));
 		register('get_scripting_guide', 'Read the AiScript syntax, project editing workflow and execution limits before writing a script.',
 			z.strictObject({}), true, async () => textResult(scriptingGuide));
@@ -113,15 +113,20 @@ export async function startMcpHttpServer({ port, token, allowEditing, invoke, ve
 					return { ...textResult(result, result.error != null), activityError: result.error };
 				});
 		}
+		const imageResult = async (operation, input, signal) => {
+			const { data, mimeType, ...metadata } = await invoke(operation, input, signal);
+			if (mimeType !== 'image/png' || typeof data !== 'string' || data.length > MAX_RESULT_BYTES) throw new Error('Invalid or oversized preview image');
+			const result = { content: [...textResult(metadata).content, { type: 'image', data, mimeType }] };
+			if (Buffer.byteLength(JSON.stringify(result)) > MAX_RESULT_BYTES) throw new Error('Preview result is too large');
+			return result;
+		};
 		register('capture_preview', 'Capture the active project\'s selected preview as a PNG, including display adjustments. Returns target/time metadata. Inactive or unavailable previews return an error; this does not change project or tab selection.',
 			z.strictObject({ projectSessionId: sessionIdSchema, maxSize: z.number().int().min(64).max(2048).optional() }), true,
-			async (input, signal) => {
-				const { data, mimeType, ...metadata } = await invoke('capture_preview', input, signal);
-				if (mimeType !== 'image/png' || typeof data !== 'string' || data.length > MAX_RESULT_BYTES) throw new Error('Invalid or oversized preview image');
-				const result = { content: [...textResult(metadata).content, { type: 'image', data, mimeType }] };
-				if (Buffer.byteLength(JSON.stringify(result)) > MAX_RESULT_BYTES) throw new Error('Preview result is too large');
-				return result;
-			});
+			(input, signal) => imageResult('capture_preview', input, signal));
+		register('seek_timeline_and_capture', 'Pause playback, seek the active project and selected Scene to a frame near timeMs, and return its PNG and requested/actual time. Leaves the timeline paused at that position, including on cancellation. Scene selection must match activeSceneId from list_project_sessions. Rendering history can affect the image.',
+			z.strictObject({ projectSessionId: sessionIdSchema, sceneId: z.string().min(1).max(256), timeMs: z.number().finite().min(0), maxSize: z.number().int().min(64).max(2048).optional() }), true,
+			(input, signal) => imageResult('seek_timeline_and_capture', input, signal),
+			{ readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false });
 		return server;
 	}, { legacy: 'stateless', responseMode: 'sse', maxRequestBodySize: MAX_REQUEST_BYTES, maxSubscriptions: 0 });
 	const serve = toNodeHandler(handler, { maxRequestBodySize: MAX_REQUEST_BYTES });

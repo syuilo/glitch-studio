@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { setTimeout, clearTimeout } from 'node:timers';
 
-const editorOperations = new Set(['search_scripting_api', 'get_scripting_api', 'execute_script', 'capture_preview']);
+const editorOperations = new Set(['search_scripting_api', 'get_scripting_api', 'execute_script', 'capture_preview', 'seek_timeline_and_capture']);
 
 function failure(code, message) {
 	return Object.assign(new Error(`${code}: ${message}`), { code });
@@ -46,12 +46,13 @@ export class McpEditorBridge {
 		const sessions = summaries.map(summary => {
 			if (summary == null || typeof summary.projectSessionId !== 'string' || summary.projectSessionId.length === 0 || summary.projectSessionId.length > 256
 				|| typeof summary.name !== 'string' || typeof summary.isActive !== 'boolean' || typeof summary.isScriptRunning !== 'boolean'
+				|| (summary.activeSceneId != null && (typeof summary.activeSceneId !== 'string' || summary.activeSceneId.length === 0 || summary.activeSceneId.length > 256))
 				|| identifiers.has(summary.projectSessionId)) throw new Error('Invalid MCP project session');
 			identifiers.add(summary.projectSessionId);
 			for (const other of this.windows.values()) {
 				if (other !== entry && other.sessions.some(session => session.projectSessionId === summary.projectSessionId)) throw new Error('Duplicate MCP project session');
 			}
-			return { projectSessionId: summary.projectSessionId, name: summary.name.slice(0, 1000), isActive: summary.isActive, isScriptRunning: summary.isScriptRunning };
+			return { projectSessionId: summary.projectSessionId, name: summary.name.slice(0, 1000), isActive: summary.isActive, isScriptRunning: summary.isScriptRunning, activeSceneId: summary.activeSceneId ?? null };
 		});
 		entry.sessions = sessions;
 		entry.ready = true;
@@ -70,7 +71,7 @@ export class McpEditorBridge {
 		}
 		if (!editorOperations.has(operation)) throw failure('UNKNOWN_OPERATION', 'Unknown editor operation.');
 		if (input == null || typeof input !== 'object' || Array.isArray(input)) throw failure('INVALID_INPUT', 'Expected an input object.');
-		const needsProject = operation === 'execute_script' || operation === 'capture_preview';
+		const needsProject = operation === 'execute_script' || operation === 'capture_preview' || operation === 'seek_timeline_and_capture';
 		const projectSessionId = needsProject ? input.projectSessionId : null;
 		if (needsProject && (typeof projectSessionId !== 'string' || projectSessionId.length === 0)) throw failure('INVALID_INPUT', 'projectSessionId is required.');
 		const entry = [...this.windows.values()].find(candidate => candidate.ready && !candidate.context.window.isDestroyed()
