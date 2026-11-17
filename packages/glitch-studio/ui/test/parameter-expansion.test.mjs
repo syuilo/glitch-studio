@@ -1,0 +1,270 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { basename, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { test } from 'node:test';
+import { build } from 'esbuild';
+import { compileScript, parse } from 'vue/compiler-sfc';
+import { computed, createRenderer, h, markRaw, nextTick, ref, shallowReactive, toRaw } from 'vue';
+import { i18nPlugin } from './helpers/i18n.mjs';
+
+const directory = fileURLToPath(new URL('../', import.meta.url));
+const bundle = await build({ absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
+	stdin: { resolveDir: directory, loader: 'ts', contents: `
+		export { default as NodeSettings } from './src/components/GsEffectNode.vue';
+		export { default as LayerSettings } from './src/components/GsTimeline.EffectSettings.vue';
+		export { default as Wires } from './src/components/GsWires.vue';
+		export { default as Port } from './src/components/GsNodePort.vue';
+		export { provideVisualModuleWires } from './src/utility/visual-module-wires.ts';
+		export { parameterExpansionScopeKey } from './src/composables/useParameterExpansion.ts';
+		export { projectSession } from './src/project-session.ts';
+		export { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+	` },
+	plugins: [i18nPlugin, { name: 'parameter-expansion', setup(build) {
+		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'platform' }));
+		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'platform' }));
+		build.onResolve({ filter: /(?:^@\/|\/src\/)(app|project-session|ui)\.ts$/ }, ({ path }) => ({ path: path.endsWith('ui.ts') ? 'ui' : 'app', namespace: 'platform' }));
+		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', resolveDir: directory, contents: {
+			preferences: "import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false), visualModuleWireStyle: ref('straight') } };",
+			effects: "import definition from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts'; export const effectDefinitions = { testStructArray: definition };",
+			app: 'export const projectSession = {}; export function useProjectSession() { return projectSession; }',
+			ui: 'export function popupMenu() {} export function popup() {} export function contextMenu() {} export function alert() {}',
+		}[path] }));
+		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsVisualParam\.vue$|GsEffectNode\.vue$|GsTimeline\.EffectSettings\.vue$|GsWires\.vue$|GsNodePort\.vue$/.test(path)
+			? null : { path: basename(path), namespace: 'control' });
+		build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ loader: 'ts', contents: `
+			import { h } from 'vue'; export default { inheritAttrs: false, setup(_, { attrs, slots }) {
+				return () => h('control', attrs, Object.entries(slots).flatMap(([name, slot]) => name === 'caption' ? [] : slot()));
+			} };` }));
+		build.onLoad({ filter: /\.vue$/ }, async ({ path }) => {
+			const descriptor = parse(await readFile(path, 'utf8'), { filename: path }).descriptor;
+			const script = compileScript(descriptor, { id: basename(path), inlineTemplate: true, genDefaultAs: 'component', templateOptions: { compilerOptions: { hoistStatic: false } } }).content;
+			return { loader: 'ts', resolveDir: dirname(path), contents: `${script}; component.__cssModules = { $style: {} }; export default component;` };
+		});
+	} }],
+});
+
+class TestElement {
+	constructor(tag) { Object.assign(this, { tag, children: [], parent: null, props: {}, style: {}, dataset: {} }); }
+}
+const resizeObservers = new Set();
+class TestResizeObserver {
+	constructor(callback) { this.callback = callback; this.elements = new Set(); resizeObservers.add(this); }
+	observe(element) { this.elements.add(element); }
+	unobserve(element) { this.elements.delete(element); }
+	disconnect() { this.elements.clear(); resizeObservers.delete(this); }
+}
+const module = { exports: {} };
+new Function('require', 'module', 'exports', 'HTMLElement', 'Element', 'ResizeObserver', 'window', bundle.outputFiles[0].text)(
+	createRequire(import.meta.url), module, module.exports, TestElement, TestElement, TestResizeObserver, new EventTarget());
+const { NodeSettings, LayerSettings, Wires, Port, provideVisualModuleWires, parameterExpansionScopeKey, projectSession, effectDefinitions } = module.exports;
+const originalDefinition = structuredClone(effectDefinitions.testStructArray);
+const element = tag => markRaw(new TestElement(tag));
+const renderer = createRenderer({
+	createElement: element, createText: () => element('text'), createComment: () => element('comment'), querySelector: () => element('body'),
+	setText() {}, setElementText(node, text) { node.text = text; },
+	patchProp(node, key, _previous, value) {
+		node.props[key] = value;
+		if (key === 'style') Object.assign(node.style, value);
+		if (key === 'data-wire-anchor') node.dataset.wireAnchor = value;
+	},
+	insert(node, parent, anchor = null) {
+		if (node.parent != null) node.parent.children.splice(node.parent.children.indexOf(node), 1);
+		parent.children.splice(anchor == null ? parent.children.length : parent.children.indexOf(anchor), 0, node);
+		node.parent = parent;
+	},
+	remove(node) { node.parent.children.splice(node.parent.children.indexOf(node), 1); node.parent = null; },
+	parentNode: node => node.parent, nextSibling: node => node.parent?.children[node.parent.children.indexOf(node) + 1] ?? null,
+});
+const findAll = (root, predicate) => [root, ...root.children.flatMap(child => findAll(child, predicate))].filter(predicate);
+const hasAttribute = name => node => Object.hasOwn(node.props, name);
+function isVisible(node) { return node != null && node.style.display !== 'none' && (node.parent == null || isVisible(node.parent)); }
+function click(node) { node.props.onClick({ currentTarget: node, stopPropagation() {} }); }
+
+async function fixture(t, { target = 'node', defaultCollapsed = false, elementCollapsed = false, connected = false } = {}) {
+	const definition = structuredClone(originalDefinition);
+	if (defaultCollapsed) {
+		definition.paramDefs.foo.ui.control.defaultExpanded = false;
+		definition.paramDefs.buzzs.ui.control.defaultExpanded = false;
+	}
+	if (elementCollapsed) definition.paramDefs.buzzs.ui.control.element.defaultExpanded = false;
+	effectDefinitions.testStructArray = definition;
+	const createOwner = id => {
+		const params = Object.fromEntries(Object.entries(definition.paramDefs).map(([key, parameter]) => [key, structuredClone(parameter.defaultValue)]));
+		if (connected) params.buzzs.value[0].binding.value.image = { inputSource: 'node', nodeId: 'source', outputPort: 'output' };
+		return { id, type: 'effect', layerType: 'effect', effectId: definition.id, resolution: { mode: 'auto', scale: 1 },
+			isBypass: false, automationGraphs: [], params, effectParamValues: params, staticSettings: {}, effectStaticSettings: {} };
+	};
+	const owners = ref([createOwner('first-owner'), createOwner('second-owner')]);
+	const selection = ref(0);
+	const owner = computed(() => owners.value[selection.value]);
+	const visualModule = computed(() => ({ nodes: [{ id: 'source', type: 'relay', dataType: { kind: 'color' } }, ...owners.value],
+		paramDefs: [], outputDefs: [], automationGraphs: [], customParameterDefs: [] }));
+	const scope = ref(JSON.stringify(target === 'node' ? ['module', 'first-visual-module'] : ['timelineLayer', 'scene', 'first-layer']));
+	const state = shallowReactive(new Map());
+	Object.assign(projectSession, { parameterExpansionStates: state,
+		projectContext: { stateManager: { state: { automationGraphs: ref([]), resolution: ref({ width: 800, height: 600 }) } } } });
+	const showEditor = ref(true);
+	const edits = [];
+	let wireMap;
+	const root = element('root');
+	const app = renderer.createApp({ setup() {
+		wireMap = provideVisualModuleWires();
+		return () => h('main', [
+			h(Port, { output: true, dataType: { kind: 'color' }, 'onUpdate:element': value => {
+				if (value == null) delete wireMap.out.source;
+				else wireMap.out.source = { output: value };
+			} }),
+			...(showEditor.value ? [h(target === 'node' ? NodeSettings : LayerSettings, target === 'node'
+				? { node: owner.value, visualModule: visualModule.value, onEditParam: edit => edits.push(edit) }
+				: { layer: owner.value, contextResolution: { width: 800, height: 600 }, imageLayerOptions: [], anotherLayerAudioOptions: [], onEdit: edit => edits.push(edit) })] : []),
+			...(target === 'node' ? [h(Wires, { visualModule: visualModule.value })] : []),
+		]);
+	} });
+	app.provide(parameterExpansionScopeKey, computed(() => target === 'layer' ? JSON.stringify([scope.value, owner.value.id]) : scope.value));
+	app.directive('tooltip', {});
+	app.mount(root);
+	t.after(() => app.unmount());
+	await nextTick();
+	const row = path => findAll(root, node => node.props['data-test-parameter-path'] === JSON.stringify(path))[0];
+	const toggleButton = path => findAll(row(path), hasAttribute('data-test-parameter-toggle'))[0];
+	const collapsedPort = path => findAll(row(path), hasAttribute('data-test-parameter-collapsed-port'))[0];
+	const expanded = path => toggleButton(path).props['data-test-parameter-expanded'];
+	const toggle = async path => { click(toggleButton(path)); await nextTick(); };
+	const coordinates = new Map();
+	const position = anchor => {
+		if (!coordinates.has(anchor)) coordinates.set(anchor, [50 + coordinates.size * 20, 100 + coordinates.size * 30]);
+		return coordinates.get(anchor);
+	};
+	const measure = async () => {
+		await nextTick();
+		for (const observer of resizeObservers) {
+			observer.callback([...observer.elements].map(measurement => {
+				const anchorName = measurement.props.style?.right?.match(/^anchor\(([^ ]+) /)?.[1];
+				const anchor = findAll(root, node => node.dataset.wireAnchor === anchorName)[0];
+				const [width, height] = hasAttribute('data-test-wire-measure')(measurement)
+					? isVisible(anchor) ? position(anchor) : [0, 0] : [800, 600];
+				return { target: measurement, contentRect: { width, height } };
+			}));
+		}
+		await nextTick();
+	};
+	const destination = () => {
+		const paths = findAll(root, hasAttribute('data-test-wire-path'));
+		assert.equal(paths.length, connected ? 1 : 0);
+		return paths[0]?.props.d.split(' L ').at(-1).split(' ').map(Number);
+	};
+	return { root, row, toggleButton, collapsedPort, expanded, toggle, owners, selection, scope, owner, showEditor, edits, state, wireMap, measure, position, destination };
+}
+
+for (const target of ['node', 'layer']) {
+	// 【両編集画面の構造体・配列を独立して開閉し、閉じても子のUIを破棄しない】
+	// 親を閉じただけで子の状態や入力途中の値を失うと、再展開のたびに編集が中断される。
+	// 開閉通知がパラメータ編集へ混ざらず、保存Bindingも一切変更しないことを確認する。
+	test(`collapses ${target} structs and arrays without losing descendants or editing bindings`, async t => {
+		const f = await fixture(t, { target });
+		const saved = structuredClone(toRaw(f.owner.value.params));
+		const child = f.row(['buzzs', 'first', 'x']);
+		child.draftValue = 'unfinished';
+		assert.equal(f.expanded(['foo']), true);
+		assert.equal(f.expanded(['buzzs']), true);
+		await f.toggle(['buzzs', 'first']);
+		assert.equal(isVisible(child), false);
+		assert.equal(f.expanded(['foo']), true);
+		await f.toggle(['buzzs']);
+		await f.toggle(['buzzs']);
+		assert.equal(f.expanded(['buzzs', 'first']), false);
+		await f.toggle(['buzzs', 'first']);
+		assert.equal(f.row(['buzzs', 'first', 'x']), child);
+		assert.equal(child.draftValue, 'unfinished');
+		assert.equal(isVisible(child), true);
+		assert.deepEqual(f.edits, []);
+		assert.deepEqual(f.owner.value.params, saved);
+	});
+	// 【初期折り畳みは構造体・配列・配列要素へ個別に適用する】
+	// 初期値を指定した子も生成しておき、展開時に独立した初期状態が現れることを保証する。
+	test(`honors default expansion for ${target} structs, arrays and array elements`, async t => {
+		const f = await fixture(t, { target, defaultCollapsed: true, elementCollapsed: true });
+		assert.equal(f.expanded(['foo']), false);
+		assert.equal(f.expanded(['buzzs']), false);
+		await f.toggle(['buzzs']);
+		assert.equal(f.expanded(['buzzs', 'first']), false);
+		assert.equal(isVisible(f.row(['buzzs', 'first', 'x'])), false);
+		await f.toggle(['buzzs', 'first']);
+		assert.equal(isVisible(f.row(['buzzs', 'first', 'x'])), true);
+	});
+}
+
+for (const target of ['node', 'layer']) {
+	// 【選択切替・再マウント後も所有者ごとに状態を復元し、別の所有者やセッションへ持ち込まない】
+	// 同じノードID・パラメータ名を再利用する別の編集対象を、同一の開閉状態にしてはいけない。
+	test(`restores ${target} expansion across selections and remounts while isolating owners and sessions`, async t => {
+		const f = await fixture(t, { target });
+		await f.toggle(['buzzs']);
+		f.selection.value = 1; await nextTick();
+		assert.equal(f.expanded(['buzzs']), true);
+		f.selection.value = 0; await nextTick();
+		assert.equal(f.expanded(['buzzs']), false);
+		f.showEditor.value = false; await nextTick();
+		f.showEditor.value = true; await nextTick();
+		assert.equal(f.expanded(['buzzs']), false);
+		const initialScope = f.scope.value;
+		f.scope.value = JSON.stringify(['inline', 'scene', 'layer']); await nextTick();
+		assert.equal(f.expanded(['buzzs']), true);
+		f.scope.value = initialScope; await nextTick();
+		assert.equal(f.expanded(['buzzs']), false);
+		assert.equal((await fixture(t, { target })).expanded(['buzzs']), true);
+	});
+}
+
+// 【配列要素の開閉は添字ではなく要素IDに追従する】
+// 並べ替え・削除・挿入で、閉じていた要素の状態が別の要素へ移ってはいけない。
+test('keeps expansion attached to array element IDs through reorder, removal and insertion', async t => {
+	const f = await fixture(t);
+	const values = f.owner.value.params.buzzs.value;
+	values.push({ id: 'second', binding: structuredClone(originalDefinition.paramDefs.buzzs.element.defaultValue) });
+	await nextTick();
+	await f.toggle(['buzzs', 'first']);
+	values.reverse(); await nextTick();
+	assert.equal(f.expanded(['buzzs', 'first']), false);
+	assert.equal(f.expanded(['buzzs', 'second']), true);
+	values.splice(1, 1);
+	values.push({ id: 'third', binding: structuredClone(originalDefinition.paramDefs.buzzs.element.defaultValue) });
+	await nextTick();
+	assert.equal(f.expanded(['buzzs', 'second']), true);
+	assert.equal(f.expanded(['buzzs', 'third']), true);
+});
+
+// 【隠れた接続は最も近い表示中の仮想ポートへ集約し、ノード全体を閉じた場合も配線を保つ】
+// 子のアンカーはDOMに残るため、存在の有無ではなく測定可能な表示中の候補を選ぶ必要がある。
+// 再展開後には本来の入力へ戻し、描画用の仮想ポートを新規接続先として登録しないことも確認する。
+test('routes connected wires through visible collapsed ancestors and restores the original input', async t => {
+	const f = await fixture(t, { connected: true });
+	const leaf = f.wireMap.in['first-owner'][JSON.stringify(['buzzs', 'first', 'image'])];
+	const structPort = f.collapsedPort(['buzzs', 'first']);
+	const arrayPort = f.collapsedPort(['buzzs']);
+	assert.notEqual(structPort, f.toggleButton(['buzzs', 'first']));
+	assert.equal(isVisible(structPort), false);
+	assert.equal(isVisible(arrayPort), false);
+	await f.measure();
+	assert.deepEqual(f.destination(), f.position(leaf));
+	await f.toggle(['buzzs', 'first']); await f.measure();
+	assert.equal(isVisible(structPort), true);
+	assert.equal(structPort.props['data-type'], 'any');
+	assert.deepEqual(f.destination(), f.position(structPort));
+	assert.equal(f.wireMap.in['first-owner'][JSON.stringify(['buzzs', 'first'])], undefined);
+	await f.toggle(['buzzs']); await f.measure();
+	assert.equal(isVisible(structPort), false);
+	assert.equal(isVisible(arrayPort), true);
+	assert.deepEqual(f.destination(), f.position(arrayPort));
+	click(findAll(f.root, hasAttribute('data-test-node-toggle'))[0]); await f.measure();
+	assert.deepEqual(f.destination(), f.position(f.wireMap.allIn['first-owner']));
+	click(findAll(f.root, hasAttribute('data-test-node-toggle'))[0]);
+	await f.toggle(['buzzs']); await f.measure();
+	assert.deepEqual(f.destination(), f.position(structPort));
+	await f.toggle(['buzzs', 'first']); await f.measure();
+	assert.equal(isVisible(structPort), false);
+	assert.equal(isVisible(arrayPort), false);
+	assert.deepEqual(f.destination(), f.position(leaf));
+});

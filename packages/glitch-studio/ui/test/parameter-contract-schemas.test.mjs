@@ -41,6 +41,21 @@ test('accepts every built-in effect parameter and static setting definition', ()
 	}
 });
 
+// 【配列と構造体の初期展開指定を、入れ子も含めて公開契約で保持する】
+// Queryや公開値定義の受け渡しで設定が欠落すると、UIが意図した初期状態を再現できない。
+// コンテナを空の色コントロールとして受理してしまわず、内部まで検証する必要がある。
+test('preserves and validates default expansion in nested container controls', () => {
+	const definition = structuredClone(effectDefinitions.find(candidate => candidate.id === 'testStructArray').paramDefs.buzzs);
+	definition.ui.control.defaultExpanded = false;
+	definition.ui.control.element.defaultExpanded = false;
+	assert.deepEqual(parameterDefinitionSchema.parse(definition).ui.control, definition.ui.control);
+	definition.ui.control.element.defaultExpanded = 'collapsed';
+	assert.equal(parameterDefinitionSchema.safeParse(definition).success, false);
+	const struct = structuredClone(effectDefinitions.find(candidate => candidate.id === 'doublePendulumFractal').paramDefs.view);
+	struct.ui.control.defaultExpanded = false;
+	assert.deepEqual(parameterDefinitionSchema.parse(struct).ui.control, struct.ui.control);
+});
+
 // 【配列の保存構造とカスタムパラメータの制約をJSON資料に残す】
 // JSONという説明だけでは配列要素のIDとBindingを組み立てられない。型付きの公開値と
 // 内部共有値の違いも資料から判別でき、サポート外の定義を入力時に拒否する必要がある。

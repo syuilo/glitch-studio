@@ -298,6 +298,25 @@ test('switches viewport editing exclusively through parameter row buttons', asyn
 	assert.equal(f.handles().length, 1);
 });
 
+// 【表示範囲の構造体を閉じても、見出しの操作ボタンと有効なプレビューハンドルを保つ】
+// 折り畳みは項目一覧の表示だけを変える操作であり、操作中の表示範囲を解除してはいけない。
+test('keeps viewport preview editing active while its struct fields are collapsed', async t => {
+	const f = await fixture(t, { viewport: true });
+	f.viewportToggles()[0].props.onClick(); await nextTick();
+	const viewRow = findAll(f.root, node => node.props['data-test-parameter-path'] === JSON.stringify(['view']))[0];
+	const collapseButton = findAll(viewRow, node => Object.hasOwn(node.props, 'data-test-parameter-toggle'))[0];
+	const children = findAll(viewRow, node => Object.hasOwn(node.props, 'data-test-parameter-children'))[0];
+	collapseButton.props.onClick({ stopPropagation() {} }); await nextTick();
+	assert.equal(children.style.display, 'none');
+	assert.equal(f.viewportToggles()[0].props.primary, true);
+	assert.ok(f.viewportEditor());
+	f.beginViewport(); f.pointer('pointermove', 420, 210); f.pointer('pointerup', 420, 210);
+	assert.notDeepEqual(f.node.params.view.value.center.value, [0, 0]);
+	collapseButton.props.onClick({ stopPropagation() {} }); await nextTick();
+	assert.notEqual(children.style.display, 'none');
+	assert.equal(f.viewportToggles()[0].props.primary, true);
+});
+
 // 【深いズームと回転を反映した微小な中心移動を、ドラッグ中と一回のUndoで扱う】
 // 画面のY反転・回転・倍率の換算漏れや、小数第3位への丸めで移動が失われる回帰を防ぐ。
 test('pans a deeply zoomed rotated viewport continuously and undoes the whole drag', async t => {

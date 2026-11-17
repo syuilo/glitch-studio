@@ -5,6 +5,7 @@
 	:key="port.anchorName"
 	:ref="el => setMeasureElement(port.element, el)"
 	:class="$style.portMeasure"
+	data-test-wire-measure
 	:style="{
 		right: `anchor(${port.anchorName} center, 100%)`,
 		bottom: `anchor(${port.anchorName} center, 100%)`,
@@ -55,10 +56,10 @@ import { getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts
 import type { ComponentPublicInstance } from 'vue';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
-import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
+import { getVisualModuleWireInputElements, useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { wireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
-import { paramPathKey, walkNodeParams } from '@/utility/node-params.ts';
+import { walkNodeParams } from '@/utility/node-params.ts';
 import { preferences } from '@/preferences.ts';
 import { getVisualModuleWirePath } from '@/utility/visual-module-wire-path.ts';
 
@@ -105,8 +106,7 @@ const connections = computed(() => {
 	const result: {
 		key: string;
 		from: HTMLElement;
-		input: HTMLElement | null;
-		allIn: HTMLElement | null;
+		inputs: HTMLElement[];
 		fromColor: string;
 		toColor: string;
 	}[] = [];
@@ -120,8 +120,7 @@ const connections = computed(() => {
 				if (from) result.push({
 					key: JSON.stringify([node.id, def.id, nodeId, outputPort]),
 					from,
-					input: wireMap.in[node.id]?.[def.id] ?? null,
-					allIn: null,
+					inputs: wireMap.in[node.id]?.[def.id] == null ? [] : [wireMap.in[node.id][def.id]],
 					...getWireColors(getNodeOutputs(nodesById.value.get(nodeId), paramDefs.value, effectDefinitions.value)[outputPort]?.dataType ?? { kind: 'any' }, def.dataType),
 				});
 			}
@@ -136,8 +135,7 @@ const connections = computed(() => {
 			result.push({
 				key: JSON.stringify([node.id, path, value.nodeId, value.outputPort]),
 				from,
-				input: wireMap.in[node.id]?.[paramPathKey(path)] ?? null,
-				allIn: wireMap.allIn[node.id] ?? null,
+				inputs: getVisualModuleWireInputElements(wireMap, node.id, path),
 				...getWireColors(getNodeOutputs(nodesById.value.get(value.nodeId), paramDefs.value, effectDefinitions.value)[value.outputPort]?.dataType ?? { kind: 'any' }, getNodeInputDataType(def) ?? { kind: 'any' }),
 			});
 		}
@@ -154,8 +152,7 @@ const measuredPorts = computed(() => {
 	const elements = new Set<HTMLElement>();
 	for (const connection of connections.value) {
 		elements.add(connection.from);
-		if (connection.input) elements.add(connection.input);
-		if (connection.allIn) elements.add(connection.allIn);
+		for (const input of connection.inputs) elements.add(input);
 	}
 	if (dragSource.value) elements.add(dragSource.value);
 	return [...elements].map(element => ({ element, anchorName: element.dataset.wireAnchor! }));
@@ -207,8 +204,7 @@ const wires = computed(() => {
 	const result: Wire[] = [];
 	for (const connection of connections.value) {
 		const from = positions.get(connection.from);
-		const to = (connection.input && positions.get(connection.input))
-			?? (connection.allIn && positions.get(connection.allIn));
+		const to = connection.inputs.map(input => positions.get(input)).find(position => position != null);
 		if (!from || !to) continue;
 		result.push({
 			key: connection.key,

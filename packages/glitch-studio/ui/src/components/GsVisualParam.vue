@@ -1,8 +1,24 @@
 <template>
 <div v-if="isVisible" :class="$style.root" :data-test-parameter-path="JSON.stringify(paramPath)">
-	<div ref="rowEl" :class="$style.row" data-wire-input-row @contextmenu.prevent.stop="onRowContextmenu">
+	<div ref="rowEl" :class="[$style.row, { [$style.containerRow]: isContainer }]" data-wire-input-row @contextmenu.prevent.stop="onRowContextmenu">
 		<div :class="[$style.paramHeader, { [$style.isDyamic]: paramValue.inputSource !== 'literal' }]">
-			<button v-if="paramDef.dataType.kind === 'array' || paramDef.dataType.kind === 'struct'" class="_button"><i class="ti ti-chevron-down" style="vertical-align: middle;"></i></button>
+			<template v-if="isContainer">
+				<button
+					class="_button"
+					:class="$style.collapseButton"
+					data-test-parameter-toggle
+					:data-test-parameter-expanded="expanded"
+					@pointerdown.stop
+					@click.stop="expanded = !expanded"
+				><i :class="expanded ? 'ti ti-chevron-down' : 'ti ti-chevron-right'"></i></button>
+				<GsNodePort
+					v-if="node != null"
+					v-show="!expanded"
+					data-test-parameter-collapsed-port
+					:dataType="{ kind: 'any' }"
+					@update:element="collapsedPortEl = $event"
+				/>
+			</template>
 			<GsNodePort v-else-if="canNode && node != null" :dataType="inputDataType" style="cursor: pointer;" @pointerdown.stop @click.stop="showNodeInputMenu" @update:element="portEl = $event"/>
 			<GsNodePort v-else placeholder :data-type="null"/>
 
@@ -156,7 +172,8 @@
 			@closed="inlineGraphEditorOpen = false"
 		/>
 	</Teleport>
-	<div v-if="paramDef.dataType.kind === 'array'" :class="$style.children">
+	<!-- 非表示でも子を保持し、入力途中の内容・子の開閉・プレビューハンドルを失わせない。 -->
+	<div v-if="paramDef.dataType.kind === 'array'" v-show="expanded" :class="$style.children" data-test-parameter-children>
 		<GsVisualParam
 			v-for="(element, index) in arrayValues"
 			:key="element.id"
@@ -184,7 +201,7 @@
 			</template>
 		</GsVisualParam>
 	</div>
-	<div v-else-if="paramDef.dataType.kind === 'struct' && structValues" :class="$style.children">
+	<div v-else-if="paramDef.dataType.kind === 'struct' && structValues" v-show="expanded" :class="$style.children" data-test-parameter-children>
 		<GsVisualParam
 			v-for="[key, def] in visibleFields"
 			:key="key"
@@ -283,6 +300,7 @@ import { setInlineAutomationGraphNormalized } from '@/utility/automation-graph.t
 import { usePreviewParameterHandle } from '@/composables/usePreviewParameterHandle.ts';
 import { isViewport2DParameter } from '@/utility/preview-viewport.ts';
 import { canCreateNamedParameterFromBinding } from '@/utility/named-parameter-creation.ts';
+import { useParameterExpansion } from '@/composables/useParameterExpansion.ts';
 
 const projectSession = useProjectSession();
 
@@ -319,6 +337,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{ edit: [event: ParamEdit] }>();
 const previewParameterHandle = usePreviewParameterHandle(projectSession, props);
+const expanded = useParameterExpansion(projectSession, props);
+const isContainer = computed(() => props.paramDef.dataType.kind === 'struct' || props.paramDef.dataType.kind === 'array');
 
 const timelinePublicParameterItems = computed(() => {
 	const context = timelineEditor?.context.value;
@@ -343,6 +363,7 @@ function updateTimelinePublicParameterReference(key: string | null) {
 
 const rowEl = useTemplateRef('rowEl');
 const portEl = shallowRef<HTMLElement | null>(null);
+const collapsedPortEl = shallowRef<HTMLElement | null>(null);
 const defaultBinding = computed(() => props.defaultBinding ?? props.paramDef.defaultValue);
 const isVisible = computed(() => props.paramDef.ui.isAdvanced !== true || preferences.r.showAdvancedParameters.value
 	|| !isParameterBindingDefault(props.paramDef, props.paramValue, defaultBinding.value));
@@ -476,6 +497,19 @@ watchEffect(onCleanup => {
 	wireMap.in[nodeId][key] = el;
 	onCleanup(() => {
 		if (wireMap.in[nodeId]?.[key] === el) delete wireMap.in[nodeId][key];
+	});
+});
+
+watchEffect(onCleanup => {
+	const element = collapsedPortEl.value;
+	const nodeId = props.node?.id;
+	if (element == null || nodeId == null || expanded.value) return;
+	const key = paramPathKey(props.paramPath);
+	// 仮想ポートは隠れた入力への描画用の集約先であり、struct・array自体には接続させない。
+	wireMap.collapsedParameters[nodeId] ??= {};
+	wireMap.collapsedParameters[nodeId][key] = element;
+	onCleanup(() => {
+		if (wireMap.collapsedParameters[nodeId]?.[key] === element) delete wireMap.collapsedParameters[nodeId][key];
 	});
 });
 
@@ -760,6 +794,20 @@ function onReset() {
 	}
 }
 
+.containerRow {
+	// コンテナの本体には値入力がない。仮想ポートを表示しても見出しが潰れないよう、
+	// 要素数や操作ボタンに必要な幅だけ残し、見出しへ残りの幅を割り当てる。
+	.paramHeader {
+		width: auto;
+		flex: 1;
+	}
+
+	.paramBody {
+		width: auto;
+		flex-shrink: 0;
+	}
+}
+
 .paramHeader {
 	display: flex;
 	align-items: center;
@@ -781,6 +829,14 @@ function onReset() {
 	text-overflow: ellipsis;
 	overflow: clip;
 	cursor: pointer;
+}
+
+.collapseButton {
+	display: grid;
+	place-items: center;
+	width: var(--NODE_PORT_SIZE, 16px);
+	height: var(--NODE_PORT_SIZE, 16px);
+	flex-shrink: 0;
 }
 
 .typeIcon {

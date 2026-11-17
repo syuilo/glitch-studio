@@ -61,9 +61,9 @@ export type DataTypeUiControlDefinitionMap = {
 // enumのlabelsは選択肢の表示名であり、コントロール自身のラベルではない。
 export type DataTypeUiDefinition<T extends DataType = DataType> =
 	T extends { kind: 'array'; elementType: infer E extends DataType }
-		? { element: DataTypeUiDefinition<E> }
+		? { defaultExpanded?: boolean; element: DataTypeUiDefinition<E> }
 		: T extends { kind: 'struct'; fields: infer F extends Record<string, DataType> }
-			? { fields: { [K in keyof F]: { label: string; isAdvanced?: boolean; control: DataTypeUiDefinition<F[K]> } } } & StructControl<F>
+			? { defaultExpanded?: boolean; fields: { [K in keyof F]: { label: string; isAdvanced?: boolean; control: DataTypeUiDefinition<F[K]> } } } & StructControl<F>
 			: T extends { kind: 'enum'; options: readonly string[] }
 				? { labels: Record<T['options'][number], string> }
 				: T extends { kind: keyof DataTypeUiControlDefinitionMap }

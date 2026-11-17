@@ -109,12 +109,14 @@ const parameterSettingsSchema: z.ZodType<ParameterSettingsData> = z.lazy(() => z
 }));
 type ParameterControlData = Record<string, unknown>;
 const parameterControlSchema: z.ZodType<ParameterControlData> = z.lazy(() => z.union([
-	scalarControlSchema, vectorControlSchema, z.object({ controlType: z.enum(['color', 'signal']).optional() }),
+	// 任意フィールドだけの色UIがコンテナまで受理すると、fieldsや初期展開指定が消えてしまう。
+	scalarControlSchema, vectorControlSchema, z.strictObject({ controlType: z.enum(['color', 'signal']).optional() }),
 	z.object({ labels: z.record(z.string(), z.string()) }),
-	z.object({ element: parameterControlSchema }),
+	z.object({ element: parameterControlSchema, defaultExpanded: z.boolean().optional() }),
 	z.object({
 		fields: z.record(z.string(), z.object({ label: z.string(), isAdvanced: z.boolean().optional(), control: parameterControlSchema })),
 		controlType: z.enum(['struct', 'viewport2d']).optional(),
+		defaultExpanded: z.boolean().optional(),
 		spanAtZoomOne: z.number().optional(), minimumZoom: z.number().optional(), maximumZoom: z.number().optional(),
 	}),
 	emptyControlSchema,
@@ -145,7 +147,7 @@ export const parameterDefinitionSchema = z.union([
 	}),
 	z.object({
 		dataType: z.object({ kind: z.literal('array'), elementType: dataTypeSchema }),
-		ui: z.object({ label: z.string(), isAdvanced: z.boolean().optional(), control: z.object({ element: parameterControlSchema }) }),
+		ui: z.object({ label: z.string(), isAdvanced: z.boolean().optional(), control: z.object({ element: parameterControlSchema, defaultExpanded: z.boolean().optional() }) }),
 		defaultValue: arrayParameterDefaultSchema, canNode: z.literal(false).optional(), maxElements: z.number().optional(), element: parameterSettingsSchema,
 	}),
 	z.object({

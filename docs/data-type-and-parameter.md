@@ -16,6 +16,7 @@
 | 子のパラメータ設定 | `element` | `fields[key]` |
 
 - 配列全体の `defaultValue` と、新規要素を追加するときの `element.defaultValue` は別です。
+- array・structの `ui.control.defaultExpanded` は編集UIの初期展開状態です。省略時は展開し、`false`で初期折り畳みにできます。子のstructや配列要素にも個別に指定できます。ユーザーが切り替えた状態は編集対象・パラメータパスごとにプロジェクトの編集セッション中だけ保持し、保存値・Undo/Redo・レンダリングには影響しません。
 - arrayの保存値は `ParameterArrayElement[]`（`{ id, binding }[]`）で、`defaultValue`も同じ形式です。IDは同じ配列内で一意にし、編集対象は親まで含むIDのパスで指定します。追加・要素の複製では新しいIDを発行し、値やBindingの種類の変更・移動・Undo/RedoではIDを維持します。新規ノードは既定値のIDをコピーできます。
 - リセットは対象Binding内部の配列要素IDを再帰的に再発行します。対象要素自身のIDは親が所有するため維持し、Undo/Redoでは生成済みのIDを復元します。color/vectorの成分配列やキーフレームのIDはこの処理の対象外です。
 - 評価後の配列は従来どおり素の値またはShaderInputの配列で、要素ID・Bindingのラッパーは含めません。式から要素IDを指定する参照は提供しません。

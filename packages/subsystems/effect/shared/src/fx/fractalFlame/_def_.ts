@@ -8,7 +8,7 @@ const variationTypes = {
 	horseshoe: { kind: 'scalar' }, polar: { kind: 'scalar' }, handkerchief: { kind: 'scalar' }, heart: { kind: 'scalar' },
 } as const;
 const variationControl = { controlType: 'range', min: -2, max: 2, step: 0.01 } as const;
-const variationControls = { fields: {
+const variationControls = { defaultExpanded: false, fields: {
 	linear: { label: 'Linear', control: variationControl }, sinusoidal: { label: 'Sinusoidal', control: variationControl },
 	spherical: { label: 'Spherical', control: variationControl }, swirl: { label: 'Swirl', control: variationControl },
 	horseshoe: { label: 'Horseshoe', control: variationControl }, polar: { label: 'Polar', control: variationControl },

@@ -18,7 +18,7 @@ import { openAudioFile } from '@gs/subsystems_audio_renderer/audio-file.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 
 import { getTimelineScenesWithProjectAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
-import { computed, ref, shallowRef, markRaw, nextTick, watch } from 'vue';
+import { computed, ref, shallowReactive, shallowRef, markRaw, nextTick, watch } from 'vue';
 import type { Ref, ShallowRef } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.js';
@@ -66,6 +66,8 @@ export class ProjectSessionContext {
 	// プロジェクト外への参照を貼り付けないよう、内部クリップボードもセッションに閉じる。
 	public readonly timelineClipboard = shallowRef<TimelineClipboard | null>(null);
 	public readonly workspacePanelRevealRequest = shallowRef<WorkspacePanelRevealRequest | null>(null);
+	// 表示だけの状態をセッション内で保持し、選択切替でも復元する。保存・Undo/Redoには含めない。
+	public readonly parameterExpansionStates = shallowReactive(new Map<string, boolean>());
 	private disposed = false;
 	private startupStarted = false;
 	private disposal: Promise<void> | null = null;
@@ -742,6 +744,7 @@ export class ProjectSessionContext {
 		ui.disposeProjectSessionPopups(this);
 		this.projectContext.dispose();
 		this.scenePlaybackTimes.clear();
+		this.parameterExpansionStates.clear();
 		return this.disposal;
 	}
 }

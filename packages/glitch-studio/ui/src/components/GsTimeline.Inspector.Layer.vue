@@ -273,11 +273,13 @@ import { handleProjectParameterClipboard } from '@/utility/parameter-clipboard-a
 import * as ui from '@/ui.ts';
 import { getLayerParameterValues, resolveLayerParameter } from '@/utility/timeline-scene.ts';
 import { previewParameterContextKey } from '@/utility/preview-parameter-editing.ts';
+import { parameterExpansionScopeKey } from '@/composables/useParameterExpansion.ts';
 import { createVisualModuleDropActions } from '@/utility/visual-module-drop-actions.ts';
 
 const projectSession = useProjectSession();
 
 const props = defineProps<{ scene: TimelineScene; layer: TimelineLayer }>();
+provide(parameterExpansionScopeKey, computed(() => JSON.stringify(['timelineLayer', props.scene.id, props.layer.id])));
 provide(timelineParameterEditorContextKey, { context: computed(() => getTimelineLayerPublicParameterContext(props.scene.layers, props.layer.id)), isPublicParameterValue: false });
 provide(previewParameterContextKey, {
 	scope: computed(() => ({ kind: 'timelineLayer' as const, sceneId: props.scene.id, layerId: props.layer.id })),

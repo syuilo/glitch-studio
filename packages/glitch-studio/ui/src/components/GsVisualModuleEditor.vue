@@ -124,6 +124,8 @@ import { provideVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { useAssetDrop } from '@/composables/useAssetDrop.ts';
 import * as ui from '@/ui.ts';
 import { previewParameterContextKey } from '@/utility/preview-parameter-editing.ts';
+import { parameterExpansionScopeKey } from '@/composables/useParameterExpansion.ts';
+import { visualModuleTargetKey } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
 
 provideVisualModuleWires();
 
@@ -142,6 +144,7 @@ provide(previewParameterContextKey, {
 	scope: computed(() => props.previewTarget == null ? null : { kind: 'visualModule' as const, target: props.previewTarget }),
 	label: computed(() => props.visualModuleName),
 });
+provide(parameterExpansionScopeKey, computed(() => props.previewTarget == null ? null : visualModuleTargetKey(props.previewTarget)));
 
 const emit = defineEmits<{
 	edit: [event: VisualModuleEdit];
