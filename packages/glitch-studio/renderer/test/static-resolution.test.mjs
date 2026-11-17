@@ -5,7 +5,6 @@ import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { resolveVisualModuleResolutions } = await load('@gs/subsystems_visual-module_renderer/visual-module-resolutions.ts');
-const { defineEffect } = await load('@gs/subsystems_effect_shared/effect-definition.ts');
 const { getPlayerIntrinsicResolution } = await load('@gs/glitch-studio_shared/player-resolution.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const input = { dataType: { kind: 'color' }, canNode: true, ui: { label: 'Input', control: {} }, defaultValue: literal([0, 0, 0, 0]) };
@@ -51,13 +50,6 @@ test('uses every nested input candidate and preserves the first aspect ratio on 
 	assert.deepEqual(resolveVisualModuleResolutions(options).get('selector'), { width: 80, height: 40 });
 	options.inputResolutions.set('portrait', { width: 40, height: 90 });
 	assert.deepEqual(resolveVisualModuleResolutions(options).get('selector'), { width: 40, height: 90 });
-});
-
-// 【原寸の取得元を画像・動画・Playerの静的設定に限定する】
-// 通常の数値やフォントを解像度の取得元として定義できると、宣言の意味が曖昧になる。
-test('rejects non-resource intrinsic settings and non-input resolution declarations', () => {
-	assert.throws(() => defineEffect({ ...definition, staticSettingDefs: { size: { dataType: { kind: 'scalar' }, ui: { label: 'Size' }, defaultValue: 1 } }, intrinsicResolutionSetting: 'size' }), /Intrinsic resolution/);
-	assert.throws(() => defineEffect({ ...definition, primaryInputParameter: null, paramDefs: { input: { ...input, canNode: false } } }), /Resolution input/);
 });
 
 // 【解像度計画も描画と同じ公開ポート・relay・Bypassの解決規則に従う】

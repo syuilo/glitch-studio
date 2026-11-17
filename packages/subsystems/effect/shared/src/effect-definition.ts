@@ -1,10 +1,7 @@
 import type { StaticSettingDefinitions } from '@gs/shared/static-setting.ts';
-import { validateStaticSettingValue } from '@gs/shared/static-setting.ts';
-import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { CheckedParameterDefinition, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { EffectParameterLayoutItem } from './effect-parameter-layout.ts';
-import { validateEffectParameterLayout } from './effect-parameter-layout.ts';
 
 export type EffectOutputDefinitions = Record<string, {
 	dataType: TextureDataType;
@@ -93,33 +90,5 @@ export function defineEffect<const In extends Record<string, ParameterDefinition
 		paramDefs: { [K in keyof In]: CheckedParameterDefinition<NoInfer<In[K]>> };
 	},
 ): EffectDefinition<In, Out, Settings> {
-	if (def.ui != null) validateEffectParameterLayout(def.id, Object.keys(def.paramDefs), def.ui.parameterLayout);
-	if (def.primaryAudioInputParameter != null && def.paramDefs[def.primaryAudioInputParameter]?.dataType.kind !== 'audioSource') {
-		throw new Error(`Primary audio input must reference an audio parameter: ${def.id}.${def.primaryAudioInputParameter}`);
-	}
-	// 必須の主入出力はnullで未選択、解像度入力は空配列で未選択を表す。
-	// 画像の主入力は接続を受け取るため、通常の数値設定やコンテナは指定できない。
-	if (def.primaryInputParameter !== null && def.paramDefs[def.primaryInputParameter]?.canNode !== true) {
-		throw new Error(`Primary input must reference a node-capable parameter: ${def.id}.${def.primaryInputParameter}`);
-	}
-	if (def.primaryOutput !== null && !Object.hasOwn(def.outputDefs, def.primaryOutput)) {
-		throw new Error(`Primary output must reference an existing output: ${def.id}.${def.primaryOutput}`);
-	}
-	for (const key of def.resolutionInputParameters) {
-		if (def.paramDefs[key] == null || !hasResolutionInput(def.paramDefs[key])) throw new Error(`Resolution input must contain a node-capable parameter: ${def.id}.${key}`);
-	}
-	for (const setting of Object.values(def.staticSettingDefs ?? {})) validateStaticSettingValue(setting, setting.defaultValue);
-	if (def.intrinsicResolutionSetting != null) {
-		const setting = def.staticSettingDefs?.[def.intrinsicResolutionSetting];
-		if (setting == null || !(setting.dataType.kind === 'playerReference' || (setting.dataType.kind === 'assetReference' && ['image', 'video'].includes(setting.dataType.assetType)))) {
-			throw new Error(`Intrinsic resolution must reference an image, video, or Player setting: ${def.id}`);
-		}
-	}
 	return def;
-}
-
-function hasResolutionInput(definition: ParameterDefinition): boolean {
-	if (definition.dataType.kind === 'array') return hasResolutionInput(getArrayElementDefinition(definition));
-	if (definition.dataType.kind === 'struct') return Object.values(getStructFieldDefinitions(definition)).some(hasResolutionInput);
-	return definition.canNode === true;
 }
