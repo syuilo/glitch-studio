@@ -10,3 +10,34 @@ export type EffectParameterSection<ParameterKey extends string = string> = {
 	defaultExpanded?: boolean;
 	children: readonly EffectParameterLayoutItem<ParameterKey>[];
 };
+
+// 入れ子を表示順のタプルに展開し、別のセクションにある同じパラメータやIDも照合する。
+// 長さの分からない配列では重複・網羅性を証明できないため、通常の配列型として扱う。
+type FlattenEffectParameterLayout<Layout extends readonly EffectParameterLayoutItem[]> =
+	number extends Layout['length'] ? EffectParameterLayoutItem[] :
+		Layout extends readonly [infer First extends EffectParameterLayoutItem, ...infer Rest extends readonly EffectParameterLayoutItem[]]
+			? First extends string
+				? [First, ...FlattenEffectParameterLayout<Rest>]
+				: First extends EffectParameterSection
+					? [First, ...FlattenEffectParameterLayout<First['children']>, ...FlattenEffectParameterLayout<Rest>]
+					: never
+			: [];
+
+type HasUniqueEffectParameterLayoutEntries<Entries extends readonly EffectParameterLayoutItem[], ParameterKeys extends string = never, SectionIds extends string = never> =
+	Entries extends readonly [infer First extends EffectParameterLayoutItem, ...infer Rest extends readonly EffectParameterLayoutItem[]]
+		? First extends string
+			? First extends ParameterKeys ? false : HasUniqueEffectParameterLayoutEntries<Rest, ParameterKeys | First, SectionIds>
+			// 変数から渡された一般のstringは同じ値とは限らないので、ID重複の判定に使わない。
+			: First extends EffectParameterSection
+				? string extends First['id'] ? HasUniqueEffectParameterLayoutEntries<Rest, ParameterKeys, SectionIds>
+					: First['id'] extends SectionIds ? false : HasUniqueEffectParameterLayoutEntries<Rest, ParameterKeys, SectionIds | First['id']>
+				: never
+		: true;
+
+export type CheckedEffectParameterLayout<Layout extends readonly EffectParameterLayoutItem[], ParameterKey extends string> =
+	FlattenEffectParameterLayout<Layout> extends infer Entries extends readonly EffectParameterLayoutItem[]
+		? number extends Entries['length'] ? Layout
+			: Exclude<ParameterKey, Extract<Entries[number], string>> extends never
+				? HasUniqueEffectParameterLayoutEntries<Entries> extends true ? Layout : never
+				: never
+		: never;

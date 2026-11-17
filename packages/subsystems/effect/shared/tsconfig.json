@@ -16,10 +16,10 @@
 	},
 	"include": [
 		"@types/**/*.ts",
-		"src/**/*"
+		"src/**/*",
+		"test/*.types.ts"
 	],
 	"exclude": [
-		"node_modules",
-		"test/**/*"
+		"node_modules"
 	]
 }

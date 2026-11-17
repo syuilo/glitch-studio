@@ -19,6 +19,17 @@ export type StaticSettingDefinition<T extends StaticSettingDataType = StaticSett
 	defaultValue: StaticSettingValue<T>;
 } : never;
 export type StaticSettingDefinitions = Record<string, StaticSettingDefinition>;
+
+// enumの候補は定義ごとに異なるため、推論されたdataTypeから既定値の型を確定する。
+// 参照の未選択はnullで表す。空文字列だと未選択と存在しないIDが混同されるため、
+// リテラルとして判別できる場合は拒否する。一般のstringの内容までは型で検証しない。
+export type CheckedStaticSettingDefinition<Definition extends StaticSettingDefinition> =
+	StaticSettingDefinition<Definition['dataType']> & (
+		Definition['dataType'] extends { kind: 'assetReference' | 'playerReference' }
+			? { defaultValue: Exclude<Definition['defaultValue'], ''> }
+			: unknown
+	);
+
 export type StaticSettingValues<Definitions extends StaticSettingDefinitions = StaticSettingDefinitions> = {
 	[Key in keyof Definitions]: StaticSettingValue<Definitions[Key]['dataType']>;
 };

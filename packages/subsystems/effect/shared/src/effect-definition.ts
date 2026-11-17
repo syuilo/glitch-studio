@@ -1,7 +1,7 @@
-import type { StaticSettingDefinitions } from '@gs/shared/static-setting.ts';
+import type { CheckedStaticSettingDefinition, StaticSettingDefinitions } from '@gs/shared/static-setting.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { CheckedParameterDefinition, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import type { EffectParameterLayoutItem } from './effect-parameter-layout.ts';
+import type { CheckedEffectParameterLayout, EffectParameterLayoutItem } from './effect-parameter-layout.ts';
 
 export type EffectOutputDefinitions = Record<string, {
 	dataType: TextureDataType;
@@ -48,6 +48,31 @@ export const EFFECT_TAGS = [
 
 export type EffectTags = typeof EFFECT_TAGS[number];
 
+// 一覧やレンダラーで使う一般のRecordはキーを限定しない。
+// 具体的な定義では、存在するキーに加えて参照先の用途まで型で絞り込む。
+type NodeCapableParameterKeys<In extends Record<string, ParameterDefinition>> = string extends keyof In ? string : Extract<{
+	[Key in keyof In]: In[Key] extends { canNode: true } ? Key : never;
+}[keyof In], string>;
+
+type AudioInputParameterKeys<In extends Record<string, ParameterDefinition>> = string extends keyof In ? string : Extract<{
+	[Key in keyof In]: In[Key]['dataType'] extends { kind: 'audioSource' } ? Key : never;
+}[keyof In], string>;
+
+// コンテナ自体は接続を受け取らない。子の設定をたどり、末端に接続可能な入力があるかを調べる。
+type HasResolutionInput<Settings> = Settings extends { canNode: true } ? true :
+	Settings extends { element: infer Element } ? HasResolutionInput<Element> :
+		Settings extends { fields: infer Fields }
+			? true extends { [Key in keyof Fields]: HasResolutionInput<Fields[Key]> }[keyof Fields] ? true : false
+			: false;
+
+type ResolutionInputParameterKeys<In extends Record<string, ParameterDefinition>> = string extends keyof In ? string : Extract<{
+	[Key in keyof In]: HasResolutionInput<In[Key]> extends true ? Key : never;
+}[keyof In], string>;
+
+type IntrinsicResolutionSettingKeys<Settings extends StaticSettingDefinitions> = string extends keyof Settings ? string : Extract<{
+	[Key in keyof Settings]: Settings[Key]['dataType'] extends { kind: 'playerReference' } | { kind: 'assetReference'; assetType: 'image' | 'video' } ? Key : never;
+}[keyof Settings], string>;
+
 export type EffectDefinition<In extends Record<string, ParameterDefinition> = Record<string, ParameterDefinition>, Out extends EffectOutputDefinitions = EffectOutputDefinitions, Settings extends StaticSettingDefinitions = StaticSettingDefinitions> = {
 	id: string;
 	displayName: string;
@@ -85,9 +110,22 @@ export type EffectDefinition<In extends Record<string, ParameterDefinition> = Re
 	primaryOutput: Extract<keyof NoInfer<Out>, string> | null;
 };
 
-export function defineEffect<const In extends Record<string, ParameterDefinition>, const Out extends EffectOutputDefinitions, const Settings extends StaticSettingDefinitions = Record<never, never>>(
+export function defineEffect<
+	const In extends Record<string, ParameterDefinition>,
+	const Out extends EffectOutputDefinitions,
+	const Settings extends StaticSettingDefinitions = Record<never, never>,
+	const Layout extends readonly EffectParameterLayoutItem[] = readonly EffectParameterLayoutItem[],
+>(
 	def: EffectDefinition<In, Out, Settings> & {
 		paramDefs: { [K in keyof In]: CheckedParameterDefinition<NoInfer<In[K]>> };
+		staticSettingDefs?: { [Key in keyof Settings]: CheckedStaticSettingDefinition<NoInfer<Settings[Key]>> };
+		// 詳細な整合性は定義を作る境界で検査する。返却後は異なる定義を共通の型で扱えるようにする。
+		primaryInputParameter: NodeCapableParameterKeys<NoInfer<In>> | null;
+		primaryAudioInputParameter?: AudioInputParameterKeys<NoInfer<In>> | null;
+		resolutionInputParameters: readonly ResolutionInputParameterKeys<NoInfer<In>>[];
+		intrinsicResolutionSetting?: IntrinsicResolutionSettingKeys<NoInfer<Settings>>;
+		// Layoutはここからだけ推論し、検証結果に合わせて広い配列型へ逃げるのを防ぐ。
+		ui?: { parameterLayout: Layout & CheckedEffectParameterLayout<NoInfer<Layout>, Extract<keyof NoInfer<In>, string>> };
 	},
 ): EffectDefinition<In, Out, Settings> {
 	return def;
