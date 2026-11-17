@@ -594,6 +594,8 @@
 		"TimelineTimingSummary": "Average (max) · ~100ms"
 	},
 	"_Node": {
+		"CopyNodeId": "Copy Node ID",
+		"CopyEffectId": "Copy Effect ID",
 		"ContextResolution": "Context resolution",
 		"CustomResolution": "Custom (Absolute)",
 		"ResolutionHint": "Uses the project size in Visual Module Live Preview and the containing scene size in the timeline.",
@@ -863,6 +865,7 @@
 		"UnassignedInputs": "External inputs were left unassigned: {names}. Camera inputs can be selected from the Player menu. Microphone and live stream inputs are not yet supported."
 	},
 	"_Parameter": {
+		"CopyId": "Copy Parameter ID",
 		"CreateCustomParameter": "Create and connect custom parameter",
 		"AddKeyframe": "Add Keyframe",
 		"CustomParameter": "Custom Parameter",

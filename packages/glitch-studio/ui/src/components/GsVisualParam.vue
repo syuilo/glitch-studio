@@ -301,6 +301,7 @@ import { usePreviewParameterHandle } from '@/composables/usePreviewParameterHand
 import { isViewport2DParameter } from '@/utility/preview-viewport.ts';
 import { canCreateNamedParameterFromBinding } from '@/utility/named-parameter-creation.ts';
 import { useParameterExpansion } from '@/composables/useParameterExpansion.ts';
+import { clipboardText } from '@/utility/clipboard-text.ts';
 
 const projectSession = useProjectSession();
 
@@ -671,6 +672,11 @@ function getMenu() {
 		id: 'pasteParameter',
 		icon: 'ti ti-clipboard',
 		action: () => emit('edit', { kind: 'paste', ...target() }),
+	}, {
+		text: i18n.ts._Parameter.CopyId,
+		id: 'copyParameterId',
+		icon: 'ti ti-hash',
+		action: () => clipboardText.writeText(props.paramPath[props.paramPath.length - 1]),
 	}, {
 		text: i18n.ts.Reset,
 		icon: 'ti ti-refresh',

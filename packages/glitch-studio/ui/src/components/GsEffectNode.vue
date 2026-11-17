@@ -1,6 +1,11 @@
 <template>
 <div :class="[$style.root, { [$style.isBypass]: node.isBypass }]">
-	<div :class="[$style.header, { [$style.hasStatus]: effectStatus?.type === 'loading' || effectStatus?.type === 'error' }]" :draggable="true" @dragstart.stop="emit('dragStart', $event)">
+	<div
+		:class="[$style.header, { [$style.hasStatus]: effectStatus?.type === 'loading' || effectStatus?.type === 'error' }]"
+		:draggable="true"
+		@dragstart.stop="emit('dragStart', $event)"
+		@contextmenu.prevent.stop="onHeaderContextmenu"
+	>
 		<div :class="$style.headerLeft">
 			<GsNodePort
 				v-show="!expanded && connectedParameterPathKeys.size > 0"
@@ -98,6 +103,7 @@ import { i18n } from '@/i18n.ts';
 import { connectedNodeParameterPathKeysKey, useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { paramPathKey, walkNodeParams } from '@/utility/node-params.ts';
 import { getEffectNodeName } from '@/utility/node-name.ts';
+import { clipboardText } from '@/utility/clipboard-text.ts';
 import * as ui from '@/ui.ts';
 
 const projectSession = useProjectSession();
@@ -168,6 +174,20 @@ function setDimension(axis: 'width' | 'height', value: number | null) {
 function showEffectError() {
 	if (effectStatus.value?.type !== 'error') return;
 	ui.alert({ type: 'error', title: name.value, text: effectStatus.value.message });
+}
+
+function onHeaderContextmenu(ev: PointerEvent) {
+	ui.contextMenu([{
+		id: 'copyNodeId',
+		text: i18n.ts._Node.CopyNodeId,
+		icon: 'ti ti-hash',
+		action: () => clipboardText.writeText(props.node.id),
+	}, {
+		id: 'copyEffectId',
+		text: i18n.ts._Node.CopyEffectId,
+		icon: 'ti ti-hash',
+		action: () => clipboardText.writeText(props.node.effectId),
+	}], ev);
 }
 
 function remove() {

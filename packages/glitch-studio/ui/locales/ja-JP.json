@@ -594,6 +594,8 @@
 		"TimelineTimingSummary": "平均（最大）・約100msごと"
 	},
 	"_Node": {
+		"CopyNodeId": "ノードIDのコピー",
+		"CopyEffectId": "エフェクトIDのコピー",
 		"ContextResolution": "コンテキストの解像度",
 		"CustomResolution": "カスタム (絶対値)",
 		"ResolutionHint": "Visual Module Live Previewではプロジェクトのサイズ、タイムラインでは所属するシーンのサイズを使用します。",
@@ -863,6 +865,7 @@
 		"UnassignedInputs": "外部入力が未割り当てです: {names}。カメラ入力はPlayerメニューから選択できます。マイクとライブストリームの入力にはまだ対応していません。"
 	},
 	"_Parameter": {
+		"CopyId": "パラメータIDをコピー",
 		"CreateCustomParameter": "カスタムパラメータ化",
 		"AddKeyframe": "キーフレームを追加",
 		"CustomParameter": "カスタムパラメータ",
