@@ -4,18 +4,18 @@
 
 ## 入出力と設定
 
-| 設定 | 既定値 | 動作 |
-| --- | --- | --- |
-| Input | 透明 | 加工する画像・色。自動解像度はこの入力だけから求める |
-| Reference | 透明 | 参照する画像・色。解析できる画素がなければInputをそのまま返す |
-| Lightness Match | 0 | OklabのLを近づける強さ。0では元のLを保持、1では転送結果のLを使用 |
-| Chroma Match | 1 | Oklabのa・bを近づける強さ。0では元の色味を保持 |
-| Maximum Gain | 4 | Oklabの共分散転送行列の主軸における最大増幅率。1〜16 |
-| Analysis Samples | 4096 | 両入力を解析する点数。1〜65536 |
-| Input Analysis Mask | 1 | 主入力の解析重み。scalarの定数・テクスチャに対応 |
-| Reference Analysis Mask | 1 | 参照画像の解析重み。scalarの定数・テクスチャに対応 |
+| 設定 | 動作 |
+| --- | --- |
+| Input | 加工する画像・色。自動解像度はこの入力だけから求める |
+| Reference | 参照する画像・色。解析できる画素がなければInputをそのまま返す |
+| Lightness Match | OklabのLを近づける強さ。0では元のLを保持、1では転送結果のLを使用 |
+| Chroma Match | Oklabのa・bを近づける強さ。0では元の色味を保持 |
+| Maximum Gain | Oklabの共分散転送行列の主軸における最大増幅率。1〜16 |
+| Analysis Samples | 両入力を解析する点数。1〜65536 |
+| Input Analysis Mask | 主入力の解析重み。scalarの定数・テクスチャに対応 |
+| Reference Analysis Mask | 参照画像の解析重み。scalarの定数・テクスチャに対応 |
 
-明度・色味の強さは0〜1へ制限する。範囲付きの数値設定は丸め・範囲制限して使用し、非有限値は既定値へ戻す。Lightness Matchはlinear RGBの輝度YではなくOklabのLを保持する設定。0を選ぶほど、明度も含めたReferenceとの統計の一致には制約が生じる。両方の強さが0なら解析と色空間変換を省略し、そのままInputを返す。
+明度・色味の強さは0〜1へ制限する。範囲付きの数値設定は丸め・範囲制限して使用する。Lightness Matchはlinear RGBの輝度YではなくOklabのLを保持する設定。0を選ぶほど、明度も含めたReferenceとの統計の一致には制約が生じる。両方の強さが0なら解析と色空間変換を省略し、そのままInputを返す。
 
 解析マスクは対象画素を選ぶためだけに使い、出力への適用量やalphaには掛けない。例えばInputの人物だけを解析しても、得られた色変換は画像全体へ適用する。出力を部分的に変える場合は後段で合成する。
 

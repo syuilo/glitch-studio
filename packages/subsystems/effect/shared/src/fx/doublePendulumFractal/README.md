@@ -9,20 +9,20 @@
 
 ## パラメータ
 
-| パラメータ | 初期値 | 意味 |
-| --- | --- | --- |
-| Simulation Time | 3 | 初期状態からの経過秒。負値は0として扱います。式に`TIME`を指定するとアニメーションし、`TIME * 0.5`なら半速になります。 |
-| View / Angle Center (rad) | [0, 0] | 表示中心の`[Angle 1, -Angle 2]`。表示座標の上向きを+Yとし、描画時に第2角度の符号を戻します。物理角度はどちらも鉛直下向きからの絶対角です。 |
-| View / Zoom | 1 | 初期角度の平面の拡大率。正数を指定します。 |
-| Initial Angular Velocity 1 / 2 (rad/s) | 各0 | それぞれの初期角速度。符号付きです。 |
-| Length Ratio | 1 | 上側の長さを1とした下側の長さ。正数を指定します。画像上の距離ではありません。 |
-| Mass Ratio | 1 | 上側の質量を1とした下側の質量。正数を指定します。 |
-| Gravity | 9.81 | 上側の長さを1としたモデル内の重力加速度。0なら無重力、負値なら重力方向が逆転します。 |
-| Coloring | Spherical RGB | Spherical RGB・Angle 1・Angle 2・Angular Velocity 1・Angular Velocity 2。 |
-| Color Ramp | 青→緑→ピンク | Spherical RGB以外の配色。透明度・補間・色空間は共通のColor Ramp仕様に従います。 |
-| Angular Velocity Range (rad/s) | 10 | 角速度配色の±範囲。`-Range → 0`、`0 → 0.5`、`+Range → 1`へ対応させ、範囲外は端の色に固定します。正数を指定します。 |
-| Time Step | 0.01 | 数値積分の刻み秒。正数を指定し、描画FPSには依存しません。細かくすると計算負荷が増え、カオス領域では模様も変わります。 |
-| Antialiasing | Off | 画素内の固定4点を独立に計算して平均します。積分の負荷も約4倍になります。 |
+| パラメータ | 意味 |
+| --- | --- |
+| Simulation Time | 初期状態からの経過秒。負値は0として扱います。式に`TIME`を指定するとアニメーションし、`TIME * 0.5`なら半速になります。 |
+| View / Angle Center (rad) | 表示中心の`[Angle 1, -Angle 2]`。表示座標の上向きを+Yとし、描画時に第2角度の符号を戻します。物理角度はどちらも鉛直下向きからの絶対角です。 |
+| View / Zoom | 初期角度の平面の拡大率。正数を指定します。 |
+| Initial Angular Velocity 1 / 2 (rad/s) | それぞれの初期角速度。符号付きです。 |
+| Length Ratio | 上側の長さを1とした下側の長さ。正数を指定します。画像上の距離ではありません。 |
+| Mass Ratio | 上側の質量を1とした下側の質量。正数を指定します。 |
+| Gravity | 上側の長さを1としたモデル内の重力加速度。0なら無重力、負値なら重力方向が逆転します。 |
+| Coloring | Spherical RGB・Angle 1・Angle 2・Angular Velocity 1・Angular Velocity 2。 |
+| Color Ramp | Spherical RGB以外の配色。透明度・補間・色空間は共通のColor Ramp仕様に従います。 |
+| Angular Velocity Range (rad/s) | 角速度配色の±範囲。`-Range → 0`、`0 → 0.5`、`+Range → 1`へ対応させ、範囲外は端の色に固定します。正数を指定します。 |
+| Time Step | 数値積分の刻み秒。正数を指定し、描画FPSには依存しません。細かくすると計算負荷が増え、カオス領域では模様も変わります。 |
+| Antialiasing | 画素内の固定4点を独立に計算して平均します。積分の負荷も約4倍になります。 |
 
 Angle Centerの入力・角度出力はrad、角速度はrad/sです。1回転=1のAngleコントロールとは単位が異なるため、Angle Centerにはvectorの数値コントロールを使います。
 Viewのポインタボタンでプレビュー操作を切り替えられます。ドラッグで移動し、ホイールでカーソル直下の点を保ってズームします。中心の微調整は倍率に連動し、中心・倍率の式やキーフレームは独立して保持します。回転フィールドは持ちません。

@@ -4,7 +4,7 @@ Value Noise・Simplex Noise・Perlin Noise・Worley Noise・Flow Noiseを複数�
 
 ## 座標
 
-- Coordinate Source = Screen（初期値）: 各画素の位置を使う。
+- Coordinate Source = Screen: 各画素の位置を使う。
 - Coordinate Source = Input: Coordinatesの値を絶対座標として使う。定数・式・vectorのノード接続に対応し、定数なら画面全体で同じ位置のノイズを評価する。画面座標への変位ではない。
 
 どちらも長辺全体=1・中央原点・右が+X・上が+Yの共通単位。入力座標に画面の端を超えた値を渡しても、その位置でノイズを直接評価する。生成済みのノイズ画像を変形する方式ではないため、ノイズ自体の画像境界や補間誤差を挟まない。ただし入力した座標場の参照には通常のfit・filter・wrapを使う。
@@ -20,22 +20,22 @@ Size ReferenceはDensityの見た目の基準を変え、Coordinatesの共通単
 
 ## パラメータ
 
-| パラメータ | 初期値 | 意味 |
-| --- | --- | --- |
-| Noise Type | Value Noise | Value Noise・Simplex Noise・Perlin Noise・Worley Noise・Flow Noiseから選択 |
-| Fractal Mode | fBm | 各段の加工方法。fBm・Turbulence・Ridged・Ping Pongから選択 |
-| Ping Pong Strength | 2 | Ping Pongの折り返しの細かさ。0以上。定数・式・スカラー場に対応し、他のモードでは使わない。Advanced設定 |
-| Flow Phase (Turns) | 0 | Flow Noiseの勾配の回転位相。1で1周。Timeとは独立し、全段で同じ位相を使う |
-| Flow Strength | 0.1 | Flow Noiseで前段の勾配が後段の座標を曲げる強さ。0以上の無次元係数。定数・式・スカラー場に対応し、他のノイズ方式では使わない |
-| Density | [4, 4] | 基準寸法内のノイズの密度。各成分の負値は0とする |
-| Offset | [0, 0] | 第1段のノイズ座標のXYオフセット |
-| Octaves | 4 | 重ねる段数。四捨五入して1〜16に制限し、非有限値は4とする |
-| Gain | 0.5 | 次の段の振幅倍率。0〜1に制限。0なら第1段だけになる |
-| Lacunarity | 2 | 次の段の周波数倍率。0〜8に制限し、XYと時間軸に適用する |
-| Octave Rotation | 0.1 turn | 次の段へ進むたびにXY座標を時計回りに回転。1 turnで1周 |
-| Time | 0 | ノイズの第3軸。式に`TIME`を指定すると連続的に変化する |
-| Seed | 0 | ノイズの配置を決める値 |
-| Output Min / Max | 0 / 1 | 正規化したノイズの出力範囲。負値・1超・逆順にも対応する |
+| パラメータ | 意味 |
+| --- | --- |
+| Noise Type | Value Noise・Simplex Noise・Perlin Noise・Worley Noise・Flow Noiseから選択 |
+| Fractal Mode | 各段の加工方法。fBm・Turbulence・Ridged・Ping Pongから選択 |
+| Ping Pong Strength | Ping Pongの折り返しの細かさ。0以上。定数・式・スカラー場に対応し、他のモードでは使わない。Advanced設定 |
+| Flow Phase (Turns) | Flow Noiseの勾配の回転位相。1で1周。Timeとは独立し、全段で同じ位相を使う |
+| Flow Strength | Flow Noiseで前段の勾配が後段の座標を曲げる強さ。0以上の無次元係数。定数・式・スカラー場に対応し、他のノイズ方式では使わない |
+| Density | 基準寸法内のノイズの密度。各成分の負値は0とする |
+| Offset | 第1段のノイズ座標のXYオフセット |
+| Octaves | 重ねる段数。四捨五入して1〜16に制限し、非有限値は4とする |
+| Gain | 次の段の振幅倍率。0〜1に制限。0なら第1段だけになる |
+| Lacunarity | 次の段の周波数倍率。0〜8に制限し、XYと時間軸に適用する |
+| Octave Rotation | 次の段へ進むたびにXY座標を時計回りに回転。1 turnで1周 |
+| Time | ノイズの第3軸。式に`TIME`を指定すると連続的に変化する |
+| Seed | ノイズの配置を決める値 |
+| Output Min / Max | 正規化したノイズの出力範囲。負値・1超・逆順にも対応する |
 
 Coordinates・Density・Offset・Gain・Lacunarity・Ping Pong Strength・Flow Strength・Output Min / Maxは画素ごとのノード入力に対応する。他は画面全体で共通の通常パラメータで、式・アニメーションを使える。Timeは長時間の再生でも16bitの場へ丸めないよう、32bitのuniformとして渡す。Flow PhaseもCPUで1 turn以内へ折り返してから回転のcos/sinを計算し、32bitのuniformとして渡す。SeedもCPU上で扱い、32bitへ丸める前にノイズ座標のオフセットへ変換する。
 

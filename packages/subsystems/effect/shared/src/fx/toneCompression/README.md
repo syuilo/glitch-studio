@@ -6,14 +6,14 @@
 
 Input／Outputはcolor。全ての数値パラメータは式・キー・ノード入力に対応する。
 
-| パラメータ | 既定値 | 作用 |
-| --- | --- | --- |
-| Shadow Threshold (Oklab L) | 0.3 | 暗部の補正への移行区間の中心 |
-| Shadow Softness | 0.2 | 暗部の移行区間の幅。単位はOklab L |
-| Shadow Amount | 0.5 | 暗部の圧縮量。0で暗部の補正なし |
-| Highlight Threshold (Oklab L) | 0.8 | 明部の補正への移行区間の中心 |
-| Highlight Softness | 0.2 | 明部の移行区間の幅。単位はOklab L |
-| Highlight Amount | 0.5 | 明部の圧縮量。0で明部の補正なし |
+| パラメータ | 作用 |
+| --- | --- |
+| Shadow Threshold (Oklab L) | 暗部の補正への移行区間の中心 |
+| Shadow Softness | 暗部の移行区間の幅。単位はOklab L |
+| Shadow Amount | 暗部の圧縮量。0で暗部の補正なし |
+| Highlight Threshold (Oklab L) | 明部の補正への移行区間の中心 |
+| Highlight Softness | 明部の移行区間の幅。単位はOklab L |
+| Highlight Amount | 明部の圧縮量。0で明部の補正なし |
 
 Thresholdは出力の下限・上限ではなく、補正の境界。OklabのLは黒が0、基準白が1、linear RGBの18%グレーが約0.565。RGB各成分の値やlinearの輝度とは異なる。ThresholdのUI範囲は0〜1だが、式やノード入力では負値・1超もそのまま受け付ける。
 
@@ -33,7 +33,7 @@ Amountは0〜1に制限する。圧縮領域の傾きは`1 - 0.95 * Amount`。Am
 
 暗部は`L + 0.95 * Shadow Amount * K(Shadow Threshold - L, Shadow Softness)`、明部はその結果から`0.95 * Highlight Amount * K(L - Highlight Threshold, Highlight Softness)`を引く。移行関数の傾きは0〜1で、各段の傾きは0.05〜1、合成後も0.0025〜1となる。Softness=0の折れ点でも値は連続する。
 
-既定値では不透明な黒の出力はL=0.1425、linear RGBで約0.002894。黒を固定する処理はない。ただしShadow Amount=0や暗部の対象外となるThresholdでは黒は変わらない。明部と対象範囲を重ねる設定では最終結果は両方の補正で決まる。
+黒を固定する処理はない。ただしShadow Amount=0や暗部の対象外となるThresholdでは黒は変わらない。明部と対象範囲を重ねる設定では最終結果は両方の補正で決まる。
 
 出力はlinear sRGBへ戻し、元のalphaを再乗算する。入出力はpremultiplied alphaのlinear sRGB・rgba16floatで、alphaは変更しない。alpha=0の透明色・発光はそのまま通す。両Amount=0または明度が変わらない画素は入力を直接返し、色空間変換の往復誤差を避ける。
 

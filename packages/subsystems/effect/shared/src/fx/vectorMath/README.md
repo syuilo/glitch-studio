@@ -1,6 +1,6 @@
 # Vector Math
 
-2次元のベクトル場を画素ごとに計算します。A・Bはvector、Scale・Angleはscalarで、それぞれ定数・ノード接続に対応します。初期値はA・Bが`[0, 0]`、Scaleが1、Angleが0、OperationがAddです。Operationは通常パラメータで、式・アニメーションによる切り替えに対応します。
+2次元のベクトル場を画素ごとに計算します。A・Bはvector、Scale・Angleはscalarで、それぞれ定数・ノード接続に対応します。Operationは通常パラメータで、式・アニメーションによる切り替えに対応します。
 
 | Operation | 計算・使用する入力 |
 | --- | --- |

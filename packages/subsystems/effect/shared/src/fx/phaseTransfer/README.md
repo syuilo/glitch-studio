@@ -4,22 +4,22 @@
 
 ## パラメータ
 
-| 設定 | 既定値 | 意味 |
-| --- | --- | --- |
-| Input / Reference | 透明 | 振幅の取得元と、位相の移植元。自動解像度はInputだけから求める |
-| Processing | Global | 画面全体、または重なる正方形ブロックごとに処理 |
-| Amount | 0.5 | 位相差の適用量。0で元画像、1で対象帯域の参照位相へ到達 |
-| Minimum / Maximum Frequency | 2 / 64 | Size Referenceあたりの周期数で対象帯域を指定 |
-| Frequency Softness | 2 | 帯域境界のなだらかさ。周期数と同じ単位 |
-| Minimum Phase Amplitude | 0.00001 | 位相の判断に使う係数の最小振幅。FFT点数で正規化した値 |
-| Channel Mode | RGB Linked (Luminance Phase) | Linkedは輝度の位相差をRGB共通に適用、Independentは色成分ごとに移植 |
-| Boundary | Mirror | 描画領域の端でMirrorまたはRepeatしてから各入力のFitを適用 |
-| Global Analysis Resolution | 256 | Globalの解析領域の長辺。各軸を16以上の2冪へ切り上げる |
-| Block Size | 25% | Size Referenceに対するブロックの一辺の比率 |
-| Block Analysis Resolution | 32 | 各ブロック一辺の解析点数 |
-| Size Reference | Long Side | 周波数とブロック寸法の換算基準 |
+| 設定 | 意味 |
+| --- | --- |
+| Input / Reference | 振幅の取得元と、位相の移植元。自動解像度はInputだけから求める |
+| Processing | 画面全体、または重なる正方形ブロックごとに処理 |
+| Amount | 位相差の適用量。0で元画像、1で対象帯域の参照位相へ到達 |
+| Minimum / Maximum Frequency | Size Referenceあたりの周期数で対象帯域を指定 |
+| Frequency Softness | 帯域境界のなだらかさ。周期数と同じ単位 |
+| Minimum Phase Amplitude | 位相の判断に使う係数の最小振幅。FFT点数で正規化した値 |
+| Channel Mode | Linkedは輝度の位相差をRGB共通に適用、Independentは色成分ごとに移植 |
+| Boundary | 描画領域の端でMirrorまたはRepeatしてから各入力のFitを適用 |
+| Global Analysis Resolution | Globalの解析領域の長辺。各軸を16以上の2冪へ切り上げる |
+| Block Size | Size Referenceに対するブロックの一辺の比率 |
+| Block Analysis Resolution | 各ブロック一辺の解析点数 |
+| Size Reference | 周波数とブロック寸法の換算基準 |
 
-Amountは0〜1へ制限する。負の周波数・Softness・Minimum Phase Amplitudeは0へ制限し、周波数の上下限が逆なら交換する。非有限値は各設定の既定値へ戻す。Block Sizeは正の有限値が必要で、不正値はエラーとする。
+Amountは0〜1へ制限する。負の周波数・Softness・Minimum Phase Amplitudeは0へ制限し、周波数の上下限が逆なら交換する。Block Sizeは正の有限値が必要で、不正値はエラーとする。
 
 ## 位相の移植
 

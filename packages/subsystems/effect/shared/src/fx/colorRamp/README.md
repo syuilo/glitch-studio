@@ -4,11 +4,10 @@
 Inputは定数・式・スカラー場を受け取ります。自動解像度はInputとRepeat Countの接続テクスチャから決まり、両方とも定数の場合は描画先に従います。
 Gradientやノイズのscalar出力を接続して配色でき、入力の範囲変更にはRemapを組み合わせます。
 
-Rampの初期値は0の黒から1の白、Linear・Linear sRGB・繰り返し1回・Wrapです。
 Constant・Linear・Smoothstep・Smootherstep・Ease In・Ease Out、およびsRGB・Linear sRGB・Oklab・OKLCHを選択できます。
 Ramp自体のRepeat CountとRepeat Modeは、0〜1の中に配色を繰り返す設定です。小数回に対応し、Ping-pongも片道を1回と数えます。Wrapは整数回で終わる右端に終端色を残します。stopの保存位置は変更しません。
 
-エフェクト側の`Repeat Count`（`repeatCount`、scalar / canNode）と`Repeat Mode`（`repeatMode`、enum）は、受け取った配色全体をこの利用箇所で繰り返すための設定です。Rampデータ側の設定とは独立し、既定値は1回・Wrapです。式やキーフレームから変更でき、Repeat Countはノード接続にも対応します。スカラー場を接続すると画素ごとに繰り返し数が変わり、Repeat Modeは描画全体に共通です。Repeat Countの接続にも個別のFit / Wrap / Filter設定を適用します。
+エフェクト側の`Repeat Count`（`repeatCount`、scalar / canNode）と`Repeat Mode`（`repeatMode`、enum）は、受け取った配色全体をこの利用箇所で繰り返すための設定です。Rampデータ側の設定とは独立しています。式やキーフレームから変更でき、Repeat Countはノード接続にも対応します。スカラー場を接続すると画素ごとに繰り返し数が変わり、Repeat Modeは描画全体に共通です。Repeat Countの接続にも個別のFit / Wrap / Filter設定を適用します。
 
 - Repeat Countは小数回に対応し、0.5回は配色の前半、2.5回は3回目の途中までをたどります。0以下は0回として配色の先頭（位置0）を使います。GPUのf32でNaN・Infinityになる値も同じ扱いです。定数入力とノード接続に同じ規則を適用し、Rampデータ側の正の有限値という条件は変更しません。
 - Repeat ModeはWrap／Ping-pongです。どちらも片道を1回とし、Ping-pongの2回は配色全体を順方向・逆方向に1回ずつたどります。
@@ -18,7 +17,7 @@ Ramp自体のRepeat CountとRepeat Modeは、0〜1の中に配色を繰り返す
 
 エフェクト側の設定変更でRampデータやstopは書き換えません。Ramp入力欄のバーはデータ側の結果までを表示し、エフェクト側も含む結果はノードのプレビューで確認します。
 
-`Input Range Mode`（パラメータ名`mode`）は繰り返しを適用する前の入力値の扱いです。範囲はstopの配置によらず0〜1固定で、初期値はClampです。
+`Input Range Mode`（パラメータ名`mode`）は繰り返しを適用する前の入力値の扱いです。範囲はstopの配置によらず0〜1固定です。
 
 | Input Range Mode | 動作 |
 | --- | --- |

@@ -4,17 +4,17 @@
 
 ## パラメータ
 
-| パラメータ | 初期値 | 意味 |
-| --- | --- | --- |
-| Thickness Input | 0.5 | 0〜1をMinimum / Maximum Thicknessへ線形に対応させるスカラー場。範囲外は0〜1へ制限 |
-| Minimum Thickness / Maximum Thickness | 0 / 100 µm | 厚みの両端。負値は0。大小を逆にすれば厚みの対応も反転 |
-| Birefringence (Δn) | 0.01 | 速軸・遅軸の屈折率差。符号は透過強度に影響しないため絶対値を使う |
-| Fast Axis Angle | 0.125 turn（45°） | 画面内の速軸の向き |
-| Polarizer Angle | 0 turn | 光源側の偏光板の向き |
-| Analyzer Angle | 0.25 turn（90°） | 観察側の偏光板の向き。初期値は直交偏光 |
-| Light Color | 白、不透明 | 最初の偏光板へ入射する無偏光の光源色 |
-| Brightness | 1 | linear RGBで適用する光量倍率。負値は0 |
-| Opacity | 1 | 光源のalphaに掛ける被覆率。0〜1に制限 |
+| パラメータ | 意味 |
+| --- | --- |
+| Thickness Input | 0〜1をMinimum / Maximum Thicknessへ線形に対応させるスカラー場。範囲外は0〜1へ制限 |
+| Minimum Thickness / Maximum Thickness | 厚みの両端。負値は0。大小を逆にすれば厚みの対応も反転 |
+| Birefringence (Δn) | 速軸・遅軸の屈折率差。符号は透過強度に影響しないため絶対値を使う |
+| Fast Axis Angle | 画面内の速軸の向き |
+| Polarizer Angle | 光源側の偏光板の向き |
+| Analyzer Angle | 観察側の偏光板の向き |
+| Light Color | 最初の偏光板へ入射する無偏光の光源色 |
+| Brightness | linear RGBで適用する光量倍率。負値は0 |
+| Opacity | 光源のalphaに掛ける被覆率。0〜1に制限 |
 
 Thickness Input・Birefringence・Fast Axis Angle・Light Color・Opacityは定数とノード接続に対応する。全パラメータで式・automationを利用できる。角度は共通のangle入力と同じturn単位（右が0、時計回りに1周が1）で、各軸は半回転で同じ向きになる。
 

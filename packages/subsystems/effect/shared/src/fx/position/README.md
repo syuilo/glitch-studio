@@ -6,6 +6,6 @@
 
 NoiseのCoordinate SourceをInputにしてCoordinatesへ接続すると、Screenと同じ座標でノイズを評価できます。Vector Mathで座標の拡縮・回転・移動や変位場の加算を行ってから接続すると、ドメインワープを組み立てられます。成分を個別に加工するときはDecompose Vectorを接続します。
 
-座標系やSize Referenceを切り替える設定は持ちません。出力の値域を0〜1へ制限したり、色やalphaとして解釈したりしません。既定の出力形式は`rg16float`、`enable32bitDataTextures`が有効なら`rg32float`です。GPUの1パスで描画し、時刻や描画履歴には依存しません。
+座標系やSize Referenceを切り替える設定は持ちません。出力の値域を0〜1へ制限したり、色やalphaとして解釈したりしません。出力形式は`enable32bitDataTextures`が有効なら`rg32float`、無効なら`rg16float`です。GPUの1パスで描画し、時刻や描画履歴には依存しません。
 
 異なる解像度・縦横比の後段へ接続すると、通常のfit・wrap・filterでこの場をサンプリングします。後段の座標を再生成する処理ではないため、描画先と同じ座標が必要なら解像度・比率を揃えてください。16bitでは画素間の値が丸められる場合があります。

@@ -1,6 +1,6 @@
 # Scalar Range Limit
 
-スカラー入力を指定範囲内に収める。Input・Min・Maxは定数またはノード出力で、すべて画素ごとに評価する。初期値はInputとMinが0、Maxが1、ModeがClamp。
+スカラー入力を指定範囲内に収める。Input・Min・Maxは定数またはノード出力で、すべて画素ごとに評価する。
 
 | Mode | 動作 |
 | --- | --- |

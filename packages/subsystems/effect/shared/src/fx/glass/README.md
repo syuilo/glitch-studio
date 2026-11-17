@@ -4,29 +4,29 @@
 
 ## 入出力・パラメータ
 
-| パラメータ | 初期値 | 意味 |
-| --- | --- | --- |
-| Input | 透明 | ガラス越しに参照する画像・色 |
-| SDF | 65504 | ガラス形状の距離場。初期値は既存SDFと同じ空形状 |
-| Refraction Model | Quadratic | 現行の二次減衰、またはCurvature・IORから計算するCurved Surface |
-| Refraction | 1 | 屈折量。輪郭の勾配に沿って内側へ画像の参照位置をずらす |
-| Thickness | 0.03 | 両方式に共通する、屈折が及ぶ内側の幅。Size Reference基準。0以下で屈折なし |
-| Curvature | 4 | Curved Surfaceの断面の形。2は円弧状、高い値ほど平らな上面と急な縁になる |
-| IOR | 1.5 | Curved Surfaceの屈折率。内側への屈折の減衰を変える。1で屈折なし |
-| Edge Softness | 0.0015 | ガラスの被覆率が変化する全幅。Size Reference基準、境界の両側へ半分ずつ広がる |
-| Normal Smoothing | 0 | 法線用の差分を取る片側の半径。Size Reference基準。0では従来の1画素相当の差分を維持する |
-| Blur Radius | 0 | ガラス越しの画像をぼかす円盤の半径。Size Reference基準 |
-| Blur Samples | 24 | ぼかし円盤のサンプル数。1〜128。1は円盤中心の1点を読む |
-| Aberration | 0.5 | 屈折ベクトルに沿うRGBのずれ。0で無効 |
-| Aberration Samples | 3 | 分散範囲全体のサンプル数。3〜64。3点は従来のRGB各1点と同じ結果 |
-| Inner Zoom | 1 | ガラス越しの画像の倍率。1で等倍、最小0.001 |
-| Inner Zoom Center | [0, 0] | ズームの支点。画面中央[0, 0]、左下[-1, -1]、右上[1, 1]。形状の位置とは独立 |
-| Light Angle | 300/360 | 光の方向。右が0、下が0.25、1で時計回りに1周 |
-| Highlight / Color / Softness | 0.05 / 白 / 0.5 | 方向性のある縁と鏡面ハイライトの強さ・色・柔らかさ |
-| Fresnel / Color / Softness | 0.1 / 白 / 0.1 | 縁の発光の強さ・色・内側への広がり |
-| Tint Color / Intensity | 白 / 0 | 画像に混ぜる色と強さ |
-| Tint Preserve Luminosity | true | 着色の前後で輝度を保つ |
-| Cutout | false | trueならガラスの外側を透明にし、falseなら元画像を残す |
+| パラメータ | 意味 |
+| --- | --- |
+| Input | ガラス越しに参照する画像・色 |
+| SDF | ガラス形状の距離場 |
+| Refraction Model | 現行の二次減衰、またはCurvature・IORから計算するCurved Surface |
+| Refraction | 屈折量。輪郭の勾配に沿って内側へ画像の参照位置をずらす |
+| Thickness | 両方式に共通する、屈折が及ぶ内側の幅。Size Reference基準。0以下で屈折なし |
+| Curvature | Curved Surfaceの断面の形。2は円弧状、高い値ほど平らな上面と急な縁になる |
+| IOR | Curved Surfaceの屈折率。内側への屈折の減衰を変える。1で屈折なし |
+| Edge Softness | ガラスの被覆率が変化する全幅。Size Reference基準、境界の両側へ半分ずつ広がる |
+| Normal Smoothing | 法線用の差分を取る片側の半径。Size Reference基準。0では従来の1画素相当の差分を維持する |
+| Blur Radius | ガラス越しの画像をぼかす円盤の半径。Size Reference基準 |
+| Blur Samples | ぼかし円盤のサンプル数。1〜128。1は円盤中心の1点を読む |
+| Aberration | 屈折ベクトルに沿うRGBのずれ。0で無効 |
+| Aberration Samples | 分散範囲全体のサンプル数。3〜64。3点は従来のRGB各1点と同じ結果 |
+| Inner Zoom | ガラス越しの画像の倍率。1で等倍、最小0.001 |
+| Inner Zoom Center | ズームの支点。画面中央[0, 0]、左下[-1, -1]、右上[1, 1]。形状の位置とは独立 |
+| Light Angle | 光の方向。右が0、下が0.25、1で時計回りに1周 |
+| Highlight / Color / Softness | 方向性のある縁と鏡面ハイライトの強さ・色・柔らかさ |
+| Fresnel / Color / Softness | 縁の発光の強さ・色・内側への広がり |
+| Tint Color / Intensity | 画像に混ぜる色と強さ |
+| Tint Preserve Luminosity | 着色の前後で輝度を保つ |
+| Cutout | trueならガラスの外側を透明にし、falseなら元画像を残す |
 
 Input・SDFは定数とノード接続に対応する。その他は画面全体で共通のパラメータで、式・automationを利用できる。形状の種類・位置・寸法・回転は上流のSDFで設定し、このエフェクトでは変形しない。Inner Zoom Centerは画像の参照位置だけを変え、形状や照明を動かさない。
 
@@ -34,9 +34,9 @@ Input・SDFは定数とノード接続に対応する。その他は画面全体
 
 Normal Smoothingは0以上の有限値を使い、負値・非有限値は0として扱う。式・automationでも指定できる。入力・出力の1画素相当より小さい値では、差分幅は従来と同じになる。
 
-Blur Samples・Aberration Samplesは最も近い整数へ丸め、それぞれ1〜128・3〜64に制限する。Aberration Samplesが非有限値なら初期値3を使用する。式・automationで指定する場合も同じ扱いになる。Blur=0ではBlur Samplesを、Aberration=0または変位0ではAberration Samplesを参照せず、不要なサンプルを省略する。
+Blur Samples・Aberration Samplesは最も近い整数へ丸め、それぞれ1〜128・3〜64に制限する。Aberration Samplesが非有限値なら3を使用する。式・automationで指定する場合も同じ扱いになる。Blur=0ではBlur Samplesを、Aberration=0または変位0ではAberration Samplesを参照せず、不要なサンプルを省略する。
 
-Thicknessはliquidglass.devでのBezelに相当する幅だが、形状の短辺に対する割合ではなくSize Referenceで選んだ基準寸法（既定値Long Side）に対する割合とする。任意のSDFから形状サイズを推定する処理は行わない。
+Thicknessはliquidglass.devでのBezelに相当する幅だが、形状の短辺に対する割合ではなくSize Referenceで選んだ基準寸法に対する割合とする。任意のSDFから形状サイズを推定する処理は行わない。
 
 ## 描画
 
@@ -48,7 +48,7 @@ Normal Smoothingは、屈折方向とハイライトのために距離を読む�
 
 ### 屈折方式
 
-初期値のQuadraticは従来の計算・初期パラメータを維持する。`s = clamp(max(-distance, 0) / Thickness, 0, 1)`として、屈折の減衰係数は`(1 - s)^2`。SDFの勾配にこの係数を掛けるため、厳密なSDFでない場合は勾配の長さも変位量へ影響する。Curvature・IORを変更しても見た目は変わらない。
+Quadraticでは、`s = clamp(max(-distance, 0) / Thickness, 0, 1)`として、屈折の減衰係数は`(1 - s)^2`。SDFの勾配にこの係数を掛けるため、厳密なSDFでない場合は勾配の長さも変位量へ影響する。Curvature・IORを変更しても見た目は変わらない。
 
 Curved Surfaceはliquidglass.devの断面モデルを連続評価する。`k = Curvature`として、断面の高さを`h(s) = (1 - (1 - s)^k)^(1/k)`とし、その傾きから入射角`theta`を求める。Snellの法則による角度差を使い、減衰係数は次になる。
 
@@ -67,13 +67,13 @@ strength = tan(theta - thetaT) / sqrt(IOR^2 - 1)
 
 境界のAAには`fwidth(distance)`とEdge Softnessの大きい方を使う。幅0の一様な距離場では`distance < 0`で内側を判定する。空形状65504は常に外側とし、Cutoutがfalseなら入力をそのまま返し、trueなら透明にする。
 
-ぼかしにはBlur Samplesで指定した点数のVogel diskとGaussian重みを使い、中間テクスチャを作らずに屈折後の位置で入力をサンプリングする。初期値24では従来の配置を維持する。1では中心を読んでぼかしなしにし、画像が片側へ移動することを避ける。時刻や画素ごとの乱数は使わない。広いぼかしや非常に細かい模様では、有限サンプルによる模様が残る場合がある。
+ぼかしにはBlur Samplesで指定した点数のVogel diskとGaussian重みを使い、中間テクスチャを作らずに屈折後の位置で入力をサンプリングする。1では中心を読んでぼかしなしにし、画像が片側へ移動することを避ける。時刻や画素ごとの乱数は使わない。広いぼかしや非常に細かい模様では、有限サンプルによる模様が残る場合がある。
 
 色収差は、分散範囲全体へ両端を含めてサンプルを配置し、位置に応じたRGBの三角形の重みで合成する。屈折後の画像参照位置を中心として、分散位置+1が従来の赤、0が緑、-1が青の参照位置に対応する。各色の重みは`max(1 - abs(分散位置 - 色の位置), 0)`で、中間位置では隣り合う色の寄与が重なる。RGBをそれぞれ独立した狭い区間で平均せず、1回の画像参照を複数のチャンネルへ使う。
 
 Aberration Samples=3では赤・緑・青をそれぞれ1か所で読み、従来の各色1点と同じ結果を保つ。4点以上では中間の寄与を含めて滑らかに繋ぐ。分散範囲の両端は点数によらず一定だが、各色の重み付き平均位置と見た目は点数によって変わる。連続的な色の広がりには16〜32点程度から調整できる。ここでの点数は各チャンネルあたりではなく全体の点数である。
 
-両効果を有効にした場合、ガラス越しの画像の参照回数は`Blur Samples * Aberration Samples`になる。ぼかし無効時の係数は1、色収差無効時の係数も1。初期値では、ぼかしのみ24点、色収差のみ3点、両方あり72点で従来と同じ。両方の点数を増やすと処理量も積に比例する。元画像の参照と距離場の参照は別に必要。
+両効果を有効にした場合、ガラス越しの画像の参照回数は`Blur Samples * Aberration Samples`になる。ぼかし無効時の係数は1、色収差無効時の係数も1。両方の点数を増やすと処理量も積に比例する。元画像の参照と距離場の参照は別に必要。
 
 入力画像・出力は乗算済みRGBA。ぼかしはそのまま平均し、着色・照明の前だけRGBをalphaで除算する。色収差では各チャンネルの乗算済み成分とalphaを同じ重みで加算し、それぞれの重みの合計で正規化する。一様な入力は点数を変えても同じ色・明るさ・alphaを保つ。最後に3チャンネルの最大alphaを共通のalphaにして、緑の位置が透明でも赤・青を失わないようにする。照明・着色も屈折後のalpha内に適用するため、完全に透明な画像から光や不透明なガラスは生成しない。Cutoutはガラスの被覆率をRGBA全体へ掛ける。
 

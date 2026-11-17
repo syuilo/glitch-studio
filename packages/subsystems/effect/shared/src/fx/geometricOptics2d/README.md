@@ -6,7 +6,7 @@ SDFで配置した鏡・透明物体・遮蔽物に光を当て、平面内を�
 
 1. Objectsへ要素を追加し、そのSDFへShape SDF・SDF Boolean・Mask to SDFなどのscalar出力を接続する。
 2. 透明物体はDielectric、鏡はMirror、遮蔽物はAbsorberを選ぶ。形状は各入力SDFで配置・変形し、同じ材質の複合形状は上流のSDF Booleanでまとめる。
-3. Sourcesへ光源を追加し、位置・方向・光量を設定する。初期状態は左から右へ進む白色のParallel Beam一つで、Objectsは空。
+3. Sourcesへ光源を追加し、位置・方向・光量を設定する。
 4. Light Paths出力を発光合成で重ねる。物体の塗り・輪郭は同じSDFをSDF to Maskへ接続して描く。Bloomも後段の既存ノードで加える。
 
 位置・距離は長辺全体=1、中央原点、右が+X、上が+Yの共通単位。方向は右が0、下が0.25、時計回りのturn単位。幅や線幅も共通単位で指定し、Size Referenceによる換算は行わない。
@@ -15,14 +15,14 @@ SDFで配置した鏡・透明物体・遮蔽物に光を当て、平面内を�
 
 Objectsは構造体の配列で、SDF以外は物体ごとに一様な設定。式・キー・automationによる変更に対応する。
 
-| 設定 | 初期値 | 意味 |
-| --- | --- | --- |
-| SDF | 65504（空形状） | 内側が負、境界0、外側が正の共通単位の距離場。ノード接続可 |
-| Material | Dielectric | Dielectric・Mirror・Absorber |
-| IOR (550 nm) | 1.5 | Dielectricの基準屈折率 |
-| Dispersion | 0 | CauchyモデルのB係数（µm²）。正なら短波長の屈折率が高い |
-| Mirror Reflectivity | 1 | Mirrorで反射して残る光量の割合 |
-| Red / Green / Blue Absorption | 各0 | Dielectric内部の650 / 550 / 450 nmの吸収係数。単位は共通距離の逆数 |
+| 設定 | 意味 |
+| --- | --- |
+| SDF | 内側が負、境界0、外側が正の共通単位の距離場。ノード接続可 |
+| Material | Dielectric・Mirror・Absorber |
+| IOR (550 nm) | Dielectricの基準屈折率 |
+| Dispersion | CauchyモデルのB係数（µm²）。正なら短波長の屈折率が高い |
+| Mirror Reflectivity | Mirrorで反射して残る光量の割合 |
+| Red / Green / Blue Absorption | Dielectric内部の650 / 550 / 450 nmの吸収係数。単位は共通距離の逆数 |
 
 Dielectricの境界でSnellの法則による屈折と、非偏光のFresnel反射率による反射・透過の分岐を計算する。全反射では反射のみ。レンズとプリズムは独立した材質でなく、Dielectricの形状として表す。
 
@@ -34,16 +34,16 @@ Dielectricの境界でSnellの法則による屈折と、非偏光のFresnel反�
 
 ## 光源
 
-| 設定 | 初期値 | 意味 |
-| --- | --- | --- |
-| Type | Parallel Beam | Single Ray・Parallel Beam・Point Source |
-| Position | [-0.4, 0] | 光線の始点、またはParallel Beamの発光線分の中心 |
-| Direction | 0 | 進行方向、またはPoint Sourceの放射角度の中心 |
-| Beam Width | 0.2 | Parallel Beamの進行方向に垂直な発光線分の全幅 |
-| Point Source Spread | 1 | Point Sourceの全放射角度。1で全方向、0.25で90度 |
-| Power | 1 | 光源全体の総パワー。任意単位 |
-| Spectrum | White | Whiteは固定の等エネルギースペクトル、Monochromaticは指定波長の単色光 |
-| Wavelength | 550 nm | Monochromaticの波長 |
+| 設定 | 意味 |
+| --- | --- |
+| Type | Single Ray・Parallel Beam・Point Source |
+| Position | 光線の始点、またはParallel Beamの発光線分の中心 |
+| Direction | 進行方向、またはPoint Sourceの放射角度の中心 |
+| Beam Width | Parallel Beamの進行方向に垂直な発光線分の全幅 |
+| Point Source Spread | Point Sourceの全放射角度。1で全方向、0.25で90度 |
+| Power | 光源全体の総パワー。任意単位 |
+| Spectrum | Whiteは固定の等エネルギースペクトル、Monochromaticは指定波長の単色光 |
+| Wavelength | Monochromaticの波長 |
 
 Parallel Beamは発光線分を、Point Sourceは放射角度を等間隔の中点でサンプリングする。Single RayはRay Samplesによらず一本だが、Whiteの場合は波長ごとに経路を追跡する。Beam Widthと描画用のLine Widthは独立し、Line Widthを変えても光学的な経路は変わらない。
 
@@ -51,18 +51,18 @@ Whiteは共通の`optics/spectral-samples.ts`の380〜780 nm・81点の等色応
 
 ## 全体・品質設定
 
-| 設定 | 初期値 | 意味 |
-| --- | --- | --- |
-| Exterior IOR | 1 | すべての物体の外部媒質の屈折率 |
-| Ray Samples | 128 | Parallel Beam・Point Sourceそれぞれの空間／角度サンプル数。1〜2048 |
-| Wavelength Samples | 9 | White光源ごとの代表波長数。1〜81 |
-| Max Interactions | 12 | 各経路の反射・屈折回数。0〜32。上限回数の相互作用後も次の境界／画面端までは描画する |
-| Minimum Relative Power | 0.001 | 各一次光線の初期パワーに対して弱くなった枝を打ち切る閾値 |
-| Path Budget | 65536 | 全一次光線を合わせた線分保存数の上限。最大262144 |
-| Maximum Trace Step | 0.005 | 一回の境界探索で進む最大距離。小さくすると薄い形状を捉えやすくなる |
-| Maximum Trace Steps | 2048 | 一つの線分の境界探索の反復上限。最大8192 |
-| Line Width | 0.003 | 光路の描画幅。0なら透明出力 |
-| Exposure | -2 EV | 出力の光量に`2^Exposure`を掛ける |
+| 設定 | 意味 |
+| --- | --- |
+| Exterior IOR | すべての物体の外部媒質の屈折率 |
+| Ray Samples | Parallel Beam・Point Sourceそれぞれの空間／角度サンプル数。1〜2048 |
+| Wavelength Samples | White光源ごとの代表波長数。1〜81 |
+| Max Interactions | 各経路の反射・屈折回数。0〜32。上限回数の相互作用後も次の境界／画面端までは描画する |
+| Minimum Relative Power | 各一次光線の初期パワーに対して弱くなった枝を打ち切る閾値 |
+| Path Budget | 全一次光線を合わせた線分保存数の上限。最大262144 |
+| Maximum Trace Step | 一回の境界探索で進む最大距離。小さくすると薄い形状を捉えやすくなる |
+| Maximum Trace Steps | 一つの線分の境界探索の反復上限。最大8192 |
+| Line Width | 光路の描画幅。0なら透明出力 |
+| Exposure | 出力の光量に`2^Exposure`を掛ける |
 
 各光源の総パワーをRay Samplesと分光重みで分配するため、品質を上げるだけで光量が増えることはない。描画線も幅方向の積分を正規化する。1画素未満の線は1画素相当の幅でAA描画する。
 
@@ -81,7 +81,7 @@ Path Budgetは一次光線へ等分し、余りは配列・空間サンプル・
 - 光源数・光線数・波長数・分岐数・物体数・探索精度を増やすほど負荷が増える。buffer・dispatch・テクスチャbindingのGPU上限を超えた場合は、品質を黙って下げずエラーにする。各線分は48bytesのbufferを使う。
 - 表面は滑らかな鏡面。粗さによる散乱、偏光、回折、干渉、流体・物体の運動、3D光学系、理想薄レンズの近軸モデルは含まない。形や動きは上流とパラメータの式・キー・automationで作る。
 
-数値パラメータの非有限値は既定値へ戻す。物体のIORとExterior IORは1〜10、Dispersionは0〜0.1、反射率は0〜1、吸収係数は0〜1000、光源のパワーは0〜10000、波長は380〜780 nm、幅は0〜10、放射角度は0〜1に制限する。位置は±1000000、Maximum Trace Stepは0.000001〜1、Line Widthは0〜1、Exposureは±20に制限する。整数設定は丸めて上記の範囲へ制限し、Maximum Trace StepsとPath Budgetの最小値は1。
+物体のIORとExterior IORは1〜10、Dispersionは0〜0.1、反射率は0〜1、吸収係数は0〜1000、光源のパワーは0〜10000、波長は380〜780 nm、幅は0〜10、放射角度は0〜1に制限する。位置は±1000000、Maximum Trace Stepは0.000001〜1、Line Widthは0〜1、Exposureは±20に制限する。整数設定は丸めて上記の範囲へ制限し、Maximum Trace StepsとPath Budgetの最小値は1。
 
 ## 作例
 

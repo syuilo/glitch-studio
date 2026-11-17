@@ -13,20 +13,20 @@
 
 ## 入出力・パラメータ
 
-| パラメータ | 初期値 | 意味 |
-| --- | --- | --- |
-| Height | 0 | 表面の高さを表すscalar場。定数とノード接続に対応 |
-| Height Scale | 0.05 | Heightに掛ける高さ倍率。長辺全体=1の共通単位。負値で起伏が反転 |
-| Receiver Distance | 0.2 | 高さ0の基準面から受光面までの距離。共通単位 |
-| IOR | 1.333 | 空気から入る透明媒質の屈折率。1で法線による屈折なし |
-| Light Angle | 0 | 光源の方位。右が0、下が0.25、時計回りに1周 |
-| Light Elevation | 0.25 | 光源の仰角。turn単位で、0が水平、0.25が真上 |
-| Light Color | 白 | カラー出力の光の色と不透明度。Irradianceには影響しない |
-| Light Intensity | 1 | 両出力へ掛ける光の強度 |
-| Softness | 0.004 | 受光面のGaussianの標準偏差。共通単位。0で追加のぼかしなし |
-| Samples | 512 | 長辺方向の光線サンプル数。整数へ丸め、32〜1024に制限 |
+| パラメータ | 意味 |
+| --- | --- |
+| Height | 表面の高さを表すscalar場。定数とノード接続に対応 |
+| Height Scale | Heightに掛ける高さ倍率。長辺全体=1の共通単位。負値で起伏が反転 |
+| Receiver Distance | 高さ0の基準面から受光面までの距離。共通単位 |
+| IOR | 空気から入る透明媒質の屈折率。1で法線による屈折なし |
+| Light Angle | 光源の方位。右が0、下が0.25、時計回りに1周 |
+| Light Elevation | 光源の仰角。turn単位で、0が水平、0.25が真上 |
+| Light Color | カラー出力の光の色と不透明度。Irradianceには影響しない |
+| Light Intensity | 両出力へ掛ける光の強度 |
+| Softness | 受光面のGaussianの標準偏差。共通単位。0で追加のぼかしなし |
+| Samples | 長辺方向の光線サンプル数。整数へ丸め、32〜1024に制限 |
 
-- **Output**: 乗算済みRGBAの照明画像。初期値のalphaは1で、光が届かない場所は不透明な黒。Light ColorのalphaをRGBAへ適用する。画像出力はrgba16floatに固定し、HDRの集光を保持する。
+- **Output**: 乗算済みRGBAの照明画像。Light ColorのalphaをRGBAへ適用する。画像出力はrgba16floatに固定し、HDRの集光を保持する。
 - **Irradiance**: 色とalphaから独立した照度のscalar場。真上から強度1の光を平面へ当てると1になる。集光箇所は1を超える。未接続なら出力テクスチャを確保しない。
 
 Height以外は空間全体で共通の値だが、式・automationで変更できる。自動解像度はHeightの接続を基準にし、定数なら描画先の解像度を使う。
@@ -50,4 +50,4 @@ Height以外は空間全体で共通の値だが、式・automationで変更で�
 - 光が当たらない向きの表面、受光面より下の表面、屈折後に受光面へ向かわない光は寄与しない。表面自身による遮蔽・再交差は検査しない。
 - 単一の屈折界面と平らな受光面の近似。Fresnel反射・吸収・色分散・回折・多重散乱・ガラスの裏面は扱わない。光線の到達後のGaussianは受光面上の広がりであり、面積光源を追跡するものではない。
 
-Receiver Distance・Light Intensityの負値は0、IORは1〜10、Light Elevationは0〜0.25、Softnessは0〜0.05に制限する。極端な式の結果で計算を発散させないよう、Height Scaleは±1000000、Receiver DistanceとLight Intensityは1000000以下に制限し、非有限の数値設定は初期値へ戻す。
+Receiver Distance・Light Intensityの負値は0、IORは1〜10、Light Elevationは0〜0.25、Softnessは0〜0.05に制限する。極端な式の結果で計算を発散させないよう、Height Scaleは±1000000、Receiver DistanceとLight Intensityは1000000以下に制限する。

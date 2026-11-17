@@ -6,21 +6,21 @@
 
 ## パラメータ
 
-| パラメータ | 初期値 | 意味 |
-| --- | --- | --- |
-| Input | 透明 | 液晶へ表示するlinear sRGB画像 |
-| Horizontal Viewing Angle | 0 | 正面の法線からの水平角。正で観察者が右側、負で左側 |
-| Vertical Viewing Angle | 0 | 正面の法線からの垂直角。正で観察者が上側、負で下側 |
-| Amount | 1 | 未加工画像とのlinear RGBでの混合量。0〜1へ制限 |
-| Cell Thickness | 5 µm | 液晶セルの厚み。負値は0 |
-| Ordinary IOR / Extraordinary IOR | 1.5 / 1.6 | 常光・異常光の屈折率。それぞれ1以上へ制限 |
-| Twist Angle | 0.25 turn（90°） | 背面から前面への配向軸の時計回りのねじれ。符号でねじれ方向を変更。±1 turnへ制限 |
-| Pretilt Angle | 2° | 駆動前と両界面での、画面に対する配向軸の傾き。±45°へ制限 |
-| Panel Rotation | 0 | 液晶の配向と2枚の偏光板を一緒に時計回りへ回転する。画像自体は回転しない |
-| Polarizer Angle | 0 | Panel Rotationに対する背面の偏光板の向き |
-| Analyzer Angle | 0.25 turn（90°） | Panel Rotationに対する前面の偏光板の向き |
-| Calibrate Front View | 有効 | 正面応答からRGBごとの駆動値を逆算し、正面の黒・白・階調を入力画像へ合わせる |
-| Brightness | 2 | linear RGBでの光量倍率。初期値2は最初の偏光板による1/2の損失を補う。負値は0 |
+| パラメータ | 意味 |
+| --- | --- |
+| Input | 液晶へ表示するlinear sRGB画像 |
+| Horizontal Viewing Angle | 正面の法線からの水平角。正で観察者が右側、負で左側 |
+| Vertical Viewing Angle | 正面の法線からの垂直角。正で観察者が上側、負で下側 |
+| Amount | 未加工画像とのlinear RGBでの混合量。0〜1へ制限 |
+| Cell Thickness | 液晶セルの厚み。負値は0 |
+| Ordinary IOR / Extraordinary IOR | 常光・異常光の屈折率。それぞれ1以上へ制限 |
+| Twist Angle | 背面から前面への配向軸の時計回りのねじれ。符号でねじれ方向を変更。±1 turnへ制限 |
+| Pretilt Angle | 駆動前と両界面での、画面に対する配向軸の傾き。±45°へ制限 |
+| Panel Rotation | 液晶の配向と2枚の偏光板を一緒に時計回りへ回転する。画像自体は回転しない |
+| Polarizer Angle | Panel Rotationに対する背面の偏光板の向き |
+| Analyzer Angle | Panel Rotationに対する前面の偏光板の向き |
+| Calibrate Front View | 正面応答からRGBごとの駆動値を逆算し、正面の黒・白・階調を入力画像へ合わせる |
+| Brightness | linear RGBでの光量倍率。2なら最初の偏光板による1/2の損失を補う。負値は0 |
 
 角度は共通のangle入力と同じturn単位で指定する。水平・垂直角はそれぞれXZ・YZ面での法線からの角度であり、1周を同じ方向へ戻した後、前面の±85°へ制限する。2軸の角度を同時に指定した場合も、外側での光の方向を正規化してから屈折を計算する。
 
@@ -58,7 +58,7 @@ Calibrate Front Viewが有効な場合、各原色の正面応答から最小・
 
 ## 使用例
 
-- 正面の初期値からVertical Viewing Angleを±30〜60°へ動かすと、見る方向によって異なる暗部・色・階調の変化を確認できる。
+- 正面からVertical Viewing Angleを±30〜60°へ動かすと、見る方向によって異なる暗部・色・階調の変化を確認できる。
 - Panel Rotationを90°回すと、視野角特性も画面内で回転する。Horizontal Viewing Angleとの組み合わせにも使える。
 - Calibrate Front Viewを無効、Brightnessを1へ設定すると、偏光板やセル厚みによる透過光量そのものを観察できる。
 

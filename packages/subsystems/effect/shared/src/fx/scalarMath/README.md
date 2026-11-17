@@ -1,10 +1,10 @@
 # Scalar Math
 
-スカラー場を画素ごとに計算する。A・B・Cはスカラーの定数またはノード出力で、初期値はそれぞれ0・0・1。出力はスカラー場で、0〜1には制限しない。
+スカラー場を画素ごとに計算する。A・B・Cはスカラーの定数またはノード出力。出力はスカラー場で、0〜1には制限しない。
 
 ## 演算
 
-Operationは通常パラメータで、式・アニメーションによる切り替えに対応する。初期値はAdd。
+Operationは通常パラメータで、式・アニメーションによる切り替えに対応する。
 
 - Aのみ: Absolute、Sign、Floor、Ceil、Round、Fract、Square Root、Sine、Cosine、Tangent。
 - A・B: Add、Subtract、Multiply、Divide、Minimum、Maximum、Modulo、Power、Step、Greater Than、Less Than、Equal。

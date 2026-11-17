@@ -4,7 +4,7 @@
 
 ## 参照元の位置
 
-Source Position Modeの既定値はCell Centerで、元のセル中心を参照元の中心とする。Inputへ切り替えると、Per Cell Source Positionのベクトルを参照元の中心として使う。定数なら全セルが同じ領域を参照し、ノードを接続すればセルごとに参照先を指定できる。
+Source Position ModeがCell Centerなら、元のセル中心を参照元の中心とする。Inputへ切り替えると、Per Cell Source Positionのベクトルを参照元の中心として使う。定数なら全セルが同じ領域を参照し、ノードを接続すればセルごとに参照先を指定できる。
 
 座標は描画領域の長辺全体=1、中央が[0, 0]、右が+X、上が+Y。Size Reference・Frequency・Translation Unitで座標の単位は変わらない。主入力のFitを適用する前の描画領域の座標であり、素材固有のUVではない。元画像のセルへのスナップや、一対一の割当は行わず、同じ領域を何度でも使える。
 
@@ -14,7 +14,7 @@ Per Cell Translation・Scale・Rotationは、選んだ領域の内容へ拡縮�
 
 ## 制御入力とWrap
 
-Control Samplesは既定値1で、Per Cell Source Positionを含む制御入力を描画先セルの中心で読む。2以上では、セルを等面積領域へ分けた各中心の値を算術平均する。参照元を変更しても制御入力の評価位置は動かさない。座標場自身のFit・Wrap・Filterは、その接続設定に従う。
+Control Samplesが1なら、Per Cell Source Positionを含む制御入力を描画先セルの中心で読む。2以上では、セルを等面積領域へ分けた各中心の値を算術平均する。参照元を変更しても制御入力の評価位置は動かさない。座標場自身のFit・Wrap・Filterは、その接続設定に従う。
 
 - Wrap Reference = Cell：選んだ中心の周囲にあるセルサイズの画像片を基準に、変形後の局所座標へWrap Modeを適用する。描画領域外の画像参照は透明になる。
 - Wrap Reference = Image：セルサイズでは切り取らず、入力画像全体を参照する。主入力のFit後の画像端にWrap Modeを適用し、Filterは入力接続の設定に従う。定数色のTransparentでは描画領域を画像端として扱う。

@@ -6,18 +6,18 @@
 
 Input／Outputはcolor。全ての数値パラメータは式・キー・ノード入力に対応する。
 
-| パラメータ | 既定値 | 作用 |
-| --- | --- | --- |
-| Amount | 1 | 処理済み画像とのlinear RGB上の混合量 |
-| Contrast | 1.1 | 18%グレーにおける明度曲線の傾き |
-| Shadow Softness | 0.25 | 黒付近の傾きを緩やかにする |
-| Highlight Softness | 0.35 | 白付近の傾きと白の明度を下げる |
-| Fade | 0 | 黒の明度を持ち上げる。Shadow Softnessとは独立 |
-| Chroma Compression | 0.2 | 高彩度部をなめらかに圧縮する |
-| Shadow Hue | 0.55 turn | 暗部の色付けの方向。既定は青緑 |
-| Shadow Tint Amount | 0.1 | 暗部の色付けの強さ |
-| Highlight Hue | 0.22 turn | 明部の色付けの方向。既定は琥珀色 |
-| Highlight Tint Amount | 0.1 | 明部の色付けの強さ |
+| パラメータ | 作用 |
+| --- | --- |
+| Amount | 処理済み画像とのlinear RGB上の混合量 |
+| Contrast | 18%グレーにおける明度曲線の傾き |
+| Shadow Softness | 黒付近の傾きを緩やかにする |
+| Highlight Softness | 白付近の傾きと白の明度を下げる |
+| Fade | 黒の明度を持ち上げる。Shadow Softnessとは独立 |
+| Chroma Compression | 高彩度部をなめらかに圧縮する |
+| Shadow Hue | 暗部の色付けの方向 |
+| Shadow Tint Amount | 暗部の色付けの強さ |
+| Highlight Hue | 明部の色付けの方向 |
+| Highlight Tint Amount | 明部の色付けの強さ |
 
 ContrastのUI範囲は0.5〜2、評価範囲は0.1〜4。色相は1を1周として繰り返す。それ以外の数値は0〜1へ制限する。この制限は操作量だけに適用し、画像のRGB・OklabのLを0〜1へ制限しない。
 

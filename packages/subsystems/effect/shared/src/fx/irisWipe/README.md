@@ -17,7 +17,7 @@
 - `center`は長辺全体=1の共通座標。中央が[0, 0]、右が+X、上が+Y。画面外の中心も扱う。
 - `direction = outward`では中心側からBが広がる。`inward`では外側からBが入り、中央のAが縮む。どちらも0=A、1=B。
 - 半径は中心から描画領域への最短距離〜最遠の隅への距離を基準にする。中心が画面外でも、その最短距離に到達するまでの待ち時間を進捗へ含めない。
-- `feather`はSize Referenceに対するぼかしの全幅。既定は長辺基準。Centerの座標や円の縦横比はSize Referenceで変えない。
+- `feather`はSize Referenceに対するぼかしの全幅。Centerの座標や円の縦横比はSize Referenceで変えない。
 - 半径の移動範囲はFeatherの半幅だけ両端へ拡張し、端点まで滑らかに完全なA/Bへつなぐ。
 - Featherはsmoothstepで補間する。0でも1画素の対角長によるアンチエイリアスを適用する。
 

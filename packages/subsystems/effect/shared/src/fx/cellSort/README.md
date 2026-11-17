@@ -12,13 +12,13 @@ FrequencyとSize Referenceでセルの幅・高さを指定する。両軸で同
 
 ## 解析とソート
 
-Samples Per Cellは1〜256、既定値16。セルを指定数の等面積領域へ分け、その中心でpremultiplied RGBAを読み、平均色を求める。解析位置と個数は出力解像度に依存せず、反射部分も同じ重みで含める。有限個のサンプルによる推定であり、細い模様を必ず検出できるわけではない。
+Samples Per Cellは1〜256。セルを指定数の等面積領域へ分け、その中心でpremultiplied RGBAを読み、平均色を求める。解析位置と個数は出力解像度に依存せず、反射部分も同じ重みで含める。有限個のサンプルによる推定であり、細い模様を必ず検出できるわけではない。
 
 Luminance・Red・Green・Blue・Saturationは、平均premultiplied RGBを平均alphaで割った代表色から求める。Luminanceの係数は`(0.2126, 0.7152, 0.0722)`、SaturationはHSVの`(max-min)/max`。Alphaは平均alphaそのもの。Customは元セルの同じ位置でCustom Sort Keyのscalar入力を等重みで平均する。制御用の場も画面外では同じMirror Repeatを使う。
 
 Threshold Min/Maxの範囲は両端を含み、上下限が逆なら交換して使う。範囲外・解析上完全透明・NaNキーのセルは固定し、ソート区間の境界とする。残りの連続したセルだけを指定方向・順序で安定ソートする。同じキーでは昇順・降順とも元の順序を保つ。閾値は式で0〜1の外にも設定でき、HDRや任意値のCustomキーも扱える。
 
-Average Color for Moved Cellsは既定で無効。有効なら、最終的な参照元が配置先と異なるセルだけを、移動元の平均premultiplied RGBAで塗りつぶす。元の位置に残ったセルは画像の細部を保つ。Amountによる合成は行わない。
+Average Color for Moved Cellsを有効にすると、最終的な参照元が配置先と異なるセルだけを、移動元の平均premultiplied RGBAで塗りつぶす。元の位置に残ったセルは画像の細部を保つ。Amountによる合成は行わない。
 
 ## GPU処理
 

@@ -14,11 +14,11 @@
 - `shadowOpacity`: Bへ落とす影の濃さ。0で無効、0〜1へclampする。
 - `shadowSoftness`: 影の柔らかさ。Size Referenceに対する距離比率。0でも紙の浮き上がりに伴う影の広がりは残る。
 - `shading`: 曲面の明暗の強さ。0で無効、0〜1へclampする。固定の正面光と環境光を想定し、平らな部分の明るさを保ちながら、横を向いた面を最大45%減光する。
-- `sizeReference`: 半径と影幅の換算基準。既定は長辺全体=1。紙の座標や縦横比は変更しない。
+- `sizeReference`: 半径と影幅の換算基準。紙の座標や縦横比は変更しない。
 
 ## 裏面
 
-- `source`（Tinted Front、既定）: Aを流用し、Back Colorの紙色へ70%寄せる。Back Colorのalphaは染色の強さであり、0ならAの色をそのまま使う。Aのalphaは維持する。
+- `source`（Tinted Front）: Aを流用し、Back Colorの紙色へ70%寄せる。Back Colorのalphaは染色の強さであり、0ならAの色をそのまま使う。Aのalphaは維持する。
 - `color`（Solid Color）: Back ColorのRGBAをそのまま裏面に使う。画像ノードを接続した場合は、その色の場を使う。
 - `input`（Back Image）: Back InputのRGBAを使う。Back Colorは使わない。
 

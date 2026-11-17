@@ -6,15 +6,15 @@
 
 ## パラメータ
 
-| パラメータ | 初期値 | 意味 |
-| --- | --- | --- |
-| Input | 透明 | 加工する色・画像 |
-| Horizontal Viewing Angle | 0.125 turn（45°） | 正面から右側への視線角度。負は左側 |
-| Vertical Viewing Angle | 0 turn | 正面から下側への視線角度。負は上側。左右より強く階調が変化する |
-| Color Shift | 0.5 | RGB間の階調応答の差。0では灰色を無彩色のまま変換する |
-| Contrast Loss | 0.5 | 視線角度に応じた漏れ光と白の減光の強さ |
-| Inversion | 1 | 詳細設定。階調カーブの折り返しを使う強さ。0では明暗の順序を保つ |
-| Amount | 1 | 入力と変換結果の混合量 |
+| パラメータ | 意味 |
+| --- | --- |
+| Input | 加工する色・画像 |
+| Horizontal Viewing Angle | 正面から右側への視線角度。負は左側 |
+| Vertical Viewing Angle | 正面から下側への視線角度。負は上側。左右より強く階調が変化する |
+| Color Shift | RGB間の階調応答の差。0では灰色を無彩色のまま変換する |
+| Contrast Loss | 視線角度に応じた漏れ光と白の減光の強さ |
+| Inversion | 詳細設定。階調カーブの折り返しを使う強さ。0では明暗の順序を保つ |
+| Amount | 入力と変換結果の混合量 |
 
 Input・Horizontal Viewing Angle・Vertical Viewing Angle・Amountはノード接続に対応する。全パラメータで式・オートメーションを利用できる。角度は既存のangle入力と同じturn単位で、1が360°。正面は両角度が0。両角度をそれぞれ±85°へ制限し、背面や複数周への回転としては扱わない。他の設定は0〜1に制限する。
 

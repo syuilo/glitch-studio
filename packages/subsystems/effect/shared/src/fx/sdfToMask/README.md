@@ -4,16 +4,16 @@
 
 ## パラメータ
 
-- Inputはスカラーの定数またはノード出力。初期値65504は、既存SDFの空形状と同じく初期設定でマスク0になる。
-- ModeはFill（初期値）またはStroke。
-- Offsetは境界の移動量で初期値0。正で外側へ広げ、負で内側へ縮める。
-- Stroke Widthは輪郭の全幅で初期値0.01。非正なら反転前のマスクは全て0。Fillでは使用しない。
-- Stroke AlignmentはInside／Center（初期値）／Outside。Offset適用後の境界を基準に輪郭を配置する。
-- Featherは0〜1へ滑らかに変化する遷移の全幅で初期値0。境界の内外へ半分ずつ広がり、負の値は0とする。
-- Anti-aliasは初期値true。出力画素における距離の変化幅`fwidth(d - Offset)`とFeatherの大きい方を、実際の遷移幅に使う。Featherの幅にAA幅を加算しない。
-- Invertは初期値false。透明余白の処理も含めて、最後に`1 - mask`へ反転する。
+- Inputはスカラーの定数またはノード出力。空形状65504はマスク0になる。
+- ModeはFillまたはStroke。
+- Offsetは境界の移動量。正で外側へ広げ、負で内側へ縮める。
+- Stroke Widthは輪郭の全幅。非正なら反転前のマスクは全て0。Fillでは使用しない。
+- Stroke AlignmentはInside／Center／Outside。Offset適用後の境界を基準に輪郭を配置する。
+- Featherは0〜1へ滑らかに変化する遷移の全幅。境界の内外へ半分ずつ広がり、負の値は0とする。
+- Anti-aliasは出力画素における距離の変化幅`fwidth(d - Offset)`とFeatherの大きい方を、実際の遷移幅に使う。Featherの幅にAA幅を加算しない。
+- Invertは透明余白の処理も含めて、最後に`1 - mask`へ反転する。
 
-Offset・Stroke Width・FeatherはSize Referenceの基準寸法に対する比率で、既定値はLong Side。内部で基準寸法/出力長辺を掛け、入力SDFの共通単位へ換算する。以下の数式のOffset・Width・Featherは換算後の値を表す。調整パラメータは画面全体で共通の値で、式・automationなどによるアニメーションに対応する。ノード接続はInputだけで受け付ける。
+Offset・Stroke Width・FeatherはSize Referenceの基準寸法に対する比率。内部で基準寸法/出力長辺を掛け、入力SDFの共通単位へ換算する。以下の数式のOffset・Width・Featherは換算後の値を表す。調整パラメータは画面全体で共通の値で、式・automationなどによるアニメーションに対応する。ノード接続はInputだけで受け付ける。
 
 ## 塗り・輪郭・滑らかさ
 

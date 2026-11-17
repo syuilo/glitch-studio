@@ -6,19 +6,19 @@
 
 - `inputA` / `inputB`: 剥がす紙の表面と下から現れる画像。画像・色を指定でき、未接続は透明。
 - `progress`: 0で完全なA、1で完全なB。範囲外はclampする。式・キー・scalarノード接続に対応する。空間場を接続した場合は出力位置ごとの局所進捗として評価する。紙全体を同じ形で動かす場合は一様な進捗を使う。
-- `corner`: `topLeft` / `topRight` / `bottomLeft` / `bottomRight`。選択した隅から反対の隅へ剥がす。既定は`topRight`。
-- `curlRadius`: 曲面の半径。小さいほど鋭く、大きいほど緩やかに曲がる。Size Referenceに対する距離比率、既定0.08。0以下は鋭い折り返しの極限として、共通単位の微小半径0.000001へ制限する。
+- `corner`: `topLeft` / `topRight` / `bottomLeft` / `bottomRight`。選択した隅から反対の隅へ剥がす。
+- `curlRadius`: 曲面の半径。小さいほど鋭く、大きいほど緩やかに曲がる。Size Referenceに対する距離比率。0以下は鋭い折り返しの極限として、共通単位の微小半径0.000001へ制限する。
 - `backMode`: `source` / `color` / `input`。裏面の作り方。下記参照。
-- `backColor`: 裏面の色または表面流用時の紙色。色・画像ノードを接続できる。既定はlinear sRGBの`[0.92, 0.90, 0.84, 1]`。
+- `backColor`: 裏面の色または表面流用時の紙色。色・画像ノードを接続できる。
 - `backInput`: 裏面専用の画像・色。未接続は透明。
-- `shadowOpacity`: Bへ落とす影の濃さ。0で無効、0〜1へclampする。既定0.35。
-- `shadowSoftness`: 影の柔らかさ。Size Referenceに対する距離比率、既定0.02。0でも紙の浮き上がりに伴う影の広がりは残る。負値は0へ制限する。
-- `shading`: 曲面の明暗の強さ。0で無効、0〜1へclampする。既定0.6。固定の正面光と環境光を想定し、平らな面の明るさを保ちながら、横を向いた面を最大45%減光する。
-- `sizeReference`: 半径と影幅の換算基準。既定は長辺全体=1。紙の座標や縦横比は変更しない。
+- `shadowOpacity`: Bへ落とす影の濃さ。0で無効、0〜1へclampする。
+- `shadowSoftness`: 影の柔らかさ。Size Referenceに対する距離比率。0でも紙の浮き上がりに伴う影の広がりは残る。負値は0へ制限する。
+- `shading`: 曲面の明暗の強さ。0で無効、0〜1へclampする。固定の正面光と環境光を想定し、平らな面の明るさを保ちながら、横を向いた面を最大45%減光する。
+- `sizeReference`: 半径と影幅の換算基準。紙の座標や縦横比は変更しない。
 
 ## 裏面
 
-- `source`（Tinted Front、既定）: Aを流用し、Back Colorの紙色へ70%寄せる。Back Colorのalphaは染色の強さであり、0ならAの色をそのまま使う。Aのalphaは維持する。
+- `source`（Tinted Front）: Aを流用し、Back Colorの紙色へ70%寄せる。Back Colorのalphaは染色の強さであり、0ならAの色をそのまま使う。Aのalphaは維持する。
 - `color`（Solid Color）: Back ColorのRGBAをそのまま裏面に使う。画像ノードを接続した場合は、その色の場を使う。
 - `input`（Back Image）: Back InputのRGBAを使う。Back Colorは使わない。
 

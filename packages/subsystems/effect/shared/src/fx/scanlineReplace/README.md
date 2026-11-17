@@ -12,7 +12,7 @@
 - `displacement`: 帯ごとの最大横ずれ距離。帯IDとseedから符号と振幅を決める。
 - `chromaticShift`: 赤と青を緑から左右へずらす距離。0で色ずれを無効化する。
 - `seed`: 切替順・横ずれを決める整数seed。32bit符号なし整数として扱う。
-- `sizeReference`: Band Size・Displacement・Chromatic Shiftの寸法基準。既定は長辺全体=1。
+- `sizeReference`: Band Size・Displacement・Chromatic Shiftの寸法基準。
 
 ## 描画仕様
 

@@ -9,7 +9,7 @@ Mandelbrot・Juliaの反復軌道`z → z² + c`から入力画像を参照し�
 ## 基本的な使い方
 
 1. Image・Video Frame・Textなどのcolor出力をInputへ接続します。透明な背景を持つ文字や図形では画像片の重なりが分かりやすくなります。
-2. 初期値のJuliaで、Julia Constantを変更して模様を探します。通常のパラメータなので式・キーフレームでも動かせます。
+2. Juliaで、Julia Constantを変更して模様を探します。通常のパラメータなので式・キーフレームでも動かせます。
 3. Trap Position・Trap Size・Trap Rotationで、軌道から画像を取り込む領域を調整します。
 4. 画像片の重なりはComposite Mode・Sample Opacity・Iteration Decayで調整します。
 5. Viewのポインタボタンを有効にすると、プレビューのドラッグで位置、ホイールでカーソルを中心としたズームを調整できます。中心の数値欄と操作パッドも倍率に応じた感度になります。
@@ -20,25 +20,25 @@ Containの余白を透明にする場合は接続のWrapをTransparentにしま�
 
 ## パラメータ
 
-| パラメータ | 初期値 | 意味 |
-| --- | --- | --- |
-| Input | 透明 | 取り込む画像・動画などのcolor入力。定数色も有限なトラップ矩形として扱います。 |
-| Formula | Julia | Juliaは`z0=画面位置, c=Julia Constant`、Mandelbrotは`z0=0, c=画面位置`です。 |
-| Julia Constant | [-0.745, 0.186] | Juliaの複素定数。Mandelbrotでは使用しません。 |
-| View / Complex Center | [0, 0] | 画面中央に対応する複素平面上の位置。 |
-| View / Zoom | 1 | 複素平面の拡大率。最小0.001。 |
-| View / Rotation | 0 | フラクタル全体の表示の回転。turn単位で、正値は時計回り。 |
-| Coordinate Offset | [0, 0] | 初期座標への変位。共通等方単位のベクトル場も接続でき、Zoom・Rotationより前に加えます。 |
-| Trap Position | [0, 0] | 軌道から画像を取り込む矩形の中心。共通等方単位で、+Xが右、+Yが上。 |
-| Trap Size | [0.25, 0.25] | トラップの幅・高さ。共通等方単位で、各軸の最小値は0.000001。 |
-| Trap Rotation | 0 | 取り込む画像の回転。turn単位で、正値は時計回り。 |
-| Composite Mode | First On Top | 反復ごとの画像の重ね方。下記参照。 |
-| Sample Opacity | 1 | 各反復で読むサンプルの不透明度。合成後の画像全体の不透明度とは異なります。0〜1。 |
-| Iteration Decay | 0.98 | 次の反復のサンプルへ掛ける減衰率。1で減衰なし、0では最初の対象反復だけを描きます。0〜1。 |
-| First Iteration | 1 | 画像を参照し始める反復。`z²+c`で更新した後の1から数えます。 |
-| Maximum Iterations | 128 | 軌道を計算する最終反復。開始反復からの回数ではありません。 |
-| Bailout Radius | 4 | この半径を超えた最終点まで照合してから反復を終了します。2〜1e12。 |
-| Antialiasing | Off | 画素内の固定4点で軌道と合成を独立に計算して平均します。 |
+| パラメータ | 意味 |
+| --- | --- |
+| Input | 取り込む画像・動画などのcolor入力。定数色も有限なトラップ矩形として扱います。 |
+| Formula | Juliaは`z0=画面位置, c=Julia Constant`、Mandelbrotは`z0=0, c=画面位置`です。 |
+| Julia Constant | Juliaの複素定数。Mandelbrotでは使用しません。 |
+| View / Complex Center | 画面中央に対応する複素平面上の位置。 |
+| View / Zoom | 複素平面の拡大率。最小0.001。 |
+| View / Rotation | フラクタル全体の表示の回転。turn単位で、正値は時計回り。 |
+| Coordinate Offset | 初期座標への変位。共通等方単位のベクトル場も接続でき、Zoom・Rotationより前に加えます。 |
+| Trap Position | 軌道から画像を取り込む矩形の中心。共通等方単位で、+Xが右、+Yが上。 |
+| Trap Size | トラップの幅・高さ。共通等方単位で、各軸の最小値は0.000001。 |
+| Trap Rotation | 取り込む画像の回転。turn単位で、正値は時計回り。 |
+| Composite Mode | 反復ごとの画像の重ね方。下記参照。 |
+| Sample Opacity | 各反復で読むサンプルの不透明度。合成後の画像全体の不透明度とは異なります。0〜1。 |
+| Iteration Decay | 次の反復のサンプルへ掛ける減衰率。1で減衰なし、0では最初の対象反復だけを描きます。0〜1。 |
+| First Iteration | 画像を参照し始める反復。`z²+c`で更新した後の1から数えます。 |
+| Maximum Iterations | 軌道を計算する最終反復。開始反復からの回数ではありません。 |
+| Bailout Radius | この半径を超えた最終点まで照合してから反復を終了します。2〜1e12。 |
+| Antialiasing | 画素内の固定4点で軌道と合成を独立に計算して平均します。 |
 
 反復の指定値は切り捨てて1〜512へ制限します。First IterationがMaximum Iterationsより大きい場合は透明です。
 Sample OpacityとIteration Decayも指定範囲へclampします。

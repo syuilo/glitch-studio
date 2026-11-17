@@ -4,22 +4,22 @@
 
 ## パラメータ
 
-| 設定 | 既定値 | 意味 |
-| --- | --- | --- |
-| Processing | Global | Globalは画面全体、Blocksは重なった正方形のブロックごとに処理 |
-| Amount | 0.5 | 位相差の適用量。0〜1。画像同士のクロスフェードではない |
-| Minimum / Maximum Frequency | 2 / 64 | Size Referenceあたりの周期数で対象帯域を指定 |
-| Frequency Softness | 2 | 帯域の境界をsmoothstepでぼかす幅。周期数と同じ単位 |
-| Seed | 0 | 周波数・ブロックごとの位相差を決める |
-| Evolution | 0 | 位相差の連続的な変化量。時刻の式やキーでアニメーション可能 |
-| Channel Mode | RGB Linked | LinkedはRGB共通、Independentはチャンネル別の位相差 |
-| Boundary | Mirror | 描画領域の端でMirrorまたはRepeatしてから入力のFitを適用 |
-| Global Analysis Resolution | 256 | Globalの解析領域の長辺。各軸を16以上の2冪へ切り上げる |
-| Block Size | 25% | Size Referenceに対するブロックの一辺の比率。Blocksのみ使用 |
-| Block Analysis Resolution | 32 | 各ブロック一辺の解析サンプル数。Blocksのみ使用 |
-| Size Reference | Long Side | ブロック寸法と周波数の周期数を換算する共通の基準寸法 |
+| 設定 | 意味 |
+| --- | --- |
+| Processing | Globalは画面全体、Blocksは重なった正方形のブロックごとに処理 |
+| Amount | 位相差の適用量。0〜1。画像同士のクロスフェードではない |
+| Minimum / Maximum Frequency | Size Referenceあたりの周期数で対象帯域を指定 |
+| Frequency Softness | 帯域の境界をsmoothstepでぼかす幅。周期数と同じ単位 |
+| Seed | 周波数・ブロックごとの位相差を決める |
+| Evolution | 位相差の連続的な変化量。時刻の式やキーでアニメーション可能 |
+| Channel Mode | LinkedはRGB共通、Independentはチャンネル別の位相差 |
+| Boundary | 描画領域の端でMirrorまたはRepeatしてから入力のFitを適用 |
+| Global Analysis Resolution | Globalの解析領域の長辺。各軸を16以上の2冪へ切り上げる |
+| Block Size | Size Referenceに対するブロックの一辺の比率。Blocksのみ使用 |
+| Block Analysis Resolution | 各ブロック一辺の解析サンプル数。Blocksのみ使用 |
+| Size Reference | ブロック寸法と周波数の周期数を換算する共通の基準寸法 |
 
-上下限が逆なら交換し、負の周波数・Softnessは0へ制限する。非有限のAmount・周波数・Softness・Seed・Evolutionは既定値へ戻す。Block Sizeは正の有限値が必要で、不正値はエラーとする。Amount=0・定数入力ではFFTを省略し、元の乗算済みRGBAをそのまま返す。
+上下限が逆なら交換し、負の周波数・Softnessは0へ制限する。Block Sizeは正の有限値が必要で、不正値はエラーとする。Amount=0・定数入力ではFFTを省略し、元の乗算済みRGBAをそのまま返す。
 
 ## 解析領域と境界
 

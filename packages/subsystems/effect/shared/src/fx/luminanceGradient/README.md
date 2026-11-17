@@ -6,14 +6,14 @@ colorの画像を輝度へ変換し、ガウスぼかしを適用してから、
 
 ## パラメータ
 
-| パラメータ | 仕様 | 既定値 |
-| --- | --- | --- |
-| Input | 定数の色・式・画像のノード接続。定数は全域で勾配0 | 透明な黒 |
-| Blur Radius | ガウスぼかしの標準偏差sigma。Size Referenceの基準寸法に対する割合。0以下でぼかしなし | 0.01 |
-| Size Reference | Blur Radiusの基準寸法。Height・Width・Short Side・Long Side | Long Side |
-| Strength | 勾配に掛ける倍率。負値で暗くなる方向へ反転し、0で出力0 | 1 |
-| Normalize | ゼロ以外の勾配を長さ1に揃えてからStrengthを掛ける。ゼロはそのまま | オフ |
-| Alpha Mode | Include Alpha / Ignore Alpha | Include Alpha |
+| パラメータ | 仕様 |
+| --- | --- |
+| Input | 定数の色・式・画像のノード接続。定数は全域で勾配0 |
+| Blur Radius | ガウスぼかしの標準偏差sigma。Size Referenceの基準寸法に対する割合。0以下でぼかしなし |
+| Size Reference | Blur Radiusの基準寸法。Height・Width・Short Side・Long Side |
+| Strength | 勾配に掛ける倍率。負値で暗くなる方向へ反転し、0で出力0 |
+| Normalize | ゼロ以外の勾配を長さ1に揃えてからStrengthを掛ける。ゼロはそのまま |
+| Alpha Mode | Include Alpha / Ignore Alpha |
 
 Include Alphaは乗算済みRGBから輝度を求めます。通常の透明画像では黒背景に合成した明るさに相当し、透明度の変化も勾配へ含みます。alpha=0かつRGBが非ゼロの発光成分も保持します。
 

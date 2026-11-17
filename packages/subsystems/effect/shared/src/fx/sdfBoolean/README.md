@@ -4,10 +4,10 @@
 
 ## パラメータと演算
 
-- A・Bはスカラーの定数またはノード出力。初期値はいずれも空形状の65504。
-- OperationはUnion（初期値）・Intersection・Difference（A − B）。DifferenceはAからBを除く方向に固定する。
-- Smoothingは初期値0、負の値は0として扱う。描画全体で共通の値で、式・automationなどによる変更に対応する。ノード接続はA・Bのみ。
-- 距離の単位は既存SDFと同じく描画領域の長辺全体を1とする。SmoothingはSize Referenceの基準寸法に対する比率で、既定値はLong Side。内部で基準寸法/出力長辺を掛け、距離単位へ換算する。出力を0〜1へ正規化しない。
+- A・Bはスカラーの定数またはノード出力。
+- OperationはUnion・Intersection・Difference（A − B）。DifferenceはAからBを除く方向に固定する。
+- Smoothingの負の値は0として扱う。描画全体で共通の値で、式・automationなどによる変更に対応する。ノード接続はA・Bのみ。
+- 距離の単位は既存SDFと同じく描画領域の長辺全体を1とする。SmoothingはSize Referenceの基準寸法に対する比率。内部で基準寸法/出力長辺を掛け、距離単位へ換算する。出力を0〜1へ正規化しない。
 
 Smoothingが0なら、Unionは`min(a, b)`、Intersectionは`max(a, b)`、Differenceは`max(a, -b)`。正なら次の多項式で合成する。
 
