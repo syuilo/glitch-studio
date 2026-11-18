@@ -111,7 +111,7 @@ import { projectSessions, newProject, newProjectFromImageOrVideo, openProject } 
 import { useHeaderEditActions } from '@/composables/useHeaderEditActions.ts';
 import { preferences } from '@/preferences.ts';
 import { desktopUpdateUi } from '@/desktop-update-ui.ts';
-import { importVisualModuleFile } from '@/utility/visual-module-file.ts';
+import { importCustomNodeGraphEffectFile } from '@/utility/custom-node-graph-effect-file.ts';
 import { workspacePanelChoices } from '@/workspace.ts';
 import GsWindowTitlebar from '@/components/common/GsWindowTitlebar.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
@@ -204,9 +204,9 @@ function openHeaderFileMenu(ev: PointerEvent) {
 		icon: 'ti ti-upload',
 		children: [{
 			disabled: projectSession == null,
-			text: i18n.ts._App.ImportVisualModule,
+			text: i18n.ts._App.ImportCustomNodeGraphEffect,
 			icon: 'ti ti-box-multiple',
-			action: () => { if (projectSession != null) void importVisualModuleFile(projectSession.projectContext); },
+			action: () => { if (projectSession != null) void importCustomNodeGraphEffectFile(projectSession.projectContext); },
 		}],
 	}, {
 		disabled: projectSession == null,

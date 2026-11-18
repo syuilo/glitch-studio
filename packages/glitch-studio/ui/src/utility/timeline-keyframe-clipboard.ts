@@ -43,7 +43,7 @@ type ParameterUpdate = {
 };
 type UtteranceUpdate = { layerId: string; target: 'utterance'; before: VoicevoxUtterance[]; after: VoicevoxUtterance[] };
 
-type ParameterState = Pick<ProjectState, 'visualModules'>;
+type ParameterState = Pick<ProjectState, 'customNodeGraphEffects'>;
 
 export function copyTimelineKeyframes(state: ParameterState, scene: TimelineScene, selection: readonly TimelineKeyframeSelection[]): TimelineKeyframeClipboard | null {
 	if (selection.length === 0) return null;
@@ -139,7 +139,7 @@ export function getTimelineKeyframePasteUpdates(state: ParameterState, scene: Ti
 			if (!next) return null;
 			resolved.setValue(next);
 			update.after = draft[paramId];
-			validateTimelineParameterTree(defs[paramId], update.after, entry.target === 'effect' || entry.target === 'module', entry.target === 'effect' || entry.target === 'module');
+			validateTimelineParameterTree(defs[paramId], update.after, entry.target === 'effect' || entry.target === 'customNodeGraphEffect', entry.target === 'effect' || entry.target === 'customNodeGraphEffect');
 		}
 	} catch { return null; }
 	// 配列・構造体の別レーンも同じルートへまとめ、順番に保存して上書きし合わないようにする。

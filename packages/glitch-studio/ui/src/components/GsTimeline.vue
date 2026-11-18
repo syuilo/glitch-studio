@@ -803,14 +803,14 @@ function showEffectPicker(chosen: (definition: EffectDefinition) => void) {
 
 function showAddInlineEffectNodeMenu(layerId: string) {
 	const layer = sceneLayers.value.find(layer => layer.id === layerId);
-	if (layer?.layerType !== 'inlineVisualModule') return;
+	if (layer?.layerType !== 'inlineCustomNodeGraphEffect') return;
 	showEffectPicker(effect => {
 		// 選択変更やレイヤー削除を挟んでも、ピッカーを開いた対象にだけ追加する。
-		if (!isTimelineActive() || !sceneLayers.value.some(layer => layer.id === layerId && layer.layerType === 'inlineVisualModule')) return;
-		stateManager.commit('createVisualModuleEffectNode', {
-			visualModule: { sceneId: props.sceneId, inlineVisualModuleLayerId: layerId },
+		if (!isTimelineActive() || !sceneLayers.value.some(layer => layer.id === layerId && layer.layerType === 'inlineCustomNodeGraphEffect')) return;
+		stateManager.commit('createCustomNodeGraphEffectEffectNode', {
+			customNodeGraphEffect: { sceneId: props.sceneId, inlineCustomNodeGraphEffectLayerId: layerId },
 			effectId: effect.id,
-			connectionMode: preferences.s.visualModuleAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none',
+			connectionMode: preferences.s.customNodeGraphEffectAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none',
 			connectionTypePolicy: preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch',
 		});
 	});

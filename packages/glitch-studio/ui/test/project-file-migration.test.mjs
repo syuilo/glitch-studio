@@ -24,11 +24,11 @@ const createParameterDefinition = () => ({
 const createParameterContainer = (id, overrides = {}) => ({
 	id, name: id, layerType: 'parameterContainer', automationGraphs: [], layers: [], ...overrides,
 });
-const createStoredProject = (layers = [], visualModules = []) => ({
+const createStoredProject = (layers = [], customNodeGraphEffects = []) => ({
 	id: 'project', gsVersion: '2.0.0-alpha.34', name: 'Project', description: '', author: '',
 	automationGraphs: [], exportSettings: null, timelineFps: 60,
 	timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
-	resolution: { width: 640, height: 480 }, assets: [], generatedSpeech: [], players: [], visualModules,
+	resolution: { width: 640, height: 480 }, assets: [], generatedSpeech: [], players: [], customNodeGraphEffects,
 	timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers }],
 });
 
@@ -71,7 +71,7 @@ test('migrates stored layer parameters across nested containers and scenes and s
 	assert.deepEqual(decodeProjectFile(saved).timelineScenes, restored.timelineScenes);
 });
 
-function createVisualModule(id) {
+function createCustomNodeGraphEffect(id) {
 	return {
 		customParameterDefs: [],
 		customParameterValues: {},
@@ -79,38 +79,38 @@ function createVisualModule(id) {
 		paramDefs: [{ ...createParameterDefinition(), nameForReference: 'customParameterValues', ui: { label: 'Custom Parameter', control: {} } }],
 		nodes: [{
 			id: 'node', type: 'effect', effectId: 'fill', resolution: { mode: 'auto', scale: 1 },
-			staticSettings: { inputSource: 'visualModuleCustomParameterReference' },
+			staticSettings: { inputSource: 'customNodeGraphEffectCustomParameterReference' },
 			params: {
-				direct: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'parameter-id' },
+				direct: { inputSource: 'customNodeGraphEffectCustomParameterReference', parameterId: 'parameter-id' },
 				previousFormat: { inputSource: 'externalCustomParameterInput', parameterId: 'parameter-id' },
 				nested: literal([{ id: 'element', binding: literal({
-					input: { inputSource: 'visualModuleCustomParameterReference', parameterId: 'parameter-id' },
+					input: { inputSource: 'customNodeGraphEffectCustomParameterReference', parameterId: 'parameter-id' },
 				}) }]),
-				customParameterDefs: literal('visualModuleCustomParameterReference'),
+				customParameterDefs: literal('customNodeGraphEffectCustomParameterReference'),
 				expression: { inputSource: 'expression', expression: 'PUBLIC("customParameterValues")' },
 			},
 		}],
 	};
 }
 
-// 【通常とインラインのVisual Moduleで旧参照を変換し、配列・構造体の子も取りこぼさない】
+// 【通常とインラインのCustom Node Graph Effectで旧参照を変換し、配列・構造体の子も取りこぼさない】
 // リネーム前から残っていたexternalCustomParameterInputも、同じ公開パラメータ参照へ変換する。
 // パラメータ名・参照名・表示名・式・literal文字列・静的設定は、旧名称を含んでもユーザーのデータとして保持する。
-test('migrates registered and inline Visual Module references without rewriting user data', () => {
-	const registered = createVisualModule('registered');
-	const inline = createVisualModule('inline');
+test('migrates registered and inline Custom Node Graph Effect references without rewriting user data', () => {
+	const registered = createCustomNodeGraphEffect('registered');
+	const inline = createCustomNodeGraphEffect('inline');
 	const stored = createStoredProject([{
-		id: 'inline-layer', name: 'Inline', layerType: 'inlineVisualModule', automationGraphs: [], clips: [],
-		visualModule: inline, visualModuleParamValues: {},
+		id: 'inline-layer', name: 'Inline', layerType: 'inlineCustomNodeGraphEffect', automationGraphs: [], clips: [],
+		customNodeGraphEffect: inline, customNodeGraphEffectParamValues: {},
 	}], [registered]);
 	const restored = decodeProjectFile(encode(stored));
-	for (const visualModule of [restored.visualModules[0], restored.timelineScenes[0].layers[0].visualModule]) {
-		const node = visualModule.nodes[0];
-		const expected = { inputSource: 'visualModulePublicParameterReference', parameterId: 'parameter-id' };
+	for (const customNodeGraphEffect of [restored.customNodeGraphEffects[0], restored.timelineScenes[0].layers[0].customNodeGraphEffect]) {
+		const node = customNodeGraphEffect.nodes[0];
+		const expected = { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'parameter-id' };
 		assert.deepEqual(node.params.direct, expected);
 		assert.deepEqual(node.params.previousFormat, expected);
 		assert.deepEqual(node.params.nested.value[0].binding.value.input, expected);
-		assert.deepEqual(visualModule.paramDefs, registered.paramDefs);
+		assert.deepEqual(customNodeGraphEffect.paramDefs, registered.paramDefs);
 		assert.deepEqual(node.params.customParameterDefs, registered.nodes[0].params.customParameterDefs);
 		assert.deepEqual(node.params.expression, registered.nodes[0].params.expression);
 		assert.deepEqual(node.staticSettings, registered.nodes[0].staticSettings);
@@ -118,7 +118,7 @@ test('migrates registered and inline Visual Module references without rewriting 
 });
 
 for (const [layerType, parameterGroup] of [
-	['group', 'compositingParamValues'], ['audio', 'audioParamValues'], ['visualModule', 'visualModuleParamValues'],
+	['group', 'compositingParamValues'], ['audio', 'audioParamValues'], ['customNodeGraphEffect', 'customNodeGraphEffectParamValues'],
 	['effect', 'effectParamValues'], ['camera', 'cameraParamValues'], ['transform', 'transformParamValues'],
 	['shape', 'shape'], ['text', 'textParamValues'], ['voicevox', 'subtitleParamValues'],
 ]) {
@@ -128,7 +128,7 @@ for (const [layerType, parameterGroup] of [
 	test(`migrates nested timeline references in ${parameterGroup}`, () => {
 		const layer = {
 			id: 'layer', name: 'Layer', layerType, automationGraphs: [], layers: [],
-			effectId: 'fill', resolution: { mode: 'auto', scale: 1 }, visualModuleId: 'registered',
+			effectId: 'fill', resolution: { mode: 'auto', scale: 1 }, customNodeGraphEffectId: 'registered',
 			[parameterGroup]: { input: literal([{ id: 'element', binding: literal({ value: timelineReference(null, null) }) }]) },
 		};
 		const restored = decodeProjectFile(encode(createStoredProject([layer]))).timelineScenes[0].layers[0];

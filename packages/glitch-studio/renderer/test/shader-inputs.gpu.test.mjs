@@ -150,9 +150,9 @@ test('renders cube LUTs on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 6
 	t.diagnostic(`${checks.length} checks: ${checks.join(', ')}`);
 });
 
-// 【分離したエフェクト・モジュール・エフェクトレイヤーの描画を実GPUで検証する】
+// 【分離したエフェクト・Custom Node Graph Effect・エフェクトレイヤーの描画を実GPUで検証する】
 // 複数出力・履歴交換・バイパス・リサイズに加え、レイヤーの下層入力・キー・合成後の画素を確認する。
-test('renders extracted effects, visual modules and timeline effects on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/effect-renderer-gpu.ts', 14));
+test('renders extracted effects, Custom Node Graph Effects and timeline effects on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/effect-renderer-gpu.ts', 14));
 
 // 【グループの入れ子・空白・透明出力をChromeのWebGPUで検証する】
 // Scene時刻と背景の分離、各段階のopacity、replace、無効化時の資源解放を実装経由で確認する。
@@ -174,7 +174,7 @@ test('renders project Custom Shader Effects on WebGPU', { skip: !process.env.CHR
 
 // 【ライブプレビューの入口で準備中のフレームをスキップし、コンパイル後に実画素まで描画する】
 // Renderer.prepareをテスト側で呼ぶだけでは、Managerが準備を省略する不具合を検出できない。
-test('skips Visual Module Live Preview frames during shader compilation', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/custom-shader-effect-gpu.ts', 4, 'runCustomShaderEffectLivePreview'));
+test('skips Custom Node Graph Effect Live Preview frames during shader compilation', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/custom-shader-effect-gpu.ts', 4, 'runCustomShaderEffectLivePreview'));
 
 // 【Timelineも同じManagerとGPUDeviceへ定義を更新し、同一時刻の旧キャッシュを使わない】
 // Layerの主出力を変更しても新しいpipelineへ解決し、更新後の画素が表示されることを確認する。

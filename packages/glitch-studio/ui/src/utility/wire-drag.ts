@@ -1,5 +1,5 @@
 import { shallowRef } from 'vue';
-import type { NodeOutputReference } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { NodeOutputReference } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import { preferences } from '@/preferences.ts';
 
 export const wireDrag = shallowRef<{
@@ -57,7 +57,7 @@ export function startWireDrag(event: PointerEvent, connection: NodeOutputReferen
 			const input = target instanceof HTMLElement ? inputPorts.get(target) : null;
 			if (input) {
 				// 配線は同じエディタ内だけで行う。別レイヤーに同じノードIDがあっても接続しない。
-				if (source.closest('[data-visual-module-editor]') !== target.closest('[data-visual-module-editor]')) return null;
+				if (source.closest('[data-custom-node-graph-effect-editor]') !== target.closest('[data-custom-node-graph-effect-editor]')) return null;
 				const typeCompatible = input.getTypeCompatibility(connection);
 				if (typeCompatible == null || (!typeCompatible && preferences.s.forceTypeSafety)) return null;
 				return { el: target as HTMLElement, input, typeCompatible };

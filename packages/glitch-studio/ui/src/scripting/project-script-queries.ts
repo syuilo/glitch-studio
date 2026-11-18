@@ -2,21 +2,21 @@ import * as z from 'zod';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import { getVisualModule, listVisualModules } from '../utility/visual-module-target.ts';
+import { getCustomNodeGraphEffect, listCustomNodeGraphEffects } from '../utility/custom-node-graph-effect-target.ts';
 import { getEffectDefinitions } from '../utility/project-effects.ts';
 import { getLayerParameterDefinitions, getLayerParameterTargets, getLayerParameterValues } from '../utility/timeline-scene.ts';
 import { parseProjectApiValue } from '../project-api/contract.ts';
-import { visualModuleTargetSchema, visualModuleNodeReferenceSchema } from '../commands/visual-module-contract-schemas.ts';
+import { customNodeGraphEffectTargetSchema, customNodeGraphEffectNodeReferenceSchema } from '../commands/custom-node-graph-effect-contract-schemas.ts';
 import { timelineSceneReferenceSchema, timelineLayerReferenceSchema, timelineClipReferenceSchema } from '../commands/timeline-contract-schemas.ts';
 import {
 	assetReferenceSchema, playerReferenceSchema, effectReferenceSchema, projectAutomationGraphReferenceSchema, customShaderEffectReferenceSchema,
-	projectSummarySchema, visualModuleSummarySchema, visualModuleResultSchema, visualModuleNodeSummarySchema, visualModuleNodeResultSchema,
+	projectSummarySchema, customNodeGraphEffectSummarySchema, customNodeGraphEffectResultSchema, customNodeGraphEffectNodeSummarySchema, customNodeGraphEffectNodeResultSchema,
 	timelineSceneSummarySchema, timelineSceneResultSchema, timelineLayerSummarySchema, timelineLayerResultSchema, timelineClipResultSchema, timelineLayerParametersSchema,
 	assetMetadataSchema, playerResultSchema, effectSummarySchema, effectDefinitionResultSchema,
 	projectAutomationGraphResultSchema, customShaderEffectSummarySchema, customShaderEffectResultSchema,
 } from './project-script-query-schemas.ts';
 import type { ProjectApiContract } from '../project-api/contract.ts';
-import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
+import type { CustomNodeGraphEffectTarget } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
 import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { ProjectAsset, ProjectState } from '../Project.ts';
 
@@ -48,13 +48,13 @@ function layerReference(state: ProjectState, input: { sceneId: string; layerId: 
 	return { scene, layer, target: { ...target, layerId: input.layerId } };
 }
 
-function visualModuleName(state: ProjectState, target: VisualModuleTarget): string {
-	if ('visualModuleId' in target) {
-		const visualModule = state.visualModules.value.find(candidate => candidate.id === target.visualModuleId);
-		if (visualModule == null) throw new Error(`Visual Module not found: ${target.visualModuleId}`);
-		return visualModule.name;
+function customNodeGraphEffectName(state: ProjectState, target: CustomNodeGraphEffectTarget): string {
+	if ('customNodeGraphEffectId' in target) {
+		const customNodeGraphEffect = state.customNodeGraphEffects.value.find(candidate => candidate.id === target.customNodeGraphEffectId);
+		if (customNodeGraphEffect == null) throw new Error(`Custom Node Graph Effect not found: ${target.customNodeGraphEffectId}`);
+		return customNodeGraphEffect.name;
 	}
-	return layerReference(state, { sceneId: target.sceneId, layerId: target.inlineVisualModuleLayerId }).layer.name;
+	return layerReference(state, { sceneId: target.sceneId, layerId: target.inlineCustomNodeGraphEffectLayerId }).layer.name;
 }
 
 function assetMetadata(asset: ProjectAsset) {
@@ -72,45 +72,45 @@ function assetMetadata(asset: ProjectAsset) {
 export const PROJECT_SCRIPT_QUERY_DEFINITIONS = {
 	'Query:getProject': defineQuery({
 		argumentCount: 0, inputSchema: z.null(), resultSchema: projectSummarySchema,
-		description: 'Get the current Project metadata, pixel resolution, Timeline frame rate, motion blur and saved export settings. Does not include Visual Modules, Scenes or Asset bytes.',
+		description: 'Get the current Project metadata, pixel resolution, Timeline frame rate, motion blur and saved export settings. Does not include Custom Node Graph Effects, Scenes or Asset bytes.',
 		examples: ['<: Query:getProject()'],
 		execute: state => snapshot({
 			name: state.name.value, description: state.description.value, author: state.author.value, resolution: state.resolution.value,
 			timelineFps: state.timelineFps.value, timelineMotionBlur: state.timelineMotionBlur.value, exportSettings: state.exportSettings.value,
 		}),
 	}),
-	'Query:listVisualModules': defineQuery({
-		argumentCount: 0, inputSchema: z.null(), resultSchema: z.array(visualModuleSummarySchema),
-		description: 'List registered and inline Visual Modules with their names and target references. Pass a returned target to Query:getVisualModule or a Command accepting a Visual Module reference.',
-		examples: ['<: Query:listVisualModules()'],
-		execute: state => listVisualModules(state).map(({ target }) => ({ target, name: visualModuleName(state, target) })),
+	'Query:listCustomNodeGraphEffects': defineQuery({
+		argumentCount: 0, inputSchema: z.null(), resultSchema: z.array(customNodeGraphEffectSummarySchema),
+		description: 'List registered and inline Custom Node Graph Effects with their names and target references. Pass a returned target to Query:getCustomNodeGraphEffect or a Command accepting a Custom Node Graph Effect reference.',
+		examples: ['<: Query:listCustomNodeGraphEffects()'],
+		execute: state => listCustomNodeGraphEffects(state).map(({ target }) => ({ target, name: customNodeGraphEffectName(state, target) })),
 	}),
-	'Query:getVisualModule': defineQuery({
-		argumentCount: 1, inputSchema: visualModuleTargetSchema, resultSchema: visualModuleResultSchema,
-		description: 'Get a detached Visual Module definition including Nodes, bindings, public/custom parameters, outputs and Automation Graphs. Supports registered and inline Visual Modules. Values are stored bindings rather than evaluated values.',
-		examples: ['let visualModule = Command:createVisualModule({ name: "Generated" })\n<: Query:getVisualModule(visualModule)'],
+	'Query:getCustomNodeGraphEffect': defineQuery({
+		argumentCount: 1, inputSchema: customNodeGraphEffectTargetSchema, resultSchema: customNodeGraphEffectResultSchema,
+		description: 'Get a detached Custom Node Graph Effect definition including Nodes, bindings, public/custom parameters, outputs and Automation Graphs. Supports registered and inline Custom Node Graph Effects. Values are stored bindings rather than evaluated values.',
+		examples: ['let customNodeGraphEffect = Command:createCustomNodeGraphEffect({ name: "Generated" })\n<: Query:getCustomNodeGraphEffect(customNodeGraphEffect)'],
 		execute(state, target) {
-			return snapshot({ ...getVisualModule(state, target), target, name: visualModuleName(state, target) });
+			return snapshot({ ...getCustomNodeGraphEffect(state, target), target, name: customNodeGraphEffectName(state, target) });
 		},
 	}),
 	'Query:listNodes': defineQuery({
-		argumentCount: 1, inputSchema: visualModuleTargetSchema, resultSchema: z.array(visualModuleNodeSummarySchema),
-		description: 'List the Nodes of a Visual Module in stored order with their types, display names and target references. Includes input, output and relay Nodes; their effectId is null.',
-		examples: ['let visualModule = Command:createVisualModule({})\n<: Query:listNodes(visualModule)'],
-		execute: (state, visualModule) => snapshot(getVisualModule(state, visualModule).nodes.map(node => ({
-			target: { visualModule, nodeId: node.id }, id: node.id, type: node.type,
+		argumentCount: 1, inputSchema: customNodeGraphEffectTargetSchema, resultSchema: z.array(customNodeGraphEffectNodeSummarySchema),
+		description: 'List the Nodes of a Custom Node Graph Effect in stored order with their types, display names and target references. Includes input, output and relay Nodes; their effectId is null.',
+		examples: ['let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\n<: Query:listNodes(customNodeGraphEffect)'],
+		execute: (state, customNodeGraphEffect) => snapshot(getCustomNodeGraphEffect(state, customNodeGraphEffect).nodes.map(node => ({
+			target: { customNodeGraphEffect, nodeId: node.id }, id: node.id, type: node.type,
 			effectId: node.type === 'effect' ? node.effectId : null,
 			displayName: node.type === 'effect' ? node.displayName : node.type === 'relay' ? node.label ?? '' : '',
 		}))),
 	}),
 	'Query:getNode': defineQuery({
-		argumentCount: 1, inputSchema: visualModuleNodeReferenceSchema, resultSchema: visualModuleNodeResultSchema,
-		description: 'Get a detached Visual Module Node and its target reference. Effect Nodes include stored parameter bindings, static settings, resolution and bypass state. Obtain parameter definitions through Query:getEffect.',
-		examples: ['let visualModule = Command:createVisualModule({})\nlet node = Command:createVisualModuleEffectNode({ visualModule: visualModule, effectId: "fill" })\n<: Query:getNode(node)'],
-		execute(state, { visualModule, nodeId }) {
-			const node = getVisualModule(state, visualModule).nodes.find(candidate => candidate.id === nodeId);
-			if (node == null) throw new Error(`Visual Module Node not found: ${nodeId}`);
-			return snapshot({ ...node, target: { visualModule, nodeId } });
+		argumentCount: 1, inputSchema: customNodeGraphEffectNodeReferenceSchema, resultSchema: customNodeGraphEffectNodeResultSchema,
+		description: 'Get a detached Custom Node Graph Effect Node and its target reference. Effect Nodes include stored parameter bindings, static settings, resolution and bypass state. Obtain parameter definitions through Query:getEffect.',
+		examples: ['let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\nlet node = Command:createCustomNodeGraphEffectEffectNode({ customNodeGraphEffect: customNodeGraphEffect, effectId: "fill" })\n<: Query:getNode(node)'],
+		execute(state, { customNodeGraphEffect, nodeId }) {
+			const node = getCustomNodeGraphEffect(state, customNodeGraphEffect).nodes.find(candidate => candidate.id === nodeId);
+			if (node == null) throw new Error(`Custom Node Graph Effect Node not found: ${nodeId}`);
+			return snapshot({ ...node, target: { customNodeGraphEffect, nodeId } });
 		},
 	}),
 	'Query:listTimelineScenes': defineQuery({
@@ -150,11 +150,11 @@ export const PROJECT_SCRIPT_QUERY_DEFINITIONS = {
 	}),
 	'Query:getTimelineLayerParameters': defineQuery({
 		argumentCount: 1, inputSchema: timelineLayerReferenceSchema, resultSchema: timelineLayerParametersSchema,
-		description: 'Get available parameter groups, their definitions and stored bindings for a Timeline Layer. The public group name is visualModule. Missing stored bindings may use definition defaults; values are not evaluated at a playback time.',
+		description: 'Get available parameter groups, their definitions and stored bindings for a Timeline Layer. The public group name is customNodeGraphEffect. Missing stored bindings may use definition defaults; values are not evaluated at a playback time.',
 		examples: ['let scene = Command:createTimelineScene({})\nlet layer = Command:createTimelineLayer({ sceneId: scene.sceneId, layer: { layerType: "text" } })\n<: Query:getTimelineLayerParameters(layer)'],
 		execute(state, input) {
 			const { layer } = layerReference(state, input);
-			return snapshot(Object.fromEntries(getLayerParameterTargets(layer).map(group => [group === 'module' ? 'visualModule' : group, {
+			return snapshot(Object.fromEntries(getLayerParameterTargets(layer).map(group => [group, {
 				definitions: getLayerParameterDefinitions(state, layer, group), values: getLayerParameterValues(layer, group),
 			}])));
 		},
@@ -231,7 +231,7 @@ export const PROJECT_SCRIPT_QUERY_DEFINITIONS = {
 	}),
 	'Query:listProjectAutomationGraphs': defineQuery({
 		argumentCount: 0, inputSchema: z.null(), resultSchema: z.array(projectAutomationGraphResultSchema),
-		description: 'List complete Project-level Automation Graph definitions with target references. Does not include Automation Graphs owned by Visual Modules or Timeline Layers.',
+		description: 'List complete Project-level Automation Graph definitions with target references. Does not include Automation Graphs owned by Custom Node Graph Effects or Timeline Layers.',
 		examples: ['<: Query:listProjectAutomationGraphs()'],
 		execute: state => snapshot(state.automationGraphs.value.map(graph => ({ ...graph, target: { automationGraphId: graph.id } }))),
 	}),

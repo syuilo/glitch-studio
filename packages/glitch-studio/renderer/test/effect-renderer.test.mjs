@@ -8,8 +8,8 @@ const { ExpressionEvaluator } = await loadShaderSource(fileURLToPath(import.meta
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { EffectRenderer } = await load('@gs/subsystems_effect_renderer/effect-renderer.ts');
 const { default: TimingHelper } = await load('@gs/shared/gpu/TimingHelper.ts');
-const { VisualModuleRenderer } = await load('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts');
-const { createVisualModuleTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/visual-module/visual-module-timeline-layer.ts');
+const { CustomNodeGraphEffectRenderer } = await load('@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-renderer.ts');
+const { createCustomNodeGraphEffectTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/custom-node-graph-effect/custom-node-graph-effect-timeline-layer.ts');
 const { createVideoFrameLoader } = await load('@gs/subsystems_effect_shared/fx/videoFrame/frame-loader.ts');
 const { createTextFontLoader } = await load('@gs/subsystems_effect_shared/text-font-loader.ts');
 const { default: mandelbrotImplementation } = await load('@gs/subsystems_effect_shared/fx/mandelbrot/_impl_.ts');
@@ -87,22 +87,22 @@ function single(t, options = {}) {
 }
 
 function graph(t, g, effects, nodes, outputs = { out: { nodeId: nodes.at(-1).id, outputPort: 'output' } }, rendererOptions = {}) {
-	const module = { customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null, automationGraphs: [], outputDefs: Object.keys(outputs).map(id => ({ id })), primaryOutputId: 'out',
+	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null, automationGraphs: [], outputDefs: Object.keys(outputs).map(id => ({ id })), primaryOutputId: 'out',
 		nodes: [...nodes, { id: 'out', type: 'globalOut', inputs: outputs }] };
 	const states = [];
-	const renderer = new VisualModuleRenderer({ expressionEvaluator: new ExpressionEvaluator(),
+	const renderer = new CustomNodeGraphEffectRenderer({ expressionEvaluator: new ExpressionEvaluator(),
 		gpuDevice: g.device, fallbackTexture: {}, enableStats: false, timingHelper: null,
 		resolution: { width: 16, height: 9 }, enable32bitDataTextures: false,
 		videoFrameVersions: new Map(), assets: [], assetTextures: new Map(),
 		effectDefinitions: Object.fromEntries(Object.entries(effects).map(([id, p]) => [id, p.definition])),
-		effectImplementations: Object.fromEntries(Object.entries(effects).map(([id, p]) => [id, p.implementation])), visualModule: module,
+		effectImplementations: Object.fromEntries(Object.entries(effects).map(([id, p]) => [id, p.implementation])), customNodeGraphEffect,
 		onEffectState: (id, state) => states.push({ id, state }),
 		...rendererOptions,
 	});
 	t.after(() => renderer.destroy());
 	const context = (options = {}) => ({ time: 1250, timeDelta: 20, endTime: 5000, isExport: false, evaluatedParamValues: new Map(),
 		pointerPosition: { x: 0.5, y: 0 }, pointerPositionPrev: { x: 0.4, y: 0 }, ...options });
-	return { renderer, module, states, context, render: (ctx = context()) => renderer.render(ctx, g.encoder),
+	return { renderer, customNodeGraphEffect, states, context, render: (ctx = context()) => renderer.render(ctx, g.encoder),
 		prepare: (ctx = context(), signal = new AbortController().signal) => renderer.prepare(ctx, signal) };
 }
 
@@ -153,10 +153,10 @@ test('invalidates pending preparation and late status reports when resetting his
 	assert.equal(f.states.at(-1).status.type, 'ready');
 });
 
-// 【Visual Module全体の履歴依存インスタンスだけを初期化し、下流の出力を更新する】
+// 【Custom Node Graph Effect全体の履歴依存インスタンスだけを初期化し、下流の出力を更新する】
 // needsPreviousFrameを使わない独自履歴も対象にし、選択状態や現在の出力への接続有無で
 // リセット対象を狭めない。一方で履歴のない素材・処理のインスタンスは保持する。
-test('resets all history-dependent Visual Module effects including disconnected internal histories', t => {
+test('resets all history-dependent Custom Node Graph Effect effects including disconnected internal histories', t => {
 	const g = gpu();
 	const source = probe(g);
 	const history = probe(g, { paramDefs: { input: color } });
@@ -418,7 +418,7 @@ test('cleans up partially allocated output and history textures', () => {
 
 // 【全再生成の途中で確保に失敗したら、旧出力と新しい部分出力をすべて解放する】
 // 複数ノードの一部だけが新しくなったグラフを描画したり、生成済みのGPU出力を漏らしたりしない。
-// 復旧はVisualModuleRendererの再生成で行い、破棄後の古い通知も無視する。
+// 復旧はCustomNodeGraphEffectRendererの再生成で行い、破棄後の古い通知も無視する。
 test('releases every graph output after failed resize and recovers with a new renderer', t => {
 	const g = gpu();
 	const source = probe(g, { history: true });
@@ -559,7 +559,7 @@ test('discards obsolete font loads when static settings recreate the graph effec
 	const obsoletePreparation = f.prepare();
 	await tick();
 	source.staticSettings.font = 'second';
-	f.renderer.updateNodes(f.module.nodes);
+	f.renderer.updateNodes(f.customNodeGraphEffect.nodes);
 	const ready = f.prepare();
 	await tick();
 	requests[1].resolve(requests[1].face);
@@ -620,7 +620,7 @@ test('keeps graph caches stable and propagates parameter and cacheVersion change
 	assert.equal(consumer.renders.length, 2);
 	assert.equal(consumer.renders[1].params.input.texture, texture);
 	raw.params.amount = literal(2);
-	f.renderer.updateNodes(f.module.nodes, true);
+	f.renderer.updateNodes(f.customNodeGraphEffect.nodes, true);
 	f.render();
 	assert.equal(source.renders.length, 3);
 	assert.equal(consumer.renders.length, 3);
@@ -641,11 +641,11 @@ test('retains upstream caches and instances across literal expression keyframe a
 	const ctx = f.context({ outputIds: ['out', 'independent'] });
 	const counts = () => [a, b, c, d].map(effect => effect.renders.length);
 	f.render(ctx);
-	let module = f.module;
+	let customNodeGraphEffect = f.customNodeGraphEffect;
 	const edit = (update, preserveStaticState = true) => {
-		module = structuredClone(module);
-		update(module.nodes.find(node => node.id === 'b').params);
-		f.renderer.updateVisualModule(module, { preserveStaticState });
+		customNodeGraphEffect = structuredClone(customNodeGraphEffect);
+		update(customNodeGraphEffect.nodes.find(node => node.id === 'b').params);
+		f.renderer.updateCustomNodeGraphEffect(customNodeGraphEffect, { preserveStaticState });
 		f.render(ctx);
 	};
 	edit(params => { params.amount = literal(2); });
@@ -688,9 +688,9 @@ test('reuses static planning for value edits and replans when the selected playe
 	f.render();
 	assert.equal(resolutionRequests, 1);
 	const allocated = g.textures.length;
-	const edited = structuredClone(f.module);
+	const edited = structuredClone(f.customNodeGraphEffect);
 	edited.nodes[0].params.amount = literal(2);
-	f.renderer.updateVisualModule(edited, { preserveStaticState: true });
+	f.renderer.updateCustomNodeGraphEffect(edited, { preserveStaticState: true });
 	f.render();
 	assert.equal(resolutionRequests, 1);
 	assert.equal(g.textures.length, allocated);
@@ -698,7 +698,7 @@ test('reuses static planning for value edits and replans when the selected playe
 	assert.equal(effect.renders.at(-1).params.amount, 2);
 	const changedPlayer = structuredClone(edited);
 	changedPlayer.nodes[0].staticSettings.player = 'second';
-	f.renderer.updateVisualModule(changedPlayer);
+	f.renderer.updateCustomNodeGraphEffect(changedPlayer);
 	f.render();
 	assert.equal(resolutionRequests, 2);
 	assert.equal(effect.instances.length, 2);
@@ -708,14 +708,14 @@ test('reuses static planning for value edits and replans when the selected playe
 // 【Inの別ポートを使う枝は、無関係な引数や外部テクスチャに依存しない】
 // In全出力を一つのキーにすると、一つの公開引数の編集だけでModule全体が再描画される。
 // テクスチャを使う枝自体は、内容の世代を持たない既存仕様に従って毎回描画する。
-test('invalidates only consumers of the changed module input port', t => {
+test('invalidates only consumers of the changed Custom Node Graph Effect input port', t => {
 	const g = gpu();
 	const a = probe(g, { paramDefs: { input: color } });
 	const b = probe(g, { paramDefs: { input: color } });
 	const f = graph(t, g, { a, b }, [{ id: 'in', type: 'globalIn' }, node('a', 'a', { input: connection('in', 'left') }),
 		node('b', 'b', { input: connection('in', 'right') })], { out: { nodeId: 'a', outputPort: 'output' }, other: { nodeId: 'b', outputPort: 'output' } });
-	f.module.paramDefs = ['left', 'right'].map(id => ({ ...color, id, nameForReference: id }));
-	f.renderer.updateVisualModule(f.module);
+	f.customNodeGraphEffect.paramDefs = ['left', 'right'].map(id => ({ ...color, id, nameForReference: id }));
+	f.renderer.updateCustomNodeGraphEffect(f.customNodeGraphEffect);
 	const ctx = f.context({ outputIds: ['out', 'other'], evaluatedParamValues: new Map([['left', [1, 0, 0, 1]], ['right', [0, 1, 0, 1]]]) });
 	f.render(ctx);
 	ctx.evaluatedParamValues.set('right', [0, 0, 1, 1]);
@@ -758,7 +758,7 @@ test('invalidates downstream caches after resizing away and back without renderi
 	const first = consumer.renders[0].params.input.texture;
 	for (const size of [32, 16]) {
 		raw.resolution.width = size;
-		f.renderer.updateNodes(f.module.nodes);
+		f.renderer.updateNodes(f.customNodeGraphEffect.nodes);
 		await f.prepare();
 	}
 	assert.equal(consumer.renders.length, 1);
@@ -790,14 +790,14 @@ test('propagates local resolution scales through graph updates and preview resiz
 	assert.deepEqual([source.renders.length, consumer.renders.length], [1, 1]);
 	const originalInput = consumer.renders.at(-1).params.input.texture;
 	sourceNode.resolution.scale = 1;
-	f.renderer.updateNodes(f.module.nodes);
+	f.renderer.updateNodes(f.customNodeGraphEffect.nodes);
 	await f.prepare();
 	f.render();
 	assert.deepEqual(outputSize(), { width: 480, height: 270 });
 	assert.equal(originalInput.destroyed, 1);
 	assert.deepEqual([source.renders.length, consumer.renders.length], [2, 2]);
 	consumerNode.resolution = { mode: 'context', scale: 0.5 };
-	f.renderer.updateNodes(f.module.nodes);
+	f.renderer.updateNodes(f.customNodeGraphEffect.nodes);
 	f.render();
 	assert.deepEqual(outputSize(), { width: 480, height: 270 });
 	f.renderer.resize({ width: 1920, height: 1080 }, 1);
@@ -815,8 +815,8 @@ test('invalidates downstream caches when an upstream renderer is recreated with 
 	const raw = node('source');
 	const f = graph(t, g, { source, consumer }, [raw, node('consumer', 'consumer', { input: connection('source') })]);
 	f.render();
-	f.renderer.updateNodes(f.module.nodes.filter(n => n.id !== 'source'));
-	f.renderer.updateNodes(f.module.nodes);
+	f.renderer.updateNodes(f.customNodeGraphEffect.nodes.filter(n => n.id !== 'source'));
+	f.renderer.updateNodes(f.customNodeGraphEffect.nodes);
 	f.render();
 	assert.equal(source.instances.length, 2);
 	assert.equal(consumer.renders.length, 2);
@@ -833,7 +833,7 @@ test('passes through bypassed effects and recreates history when bypass changes'
 	const f = graph(t, g, { source, history }, [node('source'), accumulation]);
 	const first = f.render();
 	accumulation.isBypass = true;
-	f.renderer.updateNodes(f.module.nodes);
+	f.renderer.updateNodes(f.customNodeGraphEffect.nodes);
 	await f.prepare();
 	assert.equal(f.render().texture, source.renders.at(-1).outputDataMap.output.texture);
 	assert.equal(history.renders.length, 1);
@@ -841,7 +841,7 @@ test('passes through bypassed effects and recreates history when bypass changes'
 	assert.equal(first.texture.destroyed, 1);
 	assert.equal(f.states.filter(item => item.id === 'history').at(-1).state, null);
 	accumulation.isBypass = false;
-	f.renderer.updateNodes(f.module.nodes);
+	f.renderer.updateNodes(f.customNodeGraphEffect.nodes);
 	await f.prepare();
 	f.render();
 	assert.equal(history.instances.length, 2);
@@ -849,13 +849,13 @@ test('passes through bypassed effects and recreates history when bypass changes'
 	assert.equal(history.renders[1].outputDataMap.output.previousFrameTexture.destroyed, 0);
 });
 
-// 【実際のモジュールを使うシークの中断後に描画・履歴更新を行わない】
+// 【実際のCustom Node Graph Effectを使うシークの中断後に描画・履歴更新を行わない】
 // 待機中断とレイヤー側のsignal確認を通し、次のシークで同じインスタンスを再利用できることを確認する。
 test('does not render an aborted timeline request and reuses its prepared effect', async t => {
 	const g = gpu();
 	const source = probe(g, { loading: true, history: true });
 	const f = graph(t, g, { source }, [node('source')]);
-	const layer = createVisualModuleTimelineLayer(f.module, { automationGraphs: [], visualModuleParamValues: {} }, {
+	const layer = createCustomNodeGraphEffectTimelineLayer(f.customNodeGraphEffect, { automationGraphs: [], customNodeGraphEffectParamValues: {} }, {
 		prepare: (ctx, signal) => f.renderer.prepare(ctx, signal),
 		render: async ctx => ({ output: f.render(ctx), gpuTime: 0 }), destroy: () => f.renderer.destroy(),
 	});
@@ -876,13 +876,13 @@ test('does not render an aborted timeline request and reuses its prepared effect
 
 // 【破棄・ノード削除で準備の待機を終了し、古い通知を無視する】
 // 待機がノードIDの再検索に依存すると、削除後の状態参照で例外が発生したり待機が残ったりする。
-test('settles module preparation when effects are removed or the module is destroyed', async t => {
+test('settles Custom Node Graph Effect preparation when effects are removed or the Custom Node Graph Effect is destroyed', async t => {
 	for (const remove of [false, true]) {
 		const g = gpu();
 		const source = probe(g, { loading: true });
 		const f = graph(t, g, { source }, [node('source')]);
 		const waiting = f.prepare();
-		if (remove) f.renderer.updateNodes(f.module.nodes.filter(n => n.id !== 'source'));
+		if (remove) f.renderer.updateNodes(f.customNodeGraphEffect.nodes.filter(n => n.id !== 'source'));
 		else f.renderer.destroy();
 		await waiting;
 		const count = f.states.length;
@@ -892,7 +892,7 @@ test('settles module preparation when effects are removed or the module is destr
 	}
 });
 
-// 【複数エフェクトの一つが失敗したらモジュールの待機を終了する】
+// 【複数エフェクトの一つが失敗したらCustom Node Graph Effectの待機を終了する】
 // 他のエフェクトがloadingのままでもエラーを報告し、待機の後始末だけで生存中のリソースを破棄しない。
 test('ends aggregate preparation on failure without disposing other pending effects', async t => {
 	const g = gpu();
@@ -932,7 +932,7 @@ test('recreates every graph effect and invalidates caches after static setting e
 	const previous = b.instances[0];
 	const history = f.renderer.effectRenderers.get('b').getOutputTexture('output');
 	edited.staticSettings.mode = 'second';
-	f.renderer.updateNodes(f.module.nodes);
+	f.renderer.updateNodes(f.customNodeGraphEffect.nodes);
 	assert.equal(previous.disposed, 1);
 	assert.equal(history.destroyed, 1);
 	f.render(context);
@@ -957,7 +957,7 @@ test('evaluates RESOLUTION with each planned node size before initialization', t
 	f.render(context);
 	assert.deepEqual(effect.renders.map(render => render.params.size), [[41, 16], [8, 5]]);
 	first.params.size = { inputSource: 'expression', expression: '[WIDTH, HEIGHT]' };
-	f.renderer.updateNodes(f.module.nodes);
+	f.renderer.updateNodes(f.customNodeGraphEffect.nodes);
 	assert.throws(() => f.render(context), /WIDTH|HEIGHT/);
 });
 
@@ -973,12 +973,12 @@ test('applies new public input dimensions before allocating added nodes', t => {
 		input: connection('in', 'image'), size: { inputSource: 'expression', expression: 'RESOLUTION' },
 	});
 	consumer.resolution = { mode: 'auto', scale: 1 };
-	const visualModule = { ...f.module,
+	const customNodeGraphEffect = { ...f.customNodeGraphEffect,
 		paramDefs: [{ id: 'image', nameForReference: 'image', dataType: { kind: 'color' }, canNode: true }],
 		outputDefs: [{ id: 'out' }],
 		nodes: [{ id: 'in', type: 'globalIn' }, consumer, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'consumer', outputPort: 'output' } } }],
 	};
-	f.renderer.updateVisualModule(visualModule, { inputResolutions: new Map([['image', { width: 321, height: 123 }]]) });
+	f.renderer.updateCustomNodeGraphEffect(customNodeGraphEffect, { inputResolutions: new Map([['image', { width: 321, height: 123 }]]) });
 	assert.deepEqual(g.textures.map(texture => [texture.width, texture.height]), [[321, 123], [321, 123]]);
 	f.render(f.context({ paramInputs: new Map([['image', uniform]]) }));
 	assert.deepEqual(effect.renders[0].params.size, [321, 123]);
@@ -1107,7 +1107,7 @@ test('ignores periodic GPU results after resetting an effect instance', async t 
 	assert.equal(effect.instances[0].disposed, 1);
 });
 
-// 【統計が有効なVisual Moduleも、通常描画のreadbackを待たずに表示へ進む】
+// 【統計が有効なCustom Node Graph Effectも、通常描画のreadbackを待たずに表示へ進む】
 // エフェクト単体の計測を非同期にしても、グラフのflushで統計をawaitすると同じ停止が残る。
 // GPU時間の合算結果は別のPromiseで取得し、表示から計測を切り離す。
 test('finishes an untiled graph frame before its GPU statistics readback completes', async t => {

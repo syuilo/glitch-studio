@@ -1,14 +1,14 @@
-# Visual Module Web export
+# Custom Node Graph Effect Web export
 
-Visual Moduleをエディタから独立したWeb Componentとして配布するGlitch Studio層です。プロジェクトやPlayerの起動を行わず、Visual Module・使用するCustom Shader Effect・参照Assetのスナップショットを受け取ります。
+Custom Node Graph Effectをエディタから独立したWeb Componentとして配布するGlitch Studio層です。プロジェクトやPlayerの起動を行わず、Custom Node Graph Effect・使用するCustom Shader Effect・参照Assetのスナップショットを受け取ります。
 
 ## 構成
 
-- `src/export.ts`: 依存収集・静的検証・素材の埋め込み・HTML/JavaScript/利用案内の生成。収集規則は`.gsvm`と`glitch-studio/shared/visual-module-resources.ts`を共有します。
+- `src/export.ts`: 依存収集・静的検証・素材の埋め込み・HTML/JavaScript/利用案内の生成。収集規則は`.gscnge`と`glitch-studio/shared/custom-node-graph-effect-resources.ts`を共有します。
 - `src/archive.ts`: HTML・JavaScript・利用案内を一回でダウンロードする非圧縮ZIPの生成。
 - `src/element.ts`: Custom Elementの登録、Shadow DOM、表示サイズ・可視性・時間・ポインター・公開値とWorkerの管理。
 - `src/frame-rate-limiter.ts`: 表示周期の端数を持ち越すFPS制限。rAF時刻の丸めによる余分な間引きを防ぎ、失った描画枠は再実行しません。
-- `src/worker.ts`: WebGPU・素材・VisualModuleRendererの生成と破棄。既存のエフェクト実装・非同期準備・色変換を使います。
+- `src/worker.ts`: WebGPU・素材・CustomNodeGraphEffectRendererの生成と破棄。既存のエフェクト実装・非同期準備・色変換を使います。
 - `src/parameters.ts`: 公開値の検証と既定値の解決。編集用Bindingではなく通常の値をAPI境界で扱います。
 - `src/runtime-requirements.ts`: 検証済みの作品から、配置済みエフェクトと式評価・Custom Shader Effectの必要性を判定します。
 - `build/catalog.mjs`: アプリのビルド時に、TS・WGSL・npm依存を解決したES Modulesのカタログを生成します。
@@ -18,11 +18,11 @@ Visual Moduleをエディタから独立したWeb Componentとして配布する
 
 組み込みWGSLのバッファ配置は[共通ローダー](../../shared/build/README.md)でアプリのビルド時に解析し、WGSL文字列と配置情報をカタログへ含めます。書き出し時や埋め込み先ではWGSLの構文解析を行わず、`webgpu-utils`・`wgsl_reflect`も同梱しません。GPU上のシェーダーコンパイルや動的な入力bindingの生成は描画先で行います。
 
-`glitch-studio/ui`は書き出しダイアログ・スナップショット・素材読み出しを担当し、`glitch-studio/desktop`が別プロセスでのビルドと一時ファイル経由の保存を担当します。Visual Module subsystemはこの配布形式・Custom Element・プロジェクトを知りません。描画の表示境界は`glitch-studio/renderer/portable-canvas-renderer.ts`です。
+`glitch-studio/ui`は書き出しダイアログ・スナップショット・素材読み出しを担当し、`glitch-studio/desktop`が別プロセスでのビルドと一時ファイル経由の保存を担当します。Custom Node Graph Effect subsystemはこの配布形式・Custom Element・プロジェクトを知りません。描画の表示境界は`glitch-studio/renderer/portable-canvas-renderer.ts`です。
 
 ## 成果物
 
-Electron版のVisual Moduleエディタの「その他」からWeb用の書き出しを選択します。Web版にはデスクトップ版が必要な旨を表示します。生成した成果物の実行にはElectron・Node.js・npmは不要です。
+Electron版のCustom Node Graph Effectエディタの「その他」からWeb用の書き出しを選択します。Web版にはデスクトップ版が必要な旨を表示します。生成した成果物の実行にはElectron・Node.js・npmは不要です。
 
 - HTML + JavaScript: `index.html`、`artwork.js`、`README.md`のZIP。埋め込み先ではJavaScriptとCustom Elementを使用します。
 - 単一HTML: JavaScriptと素材を含むHTML。同じページにスクリプトと要素を移して利用するか、HTTPSで配信してiframeでも表示できます。
@@ -45,27 +45,27 @@ AiScriptは通常の値評価器から分離し、必要な場合だけ注入し
 
 ```html
 <script type="module" src="./artwork.js"></script>
-<gs-visual-module-example
+<gs-custom-node-graph-effect-example
   id="artwork"
   style="width: 100%; height: 60vh"
   parameters='{"speed": 0.8}'
-></gs-visual-module-example>
+></gs-custom-node-graph-effect-example>
 ```
 
 ```js
-await customElements.whenDefined('gs-visual-module-example');
-const visualModuleElement = document.querySelector('#artwork');
-await visualModuleElement.ready;
-visualModuleElement.setParameter('speed', 1.2);
-visualModuleElement.setParameters({ speed: 0.5, color: [1, 0.2, 0, 1] });
-const speed = visualModuleElement.getParameter('speed');
-visualModuleElement.resetParameter('speed');
-visualModuleElement.pause();
-visualModuleElement.play();
-visualModuleElement.restart();
+await customElements.whenDefined('gs-custom-node-graph-effect-example');
+const customNodeGraphEffectElement = document.querySelector('#artwork');
+await customNodeGraphEffectElement.ready;
+customNodeGraphEffectElement.setParameter('speed', 1.2);
+customNodeGraphEffectElement.setParameters({ speed: 0.5, color: [1, 0.2, 0, 1] });
+const speed = customNodeGraphEffectElement.getParameter('speed');
+customNodeGraphEffectElement.resetParameter('speed');
+customNodeGraphEffectElement.pause();
+customNodeGraphEffectElement.play();
+customNodeGraphEffectElement.restart();
 ```
 
-公開パラメータは`nameForReference`を大小文字を区別して指定します。APIで設定した値、`parameters`属性、書き出し時の初期値、公開定義の既定値の順に優先します。`resetParameter`はAPIの上書きだけを取り消します。属性の削除は属性の上書きをすべて取り消します。既定値は開始時刻で値に変換し、Visual Module Live Previewの引数を暗黙に保存しません。
+公開パラメータは`nameForReference`を大小文字を区別して指定します。APIで設定した値、`parameters`属性、書き出し時の初期値、公開定義の既定値の順に優先します。`resetParameter`はAPIの上書きだけを取り消します。属性の削除は属性の上書きをすべて取り消します。既定値は開始時刻で値に変換し、Custom Node Graph Effect Live Previewの引数を暗黙に保存しません。
 
 スカラーは有限の数値、真理値・文字列・enumはそれぞれの値、ベクトルは`[x, y]`、色はstraight linear sRGBの`[r, g, b, a]`です。RGBはHDR値を許し、alphaは0〜1です。配列・構造体は通常のJSON配列・オブジェクトで、編集用IDやBindingを含めません。Color Rampは既存の値形式、`any`はRGBAまたは`null`、音声入力は`null`だけを扱います。外部画像・音声を注入するAPIはありません。
 
@@ -100,7 +100,7 @@ visualModuleElement.restart();
 - 一要素につき一Worker・一GPUDeviceです。GPU完了まで次のフレームを送らず、描画が遅い場合のキュー蓄積を防ぎます。
 - primary pointerの移動・押下を受け取り、`POINTER_POSITION`へ既存の等方座標規約で渡します。余白の位置も出力座標へ換算し、最後の位置を保持します。タッチのスクロールを妨げず、複数ポインター・筆圧・押下状態の新しい環境変数は追加しません。
 - Playerはファイル由来も含めて未接続です。Videoは透明、音声は未入力として既存の処理に渡します。Video Frameは同梱した動画Assetを独立して読み出せます。Timeline・音声出力・タイルレンダリング・パフォーマンス統計は含めません。
-- Visual Module内の環境変数は`IS_EXPORT=false`、`END_TIME=Infinity`、`PROGRESS=0`です。
+- Custom Node Graph Effect内の環境変数は`IS_EXPORT=false`、`END_TIME=Infinity`、`PROGRESS=0`です。
 
 ## 検証
 

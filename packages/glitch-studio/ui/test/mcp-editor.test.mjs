@@ -147,7 +147,7 @@ function previewSession() {
 	return { capture, called, flushes: () => flushes, session: {
 		id: 'preview', isDisposed: false, flushRendererProjectChanges: async () => { flushes++; },
 		renderEngine: { canRender: ref(true), errorMessage: ref(null), isSuspended: ref(false) },
-		previewPlayback: { state: shallowRef({ mode: 'timeline', playing: false }), currentTimelineTime: ref(123), visualModuleLivePreviewVisualModuleId: ref(null) },
+		previewPlayback: { state: shallowRef({ mode: 'timeline', playing: false }), currentTimelineTime: ref(123), livePreviewCustomNodeGraphEffectId: ref(null) },
 		activeSceneId: ref('scene'), activePreviewRenderer: shallowRef(controller), timelineRendererManagerController: controller,
 	} };
 }

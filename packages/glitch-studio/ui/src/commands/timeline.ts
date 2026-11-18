@@ -1,7 +1,7 @@
 import { validateStaticSettingValue } from '@gs/shared/static-setting.ts';
 import { getTimelineLayerStaticSettings } from '@gs/subsystems_timeline_shared/layer-static-settings.ts';
 import { convertTimelineContainerLayer } from '@gs/subsystems_timeline_shared/container-layer.ts';
-import { isTimelineContainerLayer, isTimelineVisualLayer, isTimelineEffectOrVisualModuleLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { isTimelineContainerLayer, isTimelineVisualLayer, isTimelineEffectOrCustomNodeGraphEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation, getTimelineClipLayers, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { validateVoicevoxLayer } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
@@ -316,7 +316,7 @@ export const setTimelineLayerTransformTargetCommandDef = defineTimelineCommand<{
 	edit: (state, payload) => {
 		const getLayer = (state: ProjectState) => {
 			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
-			if (!isTimelineEffectOrVisualModuleLayer(layer)) throw new Error('Transform target requires an effect or Visual Module layer');
+			if (!isTimelineEffectOrCustomNodeGraphEffectLayer(layer)) throw new Error('Transform target requires an effect or Custom Node Graph Effect layer');
 			return layer;
 		};
 		if (!isTimelineLayerTransformTarget(payload.transformTarget)) throw new Error('Invalid timeline layer transform target');

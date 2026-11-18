@@ -11,11 +11,11 @@ import type { Ref } from 'vue';
 import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { Asset, Player } from '@gs/shared/types.js';
 import type { AssetThumbnailSequence } from './asset-thumbnail.ts';
-import type { ProjectCustomShaderEffect, ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
+import type { ProjectCustomShaderEffect, ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.js';
-import type { VisualModuleNodeChange } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { CustomNodeGraphEffectNodeChange } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import type { TimelineLayerChange } from '@gs/subsystems_timeline_shared/types.ts';
-import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
+import type { CustomNodeGraphEffectTarget } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
 import type { ExportDialogSettings } from './export/export-settings.ts';
 
 // 保存方法・原本パスはプロジェクトが所有し、subsystemにはBlob/URLの読み取り口だけを渡す。
@@ -41,7 +41,7 @@ export type ProjectState = {
 	/** 現在の発話が参照する結果だけ。一時キャッシュと書き出しの保持分は含めない。 */
 	generatedSpeech: Ref<GeneratedSpeech[]>;
 	players: Ref<Player[]>;
-	visualModules: Ref<ProjectVisualModule[]>;
+	customNodeGraphEffects: Ref<ProjectCustomNodeGraphEffect[]>;
 	timelineScenes: Ref<TimelineScene[]>;
 };
 
@@ -49,9 +49,9 @@ export type ProjectState = {
 export type ProjectContentChange =
 	| { type: 'customShaderEffect'; customShaderEffectId: string }
 	| { type: 'automationGraphs' }
-	| { type: 'node'; target: VisualModuleTarget; nodeId: string; changes: VisualModuleNodeChange[] }
-	| { type: 'visualModule'; target: VisualModuleTarget; customParameterValuesOnly?: boolean }
-	| { type: 'visualModuleRegistration'; visualModuleId: string }
+	| { type: 'node'; target: CustomNodeGraphEffectTarget; nodeId: string; changes: CustomNodeGraphEffectNodeChange[] }
+	| { type: 'customNodeGraphEffect'; target: CustomNodeGraphEffectTarget; customParameterValuesOnly?: boolean }
+	| { type: 'customNodeGraphEffectRegistration'; customNodeGraphEffectId: string }
 	| { type: 'layer'; sceneId: string; layerId: string; changes: TimelineLayerChange[] }
 	| { type: 'layerTree'; sceneId: string }
 	| { type: 'layerOrder'; sceneId: string }
@@ -62,8 +62,8 @@ export type AppStateChange = ProjectContentChange
 	| { type: 'player'; playerId: string }
 	| { type: 'projectResolution' }
 	| { type: 'timelineRenderSettings' }
-	| { type: 'nodeName'; target: VisualModuleTarget; nodeId: string }
-	| { type: 'visualModuleName'; visualModuleId: string }
+	| { type: 'nodeName'; target: CustomNodeGraphEffectTarget; nodeId: string }
+	| { type: 'customNodeGraphEffectName'; customNodeGraphEffectId: string }
 	| { type: 'layerName'; sceneId: string; layerId: string }
 	| { type: 'layerColor'; sceneId: string; layerId: string }
 	| { type: 'sceneName'; sceneId: string };
@@ -91,7 +91,7 @@ export class ProjectContext {
 			assets: ref(project.assets), // TODO: バイナリをリアクティブでwrapするのをやめる
 			players: ref(project.players),
 			generatedSpeech: ref(getReferencedGeneratedSpeech(project.timelineScenes, project.generatedSpeech)),
-			visualModules: ref(project.visualModules),
+			customNodeGraphEffects: ref(project.customNodeGraphEffects),
 			timelineScenes: ref(project.timelineScenes),
 		}, COMMAND_DEFS);
 		// ProjectSessionContextの検証・レンダラー同期より先に登録し、履歴が復元した古い
@@ -119,7 +119,7 @@ export class ProjectContext {
 			timelineMotionBlur: state.timelineMotionBlur.value,
 			assets: state.assets.value,
 			generatedSpeech: getReferencedGeneratedSpeech(state.timelineScenes.value, state.generatedSpeech.value),
-			visualModules: state.visualModules.value,
+			customNodeGraphEffects: state.customNodeGraphEffects.value,
 			players: state.players.value,
 			timelineScenes: state.timelineScenes.value,
 		} satisfies Project);
@@ -132,7 +132,7 @@ export class ProjectContext {
 		this.stateManager.cancelEdit();
 	}
 
-	public getVisualModuleById(id: ProjectVisualModule['id']) {
-		return this.stateManager.state.visualModules.value.find(vm => vm.id === id) ?? null;
+	public getCustomNodeGraphEffectById(id: ProjectCustomNodeGraphEffect['id']) {
+		return this.stateManager.state.customNodeGraphEffects.value.find(customNodeGraphEffect => customNodeGraphEffect.id === id) ?? null;
 	}
 }

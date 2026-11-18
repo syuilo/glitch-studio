@@ -2,9 +2,9 @@
 
 Scene全体で解決した`TimelineLayerActivityMap`を`TimelineRenderer`の評価へ渡し、同じSceneのGroup・Transform・整理用コンテナへ共有します。非ソロのレイヤーは合成だけを省略し、入力・マスクから要求された素材は遅延評価します。子Sceneは新しい評価セッションと自身のソロ判定を使います。カメラは保存された通常の有効状態で選びます。
 
-`TimelineRenderer.resetRenderHistory()`は準備中の評価を中断し、保持中の全レイヤーへ履歴リセットを伝える。Effectレイヤーは`dependsOnRenderHistory: true`の実行インスタンスを初期化し、Visual Module・Group・Transform・子Sceneは配下へ再帰的に伝える。履歴を持たないレイヤーの素材・出力は保持する。自動リセットや最終画像キャッシュはこのパッケージでは扱わず、呼び出し側が送信済みフレームとの直列化と再描画を管理する。
+`TimelineRenderer.resetRenderHistory()`は準備中の評価を中断し、保持中の全レイヤーへ履歴リセットを伝える。Effectレイヤーは`dependsOnRenderHistory: true`の実行インスタンスを初期化し、Custom Node Graph Effect・Group・Transform・子Sceneは配下へ再帰的に伝える。履歴を持たないレイヤーの素材・出力は保持する。自動リセットや最終画像キャッシュはこのパッケージでは扱わず、呼び出し側が送信済みフレームとの直列化と再描画を管理する。
 
-エフェクトとVisual Moduleの`transformTarget: region`では、処理済み画像を現在の合成先の座標に固定し、Scene基準の矩形だけを変形する。ぼかし半径・方向や画像の模様をレイヤーの変形で動かさない。範囲の被覆率は出力alphaと分離し、Replaceは透明画素も範囲内だけ置換する。その他の合成・下層切り抜きマスクも範囲外を保持し、矩形の端は画素幅でアンチエイリアスする。Group内部の下層入力は従来どおり隔離される。素材参照の`source`は処理結果全体、`rendered`は範囲を適用した単独描画、`composited`は下層との合成結果を返す。
+エフェクトとCustom Node Graph Effectの`transformTarget: region`では、処理済み画像を現在の合成先の座標に固定し、Scene基準の矩形だけを変形する。ぼかし半径・方向や画像の模様をレイヤーの変形で動かさない。範囲の被覆率は出力alphaと分離し、Replaceは透明画素も範囲内だけ置換する。その他の合成・下層切り抜きマスクも範囲外を保持し、矩形の端は画素幅でアンチエイリアスする。Group内部の下層入力は従来どおり隔離される。素材参照の`source`は処理結果全体、`rendered`は範囲を適用した単独描画、`composited`は下層との合成結果を返す。
 
 動画クリップの`videoEnabled`がfalseなら、動画レイヤーは動画ソース・GPU資源を生成せず、映像出力なしを返す。透明画像の合成も行わず、Replace・マスク・グループの`hasOutput`に影響を与えない。音声計画は独立して動作する。
 
@@ -14,7 +14,7 @@ Scene全体で解決した`TimelineLayerActivityMap`を`TimelineRenderer`の評�
 
 `layerMask`は同じ合成境界の別レイヤーの`rendered`を非同期に取得し、対象の合成パスで被覆率へ掛ける。マスク元の配置済み`region.bounds`で読み、対象のFit・逆変換を再適用しない。範囲外と参照切れは透明黒として反転前のマスク値0にする。マスク画像で出力範囲を広げず、Replaceや既存の下層マスクでも参照マスク外の背景を保持する。`rendered`は`layerMask`を反映し、`source`は参照を解決しない。取得待機後はAbortSignalを確認してからGPUへ送信する。
 
-`src/layers/`にレイヤー種別ごとの実装をまとめる。`group`・`transform`・`effect`・`image`・`scene`・`video`・`visual-module`・`text`・`shape`の各ディレクトリに、レイヤーの描画処理と種別固有の補助処理・シェーダーを置く。Timeline全体の評価・合成・Scene出力・音声入力の解決など、複数種別で使う処理は`src/`直下に置く。
+`src/layers/`にレイヤー種別ごとの実装をまとめる。`group`・`transform`・`effect`・`image`・`scene`・`video`・`custom-node-graph-effect`・`text`・`shape`の各ディレクトリに、レイヤーの描画処理と種別固有の補助処理・シェーダーを置く。Timeline全体の評価・合成・Scene出力・音声入力の解決など、複数種別で使う処理は`src/`直下に置く。
 
 RendererはWeb Worker内で動作し、DOM・UIの実装にアクセスできないため、意図しないそれらへの参照/依存が原理的に発生しないように別パッケージとする
 
@@ -28,7 +28,7 @@ Textレイヤーは`TextParameters`でScene時刻の値を評価し、`createTex
 
 輪郭の部分描画では`layers/shape/shape-stroke-progress.ts`が元の周長から両端の位置・接線を求める。楕円の弧長はCPUで数値積分し、長方形は直線と角丸の円弧を使う。シェーダーは画素の最近傍の輪郭点で区間内外を判定し、有限の切り口までの距離でアンチエイリアスを行う。画素自身の偏角で切らないため、楕円・長方形でも端が斜めにならず、0と1では切り口を適用しない。
 
-エフェクトとVisual Moduleのレイヤーは音声Bindingを解決する関数を呼び出し側から受け取る。`timeline-audio-input-resolver.ts`で同じ評価内の同一参照だけを共有し、下層音声と指定レイヤー、異なるレイヤーの入力を混同しない。取得時刻は内容時刻ではなく所属Scene時刻を渡す。PCMのデコードや再生状態は所有しない。
+エフェクトとCustom Node Graph Effectのレイヤーは音声Bindingを解決する関数を呼び出し側から受け取る。`timeline-audio-input-resolver.ts`で同じ評価内の同一参照だけを共有し、下層音声と指定レイヤー、異なるレイヤーの入力を混同しない。取得時刻は内容時刻ではなく所属Scene時刻を渡す。PCMのデコードや再生状態は所有しない。
 
 動画の素材時刻への変換は`TimelineRenderer`が担当する。動画レイヤーは評価済みの`context.contentTimeMs`を使い、生成時には`reversePlayback`だけを受け取る。呼び出し側は配置の編集時にレンダラーを再生成し、描画ごとのクリップ再検索や時刻の再計算は行わない。逆方向は素材時刻の直前を読み、素材終端を最初のフレームとして扱える。動画の読み出しは表示順で短い窓をデコードし、64MiB・90枚を上限に逆方向の画素コピーを再利用する（巨大フレーム単独時は1枚を許可）。窓幅は画素サイズとフレームのdurationから見積もり、保持できない区間をコピーする負荷を減らす。デコーダーの出力フレームは即時解放し、保持上限によるプレビュー・書き出しの停止を防ぐ。フレームの選択は実際のtimestampを使い、FPSから逆再生位置を推測しない。
 
@@ -83,7 +83,7 @@ Transformは`layers/transform/transform-timeline-layer.ts`が子の寿命を管�
 
 `isIncludedInComposite: false`のレイヤーもセッションへ登録する。通常合成は素材を要求せず下層を返し、参照された段階だけ評価する。音声やクリップの寿命の規則は変えない。マスク元として単独描画するときも変形Observerへ元の素材寸法を通知する。
 
-単独描画と通常合成は別のcompositor出力を保持し、同じ画像を参照中に別段階で上書きしない。Effectの参照画像とVisual Moduleの公開画像入力は、必要な場合だけ入力ごとのScene枠確定器を持つ。Visual Moduleの公開入力間では同じ評価内の同一画像の確定結果を共有し、削除された公開入力の確定器は定義更新時に解放する。素材・表示・複数入力で同じ元画像を使っても、素材生成は一度だけ行う。
+単独描画と通常合成は別のcompositor出力を保持し、同じ画像を参照中に別段階で上書きしない。Effectの参照画像とCustom Node Graph Effectの公開画像入力は、必要な場合だけ入力ごとのScene枠確定器を持つ。Custom Node Graph Effectの公開入力間では同じ評価内の同一画像の確定結果を共有し、削除された公開入力の確定器は定義更新時に解放する。素材・表示・複数入力で同じ元画像を使っても、素材生成は一度だけ行う。
 
 `preserveDepth` Groupの素材は子の投影済み合成結果を使い、Group自身のopacity・blendMode・マスク・clipToFrameの前で取り出す。`projected`を引き継ぎ、単独描画・通常合成で変形を再適用しない。参照する側がブラー無効でも、取得先の登録済みの通常評価を読む。
 

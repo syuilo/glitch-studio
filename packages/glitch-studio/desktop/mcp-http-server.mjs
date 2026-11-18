@@ -17,9 +17,9 @@ Call list_project_sessions to select an explicit projectSessionId. Session IDs e
 Call search_scripting_api with a name or purpose, then get_scripting_api with the returned full names (Command:... or Query:...). Contracts describe exact inputs, results and examples for the running app version.
 
 Example:
-let visualModule = Command:createVisualModule({ name: "Generated" })
-let node = Command:createVisualModuleEffectNode({
-  visualModule: visualModule
+let customNodeGraphEffect = Command:createCustomNodeGraphEffect({ name: "Generated" })
+let node = Command:createCustomNodeGraphEffectEffectNode({
+  customNodeGraphEffect: customNodeGraphEffect
   effectId: "fill"
   connectionMode: "appendToPrimaryOutput"
 })

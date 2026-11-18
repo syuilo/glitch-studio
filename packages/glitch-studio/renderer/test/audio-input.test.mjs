@@ -2,15 +2,15 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
-import { createVisualModuleRenderer } from './helpers/create-visual-module-renderer.mjs';
+import { createCustomNodeGraphEffectRenderer } from './helpers/create-custom-node-graph-effect-renderer.mjs';
 
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { createAudioWindowLoader } = await load('@gs/subsystems_effect_shared/audio-window-loader.ts');
 const { AudioHistory } = await load('@gs/subsystems_audio_renderer/audio-history.ts');
 const { playerAudioSourceId } = await load('@gs/shared/audio.ts');
 const { PlayerAudioInputs } = await loadShaderSource(fileURLToPath(new URL('../src/player-audio-inputs.ts', import.meta.url)));
-const { VisualModuleRenderer } = await load('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts');
-const { createVisualModuleTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/visual-module/visual-module-timeline-layer.ts');
+const { CustomNodeGraphEffectRenderer } = await load('@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-renderer.ts');
+const { createCustomNodeGraphEffectTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/custom-node-graph-effect/custom-node-graph-effect-timeline-layer.ts');
 const { default: waveform } = await load('@gs/subsystems_effect_shared/fx/audioWaveform/_impl_.ts');
 const { default: waveformDefinition } = await load('@gs/subsystems_effect_shared/fx/audioWaveform/_def_.ts');
 const literal = value => ({ inputSource: 'literal', value });
@@ -72,7 +72,7 @@ test('deduplicates ready windows and retries cancelled or failed requests', asyn
 	assert.deepEqual(statuses.at(-1), { type: 'ready' });
 });
 
-// 【Visual Module Live Previewのモノラルを両チャンネルへ複製し、取得後の履歴更新から独立させる】
+// 【Custom Node Graph Effect Live Previewのモノラルを両チャンネルへ複製し、取得後の履歴更新から独立させる】
 // 同じPlayerを使う複数ノードや非同期準備の途中で、波形が別の再生位置へ変わらないようにする。
 test('freezes player PCM, pads missing history, and duplicates mono channels', () => {
 	const history = new AudioHistory();
@@ -122,10 +122,10 @@ test('shares player snapshots across nodes, public inputs, and unchanged frames'
 	history.append({ generation: 1, startFrame: 0, sampleRate: 1000, channelCount: 1, frameCount: 2, buffer: Float32Array.of(1, 2).buffer });
 	const inputs = new PlayerAudioInputs(new Map([[playerAudioSourceId('player'), history]]));
 	const selection = { type: 'player', playerId: 'player' };
-	const renderer = createVisualModuleRenderer(VisualModuleRenderer, { resolveAudioSource: value => inputs.resolve(value) });
+	const renderer = createCustomNodeGraphEffectRenderer(CustomNodeGraphEffectRenderer, { resolveAudioSource: value => inputs.resolve(value) });
 	const nodes = ['first', 'second'].map(id => ({ id, type: 'effect', effectId: 'probe', params: { audio: literal(selection) } }));
 	const publicAudio = { ...audioDef, id: 'sound', nameForReference: 'sound' };
-	nodes[1].params.audio = { inputSource: 'visualModulePublicParameterReference', parameterId: publicAudio.id };
+	nodes[1].params.audio = { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: publicAudio.id };
 	renderer.nodeResolutions = new Map(nodes.map(node => [node.id, { width: 640, height: 360 }]));
 	Object.assign(renderer, { customParameterDefs: [], customParameterValues: {}, nodes, paramDefs: [publicAudio], effectDefinitions: { probe: { paramDefs: { audio: audioDef } } } });
 	const publicInput = inputs.resolve(selection);
@@ -182,14 +182,14 @@ test('invalidates player snapshots on append, reset, replacement, and disconnect
 });
 
 // 【音声公開パラメータは専用入力として渡し、PUBLIC式には公開しない】
-// 下層入力の解決をVisual Moduleの外側に保ち、内部エフェクトはSceneやレイヤーを知らずに使える。
+// 下層入力の解決をCustom Node Graph Effectの外側に保ち、内部エフェクトはSceneやレイヤーを知らずに使える。
 // canNodeを無効にしても、音声リソースを通常の数値・画像の参照へ流してはいけない。
 test('resolves public audio inputs independently of PUBLIC and image parameters', () => {
-	const renderer = createVisualModuleRenderer(VisualModuleRenderer);
+	const renderer = createCustomNodeGraphEffectRenderer(CustomNodeGraphEffectRenderer);
 	const publicAudio = { ...audioDef, id: 'audio-id', nameForReference: 'sound' };
 	const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Number', control: { controlType: 'number' } }, defaultValue: literal(0) };
 	const source = { cacheKey: 'lower', readWindow: () => window() };
-	const node = { id: 'node', type: 'effect', effectId: 'probe', params: { audio: { inputSource: 'visualModulePublicParameterReference', parameterId: publicAudio.id }, amount: { inputSource: 'expression', expression: 'PUBLIC("sound")' } } };
+	const node = { id: 'node', type: 'effect', effectId: 'probe', params: { audio: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: publicAudio.id }, amount: { inputSource: 'expression', expression: 'PUBLIC("sound")' } } };
 	renderer.nodeResolutions = new Map([[node.id, { width: 640, height: 360 }]]);
 	Object.assign(renderer, { customParameterDefs: [], customParameterValues: {}, nodes: [node], paramDefs: [publicAudio], effectDefinitions: { probe: { paramDefs: { audio: audioDef, amount: scalar } } } });
 	const context = { time: 50, endTime: 100, isExport: false, pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 }, evaluatedParamValues: new Map([[publicAudio.id, 123]]), audioParamInputs: new Map([[publicAudio.id, source]]) };
@@ -204,12 +204,12 @@ test('resolves public audio inputs independently of PUBLIC and image parameters'
 
 
 
-// 【Visual Moduleは呼び出し側の取得元指定を解釈せずに渡す】
-// Player以外の利用ドメインを追加しても、共通型やVisual Moduleへ選択肢を増やす必要がない。
+// 【Custom Node Graph Effectは呼び出し側の取得元指定を解釈せずに渡す】
+// Player以外の利用ドメインを追加しても、共通型やCustom Node Graph Effectへ選択肢を増やす必要がない。
 test('delegates literal audio selections without knowing their source domain', () => {
 	const selection = { source: 'test-recording' };
 	const input = { cacheKey: 'recording', readWindow: () => window() };
-	const renderer = createVisualModuleRenderer(VisualModuleRenderer, { resolveAudioSource: value => {
+	const renderer = createCustomNodeGraphEffectRenderer(CustomNodeGraphEffectRenderer, { resolveAudioSource: value => {
 		assert.equal(value, selection);
 		return input;
 	} });
@@ -221,17 +221,17 @@ test('delegates literal audio selections without knowing their source domain', (
 	renderer.destroy();
 });
 
-// 【Visual Moduleの主音声入力はScene時刻で解決し、内容時刻と分離する】
-// トリムやモジュール内のTIMEを変えても、同じ場所の下層音声が選ばれる必要がある。
+// 【Custom Node Graph Effectの主音声入力はScene時刻で解決し、内容時刻と分離する】
+// トリムやCustom Node Graph Effect内のTIMEを変えても、同じ場所の下層音声が選ばれる必要がある。
 // Noneを明示した場合は自動割り当てを上書きし、音声の読み出しも行わない。
-test('anchors module audio to scene time while preserving content time and explicit none', async () => {
+test('anchors Custom Node Graph Effect audio to scene time while preserving content time and explicit none', async () => {
 	const publicAudio = { ...audioDef, id: 'audio-id', nameForReference: 'sound' };
-	const visualModule = { customParameterDefs: [], customParameterValues: {}, paramDefs: [publicAudio], primaryInputId: null, primaryAudioInputId: publicAudio.id };
-	const layer = { visualModuleParamValues: {}, automationGraphs: [] };
+	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, paramDefs: [publicAudio], primaryInputId: null, primaryAudioInputId: publicAudio.id };
+	const layer = { customNodeGraphEffectParamValues: {}, automationGraphs: [] };
 	const calls = [];
 	const input = { cacheKey: 'lower', readWindow: () => window() };
 	let prepared;
-	const renderer = createVisualModuleTimelineLayer(visualModule, layer, {
+	const renderer = createCustomNodeGraphEffectTimelineLayer(customNodeGraphEffect, layer, {
 		getAudioInput: (...args) => { calls.push(args); return input; },
 		prepare: async context => { prepared = context; }, render: context => { assert.equal(context, prepared); return { gpuTime: 0 }; }, destroy() {},
 	});
@@ -242,14 +242,14 @@ test('anchors module audio to scene time while preserving content time and expli
 	assert.equal(prepared.time, 120.25);
 	assert.equal(prepared.audioParamInputs.get(publicAudio.id), input);
 	assert.equal(prepared.evaluatedParamValues.has(publicAudio.id), false);
-	layer.visualModuleParamValues[publicAudio.id] = literal(null);
+	layer.customNodeGraphEffectParamValues[publicAudio.id] = literal(null);
 	await renderer.evaluate(context, signal());
 	assert.equal(prepared.audioParamInputs.get(publicAudio.id), null);
 	assert.equal(calls.length, 1);
 });
 
 // 【公開音声パラメータごとに参照先を解決し、同じ参照だけをフレーム内で共有する】
-// 単一の入力を使い回すと、下層音声と指定レイヤーを同時に使うVisual Moduleで誤った波形になる。
+// 単一の入力を使い回すと、下層音声と指定レイヤーを同時に使うCustom Node Graph Effectで誤った波形になる。
 // 欠落参照のnullもキャッシュし、次のフレームでは再解決してUndoや編集を反映する。
 test('resolves independent public audio sources and shares only matching frame inputs', async () => {
 	const bindings = {
@@ -258,11 +258,11 @@ test('resolves independent public audio sources and shares only matching frame i
 		missing: { inputSource: 'anotherLayerAudio', layerId: 'missing' }, missing_again: { inputSource: 'anotherLayerAudio', layerId: 'missing' },
 		none: { inputSource: 'anotherLayerAudio', layerId: null },
 	};
-	const visualModule = { customParameterDefs: [], customParameterValues: {}, primaryInputId: null, primaryAudioInputId: null,
+	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, primaryInputId: null, primaryAudioInputId: null,
 		paramDefs: Object.keys(bindings).map(id => ({ ...audioDef, id, nameForReference: id })) };
 	const calls = [];
 	let prepared;
-	const renderer = createVisualModuleTimelineLayer(visualModule, { visualModuleParamValues: bindings, automationGraphs: [] }, {
+	const renderer = createCustomNodeGraphEffectTimelineLayer(customNodeGraphEffect, { customNodeGraphEffectParamValues: bindings, automationGraphs: [] }, {
 		getAudioInput: (binding, time, isExport) => {
 			calls.push([binding, time, isExport]);
 			return binding.layerId === 'missing' ? null : { cacheKey: JSON.stringify(binding), readWindow: () => window() };

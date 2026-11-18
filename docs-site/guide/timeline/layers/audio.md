@@ -52,6 +52,6 @@ Volumeの入力方式を[Keyframes](../../parameters.md#keyframes)にすると�
 
 ## 波形やスペクトラムに使う
 
-音声を可視化するエフェクトやVisual Moduleでは、このレイヤーを[音声入力](../../parameters.md#audio-input)として選べます。**Audio from layer** なら特定のBGMだけ、**Audio from layers below** なら下層の複数音声をまとめて解析できます。
+音声を可視化するエフェクトやCustom Node Graph Effectでは、このレイヤーを[音声入力](../../parameters.md#audio-input)として選べます。**Audio from layer** なら特定のBGMだけ、**Audio from layers below** なら下層の複数音声をまとめて解析できます。
 
-音声レイヤー自体が波形画像を出すわけではありません。画像を描くエフェクトは別のレイヤーに置きます。タイムラインの音声再生はクリップの配置に従い、Visual Module Live Preview用Playerの再生位置とは独立しています。
+音声レイヤー自体が波形画像を出すわけではありません。画像を描くエフェクトは別のレイヤーに置きます。タイムラインの音声再生はクリップの配置に従い、Custom Node Graph Effect Live Preview用Playerの再生位置とは独立しています。

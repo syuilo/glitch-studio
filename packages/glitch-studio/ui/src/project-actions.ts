@@ -1,7 +1,7 @@
 import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 import { createTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
-import { visualModulePublicParameterId, visualModulePublicParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
+import { customNodeGraphEffectPublicParameterId, customNodeGraphEffectPublicParameterName } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { genId } from '@gs/shared/utility/id.ts';
@@ -16,8 +16,8 @@ import type { ProjectSessionManager } from './ProjectSessionManager.ts';
 import { inspectTimelineClipMedia } from './utility/timeline-clip-media.ts';
 import { readVideoFrameRate } from './utility/video-frame-rate.ts';
 import type { ProjectAsset } from './Project.ts';
-import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
-import type { EffectNodeOf } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
+import type { EffectNodeOf } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import type { Player } from '@gs/shared/types.ts';
 import type { Project, ProjectFileHandle } from './gsproj.ts';
 import type { OpenedMediaFile } from './api.ts';
@@ -46,11 +46,11 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 
 	async function newProject() {
 		const initialEffectNodeId = genId();
-		const initialInputParamId = visualModulePublicParameterId(genId());
+		const initialInputParamId = customNodeGraphEffectPublicParameterId(genId());
 		const initialOutputId = genId();
-		const initialVisualModule: ProjectVisualModule = {
+		const initialCustomNodeGraphEffect: ProjectCustomNodeGraphEffect = {
 			id: genId(),
-			name: 'VM1',
+			name: 'Custom Node Graph Effect 1',
 			customParameterDefs: [],
 			customParameterValues: {},
 			automationGraphs: [],
@@ -64,7 +64,7 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 			primaryInputId: initialInputParamId,
 			paramDefs: [{
 				id: initialInputParamId,
-				nameForReference: visualModulePublicParameterName('my_input'),
+				nameForReference: customNodeGraphEffectPublicParameterName('my_input'),
 				dataType: { kind: 'color' },
 				ui: { label: 'My Input', control: {} },
 				defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
@@ -94,13 +94,13 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 					},
 				},
 			}],
-		} satisfies ProjectVisualModule;
+		} satisfies ProjectCustomNodeGraphEffect;
 		return projectSessions.open({
 			gsVersion: _VERSION_,
 			name: DEFAULT_PROJECT_NAME,
 			description: '',
 			author: '',
-			visualModules: [initialVisualModule],
+			customNodeGraphEffects: [initialCustomNodeGraphEffect],
 			customShaderEffects: [],
 			assets: [],
 			players: [],
@@ -111,13 +111,13 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 				resolution: { mode: 'project' },
 				layers: [{
 					id: genId(),
-					layerType: 'visualModule',
+					layerType: 'customNodeGraphEffect',
 					transformTarget: 'image',
 					isDisabled: false,
 					isSolo: false,
 					color: null,
-					visualModuleId: initialVisualModule.id,
-					visualModuleParamValues: {},
+					customNodeGraphEffectId: initialCustomNodeGraphEffect.id,
+					customNodeGraphEffectParamValues: {},
 					forceDisableMotionBlur: false,
 					mask: null,
 					layerMask: null,
@@ -135,7 +135,7 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 						rotation: timelineCompositingParamDefs.rotation.defaultValue,
 					}),
 					automationGraphs: [],
-					name: 'Visual Module',
+					name: 'Custom Node Graph Effect',
 					clips: [{
 						id: genId(),
 						...createTimelineClipTiming(0, 1000 * 10),
@@ -194,11 +194,11 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 		} satisfies Player : null;
 	
 		const initialEffectNodeId = genId();
-		const initialInputParamId = visualModulePublicParameterId(genId());
+		const initialInputParamId = customNodeGraphEffectPublicParameterId(genId());
 		const initialOutputId = genId();
-		const initialVisualModule: ProjectVisualModule = {
+		const initialCustomNodeGraphEffect: ProjectCustomNodeGraphEffect = {
 			id: genId(),
-			name: 'VM1',
+			name: 'Custom Node Graph Effect 1',
 			customParameterDefs: [],
 			customParameterValues: {},
 			automationGraphs: [],
@@ -212,7 +212,7 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 			primaryInputId: initialInputParamId,
 			paramDefs: [{
 				id: initialInputParamId,
-				nameForReference: visualModulePublicParameterName('my_input'),
+				nameForReference: customNodeGraphEffectPublicParameterName('my_input'),
 				dataType: { kind: 'color' },
 				ui: { label: 'My Input', control: {} },
 				defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
@@ -280,14 +280,14 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 					},
 				},
 			}],
-		} satisfies ProjectVisualModule;
+		} satisfies ProjectCustomNodeGraphEffect;
 	
 		return {
 			gsVersion: _VERSION_,
 			name: DEFAULT_PROJECT_NAME,
 			description: '',
 			author: '',
-			visualModules: [initialVisualModule],
+			customNodeGraphEffects: [initialCustomNodeGraphEffect],
 			customShaderEffects: [],
 			assets: [asset],
 			players: player != null ? [player] : [],
@@ -313,11 +313,11 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 						}],
 						audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
 					} : {
-						layerType: 'visualModule' as const,
+						layerType: 'customNodeGraphEffect' as const,
 						transformTarget: 'image' as const,
-						name: 'Visual Module',
-						visualModuleId: initialVisualModule.id,
-						visualModuleParamValues: {},
+						name: 'Custom Node Graph Effect',
+						customNodeGraphEffectId: initialCustomNodeGraphEffect.id,
+						customNodeGraphEffectParamValues: {},
 						clips: [{
 							id: genId(),
 							...createTimelineClipTiming(0, 1000 * 10),

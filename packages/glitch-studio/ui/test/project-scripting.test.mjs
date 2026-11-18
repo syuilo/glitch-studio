@@ -32,7 +32,7 @@ function fixture(dialog = async () => null) {
 		resolution: { value: { width: 1920, height: 1080 } }, timelineFps: { value: 30 },
 		timelineMotionBlur: { value: { enabled: false, shutterAngle: 180, samples: 8 } }, exportSettings: { value: null },
 		automationGraphs: { value: [] }, customShaderEffects: { value: [] }, generatedSpeech: { value: [] },
-		assets: { value: [] }, players: { value: [] }, visualModules: { value: [] }, timelineScenes: { value: [] },
+		assets: { value: [] }, players: { value: [] }, customNodeGraphEffects: { value: [] }, timelineScenes: { value: [] },
 	};
 	const manager = new UndoRedo(state, COMMAND_DEFS);
 	const errors = [];
@@ -52,16 +52,16 @@ test('runs the default named Command example and redoes its exact result', async
 	const { controller, manager, state, errors } = fixture();
 	await controller.run();
 	assert.deepEqual(errors, []);
-	const visualModule = structuredClone(state.visualModules.value[0]);
-	const node = visualModule.nodes.find(node => node.type === 'effect');
+	const customNodeGraphEffect = structuredClone(state.customNodeGraphEffects.value[0]);
+	const node = customNodeGraphEffect.nodes.find(node => node.type === 'effect');
 	assert.deepEqual(node.params.color.value, [1, 0.2, 0.1, 1]);
-	assert.equal(visualModule.nodes.find(node => node.type === 'globalOut').inputs[visualModule.primaryOutputId].nodeId, node.id);
+	assert.equal(customNodeGraphEffect.nodes.find(node => node.type === 'globalOut').inputs[customNodeGraphEffect.primaryOutputId].nodeId, node.id);
 	assert.equal(manager.undoStack.value.length, 1);
 	assert.match(controller.output.value[0], /Generated/);
 	manager.undo();
-	assert.deepEqual(state.visualModules.value, []);
+	assert.deepEqual(state.customNodeGraphEffects.value, []);
 	manager.redo();
-	assert.deepEqual(state.visualModules.value, [visualModule]);
+	assert.deepEqual(state.customNodeGraphEffects.value, [customNodeGraphEffect]);
 	assert.equal(controller.output.value.length, 1);
 });
 
@@ -70,27 +70,27 @@ test('runs the default named Command example and redoes its exact result', async
 // 実際のスクリプトから両方の操作を実行し、読み取り結果と履歴も確認する。
 test('creates and rewires a relay node from AiScript', async () => {
 	const { controller, manager, state, errors } = fixture();
-	controller.source.value = `let visualModule = Command:createVisualModule({})
-let source = Command:createVisualModuleEffectNode({ visualModule: visualModule, effectId: "fill" })
-let relay = Command:createVisualModuleRelayNode({ visualModule: visualModule })
+	controller.source.value = `let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})
+let source = Command:createCustomNodeGraphEffectEffectNode({ customNodeGraphEffect: customNodeGraphEffect, effectId: "fill" })
+let relay = Command:createCustomNodeGraphEffectRelayNode({ customNodeGraphEffect: customNodeGraphEffect })
 let connection = { nodeId: source.nodeId, outputPort: "output" }
-Command:setVisualModuleRelayInput({ target: relay, source: connection })
+Command:setCustomNodeGraphEffectRelayInput({ target: relay, source: connection })
 <: Query:getNode(relay).input.outputPort
-Command:setVisualModuleRelayInput({ target: relay, source: null })
+Command:setCustomNodeGraphEffectRelayInput({ target: relay, source: null })
 <: Query:getNode(relay).input.nodeId == null
-Command:setVisualModuleRelayInput({ target: relay, source: connection })`;
+Command:setCustomNodeGraphEffectRelayInput({ target: relay, source: connection })`;
 	await controller.run();
 	assert.deepEqual(errors, []);
 	assert.deepEqual(controller.output.value, ['output', 'true']);
-	const visualModule = structuredClone(state.visualModules.value[0]);
-	const source = visualModule.nodes.find(node => node.type === 'effect');
-	const relay = visualModule.nodes.find(node => node.type === 'relay');
+	const customNodeGraphEffect = structuredClone(state.customNodeGraphEffects.value[0]);
+	const source = customNodeGraphEffect.nodes.find(node => node.type === 'effect');
+	const relay = customNodeGraphEffect.nodes.find(node => node.type === 'relay');
 	assert.deepEqual(relay.input, { nodeId: source.id, outputPort: 'output' });
 	assert.equal(manager.undoStack.value.length, 1);
 	manager.undo();
-	assert.deepEqual(state.visualModules.value, []);
+	assert.deepEqual(state.customNodeGraphEffects.value, []);
 	manager.redo();
-	assert.deepEqual(state.visualModules.value, [visualModule]);
+	assert.deepEqual(state.customNodeGraphEffects.value, [customNodeGraphEffect]);
 });
 
 // 【実行途中の検証エラーでも出力と成功済み編集を残す】

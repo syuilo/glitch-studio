@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
-const { resolveVisualModuleResolutions } = await load('@gs/subsystems_visual-module_renderer/visual-module-resolutions.ts');
+const { resolveCustomNodeGraphEffectResolutions } = await load('@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-resolutions.ts');
 const { getPlayerIntrinsicResolution } = await load('@gs/glitch-studio_shared/player-resolution.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const input = { dataType: { kind: 'color' }, canNode: true, ui: { label: 'Input', control: {} }, defaultValue: literal([0, 0, 0, 0]) };
@@ -21,19 +21,19 @@ test('plans graph resolutions before any frames textures or expressions exist', 
 		{ id: 'relay', type: 'relay', input: { nodeId: 'bypass', outputPort: 'output' } },
 		node('bypass', { input: connection('source') }, { isBypass: true, resolution: { mode: 'customAbsolute', width: 9, height: 9 } }),
 		node('source', { input: literal([0, 0, 0, 0]) }),
-		node('external', { input: { inputSource: 'visualModulePublicParameterReference', parameterId: 'image' } }),
+		node('external', { input: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'image' } }),
 		node('constant', { input: connection('in', 'constant') }), { id: 'in', type: 'globalIn' }];
-	const options = { visualModule: { customParameterDefs: [], customParameterValues: {}, nodes, paramDefs: ['image', 'constant'].map(id => ({ ...input, id })), outputDefs: [], primaryInputId: 'image', primaryOutputId: null }, effectDefinitions: { filter: definition },
+	const options = { customNodeGraphEffect: { customParameterDefs: [], customParameterValues: {}, nodes, paramDefs: ['image', 'constant'].map(id => ({ ...input, id })), outputDefs: [], primaryInputId: 'image', primaryOutputId: null }, effectDefinitions: { filter: definition },
 		contextResolution: { width: 960, height: 540 }, resolutionScale: 0.5, maxDimension: 8192,
 		inputResolutions: new Map([['image', { width: 800, height: 200 }], ['constant', null]]),
 		getIntrinsicResolution: node => node.id === 'source' ? { width: 301, height: 101 } : null };
-	const plan = resolveVisualModuleResolutions(options);
+	const plan = resolveCustomNodeGraphEffectResolutions(options);
 	assert.deepEqual(plan.get('source'), { width: 151, height: 51 });
 	assert.deepEqual(plan.get('consumer'), { width: 302, height: 102 });
 	assert.deepEqual(plan.get('external'), { width: 800, height: 200 });
 	assert.deepEqual(plan.get('constant'), { width: 960, height: 540 });
 	nodes.find(node => node.id === 'source').params.input = { inputSource: 'expression', expression: 'TIME' };
-	assert.deepEqual(resolveVisualModuleResolutions(options), plan);
+	assert.deepEqual(resolveCustomNodeGraphEffectResolutions(options), plan);
 });
 
 // 【候補の選択値によらず、宣言された全入力の最大画素数を使う】
@@ -41,15 +41,15 @@ test('plans graph resolutions before any frames textures or expressions exist', 
 // 同画素数では先頭の縦横比を維持し、独立した軸ごとの最大値を作らない。
 test('uses every nested input candidate and preserves the first aspect ratio on equal areas', () => {
 	const candidates = { dataType: { kind: 'array', elementType: input.dataType }, ui: { label: 'Candidates', control: { element: input.ui.control } }, element: { canNode: true, defaultValue: input.defaultValue }, defaultValue: literal([]) };
-	const options = { visualModule: { customParameterDefs: [], customParameterValues: {}, nodes: [{ id: 'in', type: 'globalIn' }, node('selector', { candidates: literal([
+	const options = { customNodeGraphEffect: { customParameterDefs: [], customParameterValues: {}, nodes: [{ id: 'in', type: 'globalIn' }, node('selector', { candidates: literal([
 			{ id: 'a', binding: connection('in', 'landscape') }, { id: 'b', binding: connection('in', 'portrait') },
 		]), index: { inputSource: 'expression', expression: 'TIME' } })], paramDefs: ['landscape', 'portrait'].map(id => ({ ...input, id })), outputDefs: [], primaryInputId: null, primaryOutputId: null },
 		effectDefinitions: { filter: { ...definition, paramDefs: { candidates }, resolutionInputParameters: ['candidates'], primaryInputParameter: null } },
 		contextResolution: { width: 100, height: 100 }, resolutionScale: 1, maxDimension: 8192,
 		inputResolutions: new Map([['landscape', { width: 80, height: 40 }], ['portrait', { width: 40, height: 80 }]]), getIntrinsicResolution: () => null };
-	assert.deepEqual(resolveVisualModuleResolutions(options).get('selector'), { width: 80, height: 40 });
+	assert.deepEqual(resolveCustomNodeGraphEffectResolutions(options).get('selector'), { width: 80, height: 40 });
 	options.inputResolutions.set('portrait', { width: 40, height: 90 });
-	assert.deepEqual(resolveVisualModuleResolutions(options).get('selector'), { width: 40, height: 90 });
+	assert.deepEqual(resolveCustomNodeGraphEffectResolutions(options).get('selector'), { width: 40, height: 90 });
 });
 
 // 【解像度計画も描画と同じ公開ポート・relay・Bypassの解決規則に従う】
@@ -61,17 +61,17 @@ test('resolves declared output sources consistently through relay bypass and glo
 	const output = { id: 'out', type: 'globalOut', inputs: { result: { nodeId: 'relay', outputPort: 'output' } } };
 	const consumer = node('consumer', { input: connection('out', 'result') });
 	const options = {
-		visualModule: { customParameterDefs: [], customParameterValues: {}, nodes: [{ id: 'in', type: 'globalIn' }, bypass, relay, output, consumer],
+		customNodeGraphEffect: { customParameterDefs: [], customParameterValues: {}, nodes: [{ id: 'in', type: 'globalIn' }, bypass, relay, output, consumer],
 			paramDefs: [{ ...input, id: 'image' }], outputDefs: [{ id: 'result' }], primaryInputId: 'image', primaryOutputId: 'result' },
 		effectDefinitions: { filter: definition }, contextResolution: { width: 100, height: 100 }, resolutionScale: 1,
 		maxDimension: 8192, inputResolutions: new Map([['image', { width: 80, height: 40 }], ['unknown', { width: 200, height: 200 }]]),
 		getIntrinsicResolution: () => null,
 	};
-	const size = () => resolveVisualModuleResolutions(options).get('consumer');
+	const size = () => resolveCustomNodeGraphEffectResolutions(options).get('consumer');
 	assert.deepEqual(size(), { width: 80, height: 40 });
-	options.visualModule.outputDefs = [];
+	options.customNodeGraphEffect.outputDefs = [];
 	assert.deepEqual(size(), options.contextResolution);
-	options.visualModule.outputDefs = [{ id: 'result' }];
+	options.customNodeGraphEffect.outputDefs = [{ id: 'result' }];
 	output.inputs.result.outputPort = 'unknown';
 	assert.deepEqual(size(), options.contextResolution);
 	output.inputs.result.outputPort = 'output';

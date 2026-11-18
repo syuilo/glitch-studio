@@ -62,11 +62,11 @@ export const createTimelineLayerPublicParameterFromParameterCommandDef = defineT
 }, { sceneId: string; layerId: string; parameterId: TimelineLayerPublicParameterId }>({
  label: 'Create and connect timeline layer public parameter',
  scope: input => ({ sceneId: input.sceneId, layerIds: [input.layerId] }),
- changes: (_state, input) => [{ type: 'layer', sceneId: input.sceneId, layerId: input.layerId, changes: [{ type: 'definition' }, { type: 'parameter', target: input.parameterGroup === 'visualModule' ? 'module' : input.parameterGroup, kind: 'connection' }] }],
+ changes: (_state, input) => [{ type: 'layer', sceneId: input.sceneId, layerId: input.layerId, changes: [{ type: 'definition' }, { type: 'parameter', target: input.parameterGroup, kind: 'connection' }] }],
  edit: (state, input) => {
   const layer = findTimelineLayer(getScene(state, input.sceneId).layers, input.layerId);
   if (layer == null || !hasTimelineLayerParameters(layer)) throw new Error('Layer cannot own public parameters');
-  const target = input.parameterGroup === 'visualModule' ? 'module' : input.parameterGroup;
+  const target = input.parameterGroup;
   if ((target as TimelineParameterTarget) === 'publicParameter') throw new Error('Public parameter values cannot be promoted in the same layer');
   const definitions = getLayerParameterDefinitions(state, layer, target);
   const rootKey = input.parameterPath[0];

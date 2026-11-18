@@ -9,7 +9,7 @@ import {
 	automationGraphSchema, effectResolutionSchema, keyframeInterpolationSchema, parameterDefinitionSchema,
 	parameterPathSchema, staticSettingValuesSchema, valueParameterBindingSchema,
 } from './parameter-contract-schemas.ts';
-import { visualModuleSchema } from './visual-module-contract-schemas.ts';
+import { customNodeGraphEffectSchema } from './custom-node-graph-effect-contract-schemas.ts';
 import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineLayerPublicParameterDefinition, TimelineLayerPublicParameterId } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
@@ -21,7 +21,7 @@ export const timelineSceneReferenceSchema = z.looseObject({ sceneId: identifier.
 export const timelineLayerReferenceSchema = timelineSceneReferenceSchema.extend({ layerId: identifier.describe('Layer ID within the Scene.') });
 export const timelineClipReferenceSchema = timelineLayerReferenceSchema.extend({ clipId: identifier.describe('Clip ID within the Layer.') });
 export const timelineClipTargetSchema = z.looseObject({ layerId: identifier, clipId: identifier });
-export const timelineParameterGroupSchema = z.enum(['publicParameter', 'visualModule', 'effect', 'shape', 'text', 'voicevoxSubtitle', 'camera', 'transform', 'compositing', 'audio']);
+export const timelineParameterGroupSchema = z.enum(['publicParameter', 'customNodeGraphEffect', 'effect', 'shape', 'text', 'voicevoxSubtitle', 'camera', 'transform', 'compositing', 'audio']);
 export const timelineParameterReferenceSchema = timelineLayerReferenceSchema.extend({
 	parameterGroup: timelineParameterGroupSchema,
 	parameterPath: parameterPathSchema.describe('Parameter keys and stable array element IDs; array indexes are not accepted.'),
@@ -72,8 +72,8 @@ const videoClipSchema = z.union([
 export const timelineLayerRecipeSchema = z.union([
 	z.looseObject({ name: z.string().nullish(), layerType: z.literal('effect'), effectId: identifier }),
 	z.looseObject({ name: z.string().nullish(), layerType: z.literal('shape'), shapeType: z.enum(['ellipse', 'rectangle']) }),
-	z.looseObject({ name: z.string().nullish(), layerType: z.literal('visualModule'), visualModuleId: identifier }),
-	z.looseObject({ name: z.string().nullish(), layerType: z.enum(['text', 'camera', 'voicevox', 'inlineVisualModule', 'image', 'video', 'audio', 'scene', 'folder', 'parameterContainer', 'transform', 'group']) }),
+	z.looseObject({ name: z.string().nullish(), layerType: z.literal('customNodeGraphEffect'), customNodeGraphEffectId: identifier }),
+	z.looseObject({ name: z.string().nullish(), layerType: z.enum(['text', 'camera', 'voicevox', 'inlineCustomNodeGraphEffect', 'image', 'video', 'audio', 'scene', 'folder', 'parameterContainer', 'transform', 'group']) }),
 ]);
 
 export const voicevoxSettingsSchema = z.looseObject({ speedScale: z.number().min(0.5).max(2) });
@@ -134,8 +134,8 @@ const shapeSchema = z.discriminatedUnion('type', [
 // 再帰は子Layerだけを辿る。別Scene参照はIDのままとし、参照循環を展開しない。
 export const timelineLayerSchema: z.ZodType<TimelineLayer> = z.lazy(() => z.discriminatedUnion('layerType', [
 	z.looseObject({ ...clipLayer, ...visualLayer, layerType: z.literal('effect'), transformTarget: z.enum(['image', 'region']).optional(), effectId: identifier, effectParamValues: z.record(z.string(), timelineEditableParameterBindingSchema), effectStaticSettings: staticSettingValuesSchema, resolution: effectResolutionSchema }),
-	z.looseObject({ ...clipLayer, ...visualLayer, layerType: z.literal('visualModule'), transformTarget: z.enum(['image', 'region']).optional(), visualModuleId: identifier, visualModuleParamValues: z.record(z.string(), timelineEditableParameterBindingSchema) }),
-	z.looseObject({ ...clipLayer, ...visualLayer, layerType: z.literal('inlineVisualModule'), transformTarget: z.enum(['image', 'region']).optional(), visualModule: visualModuleSchema, visualModuleParamValues: z.record(z.string(), timelineEditableParameterBindingSchema) }),
+	z.looseObject({ ...clipLayer, ...visualLayer, layerType: z.literal('customNodeGraphEffect'), transformTarget: z.enum(['image', 'region']).optional(), customNodeGraphEffectId: identifier, customNodeGraphEffectParamValues: z.record(z.string(), timelineEditableParameterBindingSchema) }),
+	z.looseObject({ ...clipLayer, ...visualLayer, layerType: z.literal('inlineCustomNodeGraphEffect'), transformTarget: z.enum(['image', 'region']).optional(), customNodeGraphEffect: customNodeGraphEffectSchema, customNodeGraphEffectParamValues: z.record(z.string(), timelineEditableParameterBindingSchema) }),
 	z.looseObject({ ...clipLayer, ...visualLayer, layerType: z.literal('shape'), shape: shapeSchema }),
 	z.looseObject({ ...clipLayer, ...visualLayer, layerType: z.literal('text'), textParamValues: parameterValues(textParamDefs), textStaticSettings: fontSettings }),
 	z.looseObject({ ...clipLayer, ...visualLayer, layerType: z.literal('image'), clips: z.array(assetClipSchema) }),
@@ -150,7 +150,7 @@ export const timelineLayerSchema: z.ZodType<TimelineLayer> = z.lazy(() => z.disc
 	z.looseObject({ ...layerCommon, layerType: z.literal('folder'), layers: z.array(timelineLayerSchema) }),
 ])) as z.ZodType<TimelineLayer>;
 
-export const timelineKeyframeTargetSchema = z.enum(['publicParameter', 'module', 'effect', 'shape', 'text', 'voicevoxSubtitle', 'camera', 'transform', 'compositing', 'audio']);
+export const timelineKeyframeTargetSchema = timelineParameterGroupSchema;
 export const timelineKeyframeSelectionSchema = z.looseObject({ layerId: identifier, target: z.union([timelineKeyframeTargetSchema, z.literal('utterance')]), paramPath: parameterPathSchema, keyframeId: identifier });
 export const timelineKeyframePositionSchema = timelineKeyframeSelectionSchema.extend({ x: z.number().int().nonnegative().describe('Absolute Scene time in integer milliseconds.') });
 const keyframeValueSchema = z.union([z.number(), z.boolean(), z.string(), z.tuple([z.number(), z.number()]), z.tuple([z.number(), z.number(), z.number(), z.number()])]);

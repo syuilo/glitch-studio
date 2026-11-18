@@ -35,4 +35,4 @@
 
 値の型`SizeReference`、判定、基準寸法の換算は`@gs/shared/size-reference.ts`が所有します。型定義はUIやエフェクトを参照しません。`getSizeReferenceLength()`へ描画寸法を渡し、呼び出し側で比率・周期数を距離へ換算します。
 
-固定値、環境変数、基準式・加工式、Visual ModuleとTimelineの公開パラメータで使用できます。式では`"height"`など上表の文字列を返します。Size ReferenceのキーはHoldで切り替わり、基準間を数値補間しません。テクスチャやInノードのデータ出力には対応しません。
+固定値、環境変数、基準式・加工式、Custom Node Graph EffectとTimelineの公開パラメータで使用できます。式では`"height"`など上表の文字列を返します。Size ReferenceのキーはHoldで切り替わり、基準間を数値補間しません。テクスチャやInノードのデータ出力には対応しません。

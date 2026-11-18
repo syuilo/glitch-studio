@@ -21,14 +21,14 @@ const stopProjectTitle = watch(() => projectSessions.activeSession.value?.projec
 
 (window as any).projectSessions = projectSessions; // debug
 
-function benchmark(count = 100, visualModuleId = projectSessions.activeSession.value?.projectContext.stateManager.state.visualModules.value[0]?.id) {
+function benchmark(count = 100, customNodeGraphEffectId = projectSessions.activeSession.value?.projectContext.stateManager.state.customNodeGraphEffects.value[0]?.id) {
 	const projectSession = projectSessions.activeSession.value;
-	if (projectSession == null || visualModuleId == null) return;
+	if (projectSession == null || customNodeGraphEffectId == null) return;
 	for (let i = 0; i < count; i++) {
-		projectSession.projectContext.stateManager.commit('createVisualModuleEffectNode', {
-			visualModule: { visualModuleId },
+		projectSession.projectContext.stateManager.commit('createCustomNodeGraphEffectEffectNode', {
+			customNodeGraphEffect: { customNodeGraphEffectId },
 			effectId: 'blockShuffle',
-			connectionMode: preferences.s.visualModuleAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none',
+			connectionMode: preferences.s.customNodeGraphEffectAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none',
 			connectionTypePolicy: preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch',
 			parameters: {
 				seed: { inputSource: 'literal', value: Math.random() * 1000 },

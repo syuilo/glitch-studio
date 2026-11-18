@@ -63,9 +63,9 @@
 		>
 			<template #default="{ parameterKey }">
 				<GsVisualParam
-					:availableVariables="IN_VISUAL_MODULE_VAR_DEFS"
-					:visualModule="visualModule"
-					:automationGraphs="visualModule.automationGraphs"
+					:availableVariables="IN_CUSTOM_NODE_GRAPH_EFFECT_VAR_DEFS"
+					:customNodeGraphEffect="customNodeGraphEffect"
+					:automationGraphs="customNodeGraphEffect.automationGraphs"
 					:node="node"
 					:paramPath="[parameterKey]"
 					:paramDef="effectDefinitions[node.effectId].paramDefs[parameterKey]"
@@ -81,7 +81,7 @@
 </template>
 
 <script lang="ts" setup>
-import { IN_VISUAL_MODULE_VAR_DEFS } from '@gs/subsystems_visual-module_shared/expression.ts';
+import { IN_CUSTOM_NODE_GRAPH_EFFECT_VAR_DEFS } from '@gs/subsystems_custom-node-graph-effect_shared/expression.ts';
 import { ref, computed, provide, shallowRef, watchEffect } from 'vue';
 import { prettyId } from '@gs/shared/utility/id.ts';
 import { getEffectDefinitions } from '@/utility/project-effects.ts';
@@ -96,14 +96,14 @@ import GsInput from './common/GsInput.vue';
 import GsFolder from './common/GsFolder.vue';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
-import type { VisualModule, VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectEffectNode } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
-import { connectedNodeParameterPathKeysKey, useVisualModuleWires } from '@/utility/visual-module-wires.ts';
+import { connectedNodeParameterPathKeysKey, useCustomNodeGraphEffectWires } from '@/utility/custom-node-graph-effect-wires.ts';
 import { paramPathKey, walkNodeParams } from '@/utility/node-params.ts';
 import { getEffectNodeName } from '@/utility/node-name.ts';
-import { getVisualModuleNodeHeaderMenuItems } from '@/utility/visual-module-node-menu.ts';
+import { getCustomNodeGraphEffectNodeHeaderMenuItems } from '@/utility/custom-node-graph-effect-node-menu.ts';
 import * as ui from '@/ui.ts';
 
 const projectSession = useProjectSession();
@@ -112,11 +112,11 @@ const effectDefinitions = computed(() => getEffectDefinitions(projectSession.pro
 
 const { stateManager } = projectSession.projectContext;
 
-const wireMap = useVisualModuleWires();
+const wireMap = useCustomNodeGraphEffectWires();
 
 const props = defineProps<{
-	visualModule: VisualModule;
-	node: VisualModuleEffectNode;
+	customNodeGraphEffect: CustomNodeGraphEffect;
+	node: CustomNodeGraphEffectEffectNode;
 	effectState?: EffectInstanceState | null;
 }>();
 
@@ -177,7 +177,7 @@ function showEffectError() {
 }
 
 function onHeaderContextmenu(ev: PointerEvent) {
-	ui.contextMenu(getVisualModuleNodeHeaderMenuItems(props.node, name => emit('setDisplayName', name)), ev);
+	ui.contextMenu(getCustomNodeGraphEffectNodeHeaderMenuItems(props.node, name => emit('setDisplayName', name)), ev);
 }
 
 function remove() {

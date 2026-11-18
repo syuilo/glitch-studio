@@ -1,4 +1,4 @@
-/** Scene上の表示区間と、素材・モジュールの内容時刻を独立して保持する。 */
+/** Scene上の表示区間と、素材・Custom Node Graph Effectの内容時刻を独立して保持する。 */
 export type TimelineClipPlacement = {
 	/** Scene上の配置と長さは安全な整数ミリ秒。 */
 	startMs: number;

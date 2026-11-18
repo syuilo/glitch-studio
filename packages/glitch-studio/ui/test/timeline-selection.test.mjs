@@ -163,7 +163,7 @@ test('preserves partial selections across lanes when choosing stretch targets', 
 	const dragged = key('video', '0', 'compositing', 'opacity');
 	const lane = [dragged, key('video', '1', 'compositing', 'opacity')];
 	const selectedLane = [key('video', '0'), key('video', '1')];
-	const unselected = [key('video', '0', 'module', 'volume'), key('video', '0', 'compositing', 'rotation')];
+	const unselected = [key('video', '0', 'customNodeGraphEffect', 'volume'), key('video', '0', 'compositing', 'rotation')];
 	const otherLayer = [key('audio', '0'), key('audio', '1')];
 	const all = [...lane, ...selectedLane, ...unselected, ...otherLayer];
 	const selection = { kind: 'keyframes', keyframes: [dragged, selectedLane[1], otherLayer[0]] };
@@ -222,7 +222,7 @@ const geometry = {
 // 画面外の各キーのDOMに依存せず、IDパスとレーンの中心を対応付ける。
 // Shapeなどの種類が境界行でだけ選択できなくなる退行も検出する。
 test('measures all lane kinds and selects unmounted intermediate layers', () => {
-	const targets = ['audio', 'module', 'compositing', 'effect', 'shape'];
+	const targets = ['audio', 'customNodeGraphEffect', 'compositing', 'effect', 'shape'];
 	const paramPath = ['items', 'element-id', 'value'];
 	const element = {
 		getBoundingClientRect: () => ({ top: 100 }),

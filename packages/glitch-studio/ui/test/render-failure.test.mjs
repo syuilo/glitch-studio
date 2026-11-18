@@ -202,7 +202,7 @@ test('keeps explicit suspension independent of resource completion and cancellat
 // 発生元は別の診断として破棄前に保存し、再生成開始時にだけ解除する。
 test('retains failure locations independently of disposed execution state and clears them on retry', async () => {
 	const source = { type: 'timelineLayer', instanceId: 'instance', rootSceneId: 'root',
-		layerId: 'visualModuleLayer', clipId: 'clip', layerPath: ['sceneLayer', 'placement', 'visualModuleLayer'] };
+		layerId: 'customNodeGraphEffectLayer', clipId: 'clip', layerPath: ['sceneLayer', 'placement', 'customNodeGraphEffectLayer'] };
 	const states = new Map([['node', { status: 'error' }]]);
 	let reason;
 	const engine = new PreviewRenderEngine({ create: async () => {}, dispose: error => { states.clear(); reason = error; } });
@@ -221,30 +221,30 @@ test('retains failure locations independently of disposed execution state and cl
 	assert.equal(engine.errorMessage.value, 'GPU device lost');
 });
 
-// 【Visual Module Live Previewの発生元をプレビューの現在の選択から独立して表示する】
-// 停止後に別のVisual Moduleを選択しても、元の失敗通知のIDから場所を表示する。
-test('describes the failing Visual Module Live Preview Visual Module and node by their own identities', () => {
-	const origin = { source: { type: 'visualModuleLivePreview', instanceId: 'instance', visualModuleId: 'visualModule' }, nodeId: 'node' };
-	const visualModules = [{ id: 'visualModule', name: 'Source', nodes: [{ id: 'node', type: 'effect', displayName: 'Blur' }] }];
-	assert.equal(formatRenderFailureOrigin(origin, visualModules, []), 'Visual Module Live Preview / Visual Module "Source" (visualModule) / Node "Blur" (node)');
+// 【Custom Node Graph Effect Live Previewの発生元をプレビューの現在の選択から独立して表示する】
+// 停止後に別のCustom Node Graph Effectを選択しても、元の失敗通知のIDから場所を表示する。
+test('describes the failing Custom Node Graph Effect Live Preview Custom Node Graph Effect and node by their own identities', () => {
+	const origin = { source: { type: 'customNodeGraphEffectLivePreview', instanceId: 'instance', customNodeGraphEffectId: 'customNodeGraphEffect' }, nodeId: 'node' };
+	const customNodeGraphEffects = [{ id: 'customNodeGraphEffect', name: 'Source', nodes: [{ id: 'node', type: 'effect', displayName: 'Blur' }] }];
+	assert.equal(formatRenderFailureOrigin(origin, customNodeGraphEffects, []), 'Custom Node Graph Effect Live Preview / Custom Node Graph Effect "Source" (customNodeGraphEffect) / Node "Blur" (node)');
 });
 
 // 【子Scene内のノードの発生元を配置クリップまで区別する】
 // 同じ子Sceneを複数のクリップで使っても原因の配置を特定できる必要がある。
 // Group配下のレイヤーも同じSceneのID探索で解決し、登録・Inline双方のノードを表示する。
-for (const layerType of ['visualModule', 'inlineVisualModule']) {
+for (const layerType of ['customNodeGraphEffect', 'inlineCustomNodeGraphEffect']) {
 	test(`describes nested scene placements and grouped nodes in a ${layerType} layer`, () => {
-		const visualModule = { id: 'visualModule', nodes: [{ id: 'node', type: 'effect', displayName: 'Noise' }] };
-		const childLayer = { id: 'childLayer', name: 'Effects', layerType, visualModuleId: visualModule.id, visualModule,
+		const customNodeGraphEffect = { id: 'customNodeGraphEffect', nodes: [{ id: 'node', type: 'effect', displayName: 'Noise' }] };
+		const childLayer = { id: 'childLayer', name: 'Effects', layerType, customNodeGraphEffectId: customNodeGraphEffect.id, customNodeGraphEffect,
 			clips: [{ id: 'childClip', startMs: 500 }] };
 		const scenes = [{ id: 'root', name: 'Main', layers: [{ id: 'sceneLayer', name: 'Child scene', layerType: 'scene',
 			clips: [{ id: 'first', sceneId: 'child', startMs: 0 }, { id: 'second', sceneId: 'child', startMs: 2000 }] }] },
 		{ id: 'child', layers: [{ id: 'group', layerType: 'group', layers: [childLayer] }] }];
 		const source = { type: 'timelineLayer', rootSceneId: 'root', layerId: 'childLayer', clipId: 'childClip',
 			layerPath: ['sceneLayer', 'second', 'childLayer'], instanceId: 'instance' };
-		assert.equal(formatRenderFailureOrigin({ source, nodeId: 'node' }, [visualModule], scenes),
+		assert.equal(formatRenderFailureOrigin({ source, nodeId: 'node' }, [customNodeGraphEffect], scenes),
 			'Scene "Main" (root) / Layer "Child scene" (sceneLayer) / Clip at 2s (second) / Layer "Effects" (childLayer) / Clip at 0.5s (childClip) / Node "Noise" (node)');
-		assert.equal(formatRenderFailureOrigin({ source, nodeId: 'node' }, [visualModule], scenes).includes('Clip at 0s (first)'), false);
+		assert.equal(formatRenderFailureOrigin({ source, nodeId: 'node' }, [customNodeGraphEffect], scenes).includes('Clip at 0s (first)'), false);
 	});
 }
 

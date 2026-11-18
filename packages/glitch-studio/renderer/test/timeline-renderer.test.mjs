@@ -4,7 +4,7 @@ import { TimelineRenderer } from '@gs/subsystems_timeline_renderer/timeline-rend
 import { getTimelineSoloState } from '@gs/subsystems_timeline_shared/solo.ts';
 import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
-const { createVisualModuleTimelineLayer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_renderer/layers/visual-module/visual-module-timeline-layer.ts')));
+const { createCustomNodeGraphEffectTimelineLayer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_renderer/layers/custom-node-graph-effect/custom-node-graph-effect-timeline-layer.ts')));
 
 const entry = (id, positionMs = 0, endTimeMs = 1000, type = 'test') => ({
 	id, isDisabled: false, clips: [{ id: 'clip', startMs: positionMs, contentOffsetMs: 0, durationMs: endTimeMs - positionMs }], layer: { type },
@@ -157,11 +157,11 @@ test('separates content time from visible time without preroll', async () => {
 	assert.deepEqual(f.destroyed, ['trimmed']);
 });
 
-// 【Visual Moduleの左トリムでは終了基準を保ち、右端の伸縮でだけ変更する】
+// 【Custom Node Graph Effectの左トリムでは終了基準を保ち、右端の伸縮でだけ変更する】
 // 内容時刻とEND_TIMEは同じ座標系に置く。PROGRESSは別途、トリム後の表示区間から求める。
-test('changes the visual module end time only when its right edge changes', async () => {
+test('changes the Custom Node Graph Effect end time only when its right edge changes', async () => {
 	const f = fixture();
-	const original = entry('module', 100, 1100);
+	const original = entry('customNodeGraphEffect', 100, 1100);
 	await f.renderer.renderAt(500, [original]);
 	await f.renderer.renderAt(500, [{ ...original, clips: [{ id: 'clip', startMs: 300, contentOffsetMs: 200, durationMs: 800 }] }]);
 	await f.renderer.renderAt(500, [{ ...original, clips: [{ id: 'clip', startMs: 300, contentOffsetMs: 200, durationMs: 1000 }] }]);
@@ -259,17 +259,17 @@ test('uses half-open intervals and clears the display when no layers are active'
 });
 
 for (const outsideTime of [99, 200]) {
-	// 表示期間外へ移動するとVisual Module用アダプターが内部rendererを一度だけ破棄する
-	test(`destroys the wrapped visual module renderer when seeking outside its interval to ${outsideTime}ms`, async t => {
+	// 表示期間外へ移動するとCustom Node Graph Effect用アダプターが内部rendererを一度だけ破棄する
+	test(`destroys the wrapped Custom Node Graph Effect renderer when seeking outside its interval to ${outsideTime}ms`, async t => {
 		const instances = [];
 		const timeline = [{
 			...entry('effect', 100, 200),
-			layer: { type: 'visualModule', visualModuleId: 'module', visualModuleParamValues: {} },
+			layer: { type: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect', customNodeGraphEffectParamValues: {} },
 		}];
 		const renderer = new TimelineRenderer({
 			fallbackOutput: 'transparent',
 			createLayer(entry) {
-				// GPUを使わず、VisualModuleRendererとの境界で破棄回数を記録する。
+				// GPUを使わず、CustomNodeGraphEffectRendererとの境界で破棄回数を記録する。
 				const instance = {
 					destroyCount: 0,
 					async prepare() {},
@@ -277,7 +277,7 @@ for (const outsideTime of [99, 200]) {
 					destroy() { this.destroyCount++; },
 				};
 				instances.push(instance);
-				return createVisualModuleTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null }, entry.layer, instance);
+				return createCustomNodeGraphEffectTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null }, entry.layer, instance);
 			},
 			present() {},
 		});
@@ -418,9 +418,9 @@ test('ignores stale failures without clearing the current layers', async () => {
 	f.renderer.clear();
 });
 
-// 【動画相当のレイヤーとVisual Moduleを混在させ、生成側だけで種類を解釈する】
-// 共通の評価契約にモジュール固有のパラメータや準備手順を要求せず、下層の出力を引き渡す。
-test('chains different layer types without requiring visual module fields', async () => {
+// 【動画相当のレイヤーとCustom Node Graph Effectを混在させ、生成側だけで種類を解釈する】
+// 共通の評価契約にCustom Node Graph Effect固有のパラメータや準備手順を要求せず、下層の出力を引き渡す。
+test('chains different layer types without requiring Custom Node Graph Effect fields', async () => {
 	const inputFrame = { name: 'video frame' };
 	const finalFrame = { name: 'processed frame' };
 	const fallback = { name: 'transparent' };
@@ -430,7 +430,7 @@ test('chains different layer types without requiring visual module fields', asyn
 	const destroyed = [];
 	const params = { gain: { inputSource: 'literal', value: 2 } };
 	const timeline = [
-		{ ...entry('effect', 200, 600), layer: { type: 'visualModule', visualModuleId: 'module', visualModuleParamValues: params, automationGraphs: [] } },
+		{ ...entry('effect', 200, 600), layer: { type: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect', customNodeGraphEffectParamValues: params, automationGraphs: [] } },
 		{ ...entry('video', 100, 900), layer: { type: 'video', assetId: 'asset' } },
 	];
 	const renderer = new TimelineRenderer({
@@ -451,8 +451,8 @@ test('chains different layer types without requiring visual module fields', asyn
 						},
 						destroy() { destroyed.push('video'); },
 					};
-				case 'visualModule':
-					return createVisualModuleTimelineLayer({ customParameterDefs: [], customParameterValues: {}, primaryInputId: 'main', paramDefs: [
+				case 'customNodeGraphEffect':
+					return createCustomNodeGraphEffectTimelineLayer({ customParameterDefs: [], customParameterValues: {}, primaryInputId: 'main', paramDefs: [
 						{ id: 'main' },
 						{ id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, defaultValue: { inputSource: 'literal', value: 0 } },
 					] }, entry.layer, {
@@ -476,15 +476,15 @@ test('chains different layer types without requiring visual module fields', asyn
 	assert.deepEqual(destroyed, ['video', 'effect']);
 });
 
-// 【並行した評価でもVisual Moduleへの変換結果をシークごとに保持する】
+// 【並行した評価でもCustom Node Graph Effectへの変換結果をシークごとに保持する】
 // 非同期の準備が逆順に完了しても、後から開始した評価の入力や時刻で古い評価を上書きしない。
-test('keeps visual module contexts separate across overlapping preparation', async () => {
+test('keeps Custom Node Graph Effect contexts separate across overlapping preparation', async () => {
 	const prepared = [];
 	const rendered = [];
 	const layerContexts = [];
 	const pending = deferred();
 	const signals = [];
-	const layer = createVisualModuleTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [{ id: 'input' }], primaryInputId: 'input' }, { visualModuleParamValues: {}, automationGraphs: [] }, {
+	const layer = createCustomNodeGraphEffectTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [{ id: 'input' }], primaryInputId: 'input' }, { customNodeGraphEffectParamValues: {}, automationGraphs: [] }, {
 		async prepare(context, signal) {
 			prepared.push(context);
 			signals.push(signal);
@@ -509,20 +509,20 @@ test('keeps visual module contexts separate across overlapping preparation', asy
 	assert.ok(signals.every(signal => signal === controller.signal));
 });
 
-// 【主入力を持たない素材モジュールでも合成には元の背景を渡す】
-// モジュール内部の入力とタイムライン合成の背景は別の責務なので、主入力の有無で背景を失わない。
-test('provides the background for compositing modules without a primary input', async () => {
+// 【主入力を持たない素材Custom Node Graph Effectでも合成には元の背景を渡す】
+// Custom Node Graph Effect内部の入力とタイムライン合成の背景は別の責務なので、主入力の有無で背景を失わない。
+test('provides the background for compositing Custom Node Graph Effects without a primary input', async () => {
 	const background = { kind: 'uniform', value: [0, 0, 1, 1] };
 	const context = { sceneTimeMs: 800, contentTimeMs: 500, clipElapsedTimeMs: 500, clipDurationMs: 2000, contentEndTimeMs: 2000, timeDelta: 16, isExport: true, getInput: async () => background };
 	const graphs = [{ id: 'layer-graph', nameForReference: 'layer', isNormalized: true, points: [] }];
-	const layer = createVisualModuleTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null }, { visualModuleParamValues: {}, automationGraphs: graphs }, {
+	const layer = createCustomNodeGraphEffectTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null }, { customNodeGraphEffectParamValues: {}, automationGraphs: graphs }, {
 		async prepare() {},
-		async render(moduleContext, layerContext) {
-			assert.deepEqual([...moduleContext.evaluatedParamValues], []);
-			assert.equal(moduleContext.paramInputs.size, 0);
+		async render(customNodeGraphEffectContext, layerContext) {
+			assert.deepEqual([...customNodeGraphEffectContext.evaluatedParamValues], []);
+			assert.equal(customNodeGraphEffectContext.paramInputs.size, 0);
 			assert.strictEqual(await layerContext.getInput(), background);
-			assert.equal(moduleContext.time, 500);
-			assert.equal(moduleContext.isExport, true);
+			assert.equal(customNodeGraphEffectContext.time, 500);
+			assert.equal(customNodeGraphEffectContext.isExport, true);
 			return { output: background, gpuTime: 0 };
 		},
 		destroy() {},
@@ -530,14 +530,14 @@ test('provides the background for compositing modules without a primary input', 
 	await layer.evaluate(context, new AbortController().signal);
 });
 
-// 【Visual Moduleの準備中に中断された評価は描画を開始しない】
+// 【Custom Node Graph Effectの準備中に中断された評価は描画を開始しない】
 // レイヤー共通のprepare/render分離がなくても、中断後に履歴やGPU出力を更新してはいけない。
 // 準備前に中断済みの場合は準備自体を始めず、まだ有効な次の評価は通常どおり描画する。
-test('skips visual module drawing when evaluation is aborted before or during preparation', async () => {
+test('skips Custom Node Graph Effect drawing when evaluation is aborted before or during preparation', async () => {
 	const pending = deferred();
 	const prepared = [];
 	const rendered = [];
-	const layer = createVisualModuleTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null }, { visualModuleParamValues: {}, automationGraphs: [] }, {
+	const layer = createCustomNodeGraphEffectTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null }, { customNodeGraphEffectParamValues: {}, automationGraphs: [] }, {
 		async prepare(context) { prepared.push(context.time); await pending.promise; },
 		async render(context) { rendered.push(context.time); return { output: 'frame', gpuTime: 3 }; },
 		destroy() {},
@@ -614,11 +614,11 @@ test('separates clip instances and distinguishes transparent output from a gap',
 // 【進行率は内容時刻と独立して表示区間から求め、引数はScene時刻で評価する】
 // 左トリム後も同じ内容時刻・終端を使いながら、表示区間内でのPROGRESSは変化する。
 // TIME / END_TIMEで進行率を再計算する実装へ戻さないための契約。
-test('passes clip progress separately from module content time and scene arguments', async () => {
+test('passes clip progress separately from Custom Node Graph Effect content time and scene arguments', async () => {
 	const contexts = [];
-	const adapter = createVisualModuleTimelineLayer({ customParameterDefs: [], customParameterValues: {}, primaryInputId: null, paramDefs: [
+	const adapter = createCustomNodeGraphEffectTimelineLayer({ customParameterDefs: [], customParameterValues: {}, primaryInputId: null, paramDefs: [
 		{ id: 'time', nameForReference: 'time', dataType: { kind: 'scalar' }, defaultValue: { inputSource: 'literal', value: 0 }, canNode: false },
-	] }, { visualModuleParamValues: { time: { inputSource: 'expression', expression: 'TIME_MS' } }, automationGraphs: [] }, {
+	] }, { customNodeGraphEffectParamValues: { time: { inputSource: 'expression', expression: 'TIME_MS' } }, automationGraphs: [] }, {
 		async prepare(context) { contexts.push(context); }, async render() { return { gpuTime: 0 }; }, destroy() {},
 	});
 	const context = { sceneTimeMs: 700, contentTimeMs: 600, contentEndTimeMs: 1000, clipElapsedTimeMs: 600, clipDurationMs: 1000, timeDelta: 0, isExport: false };

@@ -2,16 +2,16 @@ import { computed, readonly, ref, shallowRef, watch } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { getTimelinePreviewFrameIndex, getTimelinePreviewFrameTime } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 import type { TimelinePreviewSeekMode } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
-import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
-import type { VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
-import type { VisualModuleRendererManagerController } from './VisualModuleRendererManagerController.ts';
+import type { ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
+import type { CustomNodeGraphEffectArgumentBindings } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffectRendererManagerController } from './CustomNodeGraphEffectRendererManagerController.ts';
 import type { TimelineRendererManagerController } from './TimelineRendererManagerController.ts';
 
 export type PreviewPlaybackState =
-	| { mode: 'visualModuleLivePreview'; visualModuleId: ProjectVisualModule['id'] }
+	| { mode: 'customNodeGraphEffectLivePreview'; customNodeGraphEffectId: ProjectCustomNodeGraphEffect['id'] }
 	| { mode: 'timeline'; playing: boolean };
 
-type VisualModuleLivePreviewRenderer = Pick<VisualModuleRendererManagerController, 'startVisualModuleLivePreviewRenderLoopFor' | 'updateVisualModuleLivePreviewParamValues' | 'stopRenderLoop' | 'resetRenderHistory'>;
+type CustomNodeGraphEffectLivePreviewRenderer = Pick<CustomNodeGraphEffectRendererManagerController, 'startCustomNodeGraphEffectLivePreviewRenderLoopFor' | 'updateCustomNodeGraphEffectLivePreviewParamValues' | 'stopRenderLoop' | 'resetRenderHistory'>;
 type TimelineAudio = {
 	start(time: number, duration: number): void;
 	stop(): void;
@@ -20,7 +20,7 @@ type TimelineAudio = {
 };
 type TimelineRenderer = Pick<TimelineRendererManagerController, 'renderTimelineAt' | 'renderTimelineAtAndWait' | 'cancelSeek' | 'isReady' | 'errorMessage' | 'isFrameCacheEnabled' | 'frameCacheUsageRatio' | 'resetRenderHistory'>;
 
-/** プレビューの切り替えと時刻更新を所有し、Visual Module Live Previewとタイムラインの同時再生を防ぐ。 */
+/** プレビューの切り替えと時刻更新を所有し、Custom Node Graph Effect Live Previewとタイムラインの同時再生を防ぐ。 */
 export class PreviewPlaybackController {
 	private disposed = false;
 	private readonly playbackState = shallowRef<PreviewPlaybackState>({ mode: 'timeline', playing: false });
@@ -31,43 +31,43 @@ export class PreviewPlaybackController {
 	private lastTimelinePreviewRequest: { time: number; seekMode: TimelinePreviewSeekMode } | null = null;
 	private readonly suspended = ref(false);
 	private readonly timelineBake = shallowRef<{ stopRequested: boolean } | null>(null);
-	private visualModuleLivePreviewParams: VisualModuleArgumentBindings = {};
+	private customNodeGraphEffectLivePreviewParams: CustomNodeGraphEffectArgumentBindings = {};
 
 	public readonly state = readonly(this.playbackState);
 	public readonly currentTimelineTime = readonly(this.timelineTime);
 	public readonly isTimelinePlaying = computed(() => !this.suspended.value && this.playbackState.value.mode === 'timeline' && this.playbackState.value.playing);
 	public readonly isTimelineBaking = computed(() => this.timelineBake.value != null);
-	public readonly visualModuleLivePreviewVisualModuleId = computed(() => this.playbackState.value.mode === 'visualModuleLivePreview' ? this.playbackState.value.visualModuleId : null);
+	public readonly livePreviewCustomNodeGraphEffectId = computed(() => this.playbackState.value.mode === 'customNodeGraphEffectLivePreview' ? this.playbackState.value.customNodeGraphEffectId : null);
 
 	constructor(
-		private readonly visualModuleLivePreviewRenderer: VisualModuleLivePreviewRenderer,
+		private readonly customNodeGraphEffectLivePreviewRenderer: CustomNodeGraphEffectLivePreviewRenderer,
 		private readonly timelineRenderer: TimelineRenderer,
 		private readonly getTimelinePreviewFps: () => number | null,
 		private readonly getDuration: () => number = () => Infinity,
 		private readonly audio?: TimelineAudio,
-		private readonly onVisualModuleLivePreviewInputsChanged?: (visualModuleId: string, params: VisualModuleArgumentBindings) => void,
+		private readonly onCustomNodeGraphEffectLivePreviewInputsChanged?: (customNodeGraphEffectId: string, params: CustomNodeGraphEffectArgumentBindings) => void,
 	) {}
 
-	public startVisualModuleLivePreview(visualModuleId: ProjectVisualModule['id'], params: VisualModuleArgumentBindings = {}) {
+	public startCustomNodeGraphEffectLivePreview(customNodeGraphEffectId: ProjectCustomNodeGraphEffect['id'], params: CustomNodeGraphEffectArgumentBindings = {}) {
 		if (this.disposed) return;
 		this.pendingTimelineSeek = false;
 		this.timelineRenderer.cancelSeek();
 		this.pauseTimeline();
-		this.visualModuleLivePreviewParams = deepClone(params);
-		this.onVisualModuleLivePreviewInputsChanged?.(visualModuleId, params);
-		if (!this.suspended.value) this.visualModuleLivePreviewRenderer.startVisualModuleLivePreviewRenderLoopFor(visualModuleId, params);
-		this.playbackState.value = { mode: 'visualModuleLivePreview', visualModuleId };
+		this.customNodeGraphEffectLivePreviewParams = deepClone(params);
+		this.onCustomNodeGraphEffectLivePreviewInputsChanged?.(customNodeGraphEffectId, params);
+		if (!this.suspended.value) this.customNodeGraphEffectLivePreviewRenderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor(customNodeGraphEffectId, params);
+		this.playbackState.value = { mode: 'customNodeGraphEffectLivePreview', customNodeGraphEffectId };
 	}
 
-	public updateVisualModuleLivePreviewParamValues(visualModuleId: ProjectVisualModule['id'], params: VisualModuleArgumentBindings) {
+	public updateCustomNodeGraphEffectLivePreviewParamValues(customNodeGraphEffectId: ProjectCustomNodeGraphEffect['id'], params: CustomNodeGraphEffectArgumentBindings) {
 		if (this.disposed) return;
-		if (this.visualModuleLivePreviewVisualModuleId.value !== visualModuleId) {
-			this.startVisualModuleLivePreview(visualModuleId, params);
+		if (this.livePreviewCustomNodeGraphEffectId.value !== customNodeGraphEffectId) {
+			this.startCustomNodeGraphEffectLivePreview(customNodeGraphEffectId, params);
 			return;
 		}
-		this.visualModuleLivePreviewParams = deepClone(params);
-		this.onVisualModuleLivePreviewInputsChanged?.(visualModuleId, params);
-		if (!this.suspended.value) this.visualModuleLivePreviewRenderer.updateVisualModuleLivePreviewParamValues(visualModuleId, params);
+		this.customNodeGraphEffectLivePreviewParams = deepClone(params);
+		this.onCustomNodeGraphEffectLivePreviewInputsChanged?.(customNodeGraphEffectId, params);
+		if (!this.suspended.value) this.customNodeGraphEffectLivePreviewRenderer.updateCustomNodeGraphEffectLivePreviewParamValues(customNodeGraphEffectId, params);
 	}
 
 	public playTimeline() {
@@ -76,7 +76,7 @@ export class PreviewPlaybackController {
 		if (this.isTimelinePlaying.value) return;
 		this.pendingTimelineSeek = false;
 		this.timelineRenderer.cancelSeek();
-		this.leaveVisualModuleLivePreview();
+		this.leaveCustomNodeGraphEffectLivePreview();
 		// 同じエラー文は再通知されない。既に失敗している場合は描画の再試行だけを行い、
 		// 成功でエラーが解除されるまで音声時計を開始しない。
 		if (this.timelineRenderer.errorMessage.value) { this.refresh(); return; }
@@ -138,14 +138,14 @@ export class PreviewPlaybackController {
 
 	public showTimeline() {
 		if (this.disposed) return;
-		this.leaveVisualModuleLivePreview();
+		this.leaveCustomNodeGraphEffectLivePreview();
 		this.refresh();
 	}
 
 	public seekTimeline(time: number, isManualSeek = true, seekMode: TimelinePreviewSeekMode = 'frame') {
 		if (this.disposed) return;
 		this.cancelTimelineBake();
-		this.leaveVisualModuleLivePreview();
+		this.leaveCustomNodeGraphEffectLivePreview();
 		this.timelineSeekMode = seekMode;
 		this.timelineTime.value = seekMode === 'precise' ? Math.max(0, time) : this.snapTimelineTime(time);
 		this.pendingTimelineSeek = isManualSeek && !this.isTimelinePlaying.value;
@@ -190,7 +190,7 @@ export class PreviewPlaybackController {
 			|| this.timelineRenderer.errorMessage.value != null || fps == null || !Number.isFinite(fps) || fps <= 0
 			|| !Number.isFinite(duration) || duration <= 0) return;
 		this.stopTimelinePlayback();
-		this.leaveVisualModuleLivePreview();
+		this.leaveCustomNodeGraphEffectLivePreview();
 		this.pendingTimelineSeek = false;
 		this.timelineRenderer.cancelSeek();
 		if (this.timelineTime.value >= duration) return;
@@ -248,11 +248,11 @@ export class PreviewPlaybackController {
 		if (this.disposed) return;
 		this.cancelTimelineBake();
 		this.timelineRenderer.resetRenderHistory();
-		this.visualModuleLivePreviewRenderer.resetRenderHistory();
+		this.customNodeGraphEffectLivePreviewRenderer.resetRenderHistory();
 		this.refresh();
 	}
 
-	/** 編集による再描画では表示モードを切り替えない。Visual Module Live PreviewはWorkerのループが描画する。 */
+	/** 編集による再描画では表示モードを切り替えない。Custom Node Graph Effect Live PreviewはWorkerのループが描画する。 */
 	public refresh() {
 		if (this.disposed) return;
 		this.cancelTimelineBake();
@@ -304,7 +304,7 @@ export class PreviewPlaybackController {
 		this.audio?.stop();
 		if (this.timelineRafId != null) window.cancelAnimationFrame(this.timelineRafId);
 		this.timelineRafId = null;
-		if (this.playbackState.value.mode === 'visualModuleLivePreview') this.visualModuleLivePreviewRenderer.stopRenderLoop();
+		if (this.playbackState.value.mode === 'customNodeGraphEffectLivePreview') this.customNodeGraphEffectLivePreviewRenderer.stopRenderLoop();
 		this.suspended.value = true;
 	}
 
@@ -313,8 +313,8 @@ export class PreviewPlaybackController {
 		if (!this.suspended.value) return;
 		this.suspended.value = false;
 		const state = this.playbackState.value;
-		if (state.mode === 'visualModuleLivePreview') {
-			this.visualModuleLivePreviewRenderer.startVisualModuleLivePreviewRenderLoopFor(state.visualModuleId, this.visualModuleLivePreviewParams);
+		if (state.mode === 'customNodeGraphEffectLivePreview') {
+			this.customNodeGraphEffectLivePreviewRenderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor(state.customNodeGraphEffectId, this.customNodeGraphEffectLivePreviewParams);
 		} else if (state.playing) {
 			this.playbackState.value = { mode: 'timeline', playing: false };
 			this.playTimeline();
@@ -330,13 +330,13 @@ export class PreviewPlaybackController {
 		this.timelineRenderer.cancelSeek();
 		// 終了時には再描画せず、遅れて届く操作でも再開できない状態にする。
 		this.stopTimelinePlayback();
-		this.leaveVisualModuleLivePreview();
+		this.leaveCustomNodeGraphEffectLivePreview();
 		this.suspended.value = true;
 	}
 
-	private leaveVisualModuleLivePreview() {
-		if (this.playbackState.value.mode !== 'visualModuleLivePreview') return;
-		if (!this.suspended.value) this.visualModuleLivePreviewRenderer.stopRenderLoop();
+	private leaveCustomNodeGraphEffectLivePreview() {
+		if (this.playbackState.value.mode !== 'customNodeGraphEffectLivePreview') return;
+		if (!this.suspended.value) this.customNodeGraphEffectLivePreviewRenderer.stopRenderLoop();
 		this.playbackState.value = { mode: 'timeline', playing: false };
 	}
 }

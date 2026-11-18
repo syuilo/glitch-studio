@@ -1,5 +1,5 @@
 /** rAFの時刻で描画の可否を決める。作品の時計とWorkerの処理中状態は呼び出し側が所有する。 */
-export class PortableVisualModuleFrameRateLimiter {
+export class PortableCustomNodeGraphEffectFrameRateLimiter {
 	private nextFrameTimestamp: number | null = null;
 	private previousFpsLimit: number | null = null;
 

@@ -150,7 +150,7 @@ export async function verifyReleaseArtifacts(directory, version, platform = 'all
 }
 
 /** 対象CPUのバンドラーとESM資材が欠けた配布物を、公開前に拒否する。 */
-export async function verifyPackagedPortableVisualModule(resourcesDirectory, platform, architecture) {
+export async function verifyPackagedPortableCustomNodeGraphEffect(resourcesDirectory, platform, architecture) {
 	const archive = path.join(resourcesDirectory, 'app.asar');
 	const nativePackage = `node_modules/@esbuild/${platform}-${architecture}`;
 	const binary = `${nativePackage}/${platform === 'win32' ? 'esbuild.exe' : 'bin/esbuild'}`;
@@ -159,7 +159,7 @@ export async function verifyPackagedPortableVisualModule(resourcesDirectory, pla
 	if (!executable.isFile() || executable.size === 0) throw new Error('Missing runtime bundler executable');
 	const version = JSON.parse(asar.extractFile(archive, path.normalize('node_modules/esbuild/package.json')).toString()).version;
 	if (JSON.parse(asar.extractFile(archive, path.normalize(`${nativePackage}/package.json`)).toString()).version !== version) throw new Error('Runtime bundler versions differ');
-	const catalog = path.join(resourcesDirectory, 'portable-visual-module-catalog');
+	const catalog = path.join(resourcesDirectory, 'portable-custom-node-graph-effect-catalog');
 	const manifest = JSON.parse(await fs.readFile(path.join(catalog, 'manifest.json'), 'utf8'));
 	const entries = ['element.js', 'worker.js', 'expression.js', 'custom-shader-effects.js',
 		...manifest.effectIds.flatMap(id => [`effects/${id}/definition.js`, `effects/${id}/implementation.js`])];

@@ -6,18 +6,18 @@
 		</div>
 	</div>
 
-	<GsNodeOutputs :node="node" :paramDefs="visualModule.paramDefs"/>
+	<GsNodeOutputs :node="node" :paramDefs="customNodeGraphEffect.paramDefs"/>
 </div>
 </template>
 
 <script lang="ts" setup>
 import { ref } from 'vue';
 import GsNodeOutputs from './GsNodeOutputs.vue';
-import type { VisualModule, VisualModuleGlobalInNode } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectGlobalInNode } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 
 const props = defineProps<{
-	visualModule: VisualModule,
-	node: VisualModuleGlobalInNode,
+	customNodeGraphEffect: CustomNodeGraphEffect,
+	node: CustomNodeGraphEffectGlobalInNode,
 }>();
 </script>
 

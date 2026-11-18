@@ -17,7 +17,7 @@ import type { ParameterBindingBase } from '@gs/shared/parameter/parameter-bindin
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
-import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import { hasTimelineLayerParameters, isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { textParamDefs } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
 import type { TimelineLayer, TimelineLayerWithParameters } from '@gs/subsystems_timeline_shared/types.ts';
@@ -84,8 +84,8 @@ function migratePublicParameterReferences(value: unknown): void {
 		return;
 	}
 	const record = value as Record<string, unknown>;
-	if (record.inputSource === 'visualModuleCustomParameterReference' || record.inputSource === 'externalCustomParameterInput') {
-		record.inputSource = 'visualModulePublicParameterReference';
+	if (record.inputSource === 'customNodeGraphEffectCustomParameterReference' || record.inputSource === 'externalCustomParameterInput') {
+		record.inputSource = 'customNodeGraphEffectPublicParameterReference';
 	} else if (record.inputSource === 'timelineLayerCustomParameterReference') {
 		record.inputSource = 'timelineLayerPublicParameterReference';
 	}
@@ -113,20 +113,20 @@ function migrateTimelineLayerPublicParameters(layer: TimelineLayerWithParameters
 	migratePublicParameterReferences(layer.publicParameterValues);
 }
 
-function migrateVisualModule(visualModule: VisualModule): Set<string> {
+function migrateCustomNodeGraphEffect(customNodeGraphEffect: CustomNodeGraphEffect): Set<string> {
 	// カスタムパラメータの追加前や省略可能だった形式では、空の定義・値を保存していない。
 	// 読み込み境界でだけ補い、以降のUI・レンダラーは必須フィールドとして扱う。
 	// 片方だけ欠けていても、保存済みのもう片方や明示的な空の設定は維持する。
-	visualModule.customParameterDefs ??= [];
-	visualModule.customParameterValues ??= {};
-	migratePublicParameterReferences(visualModule.paramDefs);
+	customNodeGraphEffect.customParameterDefs ??= [];
+	customNodeGraphEffect.customParameterValues ??= {};
+	migratePublicParameterReferences(customNodeGraphEffect.paramDefs);
 	// 素材参照型そのものが通常パラメータから廃止されたため、公開定義も取り除く。
 	// 呼び出し側へIDを返し、Timelineに保存された対応する引数だけを除去する。
-	const removedParameterIds = new Set(visualModule.paramDefs
+	const removedParameterIds = new Set(customNodeGraphEffect.paramDefs
 		.filter(definition => removedReferenceParameterTypes.has(definition.dataType.kind))
 		.map(definition => definition.id));
-	visualModule.paramDefs = visualModule.paramDefs.filter(definition => !removedParameterIds.has(definition.id));
-	for (const node of visualModule.nodes) {
+	customNodeGraphEffect.paramDefs = customNodeGraphEffect.paramDefs.filter(definition => !removedParameterIds.has(definition.id));
+	for (const node of customNodeGraphEffect.nodes) {
 		if (node.type !== 'effect') continue;
 		migratePublicParameterReferences(node.params);
 		node.staticSettings ??= {};
@@ -135,12 +135,12 @@ function migrateVisualModule(visualModule: VisualModule): Set<string> {
 	return removedParameterIds;
 }
 
-function migrateTimelineLayer(layer: TimelineLayer, removedVisualModuleParameterIds: ReadonlyMap<string, ReadonlySet<string>>): void {
+function migrateTimelineLayer(layer: TimelineLayer, removedCustomNodeGraphEffectParameterIds: ReadonlyMap<string, ReadonlySet<string>>): void {
 	if (hasTimelineLayerParameters(layer)) migrateTimelineLayerPublicParameters(layer);
 	// 静的設定や任意のパラメータ名を誤って書き換えないよう、Bindingを持つ領域だけを辿る。
 	if ('compositingParamValues' in layer) migratePublicParameterReferences(layer.compositingParamValues);
 	if ('audioParamValues' in layer) migratePublicParameterReferences(layer.audioParamValues);
-	if ('visualModuleParamValues' in layer) migratePublicParameterReferences(layer.visualModuleParamValues);
+	if ('customNodeGraphEffectParamValues' in layer) migratePublicParameterReferences(layer.customNodeGraphEffectParamValues);
 	if ('cameraParamValues' in layer) migratePublicParameterReferences(layer.cameraParamValues);
 	if ('transformParamValues' in layer) migratePublicParameterReferences(layer.transformParamValues);
 	if ('shape' in layer) migratePublicParameterReferences(layer.shape);
@@ -149,10 +149,10 @@ function migrateTimelineLayer(layer: TimelineLayer, removedVisualModuleParameter
 		migratePublicParameterReferences(layer.effectParamValues);
 		layer.effectStaticSettings ??= {};
 		layer.effectId = migrateEffectParameters(layer.effectId, layer.effectParamValues, layer.resolution, layer.effectStaticSettings);
-	} else if (layer.layerType === 'inlineVisualModule') {
-		removedParameterIds = migrateVisualModule(layer.visualModule);
-	} else if (layer.layerType === 'visualModule') {
-		removedParameterIds = removedVisualModuleParameterIds.get(layer.visualModuleId) ?? null;
+	} else if (layer.layerType === 'inlineCustomNodeGraphEffect') {
+		removedParameterIds = migrateCustomNodeGraphEffect(layer.customNodeGraphEffect);
+	} else if (layer.layerType === 'customNodeGraphEffect') {
+		removedParameterIds = removedCustomNodeGraphEffectParameterIds.get(layer.customNodeGraphEffectId) ?? null;
 	} else if (layer.layerType === 'text') {
 		migratePublicParameterReferences(layer.textParamValues);
 		layer.textStaticSettings = { font: migrateStaticReference(layer.textParamValues, 'font', layer.textStaticSettings ?? {}) };
@@ -163,18 +163,18 @@ function migrateTimelineLayer(layer: TimelineLayer, removedVisualModuleParameter
 		migratePublicParameterReferences(layer.subtitleParamValues);
 		layer.subtitleStaticSettings = { font: migrateStaticReference(layer.subtitleParamValues, 'font', layer.subtitleStaticSettings ?? {}) };
 	}
-	if (removedParameterIds != null && 'visualModuleParamValues' in layer) {
-		for (const parameterId of removedParameterIds) delete layer.visualModuleParamValues[parameterId];
+	if (removedParameterIds != null && 'customNodeGraphEffectParamValues' in layer) {
+		for (const parameterId of removedParameterIds) delete layer.customNodeGraphEffectParamValues[parameterId];
 	}
 	if (isTimelineContainerLayer(layer)) {
-		for (const child of layer.layers) migrateTimelineLayer(child, removedVisualModuleParameterIds);
+		for (const child of layer.layers) migrateTimelineLayer(child, removedCustomNodeGraphEffectParameterIds);
 	}
 }
 
 /** MessagePackの復号直後、検証やレンダラーへの受け渡しより前に呼ぶ。素材のバイト列は触らない。 */
-export function migrateProjectFile(project: Pick<Project, 'visualModules' | 'timelineScenes'>): void {
-	const removedVisualModuleParameterIds = new Map(project.visualModules.map(visualModule => [visualModule.id, migrateVisualModule(visualModule)]));
+export function migrateProjectFile(project: Pick<Project, 'customNodeGraphEffects' | 'timelineScenes'>): void {
+	const removedCustomNodeGraphEffectParameterIds = new Map(project.customNodeGraphEffects.map(customNodeGraphEffect => [customNodeGraphEffect.id, migrateCustomNodeGraphEffect(customNodeGraphEffect)]));
 	for (const scene of project.timelineScenes) {
-		for (const layer of scene.layers) migrateTimelineLayer(layer, removedVisualModuleParameterIds);
+		for (const layer of scene.layers) migrateTimelineLayer(layer, removedCustomNodeGraphEffectParameterIds);
 	}
 }

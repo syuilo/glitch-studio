@@ -36,7 +36,7 @@ export function createImageTimelineLayer(layer: TimelineImageLayer, sourceTextur
 			});
 			const encoder = options.device.createCommandEncoder();
 			try {
-				// replaceの無変形経路は素材を直接後段へ渡す。原寸のままだと後続モジュールの
+				// replaceの無変形経路は素材を直接後段へ渡す。原寸のままだと後続Custom Node Graph Effectの
 				// 自動解像度だけがプレビュー倍率を無視するため、素材にも倍率を一度だけ適用する。
 				// 静止画像は再描画のたびに縮小せず、Asset変更・倍率変更でレイヤーが破棄されるまで再利用する。
 				if (!scaledTexture && (sourceResolution.width !== sourceTexture.width || sourceResolution.height !== sourceTexture.height)) {

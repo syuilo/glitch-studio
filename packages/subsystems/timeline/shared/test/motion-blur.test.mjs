@@ -153,16 +153,16 @@ test('validates finite fps, angles and bounded integer sample counts', () => {
 	}
 });
 
-// 【配置されたエフェクトとVisual Moduleを検査し、Visual Module Live Preview専用の定義を警告しない】
+// 【配置されたエフェクトとCustom Node Graph Effectを検査し、Custom Node Graph Effect Live Preview専用の定義を警告しない】
 // 履歴依存はノード自身の定義にあるため、直接レイヤーと内部ノードの両方を調べる必要がある。
 test('finds history effects in placed definitions only', () => {
 	const definitions = { feedback: { dependsOnRenderHistory: true }, flow: { dependsOnRenderHistory: true }, unused: { dependsOnRenderHistory: true }, fill: { dependsOnRenderHistory: false } };
-	const visualModules = new Map([['used', { nodes: [{ type: 'effect', effectId: 'flow' }] }], ['visualModuleLivePreview', { nodes: [{ type: 'effect', effectId: 'unused' }] }]]);
+	const customNodeGraphEffects = new Map([['used', { nodes: [{ type: 'effect', effectId: 'flow' }] }], ['customNodeGraphEffectLivePreview', { nodes: [{ type: 'effect', effectId: 'unused' }] }]]);
 	const scenes = [scene('root', [
 		{ layerType: 'effect', effectId: 'feedback', clips: [clip(0, 100)] },
 		{ layerType: 'effect', effectId: 'unused', clips: [] },
-		{ layerType: 'visualModule', visualModuleId: 'used', clips: [clip(0, 100)] },
-		{ layerType: 'inlineVisualModule', visualModule: { nodes: [{ type: 'effect', effectId: 'feedback' }, { type: 'effect', effectId: 'fill' }] }, clips: [clip(0, 100)] },
+		{ layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'used', clips: [clip(0, 100)] },
+		{ layerType: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: { nodes: [{ type: 'effect', effectId: 'feedback' }, { type: 'effect', effectId: 'fill' }] }, clips: [clip(0, 100)] },
 	])];
-	assert.deepEqual(findTimelineHistoryEffects(scenes, id => visualModules.get(id), definitions), ['feedback', 'flow']);
+	assert.deepEqual(findTimelineHistoryEffects(scenes, id => customNodeGraphEffects.get(id), definitions), ['feedback', 'flow']);
 });

@@ -46,7 +46,7 @@ function fixture(t, layers = [mediaLayer()]) {
 	t.mock.method(console, 'log', () => {});
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers };
 	const asset = { id: 'asset', name: 'Media', fileDataType: 'audio/wav', fileData: new Blob() };
-	const state = { resolution: { value: { width: 1920, height: 1080 } }, timelineScenes: { value: [scene] }, assets: { value: [asset] }, visualModules: { value: [] } };
+	const state = { resolution: { value: { width: 1920, height: 1080 } }, timelineScenes: { value: [scene] }, assets: { value: [asset] }, customNodeGraphEffects: { value: [] } };
 	const history = new UndoRedo(state, { ...COMMAND_DEFS, ...createTimelineCommandDefinitions({ inspectMedia: asset => options.inspectMedia(asset) }) });
 	const time = { value: 1000 };
 	const selection = { value: { kind: 'layers', ids: [] } };
@@ -297,22 +297,22 @@ test('changes only the original clip source and restores its timing on undo', as
 	}
 });
 
-// 【Visual Moduleの参照レイヤーを追加し、選択待ち中にSceneを削除・復元した場合は中止する】
-// 切り出し後も対象SceneのIDとVisual ModuleのIDを取り違えず、選択結果から参照レイヤーを作る。
-test('adds referenced visual module layers and rejects results after scene replacement', async t => {
+// 【Custom Node Graph Effectの参照レイヤーを追加し、選択待ち中にSceneを削除・復元した場合は中止する】
+// 切り出し後も対象SceneのIDとCustom Node Graph EffectのIDを取り違えず、選択結果から参照レイヤーを作る。
+test('adds referenced Custom Node Graph Effect layers and rejects results after scene replacement', async t => {
 	for (const restoredScene of [false, true]) {
 		const f = fixture(t, []);
-		f.state.visualModules.value = [{ id: 'visual-module', name: 'Visual Module', paramDefs: [] }];
+		f.state.customNodeGraphEffects.value = [{ id: 'custom-node-graph-effect', name: 'Custom Node Graph Effect', paramDefs: [] }];
 		const choice = deferred();
 		f.options.ui.select = () => choice.promise;
 		addLayerMenu(f.create());
-		const pending = f.menu.find(item => item.id === 'referenceVisualModule').action();
+		const pending = f.menu.find(item => item.id === 'referenceCustomNodeGraphEffect').action();
 		if (restoredScene) f.state.timelineScenes.value = [structuredClone(f.scene)];
-		choice.resolve({ canceled: false, result: 'visual-module' });
+		choice.resolve({ canceled: false, result: 'custom-node-graph-effect' });
 		await pending;
 		assert.equal(f.history.undoStack.value.length, restoredScene ? 0 : 1);
 		if (!restoredScene) {
-			assert.equal(f.scene.layers[0].visualModuleId, 'visual-module');
+			assert.equal(f.scene.layers[0].customNodeGraphEffectId, 'custom-node-graph-effect');
 			assert.equal(f.scene.layers[0].coordinateSpace, 'screen');
 			assert.deepEqual(f.selection.value.ids, [f.scene.layers[0].id]);
 		}

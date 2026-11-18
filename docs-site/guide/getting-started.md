@@ -26,17 +26,17 @@ Glitch Studioは複数の個別の概念・サブシステムから構成され�
 
 他のテクスチャデータをパラメータとして受け入れて加工した結果を出力するものもあれば、単体で結果を生成するものもあります。
 
-このサブシステム単体で使用することはなく、後述のVisual Moduleやタイムラインで使用します。
+このサブシステム単体で使用することはなく、後述のCustom Node Graph Effectやタイムラインで使用します。
 
-### Visual Module
+### Custom Node Graph Effect
 
 エフェクトをグラフ構造で組み合わせることができるサブシステムです。
 
-「必要に応じて入力を受け取り、出力を生成する」という性質から、Visual Module自体もエフェクトの一種であると捉えることができます。
+「必要に応じて入力を受け取り、出力を生成する」という性質から、Custom Node Graph Effect自体もエフェクトの一種であると捉えることができます。
 
 このサブシステム単体で使用することも、タイムラインで使用することもできます。
 
-[Visual Module](./visual-module.md)
+[Custom Node Graph Effect](./custom-node-graph-effect.md)
 
 ### タイムライン
 
@@ -49,4 +49,4 @@ Glitch Studioは複数の個別の概念・サブシステムから構成され�
 | 目的 | ガイド |
 | --- | --- |
 | 動画編集 | [タイムライン](./timeline.md) |
-| 画像加工 | [Visual Module](./visual-module.md) |
+| 画像加工 | [Custom Node Graph Effect](./custom-node-graph-effect.md) |

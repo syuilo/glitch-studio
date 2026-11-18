@@ -6,7 +6,7 @@
 
 - 1エフェクトを`src/fx/<effectId>/`に置き、`_def_.ts`で`defineEffect(...)`、`_impl_.ts`で`implementEffect<typeof definition>(...)`をdefault exportする。ディレクトリ名と定義の`id`を一致させる。一覧は`import.meta.glob`で自動登録される。
 - `_def_.ts`はUIからも参照するため、GPU処理や実装への依存を持たせない。WGSL・補助処理・内蔵アセット・固有仕様のREADMEは同じエフェクトのディレクトリで所有し、内蔵アセットは静的importする。
-- 他のエフェクトや上位のVisual Module・Timeline・Glitch Studio層へ依存しない。別パッケージは`@gs/`経由で参照し、共通化は責務が一致する範囲に限る。
+- 他のエフェクトや上位のCustom Node Graph Effect・Timeline・Glitch Studio層へ依存しない。別パッケージは`@gs/`経由で参照し、共通化は責務が一致する範囲に限る。
 
 ## 定義とパラメータ
 

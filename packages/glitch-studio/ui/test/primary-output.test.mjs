@@ -33,34 +33,34 @@ new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(create
 const { COMMAND_DEFS } = module.exports;
 
 function fixture() {
-	const visualModule = { id: 'module', outputDefs: [
+	const customNodeGraphEffect = { id: 'customNodeGraphEffect', outputDefs: [
 		{ id: 'a', name: 'a', label: 'A', dataType: { kind: 'color' } },
 		{ id: 'b', name: 'b', label: 'B', dataType: { kind: 'color' } },
 		{ id: 'scalar', name: 'scalar', label: 'Scalar', dataType: { kind: 'scalar' } },
 	], primaryOutputId: 'a' };
-	const state = { visualModules: { value: [visualModule] } };
-	const command = (name, payload) => prepareTestCommand(COMMAND_DEFS[name], { target: { visualModuleId: 'module' }, ...payload });
-	return { visualModule, state, command };
+	const state = { customNodeGraphEffects: { value: [customNodeGraphEffect] } };
+	const command = (name, payload) => prepareTestCommand(COMMAND_DEFS[name], { target: { customNodeGraphEffectId: 'customNodeGraphEffect' }, ...payload });
+	return { customNodeGraphEffect, state, command };
 }
 
 // 主出力の切り替え・解除とUndo/Redoで参照を復元する。
 // 出力定義から独立した参照になっても、履歴操作で表示対象を失わないようにする。
 test('switches and clears the primary output with undo and redo', () => {
-	const { visualModule, state, command } = fixture();
+	const { customNodeGraphEffect, state, command } = fixture();
 	for (const primaryOutputId of ['b', null]) {
-		const before = structuredClone(visualModule);
-		const change = command('setVisualModulePrimaryOutput', { primaryOutputId });
+		const before = structuredClone(customNodeGraphEffect);
+		const change = command('setCustomNodeGraphEffectPrimaryOutput', { primaryOutputId });
 		change.execute(state);
-		assert.equal(visualModule.primaryOutputId, primaryOutputId);
-		assert.deepEqual(visualModule.outputDefs, before.outputDefs);
+		assert.equal(customNodeGraphEffect.primaryOutputId, primaryOutputId);
+		assert.deepEqual(customNodeGraphEffect.outputDefs, before.outputDefs);
 		change.undo(state);
-		assert.deepEqual(visualModule, before);
+		assert.deepEqual(customNodeGraphEffect, before);
 		change.execute(state);
-		assert.equal(visualModule.primaryOutputId, primaryOutputId);
+		assert.equal(customNodeGraphEffect.primaryOutputId, primaryOutputId);
 	}
 	for (const primaryOutputId of ['missing', 'scalar']) {
-		assert.throws(() => command('setVisualModulePrimaryOutput', { primaryOutputId }).execute(state), /color output/);
-		assert.equal(visualModule.primaryOutputId, null);
+		assert.throws(() => command('setCustomNodeGraphEffectPrimaryOutput', { primaryOutputId }).execute(state), /color output/);
+		assert.equal(customNodeGraphEffect.primaryOutputId, null);
 	}
 });
 
@@ -68,18 +68,18 @@ test('switches and clears the primary output with undo and redo', () => {
 // 存在しない出力や非カラー出力を主出力として残さないための検証。
 test('clears invalidated primary references and restores them on undo', () => {
 	for (const [name, payload] of [
-		['removeVisualModuleOutput', { target: { visualModule: { visualModuleId: 'module' }, outputId: 'a' } }],
-		['replaceVisualModuleOutputDefinition', { target: { visualModule: { visualModuleId: 'module' }, outputId: 'a' }, definition: { name: 'a', label: 'A', dataType: { kind: 'scalar' } } }],
+		['removeCustomNodeGraphEffectOutput', { target: { customNodeGraphEffect: { customNodeGraphEffectId: 'customNodeGraphEffect' }, outputId: 'a' } }],
+		['replaceCustomNodeGraphEffectOutputDefinition', { target: { customNodeGraphEffect: { customNodeGraphEffectId: 'customNodeGraphEffect' }, outputId: 'a' }, definition: { name: 'a', label: 'A', dataType: { kind: 'scalar' } } }],
 	]) {
-		const { visualModule, state, command } = fixture();
-		const before = structuredClone(visualModule);
+		const { customNodeGraphEffect, state, command } = fixture();
+		const before = structuredClone(customNodeGraphEffect);
 		const change = command(name, payload);
 		change.execute(state);
-		assert.equal(visualModule.primaryOutputId, null);
+		assert.equal(customNodeGraphEffect.primaryOutputId, null);
 		change.undo(state);
-		assert.deepEqual(visualModule, before);
+		assert.deepEqual(customNodeGraphEffect, before);
 		change.execute(state);
-		assert.equal(visualModule.primaryOutputId, null);
+		assert.equal(customNodeGraphEffect.primaryOutputId, null);
 	}
 });
 
@@ -87,15 +87,15 @@ test('clears invalidated primary references and restores them on undo', () => {
 // 既存の主出力を上書きせず、追加を取り消したときに参照だけが残るのを防ぐ。
 test('assigns newly added color outputs only when no primary exists', () => {
 	for (const primaryOutputId of ['a', null]) {
-		const { visualModule, state, command } = fixture();
-		visualModule.primaryOutputId = primaryOutputId;
-		const before = structuredClone(visualModule);
-		const add = command('createVisualModuleOutput', { visualModule: { visualModuleId: 'module' }, definition: { name: 'new', label: 'New', dataType: { kind: 'color' } } });
+		const { customNodeGraphEffect, state, command } = fixture();
+		customNodeGraphEffect.primaryOutputId = primaryOutputId;
+		const before = structuredClone(customNodeGraphEffect);
+		const add = command('createCustomNodeGraphEffectOutput', { customNodeGraphEffect: { customNodeGraphEffectId: 'customNodeGraphEffect' }, definition: { name: 'new', label: 'New', dataType: { kind: 'color' } } });
 		const added = add.execute(state);
-		assert.equal(visualModule.primaryOutputId, primaryOutputId ?? added.outputId);
+		assert.equal(customNodeGraphEffect.primaryOutputId, primaryOutputId ?? added.outputId);
 		add.undo(state);
-		assert.deepEqual(visualModule, before);
+		assert.deepEqual(customNodeGraphEffect, before);
 		add.execute(state);
-		assert.equal(visualModule.primaryOutputId, primaryOutputId ?? added.outputId);
+		assert.equal(customNodeGraphEffect.primaryOutputId, primaryOutputId ?? added.outputId);
 	}
 });

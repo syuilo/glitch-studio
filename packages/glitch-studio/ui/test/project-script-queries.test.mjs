@@ -40,43 +40,43 @@ function fixture() {
 		resolution: { value: { width: 1920, height: 1080 } }, timelineFps: { value: 30 },
 		timelineMotionBlur: { value: { enabled: false, shutterAngle: 180, samples: 8 } }, exportSettings: { value: null },
 		automationGraphs: { value: [] }, customShaderEffects: { value: [] },
-		assets: { value: [] }, players: { value: [] }, visualModules: { value: [] }, timelineScenes: { value: [] },
+		assets: { value: [] }, players: { value: [] }, customNodeGraphEffects: { value: [] }, timelineScenes: { value: [] },
 	};
 	return { state, manager: new UndoRedo(state, COMMAND_DEFS), query: createProjectScriptQueries(state) };
 }
 
-// 【一覧の対象参照で登録済みとインラインのVisual Moduleを同じ手順で編集できる】
+// 【一覧の対象参照で登録済みとインラインのCustom Node Graph Effectを同じ手順で編集できる】
 // スクリプトに内部の所在変換を要求せず、Queryから得た参照を直接Commandへ渡せることを確認する。
 // 取得済みデータの書き換えは状態に反映せず、再取得は直前のCommandの結果を返す。
-test('queries registered and inline Visual Modules using references accepted by Commands', () => {
+test('queries registered and inline Custom Node Graph Effects using references accepted by Commands', () => {
 	const { state, manager, query } = fixture();
-	const registeredTarget = manager.commit('createVisualModule', { name: 'Registered' });
+	const registeredTarget = manager.commit('createCustomNodeGraphEffect', { name: 'Registered' });
 	const sceneTarget = manager.commit('createTimelineScene', { name: 'Scene' });
-	const layerTarget = manager.commit('createTimelineLayer', { ...sceneTarget, layer: { layerType: 'inlineVisualModule', name: 'Inline' } });
-	const inlineTarget = { sceneId: sceneTarget.sceneId, inlineVisualModuleLayerId: layerTarget.layerId };
-	assert.deepEqual(query['Query:listVisualModules'](), [
+	const layerTarget = manager.commit('createTimelineLayer', { ...sceneTarget, layer: { layerType: 'inlineCustomNodeGraphEffect', name: 'Inline' } });
+	const inlineTarget = { sceneId: sceneTarget.sceneId, inlineCustomNodeGraphEffectLayerId: layerTarget.layerId };
+	assert.deepEqual(query['Query:listCustomNodeGraphEffects'](), [
 		{ target: registeredTarget, name: 'Registered' }, { target: inlineTarget, name: 'Inline' },
 	]);
-	for (const visualModuleTarget of [registeredTarget, inlineTarget]) {
-		const nodeTarget = manager.commit('createVisualModuleEffectNode', { visualModule: visualModuleTarget, effectId: 'fill' });
-		const listedNode = query['Query:listNodes'](visualModuleTarget).find(node => node.type === 'effect');
+	for (const customNodeGraphEffectTarget of [registeredTarget, inlineTarget]) {
+		const nodeTarget = manager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect: customNodeGraphEffectTarget, effectId: 'fill' });
+		const listedNode = query['Query:listNodes'](customNodeGraphEffectTarget).find(node => node.type === 'effect');
 		assert.deepEqual(listedNode.target, nodeTarget);
 		const node = query['Query:getNode'](listedNode.target);
 		node.params.color.value[0] = 0.25;
 		assert.equal(query['Query:getNode'](listedNode.target).params.color.value[0], 1);
-		manager.commit('setVisualModuleNodeParameterSource', { target: listedNode.target, parameterPath: ['color'], source: { inputSource: 'literal', value: [0.5, 0, 0, 1] } });
+		manager.commit('setCustomNodeGraphEffectNodeParameterSource', { target: listedNode.target, parameterPath: ['color'], source: { inputSource: 'literal', value: [0.5, 0, 0, 1] } });
 		assert.deepEqual(query['Query:getNode'](listedNode.target).params.color.value, [0.5, 0, 0, 1]);
-		const visualModule = query['Query:getVisualModule'](visualModuleTarget);
-		assert.deepEqual(visualModule.target, visualModuleTarget);
-		visualModule.nodes.length = 0;
-		assert.ok(query['Query:getVisualModule'](visualModuleTarget).nodes.length > 0);
+		const customNodeGraphEffect = query['Query:getCustomNodeGraphEffect'](customNodeGraphEffectTarget);
+		assert.deepEqual(customNodeGraphEffect.target, customNodeGraphEffectTarget);
+		customNodeGraphEffect.nodes.length = 0;
+		assert.ok(query['Query:getCustomNodeGraphEffect'](customNodeGraphEffectTarget).nodes.length > 0);
 	}
-	assert.equal(state.visualModules.value.length, 1);
+	assert.equal(state.customNodeGraphEffects.value.length, 1);
 });
 
 // 【Timelineの一覧は階層を失わず、クリップやパラメータの所在を編集APIへ引き渡せる】
 // 親レイヤーの下にある対象も列挙し、別Sceneの内容は辿らない。パラメータ群の名前は
-// Commandに合わせ、Visual Module引数をmoduleという別名で公開しない。
+// Commandに合わせ、Custom Node Graph Effect引数をmoduleという別名で公開しない。
 test('lists nested Timeline layers and exposes clip timing and parameter groups', () => {
 	const { manager, query } = fixture();
 	const scene = manager.commit('createTimelineScene', { name: 'Scene' });
@@ -84,7 +84,7 @@ test('lists nested Timeline layers and exposes clip timing and parameter groups'
 		...scene, layer: { layerType: 'text', name: 'Caption' }, clips: [{ startMs: 100, durationMs: 900, contentOffsetMs: 0 }],
 	});
 	const container = manager.commit('wrapTimelineLayers', { ...scene, layerIds: [textLayer.layerId], containerType: 'folder', name: 'Folder' });
-	const visualModuleLayer = manager.commit('createTimelineLayer', { ...scene, layer: { layerType: 'inlineVisualModule' } });
+	const customNodeGraphEffectLayer = manager.commit('createTimelineLayer', { ...scene, layer: { layerType: 'inlineCustomNodeGraphEffect' } });
 	const listedLayers = query['Query:listTimelineLayers'](scene);
 	assert.equal(listedLayers.find(layer => layer.target.layerId === textLayer.layerId).parentLayerId, container.layerId);
 	assert.equal(listedLayers.find(layer => layer.target.layerId === container.layerId).parentLayerId, null);
@@ -94,9 +94,8 @@ test('lists nested Timeline layers and exposes clip timing and parameter groups'
 	assert.equal(clip.startMs, 100);
 	clip.startMs = 999;
 	assert.equal(query['Query:getTimelineClip'](clip.target).startMs, 100);
-	const layerParameters = query['Query:getTimelineLayerParameters'](visualModuleLayer);
-	assert.ok(Object.hasOwn(layerParameters, 'visualModule'));
-	assert.equal(Object.hasOwn(layerParameters, 'module'), false);
+	const layerParameters = query['Query:getTimelineLayerParameters'](customNodeGraphEffectLayer);
+	assert.ok(Object.hasOwn(layerParameters, 'customNodeGraphEffect'));
 	assert.ok(Object.hasOwn(layerParameters.compositing, 'definitions'));
 	assert.deepEqual(query['Query:getTimelineLayer'](textLayer).target, textLayer);
 	assert.deepEqual(query['Query:getTimelineScene'](scene).target, scene);
@@ -132,9 +131,9 @@ test('returns asset metadata without binary data and detached effect definitions
 // プロパティ名も定義として受け入れず、prototype由来の値を返さない。
 test('rejects malformed and missing query targets', () => {
 	const { query } = fixture();
-	assert.throws(() => query['Query:getVisualModule'](null), /Query:getVisualModule input/);
-	assert.throws(() => query['Query:getVisualModule']({ visualModuleId: 123 }), /Query:getVisualModule input/);
-	assert.throws(() => query['Query:getVisualModule']({ visualModuleId: 'missing' }), /not found/);
+	assert.throws(() => query['Query:getCustomNodeGraphEffect'](null), /Query:getCustomNodeGraphEffect input/);
+	assert.throws(() => query['Query:getCustomNodeGraphEffect']({ customNodeGraphEffectId: 123 }), /Query:getCustomNodeGraphEffect input/);
+	assert.throws(() => query['Query:getCustomNodeGraphEffect']({ customNodeGraphEffectId: 'missing' }), /not found/);
 	assert.throws(() => query['Query:getTimelineScene']({ sceneId: 'missing' }), /not found/);
 	assert.throws(() => query['Query:getAsset']({ assetId: 'missing' }), /not found/);
 	assert.throws(() => query['Query:getPlayer']({ playerId: 'missing' }), /not found/);
@@ -192,9 +191,9 @@ test('executes every documented Query example against the public Command and Que
 // 一方、必須フィールドが型を逸脱した場合は資料と異なる値を成功として返さない。
 test('validates Query results without stripping stored data', () => {
 	const { state, manager, query } = fixture();
-	const visualModule = manager.commit('createVisualModule', {});
-	const node = manager.commit('createVisualModuleEffectNode', { visualModule, effectId: 'fill' });
-	state.visualModules.value[0].nodes.find(candidate => candidate.id === node.nodeId).editorExtension = { note: 'keep' };
+	const customNodeGraphEffect = manager.commit('createCustomNodeGraphEffect', {});
+	const node = manager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect, effectId: 'fill' });
+	state.customNodeGraphEffects.value[0].nodes.find(candidate => candidate.id === node.nodeId).editorExtension = { note: 'keep' };
 	const result = query['Query:getNode'](node);
 	assert.deepEqual(result.editorExtension, { note: 'keep' });
 	result.editorExtension.note = 'local';
@@ -222,10 +221,10 @@ test('describes unfinished export dialog settings without requiring export valid
 test('publishes existing data-based Commands without import or application operations', () => {
 	assert.equal(new Set(SCRIPT_COMMAND_NAMES).size, SCRIPT_COMMAND_NAMES.length);
 	for (const name of SCRIPT_COMMAND_NAMES) assert.ok(Object.hasOwn(COMMAND_DEFS, name), name);
-	for (const name of ['createVisualModule', 'createTimelineLayer', 'setVisualModuleNodeParameterSource', 'setTimelineLayerParameterSource', 'setAssetName', 'removeAsset']) {
+	for (const name of ['createCustomNodeGraphEffect', 'createTimelineLayer', 'setCustomNodeGraphEffectNodeParameterSource', 'setTimelineLayerParameterSource', 'setAssetName', 'removeAsset']) {
 		assert.ok(SCRIPT_COMMAND_NAMES.includes(name), name);
 	}
-	for (const name of ['createAsset', 'replaceAssetSource', 'insertImportedAssets', 'insertVisualModuleAssetNodes', 'insertTimelineAssetLayers', 'importVisualModule', 'insertCustomShaderEffect', 'setExportSettings', 'saveProject', 'undo', 'redo']) {
+	for (const name of ['createAsset', 'replaceAssetSource', 'insertImportedAssets', 'insertCustomNodeGraphEffectAssetNodes', 'insertTimelineAssetLayers', 'importCustomNodeGraphEffect', 'insertCustomShaderEffect', 'setExportSettings', 'saveProject', 'undo', 'redo']) {
 		assert.equal(SCRIPT_COMMAND_NAMES.includes(name), false, name);
 	}
 });

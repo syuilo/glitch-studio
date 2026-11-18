@@ -95,17 +95,17 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 	const projectSession = {
 		previewParameterEditing: { handles: shallowRef([]), viewport: shallowRef(null), time: ref(0), clear() {} },
 		activePreviewRenderer: shallowRef(controller),
-		visualModuleRendererManagerController: { outputResolution: ref(null) },
+		customNodeGraphEffectRendererManagerController: { outputResolution: ref(null) },
 		timelineRendererManagerController: { isSeeking: ref(false) },
 		previewPlayback: { state: ref({ mode: 'timeline' }), currentTimelineTime: ref(0), isTimelinePlaying: ref(false) },
-		highlightClipping: ref(false), previewExposure: ref(0), previewSrgbProof: ref(false), resolutionFactor: ref(resolutionFactor), visualModuleLivePreviewTimeFactor: ref(1),
+		highlightClipping: ref(false), previewExposure: ref(0), previewSrgbProof: ref(false), resolutionFactor: ref(resolutionFactor), customNodeGraphEffectLivePreviewTimeFactor: ref(1),
 		previewWarningImageSource: ref('original'),
 		previewGamutCompression: shallowRef({ mode: 'none', customAmount: 0.5 }),
 		previewGamutWarning: shallowRef({ enabled: false, referenceGamut: 'srgb', bounds: 'unit' }),
 		activeScene: ref({ id: 'scene', name: 'Scene', resolution: { mode: 'project' } }), activeSceneId: ref('scene'), timelinePreviewFpsFactor: ref(1),
 		renderEngine: { isSuspended: ref(false), runtimeDiagnostic: ref(null), errorMessage: ref(null) },
 		renderValidation: { errorMessage: ref(null) },
-		projectContext: { stateManager: { state: { visualModules: ref([]), timelineScenes: ref([]), timelineFps: ref(60),
+		projectContext: { stateManager: { state: { customNodeGraphEffects: ref([]), timelineScenes: ref([]), timelineFps: ref(60),
 			resolution: ref({ width: width / resolutionFactor, height: height / resolutionFactor }) } } },
 	};
 	const preferenceValues = { animatedBgInPreview: ref(false) };
@@ -145,7 +145,7 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 }
 
 // 【両プレビューの描画遅延だけを表示し、即時のシーク状態や停止中の古い通知では表示しない】
-// Timelineの再生中とVisual Module Live Previewも同じ表示条件に揃える。
+// Timelineの再生中とCustom Node Graph Effect Live Previewも同じ表示条件に揃える。
 // 対象の切替で非表示側の遅延を引き継がず、描画を中断した画面ではスピナーも消す。
 test('shows rendering delays for the active preview during playback and Live Preview', async t => {
 	const f = await fixture(t);
@@ -159,7 +159,7 @@ test('shows rendering delays for the active preview during playback and Live Pre
 	assert.equal(isLoading(), true);
 	const livePreview = markRaw({ ...f.controller, isRenderDelayed: ref(false) });
 	f.projectSession.activePreviewRenderer.value = livePreview;
-	f.projectSession.previewPlayback.state.value = { mode: 'visualModuleLivePreview' };
+	f.projectSession.previewPlayback.state.value = { mode: 'customNodeGraphEffectLivePreview' };
 	await nextTick();
 	assert.equal(isLoading(), false);
 	livePreview.isRenderDelayed.value = true;
@@ -241,13 +241,13 @@ test('waits for the real canvas size and a visible viewport before applying the 
 });
 
 // 【Live Previewは出力解像度の通知を待って初期表示をフィットする】
-// Visual Moduleの出力はScene解像度とは異なるため、通知前にSceneの寸法で確定しない。
+// Custom Node Graph Effectの出力はScene解像度とは異なるため、通知前にSceneの寸法で確定しない。
 test('waits for live preview output resolution before fitting its initial view', async t => {
 	const f = await fixture(t, { devicePixelRatio: 2 });
-	f.projectSession.previewPlayback.state.value = { mode: 'visualModuleLivePreview', visualModuleId: 'visual-module' };
+	f.projectSession.previewPlayback.state.value = { mode: 'customNodeGraphEffectLivePreview', customNodeGraphEffectId: 'custom-node-graph-effect' };
 	await f.frame();
 	assert.equal(f.find('zoom').text, 'ZOOM: 100%');
-	f.projectSession.visualModuleRendererManagerController.outputResolution.value = { width: 600, height: 1200 };
+	f.projectSession.customNodeGraphEffectRendererManagerController.outputResolution.value = { width: 600, height: 1200 };
 	await f.replaceCanvas(600, 1200);
 	await f.frame();
 	assert.equal(f.style.scale, 450 / 1200);
@@ -312,8 +312,8 @@ test('fits changed output dimensions and a replacement live preview canvas', asy
 	assert.equal(f.style.scale * 1.25, 2);
 	await f.click('fit-zoom');
 	assert.equal(f.style.scale, 800 / 960);
-	f.projectSession.previewPlayback.state.value = { mode: 'visualModuleLivePreview', visualModuleId: 'visual-module' };
-	f.projectSession.visualModuleRendererManagerController.outputResolution.value = { width: 600, height: 1200 };
+	f.projectSession.previewPlayback.state.value = { mode: 'customNodeGraphEffectLivePreview', customNodeGraphEffectId: 'custom-node-graph-effect' };
+	f.projectSession.customNodeGraphEffectRendererManagerController.outputResolution.value = { width: 600, height: 1200 };
 	await f.replaceCanvas(600, 1200);
 	await f.click('fit-zoom');
 	assert.equal(f.style.scale, 450 / 1200);

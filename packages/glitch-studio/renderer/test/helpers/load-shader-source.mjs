@@ -7,7 +7,7 @@ export async function bundleSource(entry, platform = 'node') {
 		entryPoints: [entry], bundle: true, platform, format: platform === 'node' ? 'cjs' : 'esm', write: false,
 		loader: { '.wgsl': 'text' },
 		// レンダラーのテストは必要な定義を個別に読み込み、コンストラクターへ渡す。
-		// モジュール入力の出力定義を調べる際に間接参照される、Vite専用の一覧は読み込まない。
+		// Custom Node Graph Effect入力の出力定義を調べる際に間接参照される、Vite専用の一覧は読み込まない。
 		plugins: [wgslShaderEsbuildPlugin(), { name: 'shader-source-test', setup(build) {
 			build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'shader-source-test' }));
 			build.onLoad({ filter: /.*/, namespace: 'shader-source-test' }, () => ({

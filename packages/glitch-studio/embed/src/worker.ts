@@ -3,32 +3,32 @@ import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-defin
 import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.ts';
 import { AssetTextures } from '@gs/glitch-studio_renderer/asset-textures.ts';
 import { PortableCanvasRenderer } from '@gs/glitch-studio_renderer/portable-canvas-renderer.ts';
-import { VisualModuleRenderer } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
+import { CustomNodeGraphEffectRenderer } from '@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-renderer.ts';
 import { UniformOrTextureToTextureResolver } from '@gs/shared/gpu/uniform-or-texture-to-texture-resolver.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getPortableRenderResolution, getPortablePointerPosition } from './protocol.ts';
-import type { PortableVisualModuleRequest, PortableVisualModuleResponse, PortableVisualModuleFrame } from './protocol.ts';
-import type { PortableVisualModule } from '@gs/glitch-studio_shared/portable-visual-module.ts';
-import type { VisualModuleRenderContext } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
+import type { PortableCustomNodeGraphEffectRequest, PortableCustomNodeGraphEffectResponse, PortableCustomNodeGraphEffectFrame } from './protocol.ts';
+import type { PortableCustomNodeGraphEffect } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
+import type { CustomNodeGraphEffectRenderContext } from '@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-renderer.ts';
 
 /** 必要なエフェクト・式エンジンだけを生成された入口から注入する。 */
-export function startPortableVisualModuleWorker(options: {
+export function startPortableCustomNodeGraphEffectWorker(options: {
 	expressionEvaluator: ExpressionEngine | null;
-	createEffects: (artwork: PortableVisualModule) => { definitions: Record<string, EffectDefinition>; implementations: Record<string, EffectImplementation> };
+	createEffects: (artwork: PortableCustomNodeGraphEffect) => { definitions: Record<string, EffectDefinition>; implementations: Record<string, EffectImplementation> };
 }) {
 	const worker = globalThis as unknown as {
-		onmessage: (event: MessageEvent<PortableVisualModuleRequest>) => void;
-		postMessage: (message: PortableVisualModuleResponse) => void;
+		onmessage: (event: MessageEvent<PortableCustomNodeGraphEffectRequest>) => void;
+		postMessage: (message: PortableCustomNodeGraphEffectResponse) => void;
 	};
 	const controller = new AbortController();
 	let device: GPUDevice | null = null;
 	let assetTextures: AssetTextures | null = null;
-	let renderer: VisualModuleRenderer | null = null;
+	let renderer: CustomNodeGraphEffectRenderer | null = null;
 	let presenter: PortableCanvasRenderer | null = null;
 	let outputTextures: UniformOrTextureToTextureResolver | null = null;
 	let fallbackTexture: GPUTexture | null = null;
 	let canvas: OffscreenCanvas | null = null;
-	let artwork: PortableVisualModule | null = null;
+	let artwork: PortableCustomNodeGraphEffect | null = null;
 	let previousTime = 0;
 	let previousPointer = { x: -99999, y: -99999 };
 	let processingFrame = false;
@@ -51,7 +51,7 @@ export function startPortableVisualModuleWorker(options: {
 		dispose();
 	}
 
-	async function initialize(offscreenCanvas: OffscreenCanvas, data: PortableVisualModule) {
+	async function initialize(offscreenCanvas: OffscreenCanvas, data: PortableCustomNodeGraphEffect) {
 		artwork = data;
 		canvas = offscreenCanvas;
 		if (navigator.gpu == null) throw new Error('WebGPU requires a supported browser and a secure context (HTTPS or localhost)');
@@ -72,43 +72,43 @@ export function startPortableVisualModuleWorker(options: {
 		fallbackTexture = device.createTexture({ size: [1, 1], format: INTERMEDIATE_TEXTURE_FORMAT, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
 		const effects = options.createEffects(data);
 		// 実寸の初回通知で生成する。1pxの仮寸法で履歴や重いエフェクトを準備しない。
-		const createRenderer = (resolution: { width: number; height: number }) => new VisualModuleRenderer({
+		const createRenderer = (resolution: { width: number; height: number }) => new CustomNodeGraphEffectRenderer({
 			expressionEvaluator: options.expressionEvaluator,
 			gpuDevice: device!, fallbackTexture: fallbackTexture!, resolution, resolutionScale: 1,
-			assets, assetTextures: assetTextures!.textures, visualModule: data.visualModule,
+			assets, assetTextures: assetTextures!.textures, customNodeGraphEffect: data.customNodeGraphEffect,
 			effectDefinitions: effects.definitions, effectImplementations: effects.implementations,
 			enableStats: false, timingHelper: null, enable32bitDataTextures: false,
 			effectRenderTiling: { mode: 'disabled' }, videoFrameVersions: new Map(),
 			// Playerの権限取得・再生・音声履歴を持たない。未入力の既存動作を使う。
 			getPlayerVideoTexture: () => null, resolveAudioSource: () => null,
 		});
-		createVisualModuleRenderer = createRenderer;
+		createCustomNodeGraphEffectRenderer = createRenderer;
 		outputTextures = new UniformOrTextureToTextureResolver(device, false);
 		presenter = new PortableCanvasRenderer(device, canvas);
 		worker.postMessage({ type: 'ready' });
 	}
 
-	let createVisualModuleRenderer: ((resolution: { width: number; height: number }) => VisualModuleRenderer) | null = null;
+	let createCustomNodeGraphEffectRenderer: ((resolution: { width: number; height: number }) => CustomNodeGraphEffectRenderer) | null = null;
 
-	async function renderFrame(frame: PortableVisualModuleFrame) {
-		if (device == null || canvas == null || artwork == null || createVisualModuleRenderer == null || processingFrame) return;
+	async function renderFrame(frame: PortableCustomNodeGraphEffectFrame) {
+		if (device == null || canvas == null || artwork == null || createCustomNodeGraphEffectRenderer == null || processingFrame) return;
 		processingFrame = true;
 		try {
 			const resolution = getPortableRenderResolution(frame.resolution.width, frame.resolution.height,
 				{ resolutionScale: 1, maxPixels: Number.MAX_SAFE_INTEGER, fpsLimit: null }, device.limits.maxTextureDimension2D)!;
 			const resized = canvas.width !== resolution.width || canvas.height !== resolution.height;
 			if (resized) { canvas.width = resolution.width; canvas.height = resolution.height; }
-			if (renderer == null) renderer = createVisualModuleRenderer(resolution);
+			if (renderer == null) renderer = createCustomNodeGraphEffectRenderer(resolution);
 			else if (resized) renderer.resize(resolution);
 			// 前フレームの出力寸法を使わず、リサイズ後の最初の描画からポインターを正しく評価する。
-			const outputResolution = renderer.getOutputResolution(artwork.visualModule.primaryOutputId!) ?? resolution;
+			const outputResolution = renderer.getOutputResolution(artwork.customNodeGraphEffect.primaryOutputId!) ?? resolution;
 			const pointerPosition = getPortablePointerPosition(frame.pointerElementPosition, resolution, outputResolution);
 			if (frame.resetHistory) { renderer.resetRenderHistory(); previousTime = frame.time; }
 			if (resized || frame.resetHistory) previousPointer = { ...pointerPosition };
-			const context: VisualModuleRenderContext = {
+			const context: CustomNodeGraphEffectRenderContext = {
 				time: frame.time, timeDelta: Math.max(0, frame.time - previousTime), endTime: Infinity, progress: 0, isExport: false,
 				pointerPosition, pointerPositionPrev: previousPointer,
-				evaluatedParamValues: new Map(artwork.visualModule.paramDefs.map(definition => [definition.id, frame.parameters[definition.nameForReference]])),
+				evaluatedParamValues: new Map(artwork.customNodeGraphEffect.paramDefs.map(definition => [definition.id, frame.parameters[definition.nameForReference]])),
 			};
 			// 素材準備中も同じContextを保持する。新しい時刻で置き換え続けると動画の準備が完了しない。
 			await renderer.prepare(context, controller.signal);

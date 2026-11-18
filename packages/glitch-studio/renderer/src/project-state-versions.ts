@@ -1,19 +1,19 @@
-import { visualModuleTargetKey } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
+import { customNodeGraphEffectTargetKey } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
+import type { CustomNodeGraphEffectTarget } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { canPreserveTimelineLayerInstance, canPreserveNodeStaticState } from './project-change-policy.ts';
 
 /** 定義の変更だけを数える。描画回数やGPUリソースの世代とは独立して扱う。 */
 export class ProjectStateVersions {
 	private revision = 0;
-	private modules = new Map<string, { revision: number; staticResetRevision: number }>();
+	private customNodeGraphEffects = new Map<string, { revision: number; staticResetRevision: number }>();
 	private layers = new Map<string, number>();
 	private scenes = new Map<string, number>();
 
-	module(target: VisualModuleTarget) {
-		return this.modules.get(visualModuleTargetKey(target)) ?? { revision: 0, staticResetRevision: 0 };
+	customNodeGraphEffect(target: CustomNodeGraphEffectTarget) {
+		return this.customNodeGraphEffects.get(customNodeGraphEffectTargetKey(target)) ?? { revision: 0, staticResetRevision: 0 };
 	}
 
 	scene(id: string) { return this.scenes.get(id) ?? 0; }
@@ -24,12 +24,12 @@ export class ProjectStateVersions {
 		for (const change of changes) {
 			if (change.type === 'customShaderEffects') {
 				// 全配置の再生成と同時に反映するため、旧スナップショットの差分履歴を残さない。
-				this.modules.clear(); this.layers.clear(); this.scenes.clear();
-			} else if (change.type === 'visualModuleRegistration') {
-				this.modules.set(visualModuleTargetKey({ visualModuleId: change.visualModuleId }), { revision, staticResetRevision: revision });
-			} else if (change.type === 'node' || change.type === 'visualModule') {
-				const previous = this.module(change.target);
-				this.modules.set(visualModuleTargetKey(change.target), {
+				this.customNodeGraphEffects.clear(); this.layers.clear(); this.scenes.clear();
+			} else if (change.type === 'customNodeGraphEffectRegistration') {
+				this.customNodeGraphEffects.set(customNodeGraphEffectTargetKey({ customNodeGraphEffectId: change.customNodeGraphEffectId }), { revision, staticResetRevision: revision });
+			} else if (change.type === 'node' || change.type === 'customNodeGraphEffect') {
+				const previous = this.customNodeGraphEffect(change.target);
+				this.customNodeGraphEffects.set(customNodeGraphEffectTargetKey(change.target), {
 					revision,
 					staticResetRevision: (change.type === 'node' ? canPreserveNodeStaticState(change.changes) : change.customParameterValuesOnly === true) ? previous.staticResetRevision : revision,
 				});

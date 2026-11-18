@@ -19,7 +19,7 @@ const wgpu: EffectGpuContext = {
 };
 
 // 【エフェクトの定義に従う入力・出力だけを単体レンダラーへ渡せる】
-// Visual Module由来の型を使わず、既存実装のネストした実行時パラメータ型を再利用する。
+// Custom Node Graph Effect由来の型を使わず、既存実装のネストした実行時パラメータ型を再利用する。
 const renderer = new EffectRenderer({
 	definition,
 	implementation,

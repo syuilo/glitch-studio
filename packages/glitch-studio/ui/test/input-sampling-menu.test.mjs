@@ -31,13 +31,13 @@ const { getNodeInputSamplingMenuItems, COMMAND_DEFS, reactive, computed } = modu
 const sampling = { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
 function fixture() {
 	const node = reactive({ id: 'node', type: 'effect', resolution: { mode: 'context', scale: 1 }, effectId: 'test', isBypass: false, params: { inputs: { inputSource: 'literal', value: [{ id: 'input', binding: { inputSource: 'node', nodeId: 'source', outputPort: 'output', ...sampling } }] } } });
-	const state = { visualModules: { value: [{ id: 'module', nodes: [node, ...['source', 'another'].map(id => ({ id, type: 'relay', dataType: { kind: 'color' }, input: { nodeId: null, outputPort: null } }))] }] } };
-	const target = { visualModuleId: 'module', nodeId: 'node', paramPath: ['inputs', 'input'] };
+	const state = { customNodeGraphEffects: { value: [{ id: 'customNodeGraphEffect', nodes: [node, ...['source', 'another'].map(id => ({ id, type: 'relay', dataType: { kind: 'color' }, input: { nodeId: null, outputPort: null } }))] }] } };
+	const target = { customNodeGraphEffectId: 'customNodeGraphEffect', nodeId: 'node', paramPath: ['inputs', 'input'] };
 	const commands = [];
 	const read = () => node.params.inputs.value[0].binding;
 	// 実際の呼び出し元と同じく、接続済みの値をcomputedで渡す。
 	const openMenu = () => getNodeInputSamplingMenuItems(computed(read), value => {
-		const command = prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: { inputSource: 'node', nodeId: null, outputPort: null, ...value }, preserveNodeSampling: false });
+		const command = prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: { inputSource: 'node', nodeId: null, outputPort: null, ...value }, preserveNodeSampling: false });
 		commands.push(command);
 		command.execute(state);
 	});
@@ -68,7 +68,7 @@ test('preserves sampling when reconnecting to the same or another output', () =>
 	openMenu()[2].ref.value = 'nearest';
 	for (const nodeId of ['source', 'another']) {
 		const before = { ...read() };
-		const command = prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: { inputSource: 'node', nodeId: null, outputPort: null, ...{ nodeId, outputPort: 'output', ...sampling } }, preserveNodeSampling: true });
+		const command = prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: { inputSource: 'node', nodeId: null, outputPort: null, ...{ nodeId, outputPort: 'output', ...sampling } }, preserveNodeSampling: true });
 		command.execute(state);
 		assert.deepEqual(read(), { ...before, nodeId });
 		command.undo(state);
@@ -82,12 +82,12 @@ test('preserves sampling when reconnecting to the same or another output', () =>
 test('uses supplied sampling after disconnecting and reconnecting', () => {
 	const { openMenu, state, target, read } = fixture();
 	openMenu()[2].ref.value = 'nearest';
-	const disconnect = prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: { inputSource: 'node', nodeId: null, outputPort: null, ...null }, preserveNodeSampling: true });
+	const disconnect = prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: { inputSource: 'node', nodeId: null, outputPort: null, ...null }, preserveNodeSampling: true });
 	disconnect.execute(state);
 	assert.deepEqual(read(), { inputSource: 'node', nodeId: null, outputPort: null });
 	disconnect.undo(state);
 	assert.equal(openMenu()[2].ref.value, 'nearest');
 	disconnect.execute(state);
-	prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: { inputSource: 'node', nodeId: null, outputPort: null, ...{ nodeId: 'another', outputPort: 'output', ...sampling } }, preserveNodeSampling: true }).execute(state);
+	prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: { inputSource: 'node', nodeId: null, outputPort: null, ...{ nodeId: 'another', outputPort: 'output', ...sampling } }, preserveNodeSampling: true }).execute(state);
 	assert.deepEqual(read(), { inputSource: 'node', nodeId: 'another', outputPort: 'output', ...sampling });
 });

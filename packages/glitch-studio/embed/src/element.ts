@@ -1,19 +1,19 @@
 import type { ExpressionEngine } from '@gs/shared/expression/expression-engine.ts';
-import { validatePortableVisualModuleSettings } from '@gs/glitch-studio_shared/portable-visual-module.ts';
+import { validatePortableCustomNodeGraphEffectSettings } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
 import { getPortableParameterDefaults, validatePortableParameters } from './parameters.ts';
 import { getPortableRenderResolution } from './protocol.ts';
-import { PortableVisualModuleFrameRateLimiter } from './frame-rate-limiter.ts';
-import type { PortableVisualModule, PortableVisualModuleSettings } from '@gs/glitch-studio_shared/portable-visual-module.ts';
-import type { PortableVisualModuleRequest, PortableVisualModuleResponse } from './protocol.ts';
+import { PortableCustomNodeGraphEffectFrameRateLimiter } from './frame-rate-limiter.ts';
+import type { PortableCustomNodeGraphEffect, PortableCustomNodeGraphEffectSettings } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
+import type { PortableCustomNodeGraphEffectRequest, PortableCustomNodeGraphEffectResponse } from './protocol.ts';
 
-export function registerVisualModuleElement(tagName: string, artwork: PortableVisualModule, workerSource: string, expressionEvaluator: ExpressionEngine | null) {
+export function registerCustomNodeGraphEffectElement(tagName: string, artwork: PortableCustomNodeGraphEffect, workerSource: string, expressionEvaluator: ExpressionEngine | null) {
 	// 同じ成果物を複数回読み込んでも登録済みのクラスを使う。タグは書き出しごとに一意にする。
 	if (customElements.get(tagName) != null) return;
-	const defaults = getPortableParameterDefaults(artwork.visualModule.paramDefs, expressionEvaluator);
-	const initial = validatePortableParameters(artwork.visualModule.paramDefs, artwork.initialParameters);
-	validatePortableVisualModuleSettings(artwork.settings);
+	const defaults = getPortableParameterDefaults(artwork.customNodeGraphEffect.paramDefs, expressionEvaluator);
+	const initial = validatePortableParameters(artwork.customNodeGraphEffect.paramDefs, artwork.initialParameters);
+	validatePortableCustomNodeGraphEffectSettings(artwork.settings);
 
-	class PortableVisualModuleElement extends HTMLElement {
+	class PortableCustomNodeGraphEffectElement extends HTMLElement {
 		static observedAttributes = ['parameters', 'resolution-scale', 'max-pixels', 'fps-limit', 'paused'];
 		private readonly root = this.attachShadow({ mode: 'open' });
 		private canvas: HTMLCanvasElement | null = null;
@@ -39,7 +39,7 @@ export function registerVisualModuleElement(tagName: string, artwork: PortableVi
 		private resetHistory = true;
 		private time = 0;
 		private lastTick: number | null = null;
-		private readonly frameRateLimiter = new PortableVisualModuleFrameRateLimiter();
+		private readonly frameRateLimiter = new PortableCustomNodeGraphEffectFrameRateLimiter();
 		private pointerElementPosition: { x: number; y: number } | null = null;
 
 		constructor() {
@@ -68,7 +68,7 @@ div:empty { display: none; }`;
 		}
 		public setParameter(name: string, value: unknown) { this.setParameters({ [name]: value }); }
 		public setParameters(values: Record<string, unknown>) {
-			const validated = validatePortableParameters(artwork.visualModule.paramDefs, values);
+			const validated = validatePortableParameters(artwork.customNodeGraphEffect.paramDefs, values);
 			this.apiParameters = { ...this.apiParameters, ...validated };
 			this.requestRender();
 		}
@@ -86,15 +86,15 @@ div:empty { display: none; }`;
 		public attributeChangedCallback(name: string) {
 			try {
 				if (name === 'parameters') {
-					this.attributeParameters = validatePortableParameters(artwork.visualModule.paramDefs, JSON.parse(this.getAttribute(name) ?? '{}'));
+					this.attributeParameters = validatePortableParameters(artwork.customNodeGraphEffect.paramDefs, JSON.parse(this.getAttribute(name) ?? '{}'));
 				} else if (name !== 'paused') {
 					const fpsLimitAttribute = this.getAttribute('fps-limit');
-					const settings: PortableVisualModuleSettings = {
+					const settings: PortableCustomNodeGraphEffectSettings = {
 						resolutionScale: Number(this.getAttribute('resolution-scale') ?? artwork.settings.resolutionScale),
 						maxPixels: Number(this.getAttribute('max-pixels') ?? artwork.settings.maxPixels),
 						fpsLimit: fpsLimitAttribute == null ? artwork.settings.fpsLimit : fpsLimitAttribute === 'auto' ? null : Number(fpsLimitAttribute),
 					};
-					validatePortableVisualModuleSettings(settings);
+					validatePortableCustomNodeGraphEffectSettings(settings);
 					this.settings = settings;
 				}
 				if (name === 'paused') this.resetFrameTiming();
@@ -150,7 +150,7 @@ div:empty { display: none; }`;
 				this.worker = worker;
 				worker.addEventListener('error', event => { event.preventDefault(); this.reportError(new Error(event.message || 'Could not start the renderer worker. Check worker-src in the page CSP.'), true); }, { signal });
 				worker.addEventListener('messageerror', () => this.reportError(new Error('Could not receive renderer data'), true), { signal });
-				worker.addEventListener('message', (event: MessageEvent<PortableVisualModuleResponse>) => {
+				worker.addEventListener('message', (event: MessageEvent<PortableCustomNodeGraphEffectResponse>) => {
 					if (generation !== this.generation) return;
 					const message = event.data;
 					if (message.type === 'ready') {
@@ -166,7 +166,7 @@ div:empty { display: none; }`;
 					}
 				}, { signal });
 				const canvas = this.canvas.transferControlToOffscreen();
-				const message: PortableVisualModuleRequest = { type: 'initialize', canvas, artwork };
+				const message: PortableCustomNodeGraphEffectRequest = { type: 'initialize', canvas, artwork };
 				worker.postMessage(message, [canvas]);
 			} catch (error) { this.reportError(error, true); }
 		}
@@ -183,12 +183,12 @@ div:empty { display: none; }`;
 			this.intersectionObserver?.disconnect();
 			if (this.frameId != null) cancelAnimationFrame(this.frameId);
 			this.frameId = null;
-			this.worker?.postMessage({ type: 'dispose' } satisfies PortableVisualModuleRequest);
+			this.worker?.postMessage({ type: 'dispose' } satisfies PortableCustomNodeGraphEffectRequest);
 			this.worker?.terminate();
 			this.worker = null;
 			if (this.workerUrl != null) URL.revokeObjectURL(this.workerUrl);
 			this.workerUrl = null;
-			this.readyState.reject(new Error('Visual Module disconnected'));
+			this.readyState.reject(new Error('Custom Node Graph Effect disconnected'));
 			this.readyForFrames = false;
 			this.frameInFlight = false;
 			this.visible = false;
@@ -221,7 +221,7 @@ div:empty { display: none; }`;
 			this.lastTick = timestamp;
 			if (!this.frameInFlight && (!this.paused || this.dirty) && this.frameRateLimiter.takeFrame(timestamp, this.settings.fpsLimit)) {
 				const resolution = getPortableRenderResolution(this.physicalSize.width, this.physicalSize.height, this.settings)!;
-				const message: PortableVisualModuleRequest = { type: 'frame', frame: {
+				const message: PortableCustomNodeGraphEffectRequest = { type: 'frame', frame: {
 					resolution, time: this.time, pointerElementPosition: this.pointerElementPosition, parameters: this.parameters(), resetHistory: this.resetHistory,
 				} };
 				this.worker!.postMessage(message);
@@ -232,5 +232,5 @@ div:empty { display: none; }`;
 			this.schedule();
 		}
 	}
-	customElements.define(tagName, PortableVisualModuleElement);
+	customElements.define(tagName, PortableCustomNodeGraphEffectElement);
 }

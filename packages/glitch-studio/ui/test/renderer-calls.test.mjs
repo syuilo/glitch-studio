@@ -19,8 +19,8 @@ async function bundle(path) {
 					export const ref = value => ({ value });
 					export const shallowRef = ref;
 					export const shallowReactive = value => value;
-					export const createVisualModuleRendererManagerWorker = () => dependencies.createWorker();
-					export const VisualModuleRendererManager = dependencies.VisualModuleRendererManager;
+					export const createCustomNodeGraphEffectRendererManagerWorker = () => dependencies.createWorker();
+					export const CustomNodeGraphEffectRendererManager = dependencies.CustomNodeGraphEffectRendererManager;
 					export const createManager = options => dependencies.createManager(options);
 					export const effectDefinitions = {}, effectImplementations = {};
 					export const deepClone = structuredClone, deepEqual = () => false;
@@ -30,7 +30,7 @@ async function bundle(path) {
 					export const alert = () => {};
 					export const displayCpuPreviewFrame = () => {};
 					export class AudioInputs { dispose() {} reconnectRenderer() {} registerPlayer() {} removePlayer() {} }
-					export class VisualModuleLivePreviewEffectStateStore { stop() {} }
+					export class CustomNodeGraphEffectLivePreviewEffectStateStore { stop() {} }
 				` }));
 			},
 		}],
@@ -38,8 +38,8 @@ async function bundle(path) {
 	return result.outputFiles[0].text;
 }
 
-const controllerCode = await bundle('../src/VisualModuleRendererManagerController.ts');
-const workerCode = await bundle('../../renderer/src/visual-module-renderer-manager-worker.ts');
+const controllerCode = await bundle('../src/CustomNodeGraphEffectRendererManagerController.ts');
+const workerCode = await bundle('../../renderer/src/custom-node-graph-effect-renderer-manager-worker.ts');
 
 async function fixture(t, options = {}) {
 	class GPUCanvasContext {}
@@ -50,7 +50,7 @@ async function fixture(t, options = {}) {
 	const pending = [];
 	const instances = [];
 	const notifications = [];
-	class VisualModuleRendererManager {
+	class CustomNodeGraphEffectRendererManager {
 		constructor(settings, staticOptions, resources) { this.settings = settings; this.staticOptions = staticOptions; this.resources = resources; instances.push(this); }
 		dynamicOptions = {};
 		async updateDynamicOptions(update) {
@@ -73,10 +73,10 @@ async function fixture(t, options = {}) {
 	}
 	const workers = [];
 	const dependencies = {
-		VisualModuleRendererManager,
+		CustomNodeGraphEffectRendererManager,
 		async createManager(settings) {
 			if (options.adapterError) throw options.adapterError;
-			const manager = new VisualModuleRendererManager({}, settings.staticOptions, settings.resources);
+			const manager = new CustomNodeGraphEffectRendererManager({}, settings.staticOptions, settings.resources);
 			try { await manager.updateDynamicOptions(settings.dynamicOptions); await options.prepareResources?.(settings.resources); } catch (error) { manager.destroy(); throw error; }
 			return manager;
 		},
@@ -120,7 +120,7 @@ async function fixture(t, options = {}) {
 		window: { document: { createElement: tag => tag === 'audio' && options.mediaElement != null ? new options.mediaElement() : canvas() } },
 	};
 	runInNewContext(controllerCode, context);
-	const controller = new context.module.exports.VisualModuleRendererManagerController({});
+	const controller = new context.module.exports.CustomNodeGraphEffectRendererManagerController({});
 	const initialOptions = {
 		staticOptions: { enable32bitDataTextures: false, enableStats: false },
 		dynamicOptions: { fpsLimit: null, resolution: { width: 1, height: 1 }, resolutionScale: 1 },
@@ -137,7 +137,7 @@ async function fixture(t, options = {}) {
 function setInitialAssets(initialOptions, assets) { initialOptions.resources.assets = structuredClone(assets); }
 
 // 【入力未割り当てのPlayerがあってもManagerの生成を完了する】
-// ライブ入力を含むVisual Moduleの取り込みでは、Playerの入力を未割り当てにする。
+// ライブ入力を含むCustom Node Graph Effectの取り込みでは、Playerの入力を未割り当てにする。
 // 読み込み元のないメディア要素を作るとイベントが発生せず、プレビューの再生成が終わらなくなる。
 // Playerの定義はWorkerへ渡しつつ、メディアの準備を待たずに生成できることを確認する。
 test('initializes the renderer with unassigned players without waiting for media', async t => {
@@ -264,13 +264,13 @@ test('disposes after preview errors and restores edited settings on retry', asyn
 	await Promise.resolve();
 	assert.equal(controller.errorMessage.value, 'circular dependency detected');
 	assert.equal(controller.isReady.value, false);
-	initialOptions.dynamicOptions.visualModules = [{ id: 'repaired', nodes: [] }];
+	initialOptions.dynamicOptions.customNodeGraphEffects = [{ id: 'repaired', nodes: [] }];
 	assert.equal(controller.errorMessage.value, 'circular dependency detected');
 	instances[0].reportPreviewError('old frame failure');
 	await Promise.resolve();
 	assert.equal(controller.errorMessage.value, 'circular dependency detected');
 	await restart();
-	assert.equal(instances.at(-1).dynamicOptions.visualModules[0].id, 'repaired');
+	assert.equal(instances.at(-1).dynamicOptions.customNodeGraphEffects[0].id, 'repaired');
 	assert.equal(controller.errorMessage.value, null);
 	assert.deepEqual(notifications.filter(message => message.type === 'ev' && message.ev.type === 'renderError').map(message => message.ev.ctx.message), ['circular dependency detected', 'circular dependency detected', 'old frame failure']);
 });

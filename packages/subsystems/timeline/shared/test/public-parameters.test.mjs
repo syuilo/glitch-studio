@@ -111,13 +111,13 @@ test('copies referenced values and validates explicit reference types', () => {
 	assert.throws(() => evaluate([owner], owner, reference('owner', 'color')), /type mismatch/);
 });
 
-// 【レイヤー内の参照名を一意にし、Visual Module固有の入力は許可しない】
-// Timelineの定義・BindingがVisual Moduleの公開入力やノード接続へ依存しないことを保証する。
-test('validates local definitions and keeps timeline references separate from Visual Module', () => {
+// 【レイヤー内の参照名を一意にし、Custom Node Graph Effect固有の入力は許可しない】
+// Timelineの定義・BindingがCustom Node Graph Effectの公開入力やノード接続へ依存しないことを保証する。
+test('validates local definitions and keeps timeline references separate from Custom Node Graph Effect', () => {
 	assert.throws(() => validateTimelineLayerPublicParameterDefinitions([scalar('one', 'speed'), scalar('two', 'speed')]), /reference name/);
 	assert.throws(() => validateTimelineLayerPublicParameterDefinitions([{ ...scalar('one'), canNode: true }]), /node inputs/);
 	assert.doesNotThrow(() => validateTimelineParameterTree(scalar('one'), reference(null, null)));
-	assert.throws(() => validateTimelineParameterTree(scalar('one'), { inputSource: 'visualModulePublicParameterReference', parameterId: 'one' }), /Unsupported/);
+	assert.throws(() => validateTimelineParameterTree(scalar('one'), { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'one' }), /Unsupported/);
 	const root = layer('root', [scalar('one')], { one: expression('PUBLIC("one")') });
 	assert.throws(() => evaluate([root], root, expression('PUBLIC("one")')), /Unknown or unavailable/);
 	assert.throws(() => evaluate([root], root, expression('PUBLIC(1)')), /requires a parameter name/);

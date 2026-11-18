@@ -17,7 +17,7 @@ type UtteranceUpdate = { layerId: string; target: 'utterance'; before: VoicevoxU
 export type TimelineKeyframeMoveUpdate = ParameterUpdate | UtteranceUpdate;
 
 /** クリップとキーをまとめて検証できるよう、保存先を変更せず更新案だけを作る。 */
-export function prepareTimelineKeyframeMove(state: Pick<ProjectState, 'visualModules'>, scene: TimelineScene,
+export function prepareTimelineKeyframeMove(state: Pick<ProjectState, 'customNodeGraphEffects'>, scene: TimelineScene,
 	positions: readonly TimelineKeyframePosition[]): TimelineKeyframeMoveUpdate[] {
 	if (new Set(positions.map(keyframeSelectionKey)).size !== positions.length) throw new Error('Duplicate keyframe move target');
 	const parameters = new Map<string, ParameterUpdate>();
@@ -55,7 +55,7 @@ export function prepareTimelineKeyframeMove(state: Pick<ProjectState, 'visualMod
 		const point = binding.inputSource === 'keyframesTimelineInline' ? binding.keyframesTimeline.keyframes.find(point => point.id === position.keyframeId) : null;
 		if (!point) throw new Error('Timeline keyframe not found');
 		point.x = position.x;
-		validateTimelineParameterTree(definitions[paramId], update.after, position.target === 'effect' || position.target === 'module', position.target === 'effect' || position.target === 'module');
+		validateTimelineParameterTree(definitions[paramId], update.after, position.target === 'effect' || position.target === 'customNodeGraphEffect', position.target === 'effect' || position.target === 'customNodeGraphEffect');
 		parameters.set(rootKey, update);
 	}
 	for (const update of speeches.values()) {

@@ -3,18 +3,18 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { TimelineRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
-import { createVisualModuleRenderer } from './helpers/create-visual-module-renderer.mjs';
-const { createVisualModuleTimelineLayer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_renderer/layers/visual-module/visual-module-timeline-layer.ts')));
+import { createCustomNodeGraphEffectRenderer } from './helpers/create-custom-node-graph-effect-renderer.mjs';
+const { createCustomNodeGraphEffectTimelineLayer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_renderer/layers/custom-node-graph-effect/custom-node-graph-effect-timeline-layer.ts')));
 
 globalThis.GPUQueue = class { submit() {} };
-const { VisualModuleRenderer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts')));
+const { CustomNodeGraphEffectRenderer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-renderer.ts')));
 
 // エクスポート指定をレイヤー変換まで伝え、後続の通常シークには残さない。
 test('passes export context through timeline layers and resets it for preview', async () => {
 	const contexts = [];
 	const renderer = new TimelineRenderer({
 		fallbackOutput: null,
-		createLayer: () => createVisualModuleTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null }, { visualModuleParamValues: {}, automationGraphs: [] }, {
+		createLayer: () => createCustomNodeGraphEffectTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null }, { customNodeGraphEffectParamValues: {}, automationGraphs: [] }, {
 			async prepare() {},
 			async render(context) { contexts.push(context); return { gpuTime: 0 }; },
 			destroy() {},
@@ -30,8 +30,8 @@ test('passes export context through timeline layers and resets it for preview', 
 });
 
 // 単独参照と複合式の両方で真偽値を評価し、繰り返し評価しても値が残らない。
-test('evaluates IS_EXPORT in module and node expressions without leaking state', () => {
-	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
+test('evaluates IS_EXPORT in Custom Node Graph Effect and node expressions without leaking state', () => {
+	const evaluator = createCustomNodeGraphEffectRenderer(CustomNodeGraphEffectRenderer).parameterEvaluator;
 	const definition = { dataType: { kind: 'bool' }, ui: { label: 'Export' } };
 	for (const isExport of [false, true, false, true, false]) {
 		const scope = { variables: { IS_EXPORT: isExport }, automationGraphs: [], time: 0, endTime: 1000 };

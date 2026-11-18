@@ -5,14 +5,14 @@ import { genId } from '@gs/shared/utility/id.ts';
 import { ref } from 'vue';
 import { getEffectDefinitions } from '../utility/project-effects.ts';
 import { getScene } from '../utility/timeline-scene.ts';
-import { getVisualModule, listVisualModules } from '../utility/visual-module-target.ts';
+import { getCustomNodeGraphEffect, listCustomNodeGraphEffects } from '../utility/custom-node-graph-effect-target.ts';
 import { defineCommand, definePublicCommand } from './definition.ts';
 import { playerSourceSchema } from './project-contract-schemas.ts';
 import { prepareProjectValueChange } from './prepared-value.ts';
 import { getTimelineAssetPlacementChanges, validateTimelineAssetPlacement, removeTimelineAssetPlacement } from './timeline.ts';
 import type { Player } from '@gs/shared/types.ts';
 import type { AppStateChange, ProjectState, ProjectAsset } from '../Project.ts';
-import type { VisualModuleAssetPlacement } from '../utility/visual-module-asset-node.ts';
+import type { CustomNodeGraphEffectAssetPlacement } from '../utility/custom-node-graph-effect-asset-node.ts';
 import type { AssetImportPlacement } from '../utility/import-assets.ts';
 
 // ファイルの読み込みやダイアログは呼び出し側が済ませ、取り込み済みの値だけを渡す。
@@ -30,12 +30,12 @@ export const insertImportedAssetsCommandDef = defineCommand<{ assets: ProjectAss
 		const saved = deepClone(input);
 		const draft = { ...state, assets: ref([...state.assets.value, ...saved.assets]), players: ref([...state.players.value, ...saved.players]) };
 		if (saved.timeline != null) validateTimelineAssetPlacement(draft, saved.timeline);
-		if (saved.visualModule != null) validateVisualModuleAssetPlacement(draft, saved.visualModule);
+		if (saved.customNodeGraphEffect != null) validateCustomNodeGraphEffectAssetPlacement(draft, saved.customNodeGraphEffect);
 		const changes: AppStateChange[] = [
 			...saved.assets.map(asset => ({ type: 'asset' as const, assetId: asset.id })),
 			...saved.players.map(player => ({ type: 'player' as const, playerId: player.id })),
 			...getTimelineAssetPlacementChanges(saved.timeline ?? null),
-			...getVisualModuleAssetPlacementChanges(saved.visualModule ?? null),
+			...getCustomNodeGraphEffectAssetPlacementChanges(saved.customNodeGraphEffect ?? null),
 		];
 		if (changes.length === 0) return { result: undefined, change: null };
 		return {
@@ -46,7 +46,7 @@ export const insertImportedAssetsCommandDef = defineCommand<{ assets: ProjectAss
 					current.assets.value.push(...deepClone(saved.assets));
 					current.players.value.push(...deepClone(saved.players));
 					if (saved.timeline != null) getScene(current, saved.timeline.sceneId).layers.unshift(...deepClone(saved.timeline.layers));
-					if (saved.visualModule != null) appendVisualModuleAssetNodes(current, saved.visualModule);
+					if (saved.customNodeGraphEffect != null) appendCustomNodeGraphEffectAssetNodes(current, saved.customNodeGraphEffect);
 				},
 				revert(current) {
 					const assetIds = new Set(saved.assets.map(asset => asset.id));
@@ -54,21 +54,21 @@ export const insertImportedAssetsCommandDef = defineCommand<{ assets: ProjectAss
 					current.assets.value = current.assets.value.filter(asset => !assetIds.has(asset.id));
 					current.players.value = current.players.value.filter(player => !playerIds.has(player.id));
 					if (saved.timeline != null) removeTimelineAssetPlacement(current, saved.timeline);
-					if (saved.visualModule != null) removeVisualModuleAssetNodes(current, saved.visualModule);
+					if (saved.customNodeGraphEffect != null) removeCustomNodeGraphEffectAssetNodes(current, saved.customNodeGraphEffect);
 				},
 			},
 		};
 	},
 });
 
-export function getVisualModuleAssetPlacementChanges(placement: VisualModuleAssetPlacement | null): AppStateChange[] {
-	return placement == null || placement.nodes.length === 0 ? [] : [{ type: 'visualModule', target: placement.target }];
+export function getCustomNodeGraphEffectAssetPlacementChanges(placement: CustomNodeGraphEffectAssetPlacement | null): AppStateChange[] {
+	return placement == null || placement.nodes.length === 0 ? [] : [{ type: 'customNodeGraphEffect', target: placement.target }];
 }
 
 /** リソースの追加前に全ノードと参照を検証し、Undo不能な部分反映を残さない。 */
-export function validateVisualModuleAssetPlacement(state: ProjectState, placement: VisualModuleAssetPlacement) {
-	const visualModule = getVisualModule(state, placement.target);
-	const ids = new Set(visualModule.nodes.map(node => node.id));
+export function validateCustomNodeGraphEffectAssetPlacement(state: ProjectState, placement: CustomNodeGraphEffectAssetPlacement) {
+	const customNodeGraphEffect = getCustomNodeGraphEffect(state, placement.target);
+	const ids = new Set(customNodeGraphEffect.nodes.map(node => node.id));
 	for (const node of placement.nodes) {
 		if (ids.has(node.id)) throw new Error('Duplicate node ID');
 		ids.add(node.id);
@@ -89,22 +89,22 @@ export function validateVisualModuleAssetPlacement(state: ProjectState, placemen
 	}
 }
 
-export function appendVisualModuleAssetNodes(state: ProjectState, placement: VisualModuleAssetPlacement) {
-	const visualModule = getVisualModule(state, placement.target);
-	const outputIndex = visualModule.nodes.findIndex(node => node.type === 'globalOut');
-	visualModule.nodes.splice(outputIndex < 0 ? visualModule.nodes.length : outputIndex, 0, ...deepClone(placement.nodes));
+export function appendCustomNodeGraphEffectAssetNodes(state: ProjectState, placement: CustomNodeGraphEffectAssetPlacement) {
+	const customNodeGraphEffect = getCustomNodeGraphEffect(state, placement.target);
+	const outputIndex = customNodeGraphEffect.nodes.findIndex(node => node.type === 'globalOut');
+	customNodeGraphEffect.nodes.splice(outputIndex < 0 ? customNodeGraphEffect.nodes.length : outputIndex, 0, ...deepClone(placement.nodes));
 }
 
-export function removeVisualModuleAssetNodes(state: ProjectState, placement: VisualModuleAssetPlacement) {
+export function removeCustomNodeGraphEffectAssetNodes(state: ProjectState, placement: CustomNodeGraphEffectAssetPlacement) {
 	const ids = new Set(placement.nodes.map(node => node.id));
-	const visualModule = getVisualModule(state, placement.target);
-	visualModule.nodes = visualModule.nodes.filter(node => !ids.has(node.id));
+	const customNodeGraphEffect = getCustomNodeGraphEffect(state, placement.target);
+	customNodeGraphEffect.nodes = customNodeGraphEffect.nodes.filter(node => !ids.has(node.id));
 }
 
-export const insertVisualModuleAssetNodesCommandDef = defineCommand<{ placement: VisualModuleAssetPlacement; players: Player[] }>({
+export const insertCustomNodeGraphEffectAssetNodesCommandDef = defineCommand<{ placement: CustomNodeGraphEffectAssetPlacement; players: Player[] }>({
 	label: 'Insert asset nodes',
 	prepare(state, input) {
-		return insertImportedAssetsCommandDef.prepare(state, { assets: [], players: input.players, visualModule: input.placement });
+		return insertImportedAssetsCommandDef.prepare(state, { assets: [], players: input.players, customNodeGraphEffect: input.placement });
 	},
 });
 
@@ -136,15 +136,15 @@ export const removeAssetCommandDef = definePublicCommand({
 		const asset = deepClone(getAsset(state, assetId));
 		const assetIndex = state.assets.value.findIndex(candidate => candidate.id === assetId);
 		const definitions = getEffectDefinitions(state);
-		const references = listVisualModules(state).flatMap(({ target, visualModule }) => visualModule.nodes.flatMap(node => {
+		const references = listCustomNodeGraphEffects(state).flatMap(({ target, customNodeGraphEffect }) => customNodeGraphEffect.nodes.flatMap(node => {
 			if (node.type !== 'effect') return [];
 			return Object.entries(definitions[node.effectId].staticSettingDefs ?? {}).flatMap(([key, definition]) =>
 				definition.dataType.kind === 'assetReference' && node.staticSettings[key] === assetId ? [{ target, nodeId: node.id, key }] : []);
 		}));
-		const changes: AppStateChange[] = [{ type: 'asset', assetId }, ...references.map(reference => ({ type: 'visualModule' as const, target: reference.target }))];
+		const changes: AppStateChange[] = [{ type: 'asset', assetId }, ...references.map(reference => ({ type: 'customNodeGraphEffect' as const, target: reference.target }))];
 		const setReferences = (current: ProjectState, value: string | null) => {
 			for (const reference of references) {
-				const node = getVisualModule(current, reference.target).nodes.find(candidate => candidate.id === reference.nodeId);
+				const node = getCustomNodeGraphEffect(current, reference.target).nodes.find(candidate => candidate.id === reference.nodeId);
 				if (node?.type === 'effect') node.staticSettings[reference.key] = value;
 			}
 		};
@@ -270,7 +270,7 @@ export const setPlayerSourceCommandDef = definePublicCommand({
 export const RESOURCES_COMMAND_DEFS = {
 	createAsset: createAssetCommandDef,
 	insertImportedAssets: insertImportedAssetsCommandDef,
-	insertVisualModuleAssetNodes: insertVisualModuleAssetNodesCommandDef,
+	insertCustomNodeGraphEffectAssetNodes: insertCustomNodeGraphEffectAssetNodesCommandDef,
 	removeAsset: removeAssetCommandDef,
 	setAssetName: setAssetNameCommandDef,
 	replaceAssetSource: replaceAssetSourceCommandDef,

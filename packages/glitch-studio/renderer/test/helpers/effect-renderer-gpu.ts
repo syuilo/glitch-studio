@@ -1,7 +1,7 @@
 import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
 import { checkEffectRenderTiles } from './effect-render-tiles-gpu.ts';
 import { EffectRenderer } from '@gs/subsystems_effect_renderer/effect-renderer.ts';
-import { VisualModuleRenderer } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
+import { CustomNodeGraphEffectRenderer } from '@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-renderer.ts';
 import gradientDefinition from '@gs/subsystems_effect_shared/fx/gradient/_def_.ts';
 import gradient from '@gs/subsystems_effect_shared/fx/gradient/_impl_.ts';
 import feedbackDefinition from '@gs/subsystems_effect_shared/fx/feedback/_def_.ts';
@@ -11,7 +11,7 @@ import colorMix from '@gs/subsystems_effect_shared/fx/colorMix/_impl_.ts';
 import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { RuntimeEffectParameters } from '@gs/subsystems_effect_shared/effect-implementation.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
-import type { VisualModule, VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectEffectNode } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { checkEffectTimelineLayers, checkBlurRegionTimelineLayer } from './effect-timeline-layer-gpu.ts';
 import { checkTimelineCompositor } from './timeline-compositor-gpu.ts';
@@ -121,7 +121,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 	const params = Object.fromEntries(Object.entries(gradientDefinition.paramDefs).map(([key, def]) => [
 		key, 'canNode' in def && def.canNode ? constantShaderInput(def.dataType.kind, def.defaultValue.value) : def.defaultValue.value,
 	])) as unknown as RuntimeEffectParameters<typeof gradientDefinition.paramDefs>;
-	const history: VisualModuleEffectNode = {
+	const history: CustomNodeGraphEffectEffectNode = {
 		id: 'history',
 		type: 'effect',
 		effectId: 'feedback',
@@ -145,7 +145,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 			reset: { inputSource: 'literal', value: false },
 		},
 	};
-	const module: VisualModule = {
+	const customNodeGraphEffect: CustomNodeGraphEffect = {
 		customParameterDefs: [],
 		customParameterValues: {},
 		automationGraphs: [],
@@ -169,7 +169,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 			params: { inputA: { inputSource: 'literal', value: [1, 0, 0, 1] }, inputB: { inputSource: 'literal', value: [0, 0, 0, 0] }, amount: { inputSource: 'literal', value: 0 } },
 		}, history, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'history', outputPort: 'output' } } }],
 	};
-	const renderer = new VisualModuleRenderer({ expressionEvaluator: new ExpressionEvaluator(),
+	const renderer = new CustomNodeGraphEffectRenderer({ expressionEvaluator: new ExpressionEvaluator(),
 		gpuDevice: device,
 		fallbackTexture,
 		resolution: { width: 4, height: 4 },
@@ -181,7 +181,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		videoFrameVersions: new Map(),
 		effectDefinitions: { colorMix: { ...colorMixDefinition }, feedback: { ...feedbackDefinition } },
 		effectImplementations: { colorMix, feedback },
-		visualModule: module,
+		customNodeGraphEffect,
 	});
 	const frame = () => ({
 		time: 1000,
@@ -192,7 +192,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		pointerPositionPrev: { x: 0, y: 0 },
 		evaluatedParamValues: new Map(),
 	});
-	async function drawModule() {
+	async function drawCustomNodeGraphEffect() {
 		const ctx = frame();
 		await renderer.prepare(ctx, new AbortController().signal);
 		const encoder = device.createCommandEncoder();
@@ -234,19 +234,19 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		drawGradient(both);
 		check('EffectRenderer recreated output', await read(single.getOutputTexture('scalar')!), [191, 64].flatMap(value => Array(2).fill([value, 0, 0, 255]).flat()));
 
-		// 【モジュール経由の履歴とバイパス・リサイズを実画素で確認する】
+		// 【Custom Node Graph Effect経由の履歴とバイパス・リサイズを実画素で確認する】
 		// prepareだけで加算が進まず、バイパス解除・リサイズのどちらでも履歴を新しく始める。
-		check('module first history frame', await drawModule(), Array(16).fill([64, 0, 0, 64]).flat());
+		check('Custom Node Graph Effect first history frame', await drawCustomNodeGraphEffect(), Array(16).fill([64, 0, 0, 64]).flat());
 		await renderer.prepare(frame(), new AbortController().signal);
 		await renderer.prepare(frame(), new AbortController().signal);
 		history.isBypass = true;
-		renderer.updateNodes(module.nodes);
-		check('module bypasses history', await drawModule(), Array(16).fill([255, 0, 0, 255]).flat());
+		renderer.updateNodes(customNodeGraphEffect.nodes);
+		check('Custom Node Graph Effect bypasses history', await drawCustomNodeGraphEffect(), Array(16).fill([255, 0, 0, 255]).flat());
 		history.isBypass = false;
-		renderer.updateNodes(module.nodes);
-		check('module resets history after bypass', await drawModule(), Array(16).fill([64, 0, 0, 64]).flat());
+		renderer.updateNodes(customNodeGraphEffect.nodes);
+		check('Custom Node Graph Effect resets history after bypass', await drawCustomNodeGraphEffect(), Array(16).fill([64, 0, 0, 64]).flat());
 		renderer.resize({ width: 2, height: 2 });
-		check('module resets resized history', await drawModule(), Array(4).fill([64, 0, 0, 64]).flat());
+		check('Custom Node Graph Effect resets resized history', await drawCustomNodeGraphEffect(), Array(4).fill([64, 0, 0, 64]).flat());
 		return completed;
 	} finally {
 		single.dispose();

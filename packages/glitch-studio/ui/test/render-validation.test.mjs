@@ -28,17 +28,17 @@ const scalar = { dataType: { kind: 'scalar' }, canNode: true, ui: { label: 'Amou
 const definitions = { effect: { id: 'effect', paramDefs: { amount: scalar }, outputDefs: { output: { dataType: { kind: 'scalar' } } }, primaryInputParameter: 'amount' } };
 const node = (id, amount = literal(0)) => ({ id, type: 'effect', effectId: 'effect', resolution: { mode: 'context', scale: 1 }, params: { amount }, isBypass: false });
 const connection = id => ({ inputSource: 'node', nodeId: id, outputPort: 'output', fitMode: 'contain', wrapMode: 'clamp', filterMode: 'linear' });
-const visualModule = (nodes, id = 'visualModule') => ({ customParameterDefs: [], customParameterValues: {}, id, nodes, paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] });
+const customNodeGraphEffect = (nodes, id = 'customNodeGraphEffect') => ({ customParameterDefs: [], customParameterValues: {}, id, nodes, paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] });
 const scene = (id, layers = []) => ({ id, name: id, resolution: { mode: 'project' }, layers });
 const sceneLayer = (id, sceneId) => ({ id, name: id, layerType: 'scene', clips: [{ id: 'clip', sceneId, startMs: 0, durationMs: 1000, contentOffsetMs: 0 }], compositingParamValues: {}, audioParamValues: {}, automationGraphs: [] });
 const groupLayer = (id, layers) => ({ id, name: id, layerType: 'group', layers, compositingParamValues: {}, audioParamValues: {}, automationGraphs: [], isDisabled: false });
-function fixture(visualModules = [], timelineScenes = []) {
-	const state = { visualModules: ref(visualModules), timelineScenes: ref(timelineScenes), assets: ref([]), players: ref([]), resolution: ref({ width: 16, height: 16 }), timelineFps: ref(60), timelineMotionBlur: ref({ enabled: false, shutterAngle: 180, samples: 0 }) };
+function fixture(customNodeGraphEffects = [], timelineScenes = []) {
+	const state = { customNodeGraphEffects: ref(customNodeGraphEffects), timelineScenes: ref(timelineScenes), assets: ref([]), players: ref([]), resolution: ref({ width: 16, height: 16 }), timelineFps: ref(60), timelineMotionBlur: ref({ enabled: false, shutterAngle: 180, samples: 0 }) };
 	const validation = new ProjectRenderValidation(state, definitions);
 	validation.reset();
 	return { state, validation };
 }
-const nodeChange = nodeId => [{ type: 'node', target: { visualModuleId: 'visualModule' }, nodeId, changes: [{ type: 'parameter', kind: 'value' }] }];
+const nodeChange = nodeId => [{ type: 'node', target: { customNodeGraphEffectId: 'customNodeGraphEffect' }, nodeId, changes: [{ type: 'parameter', kind: 'value' }] }];
 
 // 診断文は表示や翻訳に合わせて調整されるため、検証に失敗した対象の識別子を確認する。
 // 各ケースで不正な設定と修正後の解除を組み合わせ、文言に依存せず検証の動作を保証する。
@@ -51,7 +51,7 @@ function assertDiagnosticTarget(validation, target) {
 // Asset差し替えの依存通知でも再検証し、誤った種類を描画へ渡さない。
 test('revalidates LUT selection and asset replacement', () => {
 	const selected = { ...node('lut'), staticSettings: { lut: 'first' } };
-	const { state } = fixture([visualModule([selected])]);
+	const { state } = fixture([customNodeGraphEffect([selected])]);
 	state.assets.value.push({ id: 'first', fileDataType: 'application/x-cube-lut' }, { id: 'second', fileDataType: 'font/ttf' });
 	const lutDefinitions = { effect: { ...definitions.effect, primaryInputParameter: null, staticSettingDefs: {
 		lut: { dataType: { kind: 'assetReference', assetType: 'lut' }, ui: { label: 'LUT' }, defaultValue: null },
@@ -61,7 +61,7 @@ test('revalidates LUT selection and asset replacement', () => {
 	assert.equal(validation.errorMessage.value, null);
 	selected.staticSettings.lut = 'second';
 	validation.update(nodeChange('lut'));
-	assertDiagnosticTarget(validation, '["module","visualModule"]/node:lut');
+	assertDiagnosticTarget(validation, '["customNodeGraphEffect","customNodeGraphEffect"]/node:lut');
 	state.assets.value[1].fileDataType = 'application/x-cube-lut';
 	validation.update([{ type: 'asset', assetId: 'second' }]);
 	assert.equal(validation.errorMessage.value, null);
@@ -137,14 +137,14 @@ for (const invalid of ['duplicate element', 'unknown field', 'missing field', 'c
 // 値調整のたびに全グラフを走査すると、描画から検証を移しても編集負荷が残る。
 // 検証済み単位の検査を計数し、別ノードの検証も発生しないことを確認する。
 test('reuses static validation for ordinary literal edits', () => {
-	const { state, validation } = fixture([visualModule([node('first'), node('second')])]);
+	const { state, validation } = fixture([customNodeGraphEffect([node('first'), node('second')])]);
 	let checks = 0;
 	const check = validation.check.bind(validation);
 	validation.check = (key, shape, inspect, ...options) => check(key, shape, () => { checks++; inspect(); }, ...options);
 	let graphChecks = 0;
 	const graphCheck = validation.checkNodeGraph.bind(validation);
 	validation.checkNodeGraph = key => { graphChecks++; graphCheck(key); };
-	state.visualModules.value[0].nodes[0].params.amount = literal('invalid numeric value');
+	state.customNodeGraphEffects.value[0].nodes[0].params.amount = literal('invalid numeric value');
 	validation.update(nodeChange('first'));
 	assert.equal(validation.errorMessage.value, null);
 	assert.equal(checks, 0);
@@ -154,9 +154,9 @@ test('reuses static validation for ordinary literal edits', () => {
 // 【無効な枝の循環も編集時に検出し、配線修正で解除する】
 // 描画経路やバイパスによって検証範囲を変えると、再有効化した時に初めて失敗する。
 test('detects cycles in unused and bypassed nodes and clears them after editing', () => {
-	const { state, validation } = fixture([visualModule([node('first', connection('second')), { ...node('second', connection('first')), isBypass: true }])]);
-	assertDiagnosticTarget(validation, '["module","visualModule"]/connections');
-	state.visualModules.value[0].nodes[1].params.amount = literal(1);
+	const { state, validation } = fixture([customNodeGraphEffect([node('first', connection('second')), { ...node('second', connection('first')), isBypass: true }])]);
+	assertDiagnosticTarget(validation, '["customNodeGraphEffect","customNodeGraphEffect"]/connections');
+	state.customNodeGraphEffects.value[0].nodes[1].params.amount = literal(1);
 	validation.update(nodeChange('second'));
 	assert.equal(validation.errorMessage.value, null);
 });
@@ -246,31 +246,31 @@ test('accepts cameras under transforms and diagnoses cameras under groups in UI 
 });
 
 // 【参照先の追加・削除では利用単位だけ再検証する】
-// 不足していたVisual Moduleを追加した場合にも、レイヤーを編集し直す必要がない。
+// 不足していたCustom Node Graph Effectを追加した場合にも、レイヤーを編集し直す必要がない。
 test('revalidates references after registration and deletion', () => {
-	const layer = { ...sceneLayer('layer', 'unused'), layerType: 'visualModule', visualModuleId: 'missing', visualModuleParamValues: {} };
+	const layer = { ...sceneLayer('layer', 'unused'), layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'missing', customNodeGraphEffectParamValues: {} };
 	const { state, validation } = fixture([], [scene('scene', [layer])]);
 	assertDiagnosticTarget(validation, 'scene:scene/layer:layer');
-	state.visualModules.value = [visualModule([], 'missing')];
-	validation.update([{ type: 'visualModuleRegistration', visualModuleId: 'missing' }]);
+	state.customNodeGraphEffects.value = [customNodeGraphEffect([], 'missing')];
+	validation.update([{ type: 'customNodeGraphEffectRegistration', customNodeGraphEffectId: 'missing' }]);
 	assert.equal(validation.errorMessage.value, null);
-	state.visualModules.value = [];
-	validation.update([{ type: 'visualModuleRegistration', visualModuleId: 'missing' }]);
+	state.customNodeGraphEffects.value = [];
+	validation.update([{ type: 'customNodeGraphEffectRegistration', customNodeGraphEffectId: 'missing' }]);
 	assertDiagnosticTarget(validation, 'scene:scene/layer:layer');
 });
 
-// 【Inline Visual Moduleの公開型変更では、同じ形の引数も所有レイヤーで再検証する】
+// 【Inline Custom Node Graph Effectの公開型変更では、同じ形の引数も所有レイヤーで再検証する】
 // expressionという入力方式はscalarでは使えるがaudioSourceでは使えない。
 // Bindingの形だけのキャッシュでは型変更を見落とすため、修正による診断解除まで確認する。
 test('revalidates inline arguments when the public parameter type changes', () => {
 	const parameter = { ...scalar, id: 'amount', nameForReference: 'amount', canNode: false };
-	const inlineVisualModule = { ...visualModule([]), paramDefs: [parameter] };
-	const layer = { ...sceneLayer('inline', 'unused'), layerType: 'inlineVisualModule', visualModule: inlineVisualModule,
-		visualModuleParamValues: { amount: { inputSource: 'expression', expression: '1' } } };
+	const inlineCustomNodeGraphEffect = { ...customNodeGraphEffect([]), paramDefs: [parameter] };
+	const layer = { ...sceneLayer('inline', 'unused'), layerType: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: inlineCustomNodeGraphEffect,
+		customNodeGraphEffectParamValues: { amount: { inputSource: 'expression', expression: '1' } } };
 	const { state, validation } = fixture([], [scene('scene', [layer])]);
 	assert.equal(validation.errorMessage.value, null);
-	const current = state.timelineScenes.value[0].layers[0].visualModule;
-	const changes = [{ type: 'visualModule', target: { sceneId: 'scene', inlineVisualModuleLayerId: 'inline' } }];
+	const current = state.timelineScenes.value[0].layers[0].customNodeGraphEffect;
+	const changes = [{ type: 'customNodeGraphEffect', target: { sceneId: 'scene', inlineCustomNodeGraphEffectLayerId: 'inline' } }];
 	current.paramDefs[0] = { ...parameter, dataType: { kind: 'audioSource' }, defaultValue: literal(null) };
 	validation.update(changes);
 	assertDiagnosticTarget(validation, 'scene:scene/layer:inline');
@@ -284,12 +284,12 @@ test('revalidates inline arguments when the public parameter type changes', () =
 // レンダラーへ到達して実行時エラーになる前に、所有レイヤーで入力方式を拒否する。
 test('rejects retained inline audio arguments after changing their public type', () => {
 	const audio = { ...scalar, id: 'audio', nameForReference: 'audio', canNode: false, dataType: { kind: 'audioSource' }, defaultValue: literal(null) };
-	const layer = { ...sceneLayer('inline', 'unused'), layerType: 'inlineVisualModule',
-		visualModule: { ...visualModule([]), paramDefs: [audio] }, visualModuleParamValues: { audio: { inputSource: 'lowerLayerAudio' } } };
+	const layer = { ...sceneLayer('inline', 'unused'), layerType: 'inlineCustomNodeGraphEffect',
+		customNodeGraphEffect: { ...customNodeGraphEffect([]), paramDefs: [audio] }, customNodeGraphEffectParamValues: { audio: { inputSource: 'lowerLayerAudio' } } };
 	const { state, validation } = fixture([], [scene('scene', [layer])]);
 	assert.equal(validation.errorMessage.value, null);
-	state.timelineScenes.value[0].layers[0].visualModule.paramDefs[0] = { ...audio, dataType: { kind: 'scalar' }, defaultValue: literal(0) };
-	validation.update([{ type: 'visualModule', target: { sceneId: 'scene', inlineVisualModuleLayerId: 'inline' } }]);
+	state.timelineScenes.value[0].layers[0].customNodeGraphEffect.paramDefs[0] = { ...audio, dataType: { kind: 'scalar' }, defaultValue: literal(0) };
+	validation.update([{ type: 'customNodeGraphEffect', target: { sceneId: 'scene', inlineCustomNodeGraphEffectLayerId: 'inline' } }]);
 	assertDiagnosticTarget(validation, 'scene:scene/layer:inline');
 });
 
@@ -326,13 +326,13 @@ test('latches runtime failures until an explicit retry', async () => {
 });
 
 // 【編集通知がなくても静的診断の解除後に一度だけ再生成する】
-// Visual Module Live PreviewからTimelineへの切り替えはProjectの変更通知を出さない。
+// Custom Node Graph Effect Live PreviewからTimelineへの切り替えはProjectの変更通知を出さない。
 // その切り替えで診断が消えた場合にも、停止したエンジンを残してはいけない。
 test('restarts after validation clears and coalesces retry requests', async () => {
 	let created = 0;
 	const engine = new PreviewRenderEngine({ create: async () => { created++; }, dispose() {} });
 	await engine.enable();
-	engine.setValidationError('invalid Visual Module Live Preview input');
+	engine.setValidationError('invalid Custom Node Graph Effect Live Preview input');
 	engine.setValidationError(null);
 	engine.requestRetry();
 	engine.requestRetry();
@@ -484,17 +484,17 @@ test('detects ancestor and inactive image cycles across group boundaries', () =>
 });
 
 // 【公開主入力の既定の下層入力も画像依存に含め、明示的な未選択で解除できる】
-// 保存値のない主入力を見落とすと、Visual Module経由の循環がGPU評価で初めて発覚する。
+// 保存値のない主入力を見落とすと、Custom Node Graph Effect経由の循環がGPU評価で初めて発覚する。
 // 公開入力にはサンプリング設定がなくても有効であることも同時に確認する。
 test('includes default public primary inputs in the image dependency graph', () => {
-	const visual = visualModule([], 'visual');
+	const visual = customNodeGraphEffect([], 'visual');
 	visual.paramDefs = [{ id: 'image', nameForReference: 'image', dataType: { kind: 'color' }, canNode: true, ui: { label: 'Image', control: {} }, defaultValue: literal([0, 0, 0, 0]) }];
 	visual.primaryInputId = 'image';
-	const publicLayer = { ...imageEffectLayer('public'), layerType: 'visualModule', visualModuleId: 'visual', visualModuleParamValues: {} };
+	const publicLayer = { ...imageEffectLayer('public'), layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'visual', customNodeGraphEffectParamValues: {} };
 	const source = imageEffectLayer('source', outputReference('public'));
 	const f = fixture([visual], [scene('scene', [publicLayer, source])]);
 	assertDiagnosticTarget(f.validation, 'scene:scene/layer outputs');
-	publicLayer.visualModuleParamValues.image = { inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'source' };
+	publicLayer.customNodeGraphEffectParamValues.image = { inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'source' };
 	f.validation.update(imageLayerChange('public'));
 	assert.equal(f.validation.errorMessage.value, null);
 });
@@ -502,31 +502,31 @@ test('includes default public primary inputs in the image dependency graph', () 
 // 【Inlineの主入力変更とUndoで、既定の下層入力による循環を再検証する】
 // 公開定義の再検証だけでは、追加・解除された画像依存がSceneの循環診断へ反映されない。
 // 下層から上層素材を読む有効な配線を使い、主入力指定による循環の導入と解消の両方を確認する。
-test('revalidates image cycles when an inline Visual Module primary input changes', () => {
-	const visual = visualModule([]);
+test('revalidates image cycles when an inline Custom Node Graph Effect primary input changes', () => {
+	const visual = customNodeGraphEffect([]);
 	visual.paramDefs = [{ id: 'image', nameForReference: 'image', dataType: { kind: 'color' }, canNode: true, ui: { label: 'Image', control: {} }, defaultValue: literal([0, 0, 0, 0]) }];
-	const inline = { ...imageEffectLayer('inline'), layerType: 'inlineVisualModule', visualModule: visual, visualModuleParamValues: {} };
+	const inline = { ...imageEffectLayer('inline'), layerType: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: visual, customNodeGraphEffectParamValues: {} };
 	const f = fixture([], [scene('scene', [inline, imageEffectLayer('lower', outputReference('inline'))])]);
-	const target = { sceneId: 'scene', inlineVisualModuleLayerId: 'inline' };
+	const target = { sceneId: 'scene', inlineCustomNodeGraphEffectLayerId: 'inline' };
 	assert.equal(f.validation.errorMessage.value, null);
 	for (const primaryInputId of ['image', null, 'image', null]) {
-		inline.visualModule.primaryInputId = primaryInputId;
-		f.validation.update([{ type: 'visualModule', target }]);
+		inline.customNodeGraphEffect.primaryInputId = primaryInputId;
+		f.validation.update([{ type: 'customNodeGraphEffect', target }]);
 		if (primaryInputId == null) assert.equal(f.validation.errorMessage.value, null);
 		else assertDiagnosticTarget(f.validation, 'scene:scene/layer outputs');
 	}
 });
 
-// 【配列・構造体の内部のcanNodeを、Visual Moduleの公開画像ポートと混同しない】
+// 【配列・構造体の内部のcanNodeを、Custom Node Graph Effectの公開画像ポートと混同しない】
 // Inノードが公開するのはルートの画像型だけで、内部BindingはCPU引数として評価される。
 // UIがまだ公開していない保存値でも、画像Bindingを受け入れて描画中に失敗させない。
-test('rejects image references in nonpublic nested Visual Module arguments', () => {
-	const visual = visualModule([], 'visual');
+test('rejects image references in nonpublic nested Custom Node Graph Effect arguments', () => {
+	const visual = customNodeGraphEffect([], 'visual');
 	visual.paramDefs = [{ id: 'settings', nameForReference: 'settings', canNode: false,
 		dataType: { kind: 'struct', fields: { image: { kind: 'color' } } }, ui: { label: 'Settings', control: { fields: { image: { label: 'Image', control: {} } } } },
 		fields: { image: { canNode: true, defaultValue: literal([0, 0, 0, 0]) } }, defaultValue: literal({ image: literal([0, 0, 0, 0]) }) }];
-	const layer = { ...imageEffectLayer('public'), layerType: 'visualModule', visualModuleId: 'visual',
-		visualModuleParamValues: { settings: literal({ image: { inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'source' } }) } };
+	const layer = { ...imageEffectLayer('public'), layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'visual',
+		customNodeGraphEffectParamValues: { settings: literal({ image: { inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'source' } }) } };
 	const f = fixture([visual], [scene('scene', [layer])]);
 	assertDiagnosticTarget(f.validation, 'scene:scene/layer:public');
 });

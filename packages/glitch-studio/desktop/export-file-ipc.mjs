@@ -10,7 +10,7 @@ export function registerExportFileIpc(ipcMain, dialog, exportFiles, getTrustedMa
 		// Sceneやプロジェクトの名前はファイル名として使えない文字を含むことがある。
 		const suggestedName = name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_');
 		const result = await fileDialogs.showSaveDialog(parent, {
-			directoryKey: format === 'html' || format === 'zip' ? 'visual-module-web-export' : 'render-export',
+			directoryKey: format === 'html' || format === 'zip' ? 'custom-node-graph-effect-web-export' : 'render-export',
 			suggestedName,
 			filters: [{ name: { mp4: 'MP4 video', webp: 'WebP image', exr: 'OpenEXR image', html: 'HTML document', zip: 'HTML + JavaScript archive' }[format], extensions: [format] }],
 			properties: ['showOverwriteConfirmation'],

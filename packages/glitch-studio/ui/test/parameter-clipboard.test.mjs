@@ -31,7 +31,7 @@ const bundled = await build({
 const compiled = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), compiled, compiled.exports);
 const { createParameterClipboard, parseParameterClipboard, prepareParameterBindingPaste, prepareProjectParameterPaste, resolveProjectClipboardTarget,
-	handleProjectParameterClipboard, handlePreviewParameterClipboard, createVisualModuleClipboardSource, clipboardText,
+	handleProjectParameterClipboard, handlePreviewParameterClipboard, createCustomNodeGraphEffectClipboardSource, clipboardText,
 	COMMAND_DEFS, UndoRedo, definition, createShapeTimelineLayer, createInlineKeyframesTimeline } = compiled.exports;
 const clone = value => structuredClone(value);
 
@@ -39,22 +39,22 @@ function fixture(projectSessionId = 'session') {
 	const makeNode = id => ({ id, type: 'effect', effectId: definition.id, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, clone(def.defaultValue)])) });
 	const node = makeNode('destination');
 	const upstream = makeNode('upstream');
-	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'visualModule', nodes: [node, upstream], automationGraphs: [], paramDefs: [], outputDefs: [] };
+	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, id: 'customNodeGraphEffect', nodes: [node, upstream], automationGraphs: [], paramDefs: [], outputDefs: [] };
 	const layer = { id: 'effect', layerType: 'effect', effectId: definition.id, automationGraphs: [], effectParamValues: {} };
 	const shape = createShapeTimelineLayer('rectangle', 0);
 	shape.id = 'shape';
 	const scene = { id: 'scene', layers: [layer, shape] };
-	const state = { visualModules: { value: [visualModule] }, timelineScenes: { value: [scene] }, automationGraphs: { value: [] }, players: { value: [] } };
+	const state = { customNodeGraphEffects: { value: [customNodeGraphEffect] }, timelineScenes: { value: [scene] }, automationGraphs: { value: [] }, players: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const context = { id: 'same-saved-project', isDisposed: false, stateManager: history };
-	const target = { kind: 'node', visualModuleTarget: { visualModuleId: visualModule.id }, nodeId: node.id, paramPath: ['foo', 'node'] };
+	const target = { kind: 'node', customNodeGraphEffectTarget: { customNodeGraphEffectId: customNodeGraphEffect.id }, nodeId: node.id, paramPath: ['foo', 'node'] };
 	const timelineTarget = { kind: 'timeline', sceneId: scene.id, layerId: layer.id, parameterTarget: 'effect', paramPath: ['foo', 'node'] };
 	const resolve = (requestedTarget = target) => resolveProjectClipboardTarget(state, projectSessionId, requestedTarget);
 	const copy = (binding, requestedTarget = target) => {
 		const resolved = resolve(requestedTarget);
 		return parseParameterClipboard(JSON.stringify(createParameterClipboard(resolved.def, binding, resolved.context.source)));
 	};
-	return { projectSessionId, node, upstream, visualModule, layer, shape, scene, state, history, context, target, timelineTarget, resolve, copy };
+	return { projectSessionId, node, upstream, customNodeGraphEffect, layer, shape, scene, state, history, context, target, timelineTarget, resolve, copy };
 }
 
 const sampling = { fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' };
@@ -63,7 +63,7 @@ const playback = { trimmedDurationMs: null, offsetMode: 'start', wrapMode: 'clam
 const scalarDefinition = { dataType: { kind: 'scalar' }, ui: { label: 'Scalar', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } };
 
 // 【保存ファイル内のIDが一致する別セッションへノード参照を貼り付けない】
-// 同じプロジェクトのコピーを同時に開くと、プロジェクト・Visual Module・ノードのIDが
+// 同じプロジェクトのコピーを同時に開くと、プロジェクト・Custom Node Graph Effect・ノードのIDが
 // すべて一致する。別の内容への誤接続を防ぎつつ、参照を含まない値は引き続き移せる。
 test('separates copied project sessions while allowing reference-free values', async t => {
 	t.mock.method(console, 'log', () => {});
@@ -114,14 +114,14 @@ test('scopes live preview player references to their source session', async () =
 	const definition = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: { inputSource: 'literal', value: null } };
 	const binding = { inputSource: 'literal', value: { type: 'player', playerId: 'player' } };
 	for (const f of [from, to]) {
-		f.visualModule.paramDefs = [{ ...definition, id: 'arg', nameForReference: 'arg' }];
+		f.customNodeGraphEffect.paramDefs = [{ ...definition, id: 'arg', nameForReference: 'arg' }];
 		f.state.players.value.push({ id: 'player' });
 	}
 	let text = '';
 	const clipboard = { writeText: async value => { text = value; }, readText: async () => text };
-	await handlePreviewParameterClipboard(from.context, from.projectSessionId, from.visualModule.id, ['arg'], 'copy', () => ({ arg: binding }), () => true, () => {}, clipboard);
+	await handlePreviewParameterClipboard(from.context, from.projectSessionId, from.customNodeGraphEffect.id, ['arg'], 'copy', () => ({ arg: binding }), () => true, () => {}, clipboard);
 	let applied = null;
-	const paste = f => handlePreviewParameterClipboard(f.context, f.projectSessionId, f.visualModule.id, ['arg'], 'paste', () => ({}), () => true, (_id, value) => { applied = value; }, clipboard);
+	const paste = f => handlePreviewParameterClipboard(f.context, f.projectSessionId, f.customNodeGraphEffect.id, ['arg'], 'paste', () => ({}), () => true, (_id, value) => { applied = value; }, clipboard);
 	await paste(to);
 	assert.equal(applied, null);
 	from.context.id = 'saved-as';
@@ -129,27 +129,27 @@ test('scopes live preview player references to their source session', async () =
 	assert.deepEqual(applied, binding);
 });
 
-// 【カスタム値のコピー・貼り付けと内部参照を、所有Visual Moduleの範囲に限定する】
-// 同じIDの別Visual Moduleや外部公開引数へ内部参照を持ち込まず、値の貼り付けはUndoできるようにする。
-test('copies custom values with undo and confines custom references to their owning Visual Module', async () => {
+// 【カスタム値のコピー・貼り付けと内部参照を、所有Custom Node Graph Effectの範囲に限定する】
+// 同じIDの別Custom Node Graph Effectや外部公開引数へ内部参照を持ち込まず、値の貼り付けはUndoできるようにする。
+test('copies custom values with undo and confines custom references to their owning Custom Node Graph Effect', async () => {
 	const f = fixture();
-	f.visualModule.customParameterDefs = ['source', 'destination'].map(id => ({ ...scalarDefinition, id, nameForReference: id, canNode: false }));
-	f.visualModule.customParameterValues = { source: { inputSource: 'expression', expression: 'PUBLIC("speed") * 2', expressionModifier: { enabled: true, code: 'VALUE + TIME' } } };
-	const source = { kind: 'customParameter', visualModuleTarget: f.target.visualModuleTarget, paramPath: ['source'] };
+	f.customNodeGraphEffect.customParameterDefs = ['source', 'destination'].map(id => ({ ...scalarDefinition, id, nameForReference: id, canNode: false }));
+	f.customNodeGraphEffect.customParameterValues = { source: { inputSource: 'expression', expression: 'PUBLIC("speed") * 2', expressionModifier: { enabled: true, code: 'VALUE + TIME' } } };
+	const source = { kind: 'customParameter', customNodeGraphEffectTarget: f.target.customNodeGraphEffectTarget, paramPath: ['source'] };
 	const destination = { ...source, paramPath: ['destination'] };
 	let text = '';
 	const clipboard = { writeText: async value => { text = value; }, readText: async () => text };
 	await handleProjectParameterClipboard(f.context, f.projectSessionId, source, 'copy', () => true, clipboard);
 	await handleProjectParameterClipboard(f.context, f.projectSessionId, destination, 'paste', () => true, clipboard);
-	assert.deepEqual(f.visualModule.customParameterValues.destination, f.visualModule.customParameterValues.source);
+	assert.deepEqual(f.customNodeGraphEffect.customParameterValues.destination, f.customNodeGraphEffect.customParameterValues.source);
 	f.history.undo();
-	assert.equal(f.visualModule.customParameterValues.destination, undefined);
+	assert.equal(f.customNodeGraphEffect.customParameterValues.destination, undefined);
 	f.history.redo();
-	assert.deepEqual(f.visualModule.customParameterValues.destination, f.visualModule.customParameterValues.source);
-	const reference = f.copy({ inputSource: 'visualModuleCustomParameterValueReference', parameterId: 'source' }, source);
+	assert.deepEqual(f.customNodeGraphEffect.customParameterValues.destination, f.customNodeGraphEffect.customParameterValues.source);
+	const reference = f.copy({ inputSource: 'customNodeGraphEffectCustomParameterValueReference', parameterId: 'source' }, source);
 	const context = f.resolve(destination).context;
 	assert.ok(prepareParameterBindingPaste(scalarDefinition, reference, context));
-	assert.equal(prepareParameterBindingPaste(scalarDefinition, reference, { ...context, source: { ...context.source, owner: { kind: 'visualModule', target: { visualModuleId: 'other' } } } }), null);
+	assert.equal(prepareParameterBindingPaste(scalarDefinition, reference, { ...context, source: { ...context.source, owner: { kind: 'customNodeGraphEffect', target: { customNodeGraphEffectId: 'other' } } } }), null);
 	assert.equal(prepareParameterBindingPaste(scalarDefinition, reference, { ...context, kind: 'preview' }), null);
 });
 
@@ -212,15 +212,15 @@ test('rejects malformed payloads and compares enum, struct, array and any types 
 });
 
 // 【参照先の所有者と接続可能性を検査し、サンプリング設定を維持する】
-// 別プロジェクトの同名IDや、同じVisual Module内でも自分自身・型違いのポートへ接続しない。
-test('preserves connections only in their original available visual module scope', () => {
+// 別プロジェクトの同名IDや、同じCustom Node Graph Effect内でも自分自身・型違いのポートへ接続しない。
+test('preserves connections only in their original available Custom Node Graph Effect scope', () => {
 	const f = fixture();
 	const clipboard = f.copy(connected);
 	assert.deepEqual(prepareProjectParameterPaste(f.state, f.projectSessionId, f.target, clipboard).after.value.node, connected);
 	assert.equal(prepareProjectParameterPaste(f.state, 'other-project', f.target, clipboard), null);
-	const otherVisualModule = { ...f.visualModule, id: 'otherVisualModule' };
-	f.state.visualModules.value.push(otherVisualModule);
-	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, { ...f.target, visualModuleTarget: { visualModuleId: otherVisualModule.id } }, clipboard), null);
+	const otherCustomNodeGraphEffect = { ...f.customNodeGraphEffect, id: 'otherCustomNodeGraphEffect' };
+	f.state.customNodeGraphEffects.value.push(otherCustomNodeGraphEffect);
+	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, { ...f.target, customNodeGraphEffectTarget: { customNodeGraphEffectId: otherCustomNodeGraphEffect.id } }, clipboard), null);
 	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, { ...f.target, nodeId: 'upstream' }, clipboard), null);
 	for (const outputPort of ['missing', 'output2']) {
 		assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, f.target, f.copy({ ...connected, outputPort })), null);
@@ -233,7 +233,7 @@ test('preserves connections only in their original available visual module scope
 // 同じIDが見つかるだけでは別の定義へ接続してしまうため、コピー時の所有先も保持する。
 test('resolves local and project automation graph references in their respective scopes', () => {
 	const f = fixture();
-	f.visualModule.automationGraphs.push({ id: 'local' });
+	f.customNodeGraphEffect.automationGraphs.push({ id: 'local' });
 	f.state.automationGraphs.value.push({ id: 'projectGraph' });
 	const local = f.copy({ inputSource: 'automationGraphReference', automationGraphId: 'local', ...playback });
 	const project = f.copy({ inputSource: 'automationGraphReference', automationGraphId: 'projectGraph', ...playback });
@@ -245,7 +245,7 @@ test('resolves local and project automation graph references in their respective
 	assert.equal(prepareParameterBindingPaste(f.resolve().def, local, previewContext), null);
 	assert.ok(prepareParameterBindingPaste(f.resolve().def, project, previewContext));
 	assert.equal(prepareProjectParameterPaste(f.state, 'other', f.timelineTarget, project), null);
-	f.visualModule.automationGraphs = [];
+	f.customNodeGraphEffect.automationGraphs = [];
 	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, f.target, local), null);
 });
 
@@ -289,12 +289,12 @@ test('rejects a whole container when one nested binding is incompatible', () => 
 test('validates public parameter references against their destination types and visible owners', () => {
 	const f = fixture();
 	const definition = { ...scalarDefinition, id: 'public_parameter', nameForReference: 'public_parameter', canNode: false };
-	f.visualModule.paramDefs.push(definition);
+	f.customNodeGraphEffect.paramDefs.push(definition);
 	const nodeContext = f.resolve().context;
-	const reference = createParameterClipboard(scalarDefinition, { inputSource: 'visualModulePublicParameterReference', parameterId: 'public_parameter' }, nodeContext.source);
+	const reference = createParameterClipboard(scalarDefinition, { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'public_parameter' }, nodeContext.source);
 	assert.ok(prepareParameterBindingPaste(scalarDefinition, reference, nodeContext));
 	assert.equal(prepareParameterBindingPaste(f.resolve().def, { ...reference, dataType: f.resolve().def.dataType }, nodeContext), null);
-	f.visualModule.paramDefs = [];
+	f.customNodeGraphEffect.paramDefs = [];
 	assert.equal(prepareParameterBindingPaste(scalarDefinition, reference, nodeContext), null);
 	f.layer.publicParameterDefs = [definition];
 	const timelineContext = f.resolve(f.timelineTarget).context;
@@ -305,7 +305,7 @@ test('validates public parameter references against their destination types and 
 });
 
 // 【Playerと音声レイヤーの参照を検証し、下位音声入力は貼り付け先の相対入力として扱う】
-// 音声は同じaudioSource型でもVisual ModuleとTimelineで取得元の契約が異なる。
+// 音声は同じaudioSource型でもCustom Node Graph EffectとTimelineで取得元の契約が異なる。
 test('validates player and timeline audio inputs without transferring project resources', () => {
 	const f = fixture();
 	const definition = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: { inputSource: 'literal', value: null } };
@@ -368,8 +368,8 @@ test('replaces modifiers and restores absent roots and stable IDs through undo a
 // OSの非同期読み取りが完了した時点では、クリック時の対象が失効している場合がある。
 test('ignores stale asynchronous reads and incompatible content without changing undo or redo', async t => {
 	t.mock.method(console, 'log', () => {});
-	for (const invalidate of [f => { f.context.isDisposed = true; }, f => { f.visualModule.nodes = [f.upstream]; },
-		f => { f.visualModule.nodes[0] = clone(f.node); }]) {
+	for (const invalidate of [f => { f.context.isDisposed = true; }, f => { f.customNodeGraphEffect.nodes = [f.upstream]; },
+		f => { f.customNodeGraphEffect.nodes[0] = clone(f.node); }]) {
 		const f = fixture();
 		const text = JSON.stringify(f.copy({ inputSource: 'literal', value: [1, 0, 0, 1] }));
 		let finish;
@@ -390,15 +390,15 @@ test('ignores stale asynchronous reads and incompatible content without changing
 // プロジェクト履歴を使わないプレビュー引数でも、遅れて返ったOSのクリップボード結果を失効させる。
 test('ignores delayed preview parameter pastes after disposal or target changes', async () => {
 	for (const invalidate of [f => { f.context.isDisposed = true; },
-		f => { f.state.visualModules.value = []; }]) {
+		f => { f.state.customNodeGraphEffects.value = []; }]) {
 		const f = fixture();
-		f.visualModule.paramDefs = [{ ...scalarDefinition, id: 'arg', nameForReference: 'arg' }];
+		f.customNodeGraphEffect.paramDefs = [{ ...scalarDefinition, id: 'arg', nameForReference: 'arg' }];
 		const values = { arg: { inputSource: 'literal', value: 5 } };
-		const source = createVisualModuleClipboardSource(f.projectSessionId, { visualModuleId: f.visualModule.id }, f.visualModule);
+		const source = createCustomNodeGraphEffectClipboardSource(f.projectSessionId, { customNodeGraphEffectId: f.customNodeGraphEffect.id }, f.customNodeGraphEffect);
 		const clipboard = createParameterClipboard(scalarDefinition, { inputSource: 'literal', value: 12 }, source);
 		const reading = Promise.withResolvers();
 		let applied = false;
-		const pending = handlePreviewParameterClipboard(f.context, f.projectSessionId, f.visualModule.id, ['arg'], 'paste', () => values, () => true,
+		const pending = handlePreviewParameterClipboard(f.context, f.projectSessionId, f.customNodeGraphEffect.id, ['arg'], 'paste', () => values, () => true,
 			() => { applied = true; }, { readText: () => reading.promise });
 		invalidate(f);
 		reading.resolve(JSON.stringify(clipboard));
@@ -421,11 +421,11 @@ test('copies across independent window contexts and supports live preview withou
 	from.node.params.foo.value.node.expression = 'null';
 	await handleProjectParameterClipboard(to.context, to.projectSessionId, to.target, 'paste', () => true, access);
 	assert.equal(to.node.params.foo.value.node.expression, '[1, 0, 0, 1]');
-	to.visualModule.paramDefs = [{ ...scalarDefinition, id: 'arg', nameForReference: 'arg' }];
+	to.customNodeGraphEffect.paramDefs = [{ ...scalarDefinition, id: 'arg', nameForReference: 'arg' }];
 	const values = { arg: { inputSource: 'literal', value: 5 } };
-	const source = createVisualModuleClipboardSource(from.projectSessionId, { visualModuleId: from.visualModule.id }, from.visualModule);
+	const source = createCustomNodeGraphEffectClipboardSource(from.projectSessionId, { customNodeGraphEffectId: from.customNodeGraphEffect.id }, from.customNodeGraphEffect);
 	text = JSON.stringify(createParameterClipboard(scalarDefinition, { inputSource: 'expression', expression: 'TIME' }, source));
-	await handlePreviewParameterClipboard(to.context, to.projectSessionId, to.visualModule.id, ['arg'], 'paste', () => values, () => true, (id, binding) => { values[id] = binding; }, access);
+	await handlePreviewParameterClipboard(to.context, to.projectSessionId, to.customNodeGraphEffect.id, ['arg'], 'paste', () => values, () => true, (id, binding) => { values[id] = binding; }, access);
 	assert.deepEqual(values.arg, { inputSource: 'expression', expression: 'TIME' });
 	assert.equal(to.history.undoStack.value.length, 1);
 });

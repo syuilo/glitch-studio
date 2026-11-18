@@ -9,15 +9,15 @@ import type { TimelineSceneResolution } from './scene-resolution.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.js';
 import type { ParameterChangeKind } from '@gs/shared/parameter/parameter-definition.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
-import type { TimelineParameterBinding, TimelineEffectParameterBinding, TimelineVisualModuleParameterBinding } from './parameter-binding.ts';
-import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.js';
+import type { TimelineParameterBinding, TimelineEffectParameterBinding, TimelineCustomNodeGraphEffectParameterBinding } from './parameter-binding.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_custom-node-graph-effect_shared/types.js';
 import type { VoicevoxSubtitleParameterValues } from './layers/voicevox/voicevox-subtitle.ts';
 import type { TextParameterValues } from './layers/text/text.ts';
 import type { Shape } from './layers/shape/shape.ts';
 import type { TimelineLayerPublicParameterDefinition } from './public-parameters.ts';
 import type { VoicevoxSettings, VoicevoxUtterance } from './layers/voicevox/voicevox.ts';
 
-export type TimelineParameterTarget = 'publicParameter' | 'module' | 'effect' | 'shape' | 'text' | 'voicevoxSubtitle' | 'camera' | 'transform' | 'compositing' | 'audio';
+export type TimelineParameterTarget = 'publicParameter' | 'customNodeGraphEffect' | 'effect' | 'shape' | 'text' | 'voicevoxSubtitle' | 'camera' | 'transform' | 'compositing' | 'audio';
 
 // definitionはレイヤー全体の追加・削除・置換。部分編集では変更した内容を列挙し、
 // 実行インスタンスの扱いは利用側へ委ねる。
@@ -61,19 +61,19 @@ type TimelineVisualLayerBase = {
 
 export type { TimelineParameterBinding, TimelineEffectParameterBinding } from './parameter-binding.ts';
 
-export type TimelineVisualModuleLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
-	layerType: 'visualModule';
+export type TimelineCustomNodeGraphEffectLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
+	layerType: 'customNodeGraphEffect';
 	/** 未指定は画像を変形する。入力接続とは独立した静的な設定。 */
 	transformTarget?: TimelineLayerTransformTarget;
-	visualModuleId: string;
-	visualModuleParamValues: Record<string, TimelineVisualModuleParameterBinding>;
+	customNodeGraphEffectId: string;
+	customNodeGraphEffectParamValues: Record<string, TimelineCustomNodeGraphEffectParameterBinding>;
 };
 
-export type TimelineInlineVisualModuleLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
-	layerType: 'inlineVisualModule';
+export type TimelineInlineCustomNodeGraphEffectLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
+	layerType: 'inlineCustomNodeGraphEffect';
 	transformTarget?: TimelineLayerTransformTarget;
-	visualModule: VisualModule;
-	visualModuleParamValues: Record<string, TimelineVisualModuleParameterBinding>;
+	customNodeGraphEffect: CustomNodeGraphEffect;
+	customNodeGraphEffectParamValues: Record<string, TimelineCustomNodeGraphEffectParameterBinding>;
 };
 
 export type TimelineEffectLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
@@ -141,7 +141,7 @@ export type TimelineGroupLayer = TimelineLayerCommon & TimelineLayerParameters &
 	layers: TimelineLayer[];
 };
 
-export type TimelineClipLayer = TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | TimelineEffectLayer | TimelineShapeLayer | TimelineTextLayer | TimelineAudioLayer | TimelineImageLayer | TimelineVideoLayer | TimelineSceneLayer | TimelineVoicevoxLayer | TimelineCameraLayer;
+export type TimelineClipLayer = TimelineCustomNodeGraphEffectLayer | TimelineInlineCustomNodeGraphEffectLayer | TimelineEffectLayer | TimelineShapeLayer | TimelineTextLayer | TimelineAudioLayer | TimelineImageLayer | TimelineVideoLayer | TimelineSceneLayer | TimelineVoicevoxLayer | TimelineCameraLayer;
 /** 子を平面化せず、座標系の移動だけを継承する。自身の画像・クリップ・音量は持たない。 */
 export type TimelineTransformLayer = TimelineLayerCommon & TimelineLayerParameters & {
 	layerType: 'transform';
@@ -171,12 +171,12 @@ export function hasTimelineLayerParameters<Layer extends TimelineLayer>(layer: L
 	return layer.layerType !== 'folder';
 }
 
-export function isTimelineEffectOrVisualModuleLayer(layer: TimelineLayer): layer is TimelineEffectLayer | TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer {
-	return layer.layerType === 'effect' || layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule';
+export function isTimelineEffectOrCustomNodeGraphEffectLayer(layer: TimelineLayer): layer is TimelineEffectLayer | TimelineCustomNodeGraphEffectLayer | TimelineInlineCustomNodeGraphEffectLayer {
+	return layer.layerType === 'effect' || layer.layerType === 'customNodeGraphEffect' || layer.layerType === 'inlineCustomNodeGraphEffect';
 }
 
 export function getTimelineLayerTransformTarget(layer: TimelineLayer): TimelineLayerTransformTarget {
-	return isTimelineEffectOrVisualModuleLayer(layer) ? layer.transformTarget ?? 'image' : 'image';
+	return isTimelineEffectOrCustomNodeGraphEffectLayer(layer) ? layer.transformTarget ?? 'image' : 'image';
 }
 
 // 通信上はlayersを省くため、種別だけで分類し、絞り込み後も呼び出し元の型を保つ。

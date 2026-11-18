@@ -3,15 +3,15 @@ import { EffectRenderer } from '@gs/subsystems_effect_renderer/effect-renderer.t
 import { createCustomShaderEffectImplementation } from '@gs/subsystems_effect_renderer/custom-shader-effect.ts';
 import { createCustomShaderEffectDefinition } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
-import { VisualModuleRenderer } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
+import { CustomNodeGraphEffectRenderer } from '@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-renderer.ts';
 import type { CustomShaderEffectDefinition } from '@gs/subsystems_effect_shared/custom-shader-effect-definition.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
-import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import { createEffectTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/effect/effect-timeline-layer.ts';
 import { getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import { VisualModuleRendererManager } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
+import { CustomNodeGraphEffectRendererManager } from '@gs/glitch-studio_renderer/custom-node-graph-effect-renderer-manager.ts';
 import { TimelineRendererManager } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import fillDefinition from '@gs/subsystems_effect_shared/fx/fill/_def_.ts';
@@ -44,7 +44,7 @@ export async function runCustomShaderEffectLivePreview() {
 		code: 'fn main(position: vec2f) -> Output { var output: Output; output.color = read_source(position); return output; }',
 	};
 	const definition = createCustomShaderEffectDefinition(customShaderEffect, customShaderEffect);
-	const visualModule: VisualModule & { id: string; name: string } = {
+	const customNodeGraphEffect: CustomNodeGraphEffect & { id: string; name: string } = {
 		id: 'live-preview', name: 'Live Preview', customParameterDefs: [], customParameterValues: {}, paramDefs: [], automationGraphs: [],
 		outputDefs: [{ id: 'color', name: 'color', label: 'Color', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'color',
 		nodes: [
@@ -53,7 +53,7 @@ export async function runCustomShaderEffectLivePreview() {
 			{ id: 'out', type: 'globalOut', inputs: { color: { nodeId: 'second-shader', outputPort: 'color-id' } } },
 		],
 	};
-	const manager = await VisualModuleRendererManager.create({
+	const manager = await CustomNodeGraphEffectRendererManager.create({
 		gpuDevice: device, gpuContext, effectDefinitions: { [fillDefinition.id]: fillDefinition }, effectImplementations: { [fillDefinition.id]: fillImplementation },
 	}, { enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false, }, { assets: [], players: [], customShaderEffects: [customShaderEffect] });
 	let completed = Promise.withResolvers<void>();
@@ -64,9 +64,9 @@ export async function runCustomShaderEffectLivePreview() {
 		if (event.type === 'renderError') { errors.push(event.ctx.message); completed.reject(new Error(event.ctx.message)); }
 	});
 	try {
-		manager.updateDynamicOptions({ resolution: { width: 8, height: 4 }, visualModules: [visualModule] });
+		manager.updateDynamicOptions({ resolution: { width: 8, height: 4 }, customNodeGraphEffects: [customNodeGraphEffect] });
 		started = true;
-		manager.startVisualModuleLivePreviewRenderLoopFor(visualModule.id);
+		manager.startCustomNodeGraphEffectLivePreviewRenderLoopFor(customNodeGraphEffect.id);
 		await completed.promise;
 		await checkCanvasPixel(device, canvas, [255, 0, 255, 255]);
 		const updated: ProjectCustomShaderEffect = { ...customShaderEffect,
@@ -74,8 +74,8 @@ export async function runCustomShaderEffectLivePreview() {
 			outputDefs: [{ ...customShaderEffect.outputDefs[0], id: 'next-color' }], primaryOutputId: 'next-color',
 			code: 'fn main(position: vec2f) -> Output { var output: Output; output.color = vec4f(0.0, 1.0, 0.0, 1.0); return output; }',
 		};
-		const updatedVisualModule = structuredClone(visualModule);
-		for (const node of updatedVisualModule.nodes) {
+		const updatedCustomNodeGraphEffect = structuredClone(customNodeGraphEffect);
+		for (const node of updatedCustomNodeGraphEffect.nodes) {
 			if (node.type === 'effect' && node.effectId === definition.id) {
 				const source = node.params['source-id'];
 				if (source.inputSource !== 'node') throw new Error('Expected connected shader source');
@@ -83,11 +83,11 @@ export async function runCustomShaderEffectLivePreview() {
 			} else if (node.type === 'globalOut') node.inputs.color.outputPort = 'next-color';
 		}
 		completed = Promise.withResolvers<void>();
-		manager.applyProjectChanges([{ type: 'customShaderEffects', customShaderEffects: [updated], project: { automationGraphs: [], visualModules: [updatedVisualModule], timelineScenes: [] } }]);
+		manager.applyProjectChanges([{ type: 'customShaderEffects', customShaderEffects: [updated], project: { automationGraphs: [], customNodeGraphEffects: [updatedCustomNodeGraphEffect], timelineScenes: [] } }]);
 		await completed.promise;
 		await checkCanvasPixel(device, canvas, [0, 255, 0, 255]);
 		completed = Promise.withResolvers<void>();
-		manager.applyProjectChanges([{ type: 'customShaderEffects', customShaderEffects: [customShaderEffect], project: { automationGraphs: [], visualModules: [visualModule], timelineScenes: [] } }]);
+		manager.applyProjectChanges([{ type: 'customShaderEffects', customShaderEffects: [customShaderEffect], project: { automationGraphs: [], customNodeGraphEffects: [customNodeGraphEffect], timelineScenes: [] } }]);
 		await completed.promise;
 		await checkCanvasPixel(device, canvas, [255, 0, 255, 255]);
 		if (errors.length > 0) throw new Error(errors.join('\n'));
@@ -115,7 +115,7 @@ export async function runCustomShaderEffectTimelineUpdates() {
 		clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }], resolution: { mode: 'context', scale: 1 }, automationGraphs: [], effectParamValues: {},
 		compositingParamValues: Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, parameter]) => [key, structuredClone(parameter.defaultValue)])) as TimelineEffectLayer['compositingParamValues'],
 	};
-	const project = { automationGraphs: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' as const }, layers: [layer] }] };
+	const project = { automationGraphs: [], customNodeGraphEffects: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' as const }, layers: [layer] }] };
 	const manager = await TimelineRendererManager.create({ gpuDevice: device, gpuContext, effectDefinitions: {}, effectImplementations: {} }, {
 		enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false,
 		timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 1 },
@@ -194,11 +194,11 @@ export async function checkCustomShaderEffects(device: GPUDevice, vertex: GPUSha
 				check(`conditional offset sampling ${enable32bitDataTextures}`, pixels.slice(28, 32), [128, 0, 0, 128]);
 			} finally { renderer.dispose(); }
 		}
-		const graph: VisualModule = {
+		const graph: CustomNodeGraphEffect = {
 			nodes: [{ id: 'shader', type: 'effect', effectId: effectDefinition.id, isBypass: false, resolution: { mode: 'context', scale: 1 }, staticSettings: {}, displayName: '', params: Object.fromEntries(definition.paramDefs.map(parameter => [parameter.id, parameter.defaultValue])) }, { id: 'out', type: 'globalOut', inputs: { color: { nodeId: 'shader', outputPort: 'color-id' } } }],
 			paramDefs: [], outputDefs: [{ id: 'color', name: 'color', label: 'Color', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'color', customParameterDefs: [], customParameterValues: {}, automationGraphs: [],
 		};
-		const renderer = new VisualModuleRenderer({ expressionEvaluator: new ExpressionEvaluator(), gpuDevice: device, fallbackTexture, resolution, enableStats: false, timingHelper: null, enable32bitDataTextures: false, assets: [], assetTextures: new Map(), videoFrameVersions: new Map(), effectDefinitions: { [effectDefinition.id]: effectDefinition }, effectImplementations: { [effectDefinition.id]: implementation }, visualModule: graph });
+		const renderer = new CustomNodeGraphEffectRenderer({ expressionEvaluator: new ExpressionEvaluator(), gpuDevice: device, fallbackTexture, resolution, enableStats: false, timingHelper: null, enable32bitDataTextures: false, assets: [], assetTextures: new Map(), videoFrameVersions: new Map(), effectDefinitions: { [effectDefinition.id]: effectDefinition }, effectImplementations: { [effectDefinition.id]: implementation }, customNodeGraphEffect: graph });
 		try {
 			const context = { time: 0, timeDelta: 0, endTime: Infinity, isExport: false, pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 }, evaluatedParamValues: new Map() };
 			await renderer.prepare(context, controller.signal);
@@ -206,7 +206,7 @@ export async function checkCustomShaderEffects(device: GPUDevice, vertex: GPUSha
 			const output = renderer.render(context, encoder);
 			device.queue.submit([encoder.finish()]);
 			if (output?.kind !== 'texture') throw new Error('Custom Shader Effect graph has no output');
-			check('Visual Module shader reference', (await read(output.texture)).slice(0, 4), [102, 51, 26, 128]);
+			check('Custom Node Graph Effect shader reference', (await read(output.texture)).slice(0, 4), [102, 51, 26, 128]);
 		} finally { renderer.destroy(); }
 		const layer: TimelineEffectLayer = {
 			id: 'shader-layer', name: 'Shader Layer', layerType: 'effect', effectId: effectDefinition.id, transformTarget: 'region',

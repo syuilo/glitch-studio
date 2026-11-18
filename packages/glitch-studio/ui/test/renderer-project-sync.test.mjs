@@ -22,7 +22,7 @@ const bundle = await build({
 		export { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 		export { default as definition } from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
 		export { createEffectTimelineLayer } from './src/utility/effect-timeline-layer.ts';
-		export { createInlineVisualModuleLayer } from './src/utility/inline-visual-module-layer.ts';
+		export { createInlineCustomNodeGraphEffectLayer } from './src/utility/inline-custom-node-graph-effect-layer.ts';
 		export { createCameraTimelineLayer } from './src/utility/camera-timeline-layer.ts';
 		export { createProjectCustomShaderEffect } from './src/utility/custom-shader-effect.ts';
 		export { getEffectDefinitions } from './src/utility/project-effects.ts';
@@ -41,7 +41,7 @@ const bundle = await build({
 const module = { exports: {} };
 new Function('require', 'module', 'exports', 'console', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports, { ...console, log() {} });
 const { ExpressionEvaluator, ProjectContext, RendererProjectSynchronizer, applyRendererProjectChanges, definition,
-	createEffectTimelineLayer, createInlineVisualModuleLayer, createImageLayer, createCameraTimelineLayer,
+	createEffectTimelineLayer, createInlineCustomNodeGraphEffectLayer, createImageLayer, createCameraTimelineLayer,
 	createProjectCustomShaderEffect, getEffectDefinitions, customShaderEffectReference } = module.exports;
 
 function fixture(t, count = 1, overrides = {}) {
@@ -50,19 +50,19 @@ function fixture(t, count = 1, overrides = {}) {
 		id: 'node-' + i, type: 'effect', effectId: definition.id, pos: { x: 0, y: 0 }, isBypass: false, resolution: { mode: 'auto', scale: 1 },
 		params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
 	}));
-	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'module', name: 'Module', nodes, paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] };
+	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, id: 'customNodeGraphEffect', name: 'Custom Node Graph Effect', nodes, paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] };
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] };
-	manager.state.visualModules.value = [visualModule];
+	manager.state.customNodeGraphEffects.value = [customNodeGraphEffect];
 	manager.state.timelineScenes.value = [scene];
-	let replica = structuredClone({ automationGraphs: [], visualModules: [visualModule], timelineScenes: [scene] });
+	let replica = structuredClone({ automationGraphs: [], customNodeGraphEffects: [customNodeGraphEffect], timelineScenes: [scene] });
 	const batches = [], errors = [];
 	const sync = new RendererProjectSynchronizer(manager, {
 		apply: async changes => { batches.push(changes); replica = applyRendererProjectChanges(replica, changes); },
 		onUpdated() {}, onError: error => errors.push(error), ...overrides,
 	});
 	t.after(() => sync.dispose());
-	const target = { visualModuleId: 'module', nodeId: 'node-0', paramPath: ['buzzs', 'first', 'x'] };
-	const value = state => state.visualModules[0].nodes[0].params.buzzs.value[0].binding.value.x.value;
+	const target = { customNodeGraphEffectId: 'customNodeGraphEffect', nodeId: 'node-0', paramPath: ['buzzs', 'first', 'x'] };
+	const value = state => state.customNodeGraphEffects[0].nodes[0].params.buzzs.value[0].binding.value.x.value;
 	return { manager, sync, target, batches, errors, value: () => value(replica), get replica() { return replica; } };
 }
 
@@ -75,28 +75,28 @@ test('synchronizes shader definitions and reconciled placements atomically throu
 	customShaderEffect.paramDefs.push({ id: 'amount', nameForReference: 'amount', canNode: true, dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0.25 } });
 	customShaderEffect.outputDefs.push({ id: 'mask', nameForReference: 'mask', label: 'Mask', dataType: { kind: 'scalar' } });
 	f.manager.commit('insertCustomShaderEffect', { definition: customShaderEffect });
-	const { nodeId: shaderNodeId } = f.manager.commit('createVisualModuleEffectNode', { visualModule: { visualModuleId: 'module' }, effectId: customShaderEffectReference(customShaderEffect.id) });
+	const { nodeId: shaderNodeId } = f.manager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect: { customNodeGraphEffectId: 'customNodeGraphEffect' }, effectId: customShaderEffectReference(customShaderEffect.id) });
 	await f.sync.flush();
 	assert.equal(f.batches.length, 1);
 	assert.deepEqual(f.batches[0].map(change => change.type), ['customShaderEffects']);
-	const visualModule = f.manager.state.visualModules.value[0];
-	visualModule.nodes.find(node => node.id === shaderNodeId).params.amount.value = 0.75;
-	visualModule.nodes.push({ id: 'relay', type: 'relay', dataType: { kind: 'scalar' }, input: { nodeId: shaderNodeId, outputPort: 'mask' } });
+	const customNodeGraphEffect = f.manager.state.customNodeGraphEffects.value[0];
+	customNodeGraphEffect.nodes.find(node => node.id === shaderNodeId).params.amount.value = 0.75;
+	customNodeGraphEffect.nodes.push({ id: 'relay', type: 'relay', dataType: { kind: 'scalar' }, input: { nodeId: shaderNodeId, outputPort: 'mask' } });
 	const layer = createEffectTimelineLayer(getEffectDefinitions(f.manager.state)[customShaderEffectReference(customShaderEffect.id)], 0);
 	layer.effectParamValues.amount = { inputSource: 'literal', value: 0.8 };
-	const inline = createInlineVisualModuleLayer(0);
-	inline.visualModule = JSON.parse(JSON.stringify(visualModule));
+	const inline = createInlineCustomNodeGraphEffectLayer(0);
+	inline.customNodeGraphEffect = JSON.parse(JSON.stringify(customNodeGraphEffect));
 	f.manager.state.timelineScenes.value[0].layers.push(layer, inline);
 	const updated = structuredClone(customShaderEffect);
 	updated.paramDefs[1] = { ...updated.paramDefs[1], dataType: { kind: 'vector' }, ui: { label: 'Amount', control: { controlType: 'vector' } }, defaultValue: { inputSource: 'literal', value: [0.1, 0.2] } };
 	updated.outputDefs = updated.outputDefs.filter(output => output.id !== 'mask');
-	f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.6 } });
+	f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.6 } });
 	f.manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: (updated).id, definition: updated });
 	await f.sync.flush();
 	assert.deepEqual(f.batches.at(-1).map(change => change.type), ['customShaderEffects']);
 	assert.equal(f.batches.at(-1)[0].customShaderEffects[0].paramDefs[1].dataType.kind, 'vector');
 	assert.equal(f.value(), 0.6);
-	for (const current of [f.replica.visualModules[0], f.replica.timelineScenes[0].layers[1].visualModule]) {
+	for (const current of [f.replica.customNodeGraphEffects[0], f.replica.timelineScenes[0].layers[1].customNodeGraphEffect]) {
 		assert.deepEqual(current.nodes.find(node => node.id === shaderNodeId).params.amount.value, [0.1, 0.2]);
 		assert.deepEqual(current.nodes.find(node => node.id === 'relay').input, { nodeId: null, outputPort: null });
 	}
@@ -104,7 +104,7 @@ test('synchronizes shader definitions and reconciled placements atomically throu
 	f.manager.undo();
 	await f.sync.flush();
 	assert.equal(f.batches.at(-1)[0].customShaderEffects[0].paramDefs[1].dataType.kind, 'scalar');
-	assert.equal(f.replica.visualModules[0].nodes.find(node => node.id === shaderNodeId).params.amount.value, 0.75);
+	assert.equal(f.replica.customNodeGraphEffects[0].nodes.find(node => node.id === shaderNodeId).params.amount.value, 0.75);
 	assert.equal(f.replica.timelineScenes[0].layers[0].effectParamValues.amount.value, 0.8);
 	f.manager.redo();
 	await f.sync.flush();
@@ -118,29 +118,29 @@ test('synchronizes shader definitions and reconciled placements atomically throu
 test('synchronizes custom values without hiding structural edits in the same batch', async t => {
 	const f = fixture(t);
 	const definition = { id: 'speed', nameForReference: 'speed', canNode: false, dataType: { kind: 'scalar' }, ui: { label: 'Speed', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 1 } };
-	const { parameterId } = f.manager.commit('createVisualModuleCustomParameter', { visualModule: { visualModuleId: 'module' }, definition });
+	const { parameterId } = f.manager.commit('createCustomNodeGraphEffectCustomParameter', { customNodeGraphEffect: { customNodeGraphEffectId: 'customNodeGraphEffect' }, definition });
 	await f.sync.flush();
-	f.manager.commit('setVisualModuleCustomParameterSource', { target: customParameterTarget({ visualModuleId: 'module', parameterId }), source: { inputSource: 'literal', value: 2 } });
+	f.manager.commit('setCustomNodeGraphEffectCustomParameterSource', { target: customParameterTarget({ customNodeGraphEffectId: 'customNodeGraphEffect', parameterId }), source: { inputSource: 'literal', value: 2 } });
 	await f.sync.flush();
 	assert.equal(f.batches.at(-1)[0].customParameterValuesOnly, true);
-	assert.equal(f.replica.visualModules[0].customParameterValues[parameterId].value, 2);
-	f.manager.commit('setVisualModuleNodeResolution', { target: nodeTarget({ ...f.target }), resolution: { mode: 'context', scale: 0.5 } });
-	f.manager.commit('setVisualModuleCustomParameterSource', { target: customParameterTarget({ visualModuleId: 'module', parameterId }), source: { inputSource: 'literal', value: 3 } });
+	assert.equal(f.replica.customNodeGraphEffects[0].customParameterValues[parameterId].value, 2);
+	f.manager.commit('setCustomNodeGraphEffectNodeResolution', { target: nodeTarget({ ...f.target }), resolution: { mode: 'context', scale: 0.5 } });
+	f.manager.commit('setCustomNodeGraphEffectCustomParameterSource', { target: customParameterTarget({ customNodeGraphEffectId: 'customNodeGraphEffect', parameterId }), source: { inputSource: 'literal', value: 3 } });
 	await f.sync.flush();
 	assert.ok(f.batches.at(-1).some(change => change.type === 'node' && change.changes.some(edit => edit.type === 'resolution')));
-	assert.equal(f.replica.visualModules[0].nodes[0].resolution.scale, 0.5);
-	f.manager.commit('replaceVisualModuleCustomParameterDefinition', { target: { visualModule: { visualModuleId: 'module' }, parameterId }, definition: { ...definition, nameForReference: 'renamed' } });
-	f.manager.commit('setVisualModuleCustomParameterSource', { target: customParameterTarget({ visualModuleId: 'module', parameterId }), source: { inputSource: 'literal', value: 4 } });
+	assert.equal(f.replica.customNodeGraphEffects[0].nodes[0].resolution.scale, 0.5);
+	f.manager.commit('replaceCustomNodeGraphEffectCustomParameterDefinition', { target: { customNodeGraphEffect: { customNodeGraphEffectId: 'customNodeGraphEffect' }, parameterId }, definition: { ...definition, nameForReference: 'renamed' } });
+	f.manager.commit('setCustomNodeGraphEffectCustomParameterSource', { target: customParameterTarget({ customNodeGraphEffectId: 'customNodeGraphEffect', parameterId }), source: { inputSource: 'literal', value: 4 } });
 	await f.sync.flush();
 	assert.notEqual(f.batches.at(-1)[0].customParameterValuesOnly, true);
-	assert.equal(f.replica.visualModules[0].customParameterDefs[0].nameForReference, 'renamed');
-	f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'visualModuleCustomParameterValueReference', parameterId } });
+	assert.equal(f.replica.customNodeGraphEffects[0].customParameterDefs[0].nameForReference, 'renamed');
+	f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'customNodeGraphEffectCustomParameterValueReference', parameterId } });
 	await f.sync.flush();
 	const decoded = decodeProjectFile(await encodeProjectFile({ assets: [], generatedSpeech: [], automationGraphs: [],
-		visualModules: f.manager.state.visualModules.value, timelineScenes: f.manager.state.timelineScenes.value }));
-	assert.deepEqual(decoded.visualModules[0].customParameterDefs, f.replica.visualModules[0].customParameterDefs);
-	assert.deepEqual(decoded.visualModules[0].customParameterValues, f.replica.visualModules[0].customParameterValues);
-	assert.equal(decoded.visualModules[0].nodes[0].params.buzzs.value[0].binding.value.x.inputSource, 'visualModuleCustomParameterValueReference');
+		customNodeGraphEffects: f.manager.state.customNodeGraphEffects.value, timelineScenes: f.manager.state.timelineScenes.value }));
+	assert.deepEqual(decoded.customNodeGraphEffects[0].customParameterDefs, f.replica.customNodeGraphEffects[0].customParameterDefs);
+	assert.deepEqual(decoded.customNodeGraphEffects[0].customParameterValues, f.replica.customNodeGraphEffects[0].customParameterValues);
+	assert.equal(decoded.customNodeGraphEffects[0].nodes[0].params.buzzs.value[0].binding.value.x.inputSource, 'customNodeGraphEffectCustomParameterValueReference');
 	assert.deepEqual(f.errors, []);
 });
 
@@ -215,14 +215,14 @@ test('sends one node regardless of graph size and synchronizes merged edits undo
 	const sizes = [];
 	for (const count of [1, 1000]) {
 		const f = fixture(t, count);
-		f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.25 } }, 'drag');
-		f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.75 } }, 'drag');
+		f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.25 } }, 'drag');
+		f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.75 } }, 'drag');
 		await f.sync.flush();
 		assert.equal(f.batches.length, 1);
 		assert.equal(f.batches[0].length, 1);
 		assert.equal(f.batches[0][0].type, 'node');
 		assert.deepEqual(f.batches[0][0].changes, [{ type: 'parameter', kind: 'value' }]);
-		assert.deepEqual(f.batches[0][0].target, { visualModuleId: 'module' });
+		assert.deepEqual(f.batches[0][0].target, { customNodeGraphEffectId: 'customNodeGraphEffect' });
 		assert.equal(f.value(), 0.75);
 		sizes.push(JSON.stringify(f.batches[0]).length);
 		f.manager.undo();
@@ -239,12 +239,12 @@ test('sends one node regardless of graph size and synchronizes merged edits undo
 
 // 【レイヤー生成関数は表示状態で作成し、コピー元に依存しない】
 // 必須のisDisabledが未設定だとUIと保存データの状態が曖昧になるため、新規作成時にfalseを保存する。
-test('creates image effect and inline visual module layers enabled by default', () => {
-	for (const layer of [createImageLayer('asset', 100), createEffectTimelineLayer(definition, 100), createInlineVisualModuleLayer(100)]) {
+test('creates image effect and inline Custom Node Graph Effect layers enabled by default', () => {
+	for (const layer of [createImageLayer('asset', 100), createEffectTimelineLayer(definition, 100), createInlineCustomNodeGraphEffectLayer(100)]) {
 		assert.equal(layer.isDisabled, false);
-		if (layer.layerType === 'inlineVisualModule') {
-			assert.deepEqual(layer.visualModule.customParameterDefs, []);
-			assert.deepEqual(layer.visualModule.customParameterValues, {});
+		if (layer.layerType === 'inlineCustomNodeGraphEffect') {
+			assert.deepEqual(layer.customNodeGraphEffect.customParameterDefs, []);
+			assert.deepEqual(layer.customNodeGraphEffect.customParameterValues, {});
 		}
 	}
 });
@@ -262,8 +262,8 @@ test('synchronizes visibility for every layer type through undo and redo with sc
 		{ ...base, ...compositing, ...audio, layerType: 'video' },
 		{ ...base, ...audio, layerType: 'audio' },
 		{ ...base, ...compositing, ...audio, layerType: 'scene' },
-		{ ...base, ...compositing, layerType: 'visualModule', visualModuleId: 'module', visualModuleParamValues: {} },
-		{ ...createInlineVisualModuleLayer(100), id: base.id },
+		{ ...base, ...compositing, layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect', customNodeGraphEffectParamValues: {} },
+		{ ...createInlineCustomNodeGraphEffectLayer(100), id: base.id },
 		{ ...createEffectTimelineLayer(definition, 100), id: base.id },
 	];
 	const { sceneId: otherSceneId } = f.manager.commit('createTimelineScene', { name: 'Other' });
@@ -295,16 +295,16 @@ test('synchronizes visibility for every layer type through undo and redo with sc
 // 削除済みIDへの更新を送ったりしない。Undoでも最終的なグラフを一度で反映する。
 test('coalesces structural changes without replaying obsolete node updates', async t => {
 	const f = fixture(t);
-	f.manager.commit('insertVisualModuleNodeParameterArrayElement', { ...nodeParameterTarget({ ...f.target, paramPath: ['buzzs'] }) });
-	f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.5 } });
+	f.manager.commit('insertCustomNodeGraphEffectNodeParameterArrayElement', { ...nodeParameterTarget({ ...f.target, paramPath: ['buzzs'] }) });
+	f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.5 } });
 	await f.sync.flush();
 	assert.deepEqual(f.batches[0][0].changes, [{ type: 'parameter', kind: 'arrayElements' }, { type: 'parameter', kind: 'value' }]);
-	assert.equal(f.replica.visualModules[0].nodes[0].params.buzzs.value.length, 2);
-	f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.9 } });
-	f.manager.commit('removeVisualModuleNode', { target: { visualModule: { visualModuleId: 'module' }, nodeId: 'node-0' } });
+	assert.equal(f.replica.customNodeGraphEffects[0].nodes[0].params.buzzs.value.length, 2);
+	f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.9 } });
+	f.manager.commit('removeCustomNodeGraphEffectNode', { target: { customNodeGraphEffect: { customNodeGraphEffectId: 'customNodeGraphEffect' }, nodeId: 'node-0' } });
 	await f.sync.flush();
-	assert.deepEqual(f.batches.at(-1).map(change => change.type), ['visualModule']);
-	assert.equal(f.replica.visualModules[0].nodes.length, 0);
+	assert.deepEqual(f.batches.at(-1).map(change => change.type), ['customNodeGraphEffect']);
+	assert.equal(f.replica.customNodeGraphEffects[0].nodes.length, 0);
 	f.manager.undo();
 	await f.sync.flush();
 	assert.equal(f.value(), 0.9);
@@ -315,13 +315,13 @@ test('coalesces structural changes without replaying obsolete node updates', asy
 // まだ受信側に存在しない子IDへ先に差分を送ったり、削除済みレイヤーの並びを送ったりしない。
 test('absorbs child edits into newly added scenes and layers', async t => {
 	const f = fixture(t);
-	const inline = { id: 'inline', name: 'Inline', layerType: 'inlineVisualModule', visualModule: structuredClone(f.replica.visualModules[0]),
-		clips: [], visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [] };
+	const inline = { id: 'inline', name: 'Inline', layerType: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: structuredClone(f.replica.customNodeGraphEffects[0]),
+		clips: [], customNodeGraphEffectParamValues: {}, compositingParamValues: {}, automationGraphs: [] };
 	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [inline] } });
-	f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ sceneId: 'scene', inlineVisualModuleLayerId: 'inline', nodeId: 'node-0', paramPath: f.target.paramPath }), source: { inputSource: 'literal', value: 0.3 } });
+	f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ sceneId: 'scene', inlineCustomNodeGraphEffectLayerId: 'inline', nodeId: 'node-0', paramPath: f.target.paramPath }), source: { inputSource: 'literal', value: 0.3 } });
 	await f.sync.flush();
 	assert.deepEqual(f.batches.at(-1).map(change => change.type), ['layer', 'layerOrder']);
-	assert.equal(f.replica.timelineScenes[0].layers[0].visualModule.nodes[0].params.buzzs.value[0].binding.value.x.value, 0.3);
+	assert.equal(f.replica.timelineScenes[0].layers[0].customNodeGraphEffect.nodes[0].params.buzzs.value[0].binding.value.x.value, 0.3);
 	const { sceneId: childSceneId } = f.manager.commit('createTimelineScene', { name: 'Child' });
 	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: childSceneId, layers: [inline] } });
 	await f.sync.flush();
@@ -342,16 +342,16 @@ const group = (id, layers = []) => ({ id, name: id, layerType: 'group', layers, 
 // グループのUndoで復活するインライン定義にも編集済みの値が含まれる必要がある。
 test('retains inline edit metadata across reparenting and restores edited deleted groups on undo', async t => {
 	const f = fixture(t);
-	const inline = { ...createInlineVisualModuleLayer(0), id: 'inline', visualModule: structuredClone(f.replica.visualModules[0]) };
+	const inline = { ...createInlineCustomNodeGraphEffectLayer(0), id: 'inline', customNodeGraphEffect: structuredClone(f.replica.customNodeGraphEffects[0]) };
 	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [group('group', [inline])] } });
 	await f.sync.flush();
-	const edit = value => f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ sceneId: 'scene', inlineVisualModuleLayerId: 'inline', nodeId: 'node-0', paramPath: f.target.paramPath }), source: { inputSource: 'literal', value: value } });
+	const edit = value => f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ sceneId: 'scene', inlineCustomNodeGraphEffectLayerId: 'inline', nodeId: 'node-0', paramPath: f.target.paramPath }), source: { inputSource: 'literal', value: value } });
 	edit(0.4);
 	f.manager.commit('moveTimelineLayerInTree', { sceneId: 'scene', layerId: 'inline', parentId: null, beforeId: null });
 	await f.sync.flush();
 	assert.deepEqual(f.batches.at(-1).map(change => change.type), ['layerTree', 'node']);
 	assert.deepEqual(f.batches.at(-1)[1].changes, [{ type: 'parameter', kind: 'value' }]);
-	assert.equal(f.replica.timelineScenes[0].layers[1].visualModule.nodes[0].params.buzzs.value[0].binding.value.x.value, 0.4);
+	assert.equal(f.replica.timelineScenes[0].layers[1].customNodeGraphEffect.nodes[0].params.buzzs.value[0].binding.value.x.value, 0.4);
 	f.manager.undo();
 	await f.sync.flush();
 	edit(0.8);
@@ -361,7 +361,7 @@ test('retains inline edit metadata across reparenting and restores edited delete
 	assert.deepEqual(f.replica.timelineScenes[0].layers, []);
 	f.manager.undo();
 	await f.sync.flush();
-	assert.equal(f.replica.timelineScenes[0].layers[0].layers[0].visualModule.nodes[0].params.buzzs.value[0].binding.value.x.value, 0.8);
+	assert.equal(f.replica.timelineScenes[0].layers[0].layers[0].customNodeGraphEffect.nodes[0].params.buzzs.value[0].binding.value.x.value, 0.8);
 	assert.deepEqual(f.errors, []);
 });
 
@@ -406,44 +406,44 @@ test('sends each layer once without nested snapshots when moving a deep group', 
 // 化けてしまう。Inline Moduleの部分編集も吸収せず、レンダラーが判断する材料を保つ。
 test('retains layer edit kinds through merged history and simultaneous inline edits', async t => {
 	const f = fixture(t);
-	const visualModule = structuredClone(f.replica.visualModules[0]);
-	visualModule.paramDefs = [{ id: 'amount', nameForReference: 'amount', dataType: { kind: 'scalar' },
+	const customNodeGraphEffect = structuredClone(f.replica.customNodeGraphEffects[0]);
+	customNodeGraphEffect.paramDefs = [{ id: 'amount', nameForReference: 'amount', dataType: { kind: 'scalar' },
 		ui: { label: 'Amount', control: { controlType: 'number' } }, canNode: false, defaultValue: { inputSource: 'literal', value: 1 } }];
 	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [{
-		id: 'inline', name: 'Inline', layerType: 'inlineVisualModule', visualModule,
-		clips: [], visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [],
+		id: 'inline', name: 'Inline', layerType: 'inlineCustomNodeGraphEffect', customNodeGraphEffect,
+		clips: [], customNodeGraphEffectParamValues: {}, compositingParamValues: {}, automationGraphs: [],
 	}] } });
 	await f.sync.flush();
-	const target = { sceneId: 'scene', layerId: 'inline', target: 'module', paramPath: ['amount'] };
+	const target = { sceneId: 'scene', layerId: 'inline', target: 'customNodeGraphEffect', paramPath: ['amount'] };
 	const edit = value => f.manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ ...target }), source: { inputSource: 'literal', value: value } }, 'arguments');
 	edit(2);
 	edit(3);
 	await f.sync.flush();
-	assert.deepEqual(f.batches.at(-1)[0].changes, [{ type: 'parameter', target: 'module', kind: 'value' }]);
-	assert.equal(f.replica.timelineScenes[0].layers[0].visualModuleParamValues.amount.value, 3);
+	assert.deepEqual(f.batches.at(-1)[0].changes, [{ type: 'parameter', target: 'customNodeGraphEffect', kind: 'value' }]);
+	assert.equal(f.replica.timelineScenes[0].layers[0].customNodeGraphEffectParamValues.amount.value, 3);
 	f.manager.undo();
 	await f.sync.flush();
-	assert.deepEqual(f.replica.timelineScenes[0].layers[0].visualModuleParamValues, {});
+	assert.deepEqual(f.replica.timelineScenes[0].layers[0].customNodeGraphEffectParamValues, {});
 	f.manager.redo();
 	await f.sync.flush();
-	assert.equal(f.replica.timelineScenes[0].layers[0].visualModuleParamValues.amount.value, 3);
-	assert.deepEqual(f.batches.at(-1)[0].changes, [{ type: 'parameter', target: 'module', kind: 'value' }]);
+	assert.equal(f.replica.timelineScenes[0].layers[0].customNodeGraphEffectParamValues.amount.value, 3);
+	assert.deepEqual(f.batches.at(-1)[0].changes, [{ type: 'parameter', target: 'customNodeGraphEffect', kind: 'value' }]);
 
 	f.manager.commit('resetTimelineLayerParameter', { ...timelineParameterTarget({ ...target, edit: { kind: 'reset' } }) });
 	edit(4);
 	f.manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ ...target, target: 'compositing', paramPath: ['opacity'] }), source: { inputSource: 'literal', value: 0.5 } });
-	f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ sceneId: 'scene', inlineVisualModuleLayerId: 'inline', nodeId: 'node-0', paramPath: f.target.paramPath }), source: { inputSource: 'literal', value: 0.75 } });
+	f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ sceneId: 'scene', inlineCustomNodeGraphEffectLayerId: 'inline', nodeId: 'node-0', paramPath: f.target.paramPath }), source: { inputSource: 'literal', value: 0.75 } });
 	await f.sync.flush();
 	const batch = f.batches.at(-1);
 	assert.deepEqual(batch.map(change => change.type), ['node', 'layer']);
 	assert.deepEqual(batch[1].changes, [
-		{ type: 'parameter', target: 'module', kind: 'reset' },
-		{ type: 'parameter', target: 'module', kind: 'value' },
+		{ type: 'parameter', target: 'customNodeGraphEffect', kind: 'reset' },
+		{ type: 'parameter', target: 'customNodeGraphEffect', kind: 'value' },
 		{ type: 'parameter', target: 'compositing', kind: 'value' },
 	]);
 	const replica = f.replica.timelineScenes[0].layers[0];
-	assert.equal(replica.visualModule.nodes[0].params.buzzs.value[0].binding.value.x.value, 0.75);
-	assert.equal(replica.visualModuleParamValues.amount.value, 4);
+	assert.equal(replica.customNodeGraphEffect.nodes[0].params.buzzs.value[0].binding.value.x.value, 0.75);
+	assert.equal(replica.customNodeGraphEffectParamValues.amount.value, 4);
 	assert.equal(replica.compositingParamValues.opacity.value, 0.5);
 	assert.deepEqual(f.errors, []);
 });
@@ -466,39 +466,39 @@ test('publishes state changes independently of renderer subscriptions', async t 
 	assert.equal(notifications.length, 3);
 });
 
-// 【Visual Moduleの名前変更は履歴に残し、ノードや描画インスタンスへ影響させない】
-// 表示名の変更を登録変更として送ると、名前を入力するだけでVisual Module Live Previewや履歴を持つエフェクトが再初期化される。
-// 登録済みはVisual Module自身、インラインはレイヤーの名前を変更し、Undo/Redoでも同じIDと構成を維持する。
-test('renames registered and inline Visual Modules through history without renderer patches', async t => {
+// 【Custom Node Graph Effectの名前変更は履歴に残し、ノードや描画インスタンスへ影響させない】
+// 表示名の変更を登録変更として送ると、名前を入力するだけでCustom Node Graph Effect Live Previewや履歴を持つエフェクトが再初期化される。
+// 登録済みはCustom Node Graph Effect自身、インラインはレイヤーの名前を変更し、Undo/Redoでも同じIDと構成を維持する。
+test('renames registered and inline Custom Node Graph Effects through history without renderer patches', async t => {
 	const f = fixture(t);
-	const registeredVisualModule = f.manager.state.visualModules.value[0];
-	const originalName = registeredVisualModule.name;
-	const originalNodes = registeredVisualModule.nodes;
-	const inlineLayer = createInlineVisualModuleLayer(0);
+	const registeredCustomNodeGraphEffect = f.manager.state.customNodeGraphEffects.value[0];
+	const originalName = registeredCustomNodeGraphEffect.name;
+	const originalNodes = registeredCustomNodeGraphEffect.nodes;
+	const inlineLayer = createInlineCustomNodeGraphEffectLayer(0);
 	const originalLayerName = inlineLayer.name;
 	f.manager.state.timelineScenes.value[0].layers.push(inlineLayer);
 	const notifications = [];
 	f.manager.onChange(changes => notifications.push(changes));
-	f.manager.commit('setVisualModuleName', { target: { visualModuleId: registeredVisualModule.id }, name: 'Renamed Visual Module' });
-	f.manager.commit('setTimelineLayerName', { sceneId: 'scene', layerId: inlineLayer.id, name: 'Renamed Inline Visual Module' });
+	f.manager.commit('setCustomNodeGraphEffectName', { target: { customNodeGraphEffectId: registeredCustomNodeGraphEffect.id }, name: 'Renamed Custom Node Graph Effect' });
+	f.manager.commit('setTimelineLayerName', { sceneId: 'scene', layerId: inlineLayer.id, name: 'Renamed Inline Custom Node Graph Effect' });
 	await f.sync.flush();
-	assert.equal(registeredVisualModule.name, 'Renamed Visual Module');
-	assert.equal(f.manager.state.timelineScenes.value[0].layers[0].name, 'Renamed Inline Visual Module');
+	assert.equal(registeredCustomNodeGraphEffect.name, 'Renamed Custom Node Graph Effect');
+	assert.equal(f.manager.state.timelineScenes.value[0].layers[0].name, 'Renamed Inline Custom Node Graph Effect');
 	assert.equal(f.manager.undoStack.value.length, 2);
 	f.manager.undo();
 	f.manager.undo();
-	assert.equal(registeredVisualModule.name, originalName);
+	assert.equal(registeredCustomNodeGraphEffect.name, originalName);
 	assert.equal(f.manager.state.timelineScenes.value[0].layers[0].name, originalLayerName);
 	f.manager.redo();
 	f.manager.redo();
 	await f.sync.flush();
-	assert.equal(registeredVisualModule.name, 'Renamed Visual Module');
-	assert.equal(f.manager.state.timelineScenes.value[0].layers[0].name, 'Renamed Inline Visual Module');
-	assert.equal(registeredVisualModule.id, 'module');
-	assert.equal(registeredVisualModule.nodes, originalNodes);
+	assert.equal(registeredCustomNodeGraphEffect.name, 'Renamed Custom Node Graph Effect');
+	assert.equal(f.manager.state.timelineScenes.value[0].layers[0].name, 'Renamed Inline Custom Node Graph Effect');
+	assert.equal(registeredCustomNodeGraphEffect.id, 'customNodeGraphEffect');
+	assert.equal(registeredCustomNodeGraphEffect.nodes, originalNodes);
 	assert.equal(f.manager.state.timelineScenes.value[0].layers[0].id, inlineLayer.id);
-	assert.equal(f.manager.state.timelineScenes.value[0].layers[0].visualModule.name, undefined);
-	const registeredNameChange = [{ type: 'visualModuleName', visualModuleId: 'module' }];
+	assert.equal(f.manager.state.timelineScenes.value[0].layers[0].customNodeGraphEffect.name, undefined);
+	const registeredNameChange = [{ type: 'customNodeGraphEffectName', customNodeGraphEffectId: 'customNodeGraphEffect' }];
 	const inlineNameChange = [{ type: 'layerName', sceneId: 'scene', layerId: inlineLayer.id }];
 	assert.deepEqual(notifications, [registeredNameChange, inlineNameChange, inlineNameChange, registeredNameChange, registeredNameChange, inlineNameChange]);
 	assert.deepEqual(f.batches, []);
@@ -512,7 +512,7 @@ test('reports failed patches without resynchronizing and ignores failures after 
 	const gate = Promise.withResolvers();
 	let updated = 0;
 	const f = fixture(t, 1, { apply: () => gate.promise, onUpdated: () => { updated++; } });
-	f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.5 } });
+	f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.5 } });
 	const flushed = f.sync.flush();
 	gate.reject(new Error('patch rejected'));
 	await flushed;
@@ -522,7 +522,7 @@ test('reports failed patches without resynchronizing and ignores failures after 
 	assert.equal(updated, 0);
 	const oldGate = Promise.withResolvers();
 	const old = fixture(t, 1, { apply: () => oldGate.promise });
-	old.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...old.target }), source: { inputSource: 'literal', value: 0.25 } });
+	old.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...old.target }), source: { inputSource: 'literal', value: 0.25 } });
 	const oldFlushed = old.sync.flush();
 	old.sync.dispose();
 	oldGate.reject(new Error('old worker'));
@@ -536,7 +536,7 @@ test('reports failed patches without resynchronizing and ignores failures after 
 test('synchronizes camera layer edits and undo without replacing other layers', async t => {
 	const f = fixture(t);
 	const camera = createCameraTimelineLayer(0);
-	const image = createInlineVisualModuleLayer(0);
+	const image = createInlineCustomNodeGraphEffectLayer(0);
 	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [image] } });
 	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [camera] } });
 	await f.sync.flush();
@@ -584,7 +584,7 @@ test('synchronizes and saves shared graphs through editing deletion undo and red
 	await f.sync.flush();
 	assert.deepEqual(f.replica.automationGraphs, [renamed]);
 	const decoded = decodeProjectFile(await encodeProjectFile({ automationGraphs: f.manager.state.automationGraphs.value,
-		assets: [], generatedSpeech: [], visualModules: [], timelineScenes: f.manager.state.timelineScenes.value }));
+		assets: [], generatedSpeech: [], customNodeGraphEffects: [], timelineScenes: f.manager.state.timelineScenes.value }));
 	assert.deepEqual(decoded.automationGraphs, [renamed]);
 	assert.equal(decoded.timelineScenes[0].layers[0].compositingParamValues.opacity.automationGraphId, graph.id);
 	f.manager.commit('removeProjectAutomationGraph', { automationGraphId: graph.id });
@@ -637,19 +637,19 @@ test('prefers local names while resolving shared IDs using the caller clock', ()
 	assert.equal(evaluator.evaluate(graphReference('deleted'), scope, 0.4, definition), 0.4);
 });
 
-// 【グループ内でも参照元レイヤーだけのローカル定義を使い、Visual Module内部へ公開しない】
-// 評価用のSceneを組み立てる際に保存状態を変更すると、共有定義がレイヤーやVisual Moduleへ
+// 【グループ内でも参照元レイヤーだけのローカル定義を使い、Custom Node Graph Effect内部へ公開しない】
+// 評価用のSceneを組み立てる際に保存状態を変更すると、共有定義がレイヤーやCustom Node Graph Effectへ
 // コピーされ、編集の二重管理や持ち出し時の意図しない依存が生じる。
-test('composes timeline evaluation graphs without mutating saved layers or Visual Module internals', () => {
+test('composes timeline evaluation graphs without mutating saved layers or Custom Node Graph Effect internals', () => {
 	const global = sharedGraph();
-	const child = { id: 'child', layerType: 'inlineVisualModule', automationGraphs: [], visualModule: { automationGraphs: [] } };
+	const child = { id: 'child', layerType: 'inlineCustomNodeGraphEffect', automationGraphs: [], customNodeGraphEffect: { automationGraphs: [] } };
 	const group = { id: 'group', layerType: 'group', automationGraphs: [sharedGraph('parent')], layers: [child] };
 	const scenes = [{ id: 'scene', layers: [group] }];
 	const [evaluated] = getTimelineScenesWithProjectAutomationGraphs(scenes, [global]);
 	assert.deepEqual(evaluated.layers[0].automationGraphs.map(graph => graph.id), ['parent', 'shared']);
 	assert.deepEqual(evaluated.layers[0].layers[0].automationGraphs.map(graph => graph.id), ['shared']);
-	assert.equal(evaluated.layers[0].layers[0].visualModule, child.visualModule);
-	assert.deepEqual(child.visualModule.automationGraphs, []);
+	assert.equal(evaluated.layers[0].layers[0].customNodeGraphEffect, child.customNodeGraphEffect);
+	assert.deepEqual(child.customNodeGraphEffect.automationGraphs, []);
 	assert.deepEqual(child.automationGraphs, []);
 	assert.deepEqual(group.automationGraphs.map(graph => graph.id), ['parent']);
 });

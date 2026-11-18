@@ -280,7 +280,7 @@ test('rejects missing direct and transitive dependencies in a packaged applicati
 // 【配布対象の実ソースと画像をASARに詰め、起動時に必要なファイルをすべて解決できることを確認する】
 // main.mjsに実装を追加しても配布対象への追加を忘れると、開発環境だけ起動できて配布版が起動不能になる。
 // 実際のelectron-builder設定とソースを使い、別の手書きファイル一覧との比較では見逃す追加漏れを検出する。
-test('packages every local module and resource required by the actual application and preload', async t => {
+test('packages every local Custom Node Graph Effect and resource required by the actual application and preload', async t => {
 	const temporaryRoot = path.resolve(os.tmpdir());
 	const directory = await fs.mkdtemp(path.join(temporaryRoot, 'glitch-runtime-package-test-'));
 	t.after(async () => {
@@ -290,9 +290,9 @@ test('packages every local module and resource required by the actual applicatio
 	});
 	const desktopDirectory = fileURLToPath(new URL('../', import.meta.url));
 	// クリーンなcheckoutでも、配布用の生成ファイルを実際のビルド処理で用意する。
-	const { buildDesktopPortableVisualModule } = await import('../build-portable-visual-module.mjs');
+	const { buildDesktopPortableCustomNodeGraphEffect } = await import('../build-portable-custom-node-graph-effect.mjs');
 	const generatedDirectory = path.join(directory, 'generated');
-	await buildDesktopPortableVisualModule(generatedDirectory);
+	await buildDesktopPortableCustomNodeGraphEffect(generatedDirectory);
 	const configuration = createRequire(import.meta.url)('../electron-builder.config.cjs');
 	const manifest = JSON.parse(await fs.readFile(path.join(desktopDirectory, 'package.json'), 'utf8'));
 	const source = path.join(directory, 'app');
@@ -312,7 +312,7 @@ test('packages every local module and resource required by the actual applicatio
 // 【ASAR内のエントリ・推移的なimport・動的import・preloadのrequireの欠落を検出する】
 // 必須ファイル一覧だけでは、まだ一覧に追加されていない新しいモジュールの梱包漏れを防げない。
 // コードを実行せず依存先をたどり、循環importがあっても検証を終えられる必要がある。
-test('rejects missing application modules recursively without executing packaged code', async t => {
+test('rejects missing application Custom Node Graph Effects recursively without executing packaged code', async t => {
 	const temporaryRoot = path.resolve(os.tmpdir());
 	const directory = await fs.mkdtemp(path.join(temporaryRoot, 'glitch-local-module-test-'));
 	t.after(async () => {

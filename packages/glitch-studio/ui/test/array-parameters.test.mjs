@@ -14,7 +14,7 @@ const bundled = await build({
 		contents: `
 			export { COMMAND_DEFS } from './src/commands.ts';
 			export { UndoRedo } from './src/utility/undo-redo.ts';
-			export { commitVisualModuleEdit } from './src/utility/visual-module-edit.ts';
+			export { commitCustomNodeGraphEffectEdit } from './src/utility/custom-node-graph-effect-edit.ts';
 			export { resolveNodeParam, walkNodeParams } from './src/utility/node-params.ts';
 			export { createResetParameterBinding } from './src/utility/parameter-default.ts';
 			export { default as definition } from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
@@ -35,7 +35,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { COMMAND_DEFS, UndoRedo, commitVisualModuleEdit, definition, resolveNodeParam, walkNodeParams, createResetParameterBinding } = module.exports;
+const { COMMAND_DEFS, UndoRedo, commitCustomNodeGraphEffectEdit, definition, resolveNodeParam, walkNodeParams, createResetParameterBinding } = module.exports;
 const literal = value => ({ inputSource: 'literal', value });
 
 function fixture() {
@@ -43,29 +43,29 @@ function fixture() {
 		id: 'node', type: 'effect', effectId: definition.id,
 		params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
 	};
-	const state = { visualModules: { value: [{ id: 'module', nodes: [node] }] } };
-	return { state, node, target: { visualModuleId: 'module', nodeId: node.id, paramPath: ['buzzs'] } };
+	const state = { customNodeGraphEffects: { value: [{ id: 'customNodeGraphEffect', nodes: [node] }] } };
+	return { state, node, target: { customNodeGraphEffectId: 'customNodeGraphEffect', nodeId: node.id, paramPath: ['buzzs'] } };
 }
 
 function fixtureWithRemovedPublicInput() {
 	const { state, node, target } = fixture();
-	const visualModule = state.visualModules.value[0];
-	visualModule.paramDefs = [];
-	visualModule.primaryInputId = null;
-	visualModule.primaryAudioInputId = null;
-	visualModule.nodes.push({ id: 'input', type: 'globalIn' });
+	const customNodeGraphEffect = state.customNodeGraphEffects.value[0];
+	customNodeGraphEffect.paramDefs = [];
+	customNodeGraphEffect.primaryInputId = null;
+	customNodeGraphEffect.primaryAudioInputId = null;
+	customNodeGraphEffect.nodes.push({ id: 'input', type: 'globalIn' });
 	node.params.buzzs.value.push({ id: 'second', binding: structuredClone(definition.paramDefs.buzzs.element.defaultValue) });
 	const manager = new UndoRedo(state, COMMAND_DEFS);
-	const publicParameter = manager.commit('createVisualModulePublicParameter', {
-		visualModule: { visualModuleId: visualModule.id },
+	const publicParameter = manager.commit('createCustomNodeGraphEffectPublicParameter', {
+		customNodeGraphEffect: { customNodeGraphEffectId: customNodeGraphEffect.id },
 		definition: { dataType: { kind: 'color' }, canNode: true, nameForReference: 'image', ui: { label: 'Image', control: {} }, defaultValue: literal([0, 0, 0, 0]) },
 	});
 	const imageParameter = nodeParameterTarget({ ...target, paramPath: ['buzzs', 'first', 'image'] });
-	manager.commit('setVisualModuleNodeParameterSource', {
+	manager.commit('setCustomNodeGraphEffectNodeParameterSource', {
 		...imageParameter, source: { inputSource: 'node', nodeId: 'input', outputPort: publicParameter.parameterId, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' },
 	});
-	manager.commit('removeVisualModulePublicParameter', { target: publicParameter });
-	return { state, node, target, visualModule, manager, publicParameter, imageParameter };
+	manager.commit('removeCustomNodeGraphEffectPublicParameter', { target: publicParameter });
+	return { state, node, target, customNodeGraphEffect, manager, publicParameter, imageParameter };
 }
 
 // 【型不一致を許可した接続を残して、別の配列要素を削除・Undo・Redoする】
@@ -74,14 +74,14 @@ function fixtureWithRemovedPublicInput() {
 test('removes sibling array elements while preserving existing mismatched connections', () => {
 	const { state, node } = fixture();
 	node.params.buzzs.value.push({ id: 'second', binding: structuredClone(definition.paramDefs.buzzs.element.defaultValue) });
-	state.visualModules.value[0].nodes.push({ ...structuredClone(node), id: 'scalar-source' });
+	state.customNodeGraphEffects.value[0].nodes.push({ ...structuredClone(node), id: 'scalar-source' });
 	const manager = new UndoRedo(state, COMMAND_DEFS);
-	const visualModule = { visualModuleId: 'module' };
-	commitVisualModuleEdit(manager, visualModule, { kind: 'editNodeParam', nodeId: node.id, edit: {
+	const customNodeGraphEffect = { customNodeGraphEffectId: 'customNodeGraphEffect' };
+	commitCustomNodeGraphEffectEdit(manager, customNodeGraphEffect, { kind: 'editNodeParam', nodeId: node.id, edit: {
 		kind: 'node', paramPath: ['buzzs', 'first', 'image'], value: { nodeId: 'scalar-source', outputPort: 'output2' }, preserveSampling: false,
 	} });
 	const connected = structuredClone(node.params.buzzs);
-	commitVisualModuleEdit(manager, visualModule, { kind: 'editNodeParam', nodeId: node.id, edit: {
+	commitCustomNodeGraphEffectEdit(manager, customNodeGraphEffect, { kind: 'editNodeParam', nodeId: node.id, edit: {
 		kind: 'removeElement', paramPath: ['buzzs'], elementId: 'second',
 	} });
 	assert.deepEqual(node.params.buzzs.value, [connected.value[0]]);
@@ -96,17 +96,17 @@ test('removes sibling array elements while preserving existing mismatched connec
 // strictのCommandから新規の型不一致まで導入できてしまう。
 test('still rejects new mismatched connections when another connection is retained', () => {
 	const { state, node, target } = fixture();
-	state.visualModules.value[0].nodes.push(...['scalar-source', 'another-source'].map(id => ({ ...structuredClone(node), id })));
+	state.customNodeGraphEffects.value[0].nodes.push(...['scalar-source', 'another-source'].map(id => ({ ...structuredClone(node), id })));
 	const manager = new UndoRedo(state, COMMAND_DEFS);
 	const parameter = nodeParameterTarget({ ...target, paramPath: ['buzzs', 'first', 'image'] });
-	manager.commit('setVisualModuleNodeParameterSource', { ...parameter, connectionTypePolicy: 'allowMismatch', source: { inputSource: 'node', nodeId: 'scalar-source', outputPort: 'output2' } });
+	manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...parameter, connectionTypePolicy: 'allowMismatch', source: { inputSource: 'node', nodeId: 'scalar-source', outputPort: 'output2' } });
 	const before = structuredClone(node.params.buzzs);
-	assert.throws(() => manager.commit('setVisualModuleNodeParameterSource', {
+	assert.throws(() => manager.commit('setCustomNodeGraphEffectNodeParameterSource', {
 		...parameter, source: { inputSource: 'node', nodeId: 'another-source', outputPort: 'output2' },
 	}), /Node output type does not match/);
 	const movedToNewId = structuredClone(before);
 	movedToNewId.value[0].id = 'new-element';
-	assert.throws(() => manager.commit('replaceVisualModuleNodeParameterBinding', {
+	assert.throws(() => manager.commit('replaceCustomNodeGraphEffectNodeParameterBinding', {
 		...nodeParameterTarget(target), binding: movedToNewId,
 	}), /Node output type does not match/);
 	assert.deepEqual(node.params.buzzs, before);
@@ -117,55 +117,55 @@ test('still rejects new mismatched connections when another connection is retain
 // 公開入力の削除はUndoで再接続できるよう参照IDを残すため、その接続が含まれるだけで
 // 配列全体の編集を拒否してはいけない。編集と定義削除を順にUndo/Redoしても参照を維持する。
 test('edits arrays and sampling while preserving connections to removed public inputs', () => {
-	const { node, target, visualModule, manager, publicParameter, imageParameter } = fixtureWithRemovedPublicInput();
-	const before = structuredClone(visualModule);
-	assert.equal(visualModule.paramDefs.length, 0);
-	commitVisualModuleEdit(manager, { visualModuleId: visualModule.id }, { kind: 'editNodeParam', nodeId: node.id, edit: {
+	const { node, target, customNodeGraphEffect, manager, publicParameter, imageParameter } = fixtureWithRemovedPublicInput();
+	const before = structuredClone(customNodeGraphEffect);
+	assert.equal(customNodeGraphEffect.paramDefs.length, 0);
+	commitCustomNodeGraphEffectEdit(manager, { customNodeGraphEffectId: customNodeGraphEffect.id }, { kind: 'editNodeParam', nodeId: node.id, edit: {
 		kind: 'removeElement', paramPath: target.paramPath, elementId: 'second',
 	} });
 	assert.deepEqual(node.params.buzzs.value, [before.nodes[0].params.buzzs.value[0]]);
-	const removed = structuredClone(visualModule);
+	const removed = structuredClone(customNodeGraphEffect);
 	const connection = structuredClone(resolveNodeParam(node, imageParameter.parameterPath).value);
 	const sampled = { ...connection, fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' };
-	manager.commit('setVisualModuleNodeParameterSource', { ...imageParameter, source: sampled });
+	manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...imageParameter, source: sampled });
 	assert.deepEqual(resolveNodeParam(node, imageParameter.parameterPath).value, sampled);
-	const after = structuredClone(visualModule);
+	const after = structuredClone(customNodeGraphEffect);
 	manager.undo();
-	assert.deepEqual(visualModule, removed);
+	assert.deepEqual(customNodeGraphEffect, removed);
 	manager.undo();
-	assert.deepEqual(visualModule, before);
+	assert.deepEqual(customNodeGraphEffect, before);
 	manager.undo();
-	assert.equal(visualModule.paramDefs[0].id, publicParameter.parameterId);
+	assert.equal(customNodeGraphEffect.paramDefs[0].id, publicParameter.parameterId);
 	assert.deepEqual(resolveNodeParam(node, imageParameter.parameterPath).value, connection);
 	manager.redo();
-	assert.deepEqual(visualModule, before);
+	assert.deepEqual(customNodeGraphEffect, before);
 	manager.redo();
-	assert.deepEqual(visualModule, removed);
+	assert.deepEqual(customNodeGraphEffect, removed);
 	manager.redo();
-	assert.deepEqual(visualModule, after);
+	assert.deepEqual(customNodeGraphEffect, after);
 });
 
 // 【既存の未解決接続があっても、新しいIDパスや接続先の欠落は拒否する】
 // 既存接続の保持を許可する例外を、新規の壊れた接続の作成に使えてはいけない。
 // 型不一致を許す方針でも参照先の存在確認は必要で、失敗時に状態と履歴を変更しない。
 test('rejects new missing connections even when an unresolved connection is retained', () => {
-	const { node, target, visualModule, manager, imageParameter } = fixtureWithRemovedPublicInput();
-	const before = structuredClone(visualModule);
+	const { node, target, customNodeGraphEffect, manager, imageParameter } = fixtureWithRemovedPublicInput();
+	const before = structuredClone(customNodeGraphEffect);
 	const historySize = manager.undoStack.value.length;
 	const connection = structuredClone(resolveNodeParam(node, imageParameter.parameterPath).value);
 	for (const connectionTypePolicy of ['strict', 'allowMismatch']) {
 		for (const source of [{ ...connection, nodeId: 'missing-node' }, { ...connection, outputPort: 'missing-port' }]) {
-			assert.throws(() => manager.commit('setVisualModuleNodeParameterSource', {
+			assert.throws(() => manager.commit('setCustomNodeGraphEffectNodeParameterSource', {
 				...imageParameter, source, connectionTypePolicy,
 			}), /Node output not found/);
 		}
 		const movedToNewId = structuredClone(node.params.buzzs);
 		movedToNewId.value[0].id = 'new-element';
-		assert.throws(() => manager.commit('replaceVisualModuleNodeParameterBinding', {
+		assert.throws(() => manager.commit('replaceCustomNodeGraphEffectNodeParameterBinding', {
 			...nodeParameterTarget(target), binding: movedToNewId, connectionTypePolicy,
 		}), /Node output not found/);
 	}
-	assert.deepEqual(visualModule, before);
+	assert.deepEqual(customNodeGraphEffect, before);
 	assert.equal(manager.undoStack.value.length, historySize);
 });
 
@@ -176,29 +176,29 @@ test('preserves modifiers through node source edits and independent undo and red
 	const { state, node, target } = fixture();
 	target.paramPath = ['buzzs', 'first', 'x'];
 	const modifier = { enabled: true, code: 'VALUE + 1' };
-	const add = prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterExpressionModifier, { ...nodeParameterTarget({ ...target }), expressionModifier: modifier });
+	const add = prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterExpressionModifier, { ...nodeParameterTarget({ ...target }), expressionModifier: modifier });
 	add.execute(state);
 	const read = () => resolveNodeParam(node, target.paramPath).value;
 	assert.deepEqual(read().expressionModifier, modifier);
-	const edit = prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: 0.75 } });
+	const edit = prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: 0.75 } });
 	edit.execute(state);
 	assert.equal(read().value, 0.75);
 	assert.deepEqual(read().expressionModifier, modifier);
-	const source = prepareTestCommand(COMMAND_DEFS.switchVisualModuleNodeParameterInputSource, { ...nodeParameterTarget({ ...target }), inputSource: 'expression' });
+	const source = prepareTestCommand(COMMAND_DEFS.switchCustomNodeGraphEffectNodeParameterInputSource, { ...nodeParameterTarget({ ...target }), inputSource: 'expression' });
 	source.execute(state);
 	assert.equal(read().expression, '0.75');
 	assert.deepEqual(read().expressionModifier, modifier);
-	const disable = prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterExpressionModifier, { ...nodeParameterTarget({ ...target }), expressionModifier: { ...modifier, enabled: false } });
+	const disable = prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterExpressionModifier, { ...nodeParameterTarget({ ...target }), expressionModifier: { ...modifier, enabled: false } });
 	disable.execute(state);
 	assert.equal(read().expressionModifier.enabled, false);
 	disable.undo(state);
 	assert.equal(read().expressionModifier.enabled, true);
-	const reset = prepareTestCommand(COMMAND_DEFS.resetVisualModuleNodeParameter, { ...nodeParameterTarget(target) });
+	const reset = prepareTestCommand(COMMAND_DEFS.resetCustomNodeGraphEffectNodeParameter, { ...nodeParameterTarget(target) });
 	reset.execute(state);
 	assert.deepEqual(read(), literal(0));
 	reset.undo(state);
 	assert.deepEqual(read().expressionModifier, modifier);
-	const remove = prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterExpressionModifier, { ...nodeParameterTarget({ ...target }), expressionModifier: null });
+	const remove = prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterExpressionModifier, { ...nodeParameterTarget({ ...target }), expressionModifier: null });
 	remove.execute(state);
 	assert.equal(read().expressionModifier, null);
 	remove.undo(state);
@@ -211,9 +211,9 @@ test('preserves modifiers through node source edits and independent undo and red
 test('targets element IDs across insertions and reordering', () => {
 	const { state, node, target } = fixture();
 	const otherNode = { ...structuredClone(node), id: 'other' };
-	state.visualModules.value[0].nodes.push(otherNode);
-	const edit = prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterSource, { ...nodeParameterTarget({ ...target, paramPath: ['buzzs', 'first', 'x'] }), source: { inputSource: 'literal', value: 0.75 } });
-	const remove = prepareTestCommand(COMMAND_DEFS.removeVisualModuleNodeParameterArrayElements, { ...nodeParameterTarget({ ...target }), elementIds: ['first'] });
+	state.customNodeGraphEffects.value[0].nodes.push(otherNode);
+	const edit = prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target, paramPath: ['buzzs', 'first', 'x'] }), source: { inputSource: 'literal', value: 0.75 } });
+	const remove = prepareTestCommand(COMMAND_DEFS.removeCustomNodeGraphEffectNodeParameterArrayElements, { ...nodeParameterTarget({ ...target }), elementIds: ['first'] });
 	const inserted = { id: 'inserted', binding: structuredClone(definition.paramDefs.buzzs.element.defaultValue) };
 	node.params.buzzs.value.unshift(inserted);
 	edit.execute(state);
@@ -235,11 +235,11 @@ test('targets element IDs across insertions and reordering', () => {
 // 遅れて届いた編集や削除を、以前のindexへフォールバックして適用しない。
 test('rejects stale element targets without changing another element', () => {
 	const { state, node, target } = fixture();
-	const edit = prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterSource, { ...nodeParameterTarget({ ...target, paramPath: ['buzzs', 'first', 'x'] }), source: { inputSource: 'literal', value: 1 } });
+	const edit = prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target, paramPath: ['buzzs', 'first', 'x'] }), source: { inputSource: 'literal', value: 1 } });
 	node.params.buzzs.value = [{ id: 'replacement', binding: structuredClone(definition.paramDefs.buzzs.element.defaultValue) }];
 	const before = structuredClone(node.params);
 	assert.throws(() => edit.execute(state), /Unknown array element/);
-	assert.throws(() => prepareTestCommand(COMMAND_DEFS.removeVisualModuleNodeParameterArrayElements, { ...nodeParameterTarget({ ...target }), elementIds: ['first'] }).execute(state), /Array element not found/);
+	assert.throws(() => prepareTestCommand(COMMAND_DEFS.removeCustomNodeGraphEffectNodeParameterArrayElements, { ...nodeParameterTarget({ ...target }), elementIds: ['first'] }).execute(state), /Array element not found/);
 	assert.deepEqual(node.params, before);
 });
 
@@ -249,7 +249,7 @@ test('rejects stale element targets without changing another element', () => {
 test('preserves generated IDs through undo and redo of additions and resets', () => {
 	const { state, node, target } = fixture();
 	const original = structuredClone(node.params.buzzs);
-	const add = prepareTestCommand(COMMAND_DEFS.insertVisualModuleNodeParameterArrayElement, { ...nodeParameterTarget(target) });
+	const add = prepareTestCommand(COMMAND_DEFS.insertCustomNodeGraphEffectNodeParameterArrayElement, { ...nodeParameterTarget(target) });
 	add.execute(state);
 	const added = structuredClone(node.params.buzzs);
 	assert.notEqual(added.value[1].id, added.value[0].id);
@@ -259,7 +259,7 @@ test('preserves generated IDs through undo and redo of additions and resets', ()
 	add.execute(state);
 	assert.deepEqual(node.params.buzzs, added);
 
-	const reset = prepareTestCommand(COMMAND_DEFS.resetVisualModuleNodeParameter, { ...nodeParameterTarget(target) });
+	const reset = prepareTestCommand(COMMAND_DEFS.resetCustomNodeGraphEffectNodeParameter, { ...nodeParameterTarget(target) });
 	reset.execute(state);
 	const resetValue = structuredClone(node.params.buzzs);
 	assert.equal(resetValue.value.length, 1);
@@ -272,8 +272,8 @@ test('preserves generated IDs through undo and redo of additions and resets', ()
 	assert.equal(definition.paramDefs.buzzs.defaultValue.value[0].id, 'first');
 
 	const path = ['buzzs', resetValue.value[0].id];
-	prepareTestCommand(COMMAND_DEFS.setVisualModuleNodeParameterSource, { ...nodeParameterTarget({ ...target, paramPath: [...path, 'x'] }), source: { inputSource: 'literal', value: 1 } }).execute(state);
-	prepareTestCommand(COMMAND_DEFS.resetVisualModuleNodeParameter, { ...nodeParameterTarget({ ...target, paramPath: path }) }).execute(state);
+	prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target, paramPath: [...path, 'x'] }), source: { inputSource: 'literal', value: 1 } }).execute(state);
+	prepareTestCommand(COMMAND_DEFS.resetCustomNodeGraphEffectNodeParameter, { ...nodeParameterTarget({ ...target, paramPath: path }) }).execute(state);
 	assert.equal(node.params.buzzs.value[0].id, resetValue.value[0].id);
 	assert.deepEqual(node.params.buzzs.value[0].binding, original.value[0].binding);
 });

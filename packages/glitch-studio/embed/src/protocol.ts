@@ -1,7 +1,7 @@
-import type { PortableVisualModule, PortableVisualModuleSettings } from '@gs/glitch-studio_shared/portable-visual-module.ts';
+import type { PortableCustomNodeGraphEffect, PortableCustomNodeGraphEffectSettings } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 
-export type PortableVisualModuleFrame = {
+export type PortableCustomNodeGraphEffectFrame = {
 	resolution: Resolution;
 	time: number;
 	pointerElementPosition: { x: number; y: number } | null;
@@ -9,18 +9,18 @@ export type PortableVisualModuleFrame = {
 	resetHistory: boolean;
 };
 
-export type PortableVisualModuleRequest =
-	| { type: 'initialize'; canvas: OffscreenCanvas; artwork: PortableVisualModule }
-	| { type: 'frame'; frame: PortableVisualModuleFrame }
+export type PortableCustomNodeGraphEffectRequest =
+	| { type: 'initialize'; canvas: OffscreenCanvas; artwork: PortableCustomNodeGraphEffect }
+	| { type: 'frame'; frame: PortableCustomNodeGraphEffectFrame }
 	| { type: 'dispose' };
 
-export type PortableVisualModuleResponse =
+export type PortableCustomNodeGraphEffectResponse =
 	| { type: 'ready' }
 	| { type: 'frame'; resolution: Resolution; time: number }
 	| { type: 'error'; message: string };
 
 /** GPU限界でも片軸だけを切り詰めず、公開座標の縦横比を維持する。 */
-export function getPortableRenderResolution(width: number, height: number, settings: PortableVisualModuleSettings, maxDimension = Infinity): Resolution | null {
+export function getPortableRenderResolution(width: number, height: number, settings: PortableCustomNodeGraphEffectSettings, maxDimension = Infinity): Resolution | null {
 	if (!(width > 0) || !(height > 0)) return null;
 	const scale = Math.min(settings.resolutionScale, Math.sqrt(settings.maxPixels / width / height), maxDimension / width, maxDimension / height);
 	const resolution = { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)) };

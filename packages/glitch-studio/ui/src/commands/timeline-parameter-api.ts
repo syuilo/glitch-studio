@@ -27,7 +27,7 @@ import type { CommandDef } from './definition.ts';
 import { applyTimelineParameterEdit, setTimelineLayerParameterRoot } from '../utility/timeline-parameter-edit.ts';
 import type { TimelineParameterEditInput } from '../utility/timeline-parameter-edit.ts';
 
-export type TimelineParameterGroup = Exclude<TimelineParameterTarget, 'module'> | 'visualModule';
+export type TimelineParameterGroup = TimelineParameterTarget;
 export type TimelineParameterReference = { sceneId: string; layerId: string; parameterGroup: TimelineParameterGroup; parameterPath: ParamPath };
 export type TimelineParameterSource = EditableTimelineParameterBinding extends infer Binding ? Binding extends EditableTimelineParameterBinding ? Omit<Binding, 'expressionModifier'> : never : never;
 export type TimelineParameterBindingInput = TimelineParameterReference & { binding: EditableTimelineParameterBinding };
@@ -37,12 +37,12 @@ export function getTimelineParameterEditBinding(state: ProjectState, input: Time
 	const scene = getScene(state, input.sceneId);
 	const layer = findTimelineLayer(scene.layers, input.layerId);
 	if (layer == null) throw new Error('Timeline layer not found');
-	const target = input.target ?? 'module';
+	const target = input.target ?? 'customNodeGraphEffect';
 	const clonedLayer = deepClone(layer);
 	const draft = { ...state, timelineScenes: { value: state.timelineScenes.value.map(value => value.id === scene.id ? { ...scene, layers: updateTimelineLayer(scene.layers, layer.id, () => clonedLayer) } : value) } } as ProjectState;
 	applyTimelineParameterEdit(draft, deepClone(input));
 	return {
-		sceneId: input.sceneId, layerId: input.layerId, parameterGroup: target === 'module' ? 'visualModule' : target,
+		sceneId: input.sceneId, layerId: input.layerId, parameterGroup: target,
 		// 末端のパスを保持する。ルートへ縮めると、別の配列要素やstructフィールドも
 		// 同じ連続編集として扱われる。ルート全体の検証はCommand側で行う。
 		parameterPath: [...input.paramPath], binding: deepClone(resolveLayerParameter(draft, clonedLayer, target, input.paramPath).value),
@@ -50,7 +50,7 @@ export function getTimelineParameterEditBinding(state: ProjectState, input: Time
 }
 
 function resolveEditableParameter(state: ProjectState, input: TimelineParameterReference) {
-	const target: TimelineParameterTarget = input.parameterGroup === 'visualModule' ? 'module' : input.parameterGroup;
+	const target: TimelineParameterTarget = input.parameterGroup;
 	const layer = findTimelineLayer(getScene(state, input.sceneId).layers, input.layerId);
 	if (layer == null) throw new Error('Timeline layer not found');
 	if (input.parameterPath.length === 0) throw new Error('Parameter path cannot be empty');
@@ -64,7 +64,7 @@ function resolveEditableParameter(state: ProjectState, input: TimelineParameterR
 }
 
 function validateParameterReferences(state: ProjectState, layer: TimelineLayer, target: TimelineParameterTarget, definition: ParameterDefinition, binding: EditableTimelineParameterBinding, sceneId: string, previousBinding: EditableTimelineParameterBinding): void {
-	validateTimelineParameterTree(definition, binding, target === 'effect' || target === 'module', target === 'effect' || target === 'module');
+	validateTimelineParameterTree(definition, binding, target === 'effect' || target === 'customNodeGraphEffect', target === 'effect' || target === 'customNodeGraphEffect');
 	const previous = new Map([...walkParameters<EditableTimelineParameterBinding>({ value: definition }, { value: previousBinding })].map(entry => [JSON.stringify(entry.path), entry.value]));
 	for (const { path, def, value } of walkParameters<EditableTimelineParameterBinding>({ value: definition }, { value: binding })) {
 		const oldValue = previous.get(JSON.stringify(path));
@@ -139,7 +139,7 @@ export const resetTimelineLayerParameterCommandDef: CommandDef<TimelineParameter
 		const binding = getTimelineParameterEditBinding(state, {
 			sceneId: input.sceneId,
 			layerId: input.layerId,
-			target: input.parameterGroup === 'visualModule' ? 'module' : input.parameterGroup,
+			target: input.parameterGroup,
 			paramPath: input.parameterPath,
 			edit: { kind: 'reset' },
 		});

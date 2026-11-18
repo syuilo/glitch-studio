@@ -10,7 +10,7 @@ import type { ProjectState } from '../Project.ts';
 export type TimelineClipMoveTarget = TimelineClipSelection & { initialStartMs?: number };
 
 /** UIのスナップとCommandの適用で同じ移動範囲を使う。キーの所属は操作開始時にだけ決める。 */
-export function prepareTimelineClipMove(state: Pick<ProjectState, 'visualModules'>, scene: TimelineScene,
+export function prepareTimelineClipMove(state: Pick<ProjectState, 'customNodeGraphEffects'>, scene: TimelineScene,
 	targets: readonly TimelineClipMoveTarget[], initialKeyframes?: readonly TimelineKeyframePosition[]) {
 	if (new Set(targets.map(clipSelectionKey)).size !== targets.length) throw new Error('Duplicate clip move target');
 	const clips: (TimelineClipSelection & { startMs: number })[] = [];

@@ -11,31 +11,31 @@ import { validateColorRamp } from '@gs/shared/color-ramp.ts';
 import { isKeyframesDataType, supportsKeyframeInterpolation } from '@gs/shared/keyframes/keyframes-timeline.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
-import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
-import { validateVisualModuleAudioBinding } from '@gs/subsystems_visual-module_shared/audio-parameters.ts';
-import { validateVisualModuleCustomParameterBinding } from '@gs/subsystems_visual-module_shared/custom-parameters.ts';
+import { getNodeOutputs } from '@gs/subsystems_custom-node-graph-effect_shared/node-outputs.ts';
+import { validateCustomNodeGraphEffectAudioBinding } from '@gs/subsystems_custom-node-graph-effect_shared/audio-parameters.ts';
+import { validateCustomNodeGraphEffectCustomParameterBinding } from '@gs/subsystems_custom-node-graph-effect_shared/custom-parameters.ts';
 import { validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { resolveTimelineImageLayerReference } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import { resolveTimelineAnotherLayerAudioReference } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { getTimelineLayerPublicParameterContext, resolveTimelineLayerPublicParameterReference } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/player-audio-source.ts';
-import { visualModuleTargetKey } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
-import { getVisualModule } from './visual-module-target.ts';
+import { customNodeGraphEffectTargetKey } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
+import { getCustomNodeGraphEffect } from './custom-node-graph-effect-target.ts';
 import { resolveNodeParam } from './node-params.ts';
 import { getScene, resolveLayerParameter, getLayerParameterValues } from './timeline-scene.ts';
 import type { DataType } from '@gs/shared/data-type/data-type.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
-import type { VisualModule, VisualModuleValueParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectValueParameterBinding } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import type { TimelineScene, TimelineLayer, TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
-import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
+import type { CustomNodeGraphEffectTarget } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
 import type { EditableParameterBinding } from '../types/parameter-edit.ts';
 import type { ProjectState } from '../Project.ts';
 
 type ParameterClipboardOwner =
-	| { kind: 'visualModule'; target: VisualModuleTarget }
+	| { kind: 'customNodeGraphEffect'; target: CustomNodeGraphEffectTarget }
 	| { kind: 'timelineLayer'; sceneId: string; layerId: string };
 
 export type ParameterClipboardSource = {
@@ -55,15 +55,15 @@ export type ParameterClipboardData = {
 };
 
 export type ProjectParameterClipboardTarget = { paramPath: ParamPath } & (
-	| { kind: 'node'; visualModuleTarget: VisualModuleTarget; nodeId: string }
-	| { kind: 'customParameter'; visualModuleTarget: VisualModuleTarget }
+	| { kind: 'node'; customNodeGraphEffectTarget: CustomNodeGraphEffectTarget; nodeId: string }
+	| { kind: 'customParameter'; customNodeGraphEffectTarget: CustomNodeGraphEffectTarget }
 	| { kind: 'timeline'; sceneId: string; layerId: string; parameterTarget: TimelineParameterTarget }
 );
 
 export type ParameterPasteContext = { state: ProjectState; source: ParameterClipboardSource } & (
-	| { kind: 'node'; visualModule: VisualModule; nodeId: string }
-	| { kind: 'customParameter'; visualModule: VisualModule }
-	| { kind: 'preview'; visualModule: VisualModule }
+	| { kind: 'node'; customNodeGraphEffect: CustomNodeGraphEffect; nodeId: string }
+	| { kind: 'customParameter'; customNodeGraphEffect: CustomNodeGraphEffect }
+	| { kind: 'preview'; customNodeGraphEffect: CustomNodeGraphEffect }
 	| { kind: 'timeline'; scene: TimelineScene; layer: Exclude<TimelineLayer, { layerType: 'folder' }>; parameterTarget: TimelineParameterTarget }
 );
 
@@ -192,8 +192,8 @@ function validateBinding(dataType: DataType, value: unknown): asserts value is E
 			requireValid(binding.nodeId === null ? binding.outputPort === null : nonemptyString(binding.nodeId) && nonemptyString(binding.outputPort));
 			if (binding.nodeId != null) validateSampling(binding);
 			break;
-		case 'visualModulePublicParameterReference': requireValid(typeof binding.parameterId === 'string'); break;
-		case 'visualModuleCustomParameterValueReference': requireValid(typeof binding.parameterId === 'string'); break;
+		case 'customNodeGraphEffectPublicParameterReference': requireValid(typeof binding.parameterId === 'string'); break;
+		case 'customNodeGraphEffectCustomParameterValueReference': requireValid(typeof binding.parameterId === 'string'); break;
 		case 'timelineLayerPublicParameterReference':
 			requireValid(binding.layerId === null && binding.parameterId === null || nonemptyString(binding.layerId) && nonemptyString(binding.parameterId));
 			break;
@@ -220,10 +220,10 @@ export function parseParameterClipboard(text: string): ParameterClipboardData | 
 		const source = object(data.source);
 		requireValid(nonemptyString(source.projectSessionId) && Array.isArray(source.localAutomationGraphIds) && source.localAutomationGraphIds.every(nonemptyString));
 		const owner = object(source.owner);
-		if (owner.kind === 'visualModule') {
+		if (owner.kind === 'customNodeGraphEffect') {
 			const target = object(owner.target);
-			requireValid(Object.hasOwn(target, 'visualModuleId') ? nonemptyString(target.visualModuleId)
-				: nonemptyString(target.sceneId) && nonemptyString(target.inlineVisualModuleLayerId));
+			requireValid(Object.hasOwn(target, 'customNodeGraphEffectId') ? nonemptyString(target.customNodeGraphEffectId)
+				: nonemptyString(target.sceneId) && nonemptyString(target.inlineCustomNodeGraphEffectLayerId));
 		} else requireValid(owner.kind === 'timelineLayer' && nonemptyString(owner.sceneId) && nonemptyString(owner.layerId));
 		return data as unknown as ParameterClipboardData;
 	} catch { return null; }
@@ -233,14 +233,14 @@ export function createParameterClipboard(definition: ParameterDefinition, bindin
 	return deepClone({ format: 'glitch-studio/parameter', dataType: definition.dataType, binding, source });
 }
 
-export function createVisualModuleClipboardSource(projectSessionId: string, target: VisualModuleTarget, visualModule: VisualModule): ParameterClipboardSource {
-	return { projectSessionId, owner: { kind: 'visualModule', target }, localAutomationGraphIds: visualModule.automationGraphs.map(graph => graph.id) };
+export function createCustomNodeGraphEffectClipboardSource(projectSessionId: string, target: CustomNodeGraphEffectTarget, customNodeGraphEffect: CustomNodeGraphEffect): ParameterClipboardSource {
+	return { projectSessionId, owner: { kind: 'customNodeGraphEffect', target }, localAutomationGraphIds: customNodeGraphEffect.automationGraphs.map(graph => graph.id) };
 }
 
 function sameOwner(a: ParameterClipboardSource, b: ParameterClipboardSource): boolean {
 	if (a.projectSessionId !== b.projectSessionId) return false;
-	return a.owner.kind === 'visualModule' && b.owner.kind === 'visualModule'
-		? visualModuleTargetKey(a.owner.target) === visualModuleTargetKey(b.owner.target)
+	return a.owner.kind === 'customNodeGraphEffect' && b.owner.kind === 'customNodeGraphEffect'
+		? customNodeGraphEffectTargetKey(a.owner.target) === customNodeGraphEffectTargetKey(b.owner.target)
 		: a.owner.kind === 'timelineLayer' && b.owner.kind === 'timelineLayer' && a.owner.sceneId === b.owner.sceneId && a.owner.layerId === b.owner.layerId;
 }
 
@@ -251,13 +251,13 @@ function sameScene(a: ParameterClipboardSource, b: ParameterClipboardSource): bo
 function validateLeafDestination(definition: ParameterDefinition, binding: EditableParameterBinding, source: ParameterClipboardSource, context: ParameterPasteContext): void {
 	const sameProjectSession = source.projectSessionId === context.source.projectSessionId;
 	if (context.kind === 'timeline') {
-		const allowInputs = context.parameterTarget === 'effect' || context.parameterTarget === 'module';
+		const allowInputs = context.parameterTarget === 'effect' || context.parameterTarget === 'customNodeGraphEffect';
 		validateTimelineParameterTree(definition, binding, allowInputs, allowInputs);
 	} else {
-		requireValid(isValueParameterBinding(binding) || binding.inputSource === 'node' || binding.inputSource === 'visualModulePublicParameterReference' || binding.inputSource === 'visualModuleCustomParameterValueReference');
-		if (context.kind === 'preview') requireValid(binding.inputSource !== 'node' && binding.inputSource !== 'visualModulePublicParameterReference' && binding.inputSource !== 'visualModuleCustomParameterValueReference');
-		if (context.kind === 'customParameter') validateVisualModuleCustomParameterBinding(definition, binding as VisualModuleValueParameterBinding);
-		validateVisualModuleAudioBinding(definition, binding, context.visualModule.paramDefs);
+		requireValid(isValueParameterBinding(binding) || binding.inputSource === 'node' || binding.inputSource === 'customNodeGraphEffectPublicParameterReference' || binding.inputSource === 'customNodeGraphEffectCustomParameterValueReference');
+		if (context.kind === 'preview') requireValid(binding.inputSource !== 'node' && binding.inputSource !== 'customNodeGraphEffectPublicParameterReference' && binding.inputSource !== 'customNodeGraphEffectCustomParameterValueReference');
+		if (context.kind === 'customParameter') validateCustomNodeGraphEffectCustomParameterBinding(definition, binding as CustomNodeGraphEffectValueParameterBinding);
+		validateCustomNodeGraphEffectAudioBinding(definition, binding, context.customNodeGraphEffect.paramDefs);
 	}
 	switch (binding.inputSource) {
 		case 'literal':
@@ -269,7 +269,7 @@ function validateLeafDestination(definition: ParameterDefinition, binding: Edita
 		case 'automationGraphReference': {
 			if (binding.automationGraphId == null) break;
 			requireValid(sameProjectSession);
-			const localGraphs = context.kind === 'timeline' ? context.layer.automationGraphs : context.kind === 'node' || context.kind === 'customParameter' ? context.visualModule.automationGraphs : [];
+			const localGraphs = context.kind === 'timeline' ? context.layer.automationGraphs : context.kind === 'node' || context.kind === 'customParameter' ? context.customNodeGraphEffect.automationGraphs : [];
 			if (source.localAutomationGraphIds.includes(binding.automationGraphId)) {
 				requireValid(sameOwner(source, context.source) && localGraphs.some(graph => graph.id === binding.automationGraphId));
 			} else requireValid(context.kind !== 'node' && context.kind !== 'customParameter' && context.state.automationGraphs.value.some(graph => graph.id === binding.automationGraphId));
@@ -279,22 +279,22 @@ function validateLeafDestination(definition: ParameterDefinition, binding: Edita
 			requireValid(context.kind === 'node' && definition.canNode === true);
 			if (binding.nodeId == null) break;
 			requireValid(sameOwner(source, context.source) && binding.nodeId !== context.nodeId);
-			const node = context.visualModule.nodes.find(candidate => candidate.id === binding.nodeId);
-			const output = node == null ? null : getNodeOutputs(node, context.visualModule.paramDefs, getEffectDefinitions(context.state))[binding.outputPort];
+			const node = context.customNodeGraphEffect.nodes.find(candidate => candidate.id === binding.nodeId);
+			const output = node == null ? null : getNodeOutputs(node, context.customNodeGraphEffect.paramDefs, getEffectDefinitions(context.state))[binding.outputPort];
 			requireValid(output != null && areNodeDataTypesCompatible(output.dataType, getNodeInputDataType(definition)));
 			break;
 		}
-		case 'visualModulePublicParameterReference': {
+		case 'customNodeGraphEffectPublicParameterReference': {
 			requireValid(context.kind === 'node' || context.kind === 'customParameter');
 			if (binding.parameterId === '') break;
-			const parameter = context.visualModule.paramDefs.find(candidate => candidate.id === binding.parameterId);
+			const parameter = context.customNodeGraphEffect.paramDefs.find(candidate => candidate.id === binding.parameterId);
 			requireValid(sameOwner(source, context.source) && parameter != null && parameter.canNode !== true && areDataTypesEqual(parameter.dataType, definition.dataType));
 			break;
 		}
-		case 'visualModuleCustomParameterValueReference': {
+		case 'customNodeGraphEffectCustomParameterValueReference': {
 			requireValid(context.kind === 'node' || context.kind === 'customParameter');
 			if (binding.parameterId === '') break;
-			const parameter = context.visualModule.customParameterDefs.find(candidate => candidate.id === binding.parameterId);
+			const parameter = context.customNodeGraphEffect.customParameterDefs.find(candidate => candidate.id === binding.parameterId);
 			requireValid(sameOwner(source, context.source) && parameter != null && areDataTypesEqual(parameter.dataType, definition.dataType));
 			break;
 		}
@@ -360,19 +360,19 @@ export function resolveProjectClipboardTarget(state: ProjectState, projectSessio
 	let before: EditableParameterBinding | null;
 	let context: ParameterPasteContext;
 	if (target.kind === 'node') {
-		const visualModule = getVisualModule(state, target.visualModuleTarget);
-		const node = visualModule.nodes.find(candidate => candidate.id === target.nodeId);
+		const customNodeGraphEffect = getCustomNodeGraphEffect(state, target.customNodeGraphEffectTarget);
+		const node = customNodeGraphEffect.nodes.find(candidate => candidate.id === target.nodeId);
 		requireValid(node?.type === 'effect');
 		root = resolveNodeParam(node, [rootKey], getEffectDefinitions(state));
 		before = root.value;
-		context = { kind: 'node', state, nodeId: node.id, visualModule, source: createVisualModuleClipboardSource(projectSessionId, target.visualModuleTarget, visualModule) };
+		context = { kind: 'node', state, nodeId: node.id, customNodeGraphEffect, source: createCustomNodeGraphEffectClipboardSource(projectSessionId, target.customNodeGraphEffectTarget, customNodeGraphEffect) };
 	} else if (target.kind === 'customParameter') {
-		const visualModule = getVisualModule(state, target.visualModuleTarget);
-		const definition = visualModule.customParameterDefs.find(candidate => candidate.id === rootKey);
+		const customNodeGraphEffect = getCustomNodeGraphEffect(state, target.customNodeGraphEffectTarget);
+		const definition = customNodeGraphEffect.customParameterDefs.find(candidate => candidate.id === rootKey);
 		requireValid(definition != null);
-		before = visualModule.customParameterValues[definition.id] ?? null;
+		before = customNodeGraphEffect.customParameterValues[definition.id] ?? null;
 		root = { def: definition, value: before ?? definition.defaultValue };
-		context = { kind: 'customParameter', state, visualModule, source: createVisualModuleClipboardSource(projectSessionId, target.visualModuleTarget, visualModule) };
+		context = { kind: 'customParameter', state, customNodeGraphEffect, source: createCustomNodeGraphEffectClipboardSource(projectSessionId, target.customNodeGraphEffectTarget, customNodeGraphEffect) };
 	} else {
 		const scene = getScene(state, target.sceneId);
 		const layer = findTimelineLayer(scene.layers, target.layerId);

@@ -190,12 +190,12 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		if (seekAfter) seek(startMs);
 	}
 
-	async function addReferencedVisualModuleLayer() {
+	async function addReferencedCustomNodeGraphEffectLayer() {
 		const initialLayers = sceneLayers.value;
-		const { canceled, result: id } = await ui.select({ title: i18n.ts._Timeline.SelectVisualModule, items: stateManager.state.visualModules.value.map(visualModule => ({ label: visualModule.name, value: visualModule.id })) });
-		const visualModule = stateManager.state.visualModules.value.find(visualModule => visualModule.id === id);
-		if (canceled || visualModule == null || !isActive() || sceneLayers.value !== initialLayers) return;
-		addLayer({ layerType: 'visualModule', visualModuleId: visualModule.id });
+		const { canceled, result: id } = await ui.select({ title: i18n.ts._Timeline.SelectCustomNodeGraphEffect, items: stateManager.state.customNodeGraphEffects.value.map(customNodeGraphEffect => ({ label: customNodeGraphEffect.name, value: customNodeGraphEffect.id })) });
+		const customNodeGraphEffect = stateManager.state.customNodeGraphEffects.value.find(customNodeGraphEffect => customNodeGraphEffect.id === id);
+		if (canceled || customNodeGraphEffect == null || !isActive() || sceneLayers.value !== initialLayers) return;
+		addLayer({ layerType: 'customNodeGraphEffect', customNodeGraphEffectId: customNodeGraphEffect.id });
 	}
 
 	function showAddEffectLayerMenu() {
@@ -237,14 +237,14 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 			icon: 'ti ti-music',
 			action: () => addMediaLayer('audio'),
 		}, {
-			text: i18n.ts._Timeline.InlineVisualModule,
+			text: i18n.ts._Timeline.InlineCustomNodeGraphEffect,
 			icon: 'ti ti-chart-dots-3',
-			action: () => addLayer({ layerType: 'inlineVisualModule' }, true, true),
+			action: () => addLayer({ layerType: 'inlineCustomNodeGraphEffect' }, true, true),
 		}, {
-			id: 'referenceVisualModule',
-			text: i18n.ts._Timeline.ReferenceVisualModule,
+			id: 'referenceCustomNodeGraphEffect',
+			text: i18n.ts._Timeline.ReferenceCustomNodeGraphEffect,
 			icon: 'ti ti-chart-dots-3',
-			action: addReferencedVisualModuleLayer,
+			action: addReferencedCustomNodeGraphEffectLayer,
 		}, {
 			text: desktopAvailable() ? 'VOICEVOX' : i18n.ts._Timeline.VoicevoxUnavailable,
 			icon: 'ti ti-microphone',

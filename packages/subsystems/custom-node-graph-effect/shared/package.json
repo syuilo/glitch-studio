@@ -1,0 +1,24 @@
+{
+	"type": "module",
+	"name": "@gs/subsystems_custom-node-graph-effect_shared",
+	"private": true,
+	"scripts": {
+		"test": "node --test test/*.test.mjs",
+		"eslint": "eslint --quiet './**/*.{js,jsx,ts,tsx}'",
+		"typecheck": "tsc6 --noEmit",
+		"lint": "pnpm typecheck && pnpm eslint"
+	},
+	"exports": {
+		"./*": "./src/*"
+	},
+	"devDependencies": {
+		"@types/web": "0.0.359",
+		"@typescript-eslint/parser": "8.72.1",
+		"@webgpu/types": "0.1.74",
+		"vite": "8.3.5"
+	},
+	"dependencies": {
+		"@gs/shared": "workspace:*",
+		"@gs/subsystems_effect_shared": "workspace:*"
+	}
+}

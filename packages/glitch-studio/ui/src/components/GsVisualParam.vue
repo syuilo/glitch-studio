@@ -30,8 +30,8 @@
 			<div style="height: 100%; place-content: center;">
 				<i v-if="paramValue.inputSource === 'envVariable'" v-tooltip="i18n.ts._Parameter.EnvironmentVariable" class="ti ti-variable" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'expression'" v-tooltip="i18n.ts._Parameter.Expression" class="ti ti-math-function" :class="$style.typeIcon"></i>
-				<i v-else-if="(paramValue.inputSource === 'visualModulePublicParameterReference' || paramValue.inputSource === 'timelineLayerPublicParameterReference')" v-tooltip="i18n.ts._Parameter.PublicParameter" class="ti ti-wifi" :class="$style.typeIcon"></i>
-				<i v-else-if="paramValue.inputSource === 'visualModuleCustomParameterValueReference'" v-tooltip="i18n.ts._Parameter.CustomParameter" class="ti ti-remote-control" :class="$style.typeIcon"></i>
+				<i v-else-if="(paramValue.inputSource === 'customNodeGraphEffectPublicParameterReference' || paramValue.inputSource === 'timelineLayerPublicParameterReference')" v-tooltip="i18n.ts._Parameter.PublicParameter" class="ti ti-wifi" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'customNodeGraphEffectCustomParameterValueReference'" v-tooltip="i18n.ts._Parameter.CustomParameter" class="ti ti-remote-control" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'node'" v-tooltip="i18n.ts._Parameter.Node" class="ti ti-plug" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'anotherLayerOutput'" v-tooltip="i18n.ts._Parameter.AnotherLayerOutput" class="ti ti-stack" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'lowerLayerOutput'" v-tooltip="i18n.ts._Parameter.LowerLayerOutput" class="ti ti-stack-2" :class="$style.typeIcon"></i>
@@ -82,18 +82,18 @@
 					</div>
 					<GsSelect v-else-if="paramValue.inputSource === 'timelineLayerPublicParameterReference'" data-test-timeline-public-parameter-reference :modelValue="timelinePublicParameterKey" :items="timelinePublicParameterItems" @update:modelValue="updateTimelinePublicParameterReference"/>
 					<GsSelect
-						v-else-if="paramValue.inputSource === 'visualModulePublicParameterReference'"
-						data-test-visual-module-public-parameter-reference
+						v-else-if="paramValue.inputSource === 'customNodeGraphEffectPublicParameterReference'"
+						data-test-custom-node-graph-effect-public-parameter-reference
 						:modelValue="paramValue.parameterId"
-						:items="[{ label: i18n.ts.None, value: visualModulePublicParameterId('') }, ...visualModulePublicParameterReferenceItems]"
-						@update:modelValue="value => emit('edit', { kind: 'visualModulePublicParameterReference', ...target(), value })"
+						:items="[{ label: i18n.ts.None, value: customNodeGraphEffectPublicParameterId('') }, ...customNodeGraphEffectPublicParameterReferenceItems]"
+						@update:modelValue="value => emit('edit', { kind: 'customNodeGraphEffectPublicParameterReference', ...target(), value })"
 					/>
 					<GsSelect
-						v-else-if="paramValue.inputSource === 'visualModuleCustomParameterValueReference'"
-						data-test-visual-module-custom-parameter-reference
+						v-else-if="paramValue.inputSource === 'customNodeGraphEffectCustomParameterValueReference'"
+						data-test-custom-node-graph-effect-custom-parameter-reference
 						:modelValue="paramValue.parameterId"
-						:items="[{ label: i18n.ts.None, value: visualModuleCustomParameterId('') }, ...visualModuleCustomParameterValueReferenceItems]"
-						@update:modelValue="value => emit('edit', { kind: 'visualModuleCustomParameterValueReference', ...target(), value })"
+						:items="[{ label: i18n.ts.None, value: customNodeGraphEffectCustomParameterId('') }, ...customNodeGraphEffectCustomParameterValueReferenceItems]"
+						@update:modelValue="value => emit('edit', { kind: 'customNodeGraphEffectCustomParameterValueReference', ...target(), value })"
 					/>
 					<div v-else-if="paramValue.inputSource === 'node'" style="display: flex; gap: 4px;">
 						<GsSelect
@@ -189,7 +189,7 @@
 			:imageLayerOptions="imageLayerOptions"
 			:imageInputSamplingEnabled="imageInputSamplingEnabled"
 			:anotherLayerAudioOptions="anotherLayerAudioOptions"
-			:visualModule="visualModule"
+			:customNodeGraphEffect="customNodeGraphEffect"
 			:node="node"
 			:paramPath="[...paramPath, element.id]"
 			:paramDef="getArrayElementDefinition(paramDef)"
@@ -217,7 +217,7 @@
 			:imageLayerOptions="imageLayerOptions"
 			:imageInputSamplingEnabled="imageInputSamplingEnabled"
 			:anotherLayerAudioOptions="anotherLayerAudioOptions"
-			:visualModule="visualModule"
+			:customNodeGraphEffect="customNodeGraphEffect"
 			:node="node"
 			:paramPath="[...paramPath, key]"
 			:paramDef="def"
@@ -254,11 +254,11 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'anotherLayerOutput'; value: Extract<EditableParameterBinding, { inputSource: 'anotherLayerOutput' }> }
 	| { kind: 'anotherLayerAudio'; value: string | null }
 	| { kind: 'timelineLayerPublicParameterReference'; value: TimelineLayerPublicParameterReferenceBinding }
-	| { kind: 'visualModulePublicParameterReference'; value: VisualModulePublicParameterId }
-	| { kind: 'visualModuleCustomParameterValueReference'; value: VisualModuleCustomParameterId }
+	| { kind: 'customNodeGraphEffectPublicParameterReference'; value: CustomNodeGraphEffectPublicParameterId }
+	| { kind: 'customNodeGraphEffectCustomParameterValueReference'; value: CustomNodeGraphEffectCustomParameterId }
 	| { kind: 'createPublicParameter' }
 	| { kind: 'createCustomParameter' }
-	| ParameterInputSourceEdit<'timelineLayerPublicParameterReference' | 'node' | 'anotherLayerOutput' | 'lowerLayerOutput' | 'lowerLayerAudio' | 'anotherLayerAudio' | 'visualModulePublicParameterReference' | 'visualModuleCustomParameterValueReference'>
+	| ParameterInputSourceEdit<'timelineLayerPublicParameterReference' | 'node' | 'anotherLayerOutput' | 'lowerLayerOutput' | 'lowerLayerAudio' | 'anotherLayerAudio' | 'customNodeGraphEffectPublicParameterReference' | 'customNodeGraphEffectCustomParameterValueReference'>
 );
 </script>
 
@@ -266,7 +266,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 import type { ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { Ref } from 'vue';
-import type { NodeOutputReference, VisualModule, VisualModulePublicParameterId, VisualModuleCustomParameterId, VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { NodeOutputReference, CustomNodeGraphEffect, CustomNodeGraphEffectPublicParameterId, CustomNodeGraphEffectCustomParameterId, CustomNodeGraphEffectEffectNode } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import type { ExpressionVariableName } from '@gs/shared/expression/expression-environment.ts';
 import type { ParamPath } from '@/utility/node-params.ts';
 import type { AutomationGraphPlaybackOptions, AutomationGraph, BezierAnchorPoint } from '@gs/shared/automation-graph/automation-graph.ts';
@@ -280,14 +280,14 @@ import { isKeyframesDataType } from '@gs/shared/keyframes/keyframes-timeline.ts'
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import { supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
 import { isParameterVisible } from '@/utility/parameter-visibility.ts';
-import { visualModulePublicParameterId, visualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
-import { VISUAL_MODULE_CUSTOM_PARAMETER_TYPES } from '@gs/subsystems_visual-module_shared/custom-parameters.ts';
+import { customNodeGraphEffectPublicParameterId, customNodeGraphEffectCustomParameterId } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import { CUSTOM_NODE_GRAPH_EFFECT_CUSTOM_PARAMETER_TYPES } from '@gs/subsystems_custom-node-graph-effect_shared/custom-parameters.ts';
 import { computed, inject, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch, watchEffect } from 'vue';
 import { getNodeInputDataType, areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import * as AiScript from '@syuilo/aiscript';
 import { i18n } from '@/i18n.ts';
-import { connectedNodeParameterPathKeysKey, useVisualModuleWires } from '@/utility/visual-module-wires.ts';
+import { connectedNodeParameterPathKeysKey, useCustomNodeGraphEffectWires } from '@/utility/custom-node-graph-effect-wires.ts';
 import { timelineParameterEditorContextKey } from '@/utility/timeline-parameter-editor-context.ts';
 import { getTimelineLayerPublicParameterSources, areTimelinePublicParameterTypesCompatible } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import { paramPathKey } from '@/utility/node-params.ts';
@@ -309,7 +309,7 @@ const projectSession = useProjectSession();
 
 const effectDefinitions = computed(() => getEffectDefinitions(projectSession.projectContext.stateManager.state));
 
-const wireMap = useVisualModuleWires();
+const wireMap = useCustomNodeGraphEffectWires();
 const connectedParameterPathKeys = inject(connectedNodeParameterPathKeysKey, null);
 const timelineEditor = inject(timelineParameterEditorContextKey, null);
 
@@ -317,10 +317,10 @@ const props = defineProps<{
 	automationGraphs: readonly AutomationGraph[];
 	projectAutomationGraphs?: readonly AutomationGraph[];
 	availableVariables: readonly ExpressionVariableName[];
-	visualModule?: VisualModule;
+	customNodeGraphEffect?: CustomNodeGraphEffect;
 	/** ノードを持たないカスタム値エディタで、内部の参照だけを有効にする。 */
-	visualModuleParameterReferencesEnabled?: boolean;
-	node?: VisualModuleEffectNode;
+	customNodeGraphEffectParameterReferencesEnabled?: boolean;
+	node?: CustomNodeGraphEffectEffectNode;
 	paramPath: ParamPath;
 	paramDef: ParameterDefinition;
 	paramValue: EditableParameterBinding;
@@ -348,7 +348,7 @@ const hasConnectedChildren = computed(() => connectedParameterPathKeys?.value.ha
 const timelinePublicParameterItems = computed(() => {
 	const context = timelineEditor?.context.value;
 	const items: { value: string | null; label: string }[] = [{ value: null, label: i18n.ts.None }];
-	if (context != null && props.node == null && props.visualModuleParameterReferencesEnabled !== true) {
+	if (context != null && props.node == null && props.customNodeGraphEffectParameterReferencesEnabled !== true) {
 		for (const owner of getTimelineLayerPublicParameterSources(context, timelineEditor!.isPublicParameterValue)) {
 			for (const definition of owner.publicParameterDefs ?? []) {
 				if (areTimelinePublicParameterTypesCompatible(props.paramDef, definition)) items.push({ value: JSON.stringify([owner.id, definition.id]), label: `${owner.name} / ${definition.ui.label} (${definition.nameForReference})` });
@@ -430,8 +430,8 @@ function updateAnotherLayerAudio(value: string | null) {
 	if (props.paramValue.inputSource === 'anotherLayerAudio' && props.paramValue.layerId !== value) emit('edit', { kind: 'anotherLayerAudio', ...target(), value });
 }
 
-const paramDefs = computed(() => props.visualModule?.paramDefs ?? []);
-const nodes = computed(() => props.visualModule?.nodes ?? []);
+const paramDefs = computed(() => props.customNodeGraphEffect?.paramDefs ?? []);
+const nodes = computed(() => props.customNodeGraphEffect?.nodes ?? []);
 
 const availableAutomationGraphs = computed(() => getAvailableAutomationGraphs(props.automationGraphs, props.projectAutomationGraphs ?? []));
 const selectedProjectAutomationGraph = computed(() => selectedAutomationGraph.value != null && !props.automationGraphs.some(graph => graph.id === selectedAutomationGraph.value?.id)
@@ -460,20 +460,20 @@ const envVariableItems = computed(() => props.availableVariables.map(variable =>
 		: variable;
 	return { label, value: variable };
 }));
-const visualModulePublicParameterReferenceItems = computed(() => {
-	const items = (props.node == null && props.visualModuleParameterReferencesEnabled !== true ? [] : paramDefs.value)
+const customNodeGraphEffectPublicParameterReferenceItems = computed(() => {
+	const items = (props.node == null && props.customNodeGraphEffectParameterReferencesEnabled !== true ? [] : paramDefs.value)
 		.filter(def => !def.canNode && (def.dataType.kind === 'audioSource') === (props.paramDef.dataType.kind === 'audioSource'))
 		.filter(def => def.dataType.kind !== 'colorRamp' && props.paramDef.dataType.kind !== 'colorRamp' || areDataTypesEqual(def.dataType, props.paramDef.dataType))
-		.filter(def => props.visualModuleParameterReferencesEnabled !== true || areDataTypesEqual(def.dataType, props.paramDef.dataType))
+		.filter(def => props.customNodeGraphEffectParameterReferencesEnabled !== true || areDataTypesEqual(def.dataType, props.paramDef.dataType))
 		.map(def => ({ label: `${def.ui.label} (${def.nameForReference})`, value: def.id }));
-	const id = props.paramValue.inputSource === 'visualModulePublicParameterReference' ? props.paramValue.parameterId : null;
+	const id = props.paramValue.inputSource === 'customNodeGraphEffectPublicParameterReference' ? props.paramValue.parameterId : null;
 	if (id != null && id !== '' && !items.some(item => item.value === id)) items.push({ label: i18n.ts._Parameter.UnavailablePublicParameter, value: id });
 	return items;
 });
-const visualModuleCustomParameterValueReferenceItems = computed(() => {
-	const items = (props.visualModule == null ? [] : props.visualModule.customParameterDefs).filter(definition => areDataTypesEqual(definition.dataType, props.paramDef.dataType))
+const customNodeGraphEffectCustomParameterValueReferenceItems = computed(() => {
+	const items = (props.customNodeGraphEffect == null ? [] : props.customNodeGraphEffect.customParameterDefs).filter(definition => areDataTypesEqual(definition.dataType, props.paramDef.dataType))
 		.map(definition => ({ label: `${definition.ui.label} (${definition.nameForReference})`, value: definition.id }));
-	const id = props.paramValue.inputSource === 'visualModuleCustomParameterValueReference' ? props.paramValue.parameterId : null;
+	const id = props.paramValue.inputSource === 'customNodeGraphEffectCustomParameterValueReference' ? props.paramValue.parameterId : null;
 	if (id != null && id !== '' && !items.some(item => item.value === id)) items.push({ label: i18n.ts._Parameter.UnavailablePublicParameter, value: id });
 	return items;
 });
@@ -484,7 +484,7 @@ const inlineGraphEditorOpen = ref(false);
 
 let mounted = true;
 onBeforeUnmount(() => { mounted = false; });
-watch([() => props.visualModule, () => JSON.stringify([props.node?.id, props.paramPath, props.paramValue.inputSource])], () => {
+watch([() => props.customNodeGraphEffect, () => JSON.stringify([props.node?.id, props.paramPath, props.paramValue.inputSource])], () => {
 	inlineGraphEditorOpen.value = false;
 });
 
@@ -605,10 +605,10 @@ function getMenu() {
 				{ text: i18n.ts._Parameter.AnotherLayerAudio, inputSource: 'anotherLayerAudio', icon: 'ti ti-wave-sine' },
 			);
 		}
-		if (timelineEditor != null && props.node == null && props.visualModuleParameterReferencesEnabled !== true && props.paramDef.dataType.kind !== 'audioSource') types.push({ text: i18n.ts._Parameter.PublicParameter, inputSource: 'timelineLayerPublicParameterReference', icon: 'ti ti-wifi' });
-		if (props.node != null || props.visualModuleParameterReferencesEnabled === true) {
-			types.push({ text: i18n.ts._Parameter.PublicParameter, inputSource: 'visualModulePublicParameterReference', icon: 'ti ti-wifi' });
-			if ((VISUAL_MODULE_CUSTOM_PARAMETER_TYPES as readonly string[]).includes(props.paramDef.dataType.kind)) types.push({ text: i18n.ts._Parameter.CustomParameter, inputSource: 'visualModuleCustomParameterValueReference', icon: 'ti ti-remote-control' });
+		if (timelineEditor != null && props.node == null && props.customNodeGraphEffectParameterReferencesEnabled !== true && props.paramDef.dataType.kind !== 'audioSource') types.push({ text: i18n.ts._Parameter.PublicParameter, inputSource: 'timelineLayerPublicParameterReference', icon: 'ti ti-wifi' });
+		if (props.node != null || props.customNodeGraphEffectParameterReferencesEnabled === true) {
+			types.push({ text: i18n.ts._Parameter.PublicParameter, inputSource: 'customNodeGraphEffectPublicParameterReference', icon: 'ti ti-wifi' });
+			if ((CUSTOM_NODE_GRAPH_EFFECT_CUSTOM_PARAMETER_TYPES as readonly string[]).includes(props.paramDef.dataType.kind)) types.push({ text: i18n.ts._Parameter.CustomParameter, inputSource: 'customNodeGraphEffectCustomParameterValueReference', icon: 'ti ti-remote-control' });
 		}
 		if (canNode.value && props.node != null) types.push({ text: i18n.ts._Parameter.Node, inputSource: 'node', icon: 'ti ti-plug' });
 		if (props.imageInputEnabled && canNode.value && canConnectNodeDataTypes({ kind: 'color' }, inputDataType.value)) {
@@ -644,8 +644,8 @@ function getMenu() {
 		}
 	}
 
-	const hasPublicParameterOwner = props.node != null ? props.visualModule != null
-		: props.visualModuleParameterReferencesEnabled !== true && timelineEditor?.context.value != null && !timelineEditor.isPublicParameterValue;
+	const hasPublicParameterOwner = props.node != null ? props.customNodeGraphEffect != null
+		: props.customNodeGraphEffectParameterReferencesEnabled !== true && timelineEditor?.context.value != null && !timelineEditor.isPublicParameterValue;
 	if (hasPublicParameterOwner && canCreateNamedParameterFromBinding(props.paramDef, props.paramValue)) {
 		menuItems.push({
 			id: 'createPublicParameter',
@@ -654,7 +654,7 @@ function getMenu() {
 			action: () => emit('edit', { kind: 'createPublicParameter', ...target() }),
 		});
 	}
-	if (props.node != null && props.visualModule != null && canCreateNamedParameterFromBinding(props.paramDef, props.paramValue)) {
+	if (props.node != null && props.customNodeGraphEffect != null && canCreateNamedParameterFromBinding(props.paramDef, props.paramValue)) {
 		menuItems.push({
 			id: 'createCustomParameter',
 			text: i18n.ts._Parameter.CreateCustomParameter,
@@ -766,7 +766,7 @@ function removeExpressionModifier() {
 
 function connectNode(value: NodeOutputReference | null, preserveSampling = true) {
 	if (!canNode.value) return;
-	// 別のVisualModuleや、グラフ切り替え前の候補へ接続しない。
+	// 別のCustomNodeGraphEffectや、グラフ切り替え前の候補へ接続しない。
 	if (value != null && !nodeOutputItems.value.some(item => item.value === nodeOutputKey(value))) return;
 	if (mounted) emit('edit', {
 		kind: 'node',

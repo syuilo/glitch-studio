@@ -128,8 +128,8 @@ const selectedClipLabel = computed(() => {
 	if (!entry) return '';
 	if ('assetId' in entry.clip) { const id = entry.clip.assetId; return stateManager.state.assets.value.find(asset => asset.id === id)?.name ?? i18n.ts._TimelineClip.MissingMedia; }
 	if ('sceneId' in entry.clip) { const id = entry.clip.sceneId; return stateManager.state.timelineScenes.value.find(scene => scene.id === id)?.name ?? i18n.ts._TimelineClip.MissingScene; }
-	if (entry.layer.layerType === 'visualModule') { const id = entry.layer.visualModuleId; return stateManager.state.visualModules.value.find(visualModule => visualModule.id === id)?.name ?? i18n.ts._TimelineClip.MissingVisualModule; }
-	if (entry.layer.layerType === 'inlineVisualModule') return i18n.ts._TimelineClip.InlineVisualModule;
+	if (entry.layer.layerType === 'customNodeGraphEffect') { const id = entry.layer.customNodeGraphEffectId; return stateManager.state.customNodeGraphEffects.value.find(customNodeGraphEffect => customNodeGraphEffect.id === id)?.name ?? i18n.ts._TimelineClip.MissingCustomNodeGraphEffect; }
+	if (entry.layer.layerType === 'inlineCustomNodeGraphEffect') return i18n.ts._TimelineClip.InlineCustomNodeGraphEffect;
 	if (entry.layer.layerType === 'effect') { const id = entry.layer.effectId; return Object.entries(effectDefinitions.value).find(([key, effect]) => key === id)?.[1].displayName ?? i18n.ts._TimelineClip.MissingEffect; }
 	if (entry.layer.layerType === 'voicevox') return 'VOICEVOX';
 	if (entry.layer.layerType === 'text') return i18n.ts.Text;

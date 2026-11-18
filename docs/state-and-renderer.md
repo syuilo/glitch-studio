@@ -6,13 +6,13 @@
 
 - 正となるプロジェクト状態はUIの `ProjectContext` が `ProjectState` として所有します。Commandは状態の変更とUndo/Redoを担当し、変更後に対象IDと編集内容を `AppStateChange` として通知します。レンダラーでCommandを再実行したり、ID発行・配線修復・時刻の丸めを再度行ったりしません。
 - Commandと汎用の `UndoRedo` は同期先を知りません。`ProjectContext.stateManager.onChange()` の購読側が必要な通知を選びます。通常実行・Undo・Redo・履歴へのマージを伴う連続編集は、同じ通知経路を通します。
-- 通知は「値・入力種別・接続・配列要素・リセット」「バイパス・解像度」「レイヤー定義・クリップ」など、ドメイン上の変更を表します。Commandや通信型に `preserveCache` / `preserveModuleInstance` のようなレンダラーの保持方針を含めません。
-- `RendererProjectSynchronizer` は通知の集約と、確定済み状態から送信データを取り出す役割を持ちます。キャッシュ・インスタンスの保持判断は、レンダラー内の [project-change-policy.ts](../packages/glitch-studio/renderer/src/project-change-policy.ts) に集約します。各Managerが対象の特定や変更世代の管理を行い、`VisualModuleRenderer` はVisual Module内部の評価とキャッシュを扱います。汎用の `TimelineRenderer` には実行インスタンスの更新判定に必要な世代を渡し、Commandの種類を解釈させません。
-- 型も同じ責務に分けます。`ParameterChangeKind` はparameter、`VisualModuleNodeChange` はvisual-module、`TimelineLayerChange` はtimelineが所有します。登録Moduleとinline Moduleの所在を表す `VisualModuleTarget` はproject、UIの通知契約 `AppStateChange` はuiが所有します。子ドメインから同期クラスやプロジェクト内の配置へ依存させません。
+- 通知は「値・入力種別・接続・配列要素・リセット」「バイパス・解像度」「レイヤー定義・クリップ」など、ドメイン上の変更を表します。Commandや通信型に `preserveCache` / `preserveCustomNodeGraphEffectInstance` のようなレンダラーの保持方針を含めません。
+- `RendererProjectSynchronizer` は通知の集約と、確定済み状態から送信データを取り出す役割を持ちます。キャッシュ・インスタンスの保持判断は、レンダラー内の [project-change-policy.ts](../packages/glitch-studio/renderer/src/project-change-policy.ts) に集約します。各Managerが対象の特定や変更世代の管理を行い、`CustomNodeGraphEffectRenderer` はCustom Node Graph Effect内部の評価とキャッシュを扱います。汎用の `TimelineRenderer` には実行インスタンスの更新判定に必要な世代を渡し、Commandの種類を解釈させません。
+- 型も同じ責務に分けます。`ParameterChangeKind` はparameter、`CustomNodeGraphEffectNodeChange` はcustom-node-graph-effect、`TimelineLayerChange` はtimelineが所有します。登録Moduleとinline Moduleの所在を表す `CustomNodeGraphEffectTarget` はproject、UIの通知契約 `AppStateChange` はuiが所有します。子ドメインから同期クラスやプロジェクト内の配置へ依存させません。
 
 ## Commandの呼び出しと履歴
 
-登録はUIの [commands.ts](../packages/glitch-studio/ui/src/commands.ts) に集約し、定義は `commands/` 内でプロジェクト設定・素材・Visual Module・Timelineなどの責務に分けます。引数は名前付きのオブジェクト一つです。対象はIDや所在を表す参照で指定し、選択中のパネル・再生位置・環境設定をCommand内で暗黙に読みません。保存・ダイアログ・パネル操作もこの登録には含めません。
+登録はUIの [commands.ts](../packages/glitch-studio/ui/src/commands.ts) に集約し、定義は `commands/` 内でプロジェクト設定・素材・Custom Node Graph Effect・Timelineなどの責務に分けます。引数は名前付きのオブジェクト一つです。対象はIDや所在を表す参照で指定し、選択中のパネル・再生位置・環境設定をCommand内で暗黙に読みません。保存・ダイアログ・パネル操作もこの登録には含めません。
 
 通常は `await stateManager.execute(name, input)` を使い、作成した対象の参照などを戻り値として受け取ります。`create` と `duplicate` はID・既定値・複製内の参照の付け替えを所有します。`insert` はインポートや内部クリップボードなどの準備済みデータを挿入する操作で、通常の新規作成とは入力契約を分けます。ファイル選択・デコード・クリップボード形式の解釈は呼び出し側で済ませます。
 
@@ -34,19 +34,19 @@ Command定義の `prepare(state, input)` は状態を変更せず、検証・ID�
 
 同期的なUI編集には `commit()` を使えます。未取得の素材情報などを必要とするCommandは `execute()` で待ちます。`beginEdit()` はドラッグ開始時の状態と最終状態を一履歴にし、ドラッグの開始値はUIが保持して絶対値の設定へ変換します。Commandへ渡す通常の引数には `initial...` を含めません。履歴の自動マージと連続編集は、対象が固定され、最後の適用だけで最終状態を再現できる設定操作に限ります。時刻の丸め・ドラッグ範囲への制限はUIで行い、Commandは不正な範囲や小数の配置時刻を拒否します。素材内時刻や再生速度など、元から小数を許容する値は維持します。
 
-パラメータ操作の `set...Source` は入力元を設定し、適用可能な加工式を維持します。`set...ExpressionModifier` は加工式だけを設定し、`replace...Binding` は加工式を含むBinding全体を置換します。リセット・配列要素・公開定義の作成はそれぞれ専用の操作です。Visual Moduleのノード自動接続・型の不一致を許可する方針もUIが明示します。Commandは静的な構造や参照を検証し、式の評価や描画時の検証は引き続きレンダラーが担当します。
+パラメータ操作の `set...Source` は入力元を設定し、適用可能な加工式を維持します。`set...ExpressionModifier` は加工式だけを設定し、`replace...Binding` は加工式を含むBinding全体を置換します。リセット・配列要素・公開定義の作成はそれぞれ専用の操作です。Custom Node Graph Effectのノード自動接続・型の不一致を許可する方針もUIが明示します。Commandは静的な構造や参照を検証し、式の評価や描画時の検証は引き続きレンダラーが担当します。
 
 通常の実行では、履歴に登録してから変更を通知します。購読側の例外は分離し、適用済みの変更の履歴を失わせず、残りの購読側にも通知します。連続編集の途中状態は即時通知し、履歴の確定は編集終了時に行います。
 
 ## 転送単位とバッチ
 
-- プロジェクトを開くと専用のセッションを生成し、Visual Module一覧・Scene一覧を含む起動スナップショットをControllerの`initialize()`へ渡します。別プロジェクトで既存セッションの状態を置き換える経路は持ちません。
-- 非アクティブなタブではWorkerを破棄し、再選択時にそのセッションの最新状態から再生成します。静的設定の変更や同期復旧でもWorkerを再生成します。GPUの描画履歴・キャッシュは初期化しますが、編集状態・Undo履歴・Timelineの再生位置はセッションが保持します。動作中の全量置換RPCは持ちません。通常の編集には `applyProjectChanges()` を使い、Visual Module・Scene全体のdeep watchで `updateDynamicOptions()` に全一覧を送り直しません。
+- プロジェクトを開くと専用のセッションを生成し、Custom Node Graph Effect一覧・Scene一覧を含む起動スナップショットをControllerの`initialize()`へ渡します。別プロジェクトで既存セッションの状態を置き換える経路は持ちません。
+- 非アクティブなタブではWorkerを破棄し、再選択時にそのセッションの最新状態から再生成します。静的設定の変更や同期復旧でもWorkerを再生成します。GPUの描画履歴・キャッシュは初期化しますが、編集状態・Undo履歴・Timelineの再生位置はセッションが保持します。動作中の全量置換RPCは持ちません。通常の編集には `applyProjectChanges()` を使い、Custom Node Graph Effect・Scene全体のdeep watchで `updateDynamicOptions()` に全一覧を送り直しません。
 - ノード編集はノード全体、レイヤー編集はレイヤー全体、ノードの追加・削除・順序変更やModuleの公開入出力変更は対象Module全体を送ります。Scene自体の追加・削除・解像度変更などは対象Scene、レイヤー順序変更はそのSceneのレイヤーID列を送ります。パラメータの末端ごとの汎用patchプロトコルにはしません。
 - 次のmicrotaskで送信するまでに集まった変更は対象ごとにまとめ、送信時の最終状態を取得します。ただし、変更種別は途中のものも保持します。例えば、接続変更の後に値を変更しても、値だけの編集として扱ってはいけません。
 - Module全体の更新は内部ノードの更新を、Scene全体の更新は内部の更新を吸収します。レイヤーの追加・削除・置換も内部inline Moduleの更新を吸収しますが、レイヤーの引数編集とinline Module内部の編集では両方の変更種別を残します。レイヤーの追加・削除を反映してから最終的な順序を適用します。
-- 登録ModuleはModule ID、inline ModuleはScene IDとレイヤーIDで指定します。登録Moduleの編集は、その定義を使うVisual Module Live Previewと各タイムライン配置へ反映します。inline Moduleの編集対象は指定されたレイヤーの定義です。同じ定義を使っていても、実行状態は配置・クリップごとに独立させます。
-- 現在、タイムラインのModule引数編集もレイヤー全体を送るため、inline Moduleでは内部定義も転送されます。Visual Module Live Previewの引数更新は `updateVisualModuleLivePreviewParamValues()` を使い、同じModuleの値調整でVisual Module Live Previewを開始し直しません。
+- 登録ModuleはModule ID、inline ModuleはScene IDとレイヤーIDで指定します。登録Moduleの編集は、その定義を使うCustom Node Graph Effect Live Previewと各タイムライン配置へ反映します。inline Moduleの編集対象は指定されたレイヤーの定義です。同じ定義を使っていても、実行状態は配置・クリップごとに独立させます。
+- 現在、タイムラインのModule引数編集もレイヤー全体を送るため、inline Moduleでは内部定義も転送されます。Custom Node Graph Effect Live Previewの引数更新は `updateCustomNodeGraphEffectLivePreviewParamValues()` を使い、同じModuleの値調整でCustom Node Graph Effect Live Previewを開始し直しません。
 
 ## 描画キャッシュと実行インスタンス
 
@@ -72,15 +72,15 @@ Command定義の `prepare(state, input)` は状態を変更せず、検証・ID�
 
 Timelineのレイヤー検証では、レイヤー自身の区間・解像度・固有設定とパラメータの検証を分けます。パラメータの構造・入力方式の検証と参照収集は一度のツリー走査で行います。Scene追加・階層編集Commandは全Sceneを適用前に再検証せず、静的診断の更新を変更通知の受信側へ集約します。
 
-- 静的検証はUIの`ProjectRenderValidation`が設定変更の通知内で同期的に行います。ノード・レイヤー単位の静的な形と診断を保持し、通常のliteral値・式本文が変わっても構造や参照が同じなら再検証しません。接続グラフの循環検査は辺の構成変更時だけ行います。登録Visual Module・Asset・Sceneなどの参照先変更は利用箇所の索引から再検証します。
-- 静的エラーが一つでもあれば、未使用のVisual Moduleや無効な枝のエラーも含めてプロジェクト全体の描画を停止します。UIは不正な編集状態も保持しますが、レンダラーには送りません。レンダラーは検証済み設定を受け取る契約で、描画・準備・音声計画での構造の再検証は行いません。
+- 静的検証はUIの`ProjectRenderValidation`が設定変更の通知内で同期的に行います。ノード・レイヤー単位の静的な形と診断を保持し、通常のliteral値・式本文が変わっても構造や参照が同じなら再検証しません。接続グラフの循環検査は辺の構成変更時だけ行います。登録Custom Node Graph Effect・Asset・Sceneなどの参照先変更は利用箇所の索引から再検証します。
+- 静的エラーが一つでもあれば、未使用のCustom Node Graph Effectや無効な枝のエラーも含めてプロジェクト全体の描画を停止します。UIは不正な編集状態も保持しますが、レンダラーには送りません。レンダラーは検証済み設定を受け取る契約で、描画・準備・音声計画での構造の再検証は行いません。
 - `PreviewRenderEngine`は静的・実行時の失敗で両プレビューのエンジンを破棄します。静的エラーが解消した設定変更、実行時失敗後の描画に関係する設定変更、またはPreviewの再試行操作で最新スナップショットから生成します。エラー中の差分を蓄積・再送せず、描画履歴はリセットします。時刻の経過だけでは再試行しません。
 - 更新前の非同期フレームは中断・世代確認で無効化します。古い描画やリソース準備の完了が、更新後の状態や出力を上書きしてはいけません。実行中フレームの中断と、保持するキャッシュ・履歴の破棄は別に扱います。
 - ProjectSessionContextが正となるプロジェクト・環境設定・プレビュー設定から、両プレビューの起動スナップショットをawaitなしで取得します。Controllerは復旧用のプロジェクト状態や初期化中の差分キューを持ちません。初期化中に描画内容が変わると、PreviewRenderEngineが同期的に旧Workerを破棄し、最新スナップショットで初期化をやり直します。動作中の通常編集は差分更新を維持します。Workerの再作成・破棄をまたぐ古い応答は世代で除外します。
 - 初回起動・静的設定変更・素材変更・失敗後の復旧はPreviewRenderEngineが調整し、Controllerの`initialize()`で起動します。Timeline固有の静的設定でも両プレビューを再生成します。Controllerは独自のreloadや起動済み設定との比較ループを持ちません。両Workerが最新世代で初期化された後にだけ再生を再開し、書き出し中の休止は解除しません。レンダラーの`renderError`は失敗のみを通知し、Controllerのエラー表示は新しいManagerの初期化完了で解除します。Timelineのレイヤー状態には描画エラーを保持せず、Managerの破棄時にノード・レイヤーの状態をまとめて解除します。
 - 差分適用のRPCが失敗した場合もエンジンを破棄します。静的診断と実行時失敗は別に保持し、古いWorkerの成功通知で解除しません。UI側Commandのロールバックは行いません。
 - 失敗の通知はControllerとSynchronizerが行い、両エンジンの破棄は`PreviewRenderEngine`が調整します。Synchronizerは差分失敗後の全量同期を行わず、再試行時の最新スナップショット取り込みに復旧を集約します。
-- 静的診断の解除とプレビュー固有設定の変更も、同じ再試行予約を使います。同じ編集の複数通知はまとめ、予約後に発生した失敗や停止を古い予約で解除しません。Inline Visual Moduleの公開定義変更では、Bindingの形が同じでも所有レイヤーの引数を再検証します。
+- 静的診断の解除とプレビュー固有設定の変更も、同じ再試行予約を使います。同じ編集の複数通知はまとめ、予約後に発生した失敗や停止を古い予約で解除しません。Inline Custom Node Graph Effectの公開定義変更では、Bindingの形が同じでも所有レイヤーの引数を再検証します。
 - 差分の反映後にプレビューを更新します。新規Sceneを選択する場合など、後続操作が変更対象の存在に依存するときは、同期の `flush()` 完了を待ちます。
 
 ## 専用の同期経路と現在の制約

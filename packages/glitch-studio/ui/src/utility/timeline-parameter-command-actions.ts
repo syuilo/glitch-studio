@@ -15,7 +15,7 @@ export function commitTimelineParameterEdit(
 	const target: TimelineParameterReference = {
 		sceneId: input.sceneId,
 		layerId: input.layerId,
-		parameterGroup: input.target == null || input.target === 'module' ? 'visualModule' : input.target,
+		parameterGroup: input.target ?? 'customNodeGraphEffect',
 		parameterPath: input.paramPath,
 	};
 	switch (input.edit.kind) {

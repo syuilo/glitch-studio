@@ -4,7 +4,7 @@ import { runInNewContext } from 'node:vm';
 import { implementation } from './helpers/load.mjs';
 import { fixture, parameter, literal } from './helpers/fixture.mjs';
 
-const { preparePortableVisualModule, encodePortableVisualModule, createPortableVisualModuleFiles, createPortableVisualModuleArchive,
+const { preparePortableCustomNodeGraphEffect, encodePortableCustomNodeGraphEffect, createPortableCustomNodeGraphEffectFiles, createPortableCustomNodeGraphEffectArchive,
 	validatePortableParameters, getPortableParameterDefaults, getPortableRenderResolution, fill, image, video } = implementation;
 const definitions = { fill, image, video };
 
@@ -14,26 +14,26 @@ test('collects immutable resources and custom shaders without local paths or dev
 	const input = fixture();
 	input.assets = [{ id: 'image', name: 'image', width: 2, height: 1, fileDataType: 'image/png', fileData: new Blob([new Uint8Array([1, 2, 3])]), sourceFilePath: 'C:/private/image.png' }];
 	input.players = [{ id: 'camera', name: 'Camera', sourceType: 'webcam', deviceId: 'private-device' }];
-	const node = (id, effectId, staticSettings) => ({ ...input.visualModule.nodes[0], id, effectId,
+	const node = (id, effectId, staticSettings) => ({ ...input.customNodeGraphEffect.nodes[0], id, effectId,
 		params: Object.fromEntries(Object.entries(definitions[effectId]?.paramDefs ?? {}).map(([key, definition]) => [key, structuredClone(definition.defaultValue)])), staticSettings });
-	input.visualModule.nodes.unshift(node('image', 'image', { asset: 'image' }), node('camera', 'video', { player: 'camera' }));
+	input.customNodeGraphEffect.nodes.unshift(node('image', 'image', { asset: 'image' }), node('camera', 'video', { player: 'camera' }));
 	// Imageの静的設定名は実際の定義から取得する。参照を取り落とす変更も検出する。
-	input.visualModule.nodes[0].staticSettings = { [Object.keys(image.staticSettingDefs)[0]]: 'image' };
-	input.visualModule.nodes[1].staticSettings = { [Object.keys(video.staticSettingDefs)[0]]: 'camera' };
+	input.customNodeGraphEffect.nodes[0].staticSettings = { [Object.keys(image.staticSettingDefs)[0]]: 'image' };
+	input.customNodeGraphEffect.nodes[1].staticSettings = { [Object.keys(video.staticSettingDefs)[0]]: 'camera' };
 	const shader = { id: 'shader', name: 'Shader', summary: '', shaderApiVersion: 1, codeLanguage: 'wgsl', kind: 'generate', paramDefs: [],
 		outputDefs: [{ id: 'output', nameForReference: 'color', label: 'Color', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'output', resolutionInputIds: [],
 		code: 'fn main(position: vec2f) -> Output { var output: Output; output.color = vec4f(1); return output; }' };
 	input.customShaderEffects = [shader, { ...shader, id: 'unused' }];
-	input.visualModule.nodes.unshift(node('shader', 'customShaderEffect:shader', {}));
-	const prepared = preparePortableVisualModule(input, definitions);
-	input.visualModule.nodes[0].displayName = 'changed';
+	input.customNodeGraphEffect.nodes.unshift(node('shader', 'customShaderEffect:shader', {}));
+	const prepared = preparePortableCustomNodeGraphEffect(input, definitions);
+	input.customNodeGraphEffect.nodes[0].displayName = 'changed';
 	shader.code = 'changed';
-	const encoded = await encodePortableVisualModule(prepared);
+	const encoded = await encodePortableCustomNodeGraphEffect(prepared);
 	assert.deepEqual(prepared.diagnostics.players, ['Camera']);
 	assert.equal(encoded.assets[0].fileDataBase64, 'AQID');
 	assert.equal(encoded.customShaderEffects.length, 1);
 	assert.notEqual(encoded.customShaderEffects[0].code, 'changed');
-	assert.notEqual(encoded.visualModule.nodes[0].displayName, 'changed');
+	assert.notEqual(encoded.customNodeGraphEffect.nodes[0].displayName, 'changed');
 	assert.doesNotMatch(JSON.stringify(encoded), /private-device|C:\/private/);
 });
 
@@ -72,16 +72,16 @@ test('preserves aspect ratio under scale pixel and device limits', () => {
 test('round trips script-like strings through standalone HTML without executing artwork data', async () => {
 	const input = fixture();
 	input.name = '</script><script>throw 123</script><!--';
-	const artwork = await encodePortableVisualModule(preparePortableVisualModule(input, definitions));
-	const runtime = { elementSource: 'const GlitchStudioVisualModuleEmbed = { registerVisualModuleElement: capture };', workerSource: '// </script> and unicode 日本語' };
-	const files = createPortableVisualModuleFiles(artwork, runtime, 'gs-visual-module-test');
+	const artwork = await encodePortableCustomNodeGraphEffect(preparePortableCustomNodeGraphEffect(input, definitions));
+	const runtime = { elementSource: 'const GlitchStudioCustomNodeGraphEffectEmbed = { registerCustomNodeGraphEffectElement: capture };', workerSource: '// </script> and unicode 日本語' };
+	const files = createPortableCustomNodeGraphEffectFiles(artwork, runtime, 'gs-custom-node-graph-effect-test');
 	const script = files.standaloneHtml.match(/<script type="module">([\s\S]*?)<\/script>/)[1];
 	let captured;
 	runInNewContext(script, { capture: (...args) => { captured = args; } });
 	assert.equal(captured[1].name, input.name);
 	assert.equal(captured[2], runtime.workerSource);
 	assert.equal((files.standaloneHtml.match(/<script /g) ?? []).length, 1);
-	const zip = new Uint8Array(await createPortableVisualModuleArchive(files).arrayBuffer());
+	const zip = new Uint8Array(await createPortableCustomNodeGraphEffectArchive(files).arrayBuffer());
 	const view = new DataView(zip.buffer);
 	let offset = 0;
 	for (const expected of ['index.html', 'artwork.js', 'README.md']) {
@@ -99,9 +99,9 @@ test('round trips script-like strings through standalone HTML without executing 
 // 壊れた成果物を配布先で初めて発見することを避け、編集すべき箇所を明示する。
 test('rejects invalid output and cyclic graphs before encoding', () => {
 	const input = fixture();
-	input.visualModule.outputDefs[0].dataType = { kind: 'scalar' };
-	assert.throws(() => preparePortableVisualModule(input, definitions), /primary color output/);
+	input.customNodeGraphEffect.outputDefs[0].dataType = { kind: 'scalar' };
+	assert.throws(() => preparePortableCustomNodeGraphEffect(input, definitions), /primary color output/);
 	const cyclic = fixture();
-	cyclic.visualModule.nodes.unshift({ id: 'relay', type: 'relay', dataType: { kind: 'color' }, input: { nodeId: 'relay', outputPort: 'output' } });
-	assert.throws(() => preparePortableVisualModule(cyclic, definitions), /cycle/);
+	cyclic.customNodeGraphEffect.nodes.unshift({ id: 'relay', type: 'relay', dataType: { kind: 'color' }, input: { nodeId: 'relay', outputPort: 'output' } });
+	assert.throws(() => preparePortableCustomNodeGraphEffect(cyclic, definitions), /cycle/);
 });

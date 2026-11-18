@@ -5,12 +5,12 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname, basename } from 'node:path';
-import { buildPortableVisualModuleCatalog } from '../build/catalog.mjs';
-import { buildPortableVisualModuleRuntime } from '../build/runtime.mjs';
+import { buildPortableCustomNodeGraphEffectCatalog } from '../build/catalog.mjs';
+import { buildPortableCustomNodeGraphEffectRuntime } from '../build/runtime.mjs';
 import { implementation } from './helpers/load.mjs';
 import { fixture, parameter } from './helpers/fixture.mjs';
 
-const { preparePortableVisualModule, encodePortableVisualModule, createPortableVisualModuleFiles, fill, image, symbols, video } = implementation;
+const { preparePortableCustomNodeGraphEffect, encodePortableCustomNodeGraphEffect, createPortableCustomNodeGraphEffectFiles, fill, image, symbols, video } = implementation;
 
 // 【書き出したJSと単一HTMLをエディタなし・非隔離のChromeで実行する】
 // 実GPU・Worker転送・HTML parser・DOM寿命をまとめて通し、モックでは分からない画素・入力・リサイズの不整合を検出する。
@@ -22,36 +22,36 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 		assert.ok(basename(catalog).startsWith('glitch-portable-catalog-'));
 		await rm(catalog, { recursive: true, force: true });
 	});
-	await buildPortableVisualModuleCatalog(catalog);
+	await buildPortableCustomNodeGraphEffectCatalog(catalog);
 	const artifacts = new Map();
 	async function add(name, input) {
-		const prepared = preparePortableVisualModule(input, { fill, image, symbols, video });
-		const artwork = await encodePortableVisualModule(prepared);
-		const runtime = await buildPortableVisualModuleRuntime(catalog, prepared.runtimeRequirements);
-		const files = createPortableVisualModuleFiles(artwork, runtime, `gs-visual-module-${name}`);
+		const prepared = preparePortableCustomNodeGraphEffect(input, { fill, image, symbols, video });
+		const artwork = await encodePortableCustomNodeGraphEffect(prepared);
+		const runtime = await buildPortableCustomNodeGraphEffectRuntime(catalog, prepared.runtimeRequirements);
+		const files = createPortableCustomNodeGraphEffectFiles(artwork, runtime, `gs-custom-node-graph-effect-${name}`);
 		artifacts.set(`/${name}.js`, files.javascript);
 		artifacts.set(`/${name}.html`, files.standaloneHtml);
 	}
 	await add('test', fixture());
 	const literal = fixture();
-	literal.visualModule.nodes[0].params.color = { inputSource: 'literal', value: [0.25, 0, 0, 1] };
+	literal.customNodeGraphEffect.nodes[0].params.color = { inputSource: 'literal', value: [0.25, 0, 0, 1] };
 	await add('literal', literal);
 	const modified = fixture();
-	modified.visualModule.nodes[0].params.color = { inputSource: 'literal', value: [0, 0, 0, 1], expressionModifier: { enabled: true, code: '[PUBLIC("level"), 0, 0, 1]' } };
+	modified.customNodeGraphEffect.nodes[0].params.color = { inputSource: 'literal', value: [0, 0, 0, 1], expressionModifier: { enabled: true, code: '[PUBLIC("level"), 0, 0, 1]' } };
 	await add('modified', modified);
 	const defaults = fixture();
-	defaults.visualModule.paramDefs = [{ ...parameter('array', [], 'values'), dataType: { kind: 'array', elementType: { kind: 'scalar' } },
+	defaults.customNodeGraphEffect.paramDefs = [{ ...parameter('array', [], 'values'), dataType: { kind: 'array', elementType: { kind: 'scalar' } },
 		element: { defaultValue: { inputSource: 'literal', value: 0 } }, ui: { label: 'Values', control: { element: {} } },
 		defaultValue: { inputSource: 'literal', value: [{ id: 'child', binding: { inputSource: 'expression', expression: '1 + 2' } }] } }];
-	defaults.visualModule.nodes[0].params.color = { inputSource: 'literal', value: [0.25, 0, 0, 1] };
+	defaults.customNodeGraphEffect.nodes[0].params.color = { inputSource: 'literal', value: [0.25, 0, 0, 1] };
 	await add('defaults', defaults);
 	const pointer = fixture();
-	pointer.visualModule.nodes[0].params.color.expression = '[POINTER_POSITION[0] + 0.5, POINTER_POSITION[1] + 0.5, 0, 1]';
+	pointer.customNodeGraphEffect.nodes[0].params.color.expression = '[POINTER_POSITION[0] + 0.5, POINTER_POSITION[1] + 0.5, 0, 1]';
 	await add('pointer', pointer);
 	const uniform = fixture();
-	uniform.visualModule.paramDefs = [{ ...parameter('color', [0.5, 0, 0, 0.5], 'tint'), canNode: true }];
-	uniform.visualModule.primaryInputId = 'tint';
-	uniform.visualModule.nodes = [
+	uniform.customNodeGraphEffect.paramDefs = [{ ...parameter('color', [0.5, 0, 0, 0.5], 'tint'), canNode: true }];
+	uniform.customNodeGraphEffect.primaryInputId = 'tint';
+	uniform.customNodeGraphEffect.nodes = [
 		{ id: 'input', type: 'globalIn' },
 		{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'input', outputPort: 'tint' } } },
 	];
@@ -59,25 +59,25 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	const imageInput = fixture();
 	imageInput.assets = [{ id: 'image', name: 'Image', width: 2, height: 2, fileDataType: 'image/png',
 		fileData: new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAE0lEQVR4nGP4z8DQAMIMDP8hEAA55Ab7GrcJWQAAAABJRU5ErkJggg==', 'base64')]) }];
-	imageInput.visualModule.nodes[0] = { ...imageInput.visualModule.nodes[0], effectId: 'image', resolution: { mode: 'auto', scale: 1 },
+	imageInput.customNodeGraphEffect.nodes[0] = { ...imageInput.customNodeGraphEffect.nodes[0], effectId: 'image', resolution: { mode: 'auto', scale: 1 },
 		staticSettings: { [Object.keys(image.staticSettingDefs)[0]]: 'image' }, params: Object.fromEntries(Object.entries(image.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) };
 	await add('image', imageInput);
 	const symbolInput = fixture();
-	symbolInput.visualModule.paramDefs = [{ ...parameter('enum', 'symbols', 'iconset'), dataType: symbols.paramDefs.iconset.dataType }];
-	symbolInput.visualModule.nodes[0] = { ...symbolInput.visualModule.nodes[0], effectId: 'symbols',
+	symbolInput.customNodeGraphEffect.paramDefs = [{ ...parameter('enum', 'symbols', 'iconset'), dataType: symbols.paramDefs.iconset.dataType }];
+	symbolInput.customNodeGraphEffect.nodes[0] = { ...symbolInput.customNodeGraphEffect.nodes[0], effectId: 'symbols',
 		params: { ...Object.fromEntries(Object.entries(symbols.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
 			input: { inputSource: 'literal', value: [0.5, 0.5, 0.5, 1] }, density: { inputSource: 'literal', value: 8 },
-			iconset: { inputSource: 'visualModulePublicParameterReference', parameterId: 'iconset' } } };
+			iconset: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'iconset' } } };
 	await add('symbols', symbolInput);
 	const custom = fixture();
 	custom.customShaderEffects = [{ id: 'shader', name: 'Shader', summary: '', shaderApiVersion: 1, codeLanguage: 'wgsl', kind: 'generate', paramDefs: [],
 		outputDefs: [{ id: 'output', nameForReference: 'color', label: 'Color', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'output', resolutionInputIds: [],
 		code: 'fn main(position: vec2f) -> Output { var output: Output; output.color = vec4f(position.x + 0.5, position.y + 0.5, 0.0, 1.0); return output; }' }];
-	custom.visualModule.nodes[0] = { ...custom.visualModule.nodes[0], effectId: 'customShaderEffect:shader', params: {} };
+	custom.customNodeGraphEffect.nodes[0] = { ...custom.customNodeGraphEffect.nodes[0], effectId: 'customShaderEffect:shader', params: {} };
 	await add('custom', custom);
 	const player = fixture();
 	player.players = [{ id: 'camera', name: 'Camera', sourceType: 'webcam' }];
-	player.visualModule.nodes[0] = { ...player.visualModule.nodes[0], effectId: 'video',
+	player.customNodeGraphEffect.nodes[0] = { ...player.customNodeGraphEffect.nodes[0], effectId: 'video',
 		staticSettings: { [Object.keys(video.staticSettingDefs)[0]]: 'camera' }, params: Object.fromEntries(Object.entries(video.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) };
 	await add('player', player);
 	const dangerous = fixture();

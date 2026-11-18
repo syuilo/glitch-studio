@@ -6,7 +6,7 @@ import { staticParameterShape } from '@gs/shared/parameter/static-parameter.ts';
 import { validateTimelineLayerStructure } from './scenes.ts';
 import { validateTimelineParameterTree } from './parameter-binding.ts';
 import { getEffectLayerParameterDefault, validateEffectLayerOutput } from './layers/effect/effect-layer.ts';
-import { getTimelineVisualModuleArgumentDefault } from './layers/visual-module/visual-module-arguments.ts';
+import { getTimelineCustomNodeGraphEffectArgumentDefault } from './layers/custom-node-graph-effect/custom-node-graph-effect-arguments.ts';
 import { timelineCompositingParamDefs } from './timeline-compositing.ts';
 import { timelineAudioParamDefs } from './timeline-audio.ts';
 import { timelineCameraParamDefs } from './layers/camera/camera.ts';
@@ -17,12 +17,12 @@ import { voicevoxSubtitleParamDefs } from './layers/voicevox/voicevox-subtitle.t
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParameterBindingBase } from '@gs/shared/parameter/parameter-binding.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
-import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import type { TimelineLayer } from './types.ts';
 
 type ParameterGroup = { name: string; definitions: Record<string, ParameterDefinition>; values: Record<string, ParameterBindingBase>; imageInput?: boolean; audioInput?: boolean };
 
-function parameterGroups(layer: TimelineLayer, visualModule?: VisualModule | null, effect?: EffectDefinition | null): ParameterGroup[] {
+function parameterGroups(layer: TimelineLayer, customNodeGraphEffect?: CustomNodeGraphEffect | null, effect?: EffectDefinition | null): ParameterGroup[] {
 	const groups: ParameterGroup[] = [];
 	if (!hasTimelineLayerParameters(layer)) return groups;
 	const publicParameterDefs = layer.publicParameterDefs ?? [];
@@ -46,23 +46,23 @@ function parameterGroups(layer: TimelineLayer, visualModule?: VisualModule | nul
 		imageInput: true,
 		audioInput: true,
 	});
-	if ('visualModuleParamValues' in layer && visualModule) groups.push({
-		name: 'visualModuleParamValues',
-		definitions: Object.fromEntries(visualModule.paramDefs.map(def => [def.id, def])),
-		values: Object.fromEntries(visualModule.paramDefs.map(def => [def.id, layer.visualModuleParamValues[def.id] ?? getTimelineVisualModuleArgumentDefault(visualModule, def)])),
+	if ('customNodeGraphEffectParamValues' in layer && customNodeGraphEffect) groups.push({
+		name: 'customNodeGraphEffectParamValues',
+		definitions: Object.fromEntries(customNodeGraphEffect.paramDefs.map(def => [def.id, def])),
+		values: Object.fromEntries(customNodeGraphEffect.paramDefs.map(def => [def.id, layer.customNodeGraphEffectParamValues[def.id] ?? getTimelineCustomNodeGraphEffectArgumentDefault(customNodeGraphEffect, def)])),
 		imageInput: true,
 		audioInput: true,
 	});
 	return groups;
 }
 
-export function timelineLayerStaticShape(layer: TimelineLayer, visualModule?: VisualModule | null, effect?: EffectDefinition | null): unknown {
+export function timelineLayerStaticShape(layer: TimelineLayer, customNodeGraphEffect?: CustomNodeGraphEffect | null, effect?: EffectDefinition | null): unknown {
 	const { name, isDisabled, ...shape } = layer;
 	const result: Record<string, unknown> = { ...shape };
 	delete result.automationGraphs;
 	delete result.layers;
-	delete result.visualModule;
-	for (const group of parameterGroups(layer, visualModule, effect)) {
+	delete result.customNodeGraphEffect;
+	for (const group of parameterGroups(layer, customNodeGraphEffect, effect)) {
 		result[group.name] = Object.entries(group.values).map(([key, binding]) => [key, staticParameterShape(group.definitions[key], binding)]);
 	}
 	if (layer.layerType === 'shape') result.shape = [layer.shape.type, result.shape];
@@ -70,7 +70,7 @@ export function timelineLayerStaticShape(layer: TimelineLayer, visualModule?: Vi
 }
 
 // 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
-export function inspectTimelineLayer(layer: TimelineLayer, visualModule: VisualModule | null | undefined, effect: EffectDefinition | null | undefined,
+export function inspectTimelineLayer(layer: TimelineLayer, customNodeGraphEffect: CustomNodeGraphEffect | null | undefined, effect: EffectDefinition | null | undefined,
 	onValue: (definition: ParameterDefinition, binding: unknown) => void): void {
 	// コンテナの設定編集で子孫を再検証しない。子は各自の検証単位を持つ。
 	validateTimelineLayerStructure(layer);
@@ -78,14 +78,14 @@ export function inspectTimelineLayer(layer: TimelineLayer, visualModule: VisualM
 	validateStaticSettings(staticSettings.definitions, staticSettings.values ?? {});
 	if (hasTimelineLayerParameters(layer)) validateTimelineLayerPublicParameterDefinitions(layer.publicParameterDefs ?? []);
 	if (layer.layerType === 'effect') validateEffectLayerOutput(layer, effect);
-	if ('visualModuleParamValues' in layer && !visualModule) throw new Error('Visual Module not found');
-	for (const group of parameterGroups(layer, visualModule, effect)) {
+	if ('customNodeGraphEffectParamValues' in layer && !customNodeGraphEffect) throw new Error('Custom Node Graph Effect not found');
+	for (const group of parameterGroups(layer, customNodeGraphEffect, effect)) {
 		for (const [key, binding] of Object.entries(group.values)) {
 			const definition = group.definitions[key];
 			if (!definition) throw new Error('Unknown layer parameter: ' + key);
-			// Visual Moduleの画像入力はInノードの公開ポートだけ。struct/arrayの内部にある
+			// Custom Node Graph Effectの画像入力はInノードの公開ポートだけ。struct/arrayの内部にある
 			// canNodeを公開ポートと誤認すると、CPU引数評価へ画像Bindingを渡してしまう。
-			const allowImageInput = (group.imageInput ?? false) && (group.name !== 'visualModuleParamValues' || definition.canNode === true);
+			const allowImageInput = (group.imageInput ?? false) && (group.name !== 'customNodeGraphEffectParamValues' || definition.canNode === true);
 			validateTimelineParameterTree(definition, binding, allowImageInput, group.audioInput ?? false, (leaf, value) => {
 				if (group.name === 'effectParamValues' && (value.inputSource === 'lowerLayerOutput' || value.inputSource === 'anotherLayerOutput') && !('fitMode' in value)) throw new Error('Effect image input requires sampling');
 				onValue(leaf, value);

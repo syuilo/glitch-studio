@@ -17,8 +17,8 @@
 		"@gs/glitch-studio_shared": "workspace:*",
 		"@gs/shared": "workspace:*",
 		"@gs/subsystems_effect_shared": "workspace:*",
-		"@gs/subsystems_visual-module_shared": "workspace:*",
-		"@gs/subsystems_visual-module_renderer": "workspace:*"
+		"@gs/subsystems_custom-node-graph-effect_shared": "workspace:*",
+		"@gs/subsystems_custom-node-graph-effect_renderer": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/web": "0.0.359",

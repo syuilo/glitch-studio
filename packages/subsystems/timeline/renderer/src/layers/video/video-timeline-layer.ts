@@ -59,7 +59,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, fileSource: 
 							// 転送中の失敗でテクスチャが変更・再確保されても、古い時刻のキャッシュを使わない。
 							cachedFrame = null;
 							// replaceの無変形時はcompositorが素材を直接返すため、合成前に原寸へ倍率を
-							// 一度だけ適用する。後続モジュールの自動解像度は、この計算用寸法を継承する。
+							// 一度だけ適用する。後続Custom Node Graph Effectの自動解像度は、この計算用寸法を継承する。
 							const uploadStartedAt = timing != null && sample != null ? performance.now() : 0;
 							const foreground: TimelineImage = sample != null ? { kind: 'texture', texture: texture.upload(sample, options.resolutionScale) }
 								: { kind: 'uniform', value: [0, 0, 0, 0] };
