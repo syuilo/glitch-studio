@@ -7,7 +7,7 @@ import type { ShaderInput, ShaderInputSampling } from '@gs/shared/gpu/shader-inp
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { EffectParameterDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
 import type { EffectCatalog, EffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
-import type { EffectInstance, EffectInstanceOptions } from './effect-instance.ts';
+import type { EffectInstance, EffectInstanceImplementation, EffectInstanceOptions } from './effect-instance.ts';
 import type { NativeEffectImplementation } from './native-effect/native-effect-implementation.ts';
 
 export type CreateEffectInstanceOptions = Omit<EffectInstanceOptions, 'getInputResolution' | 'staticSettings'> &
@@ -32,8 +32,7 @@ function prepareParameter(parameter: EffectParameterDefinition, value: unknown, 
 	return toShaderInput(value, defaultSampling);
 }
 
-/** 編集・読込時に検証済みの定義を受け取る。配置ごとに生成し、参照IDが同じでも履歴を共有しない。 */
-export function createEffectInstance(source: EffectSource, options: CreateEffectInstanceOptions): EffectInstance {
+function createImplementation(source: EffectSource, options: CreateEffectInstanceOptions): EffectInstanceImplementation {
 	const resolved = resolveEffectSource(source, options.catalog);
 	const instanceOptions: EffectInstanceOptions = {
 		device: options.device,
@@ -42,7 +41,7 @@ export function createEffectInstance(source: EffectSource, options: CreateEffect
 		getInputResolution: options.getInputResolution ?? (() => null),
 		staticSettings: createStaticSettingValues(resolved.definition.staticSettingDefs ?? {}, options.staticSettings),
 	};
-	let instance: EffectInstance;
+	let instance: EffectInstanceImplementation;
 	switch (resolved.type) {
 		case 'nativeEffect': {
 			const implementation = options.nativeEffectImplementations.get(resolved.id);
@@ -55,21 +54,52 @@ export function createEffectInstance(source: EffectSource, options: CreateEffect
 			break;
 		case 'customNodeGraphEffect':
 			instance = createCustomNodeGraphEffectInstance(resolved.definition, instanceOptions,
-				(node, getInputResolution) => createEffectInstance(node.effectSource, {
+				(node, getInputResolution) => createImplementation(node.effectSource, {
 					...options, resolution: node.resolution ?? options.resolution, getInputResolution, staticSettings: node.staticSettings,
 				}));
 			break;
 	}
 
 	const parameters = Object.entries(resolved.definition.paramDefs);
-	const requiredParameters = instance.getRequiredParameterIds?.bind(instance);
+	return {
+		getRequiredParameterIds: instance.getRequiredParameterIds?.bind(instance),
+		getOutputResolution: id => instance.getOutputResolution(id),
+		prepare(request) {
+			const params = Object.fromEntries(parameters.map(([id, parameter]) => {
+				const value = Object.hasOwn(request.params, id) ? request.params[id] : parameter.defaultValue.value;
+				return [id, prepareParameter(parameter, value, resolved.type !== 'customNodeGraphEffect')];
+			}));
+			return instance.prepare({ ...request, params });
+		},
+		render: encoder => instance.render(encoder),
+		dispose: () => instance.dispose(),
+	};
+}
+
+type FrameState =
+	| { type: 'pending' }
+	| { type: 'ready'; outputs: ReadonlyMap<string, UniformOrTexture>; shouldRender: boolean }
+	| { type: 'error'; error: unknown };
+
+/** 編集・読込時に検証済みの定義を受け取る。フレームの準備・待機は呼び出し元の配置が一括で管理する。 */
+export function createEffectInstance(source: EffectSource, options: CreateEffectInstanceOptions): EffectInstance {
+	const implementation = createImplementation(source, options);
+	const requiredParameters = implementation.getRequiredParameterIds?.bind(implementation);
+	let frame: FrameState | null = null;
+	const waiters = new Set<(state: FrameState | null) => void>();
 	let rendering = false;
 	let disposed = false;
+
+	function setFrame(state: FrameState | null): void {
+		frame = state;
+		for (const settle of waiters) settle(state);
+	}
 
 	function dispose(): void {
 		if (disposed) return;
 		disposed = true;
-		instance.dispose();
+		setFrame(null);
+		implementation.dispose();
 	}
 
 	return {
@@ -77,18 +107,59 @@ export function createEffectInstance(source: EffectSource, options: CreateEffect
 			if (disposed) throw new Error('Effect instance has been disposed');
 			return requiredParameters(id);
 		},
-		getOutputResolution: outputId => disposed ? null : instance.getOutputResolution(outputId),
-		async render(request) {
+		getOutputResolution: outputId => disposed ? null : implementation.getOutputResolution(outputId),
+		prepare(request) {
 			if (disposed) throw new Error('Effect instance has been disposed');
 			if (rendering) throw new Error('Effect instance is already rendering');
-			if (request.requestedOutputIds.size === 0) return new Map();
+			const preparing = { type: 'pending' } as const;
+			setFrame(preparing);
+			try {
+				const shouldRender = request.requestedOutputIds.size > 0;
+				const { outputs, pending } = shouldRender ? implementation.prepare(request) : { outputs: new Map(), pending: null };
+				const ready = { type: 'ready', outputs, shouldRender } as const;
+				if (pending == null) {
+					if (frame === preparing) setFrame(ready);
+					return;
+				}
+				// 差し替え・破棄の後に旧フレームのコンパイルが完了しても、現在の状態には反映しない。
+				void pending.then(
+					() => { if (frame === preparing) setFrame(ready); },
+					(error: unknown) => { if (frame === preparing) setFrame({ type: 'error', error }); },
+				);
+			} catch (error) {
+				if (frame === preparing) setFrame({ type: 'error', error });
+			}
+		},
+		checkReady() {
+			if (frame?.type === 'error') throw frame.error;
+			return frame?.type === 'ready';
+		},
+		waitUntilReady(signal) {
+			if (signal?.aborted === true || frame == null) return Promise.resolve(false);
+			if (frame.type === 'ready') return Promise.resolve(true);
+			if (frame.type === 'error') return Promise.reject(frame.error);
+			return new Promise<boolean>((resolve, reject) => {
+				const abort = () => settle(null);
+				const settle = (state: FrameState | null) => {
+					waiters.delete(settle);
+					signal?.removeEventListener('abort', abort);
+					if (state?.type === 'error') reject(state.error);
+					else resolve(state?.type === 'ready');
+				};
+				waiters.add(settle);
+				signal?.addEventListener('abort', abort, { once: true });
+			});
+		},
+		render(commandEncoder) {
+			if (disposed) throw new Error('Effect instance has been disposed');
+			if (rendering) throw new Error('Effect instance is already rendering');
+			if (frame?.type === 'error') throw frame.error;
+			if (frame?.type !== 'ready') throw new Error('Effect frame is not ready');
+			const { outputs, shouldRender } = frame;
+			frame = null;
 			rendering = true;
 			try {
-				const params = Object.fromEntries(parameters.map(([id, parameter]) => {
-					const value = Object.hasOwn(request.params, id) ? request.params[id] : parameter.defaultValue.value;
-					return [id, prepareParameter(parameter, value, resolved.type !== 'customNodeGraphEffect')];
-				}));
-				const outputs = await instance.render({ ...request, params });
+				if (shouldRender) implementation.render(commandEncoder);
 				if (disposed) throw new Error('Effect instance was disposed during rendering');
 				return outputs;
 			} catch (error) {

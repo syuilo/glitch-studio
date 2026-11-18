@@ -12,6 +12,7 @@ import { build } from 'esbuild';
 // 【入れ子の Custom Node Graph Effect の主・副出力を別々の Custom Shader Effect で読む】
 // GPU 上で Native Effect の2つの出力が別の配置まで正しく届くことを確かめる。
 // 公開入力の定数／テクスチャの切り替え、負値、出力ごとの寸法も同じ経路で検証する。
+// 未準備のフレームを描画せずに更新し、準備済みの入力構成では即時描画できることを確認する。
 test('renders both outputs of a nested Custom Node Graph Effect on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, async () => {
 	const bundle = await build({
 		entryPoints: [fileURLToPath(new URL('./nested-effect-gpu.ts', import.meta.url))],
@@ -49,6 +50,8 @@ test('renders both outputs of a nested Custom Node Graph Effect on WebGPU', { sk
 		assert.equal(actual.error, undefined, actual.error);
 		assert.deepEqual(actual.frames, [[-4, 1], [3, -5]]);
 		assert.deepEqual(actual.resolutions, [{ width: 3, height: 2 }, { width: 1, height: 2 }]);
+		assert.deepEqual(actual.shaderFrames, [[3], [-6], [8]]);
+		assert.match(actual.compilationError, /1:\d+:.*missing_function/);
 	} finally {
 		clearTimeout(timer);
 		if (browser?.pid != null && browser.exitCode == null && browser.signalCode == null) {

@@ -4,9 +4,9 @@ import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { createTextureEffectInstance } from '../texture-effect-instance.ts';
 import { generateCustomShaderEffectCode } from './custom-shader-effect-code.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { ShaderInput, ShaderInputSchema, ShaderInputValues } from '@gs/shared/gpu/shader-input.ts';
+import type { ShaderInputSchema, ShaderInputValues } from '@gs/shared/gpu/shader-input.ts';
 import type { CustomShaderEffect } from '@gs/subsystems_effect-new_shared/custom-shader-effect/types.ts';
-import type { EffectInstance, EffectInstanceOptions } from '../effect-instance.ts';
+import type { EffectInstanceImplementation, EffectInstanceOptions } from '../effect-instance.ts';
 
 function outputFormat(dataType: TextureDataType, enable32bitDataTextures: boolean): GPUTextureFormat {
 	if (dataType.kind === 'color') return INTERMEDIATE_TEXTURE_FORMAT;
@@ -15,7 +15,7 @@ function outputFormat(dataType: TextureDataType, enable32bitDataTextures: boolea
 }
 
 async function compileFragmentShader(device: GPUDevice, code: string, userCodeLength: number): Promise<GPUShaderModule> {
-	// コンパイラの診断はこの配置のrenderに返す。awaitを挟まずにスコープを閉じ、同じDeviceを使う他の配置のエラーを捕捉しない。
+	// コンパイラの診断はこの配置のprepareに返す。awaitを挟まずにスコープを閉じ、同じDeviceを使う他の配置のエラーを捕捉しない。
 	device.pushErrorScope('validation');
 	let module: GPUShaderModule;
 	let validation: Promise<GPUError | null>;
@@ -41,7 +41,7 @@ type CompiledVariant = {
 	bindings: ReturnType<typeof createShaderInputBindings>;
 };
 
-export function createCustomShaderEffectInstance(definition: CustomShaderEffect, options: EffectInstanceOptions): EffectInstance {
+export function createCustomShaderEffectInstance(definition: CustomShaderEffect, options: EffectInstanceOptions): EffectInstanceImplementation {
 	const { device, resolution } = options;
 	const parameters = Object.entries(definition.paramDefs);
 	const outputs = Object.entries(definition.outputDefs);
@@ -49,7 +49,7 @@ export function createCustomShaderEffectInstance(definition: CustomShaderEffect,
 	const formats = Object.fromEntries(outputs.map(([id, output]) => [id, outputFormat(output.dataType, options.enable32bitDataTextures)]));
 	const schema: ShaderInputSchema = Object.fromEntries(parameters.map(([, parameter], index) => [`gs_input${index}`, parameter.dataType.kind]));
 	const code = generateCustomShaderEffectCode(definition, resolution);
-	return createTextureEffectInstance(options, formats, outputTextures => {
+	return createTextureEffectInstance<CustomShaderEffect>(options, formats, outputTextures => {
 		const vertex = device.createShaderModule({ code: vertexCode });
 		const targets = outputs.map(([id]) => ({ format: formats[id] }));
 		const colorAttachments: GPURenderPassColorAttachment[] = outputs.map(([id]) => ({
@@ -58,46 +58,67 @@ export function createCustomShaderEffectInstance(definition: CustomShaderEffect,
 		const createVariant = (key: string, inputs: ShaderInputValues) => {
 			let disposed = false;
 			let bindings: CompiledVariant['bindings'] | null = null;
+			let ready: CompiledVariant | null = null;
+			let failure: Error | null = null;
 			const dispose = () => {
 				disposed = true;
 				bindings?.dispose();
 				bindings = null;
+				ready = null;
 			};
-			const compile = async (): Promise<CompiledVariant> => {
+			const requireActive = () => {
+				if (disposed) throw new Error('Custom Shader Effect compilation was superseded');
+			};
+			const compile = async () => {
 				const generated = generateShaderInputs(schema, inputs, 0, 'level0');
 				const fragment = await compileFragmentShader(device, `${code}\n${generated.code}`, definition.code.length);
 				// 配置を破棄した後や、別の入力構成が必要になった後にGPUリソースを生成しない。
-				if (disposed) throw new Error('Custom Shader Effect compilation was superseded');
+				requireActive();
 				const inputBindings = createShaderInputBindings(device, generated);
 				bindings = inputBindings;
-				try {
-					const pipeline = await device.createRenderPipelineAsync({
-						layout: device.createPipelineLayout({ bindGroupLayouts: [inputBindings.layout] }),
-						vertex: { module: vertex },
-						fragment: { module: fragment, entryPoint: 'gs_fragment', targets },
-						primitive: { topology: 'triangle-list' },
-					});
-					return { pipeline, bindings: inputBindings };
-				} catch (error) {
-					dispose();
-					throw error;
-				}
+				const pipeline = await device.createRenderPipelineAsync({
+					layout: device.createPipelineLayout({ bindGroupLayouts: [inputBindings.layout] }),
+					vertex: { module: vertex },
+					fragment: { module: fragment, entryPoint: 'gs_fragment', targets },
+					primitive: { topology: 'triangle-list' },
+				});
+				requireActive();
+				ready = { pipeline, bindings: inputBindings };
 			};
-			return { key, compilation: compile(), dispose };
+			const pending = compile();
+			// 準備中にプレビューが次の要求へ進んでも失敗を回収する。待機中の呼び出しには元のPromiseが診断を返す。
+			void pending.catch((error: unknown) => {
+				failure = error instanceof Error ? error : new Error(String(error));
+				dispose();
+			});
+			return {
+				key,
+				get ready() { return ready; },
+				waitForCompilation() {
+					if (failure != null) throw failure;
+					return ready == null ? pending : undefined;
+				},
+				dispose,
+			};
 		};
 		let current: ReturnType<typeof createVariant> | null = null;
+		let preparedInputs: ShaderInputValues | null = null;
 		return {
-			async render(request) {
+			prepare(request) {
 				// WGSLの名前と配列順は実装内でのみ使う。配置に保存された値は固定IDで取得する。
-				const inputs: ShaderInputValues = Object.fromEntries(parameters.map(([id], index) => [`gs_input${index}`, request.params[id] as ShaderInput]));
-				const key = shaderInputVariantKey(schema, inputs);
+				preparedInputs = Object.fromEntries(parameters.map(([id], index) => [`gs_input${index}`, request.params[id]]));
+				const key = shaderInputVariantKey(schema, preparedInputs);
 				if (current?.key !== key) {
 					current?.dispose();
-					current = createVariant(key, inputs);
+					current = createVariant(key, preparedInputs);
 				}
-				const pending = current;
-				const variant = await pending.compilation;
-				if (pending !== current) throw new Error('Custom Shader Effect compilation was superseded');
+				return current.waitForCompilation();
+			},
+			render(request) {
+				const variant = current?.ready;
+				if (variant == null || preparedInputs == null) throw new Error('Custom Shader Effect is not prepared');
+				const inputs = preparedInputs;
+				preparedInputs = null;
 				const bindGroup = variant.bindings.update(inputs, resolution);
 				const pass = request.commandEncoder.beginRenderPass({ colorAttachments });
 				pass.setPipeline(variant.pipeline);
@@ -106,6 +127,7 @@ export function createCustomShaderEffectInstance(definition: CustomShaderEffect,
 				pass.end();
 			},
 			dispose() {
+				preparedInputs = null;
 				current?.dispose();
 				current = null;
 			},

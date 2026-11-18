@@ -17,16 +17,20 @@ const decomposeVector: NativeEffectImplementation = options => {
 			targets: [{ format }, { format }],
 			sampling: 'level0',
 		});
+		let preparedVariant: ReturnType<typeof pipeline.prepare>;
 		return {
+			prepare(request) {
+				preparedVariant = pipeline.prepare({ input: request.params.input });
+			},
 			render(request) {
-				const variant = pipeline.update({ input: request.params.input }, options.resolution);
+				const bindGroup = preparedVariant.bindings.update({ input: request.params.input }, options.resolution);
 				const pass = request.commandEncoder.beginRenderPass({
 					colorAttachments: [outputs.x, outputs.y].map<GPURenderPassColorAttachment>(({ view }) => ({
 						view, clearValue: [0, 0, 0, 0], loadOp: 'clear', storeOp: 'store',
 					})),
 				});
-				pass.setPipeline(variant.pipeline);
-				pass.setBindGroup(pipeline.inputGroup, variant.bindGroup);
+				pass.setPipeline(preparedVariant.pipeline);
+				pass.setBindGroup(pipeline.inputGroup, bindGroup);
 				pass.draw(3);
 				pass.end();
 			},

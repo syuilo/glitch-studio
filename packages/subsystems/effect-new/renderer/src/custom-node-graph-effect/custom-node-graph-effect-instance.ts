@@ -1,11 +1,11 @@
 import { textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { CustomNodeGraphEffect, CustomNodeGraphEffectConnection, CustomNodeGraphEffectNode } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect/types.ts';
-import type { EffectInstance, EffectInstanceOptions } from '../effect-instance.ts';
+import type { EffectInstanceImplementation, EffectInstanceOptions } from '../effect-instance.ts';
 
 type NodeEvaluation = {
 	node: CustomNodeGraphEffectNode;
-	instance: EffectInstance;
+	instance: EffectInstanceImplementation;
 	parameters: Set<string>;
 	outputs: Set<string>;
 };
@@ -13,11 +13,10 @@ type NodeEvaluation = {
 export function createCustomNodeGraphEffectInstance(
 	definition: CustomNodeGraphEffect,
 	options: EffectInstanceOptions,
-	createNodeInstance: (node: CustomNodeGraphEffectNode, getInputResolution: EffectInstanceOptions['getInputResolution']) => EffectInstance,
-): EffectInstance {
+	createNodeInstance: (node: CustomNodeGraphEffectNode, getInputResolution: EffectInstanceOptions['getInputResolution']) => EffectInstanceImplementation,
+): EffectInstanceImplementation {
 	const nodes = new Map(definition.nodes.map(node => [node.id, node]));
-	const instances = new Map<string, EffectInstance>();
-	let disposed = false;
+	const instances = new Map<string, EffectInstanceImplementation>();
 
 	function connectionResolution(connection: CustomNodeGraphEffectConnection) {
 		return connection.inputSource === 'publicParameter'
@@ -25,7 +24,7 @@ export function createCustomNodeGraphEffectInstance(
 			: getInstance(nodes.get(connection.nodeId)!).getOutputResolution(connection.outputPort);
 	}
 
-	function getInstance(node: CustomNodeGraphEffectNode): EffectInstance {
+	function getInstance(node: CustomNodeGraphEffectNode): EffectInstanceImplementation {
 		let instance = instances.get(node.id);
 		if (instance == null) {
 			instance = createNodeInstance(node, id => {
@@ -99,7 +98,7 @@ export function createCustomNodeGraphEffectInstance(
 			return required;
 		},
 		getOutputResolution: id => Object.hasOwn(definition.outputs, id) ? connectionResolution(definition.outputs[id]) : null,
-		async render(request) {
+		prepare(request) {
 			const requested = request.requestedOutputIds;
 			if (lastPlan == null || requested.size !== lastPlan.outputIds.size || !lastPlan.outputIds.isSubsetOf(requested)) {
 				lastPlan = plan(requested);
@@ -107,7 +106,8 @@ export function createCustomNodeGraphEffectInstance(
 			const nodeOutputs = new Map<string, ReadonlyMap<string, UniformOrTexture>>();
 			const read = (connection: CustomNodeGraphEffectConnection) => connection.inputSource === 'publicParameter'
 				? request.params[connection.parameterId] : nodeOutputs.get(connection.nodeId)?.get(connection.outputPort);
-			for (const { node, instance, parameters, outputs } of lastPlan.steps) {
+			const pending: Promise<void>[] = [];
+			const prepareNode = ({ node, instance, parameters, outputs }: NodeEvaluation) => {
 				const params: Record<string, unknown> = Object.create(null);
 				for (const id of parameters) {
 					const binding = node.params[id];
@@ -122,8 +122,18 @@ export function createCustomNodeGraphEffectInstance(
 							: value;
 					}
 				}
-				nodeOutputs.set(node.id, await instance.render({ ...request, params, requestedOutputIds: outputs }));
-				if (disposed) throw new Error('Custom Node Graph Effect was disposed during rendering');
+				const child = instance.prepare({ ...request, params, requestedOutputIds: outputs });
+				nodeOutputs.set(node.id, child.outputs);
+				if (child.pending != null) pending.push(child.pending);
+			};
+			try {
+				// 出力先テクスチャと定数は描画せずに配線できる。子の準備をすべて開始してから
+				// まとめて待つことで、プレビューがフレームをスキップしても先行する子の履歴は進まない。
+				for (const step of lastPlan.steps) prepareNode(step);
+			} catch (error) {
+				// 後続の準備が同期的に失敗しても、開始済みのコンパイルの失敗は回収する。
+				void Promise.allSettled(pending);
+				throw error;
 			}
 			const result = new Map<string, UniformOrTexture>();
 			for (const id of requested) {
@@ -132,10 +142,12 @@ export function createCustomNodeGraphEffectInstance(
 				const value = read(definition.outputs[id]) as UniformOrTexture | undefined;
 				if (value != null) result.set(id, value);
 			}
-			return result;
+			return { outputs: result, pending: pending.length > 0 ? Promise.all(pending).then(() => {}) : null };
+		},
+		render(commandEncoder) {
+			for (const { instance } of lastPlan!.steps) instance.render(commandEncoder);
 		},
 		dispose() {
-			disposed = true;
 			for (const instance of instances.values()) instance.dispose();
 			instances.clear();
 			requiredParametersByOutput.clear();

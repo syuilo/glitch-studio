@@ -5,6 +5,7 @@ import { nativeEffectImplementations } from '../src/implementations.ts';
 import type { CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect/types.ts';
 import type { CustomShaderEffect } from '@gs/subsystems_effect-new_shared/custom-shader-effect/types.ts';
 import type { EffectCatalog, EffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
+import type { EffectInstance } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
 
 const doubleScalar: CustomShaderEffect = {
 	kind: 'modify', shaderApiVersion: 1,
@@ -64,6 +65,22 @@ const source: EffectSource = {
 	},
 };
 
+async function readPreparedOutputs(device: GPUDevice, instance: EffectInstance, ports: string[], readback: GPUBuffer): Promise<number[]> {
+	const commandEncoder = device.createCommandEncoder();
+	const outputs = instance.render(commandEncoder);
+	for (const [index, port] of ports.entries()) {
+		const output = outputs.get(port);
+		if (output?.kind !== 'texture') throw new Error(`Missing texture for ${port}`);
+		commandEncoder.copyTextureToBuffer({ texture: output.texture }, { buffer: readback, offset: index * 4 }, [1, 1]);
+	}
+	device.queue.submit([commandEncoder.finish()]);
+	await readback.mapAsync(GPUMapMode.READ);
+	const values = new Float16Array(readback.getMappedRange());
+	const pixels = ports.map((_, index) => values[index * 2]);
+	readback.unmap();
+	return pixels;
+}
+
 async function renderFrames() {
 	const catalog: EffectCatalog = {
 		nativeEffects: nativeEffectDefinitions,
@@ -76,7 +93,12 @@ async function renderFrames() {
 	const device = await adapter.requestDevice();
 	device.pushErrorScope('validation');
 	try {
-		const instance = createEffectInstance(source, { catalog, nativeEffectImplementations, device, resolution: { width: 3, height: 2 }, enable32bitDataTextures: false });
+		const options = { catalog, nativeEffectImplementations, device, resolution: { width: 3, height: 2 }, enable32bitDataTextures: false };
+		const instance = createEffectInstance(source, options);
+		const shader = createEffectInstance({ type: 'customShaderEffectReference', id: 'double' }, options);
+		const invalidShader = createEffectInstance({
+			type: 'inlineCustomShaderEffect', customShaderEffect: { ...doubleScalar, code: 'fn main(position: vec2f) -> Output { return missing_function(); }' },
+		}, options);
 		const input = device.createTexture({ size: [1, 1], format: 'rg16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 		const readback = device.createBuffer({ size: 8, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
 		try {
@@ -84,23 +106,45 @@ async function renderFrames() {
 			const ports = ['first', 'second'];
 			const frames = [];
 			for (const vector of [[-2, 0.5], { kind: 'texture', texture: input }]) {
-				const commandEncoder = device.createCommandEncoder();
-				const outputs = await instance.render({ time: 0, timeDelta: 0, commandEncoder, params: { vector }, requestedOutputIds: new Set(ports) });
-				for (const [index, port] of ports.entries()) {
-					const output = outputs.get(port);
-					if (output?.kind !== 'texture') throw new Error(`Missing texture for ${port}`);
-					commandEncoder.copyTextureToBuffer({ texture: output.texture }, { buffer: readback, offset: index * 4 }, [1, 1]);
-				}
-				device.queue.submit([commandEncoder.finish()]);
-				await readback.mapAsync(GPUMapMode.READ);
-				const values = new Float16Array(readback.getMappedRange());
-				frames.push([values[0], values[2]]);
-				readback.unmap();
+				instance.prepare({ time: 0, timeDelta: 0, params: { vector }, requestedOutputIds: new Set(ports) });
+				if (!instance.checkReady() && !await instance.waitUntilReady()) throw new Error('Graph frame was superseded');
+				frames.push(await readPreparedOutputs(device, instance, ports, readback));
+			}
+
+			// 定数入力のコンパイル中にテクスチャへ切り替える。古い待機者は描画せず、
+			// 新しい配置の準備が済んだ時点で初めてコマンドを記録する。
+			const shaderPorts = ['doubled'];
+			const shaderFrame = { time: 0, timeDelta: 0, requestedOutputIds: new Set(shaderPorts) };
+			shader.prepare({ ...shaderFrame, params: { quantity: 0.5 } });
+			if (shader.checkReady()) throw new Error('First shader variant reported ready before compilation');
+			const firstPreparation = shader.waitUntilReady();
+			shader.prepare({ ...shaderFrame, params: { quantity: { kind: 'texture', texture: input } } });
+			if (shader.checkReady()) throw new Error('Texture variant reported ready before compilation');
+			if (await firstPreparation) throw new Error('Superseded shader frame reported ready');
+			if (!await shader.waitUntilReady() || !shader.checkReady()) throw new Error('Texture variant did not become ready');
+			const shaderFrames = [await readPreparedOutputs(device, shader, shaderPorts, readback)];
+
+			shader.prepare({ ...shaderFrame, params: { quantity: -3 } });
+			if (!await shader.waitUntilReady()) throw new Error('Uniform variant did not become ready');
+			shaderFrames.push(await readPreparedOutputs(device, shader, shaderPorts, readback));
+			// 同じ入力構成で値だけ更新すると、前回準備済みの pipeline を同期描画にそのまま使える。
+			shader.prepare({ ...shaderFrame, params: { quantity: 4 } });
+			if (!shader.checkReady()) throw new Error('Changing only uniform values triggered another wait');
+			shaderFrames.push(await readPreparedOutputs(device, shader, shaderPorts, readback));
+
+			invalidShader.prepare({ ...shaderFrame, params: {} });
+			let compilationError: string | null = null;
+			try {
+				await invalidShader.waitUntilReady();
+			} catch (cause) {
+				compilationError = cause instanceof Error ? cause.message : String(cause);
 			}
 			const error = await device.popErrorScope();
 			if (error != null) throw new Error(error.message);
-			return { frames, resolutions: ports.map(port => instance.getOutputResolution(port)) };
+			return { frames, shaderFrames, compilationError, resolutions: ports.map(port => instance.getOutputResolution(port)) };
 		} finally {
+			invalidShader.dispose();
+			shader.dispose();
 			readback.destroy();
 			input.destroy();
 			instance.dispose();

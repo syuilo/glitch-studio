@@ -11,6 +11,11 @@ function checksNativeEffectPorts(options: EffectInstanceOptions, readInput: (inp
 		// @ts-expect-error 定義した出力は x と y のみ。
 		z: 'r16float',
 	}, outputs => ({
+		prepare(request) {
+			readInput(request.params.input);
+			// @ts-expect-error 準備だけでGPUコマンドを記録すると、スキップしたフレームでも描画が進んでしまう。
+			void request.commandEncoder;
+		},
 		render(request) {
 			readInput(request.params.input);
 			// @ts-expect-error 未定義の入力は評価されない。
@@ -23,3 +28,10 @@ function checksNativeEffectPorts(options: EffectInstanceOptions, readInput: (inp
 }
 
 void checksNativeEffectPorts;
+
+// 【Native Effect の描画は同期的にコマンドを記録する】
+// awaitの後にエンコーダーへ記録する実装を受け入れると、呼び出し側のsubmitに間に合わない。
+type TextureEffectImplementation = ReturnType<Parameters<typeof createTextureEffectInstance<typeof definition>>[2]>;
+// @ts-expect-error GPU準備の待機はprepareが所有し、renderをasync関数にできない。
+const asynchronousRender: TextureEffectImplementation['render'] = async () => {};
+void asynchronousRender;
