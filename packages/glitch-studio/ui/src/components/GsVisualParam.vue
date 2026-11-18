@@ -10,7 +10,9 @@
 					:data-test-parameter-expanded="expanded"
 					@pointerdown.stop
 					@click.stop="expanded = !expanded"
-				><i :class="expanded ? 'ti ti-chevron-down' : 'ti ti-chevron-right'"></i></button>
+				>
+					<i :class="expanded ? 'ti ti-chevron-down' : 'ti ti-chevron-right'"></i>
+				</button>
 				<GsNodePort
 					v-if="node != null"
 					v-show="!expanded && hasConnectedChildren"
@@ -261,19 +263,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 </script>
 
 <script lang="ts" setup>
-import { getEffectDefinitions } from '@/utility/project-effects.ts';
-import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
-import { isKeyframesDataType } from '@gs/shared/keyframes/keyframes-timeline.ts';
-import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
-import { supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
-import { isParameterVisible } from '@/utility/parameter-visibility.ts';
 import type { ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
-import { visualModulePublicParameterId, visualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
-import { VISUAL_MODULE_CUSTOM_PARAMETER_TYPES } from '@gs/subsystems_visual-module_shared/custom-parameters.ts';
-import { computed, inject, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch, watchEffect } from 'vue';
-import { getNodeInputDataType, areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
-import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
-import * as AiScript from '@syuilo/aiscript';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { Ref } from 'vue';
 import type { NodeOutputReference, VisualModule, VisualModulePublicParameterId, VisualModuleCustomParameterId, VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';
@@ -284,6 +274,18 @@ import type { EditableParameterBinding, ParameterInputSourceEdit, ValueParameter
 import type { MenuItem } from '@/types/menu.ts';
 import type { TimelineLayerPublicParameterReferenceBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
+import { getEffectDefinitions } from '@/utility/project-effects.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
+import { isKeyframesDataType } from '@gs/shared/keyframes/keyframes-timeline.ts';
+import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
+import { supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
+import { isParameterVisible } from '@/utility/parameter-visibility.ts';
+import { visualModulePublicParameterId, visualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
+import { VISUAL_MODULE_CUSTOM_PARAMETER_TYPES } from '@gs/subsystems_visual-module_shared/custom-parameters.ts';
+import { computed, inject, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch, watchEffect } from 'vue';
+import { getNodeInputDataType, areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
+import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
+import * as AiScript from '@syuilo/aiscript';
 import { i18n } from '@/i18n.ts';
 import { connectedNodeParameterPathKeysKey, useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { timelineParameterEditorContextKey } from '@/utility/timeline-parameter-editor-context.ts';
@@ -382,9 +384,16 @@ const visibleFields = computed(() => {
 	if (isViewport2DParameter(props.paramDef) && span != null && isParameterType(fields.center, 'vector')) {
 		const center = fields.center;
 		// 刻みは保存値の量子化ではなく増減操作の感度。絶対座標の精度は維持する。
-		fields.center = { ...center, ui: { ...center.ui, control: { ...center.ui.control,
-			step: (center.ui.control.step ?? props.paramDef.ui.control.spanAtZoomOne / 1000) * span / props.paramDef.ui.control.spanAtZoomOne,
-		} } };
+		fields.center = {
+			...center,
+			ui: {
+				...center.ui,
+				control: {
+					...center.ui.control,
+					step: (center.ui.control.step ?? props.paramDef.ui.control.spanAtZoomOne / 1000) * span / props.paramDef.ui.control.spanAtZoomOne,
+				},
+			},
+		};
 	}
 	return Object.entries(fields);
 });
@@ -792,9 +801,8 @@ function onReset() {
 
 .row {
 	display: flex;
-	padding: 3px 10px;
+	padding: 2px 10px;
 	box-sizing: border-box;
-	min-height: 30px;
 
 	&:hover {
 		background: #ffffff08;

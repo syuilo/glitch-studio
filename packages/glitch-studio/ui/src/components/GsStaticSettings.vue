@@ -68,9 +68,8 @@ async function chooseAsset(key: string, definition: StaticSettingDefinition) {
 
 .row {
 	display: flex;
-	padding: 3px 10px;
+	padding: 2px 10px;
 	box-sizing: border-box;
-	min-height: 30px;
 
 	&:hover {
 		background: #ffffff08;

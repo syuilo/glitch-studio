@@ -41,16 +41,16 @@
 
 <script lang="ts" setup>
 import { computed, inject, shallowRef, watchEffect } from 'vue';
+import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
+import GsNodePort from './GsNodePort.vue';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { EffectParameterLayoutItem, EffectParameterSection } from '@gs/subsystems_effect_shared/effect-parameter-layout.ts';
-import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import type { EditableParameterBinding } from '@/types/parameter-edit.ts';
 import { useProjectSession } from '@/project-session.ts';
 import { preferences } from '@/preferences.ts';
 import { useParameterExpansionState } from '@/composables/useParameterExpansion.ts';
 import { isParameterVisible } from '@/utility/parameter-visibility.ts';
 import { connectedNodeParameterPathKeysKey, useVisualModuleWires } from '@/utility/visual-module-wires.ts';
-import GsNodePort from './GsNodePort.vue';
 
 const props = withDefaults(defineProps<{
 	definition: EffectDefinition;
@@ -115,9 +115,8 @@ watchEffect(onCleanup => {
 	gap: 8px;
 	width: 100%;
 	min-width: 0;
-	min-height: 30px;
 	box-sizing: border-box;
-	padding: 3px 10px;
+	padding: 2px 10px;
 	text-align: left;
 	font-weight: bold;
 	background: #ffffff06;

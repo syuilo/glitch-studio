@@ -2,7 +2,7 @@
 <div :class="$style.root">
 	<div :class="$style.label"><slot name="label"></slot></div>
 	<div
-		:class="[$style.input, { [$style.disabled]: disabled, [$style.focused]: editing, [$style.easing]: easing && !dragging }]"
+		:class="[$style.input, { [$style.disabled]: disabled, [$style.focused]: editing }]"
 		:style="{ anchorName: inputAnchorName }"
 		data-test-range-control
 		@pointerdown="onPointerdown"
@@ -55,11 +55,9 @@ const props = withDefaults(defineProps<{
 	step?: number;
 	logarithmic?: boolean;
 	textConverter?: (value: number) => string;
-	easing?: boolean;
 	continuousUpdate?: boolean;
 }>(), {
 	step: 1,
-	easing: false,
 });
 
 const emit = defineEmits<{
@@ -274,10 +272,15 @@ onBeforeUnmount(() => finishDrag?.());
 	inset: 0 auto 0 0;
 	background: color(from var(--THEME-accent) srgb r g b / 0.25);
 	pointer-events: none;
-}
 
-.easing .fill {
-	transition: width 0.2s cubic-bezier(0, 0, 0, 1);
+	&:after {
+		content: '';
+		position: absolute;
+		left: calc(100% - 1px);
+		width: 2px;
+		height: 100%;
+		background: var(--THEME-accent);
+	}
 }
 
 .value,
