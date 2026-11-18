@@ -11,6 +11,8 @@ packages:
   - packages/subsystems/audio/renderer
   - packages/subsystems/effect/shared
   - packages/subsystems/effect/renderer
+  - packages/subsystems/effect-new/shared
+  - packages/subsystems/effect-new/renderer
   - packages/subsystems/custom-node-graph-effect/shared
   - packages/subsystems/custom-node-graph-effect/renderer
   - packages/subsystems/timeline/shared

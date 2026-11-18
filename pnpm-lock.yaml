@@ -578,6 +578,35 @@ importers:
         specifier: 8.3.5
         version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.107.1)
 
+  packages/subsystems/effect-new/renderer:
+    dependencies:
+      '@gs/shared':
+        specifier: workspace:*
+        version: link:../../../shared
+      '@gs/subsystems_audio_shared':
+        specifier: workspace:*
+        version: link:../../audio/shared
+      '@gs/subsystems_effect-new_shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@types/web':
+        specifier: 0.0.359
+        version: 0.0.359
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
+
+  packages/subsystems/effect-new/shared:
+    dependencies:
+      '@gs/shared':
+        specifier: workspace:*
+        version: link:../../../shared
+    devDependencies:
+      '@types/web':
+        specifier: 0.0.359
+        version: 0.0.359
+
   packages/subsystems/effect/renderer:
     dependencies:
       '@gs/shared':

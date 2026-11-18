@@ -1,0 +1,20 @@
+{
+	"name": "@gs/subsystems_effect-new_shared",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./*": "./src/*"
+	},
+	"scripts": {
+		"test": "node --test test/*.test.mjs",
+		"typecheck": "tsc6 --noEmit",
+		"eslint": "eslint --quiet src",
+		"lint": "pnpm typecheck && pnpm eslint"
+	},
+	"dependencies": {
+		"@gs/shared": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/web": "0.0.359"
+	}
+}
