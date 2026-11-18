@@ -16,30 +16,30 @@ AiScript自体は非同期で実行します。Commandの準備やダイアロ�
 
 ## 最初のスクリプト
 
-次の例は、Fillノードと出力接続を持つVisual Moduleを作成し、その保存内容を出力します。作成したVisual ModuleはVisual Module Editorから選択できます。
+次の例は、Fillノードと出力接続を持つCustom Node Graph Effectを作成し、その保存内容を出力します。作成したCustom Node Graph EffectはCustom Node Graph Effect Editorから選択できます。
 
 ```aiscript
-let visualModule = Command:createVisualModule({ name: "Generated" })
-let fillNode = Command:createVisualModuleEffectNode({
-	visualModule: visualModule
+let customNodeGraphEffect = Command:createCustomNodeGraphEffect({ name: "Generated" })
+let fillNode = Command:createCustomNodeGraphEffectEffectNode({
+	customNodeGraphEffect: customNodeGraphEffect
 	effectId: "fill"
 	connectionMode: "appendToPrimaryOutput"
 })
 
-Command:setVisualModuleNodeParameterSource({
+Command:setCustomNodeGraphEffectNodeParameterSource({
 	target: fillNode
 	parameterPath: ["color"]
 	source: { inputSource: "literal", value: [1, 0.2, 0.1, 1] }
 })
 
-<: Query:getVisualModule(visualModule)
+<: Query:getCustomNodeGraphEffect(customNodeGraphEffect)
 ```
 
 色は既存のパラメータと同じlinear sRGBです。公開する位置・距離も通常の編集と同じ共通単位を使います。詳細は[空間座標](spatial-coordinate.md)を参照してください。
 
 ## Command
 
-編集は`Command:<Command名>({ ...入力... })`で行います。名前・入力・戻り値はUIが利用するCommandと共通です。例えば`Command:createVisualModule`は`{ visualModuleId }`を返し、そのまま次のCommandの`visualModule`へ渡せます。戻り値のないCommandは`null`を返します。引数オブジェクトは必須なので、既定値だけで作る場合も`Command:createVisualModule({})`と書きます。
+編集は`Command:<Command名>({ ...入力... })`で行います。名前・入力・戻り値はUIが利用するCommandと共通です。例えば`Command:createCustomNodeGraphEffect`は`{ customNodeGraphEffectId }`を返し、そのまま次のCommandの`customNodeGraphEffect`へ渡せます。戻り値のないCommandは`null`を返します。引数オブジェクトは必須なので、既定値だけで作る場合も`Command:createCustomNodeGraphEffect({})`と書きます。
 
 利用可能な名前と説明は実行中のアプリから取得できます。
 
@@ -52,8 +52,8 @@ Command:setVisualModuleNodeParameterSource({
 | 対象 | 主な操作例 | 入力・戻り値の定義 |
 |---|---|---|
 | Project・Automation Graph | `setProjectName`、`setProjectResolution`、`createProjectAutomationGraph` | [project.ts](../packages/glitch-studio/ui/src/commands/project.ts) |
-| Visual Module・Node | `createVisualModule`、`createVisualModuleEffectNode`、`removeVisualModuleNode` | [visual-module.ts](../packages/glitch-studio/ui/src/commands/visual-module.ts) |
-| Visual Moduleのパラメータ・入出力 | `setVisualModuleNodeParameterSource`、`replaceVisualModuleNodeParameterBinding`、`setVisualModuleOutputConnection` | [visual-module-parameters.ts](../packages/glitch-studio/ui/src/commands/visual-module-parameters.ts) |
+| Custom Node Graph Effect・Node | `createCustomNodeGraphEffect`、`createCustomNodeGraphEffectEffectNode`、`removeCustomNodeGraphEffectNode` | [custom-node-graph-effect.ts](../packages/glitch-studio/ui/src/commands/custom-node-graph-effect.ts) |
+| Custom Node Graph Effectのパラメータ・入出力 | `setCustomNodeGraphEffectNodeParameterSource`、`replaceCustomNodeGraphEffectNodeParameterBinding`、`setCustomNodeGraphEffectOutputConnection` | [custom-node-graph-effect-parameters.ts](../packages/glitch-studio/ui/src/commands/custom-node-graph-effect-parameters.ts) |
 | Scene・Layer・Clipの作成と素材情報を要する操作 | `createTimelineScene`、`createTimelineLayer`、`createTimelineClip`、`trimTimelineClip` | [timeline-api.ts](../packages/glitch-studio/ui/src/commands/timeline-api.ts)、[timeline-creation.ts](../packages/glitch-studio/ui/src/commands/timeline-creation.ts) |
 | Timelineの配置・階層・設定・キー | `moveTimelineLayerInTree`、`moveTimelineClips`、`setTimelineLayerName`、`setTimelineLayerMask`、`insertTimelineKeyframes` | [timeline.ts](../packages/glitch-studio/ui/src/commands/timeline.ts) |
 | Timelineの公開パラメータ | `createTimelineLayerPublicParameter`、`replaceTimelineLayerPublicParameterDefinition` | [timeline-parameters.ts](../packages/glitch-studio/ui/src/commands/timeline-parameters.ts) |
@@ -61,7 +61,7 @@ Command:setVisualModuleNodeParameterSource({
 | 既存Asset・Player | `setAssetName`、`removeAsset`、`createPlayer`、`setPlayerSource` | [resources.ts](../packages/glitch-studio/ui/src/commands/resources.ts) |
 | Custom Shader Effect | `createCustomShaderEffect`、`replaceCustomShaderEffectDefinition` | [custom-shader-effect.ts](../packages/glitch-studio/ui/src/commands/custom-shader-effect.ts) |
 
-固定値・式・接続は、各Commandが受け取る入力方式で明示します。例えば`setVisualModuleNodeParameterSource`は入力元を設定して既存の加工式を保持し、`replaceVisualModuleNodeParameterBinding`は加工式を含めたBinding全体を置き換えます。`parameterPath`は配列で指定し、配列要素のパスにはインデックスではなく要素IDを使います。
+固定値・式・接続は、各Commandが受け取る入力方式で明示します。例えば`setCustomNodeGraphEffectNodeParameterSource`は入力元を設定して既存の加工式を保持し、`replaceCustomNodeGraphEffectNodeParameterBinding`は加工式を含めたBinding全体を置き換えます。`parameterPath`は配列で指定し、配列要素のパスにはインデックスではなく要素IDを使います。
 
 公開するCommandはプロジェクト内容の編集に限ります。プロジェクト保存、環境設定変更、パネル操作、書き出し設定の変更、ファイル選択や素材の新規取り込みは提供しません。Blobや取り込み済みの内部配置情報を必要とするCommandも公開しません。
 
@@ -72,8 +72,8 @@ Command・Query・Dialogとの受け渡しには、`null`、真理値、数値�
 すべての公開Command・Queryは、説明・AiScriptの実行例・入力スキーマ・結果スキーマを持ちます。実行中のアプリと同じ定義から資料を生成するため、次の関数で利用可能なAPIを検索し、正確な引数を確認できます。読み取りだけで、Undo履歴は作りません。
 
 ```aiscript
-<: Script:search("VisualModule")
-let api = Script:describe("Command:createVisualModule")
+<: Script:search("CustomNodeGraphEffect")
+let api = Script:describe("Command:createCustomNodeGraphEffect")
 <: api.description
 <: api.inputSchema
 <: api.resultSchema
@@ -94,7 +94,7 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 
 ```aiscript
 <: Script:queries() // 利用可能なQueryの名前
-<: Query:listVisualModules()
+<: Query:listCustomNodeGraphEffects()
 <: Query:listEffects()
 <: Query:getEffect({ effectId: "fill" })
 ```
@@ -104,9 +104,9 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 | API | 引数 | 内容 |
 |---|---|---|
 | `Query:getProject()` | なし | 名前・説明・作者・解像度・Timelineの描画設定・書き出し設定 |
-| `Query:listVisualModules()` | なし | 登録済みとScene内のインラインVisual Moduleの`target`・名前 |
-| `Query:getVisualModule(target)` | Visual Module参照 | ノード・パラメータ・出力定義などの保存内容 |
-| `Query:listNodes(target)` | Visual Module参照 | ノードの参照・種別・Effect ID・表示名 |
+| `Query:listCustomNodeGraphEffects()` | なし | 登録済みとScene内のインラインCustom Node Graph Effectの`target`・名前 |
+| `Query:getCustomNodeGraphEffect(target)` | Custom Node Graph Effect参照 | ノード・パラメータ・出力定義などの保存内容 |
+| `Query:listNodes(target)` | Custom Node Graph Effect参照 | ノードの参照・種別・Effect ID・表示名 |
 | `Query:getNode(target)` | Node参照 | ノードの保存内容 |
 | `Query:listTimelineScenes()` | なし | Scene参照・名前・解像度 |
 | `Query:getTimelineScene(target)` | Scene参照 | Scene全体の保存内容 |
@@ -125,9 +125,9 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 
 | 対象 | 参照 |
 |---|---|
-| 登録済みVisual Module | `{ visualModuleId: "..." }` |
-| Scene内のインラインVisual Module | `{ sceneId: "...", inlineVisualModuleLayerId: "..." }` |
-| Node | `{ visualModule: visualModuleTarget, nodeId: "..." }` |
+| 登録済みCustom Node Graph Effect | `{ customNodeGraphEffectId: "..." }` |
+| Scene内のインラインCustom Node Graph Effect | `{ sceneId: "...", inlineCustomNodeGraphEffectLayerId: "..." }` |
+| Node | `{ customNodeGraphEffect: customNodeGraphEffectTarget, nodeId: "..." }` |
 | Scene | `{ sceneId: "..." }` |
 | Layer | `{ sceneId: "...", layerId: "..." }` |
 | Clip | `{ sceneId: "...", layerId: "...", clipId: "..." }` |
@@ -135,7 +135,7 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 | ProjectのAutomation Graph | `{ automationGraphId: "..." }` |
 | Custom Shader Effect | `{ customShaderEffectId: "..." }` |
 
-Timelineのパラメータグループは`Query:getTimelineLayerParameters`のキーで確認できます。Visual Moduleの引数グループは`visualModule`です。Commandの`parameterGroup`にも同じ名前を指定します。
+Timelineのパラメータグループは`Query:getTimelineLayerParameters`のキーで確認できます。Custom Node Graph Effectの引数グループは`customNodeGraphEffect`です。Commandの`parameterGroup`にも同じ名前を指定します。
 
 ## Dialogと正常終了
 
@@ -152,7 +152,7 @@ Dialog関数は一つのオプションオブジェクトを受け取ります�
 
 ```aiscript
 let name = Dialog:input_text({
-	title: "Visual Module"
+	title: "Custom Node Graph Effect"
 	text: "Enter a name"
 	default: "Generated"
 })
@@ -160,12 +160,12 @@ if name == null {
 	Script:exit()
 }
 
-if !Dialog:confirm({ text: "Create the Visual Module?" }) {
+if !Dialog:confirm({ text: "Create the Custom Node Graph Effect?" }) {
 	Script:exit()
 }
 
-let visualModule = Command:createVisualModule({ name: name })
-<: visualModule
+let customNodeGraphEffect = Command:createCustomNodeGraphEffect({ name: name })
+<: customNodeGraphEffect
 Dialog:alert({ text: "Created" })
 ```
 

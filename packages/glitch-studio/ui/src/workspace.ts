@@ -6,7 +6,7 @@ import { i18n } from '@/i18n.ts';
 import { preferences } from '@/preferences.ts';
 import XBlank from '@/components/GsWorkspacePanel.Blank.vue';
 import XPreview from '@/components/GsWorkspacePanel.Preview.vue';
-import XVisualModuleEditor from '@/components/GsWorkspacePanel.VisualModuleEditor.vue';
+import XCustomNodeGraphEffectEditor from '@/components/GsWorkspacePanel.CustomNodeGraphEffectEditor.vue';
 import XHistogram from '@/components/GsWorkspacePanel.Histogram.vue';
 import XWaveform from '@/components/GsWorkspacePanel.Waveform.vue';
 import XAudioSpectrum from '@/components/GsWorkspacePanel.AudioSpectrum.vue';
@@ -33,7 +33,7 @@ const panelDefinitions = {
 	waveformVertical: { label: i18n.ts._Workspace.WaveformY, icon: 'ti ti-chart-column', component: XWaveform },
 	preview: { label: i18n.ts.Preview, icon: 'ti ti-device-desktop', component: XPreview },
 	players: { label: i18n.ts.Players, icon: 'ti ti-player-play', component: XPlayers },
-	visualModuleEditor: { label: i18n.ts._Workspace.VisualModuleEditor, icon: 'ti ti-chart-dots-3', component: XVisualModuleEditor },
+	customNodeGraphEffectEditor: { label: i18n.ts._Workspace.CustomNodeGraphEffectEditor, icon: 'ti ti-chart-dots-3', component: XCustomNodeGraphEffectEditor },
 	stats: { label: i18n.ts._Workspace.Stats, icon: 'ti ti-activity', component: XStats },
 	commandLog: { label: i18n.ts._Workspace.CommandLog, icon: 'ti ti-logs', component: XCommandLog },
 	scripting: { label: i18n.ts._Scripting.Title, icon: 'ti ti-code', component: XScripting },

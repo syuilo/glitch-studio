@@ -19,10 +19,10 @@ export type TimelineLowerLayerOutputBinding = {
 	wrapMode: WrapMode;
 	filterMode: 'linear' | 'nearest';
 };
-export type TimelineVisualModuleLowerLayerOutputBinding = { inputSource: 'lowerLayerOutput' };
+export type TimelineCustomNodeGraphEffectLowerLayerOutputBinding = { inputSource: 'lowerLayerOutput' };
 
 export type TimelineLayerOutputStage = 'source' | 'rendered' | 'composited';
-/** 画像の取得元だけを表す。Visual Module公開入力のサンプリングは内部接続が所有する。 */
+/** 画像の取得元だけを表す。Custom Node Graph Effect公開入力のサンプリングは内部接続が所有する。 */
 export type TimelineAnotherLayerOutputBinding = {
 	inputSource: 'anotherLayerOutput';
 	layerId: string | null;
@@ -43,21 +43,21 @@ export type TimelineParameterBinding = ValueParameterBinding | TimelineLayerPubl
 export type TimelineLowerLayerAudioBinding = { inputSource: 'lowerLayerAudio' };
 export type TimelineAnotherLayerAudioBinding = { inputSource: 'anotherLayerAudio'; layerId: string | null };
 export type TimelineAudioInputBinding = TimelineLowerLayerAudioBinding | TimelineAnotherLayerAudioBinding;
-export type TimelineVisualModuleParameterBinding = TimelineParameterBinding | TimelineAudioInputBinding | TimelineVisualModuleLowerLayerOutputBinding | TimelineAnotherLayerOutputBinding;
+export type TimelineCustomNodeGraphEffectParameterBinding = TimelineParameterBinding | TimelineAudioInputBinding | TimelineCustomNodeGraphEffectLowerLayerOutputBinding | TimelineAnotherLayerOutputBinding;
 export type TimelineEffectParameterBinding = TimelineParameterBinding | TimelineAudioInputBinding | TimelineLowerLayerOutputBinding | TimelineEffectAnotherLayerOutputBinding;
 
 export function isTimelineAudioInputBinding(binding: ParameterBindingBase): binding is TimelineAudioInputBinding {
 	return binding.inputSource === 'lowerLayerAudio' || binding.inputSource === 'anotherLayerAudio';
 }
 
-export function isTimelineImageInputBinding(binding: ParameterBindingBase): binding is TimelineVisualModuleLowerLayerOutputBinding | TimelineAnotherLayerOutputBinding {
+export function isTimelineImageInputBinding(binding: ParameterBindingBase): binding is TimelineCustomNodeGraphEffectLowerLayerOutputBinding | TimelineAnotherLayerOutputBinding {
 	return binding.inputSource === 'lowerLayerOutput' || binding.inputSource === 'anotherLayerOutput';
 }
 
 /** レイヤーに終端や接続スコープはない。UI以外から渡されたBindingも保存時に拒否する。 */
 export function validateTimelineParameterBinding(binding: ParameterBindingBase, allowImageInput?: false): asserts binding is TimelineParameterBinding;
-export function validateTimelineParameterBinding(binding: ParameterBindingBase, allowImageInput: boolean, allowAudioInput?: boolean): asserts binding is TimelineVisualModuleParameterBinding | TimelineEffectParameterBinding;
-export function validateTimelineParameterBinding(binding: ParameterBindingBase, allowImageInput = false, allowAudioInput = allowImageInput): asserts binding is TimelineVisualModuleParameterBinding | TimelineEffectParameterBinding {
+export function validateTimelineParameterBinding(binding: ParameterBindingBase, allowImageInput: boolean, allowAudioInput?: boolean): asserts binding is TimelineCustomNodeGraphEffectParameterBinding | TimelineEffectParameterBinding;
+export function validateTimelineParameterBinding(binding: ParameterBindingBase, allowImageInput = false, allowAudioInput = allowImageInput): asserts binding is TimelineCustomNodeGraphEffectParameterBinding | TimelineEffectParameterBinding {
 	if (binding.inputSource === 'timelineLayerPublicParameterReference') {
 		const reference = binding as TimelineLayerPublicParameterReferenceBinding;
 		if ((reference.layerId !== null && (typeof reference.layerId !== 'string' || reference.layerId.length === 0))
@@ -104,9 +104,9 @@ export function validateTimelineParameterBinding(binding: ParameterBindingBase, 
  */
 export function validateTimelineParameterTree(def: ParameterDefinition, binding: ParameterBindingBase, allowImageInput?: false): asserts binding is TimelineParameterBinding;
 export function validateTimelineParameterTree(def: ParameterDefinition, binding: ParameterBindingBase, allowImageInput: boolean, allowAudioInput?: boolean,
-	onValue?: (definition: ParameterDefinition, binding: ParameterBindingBase) => void): asserts binding is TimelineVisualModuleParameterBinding | TimelineEffectParameterBinding;
+	onValue?: (definition: ParameterDefinition, binding: ParameterBindingBase) => void): asserts binding is TimelineCustomNodeGraphEffectParameterBinding | TimelineEffectParameterBinding;
 export function validateTimelineParameterTree(def: ParameterDefinition, binding: ParameterBindingBase, allowImageInput = false, allowAudioInput = allowImageInput,
-	onValue?: (definition: ParameterDefinition, binding: ParameterBindingBase) => void): asserts binding is TimelineVisualModuleParameterBinding | TimelineEffectParameterBinding {
+	onValue?: (definition: ParameterDefinition, binding: ParameterBindingBase) => void): asserts binding is TimelineCustomNodeGraphEffectParameterBinding | TimelineEffectParameterBinding {
 	inspectStaticParameter(def, binding, (leaf, value) => {
 		validateTimelineParameterBinding(value, allowImageInput && leaf.canNode === true, allowAudioInput && leaf.dataType.kind === 'audioSource');
 		if (leaf.dataType.kind === 'audioSource' && !isTimelineAudioInputBinding(value)) {

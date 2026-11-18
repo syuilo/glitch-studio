@@ -59,17 +59,17 @@ export async function captureProjectPreview(session: ProjectSessionContext, maxi
 	if (session.isDisposed || !session.renderEngine.canRender.value) throw new Error(session.renderEngine.errorMessage.value ?? 'PREVIEW_UNAVAILABLE: The preview is not ready.');
 	await waitFor(session.flushRendererProjectChanges(), lifetime);
 	const playback = session.previewPlayback.state.value;
-	const target = playback.mode === 'visualModuleLivePreview'
-		? { kind: 'visualModule' as const, visualModuleId: playback.visualModuleId }
+	const target = playback.mode === 'customNodeGraphEffectLivePreview'
+		? { kind: 'customNodeGraphEffect' as const, customNodeGraphEffectId: playback.customNodeGraphEffectId }
 		: { kind: 'timeline' as const, sceneId: session.activeSceneId.value };
 	const controller = session.activePreviewRenderer.value;
 	const canvasRevision = controller.canvasRevision.value;
-	const captured = await waitFor(playback.mode === 'visualModuleLivePreview'
-		? session.visualModuleRendererManagerController.capturePreview(maximumSize)
+	const captured = await waitFor(playback.mode === 'customNodeGraphEffectLivePreview'
+		? session.customNodeGraphEffectRendererManagerController.capturePreview(maximumSize)
 		: session.timelineRendererManagerController.capturePreview(maximumSize, session.previewPlayback.currentTimelineTime.value), lifetime);
 	lifetime.throwIfAborted();
 	if (session.isDisposed || controller !== session.activePreviewRenderer.value || canvasRevision !== controller.canvasRevision.value
-		|| (target.kind === 'visualModule' ? session.previewPlayback.visualModuleLivePreviewVisualModuleId.value !== target.visualModuleId : session.activeSceneId.value !== target.sceneId)) {
+		|| (target.kind === 'customNodeGraphEffect' ? session.previewPlayback.livePreviewCustomNodeGraphEffectId.value !== target.customNodeGraphEffectId : session.activeSceneId.value !== target.sceneId)) {
 		throw new Error('PREVIEW_CHANGED: The preview changed while capturing an image.');
 	}
 	if (captured == null) throw new Error('PREVIEW_UNAVAILABLE: No new preview frame could be captured.');

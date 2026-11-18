@@ -1,0 +1,29 @@
+{
+	"type": "module",
+	"name": "@gs/subsystems_custom-node-graph-effect_renderer",
+	"private": true,
+	"scripts": {
+		"eslint": "eslint --quiet './**/*.{js,jsx,ts,tsx}'",
+		"test": "node --test test/*.test.mjs",
+		"typecheck": "tsc6 --noEmit",
+		"lint": "pnpm typecheck && pnpm eslint"
+	},
+	"exports": {
+		"./custom-node-graph-effect-resolutions.ts": "./src/custom-node-graph-effect-resolutions.ts",
+		"./custom-node-graph-effect-renderer.ts": "./src/custom-node-graph-effect-renderer.ts",
+		"./custom-node-graph-effect-live-preview-render-loop.ts": "./src/custom-node-graph-effect-live-preview-render-loop.ts"
+	},
+	"devDependencies": {
+		"@types/web": "0.0.359",
+		"@typescript-eslint/parser": "8.72.1",
+		"@webgpu/types": "0.1.74",
+		"vite": "8.3.5"
+	},
+	"dependencies": {
+		"@gs/subsystems_effect_renderer": "workspace:*",
+		"@gs/subsystems_effect_shared": "workspace:*",
+		"@gs/shared": "workspace:*",
+		"@gs/subsystems_custom-node-graph-effect_shared": "workspace:*",
+		"@gs/subsystems_audio_shared": "workspace:*"
+	}
+}

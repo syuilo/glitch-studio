@@ -7,10 +7,10 @@
 	</div>
 
 	<div style="padding: 4px 0;">
-		<GsVisualModuleNodeInput
-			v-for="def in visualModule.outputDefs"
+		<GsCustomNodeGraphEffectNodeInput
+			v-for="def in customNodeGraphEffect.outputDefs"
 			:key="def.id"
-			:visualModule="visualModule"
+			:customNodeGraphEffect="customNodeGraphEffect"
 			:nodeId="node.id"
 			:inputId="def.id"
 			:label="def.label"
@@ -23,12 +23,12 @@
 </template>
 
 <script lang="ts" setup>
-import GsVisualModuleNodeInput from './GsVisualModuleNodeInput.vue';
-import type { NodeOutputReference, VisualModule, VisualModuleGlobalOutNode } from '@gs/subsystems_visual-module_shared/types.ts';
+import GsCustomNodeGraphEffectNodeInput from './GsCustomNodeGraphEffectNodeInput.vue';
+import type { NodeOutputReference, CustomNodeGraphEffect, CustomNodeGraphEffectGlobalOutNode } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 
 defineProps<{
-	visualModule: VisualModule;
-	node: VisualModuleGlobalOutNode
+	customNodeGraphEffect: CustomNodeGraphEffect;
+	node: CustomNodeGraphEffectGlobalOutNode
 }>();
 
 const emit = defineEmits<{ changeInput: [outputId: string, value: NodeOutputReference | null] }>();

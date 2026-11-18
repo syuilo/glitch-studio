@@ -91,7 +91,7 @@ export function createVideoFrameLoader<Sample extends { close: () => void }>(opt
 			if (desired?.time === position) return;
 			desired = { time: position };
 			++revision;
-			// Visual Module Live Previewの描画でも異なる時刻のフレームを正しい結果として表示しない。
+			// Custom Node Graph Effect Live Previewの描画でも異なる時刻のフレームを正しい結果として表示しない。
 			options.publish(null);
 			if (fileSource == null || position == null) {
 				options.reportStatus({ type: 'ready' });

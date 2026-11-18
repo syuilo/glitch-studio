@@ -6,9 +6,9 @@ export const parameter = (kind, value, name = kind) => ({
 
 export function fixture() {
 	return {
-		name: 'Portable Visual Module', gsVersion: 'test', assets: [], players: [], customShaderEffects: [],
+		name: 'Portable Custom Node Graph Effect', gsVersion: 'test', assets: [], players: [], customShaderEffects: [],
 		aspectRatio: 2, settings: { resolutionScale: 1, maxPixels: 8294400, fpsLimit: null }, initialParameters: {},
-		visualModule: {
+		customNodeGraphEffect: {
 			paramDefs: [parameter('scalar', 0.25, 'level')], customParameterDefs: [], customParameterValues: {}, automationGraphs: [],
 			primaryInputId: null, primaryOutputId: 'output',
 			outputDefs: [{ id: 'output', name: 'output', label: 'Output', dataType: { kind: 'color' } }],

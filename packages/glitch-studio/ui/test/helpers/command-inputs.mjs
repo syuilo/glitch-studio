@@ -4,13 +4,13 @@ export function assetSource(asset) {
 	return source;
 }
 
-export function visualModuleTarget(input) {
-	return input.visualModuleId != null ? { visualModuleId: input.visualModuleId }
-		: { sceneId: input.sceneId, inlineVisualModuleLayerId: input.inlineVisualModuleLayerId };
+export function customNodeGraphEffectTarget(input) {
+	return input.customNodeGraphEffectId != null ? { customNodeGraphEffectId: input.customNodeGraphEffectId }
+		: { sceneId: input.sceneId, inlineCustomNodeGraphEffectLayerId: input.inlineCustomNodeGraphEffectLayerId };
 }
 
 export function nodeTarget(input) {
-	return { visualModule: visualModuleTarget(input), nodeId: input.nodeId };
+	return { customNodeGraphEffect: customNodeGraphEffectTarget(input), nodeId: input.nodeId };
 }
 
 export function nodeParameterTarget(input) {
@@ -18,11 +18,11 @@ export function nodeParameterTarget(input) {
 }
 
 export function customParameterTarget(input) {
-	return { visualModule: visualModuleTarget(input), parameterId: input.parameterId };
+	return { customNodeGraphEffect: customNodeGraphEffectTarget(input), parameterId: input.parameterId };
 }
 
 export function timelineParameterTarget(input) {
 	return { sceneId: input.sceneId, layerId: input.layerId,
-		parameterGroup: input.target == null || input.target === 'module' ? 'visualModule' : input.target,
+		parameterGroup: input.target ?? 'customNodeGraphEffect',
 		parameterPath: input.paramPath };
 }

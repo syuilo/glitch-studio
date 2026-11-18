@@ -16,7 +16,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		export { default as LayerSettings } from './src/components/GsTimeline.EffectSettings.vue';
 		export { default as Wires } from './src/components/GsWires.vue';
 		export { default as Port } from './src/components/GsNodePort.vue';
-		export { provideVisualModuleWires } from './src/utility/visual-module-wires.ts';
+		export { provideCustomNodeGraphEffectWires } from './src/utility/custom-node-graph-effect-wires.ts';
 		export { parameterExpansionScopeKey } from './src/composables/useParameterExpansion.ts';
 		export { projectSession } from './src/project-session.ts';
 		export { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
@@ -27,7 +27,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'platform' }));
 		build.onResolve({ filter: /(?:^@\/|\/src\/)(app|project-session|ui)\.ts$/ }, ({ path }) => ({ path: path.endsWith('ui.ts') ? 'ui' : 'app', namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', resolveDir: directory, contents: {
-			preferences: "import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false), visualModuleWireStyle: ref('straight') } };",
+			preferences: "import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false), customNodeGraphEffectWireStyle: ref('straight') } };",
 			effects: "import definition from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts'; export const effectDefinitions = { testStructArray: definition };",
 			app: 'export const projectSession = {}; export function useProjectSession() { return projectSession; }',
 			ui: 'export function popupMenu() {} export function popup() {} export function contextMenu() {} export function alert() {} export async function inputText() { return { canceled: true }; }',
@@ -66,7 +66,7 @@ class TestResizeObserver {
 const module = { exports: {} };
 new Function('require', 'module', 'exports', 'HTMLElement', 'Element', 'ResizeObserver', 'window', bundle.outputFiles[0].text)(
 	createRequire(import.meta.url), module, module.exports, TestElement, TestElement, TestResizeObserver, new TestWindow());
-const { NodeSettings, LayerSettings, Wires, Port, provideVisualModuleWires, parameterExpansionScopeKey, projectSession, effectDefinitions, preferences } = module.exports;
+const { NodeSettings, LayerSettings, Wires, Port, provideCustomNodeGraphEffectWires, parameterExpansionScopeKey, projectSession, effectDefinitions, preferences } = module.exports;
 const originalDefinition = structuredClone(effectDefinitions.testStructArray);
 const element = tag => markRaw(new TestElement(tag));
 const renderer = createRenderer({
@@ -110,9 +110,9 @@ async function fixture(t, { target = 'node', defaultCollapsed = false, elementCo
 	const owners = ref([createOwner('first-owner'), createOwner('second-owner')]);
 	const selection = ref(0);
 	const owner = computed(() => owners.value[selection.value]);
-	const visualModule = computed(() => ({ nodes: [{ id: 'source', type: 'relay', dataType: { kind: 'color' } }, ...owners.value],
+	const customNodeGraphEffect = computed(() => ({ nodes: [{ id: 'source', type: 'relay', dataType: { kind: 'color' } }, ...owners.value],
 		paramDefs: [], outputDefs: [], automationGraphs: [], customParameterDefs: [] }));
-	const scope = ref(JSON.stringify(target === 'node' ? ['module', 'first-visual-module'] : ['timelineLayer', 'scene', 'first-layer']));
+	const scope = ref(JSON.stringify(target === 'node' ? ['customNodeGraphEffect', 'first-custom-node-graph-effect'] : ['timelineLayer', 'scene', 'first-layer']));
 	const state = shallowReactive(new Map());
 	Object.assign(projectSession, { parameterExpansionStates: state,
 		projectContext: { stateManager: { state: { automationGraphs: ref([]), resolution: ref({ width: 800, height: 600 }) } } } });
@@ -121,16 +121,16 @@ async function fixture(t, { target = 'node', defaultCollapsed = false, elementCo
 	let wireMap;
 	const root = element('root');
 	const app = renderer.createApp({ setup() {
-		wireMap = provideVisualModuleWires();
+		wireMap = provideCustomNodeGraphEffectWires();
 		return () => h('main', [
 			h(Port, { output: true, dataType: { kind: 'color' }, 'onUpdate:element': value => {
 				if (value == null) delete wireMap.out.source;
 				else wireMap.out.source = { output: value };
 			} }),
 			...(showEditor.value ? [h(target === 'node' ? NodeSettings : LayerSettings, target === 'node'
-				? { node: owner.value, visualModule: visualModule.value, onEditParam: edit => edits.push(edit) }
+				? { node: owner.value, customNodeGraphEffect: customNodeGraphEffect.value, onEditParam: edit => edits.push(edit) }
 				: { layer: owner.value, contextResolution: { width: 800, height: 600 }, imageLayerOptions: [], anotherLayerAudioOptions: [], onEdit: edit => edits.push(edit) })] : []),
-			...(target === 'node' ? [h(Wires, { visualModule: visualModule.value })] : []),
+			...(target === 'node' ? [h(Wires, { customNodeGraphEffect: customNodeGraphEffect.value })] : []),
 		]);
 	} });
 	app.provide(parameterExpansionScopeKey, computed(() => target === 'layer' ? JSON.stringify([scope.value, owner.value.id]) : scope.value));

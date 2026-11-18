@@ -50,8 +50,8 @@ Layers belowは、同じシーン内で自分より下にあるレイヤーの�
 
 描画後の位置・倍率・不透明度・重ね方は **Compositing** で調整します。画像を作る解像度と、画面上に置く大きさは別です。[合成の説明](../../timeline.md#compositing)も参照してください。
 
-## Visual Moduleとの使い分け
+## Custom Node Graph Effectとの使い分け
 
-一つのエフェクトで済む処理には、このレイヤーを使えます。分岐・複数入力・複数の処理を組み合わせたい場合は、[インラインVisual Module](./inline-visual-module.md)や[参照Visual Module](./visual-module.md)が向いています。
+一つのエフェクトで済む処理には、このレイヤーを使えます。分岐・複数入力・複数の処理を組み合わせたい場合は、[インラインCustom Node Graph Effect](./inline-custom-node-graph-effect.md)や[参照Custom Node Graph Effect](./custom-node-graph-effect.md)が向いています。
 
 エフェクトに複数の出力があっても、タイムラインでは主出力だけを使います。主出力がないエフェクトは映像の合成を行いません。候補にはタイムラインでの利用に向かないものも含まれ、Player入力や、シーク前の描画履歴を必要とする動作は保証されません。

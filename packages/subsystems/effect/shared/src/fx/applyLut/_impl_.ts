@@ -31,8 +31,8 @@ export default implementEffect<typeof definition>({
 			get cacheVersion() { return loader.cacheVersion; },
 			render: ctx => {
 				const output = ctx.outputDataMap.output;
-				// Visual Module Live Previewは非同期準備を待たずに描画する。読み込み中は透明にし、
-				// 完了時のcacheVersion更新で再描画する。例外を投げるとVisual Module Live Previewの描画が停止する。
+				// Custom Node Graph Effect Live Previewは非同期準備を待たずに描画する。読み込み中は透明にし、
+				// 完了時のcacheVersion更新で再描画する。例外を投げるとCustom Node Graph Effect Live Previewの描画が停止する。
 				// 書き出し側はwaitUntilReadyで待機し、読み込み失敗も状態通知から受け取る。
 				if (!loader.ready) {
 					const pass = ctx.createPassEncoder(ctx.commandEncoder, {

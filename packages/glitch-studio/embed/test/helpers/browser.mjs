@@ -16,7 +16,7 @@ function rendered(element, action = () => {}) {
 }
 async function mount(name, parameters = null) {
 	await import('/' + name + '.js');
-	const element = document.createElement('gs-visual-module-' + name);
+	const element = document.createElement('gs-custom-node-graph-effect-' + name);
 	element.style.cssText = 'display:block;width:200px;height:100px';
 	element.pause();
 	if (parameters != null) element.setAttribute('parameters', JSON.stringify(parameters));
@@ -153,7 +153,7 @@ try {
 	const { element: player } = await mount('player');
 	check((await pixel(player))[3] === 0, 'unconnected Players produce transparent video without permission prompts');
 	player.remove();
-	const transient = document.createElement('gs-visual-module-test');
+	const transient = document.createElement('gs-custom-node-graph-effect-test');
 	transient.style.cssText = 'width:100px;height:50px';
 	document.body.append(transient); const abandoned = transient.ready.catch(() => 'aborted'); transient.remove();
 	check(await abandoned === 'aborted', 'removal during initialization rejects the abandoned ready promise');
@@ -172,7 +172,7 @@ try {
 	for (const name of ['standalone', 'symbols']) {
 		const iframe = document.createElement('iframe'); iframe.style.cssText = 'width:300px;height:150px';
 		await new Promise(resolve => { iframe.onload = resolve; iframe.src = '/' + name + '.html'; document.body.append(iframe); });
-		const standalone = iframe.contentDocument.querySelector('gs-visual-module-' + name);
+		const standalone = iframe.contentDocument.querySelector('gs-custom-node-graph-effect-' + name);
 		await standalone.ready; await rendered(standalone);
 		if (name === 'symbols') await checkSymbolTextureRendering(standalone, 'single HTML');
 		else check(standalone.getParameter('level') === 0.25, 'single HTML survives script-like artwork strings and starts independently');

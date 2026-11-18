@@ -7,7 +7,7 @@ import type { TimelineContainerLayer, TimelineLayer } from '@gs/subsystems_timel
 import type { ProjectState } from '../Project.ts';
 
 /** コンテナに含まれる全キーを対象にし、クリップ内への所属判定や別Sceneへの再帰は行わない。 */
-export function prepareTimelineContainerMove(state: Pick<ProjectState, 'visualModules'>, container: TimelineContainerLayer) {
+export function prepareTimelineContainerMove(state: Pick<ProjectState, 'customNodeGraphEffects'>, container: TimelineContainerLayer) {
 	const layers = flattenTimelineLayers([container]);
 	const clips = getTimelineClipLayers([container]).flatMap(layer => layer.clips.map(clip => ({
 		layerId: layer.id,
@@ -32,7 +32,7 @@ export function prepareTimelineContainerMove(state: Pick<ProjectState, 'visualMo
 
 export type TimelineContainerMove = ReturnType<typeof prepareTimelineContainerMove>;
 
-/** 保存されたBinding内の参照だけを付け替え、式・共有Visual Module・参照先Sceneは変更しない。 */
+/** 保存されたBinding内の参照だけを付け替え、式・共有Custom Node Graph Effect・参照先Sceneは変更しない。 */
 export function duplicateTimelineLayers(source: readonly TimelineLayer[]): TimelineLayer[] {
 	const result = deepClone([...source]);
 	const layers = flattenTimelineLayers(result);
@@ -48,7 +48,7 @@ export function duplicateTimelineLayers(source: readonly TimelineLayer[]): Timel
 		layer.id = ids.get(layer.id)!;
 		if ('layerMask' in layer && layer.layerMask != null) layer.layerMask.sourceLayerId = ids.get(layer.layerMask.sourceLayerId) ?? layer.layerMask.sourceLayerId;
 		if (!isTimelineContainerLayer(layer)) for (const clip of layer.clips) clip.id = genId();
-		for (const key of ['publicParameterValues', 'compositingParamValues', 'audioParamValues', 'effectParamValues', 'visualModuleParamValues', 'textParamValues', 'subtitleParamValues', 'cameraParamValues', 'transformParamValues', 'shape'] as const) {
+		for (const key of ['publicParameterValues', 'compositingParamValues', 'audioParamValues', 'effectParamValues', 'customNodeGraphEffectParamValues', 'textParamValues', 'subtitleParamValues', 'cameraParamValues', 'transformParamValues', 'shape'] as const) {
 			if (key in layer) remapReferences((layer as unknown as Record<string, unknown>)[key]);
 		}
 	}

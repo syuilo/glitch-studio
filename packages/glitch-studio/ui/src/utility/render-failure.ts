@@ -1,13 +1,13 @@
 import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import type { DeepReadonly } from 'vue';
-import type { VisualModuleLivePreviewEffectStatusSource } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
+import type { CustomNodeGraphEffectLivePreviewEffectStatusSource } from '@gs/glitch-studio_renderer/custom-node-graph-effect-renderer-manager.ts';
 import type { TimelineLayerStatusSource } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
-import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
-import type { VisualModule, VisualModuleNode } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectNode } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 
 export type RenderFailureOrigin =
-	| { source: VisualModuleLivePreviewEffectStatusSource; nodeId: string }
+	| { source: CustomNodeGraphEffectLivePreviewEffectStatusSource; nodeId: string }
 	| { source: TimelineLayerStatusSource; nodeId?: string };
 
 export type RenderFailureDiagnostic = { message: string; origin?: RenderFailureOrigin };
@@ -17,8 +17,8 @@ function label(kind: string, id: string, name?: string | null): string {
 }
 
 // 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
-function nodeLabel(visualModule: VisualModule | null | undefined, nodeId: string): string {
-	const sourceNode: VisualModuleNode | null = visualModule?.nodes.find(node => node.id === nodeId) ?? null;
+function nodeLabel(customNodeGraphEffect: CustomNodeGraphEffect | null | undefined, nodeId: string): string {
+	const sourceNode: CustomNodeGraphEffectNode | null = customNodeGraphEffect?.nodes.find(node => node.id === nodeId) ?? null;
 	return label('Node', nodeId, sourceNode?.type === 'effect' ? sourceNode.displayName || sourceNode.effectId : sourceNode?.type === 'relay' ? sourceNode.label : null);
 }
 
@@ -27,12 +27,12 @@ function nodeLabel(visualModule: VisualModule | null | undefined, nodeId: string
  * 同じ子Sceneの複数配置を区別するため、Scene境界では配置クリップも経路に含める。
  * 編集で参照先が消えた場合も、保持したIDを表示して診断の所在を失わない。
  */
-export function formatRenderFailureOrigin(origin: DeepReadonly<RenderFailureOrigin>, visualModules: readonly ProjectVisualModule[], scenes: readonly TimelineScene[]): string {
+export function formatRenderFailureOrigin(origin: DeepReadonly<RenderFailureOrigin>, customNodeGraphEffects: readonly ProjectCustomNodeGraphEffect[], scenes: readonly TimelineScene[]): string {
 	const { source, nodeId } = origin;
-	if (source.type === 'visualModuleLivePreview') {
-		const sourceVisualModule = visualModules.find(visualModule => visualModule.id === source.visualModuleId);
-		const parts = ['Visual Module Live Preview', label('Visual Module', source.visualModuleId, sourceVisualModule?.name)];
-		if (nodeId != null) parts.push(nodeLabel(sourceVisualModule, nodeId));
+	if (source.type === 'customNodeGraphEffectLivePreview') {
+		const sourceCustomNodeGraphEffect = customNodeGraphEffects.find(customNodeGraphEffect => customNodeGraphEffect.id === source.customNodeGraphEffectId);
+		const parts = ['Custom Node Graph Effect Live Preview', label('Custom Node Graph Effect', source.customNodeGraphEffectId, sourceCustomNodeGraphEffect?.name)];
+		if (nodeId != null) parts.push(nodeLabel(sourceCustomNodeGraphEffect, nodeId));
 		return parts.join(' / ');
 	}
 	let currentScene = scenes.find(scene => scene.id === source.rootSceneId);
@@ -53,9 +53,9 @@ export function formatRenderFailureOrigin(origin: DeepReadonly<RenderFailureOrig
 		}
 	}
 	if (nodeId != null) {
-		const sourceVisualModule = layer?.layerType === 'inlineVisualModule' ? layer.visualModule
-			: layer?.layerType === 'visualModule' ? visualModules.find(visualModule => visualModule.id === layer.visualModuleId) : null;
-		parts.push(nodeLabel(sourceVisualModule, nodeId));
+		const sourceCustomNodeGraphEffect = layer?.layerType === 'inlineCustomNodeGraphEffect' ? layer.customNodeGraphEffect
+			: layer?.layerType === 'customNodeGraphEffect' ? customNodeGraphEffects.find(customNodeGraphEffect => customNodeGraphEffect.id === layer.customNodeGraphEffectId) : null;
+		parts.push(nodeLabel(sourceCustomNodeGraphEffect, nodeId));
 	}
 	return parts.join(' / ');
 }

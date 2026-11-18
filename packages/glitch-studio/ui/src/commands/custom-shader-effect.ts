@@ -77,15 +77,15 @@ const replaceCustomShaderEffectDefinition = definePublicCommand({
 		const beforeUsages = snapshotCustomShaderEffectUsages(state);
 		const afterUsages = reconcileCustomShaderEffectUsages(state, beforeDefinition, afterDefinition);
 		// 定義変更が実際に影響した作品だけを履歴に保持する。他の作品をUndoで置換しない。
-		const visualModuleIds = new Set(afterUsages.visualModules.filter((value, index) => !deepEqual(value, beforeUsages.visualModules[index])).map(value => value.id));
+		const customNodeGraphEffectIds = new Set(afterUsages.customNodeGraphEffects.filter((value, index) => !deepEqual(value, beforeUsages.customNodeGraphEffects[index])).map(value => value.id));
 		const sceneIds = new Set(afterUsages.timelineScenes.filter((value, index) => !deepEqual(value, beforeUsages.timelineScenes[index])).map(value => value.id));
 		return prepareProjectValueChange({
-			before: { definition: beforeDefinition, visualModules: beforeUsages.visualModules.filter(value => visualModuleIds.has(value.id)), timelineScenes: beforeUsages.timelineScenes.filter(value => sceneIds.has(value.id)) },
-			after: { definition: afterDefinition, visualModules: afterUsages.visualModules.filter(value => visualModuleIds.has(value.id)), timelineScenes: afterUsages.timelineScenes.filter(value => sceneIds.has(value.id)) },
+			before: { definition: beforeDefinition, customNodeGraphEffects: beforeUsages.customNodeGraphEffects.filter(value => customNodeGraphEffectIds.has(value.id)), timelineScenes: beforeUsages.timelineScenes.filter(value => sceneIds.has(value.id)) },
+			after: { definition: afterDefinition, customNodeGraphEffects: afterUsages.customNodeGraphEffects.filter(value => customNodeGraphEffectIds.has(value.id)), timelineScenes: afterUsages.timelineScenes.filter(value => sceneIds.has(value.id)) },
 			result: undefined, changes: [{ type: 'customShaderEffect', customShaderEffectId }],
 			write(current, next) {
 				current.customShaderEffects.value[current.customShaderEffects.value.findIndex(candidate => candidate.id === customShaderEffectId)] = next.definition;
-				for (const visualModule of next.visualModules) current.visualModules.value[current.visualModules.value.findIndex(candidate => candidate.id === visualModule.id)] = visualModule;
+				for (const customNodeGraphEffect of next.customNodeGraphEffects) current.customNodeGraphEffects.value[current.customNodeGraphEffects.value.findIndex(candidate => candidate.id === customNodeGraphEffect.id)] = customNodeGraphEffect;
 				for (const scene of next.timelineScenes) current.timelineScenes.value[current.timelineScenes.value.findIndex(candidate => candidate.id === scene.id)] = scene;
 			},
 		});

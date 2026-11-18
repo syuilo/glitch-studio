@@ -7,7 +7,7 @@ import { build } from 'esbuild';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
 // デコードとGPU実行だけを置き換える。倍率の受け渡し・動画転送・合成の分岐・
-// モジュール内の自動解像度は実装を通し、境界のどこかで倍率が失われる回帰を検出する。
+// Custom Node Graph Effect内の自動解像度は実装を通し、境界のどこかで倍率が失われる回帰を検出する。
 const videoSourceModule = '@gs/shared/media/video-source.ts';
 const managerBundle = await build({
 	entryPoints: [fileURLToPath(new URL('../src/timeline-renderer-manager.ts', import.meta.url))],
@@ -509,9 +509,9 @@ test('scales video sources once through replace composition and automatic proces
 	const { manager, calls } = await timelineFixture(t);
 	const timing = { name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], automationGraphs: [] };
 	const video = { ...timing, id: 'video', layerType: 'video', clips: [{ id: 'clip', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: false, assetId: 'asset', audioEnabled: false, videoEnabled: true }], audioParamValues: { volume: literal(1) }, compositingParamValues: { fitMode: { inputSource: 'literal', value: 'cover' } } };
-	const processing = { ...timing, id: 'processing', layerType: 'inlineVisualModule', visualModuleParamValues: {},
+	const processing = { ...timing, id: 'processing', layerType: 'inlineCustomNodeGraphEffect', customNodeGraphEffectParamValues: {},
 		compositingParamValues: { blendMode: literal('replace') },
-		visualModule: {
+		customNodeGraphEffect: {
 			customParameterDefs: [],
 			customParameterValues: {},
 			automationGraphs: [], paramDefs: [{ id: 'output', nameForReference: 'input', dataType: { kind: 'color' }, canNode: true, defaultValue: literal([0, 0, 0, 0]) }],

@@ -8,8 +8,8 @@ globalThis.GPUQueue = class { submit() {} };
 const { ExpressionEvaluator } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/shared/expression/expression-evaluator.ts')));
 
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
-const { VisualModuleRenderer } = await load('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts');
-const { getNodeOutputs } = await load('@gs/subsystems_visual-module_shared/node-outputs.ts');
+const { CustomNodeGraphEffectRenderer } = await load('@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-renderer.ts');
+const { getNodeOutputs } = await load('@gs/subsystems_custom-node-graph-effect_shared/node-outputs.ts');
 
 const reference = (nodeId, outputPort = 'output') => ({ nodeId, outputPort });
 const literal = value => ({ inputSource: 'literal', value });
@@ -44,17 +44,17 @@ function fixture(t, nodes, { kind = 'color', paramDefs = {}, lazy = false, disab
 	const module = {
 		customParameterDefs: [],
 		customParameterValues: {},
-		id: 'module', name: 'module', automationGraphs: [],
+		id: 'customNodeGraphEffect', name: 'customNodeGraphEffect', automationGraphs: [],
 		paramDefs: [{ id: 'input', nameForReference: 'input', dataType: { kind }, canNode: true }],
 		primaryInputId: 'input',
 		outputDefs: [{ id: 'out', dataType: { kind } }], primaryOutputId: 'out',
 		nodes: [{ id: 'in', type: 'globalIn' }, ...nodes, { id: 'out', type: 'globalOut', inputs: { out: reference(nodes.at(-1).id) } }],
 	};
-	const renderer = new VisualModuleRenderer({ expressionEvaluator: new ExpressionEvaluator(),
+	const renderer = new CustomNodeGraphEffectRenderer({ expressionEvaluator: new ExpressionEvaluator(),
 		gpuDevice: { limits: { maxTextureDimension2D: 8192 }, createShaderModule: () => ({}) }, fallbackTexture: {}, timingHelper: null,
 		resolution: { width: 16, height: 16 }, enableStats: false, enable32bitDataTextures: false,
 		videoFrameVersions: new Map(), assets: [], assetTextures: new Map(),
-		effectDefinitions: { probe: definition }, effectImplementations: { probe: implementation }, visualModule: module,
+		effectDefinitions: { probe: definition }, effectImplementations: { probe: implementation }, customNodeGraphEffect: module,
 	});
 	t.after(() => renderer.destroy());
 	return { renderer, module, calls, render: (ctx = context()) => renderer.render(ctx, {}) };
@@ -187,7 +187,7 @@ test('resolves relays on both sides of a bypassed effect', t => {
 // 【公開入力の評価値からバイパスの接続を動的に作らない】
 // 静的検証したBindingにない自己参照を、値のobjectから作ると循環検査の前提が崩れる。
 test('does not interpret evaluated parameter objects as bypass connections', t => {
-	const f = fixture(t, [effectNode('bypass', { input: { inputSource: 'visualModulePublicParameterReference', parameterId: 'input' } }, true)], { paramDefs: { input: colorInput } });
+	const f = fixture(t, [effectNode('bypass', { input: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'input' } }, true)], { paramDefs: { input: colorInput } });
 	f.module.paramDefs[0].canNode = false;
 	const ctx = { ...context(), evaluatedParamValues: new Map([['input', { nodeId: 'bypass', outputPort: 'output' }]]) };
 	assert.equal(f.render(ctx), null);

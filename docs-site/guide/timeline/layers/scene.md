@@ -43,8 +43,8 @@ description: 別のシーンをレイヤーとして配置し、入れ子の時�
 
 シーンレイヤーを[音声解析の入力](../../parameters.md#audio-input)に指定すると、配置のトリムと音量を反映した子シーン全体の音声を使います。親から子シーン内部の特定レイヤーを直接選ぶことはできません。
 
-## Visual Moduleとの使い分け
+## Custom Node Graph Effectとの使い分け
 
-シーンはレイヤーと時間軸をまとめる単位です。[Visual Module](../../visual-module.md)は、ノードを繋いだ処理をまとめる単位です。
+シーンはレイヤーと時間軸をまとめる単位です。[Custom Node Graph Effect](../../custom-node-graph-effect.md)は、ノードを繋いだ処理をまとめる単位です。
 
-字幕・BGM・複数の素材を含む一つの場面を再利用するならシーン、画像処理の構成と操作パラメータを再利用するならVisual Moduleが向いています。
+字幕・BGM・複数の素材を含む一つの場面を再利用するならシーン、画像処理の構成と操作パラメータを再利用するならCustom Node Graph Effectが向いています。

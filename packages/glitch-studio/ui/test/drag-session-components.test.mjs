@@ -16,7 +16,7 @@ const bundle = await build({ absWorkingDir: directory,
 		export { default as Panel } from './src/components/GsWorkspacePanel.vue';
 		export { default as Divider } from './src/components/GsWorkspaceDivider.vue';
 		export { default as Asset } from './src/components/GsAsset.vue';
-		export { default as VisualModuleEditor } from './src/components/GsVisualModuleEditor.vue';
+		export { default as CustomNodeGraphEffectEditor } from './src/components/GsCustomNodeGraphEffectEditor.vue';
 		export { default as AssetSelectDialog } from './src/components/GsAssetSelectDialog.vue';
 		export { default as DashboardDialog } from './src/components/GsDashboardDialog.vue';
 		export { workspaceControllerKey } from './src/WorkspaceController.ts';
@@ -33,9 +33,9 @@ const bundle = await build({ absWorkingDir: directory,
 		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onResolve({ filter: /open-media-file\.ts$/ }, () => ({ path: 'media', namespace: 'test' }));
 		build.onResolve({ filter: /import-assets\.ts$/ }, () => ({ path: 'asset-import', namespace: 'test' }));
-		build.onResolve({ filter: /visual-module-wires\.ts$/ }, () => ({ path: 'wires', namespace: 'test' }));
+		build.onResolve({ filter: /custom-node-graph-effect-wires\.ts$/ }, () => ({ path: 'wires', namespace: 'test' }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => {
-			if (/Gs(?:Draggable|WorkspacePanel|WorkspaceDivider|Asset|VisualModuleEditor|AssetSelectDialog|DashboardDialog)\.vue$/.test(path)) return;
+			if (/Gs(?:Draggable|WorkspacePanel|WorkspaceDivider|Asset|CustomNodeGraphEffectEditor|AssetSelectDialog|DashboardDialog)\.vue$/.test(path)) return;
 			return { path: basename(path, '.vue'), namespace: 'control' };
 		});
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', resolveDir: directory, contents: {
@@ -54,7 +54,7 @@ const bundle = await build({ absWorkingDir: directory,
 			'asset-import': `export const assetImportTest = { calls: [], read: null };
 				export async function importAssets(destination, files) { const context = typeof destination === 'function' ? await destination() : destination; assetImportTest.calls.push({ context, files });
 					return assetImportTest.read == null ? ['asset'] : assetImportTest.read(); }`,
-			wires: 'export function provideVisualModuleWires() {}',
+			wires: 'export function provideCustomNodeGraphEffectWires() {}',
 		}[path] }));
 		build.onLoad({ filter: /.*/, namespace: 'control' }, ({ path }) => ({ loader: 'ts', contents: path === 'GsModal' ? `
 			import { h, useTemplateRef } from 'vue'; export default { setup(_, { attrs, slots, expose }) {
@@ -77,7 +77,7 @@ const bundle = await build({ absWorkingDir: directory,
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { Draggable, Panel, Divider, Asset, VisualModuleEditor, AssetSelectDialog, DashboardDialog, workspaceControllerKey, assetImportTest,
+const { Draggable, Panel, Divider, Asset, CustomNodeGraphEffectEditor, AssetSelectDialog, DashboardDialog, workspaceControllerKey, assetImportTest,
 	preferences, getActiveDragData, getDragSessionData, recentProjects, dashboardTest, projectSessions } = module.exports;
 
 function fixture(t, render, provide = () => {}) {
@@ -381,19 +381,19 @@ test('shares asset drag data and clears it when the asset view is removed', asyn
 	assert.equal(getActiveDragData(event('dragover', data, source), 'GsAsset'), null);
 });
 
-// 【Visual Module Editor全体でファイルとAssetを受け付け、対象外Assetにもホバー表示を出す】
+// 【Custom Node Graph Effect Editor全体でファイルとAssetを受け付け、対象外Assetにもホバー表示を出す】
 // Nodes以外のタブからの追加も可能にし、成功後はNodesを表示する。対象外のAssetはタブを変えない。
 // ファイル一覧はイベント中に保存し、内部ノード並び替えのドラッグはそのまま通過させる。
-test('accepts files and assets across the Visual Module editor and selects nodes after an addition', async t => {
+test('accepts files and assets across the Custom Node Graph Effect editor and selects nodes after an addition', async t => {
 	const calls = [];
 	const asset = { id: 'font', name: 'Font', fileDataType: 'font/ttf', fileData: new Blob() };
 	const actions = { projectSessionId: 'test-session', dropFiles: async files => { calls.push(files.map(file => file.name)); return true; },
 		dropAsset: async assetId => { calls.push(assetId); return false; } };
-	const f = fixture(t, () => h('div', [h(Asset, { asset }), h(VisualModuleEditor, {
-		visualModule: { customParameterDefs: [], customParameterValues: {}, nodes: [], paramDefs: [], outputDefs: [] }, visualModuleName: 'Visual Module', assetDropActions: actions,
+	const f = fixture(t, () => h('div', [h(Asset, { asset }), h(CustomNodeGraphEffectEditor, {
+		customNodeGraphEffect: { customParameterDefs: [], customParameterValues: {}, nodes: [], paramDefs: [], outputDefs: [] }, customNodeGraphEffectName: 'Custom Node Graph Effect', assetDropActions: actions,
 	})]));
-	const editor = f.find('data-test-visual-module-editor');
-	const tabs = f.find('data-test-visual-module-tabs');
+	const editor = f.find('data-test-custom-node-graph-effect-editor');
+	const tabs = f.find('data-test-custom-node-graph-effect-tabs');
 	tabs.props['onUpdate:modelValue']('other');
 	await nextTick();
 	const files = transfer();
@@ -402,7 +402,7 @@ test('accepts files and assets across the Visual Module editor and selects nodes
 	const entered = event('dragenter', files, editor);
 	editor.props.onDragenterCapture(entered);
 	await nextTick();
-	assert.ok(f.find('data-test-visual-module-drop-overlay'));
+	assert.ok(f.find('data-test-custom-node-graph-effect-drop-overlay'));
 	assert.equal(entered.defaultPrevented, true);
 	assert.equal(entered.cancelBubble, true);
 	const dropped = editor.props.onDropCapture(event('drop', files, editor));
@@ -411,7 +411,7 @@ test('accepts files and assets across the Visual Module editor and selects nodes
 	await nextTick();
 	assert.deepEqual(calls[0], ['image.png', 'video.mp4']);
 	assert.equal(tabs.props.modelValue, 'nodes');
-	assert.equal(f.find('data-test-visual-module-drop-overlay'), undefined);
+	assert.equal(f.find('data-test-custom-node-graph-effect-drop-overlay'), undefined);
 	tabs.props['onUpdate:modelValue']('other');
 	await nextTick();
 	const source = f.find('data-test-asset', 'font');
@@ -419,7 +419,7 @@ test('accepts files and assets across the Visual Module editor and selects nodes
 	source.props.onDragstart(event('dragstart', data, source));
 	editor.props.onDragenterCapture(event('dragenter', data, editor));
 	await nextTick();
-	assert.ok(f.find('data-test-visual-module-drop-overlay'));
+	assert.ok(f.find('data-test-custom-node-graph-effect-drop-overlay'));
 	await editor.props.onDropCapture(event('drop', data, editor));
 	await nextTick();
 	assert.equal(calls.at(-1), 'font');
@@ -440,12 +440,12 @@ test('rejects foreign session assets and rechecks the destination session on dro
 	const actions = ref({ projectSessionId: 'other-session', dropFiles: async () => false,
 		dropAsset: async assetId => { calls.push(assetId); return true; } });
 	const asset = { id: 'asset', name: 'Image', fileDataType: 'image/png', fileData: new Blob() };
-	const f = fixture(t, () => h('div', [h(Asset, { asset }), h(VisualModuleEditor, {
-		visualModule: { customParameterDefs: [], customParameterValues: {}, nodes: [], paramDefs: [], outputDefs: [] }, visualModuleName: 'Visual Module', assetDropActions: actions.value,
+	const f = fixture(t, () => h('div', [h(Asset, { asset }), h(CustomNodeGraphEffectEditor, {
+		customNodeGraphEffect: { customParameterDefs: [], customParameterValues: {}, nodes: [], paramDefs: [], outputDefs: [] }, customNodeGraphEffectName: 'Custom Node Graph Effect', assetDropActions: actions.value,
 	})]));
 	const source = f.find('data-test-asset', 'asset');
-	const editor = f.find('data-test-visual-module-editor');
-	const tabs = f.find('data-test-visual-module-tabs');
+	const editor = f.find('data-test-custom-node-graph-effect-editor');
+	const tabs = f.find('data-test-custom-node-graph-effect-tabs');
 	tabs.props['onUpdate:modelValue']('other');
 	const data = transfer();
 	source.props.onDragstart(event('dragstart', data, source));
@@ -454,7 +454,7 @@ test('rejects foreign session assets and rechecks the destination session on dro
 	await editor.props.onDropCapture(event('drop', data, editor));
 	await nextTick();
 	assert.equal(foreign.defaultPrevented, false);
-	assert.equal(f.find('data-test-visual-module-drop-overlay'), undefined);
+	assert.equal(f.find('data-test-custom-node-graph-effect-drop-overlay'), undefined);
 	assert.equal(tabs.props.modelValue, 'other');
 	assert.deepEqual(calls, []);
 
@@ -462,12 +462,12 @@ test('rejects foreign session assets and rechecks the destination session on dro
 	await nextTick();
 	editor.props.onDragoverCapture(event('dragover', data, editor));
 	await nextTick();
-	assert.ok(f.find('data-test-visual-module-drop-overlay'));
+	assert.ok(f.find('data-test-custom-node-graph-effect-drop-overlay'));
 	actions.value.projectSessionId = 'other-session';
 	await nextTick();
 	await editor.props.onDropCapture(event('drop', data, editor));
 	await nextTick();
-	assert.equal(f.find('data-test-visual-module-drop-overlay'), undefined);
+	assert.equal(f.find('data-test-custom-node-graph-effect-drop-overlay'), undefined);
 	assert.deepEqual(calls, []);
 
 	actions.value.projectSessionId = 'test-session';
@@ -487,10 +487,10 @@ test('applies shared locking and disabled state to the Vue asset drop target', a
 	const actions = ref({ projectSessionId: 'test-session', dropFiles: async files => { calls.push(files); await gate.promise; return true; },
 		dropAsset: async assetId => { calls.push(assetId); return true; } });
 	const asset = { id: 'asset', name: 'Image', fileDataType: 'image/png', fileData: new Blob() };
-	const f = fixture(t, () => h('div', [h(Asset, { asset }), h(VisualModuleEditor, {
-		visualModule: { customParameterDefs: [], customParameterValues: {}, nodes: [], paramDefs: [], outputDefs: [] }, visualModuleName: 'Visual Module', assetDropActions: actions.value,
+	const f = fixture(t, () => h('div', [h(Asset, { asset }), h(CustomNodeGraphEffectEditor, {
+		customNodeGraphEffect: { customParameterDefs: [], customParameterValues: {}, nodes: [], paramDefs: [], outputDefs: [] }, customNodeGraphEffectName: 'Custom Node Graph Effect', assetDropActions: actions.value,
 	})]));
-	const editor = f.find('data-test-visual-module-editor');
+	const editor = f.find('data-test-custom-node-graph-effect-editor');
 	const files = transfer();
 	files.setData('Files', '');
 	files.files.push(new File([], 'image.png'));

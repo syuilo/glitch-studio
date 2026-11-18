@@ -115,20 +115,20 @@ test('publishes scene-based region handles while preserving the effect output re
 	assert.equal(previews.at(-1).geometry.transform.fitMode, 'cover');
 });
 
-// 【Visual Moduleの適用範囲も共通のcompositorへ渡す】
+// 【Custom Node Graph Effectの適用範囲も共通のcompositorへ渡す】
 // エフェクトレイヤーだけの対応にならないよう、インラインと参照形式の両方を実際のManagerで描画する。
-test('routes region transforms through both Visual Module layer render paths', async t => {
+test('routes region transforms through both Custom Node Graph Effect layer render paths', async t => {
 	const f = await fixture(t);
 	const observations = [];
 	f.manager.createCompositingObserver = () => (_source, settings) => observations.push(settings);
-	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'visual', name: 'Visual', paramDefs: [{ ...color, id: 'color', nameForReference: 'color' }], primaryOutputId: 'output', automationGraphs: [],
+	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, id: 'visual', name: 'Visual', paramDefs: [{ ...color, id: 'color', nameForReference: 'color' }], primaryOutputId: 'output', automationGraphs: [],
 		outputDefs: [{ id: 'output', name: 'Output', label: 'Output', dataType: { kind: 'color' } }],
 		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'color' } } }] };
-	for (const layerType of ['visualModule', 'inlineVisualModule']) {
-		const entry = { id: layerType, name: layerType, layerType, visualModuleId: visualModule.id, visualModule,
+	for (const layerType of ['customNodeGraphEffect', 'inlineCustomNodeGraphEffect']) {
+		const entry = { id: layerType, name: layerType, layerType, customNodeGraphEffectId: customNodeGraphEffect.id, customNodeGraphEffect,
 			transformTarget: 'region', clips: [clip('clip', 100, 1000)], isDisabled: false, automationGraphs: [],
-			compositingParamValues: compositing(), visualModuleParamValues: {} };
-		await f.setup([entry], { visualModules: [visualModule] });
+			compositingParamValues: compositing(), customNodeGraphEffectParamValues: {} };
+		await f.setup([entry], { customNodeGraphEffects: [customNodeGraphEffect] });
 		const count = observations.length;
 		await f.manager.renderTimelineFrame(350, 0);
 		assert.ok(observations.length > count);
@@ -579,19 +579,19 @@ test('resolves nested source references across groups and skips unavailable targ
 	assert.deepEqual(f.calls.renders.at(-1).params.input, { kind: 'uniform', value: [0, 0, 0, 0] });
 });
 
-// 【Visual Moduleの明示した公開主入力を優先し、素材をSceneの宣言寸法へ揃える】
+// 【Custom Node Graph Effectの明示した公開主入力を優先し、素材をSceneの宣言寸法へ揃える】
 // 同じ縦横比の素材も入口で正規化し、クリップの切り替えで入力寸法が変化しないようにする。
-test('normalizes an explicit public primary input before routing it through a Visual Module', async t => {
+test('normalizes an explicit public primary input before routing it through a Custom Node Graph Effect', async t => {
 	const f = await fixture(t);
-	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'visual', name: 'Visual', paramDefs: [{ ...color, id: 'image', nameForReference: 'image' }],
+	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, id: 'visual', name: 'Visual', paramDefs: [{ ...color, id: 'image', nameForReference: 'image' }],
 		primaryInputId: 'image', primaryOutputId: 'output', automationGraphs: [],
 		outputDefs: [{ id: 'output', name: 'Output', label: 'Output', dataType: { kind: 'color' } }],
 		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'image', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' } } }] };
-	const visualModuleLayer = { id: 'visual-layer', name: 'Visual', layerType: 'visualModule', visualModuleId: 'visual',
+	const customNodeGraphEffectLayer = { id: 'visual-layer', name: 'Visual', layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'visual',
 		clips: [clip('clip', 100, 1000)], isDisabled: false, automationGraphs: [], compositingParamValues: compositing(),
-		visualModuleParamValues: { image: { inputSource: 'anotherLayerOutput', layerId: 'source', outputStage: 'source' } } };
-	await f.setup([layer('receiver', { amount: literal(22), input: imageReference('visual-layer') }), visualModuleLayer,
-		layer('source', { amount: literal(11) }, { resolution: { mode: 'customAbsolute', width: 80, height: 45 } })], { visualModules: [visualModule] });
+		customNodeGraphEffectParamValues: { image: { inputSource: 'anotherLayerOutput', layerId: 'source', outputStage: 'source' } } };
+	await f.setup([layer('receiver', { amount: literal(22), input: imageReference('visual-layer') }), customNodeGraphEffectLayer,
+		layer('source', { amount: literal(11) }, { resolution: { mode: 'customAbsolute', width: 80, height: 45 } })], { customNodeGraphEffects: [customNodeGraphEffect] });
 	await f.manager.renderTimelineFrame(350, 0);
 	assert.equal(f.calls.renders.length, 2);
 	const [source, receiver] = f.calls.renders;
@@ -606,25 +606,25 @@ test('normalizes an explicit public primary input before routing it through a Vi
 // 未接続の主入力を削除しても、同じ画像を使う別の公開入力は新しいテクスチャで描画を続ける。
 test('releases deleted public input frames while preserving the placement and remaining inputs', async t => {
 	const f = await fixture(t);
-	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'visual', name: 'Visual', paramDefs: ['unused', 'kept'].map(id => ({ ...color, id, nameForReference: id })),
+	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, id: 'visual', name: 'Visual', paramDefs: ['unused', 'kept'].map(id => ({ ...color, id, nameForReference: id })),
 		primaryInputId: 'unused', primaryOutputId: 'output', automationGraphs: [],
 		outputDefs: [{ id: 'output', name: 'Output', label: 'Output', dataType: { kind: 'color' } }],
 		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'kept', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' } } }] };
-	const publicLayer = { id: 'public', name: 'Public', layerType: 'visualModule', visualModuleId: 'visual', clips: [clip('clip', 100, 1000)],
-		isDisabled: false, automationGraphs: [], compositingParamValues: compositing(), visualModuleParamValues: { kept: { inputSource: 'lowerLayerOutput' } } };
+	const publicLayer = { id: 'public', name: 'Public', layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'visual', clips: [clip('clip', 100, 1000)],
+		isDisabled: false, automationGraphs: [], compositingParamValues: compositing(), customNodeGraphEffectParamValues: { kept: { inputSource: 'lowerLayerOutput' } } };
 	const background = layer('background');
 	background.compositingParamValues.position = literal([2, 0]);
 	let publicOutput;
 	f.manager.createCompositingObserver = (_sceneId, layerId) => source => { if (layerId === 'public') publicOutput = source; };
 	await f.setup([{ id: 'group', name: 'Group', layerType: 'group', layers: [publicLayer, background], isDisabled: false,
-		automationGraphs: [], compositingParamValues: compositing(), audioParamValues: {} }], { visualModules: [visualModule] });
+		automationGraphs: [], compositingParamValues: compositing(), audioParamValues: {} }], { customNodeGraphEffects: [customNodeGraphEffect] });
 	await f.manager.renderTimelineFrame(350, 0);
 	const firstFrame = publicOutput.texture;
 	const backgroundInstance = f.calls.instances[0];
 	assert.equal(firstFrame.width, 320);
 	assert.equal(firstFrame.destroyed, false);
-	f.manager.applyProjectChanges([{ type: 'visualModule', target: { visualModuleId: 'visual' },
-		visualModule: { ...visualModule, primaryInputId: null, paramDefs: visualModule.paramDefs.filter(def => def.id === 'kept') } }]);
+	f.manager.applyProjectChanges([{ type: 'customNodeGraphEffect', target: { customNodeGraphEffectId: 'visual' },
+		customNodeGraphEffect: { ...customNodeGraphEffect, primaryInputId: null, paramDefs: customNodeGraphEffect.paramDefs.filter(def => def.id === 'kept') } }]);
 	await f.manager.renderTimelineFrame(350, 0);
 	assert.equal(firstFrame.destroyed, true);
 	assert.notStrictEqual(publicOutput.texture, firstFrame);
@@ -679,7 +679,7 @@ test('does not evaluate masks when only the uncomposited source is requested', a
 });
 
 // 【エフェクトレイヤーも初回から実際の計算用寸法を式に公開する】
-// Scene全体の寸法を渡すとcustomAbsoluteやプレビュー倍率でVMと結果が揃わない。
+// Scene全体の寸法を渡すとcustomAbsoluteやプレビュー倍率でCustom Node Graph Effectと結果が揃わない。
 test('exposes the scaled static effect layer RESOLUTION on its first evaluation', async t => {
 	const f = await fixture(t);
 	const effect = layer('effect', { amount: expression('RESOLUTION[0] + RESOLUTION[1]') }, { resolution: { mode: 'customAbsolute', width: 51, height: 19 } });

@@ -65,7 +65,7 @@ export default implementEffect<typeof definition>({
 			prepare,
 			render(ctx) {
 				const { params } = ctx;
-				// Visual Module Live Previewは同期取得、Timelineはprepareで待機済みの窓を採用する。
+				// Custom Node Graph Effect Live Previewは同期取得、Timelineはprepareで待機済みの窓を採用する。
 				prepare(params);
 				const settings = settingsFor(params);
 				const sampleRate = params.audio?.sampleRate ?? 48000;

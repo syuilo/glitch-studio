@@ -25,7 +25,7 @@ const result = await build({
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', contents: {
 			metrics: 'export const updates = new Map(); export const mounts = new Map();',
 			app: `import { ref } from 'vue'; export const commits = []; export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: {
-				state: { assets: ref([{ id: 'sound', name: 'Sound' }]), timelineScenes: ref([]), visualModules: ref([]), generatedSpeech: ref([]) },
+				state: { assets: ref([{ id: 'sound', name: 'Sound' }]), timelineScenes: ref([]), customNodeGraphEffects: ref([]), generatedSpeech: ref([]) },
 				commit: (...args) => commits.push(args),
 			} } };`,
 			effects: 'export const effectDefinitions = {};',

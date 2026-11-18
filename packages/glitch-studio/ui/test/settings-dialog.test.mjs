@@ -93,23 +93,23 @@ function mountSettingsDialog(t) {
 // 未設定では従来の直線を保ち、ダイアログを開いただけでは保存しない。
 test('persists wire style changes and resets the reactive selection to straight', async t => {
 	const { find, preferences, storage, writes, PreferencesManager } = mountSettingsDialog(t);
-	const control = find('data-test-visual-module-wire-style');
+	const control = find('data-test-custom-node-graph-effect-wire-style');
 	assert.equal(control.props.modelValue, 'straight');
 	assert.deepEqual(control.props.items.map(item => item.value), ['straight', 'curved']);
 	assert.deepEqual(writes, []);
 	for (const value of ['curved', 'straight', 'curved']) {
 		control.props['onUpdate:modelValue'](value);
 		await nextTick();
-		assert.equal(preferences.r.visualModuleWireStyle.value, value);
+		assert.equal(preferences.r.customNodeGraphEffectWireStyle.value, value);
 		assert.equal(control.props.modelValue, value);
-		assert.equal(storage.get('preferences:visualModuleWireStyle'), JSON.stringify(value));
-		assert.equal(new PreferencesManager().s.visualModuleWireStyle, value);
+		assert.equal(storage.get('preferences:customNodeGraphEffectWireStyle'), JSON.stringify(value));
+		assert.equal(new PreferencesManager().s.customNodeGraphEffectWireStyle, value);
 	}
 	preferences.reset();
 	await nextTick();
 	assert.equal(control.props.modelValue, 'straight');
-	assert.equal(preferences.r.visualModuleWireStyle.value, 'straight');
-	assert.equal(storage.has('preferences:visualModuleWireStyle'), false);
+	assert.equal(preferences.r.customNodeGraphEffectWireStyle.value, 'straight');
+	assert.equal(storage.has('preferences:customNodeGraphEffectWireStyle'), false);
 });
 
 // 【リセットは確認でOKを選んだ場合だけ行い、完了後に再起動を案内する】
@@ -249,11 +249,11 @@ test('saves settings individually', async t => {
 	// 【数値とスイッチを個別に保存する】
 	// 数値の確定操作とスイッチの即時保存が、全体の適用操作を必要としないことを確認する。
 	find('data-test-backup-auto-interval').props['onUpdate:modelValue'](10);
-	find('data-test-visual-module-auto-connect-on-node-add').props['onUpdate:modelValue'](true);
+	find('data-test-custom-node-graph-effect-auto-connect-on-node-add').props['onUpdate:modelValue'](true);
 	await nextTick();
 	assert.equal(preferences.s.timelineFrameCacheMaxGiB, 1);
 	assert.equal(preferences.s.projectBackupAutoIntervalMinutes, 10);
-	assert.equal(preferences.s.visualModuleAutoConnectOnNodeAdd, true);
+	assert.equal(preferences.s.customNodeGraphEffectAutoConnectOnNodeAdd, true);
 	assert.equal(find('data-test-settings-apply'), null);
 	// 【言語は選択した時点で保存する】
 	// ダイアログ全体の適用操作を不要にし、初期表示だけでは保存しない。

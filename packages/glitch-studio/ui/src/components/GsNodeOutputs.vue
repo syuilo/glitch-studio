@@ -13,11 +13,11 @@
 import { useProjectSession } from '@/project-session.ts';
 import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import { computed, onUnmounted } from 'vue';
-import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
+import { getNodeOutputs } from '@gs/subsystems_custom-node-graph-effect_shared/node-outputs.ts';
 import GsNodePort from './GsNodePort.vue';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
-import type { VisualModuleNode, VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
-import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
+import type { CustomNodeGraphEffectNode, CustomNodeGraphEffect } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import { useCustomNodeGraphEffectWires } from '@/utility/custom-node-graph-effect-wires.ts';
 import { startWireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 
@@ -25,11 +25,11 @@ const projectSession = useProjectSession();
 
 const effectDefinitions = computed(() => getEffectDefinitions(projectSession.projectContext.stateManager.state));
 
-const wireMap = useVisualModuleWires();
+const wireMap = useCustomNodeGraphEffectWires();
 
 const props = defineProps<{
-	node: VisualModuleNode;
-	paramDefs?: VisualModule['paramDefs'];
+	node: CustomNodeGraphEffectNode;
+	paramDefs?: CustomNodeGraphEffect['paramDefs'];
 	outputResolutions?: EffectInstanceState['outputs'] | null
 }>();
 

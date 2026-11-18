@@ -28,7 +28,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		export const testedEffect = effectDefinitions.test;
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
-		export { commitVisualModuleEdit } from './src/utility/visual-module-edit.ts';
+		export { commitCustomNodeGraphEffectEdit } from './src/utility/custom-node-graph-effect-edit.ts';
 		export { projectSession } from './src/app.ts';
 	` },
 	plugins: [i18nPlugin, { name: 'preview-parameter-controls', setup(build) {
@@ -62,7 +62,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { Parameter, Positions, Viewport, Xy, XyGrid, testedEffect, PreviewParameterEditingController, previewParameterContextKey,
-	viewportPlaneOffset, createInlineKeyframesTimeline, UndoRedo, COMMAND_DEFS, commitVisualModuleEdit, projectSession } = module.exports;
+	viewportPlaneOffset, createInlineKeyframesTimeline, UndoRedo, COMMAND_DEFS, commitCustomNodeGraphEffectEdit, projectSession } = module.exports;
 const close = (actual, expected) => actual.forEach((value, axis) => assert.ok(Math.abs(value - expected[axis]) < 1e-12, `${actual} != ${expected}`));
 
 function findAll(root, predicate) {
@@ -115,17 +115,17 @@ async function fixture(t, { showGrid = false, viewport = false, viewportParamete
 		remove(node) { node.parent.children.splice(node.parent.children.indexOf(node), 1); node.parent = null; },
 		parentNode: node => node.parent, nextSibling: node => node.parent?.children[node.parent.children.indexOf(node) + 1] ?? null,
 	});
-	const visualModule = { id: 'visualModule', name: 'Visual Module', nodes: [{ id: 'node', type: 'effect', effectId: 'test', isBypass: false,
+	const customNodeGraphEffect = { id: 'customNodeGraphEffect', name: 'Custom Node Graph Effect', nodes: [{ id: 'node', type: 'effect', effectId: 'test', isBypass: false,
 		params: { ...Object.fromEntries(Object.entries(testedEffect.paramDefs).map(([key, definition]) => [key, structuredClone(definition.defaultValue)])), scale: literal([1, 1]) } }] };
-	const state = { visualModules: ref([visualModule]), timelineScenes: ref([]), automationGraphs: ref([]), resolution: ref({ width: 800, height: 400 }) };
+	const state = { customNodeGraphEffects: ref([customNodeGraphEffect]), timelineScenes: ref([]), automationGraphs: ref([]), resolution: ref({ width: 800, height: 400 }) };
 	const manager = new UndoRedo(state, COMMAND_DEFS);
 	const editing = new PreviewParameterEditingController();
 	Object.assign(projectSession, { projectContext: { stateManager: manager }, previewParameterEditing: editing,
-		previewPlayback: { state: ref({ mode: 'visualModuleLivePreview', visualModuleId: 'visualModule' }),
-			visualModuleLivePreviewVisualModuleId: ref('visualModule'), currentTimelineTime: ref(0), isTimelinePlaying: ref(false), isTimelineBaking: ref(false) },
+		previewPlayback: { state: ref({ mode: 'customNodeGraphEffectLivePreview', customNodeGraphEffectId: 'customNodeGraphEffect' }),
+			livePreviewCustomNodeGraphEffectId: ref('customNodeGraphEffect'), currentTimelineTime: ref(0), isTimelinePlaying: ref(false), isTimelineBaking: ref(false) },
 		renderEngine: { isSuspended: ref(false) }, activeSceneId: ref(null) });
-	const node = state.visualModules.value[0].nodes[0];
-	const scope = ref({ kind: 'visualModule', target: { visualModuleId: 'visualModule' } });
+	const node = state.customNodeGraphEffects.value[0].nodes[0];
+	const scope = ref({ kind: 'customNodeGraphEffect', target: { customNodeGraphEffectId: 'customNodeGraphEffect' } });
 	const showParameters = ref(true);
 	const root = element('root');
 	const canvasRect = { left: 0, top: 0, width: 800, height: 400 };
@@ -133,12 +133,12 @@ async function fixture(t, { showGrid = false, viewport = false, viewportParamete
 		...(showParameters.value ? Object.entries(testedEffect.paramDefs).filter(([key]) => viewportParameter != null ? key === viewportParameter
 			: !['imageTrapView', 'magneticPendulumView', 'doublePendulumView'].includes(key) && (viewport || !['view', 'otherView'].includes(key))).map(([key, definition]) => h(Parameter, {
 			key, node, automationGraphs: [], availableVariables: [], paramDef: definition, paramValue: node.params[key], paramPath: [key],
-			onEdit: edit => commitVisualModuleEdit(manager, { visualModuleId: visualModule.id }, { kind: 'editNodeParam', nodeId: node.id, edit }),
+			onEdit: edit => commitCustomNodeGraphEffectEdit(manager, { customNodeGraphEffectId: customNodeGraphEffect.id }, { kind: 'editNodeParam', nodeId: node.id, edit }),
 		})) : []),
 		h(Positions, { canvasRect, showGrid }),
 		h(Viewport, { canvasRect }),
 	]) });
-	app.provide(previewParameterContextKey, { scope: computed(() => scope.value), label: computed(() => 'Visual Module') });
+	app.provide(previewParameterContextKey, { scope: computed(() => scope.value), label: computed(() => 'Custom Node Graph Effect') });
 	app.directive('tooltip', {});
 	app.mount(root);
 	t.after(() => app.unmount());

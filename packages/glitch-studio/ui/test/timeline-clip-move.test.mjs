@@ -47,7 +47,7 @@ const times = layer => layer.audioParamValues.volume.keyframesTimeline.keyframes
 function fixture(t, layers) {
 	t.mock.method(console, 'log', () => {});
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers };
-	const state = { timelineScenes: { value: [scene] }, visualModules: { value: [] }, assets: { value: [] } };
+	const state = { timelineScenes: { value: [scene] }, customNodeGraphEffects: { value: [] }, assets: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const changes = [];
 	history.onChange(value => changes.push(value));
@@ -164,7 +164,7 @@ test('moves speech and empty stop keys with parameters while preserving speech s
 	f.history.redo(); assert.deepEqual(f.scene, after);
 });
 
-// 【未設定のVisual Module引数とネストしたレーンは独立したルートへ保存する】
+// 【未設定のCustom Node Graph Effect引数とネストしたレーンは独立したルートへ保存する】
 // 既定値を直接変更すると別レイヤーまで動き、単なるコピーを変更すると結果が保存されない。
 // 同じ配列要素の複数パラメータを追従させても上書きし合わず、Undoで未設定へ戻す。
 test('materializes default arguments and nested lanes without modifying shared definitions', t => {
@@ -176,9 +176,9 @@ test('materializes default arguments and nested lanes without modifying shared d
 			def.defaultValue.value[0].binding.value.x = keys([100, 200]);
 			def.defaultValue.value[0].binding.value.y = keys([100, 200]);
 		}
-		f.state.visualModules.value.push({ id: 'visualModule', paramDefs: [def] });
-		for (const id of ['edited', 'untouched']) f.scene.layers.push({ id, layerType: 'visualModule', visualModuleId: 'visualModule',
-			visualModuleParamValues: {}, clips: [clip('clip', 100, 200)], compositingParamValues: {} });
+		f.state.customNodeGraphEffects.value.push({ id: 'customNodeGraphEffect', paramDefs: [def] });
+		for (const id of ['edited', 'untouched']) f.scene.layers.push({ id, layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect',
+			customNodeGraphEffectParamValues: {}, clips: [clip('clip', 100, 200)], compositingParamValues: {} });
 		const before = structuredClone(f.scene);
 		const defaultBefore = structuredClone(def.defaultValue);
 		const targets = [{ layerId: 'edited', clipId: 'clip' }];
@@ -187,7 +187,7 @@ test('materializes default arguments and nested lanes without modifying shared d
 		for (const deltaMs of [20, 60, 0, 100]) f.history.commit('setTimelinePositions', {
 			sceneId: 'scene', clips: initial.clips.map(clip => ({ ...clip, startMs: clip.startMs + deltaMs })), keyframes: initial.keyframes.map(point => ({ ...point, x: point.x + deltaMs })),
 		}, 'defaults');
-		for (const path of paths) assert.deepEqual(resolveLayerParameter(f.state, f.scene.layers[0], 'module', path).value.keyframesTimeline.keyframes.map(point => point.x), [200, 300]);
+		for (const path of paths) assert.deepEqual(resolveLayerParameter(f.state, f.scene.layers[0], 'customNodeGraphEffect', path).value.keyframesTimeline.keyframes.map(point => point.x), [200, 300]);
 		assert.deepEqual(def.defaultValue, defaultBefore);
 		assert.deepEqual(f.scene.layers[1], before.layers[1]);
 		const after = structuredClone(f.scene);

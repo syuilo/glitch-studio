@@ -29,7 +29,7 @@
 - マスク・補間係数・確率・LUTの参照範囲や、Color Clamp・色域変換・コーデック等の処理自体が必要とする制限は維持します。解析用に値域を正規化する処理と、最終的な画像のRGB制限は別に判断します。
 - float16の有限な保存範囲への制限や、0除算・非有限値・蓄積のオーバーフローを防ぐ処理は、0〜1への制限とは目的が異なるため維持します。
 
-## エフェクト入力の参照とVisual Moduleの出力
+## エフェクト入力の参照とCustom Node Graph Effectの出力
 
 全エフェクトの `canNode: true` パラメータは、構造体・配列内も含めて `ShaderInput` として受け取ります。通常の入力参照は、JS側で生成するWGSL関数 `read_<入力名>(position)` を使います。エフェクトのシェーダーは、定数かテクスチャかによる分岐や、入力ごとのアスペクト比補正を実装する必要がありません。
 
@@ -48,19 +48,19 @@ let amount = read_amount(position);
 
 ### 内部表現と生成処理
 
-- `kind: 'uniform'` は空間的に一定の値です。リテラルに限らず、式やautomationの評価結果、接続されたモジュールの定数出力も含みます。生成関数はuniform bufferから読み、入力用の1x1テクスチャは作りません。値はf32で渡し、テクスチャ精度設定による16bitへの丸めは行いません。
+- `kind: 'uniform'` は空間的に一定の値です。リテラルに限らず、式やautomationの評価結果、接続されたCustom Node Graph Effectの定数出力も含みます。生成関数はuniform bufferから読み、入力用の1x1テクスチャは作りません。値はf32で渡し、テクスチャ精度設定による16bitへの丸めは行いません。
 - `kind: 'texture'` は元の `GPUTexture` と、受け取り側のfit/wrap/filter設定です。接続時にテクスチャの保存形式を暗黙に変換しません。「接続されているなら必ずtexture」と仮定しないでください。
 - 色の定数は入力・出力値へ変換する境界で一度だけpremultiplyします。既に乗算済みの値や画像入力に再乗算してはいけません。データ用のスカラー・ベクトルには乗算しません。
 - `generateShaderInputs()` がWGSLの宣言・参照関数・binding配置を生成し、`createShaderInputBindings()` が値とGPUリソースを更新します。通常のrender pipelineでは、構成の生成・再利用をまとめた `createShaderInputPipeline()` を使用できます。bindingの更新には、fitの基準となる実際の出力サイズを渡してください。
 - 定数/テクスチャの種別、配列長や各要素の種別が変わるとpipelineの構成が変わります。値・接続先・fit/wrap/filterだけの変更ではpipelineを再生成せず、uniformやbindingを更新します。エフェクト破棄時はヘルパーの `dispose()` も呼びます。
 - 厳密な整数画素アクセスや履歴処理などでは、必要に応じて元のテクスチャを直接扱えます。その場合もuniform入力を扱い、生成関数を使わない理由を明確にしてください。画像素材・動画・音声など、`canNode` ではないパラメータはそれぞれの型で受け取ります。
 
-### モジュール出力とテクスチャ化の境界
+### Custom Node Graph Effect出力とテクスチャ化の境界
 
-Visual ModuleのIn/Out・バイパス・タイムラインのレイヤー間では、定数またはテクスチャを表す `UniformOrTexture` を受け渡します。モジュールの境界だけを理由に定数をテクスチャ化しません。エフェクトが描画した出力はtexture、Inから渡された定数はuniformのままです。
+Custom Node Graph EffectのIn/Out・バイパス・タイムラインのレイヤー間では、定数またはテクスチャを表す `UniformOrTexture` を受け渡します。Custom Node Graph Effectの境界だけを理由に定数をテクスチャ化しません。エフェクトが描画した出力はtexture、Inから渡された定数はuniformのままです。
 
 - `UniformOrTexture` 自体はサンプリング設定を持ちません。エフェクトやタイムラインの合成などでシェーダー入力になるときに `toShaderInput()` が受け取り側の設定を付け、`ShaderInput` にします。色の再乗算は行いません。scalar/vectorの不足成分はr/rgテクスチャと同じくRGBを0、alphaを1で補います。
-- モジュールの `paramValues` はCPUで評価する通常のパラメータ値、`paramInputs` は上流から渡された `UniformOrTexture` です。`paramInputs` はuniformでも `PUBLIC` 式からは参照せず、Inノードや `canNode` 入力から読みます。上流の出力種別によって式の可否を変えないためです。
+- Custom Node Graph Effectの `paramValues` はCPUで評価する通常のパラメータ値、`paramInputs` は上流から渡された `UniformOrTexture` です。`paramInputs` はuniformでも `PUBLIC` 式からは参照せず、Inノードや `canNode` 入力から読みます。上流の出力種別によって式の可否を変えないためです。
 - 最終表示・集計など、`GPUTexture` が必要な境界では `UniformOrTextureToTextureResolver` が定数だけを1x1テクスチャへ変換します。成分数ごとに再利用し、同値の転送を省略します。保存精度は `enable32bitDataTextures` に従います。
 - 借用した出力テクスチャは変換・破棄しません。resolver自身の定数テクスチャは `dispose()` で破棄します。再利用するテクスチャを上書きするため、そのテクスチャを読むコマンドをsubmitしてから次の `resolve()` を呼んでください。
 

@@ -99,7 +99,7 @@ function fixture() {
 function editFixture(t) {
 	t.mock.method(console, 'log', () => {});
 	const f = fixture();
-	const state = { timelineScenes: { value: f.scenes }, assets: { value: [] }, visualModules: { value: [] } };
+	const state = { timelineScenes: { value: f.scenes }, assets: { value: [] }, customNodeGraphEffects: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	return { ...f, state, history, point: id => ({ layerId: 'speech', target: 'utterance', paramPath: ['utterances'], keyframeId: id }) };
 }
@@ -324,7 +324,7 @@ test('edits subtitle parameters independently from text layers', t => {
 	const f = fixture();
 	const text = createTextTimelineLayer(0);
 	f.scenes[0].layers.push(text);
-	const state = { timelineScenes: { value: f.scenes }, assets: { value: [] }, visualModules: { value: [] } };
+	const state = { timelineScenes: { value: f.scenes }, assets: { value: [] }, customNodeGraphEffects: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	assert.equal('textParamValues' in f.layer, false);
 	assert.equal('text' in f.layer.subtitleParamValues, false);
@@ -568,7 +568,7 @@ test('supports nested placements and audio layer selection without moving speech
 test('edits speech through undoable commands and rejects duplicate times atomically', t => {
 	t.mock.method(console, 'log', () => {});
 	const f = fixture();
-	const state = { timelineScenes: { value: f.scenes }, assets: { value: [] }, visualModules: { value: [] } };
+	const state = { timelineScenes: { value: f.scenes }, assets: { value: [] }, customNodeGraphEffects: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const payload = { sceneId: 'root', layerId: 'speech', voicevox: f.layer.voicevox, utterances: [utterance('new', 350, 'Edited')] };
 	const before = structuredClone(f.layer.utterances);
@@ -599,7 +599,7 @@ test('persists only currently referenced speech and keeps disabled and pending u
 	const clearSpeech = { ...f.speech, sourceId: 'clear', key: getVoicevoxRequestKey({ ...f.request, text: '' }) };
 	const project = { id: 'p', gsVersion: '2.0.0-alpha.1', name: 'Speech', description: '', author: '', timelineFps: 60,
 		timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, resolution: { width: 640, height: 480 },
-		assets: [], players: [], visualModules: [], timelineScenes: f.scenes, generatedSpeech: [f.speech, dormantSpeech, obsoleteSpeech, clearSpeech] };
+		assets: [], players: [], customNodeGraphEffects: [], timelineScenes: f.scenes, generatedSpeech: [f.speech, dormantSpeech, obsoleteSpeech, clearSpeech] };
 	const restored = decodeProjectFile(await encodeProjectFile(project));
 	assert.deepEqual(restored.timelineScenes, f.scenes);
 	assert.deepEqual(restored.assets, []);

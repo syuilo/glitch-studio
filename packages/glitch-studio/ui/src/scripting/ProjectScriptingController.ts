@@ -10,19 +10,19 @@ import type { CommandInput } from '../utility/undo-redo.ts';
 import type { ProjectContext } from '../Project.ts';
 import type { values } from '@syuilo/aiscript';
 
-const INITIAL_SCRIPT = `// Create a Visual Module with a Fill node.
-let visualModule = Command:createVisualModule({ name: "Generated" })
-let fillNode = Command:createVisualModuleEffectNode({
-	visualModule: visualModule
+const INITIAL_SCRIPT = `// Create a Custom Node Graph Effect with a Fill node.
+let customNodeGraphEffect = Command:createCustomNodeGraphEffect({ name: "Generated" })
+let fillNode = Command:createCustomNodeGraphEffectEffectNode({
+	customNodeGraphEffect: customNodeGraphEffect
 	effectId: "fill"
 	connectionMode: "appendToPrimaryOutput"
 })
-Command:setVisualModuleNodeParameterSource({
+Command:setCustomNodeGraphEffectNodeParameterSource({
 	target: fillNode
 	parameterPath: ["color"]
 	source: { inputSource: "literal", value: [1, 0.2, 0.1, 1] }
 })
-<: Query:getVisualModule(visualModule)
+<: Query:getCustomNodeGraphEffect(customNodeGraphEffect)
 `;
 
 const MAX_OUTPUT_ENTRIES = 1_000;

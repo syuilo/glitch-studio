@@ -50,7 +50,7 @@
 		<GsTextarea v-model="draft.summary"><template #label>{{ i18n.ts._Project.Description }}</template></GsTextarea>
 		<GsSelect v-model="draft.kind" :items="kindItems"><template #label>{{ i18n.ts._CustomShaderEffect.Kind }}</template></GsSelect>
 		<GsSelect v-model="draft.primaryInputId" :items="primaryInputItems" data-test-custom-shader-effect-primary-input><template #label>{{ i18n.ts._ParameterEditor.PrimaryInput }}</template></GsSelect>
-		<GsSelect v-model="draft.primaryOutputId" :items="primaryOutputItems" data-test-custom-shader-effect-primary-output><template #label>{{ i18n.ts._VisualModule.PrimaryOutput }}</template></GsSelect>
+		<GsSelect v-model="draft.primaryOutputId" :items="primaryOutputItems" data-test-custom-shader-effect-primary-output><template #label>{{ i18n.ts._CustomNodeGraphEffect.PrimaryOutput }}</template></GsSelect>
 	</template>
 </div>
 </template>

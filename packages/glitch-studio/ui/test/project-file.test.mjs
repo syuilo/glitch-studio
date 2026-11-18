@@ -71,7 +71,7 @@ const appBundle = await build({
 		export { getAssetMenu } from './src/utility/asset-menu.ts';
 		export { recentProjects } from './src/recent-projects.ts';
 		export { ProjectSessionContext, TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from './src/ProjectSessionContext.ts';
-		export { createVisualModuleAssetNode } from './src/utility/visual-module-asset-node.ts';
+		export { createCustomNodeGraphEffectAssetNode } from './src/utility/custom-node-graph-effect-asset-node.ts';
 		export { createProjectCustomShaderEffect } from './src/utility/custom-shader-effect.ts';
 	` },
 	plugins: [i18nPlugin, {
@@ -122,7 +122,7 @@ const appBundle = await build({
 					import { ref } from 'vue';
 					import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 					import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
-					export class VisualModuleRendererManagerController {
+					export class CustomNodeGraphEffectRendererManagerController {
 						isReady = ref(false); errorMessage = ref(null); canvasRevision = ref(0);
 						frameCacheUsageRatio = ref(null);
 						updates = []; renders = []; lifecycle = [];
@@ -149,16 +149,16 @@ const appBundle = await build({
 							Object.assign(this.options, options);
 						}
 						async applyProjectChanges(changes) {
-							const patch = deepClone(this.timeline ? changes : changes.filter(change => change.type === 'customShaderEffects' || change.type === 'automationGraphs' || change.type === 'visualModuleRegistration'
-								|| (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target));
+							const patch = deepClone(this.timeline ? changes : changes.filter(change => change.type === 'customShaderEffects' || change.type === 'automationGraphs' || change.type === 'customNodeGraphEffectRegistration'
+								|| (change.type === 'node' || change.type === 'customNodeGraphEffect') && 'customNodeGraphEffectId' in change.target));
 							if (!patch.length) return;
 							this.patches.push(patch);
-							const next = applyRendererProjectChanges({ automationGraphs: this.options.automationGraphs, visualModules: this.options.visualModules, timelineScenes: this.options.timelineScenes ?? [] }, patch);
-							Object.assign(this.options, this.timeline ? next : { automationGraphs: next.automationGraphs, visualModules: next.visualModules });
+							const next = applyRendererProjectChanges({ automationGraphs: this.options.automationGraphs, customNodeGraphEffects: this.options.customNodeGraphEffects, timelineScenes: this.options.timelineScenes ?? [] }, patch);
+							Object.assign(this.options, this.timeline ? next : { automationGraphs: next.automationGraphs, customNodeGraphEffects: next.customNodeGraphEffects });
 							const shaders = patch.findLast(change => change.type === 'customShaderEffects');
 							if (shaders != null) this.options.customShaderEffects = shaders.customShaderEffects;
 						}
-						startVisualModuleLivePreviewRenderLoopFor() { this.lifecycle.push('start'); }
+						startCustomNodeGraphEffectLivePreviewRenderLoopFor() { this.lifecycle.push('start'); }
 						stopRenderLoop() { this.lifecycle.push('stop'); }
 						renderTimelineAt(time) { this.renders.push(time); }
 						async setHighResolutionImageAnalysis(enabled, settings) {
@@ -174,7 +174,7 @@ const appBundle = await build({
 						cancelSeek() {}
 						disposeManager() { this.generation++; this.lifecycle.push('dispose'); this.isReady.value = false; }
 					}
-					export class TimelineRendererManagerController extends VisualModuleRendererManagerController { timeline = true; }
+					export class TimelineRendererManagerController extends CustomNodeGraphEffectRendererManagerController { timeline = true; }
 					` : args.path.endsWith('.vue') ? `export default { name: '${args.path.split('/').at(-1)}' };` : `
 					export async function alert(options) { globalThis.projectAlerts.push(options.text); await window.acknowledgeProjectAlert?.(); }
 					export async function confirm(options) { window.projectConfirmations?.push(options); return await window.confirmProjectClose?.(options) ?? { canceled: window.cancelProjectReplacement === true }; }
@@ -204,7 +204,7 @@ test('applies rendering statistics preferences without changing project data or 
 	const app = evaluate(appBundle);
 	const context = await app.projectSessions.open(project());
 	const settings = window.testPreferences;
-	const controllers = [context.visualModuleRendererManagerController, context.timelineRendererManagerController];
+	const controllers = [context.customNodeGraphEffectRendererManagerController, context.timelineRendererManagerController];
 	assert.equal(settings.renderingStatsEnabled, false);
 	assert.ok(controllers.every(controller => controller.staticOptions.enableStats === false));
 	const historyLength = context.projectContext.stateManager.undoStack.value.length;
@@ -230,7 +230,7 @@ test('applies analysis monitor preferences without changing project data or undo
 	const app = evaluate(appBundle);
 	const context = await app.projectSessions.open(project());
 	const settings = window.testPreferences;
-	const controllers = [context.visualModuleRendererManagerController, context.timelineRendererManagerController];
+	const controllers = [context.customNodeGraphEffectRendererManagerController, context.timelineRendererManagerController];
 	assert.equal(settings.analysisMonitorsEnabled, true);
 	assert.equal(context.audioOutput.preview.analysisEnabled, true);
 	assert.ok(controllers.every(controller => controller.staticOptions.enableWaveformAndHistogram === true));
@@ -259,16 +259,16 @@ test('applies analysis monitor preferences without changing project data or undo
 // Worker再生成時は失われた保持画像を新しいフレームへ黙って差し替えない。
 test('integrates held analysis with preview switching settings and worker recreation', async t => {
 	setup(t);
-	const { projectSession } = evaluateSession(project({ visualModules: [{ id: 'visual-module', name: 'Visual Module', nodes: [], paramDefs: [], customParameterDefs: [], customParameterValues: {} }] }));
+	const { projectSession } = evaluateSession(project({ customNodeGraphEffects: [{ id: 'custom-node-graph-effect', name: 'Custom Node Graph Effect', nodes: [], paramDefs: [], customParameterDefs: [], customParameterValues: {} }] }));
 	await startActiveProjectSession(projectSession);
 	projectSession.previewPlayback.showTimeline();
 	const timeline = projectSession.timelineRendererManagerController;
-	const visualModule = projectSession.visualModuleRendererManagerController;
+	const customNodeGraphEffect = projectSession.customNodeGraphEffectRendererManagerController;
 	const highResolution = projectSession.highResolutionImageAnalysis;
 	await projectSession.toggleHighResolutionImageAnalysis();
 	assert.equal(highResolution.active.value, true);
 	assert.equal(projectSession.imageAnalysisRenderer.value, timeline);
-	assert.deepEqual([timeline.options.analysisPaused, visualModule.options.analysisPaused], [true, true]);
+	assert.deepEqual([timeline.options.analysisPaused, customNodeGraphEffect.options.analysisPaused], [true, true]);
 	const renders = timeline.renders.length;
 	projectSession.analysisTarget.value = 'vectorLength';
 	projectSession.analysisRangePreset.value = 'minusHalfToHalf';
@@ -278,27 +278,27 @@ test('integrates held analysis with preview switching settings and worker recrea
 	await setImmediate();
 	assert.equal(timeline.renders.length, renders);
 	assert.equal(timeline.highResolutionAnalysisRequests.length, 2);
-	assert.equal(visualModule.highResolutionAnalysisRequests.length, 0);
+	assert.equal(customNodeGraphEffect.highResolutionAnalysisRequests.length, 0);
 	assert.deepEqual(projectSession.displayedImageAnalysisSettings.value, { target: 'vectorLength', imageSource: 'original', imageAdjustments: { exposure: 0, srgbProof: false, gamutCompression: { mode: 'none', customAmount: 0.5 } }, valueScale: 'linear', valueRange: { minimum: -0.5, maximum: 0.5 }, waveformCanvasSizes: null, waveformViewports: null, histogramViewport: null });
-	projectSession.previewPlayback.startVisualModuleLivePreview('visual-module');
+	projectSession.previewPlayback.startCustomNodeGraphEffectLivePreview('custom-node-graph-effect');
 	await setImmediate();
-	assert.equal(projectSession.activePreviewRenderer.value, visualModule);
+	assert.equal(projectSession.activePreviewRenderer.value, customNodeGraphEffect);
 	assert.equal(projectSession.imageAnalysisRenderer.value, timeline);
 	await projectSession.toggleHighResolutionImageAnalysis();
 	assert.equal(timeline.highResolutionAnalysisRequests.at(-1).enabled, false);
-	assert.equal(projectSession.imageAnalysisRenderer.value, visualModule);
-	for (const controller of [timeline, visualModule]) {
+	assert.equal(projectSession.imageAnalysisRenderer.value, customNodeGraphEffect);
+	for (const controller of [timeline, customNodeGraphEffect]) {
 		assert.equal(controller.options.analysisPaused, false);
 		assert.equal(controller.options.analysisTarget, 'vectorLength');
 		assert.deepEqual(controller.options.analysisValueRange, { minimum: -0.5, maximum: 0.5 });
 	}
 	await projectSession.toggleHighResolutionImageAnalysis();
-	assert.equal(highResolution.source.value, visualModule);
+	assert.equal(highResolution.source.value, customNodeGraphEffect);
 	projectSession.renderEngine.requestRestart();
 	await projectSession.renderEngine.retry();
 	assert.equal(highResolution.active.value, false);
 	assert.equal(highResolution.source.value, null);
-	assert.ok([timeline, visualModule].every(controller => controller.initialDynamicOptions.analysisPaused !== true));
+	assert.ok([timeline, customNodeGraphEffect].every(controller => controller.initialDynamicOptions.analysisPaused !== true));
 });
 
 // 【ヒストグラムと両波形の解析画像を共通に切り替え、保持画像には現在の表示調整だけを再適用する】
@@ -309,7 +309,7 @@ test('shares the analysis image source and reanalyzes held RGB only for display 
 	const { projectSession } = evaluateSession();
 	await startActiveProjectSession(projectSession);
 	projectSession.previewPlayback.showTimeline();
-	const controllers = [projectSession.timelineRendererManagerController, projectSession.visualModuleRendererManagerController];
+	const controllers = [projectSession.timelineRendererManagerController, projectSession.customNodeGraphEffectRendererManagerController];
 	const timeline = controllers[0];
 	const highResolution = projectSession.highResolutionImageAnalysis;
 	const before = projectSession.projectContext.snapshot();
@@ -368,7 +368,7 @@ test('resizes waveform analysis independently of scene rendering and retains siz
 	const { projectSession } = evaluateSession();
 	await startActiveProjectSession(projectSession);
 	const timeline = projectSession.timelineRendererManagerController;
-	const visualModule = projectSession.visualModuleRendererManagerController;
+	const customNodeGraphEffect = projectSession.customNodeGraphEffectRendererManagerController;
 	const renders = timeline.renders.length;
 	projectSession.setWaveformCanvasSize('horizontal', { width: 900, height: 450 });
 	projectSession.setWaveformCanvasSize('vertical', { width: 400, height: 800 });
@@ -376,7 +376,7 @@ test('resizes waveform analysis independently of scene rendering and retains siz
 	assert.equal(timeline.renders.length, renders);
 	assert.equal(timeline.analysisRefreshes, 2);
 	assert.deepEqual(timeline.options.analysisWaveformCanvasSizes, { horizontal: { width: 900, height: 450 }, vertical: { width: 400, height: 800 } });
-	assert.deepEqual(visualModule.options.analysisWaveformCanvasSizes, timeline.options.analysisWaveformCanvasSizes);
+	assert.deepEqual(customNodeGraphEffect.options.analysisWaveformCanvasSizes, timeline.options.analysisWaveformCanvasSizes);
 	await projectSession.toggleHighResolutionImageAnalysis();
 	projectSession.setWaveformCanvasSize('horizontal', { width: 1200, height: 600 });
 	projectSession.setWaveformCanvasSize('vertical', { width: 600, height: 1200 });
@@ -400,7 +400,7 @@ test('serializes waveform viewport updates and applies matching completed axes t
 	const { projectSession } = evaluateSession();
 	await startActiveProjectSession(projectSession);
 	const timeline = projectSession.timelineRendererManagerController;
-	const visualModule = projectSession.visualModuleRendererManagerController;
+	const customNodeGraphEffect = projectSession.customNodeGraphEffectRendererManagerController;
 	const renders = timeline.renders.length;
 	const first = { x: 0.25, y: 0.25, width: 0.5, height: 0.5 };
 	const second = { x: 0.3, y: 0.4, width: 0.25, height: 0.25 };
@@ -420,7 +420,7 @@ test('serializes waveform viewport updates and applies matching completed axes t
 	assert.equal(timeline.analysisRefreshes, 2);
 	assert.equal(timeline.renders.length, renders);
 	assert.deepEqual(projectSession.displayedImageAnalysisSettings.value.waveformViewports.horizontal, second);
-	assert.deepEqual(visualModule.options.analysisWaveformViewports.horizontal, second);
+	assert.deepEqual(customNodeGraphEffect.options.analysisWaveformViewports.horizontal, second);
 	await projectSession.toggleHighResolutionImageAnalysis();
 	projectSession.setWaveformViewport('horizontal', first);
 	projectSession.flushImageAnalysisDisplay();
@@ -445,7 +445,7 @@ test('initializes both previews from saved rendering preferences', async t => {
 	assert.equal(projectSession.audioOutput.preview.analysisEnabled, false);
 	await startActiveProjectSession(projectSession);
 	assert.equal(projectSession.audioOutput.preview.analysisEnabled, false);
-	for (const controller of [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController]) {
+	for (const controller of [projectSession.customNodeGraphEffectRendererManagerController, projectSession.timelineRendererManagerController]) {
 		assert.equal(controller.staticOptions.enableStats, true);
 		assert.equal(controller.staticOptions.enableWaveformAndHistogram, false);
 	}
@@ -493,26 +493,26 @@ for (const desktop of [false, true]) {
 		const { projectSession } = evaluateSession();
 		await startActiveProjectSession(projectSession);
 		const timeline = projectSession.timelineRendererManagerController;
-		const visualModule = projectSession.visualModuleRendererManagerController;
+		const customNodeGraphEffect = projectSession.customNodeGraphEffectRendererManagerController;
 		assert.equal(timeline.initialStaticOptions.frameCacheMaxBytes, 2 * 1024 ** 3);
 		assert.equal(timeline.initialStaticOptions.frameCachePrecision, 'original');
 		assert.equal(Object.hasOwn(timeline.initialDynamicOptions, 'frameCacheMaxBytes'), false);
 		const historyLength = projectSession.projectContext.stateManager.undoStack.value.length;
 		const staticUpdates = timeline.staticUpdates.length;
-		const visualModuleStaticUpdates = visualModule.staticUpdates.length;
+		const customNodeGraphEffectStaticUpdates = customNodeGraphEffect.staticUpdates.length;
 		timeline.updates.length = 0;
 		for (const [index, capacity] of [0, 1, 3].entries()) {
 			window.testPreferences.timelineFrameCacheMaxGiB = capacity;
 			await setImmediate();
 			assert.equal(timeline.staticUpdates.length, staticUpdates + index + 1);
-			assert.equal(visualModule.staticUpdates.length, visualModuleStaticUpdates + index + 1);
+			assert.equal(customNodeGraphEffect.staticUpdates.length, customNodeGraphEffectStaticUpdates + index + 1);
 			assert.equal(timeline.initialStaticOptions.frameCacheMaxBytes, capacity * 1024 ** 3);
 		}
 		for (const [index, precision] of ['8bit', 'original'].entries()) {
 			window.testPreferences.timelineFrameCachePrecision = precision;
 			await setImmediate();
 			assert.equal(timeline.staticUpdates.length, staticUpdates + 4 + index);
-			assert.equal(visualModule.staticUpdates.length, visualModuleStaticUpdates + 4 + index);
+			assert.equal(customNodeGraphEffect.staticUpdates.length, customNodeGraphEffectStaticUpdates + 4 + index);
 			assert.equal(timeline.initialStaticOptions.frameCachePrecision, precision);
 			assert.equal(timeline.initialStaticOptions.frameCacheMaxBytes, 3 * 1024 ** 3);
 		}
@@ -530,9 +530,9 @@ function project(overrides = {}) {
 		exportSettings: null,
 		timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
 		gsVersion: '2.0.0-alpha.2', name: 'Example', description: 'First line\n日本語の説明', author: 'Author',
-		assets: [], generatedSpeech: [], players: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }], resolution: { width: 640, height: 480 },
+		assets: [], generatedSpeech: [], players: [], customNodeGraphEffects: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }], resolution: { width: 640, height: 480 },
 		...overrides,
-		visualModules: (overrides.visualModules ?? []).map(visualModule => ({ outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [], ...visualModule })),
+		customNodeGraphEffects: (overrides.customNodeGraphEffects ?? []).map(customNodeGraphEffect => ({ outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [], ...customNodeGraphEffect })),
 		assets: (overrides.assets ?? []).map(asset => ({ fileDataType: asset.fileData?.type || (asset.id === 'audio' ? 'audio/wav' : 'image/png'), ...asset })),
 	};
 }
@@ -573,24 +573,24 @@ test('persists Custom Shader Effect definitions through project snapshots and fi
 // 初期化・表示切替・エンジン復帰を通し、再生状態が持つ現在の表示先へ同期することを確認する。
 test('activates background presentation only for the selected preview without rebuilding workers', async t => {
 	setup(t);
-	const { projectSession } = evaluateSession(project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [] }] }));
+	const { projectSession } = evaluateSession(project({ customNodeGraphEffects: [{ customParameterDefs: [], customParameterValues: {}, id: 'customNodeGraphEffect', name: 'Custom Node Graph Effect', nodes: [], paramDefs: [] }] }));
 	await startActiveProjectSession(projectSession);
 	t.after(() => projectSession.previewPlayback.dispose());
-	const visualModule = projectSession.visualModuleRendererManagerController;
+	const customNodeGraphEffect = projectSession.customNodeGraphEffectRendererManagerController;
 	const timeline = projectSession.timelineRendererManagerController;
-	const check = expectedVisualModule => {
-		assert.equal(visualModule.options.previewActive, expectedVisualModule);
-		assert.equal(timeline.options.previewActive, !expectedVisualModule);
+	const check = expectedCustomNodeGraphEffect => {
+		assert.equal(customNodeGraphEffect.options.previewActive, expectedCustomNodeGraphEffect);
+		assert.equal(timeline.options.previewActive, !expectedCustomNodeGraphEffect);
 	};
 	await setImmediate();
 	check(true);
 	projectSession.previewPlayback.showTimeline();
 	await setImmediate();
 	check(false);
-	projectSession.previewPlayback.startVisualModuleLivePreview('visualModule');
+	projectSession.previewPlayback.startCustomNodeGraphEffectLivePreview('customNodeGraphEffect');
 	await setImmediate();
 	check(true);
-	for (const controller of [visualModule, timeline]) assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 1);
+	for (const controller of [customNodeGraphEffect, timeline]) assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 1);
 	await projectSession.suspendPreview();
 	projectSession.previewPlayback.showTimeline();
 	await projectSession.resumePreview();
@@ -667,7 +667,7 @@ for (const [label, fileDataType, isExternalReference] of [
 	// 編集を続け、最新の寸法・Player・ノード設定を両プレビューの再生成へ一緒に渡す必要がある。
 	test(`rebuilds previews with matching assets and nodes after importing an ${label}`, async t => {
 		const window = setup(t);
-		const { projectSession, createVisualModuleAssetNode } = evaluateSession(project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [] }] }));
+		const { projectSession, createCustomNodeGraphEffectAssetNode } = evaluateSession(project({ customNodeGraphEffects: [{ customParameterDefs: [], customParameterValues: {}, id: 'customNodeGraphEffect', name: 'Custom Node Graph Effect', nodes: [], paramDefs: [] }] }));
 		await startActiveProjectSession(projectSession);
 		t.after(() => projectSession.previewPlayback.dispose());
 		const gate = Promise.withResolvers();
@@ -675,10 +675,10 @@ for (const [label, fileDataType, isExternalReference] of [
 		window.desktop = { resolveExternalAsset: () => gate.promise };
 		const asset = { id: 'imported', name: 'Imported', width: 1920, height: 1080, fileDataType,
 																		fileData: isExternalReference ? source : new Blob(['image'], { type: fileDataType }), sourceFilePath: 'C:/assets/imported', isExternalReference };
-		const { node, player } = createVisualModuleAssetNode(asset, []);
+		const { node, player } = createCustomNodeGraphEffectAssetNode(asset, []);
 		const players = player == null ? [] : [player];
 		const manager = projectSession.projectContext.stateManager;
-		const controllers = [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController];
+		const controllers = [projectSession.customNodeGraphEffectRendererManagerController, projectSession.timelineRendererManagerController];
 		for (const controller of controllers) {
 			controller.lifecycle.length = 0;
 			controller.patches.length = 0;
@@ -688,7 +688,7 @@ for (const [label, fileDataType, isExternalReference] of [
 				// 遅いデコード中にも編集できる。破棄された試行は起動せず、次の最新スナップショットを使う。
 				if (!isExternalReference) await gate.promise;
 				if (generation !== controller.generation) return;
-				const importedNode = snapshot.dynamicOptions.visualModules[0].nodes[0];
+				const importedNode = snapshot.dynamicOptions.customNodeGraphEffects[0].nodes[0];
 				const assetId = importedNode.effectId === 'image' ? importedNode.staticSettings.image
 					: projectSession.projectContext.stateManager.state.players.value.find(player => player.id === importedNode.staticSettings.player).assetId;
 				const referencedAsset = snapshot.resources.assets.find(asset => asset.id === assetId);
@@ -697,10 +697,10 @@ for (const [label, fileDataType, isExternalReference] of [
 				await initialize(snapshot);
 			};
 		}
-		manager.commit('insertImportedAssets', { assets: [asset], players, visualModule: { target: { visualModuleId: 'visualModule' }, nodes: [node] } });
+		manager.commit('insertImportedAssets', { assets: [asset], players, customNodeGraphEffect: { target: { customNodeGraphEffectId: 'customNodeGraphEffect' }, nodes: [node] } });
 		assert.equal(projectSession.renderEngine.canRender.value, false);
 		assert.ok(controllers.every(controller => controller.isReady.value === false));
-		manager.commit('setVisualModuleNodeResolution', { target: nodeTarget({ visualModuleId: 'visualModule', nodeId: node.id }), resolution: { mode: 'auto', scale: 0.5 } });
+		manager.commit('setCustomNodeGraphEffectNodeResolution', { target: nodeTarget({ customNodeGraphEffectId: 'customNodeGraphEffect', nodeId: node.id }), resolution: { mode: 'auto', scale: 0.5 } });
 		await projectSession.flushRendererProjectChanges();
 		await setImmediate();
 		assert.ok(controllers.every(controller => controller.patches.length === 0));
@@ -723,12 +723,12 @@ for (const [label, fileDataType, isExternalReference] of [
 // 表示名だけの変更では生成を破棄せず、起動後の通常編集では差分更新を維持する。
 test('restarts both previews after content and settings change during initialization and keeps live edits incremental', async t => {
 	const window = setup(t);
-	const { projectSession } = evaluateSession(project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [] }] }));
+	const { projectSession } = evaluateSession(project({ customNodeGraphEffects: [{ customParameterDefs: [], customParameterValues: {}, id: 'customNodeGraphEffect', name: 'Custom Node Graph Effect', nodes: [], paramDefs: [] }] }));
 	await startActiveProjectSession(projectSession);
 	t.after(() => projectSession.previewPlayback.dispose());
 	await projectSession.suspendPreview();
 	const gate = Promise.withResolvers();
-	const controllers = [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController];
+	const controllers = [projectSession.customNodeGraphEffectRendererManagerController, projectSession.timelineRendererManagerController];
 	const attempts = controllers.map(controller => {
 		const snapshots = [];
 		const initialize = controller.initialize.bind(controller);
@@ -746,9 +746,9 @@ test('restarts both previews after content and settings change during initializa
 	assert.ok(attempts.every(snapshots => snapshots.length === 1));
 	const generations = controllers.map(controller => controller.generation);
 	const manager = projectSession.projectContext.stateManager;
-	manager.commit('setVisualModuleName', { target: { visualModuleId: 'visualModule' }, name: 'Renamed' });
+	manager.commit('setCustomNodeGraphEffectName', { target: { customNodeGraphEffectId: 'customNodeGraphEffect' }, name: 'Renamed' });
 	assert.deepEqual(controllers.map(controller => controller.generation), generations);
-	const { nodeId: initialNodeId } = manager.commit('createVisualModuleEffectNode', { visualModule: { visualModuleId: 'visualModule' }, effectId: 'fill' });
+	const { nodeId: initialNodeId } = manager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect: { customNodeGraphEffectId: 'customNodeGraphEffect' }, effectId: 'fill' });
 	projectSession.highlightClipping.value = true;
 	projectSession.previewExposure.value = 2;
 	projectSession.previewWarningImageSource.value = 'previewAdjusted';
@@ -767,7 +767,7 @@ test('restarts both previews after content and settings change during initializa
 	assert.equal(controllers[1].initialStaticOptions.frameCacheMaxBytes, 1024 ** 3);
 	assert.equal(controllers[1].initialStaticOptions.frameCachePrecision, '8bit');
 	for (const controller of controllers) {
-		assert.equal(controller.options.visualModules[0].nodes[0].id, initialNodeId);
+		assert.equal(controller.options.customNodeGraphEffects[0].nodes[0].id, initialNodeId);
 		assert.equal(controller.options.highlightClipping, true);
 		assert.equal(controller.options.previewWarningImageSource, 'previewAdjusted');
 		assert.deepEqual(controller.options.previewGamutWarning, { enabled: true, referenceGamut: 'acescg', bounds: 'nonNegative' });
@@ -776,7 +776,7 @@ test('restarts both previews after content and settings change during initializa
 		assert.deepEqual(controller.options.previewGamutCompression, { mode: 'rec2020', customAmount: 0.37 });
 	}
 	assert.equal(projectSession.timelineRendererManagerController.staticOptions.previewFramesAhead, 0);
-	manager.commit('createVisualModuleEffectNode', { visualModule: { visualModuleId: 'visualModule' }, effectId: 'fill' });
+	manager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect: { customNodeGraphEffectId: 'customNodeGraphEffect' }, effectId: 'fill' });
 	await projectSession.flushRendererProjectChanges();
 	assert.ok(attempts.every(snapshots => snapshots.length === 2));
 	assert.ok(controllers.every(controller => controller.patches.length > 0));
@@ -787,7 +787,7 @@ test('restarts both previews after content and settings change during initializa
 // 遅れて完了した参照解決の無視と、Redoでの再取り込みを同じ実際の履歴経路で確認する。
 test('ignores obsolete asset preparation after undo and rebuilds the latest state on redo', async t => {
 	const window = setup(t);
-	const { projectSession, createVisualModuleAssetNode } = evaluateSession(project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [] }] }));
+	const { projectSession, createCustomNodeGraphEffectAssetNode } = evaluateSession(project({ customNodeGraphEffects: [{ customParameterDefs: [], customParameterValues: {}, id: 'customNodeGraphEffect', name: 'Custom Node Graph Effect', nodes: [], paramDefs: [] }] }));
 	await startActiveProjectSession(projectSession);
 	t.after(() => projectSession.previewPlayback.dispose());
 	const gate = Promise.withResolvers();
@@ -795,17 +795,17 @@ test('ignores obsolete asset preparation after undo and rebuilds the latest stat
 	window.desktop = { resolveExternalAsset: () => gate.promise };
 	const asset = { id: 'imported', name: 'Imported', width: 640, height: 480, fileDataType: 'image/png',
 																	fileData: source, sourceFilePath: 'C:/assets/imported', isExternalReference: true };
-	const { node } = createVisualModuleAssetNode(asset, []);
+	const { node } = createCustomNodeGraphEffectAssetNode(asset, []);
 	const manager = projectSession.projectContext.stateManager;
-	const controllers = [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController];
-	manager.commit('insertImportedAssets', { assets: [asset], players: [], visualModule: { target: { visualModuleId: 'visualModule' }, nodes: [node] } });
+	const controllers = [projectSession.customNodeGraphEffectRendererManagerController, projectSession.timelineRendererManagerController];
+	manager.commit('insertImportedAssets', { assets: [asset], players: [], customNodeGraphEffect: { target: { customNodeGraphEffectId: 'customNodeGraphEffect' }, nodes: [node] } });
 	await setImmediate();
 	manager.undo();
 	await setImmediate();
 	for (const controller of controllers) {
 		assert.equal(controller.isReady.value, true);
 		assert.deepEqual(controller.options.assets, []);
-		assert.deepEqual(controller.options.visualModules[0].nodes, []);
+		assert.deepEqual(controller.options.customNodeGraphEffects[0].nodes, []);
 		controller.lifecycle.length = 0;
 	}
 	gate.resolve(source);
@@ -817,7 +817,7 @@ test('ignores obsolete asset preparation after undo and rebuilds the latest stat
 	for (const controller of controllers) {
 		assert.equal(controller.isReady.value, true);
 		assert.equal(controller.options.assets[0].id, asset.id);
-		assert.equal(controller.options.visualModules[0].nodes[0].staticSettings.image, asset.id);
+		assert.equal(controller.options.customNodeGraphEffects[0].nodes[0].staticSettings.image, asset.id);
 		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 1);
 	}
 	// 再生成済みの旧ノードが存在する場合も、素材だけを先に削除して参照切れを起こさない。
@@ -828,7 +828,7 @@ test('ignores obsolete asset preparation after undo and rebuilds the latest stat
 	for (const controller of controllers) {
 		assert.equal(controller.isReady.value, true);
 		assert.deepEqual(controller.options.assets, []);
-		assert.deepEqual(controller.options.visualModules[0].nodes, []);
+		assert.deepEqual(controller.options.customNodeGraphEffects[0].nodes, []);
 	}
 });
 
@@ -865,39 +865,39 @@ test('cancels baking synchronously on metadata edits without adding bake history
 // レンダラー側で更新を拒否するとUIとWorkerの状態が食い違い、循環を直す編集も失敗する。
 test('keeps invalid projects editable and recreates both previews after correction', async t => {
 	setup(t);
-	const { projectSession } = evaluateSession(project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'invalid', paramDefs: [], nodes: [
+	const { projectSession } = evaluateSession(project({ customNodeGraphEffects: [{ customParameterDefs: [], customParameterValues: {}, id: 'invalid', paramDefs: [], nodes: [
 		{ id: 'effect', type: 'effect', effectId: 'fill', resolution: { mode: 'invalid' }, params: { color: { inputSource: 'literal', value: [1, 0, 0, 1] } } },
 	] }] }));
 	await startActiveProjectSession(projectSession);
 	assert.ok(projectSession.renderValidation.diagnostics.value.length > 0);
-	for (const controller of [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController]) assert.equal(controller.isReady.value, false);
-	projectSession.projectContext.stateManager.commit('removeVisualModuleNode', { target: { visualModule: { visualModuleId: 'invalid' }, nodeId: 'effect' } });
+	for (const controller of [projectSession.customNodeGraphEffectRendererManagerController, projectSession.timelineRendererManagerController]) assert.equal(controller.isReady.value, false);
+	projectSession.projectContext.stateManager.commit('removeCustomNodeGraphEffectNode', { target: { customNodeGraphEffect: { customNodeGraphEffectId: 'invalid' }, nodeId: 'effect' } });
 	assert.equal(projectSession.renderValidation.errorMessage.value, null);
 	await setImmediate();
-	for (const controller of [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController]) {
+	for (const controller of [projectSession.customNodeGraphEffectRendererManagerController, projectSession.timelineRendererManagerController]) {
 		assert.equal(controller.isReady.value, true);
-		assert.deepEqual(controller.options.visualModules[0].nodes, []);
+		assert.deepEqual(controller.options.customNodeGraphEffects[0].nodes, []);
 	}
 });
 
-// 【Visual Module Live Preview引数だけの静的エラーは、Timelineへ切り替えると診断解除と再生成を行う】
+// 【Custom Node Graph Effect Live Preview引数だけの静的エラーは、Timelineへ切り替えると診断解除と再生成を行う】
 // プレビュー対象の変更はProjectの編集通知を出さない。
 // エラー表示だけが消えてWorkerを持たない状態のままにならないよう、両エンジンの復帰を確認する。
-test('recreates previews after switching away from invalid visualModuleLivePreview inputs', async t => {
+test('recreates previews after switching away from invalid customNodeGraphEffectLivePreview inputs', async t => {
 	setup(t);
-	const { projectSession } = evaluateSession(project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'visualModule', nodes: [], paramDefs: [{
+	const { projectSession } = evaluateSession(project({ customNodeGraphEffects: [{ customParameterDefs: [], customParameterValues: {}, id: 'customNodeGraphEffect', nodes: [], paramDefs: [{
 		id: 'audio', nameForReference: 'audio', dataType: { kind: 'audioSource' }, canNode: false,
 		ui: { label: 'Audio', control: { controlType: 'audioSource' } }, defaultValue: { inputSource: 'literal', value: null },
 	}] }] }));
 	await startActiveProjectSession(projectSession);
-	projectSession.previewPlayback.updateVisualModuleLivePreviewParamValues('visualModule', { audio: { inputSource: 'literal', value: { type: 'player', playerId: 'missing' } } });
+	projectSession.previewPlayback.updateCustomNodeGraphEffectLivePreviewParamValues('customNodeGraphEffect', { audio: { inputSource: 'literal', value: { type: 'player', playerId: 'missing' } } });
 	assert.ok(projectSession.renderValidation.diagnostics.value.length > 0);
 	assert.equal(projectSession.timelineRendererManagerController.isReady.value, false);
 	projectSession.previewPlayback.showTimeline();
 	assert.equal(projectSession.renderValidation.errorMessage.value, null);
 	await setImmediate();
 	assert.equal(projectSession.renderEngine.errorMessage.value, null);
-	for (const controller of [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController]) {
+	for (const controller of [projectSession.customNodeGraphEffectRendererManagerController, projectSession.timelineRendererManagerController]) {
 		assert.equal(controller.isReady.value, true);
 	}
 	assert.equal(projectSession.previewPlayback.state.value.mode, 'timeline');
@@ -912,7 +912,7 @@ test('updates shader definitions in both existing previews and restarts only aft
 	const projectSession = createStandaloneSession(app);
 	await startActiveProjectSession(projectSession);
 	t.after(() => projectSession.previewPlayback.dispose());
-	const controllers = [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController];
+	const controllers = [projectSession.customNodeGraphEffectRendererManagerController, projectSession.timelineRendererManagerController];
 	const initialLifecycles = controllers.map(controller => [...controller.lifecycle]);
 	const manager = projectSession.projectContext.stateManager;
 	const customShaderEffect = app.createProjectCustomShaderEffect([]);
@@ -926,13 +926,13 @@ test('updates shader definitions in both existing previews and restarts only aft
 	const updated = { ...customShaderEffect, code: 'unfinished WGSL is still saved' };
 	manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: (updated).id, definition: updated });
 	await setImmediate();
-	for (const controller of [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController]) {
+	for (const controller of [projectSession.customNodeGraphEffectRendererManagerController, projectSession.timelineRendererManagerController]) {
 		assert.equal(controller.options.customShaderEffects[0].code, updated.code);
 		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 1);
 	}
 	manager.undo();
 	await setImmediate();
-	for (const controller of [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController]) {
+	for (const controller of [projectSession.customNodeGraphEffectRendererManagerController, projectSession.timelineRendererManagerController]) {
 		assert.equal(controller.options.customShaderEffects[0].code, customShaderEffect.code);
 		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 1);
 	}
@@ -955,7 +955,7 @@ test('synchronizes analysis targets and valid value scales across both previews 
 	setup(t);
 	const { projectSession } = evaluateSession();
 	await startActiveProjectSession(projectSession);
-	const controllers = [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController];
+	const controllers = [projectSession.customNodeGraphEffectRendererManagerController, projectSession.timelineRendererManagerController];
 	for (const target of ['alpha', 'vectorX', 'vectorY', 'vectorLength']) {
 		projectSession.analysisTarget.value = target;
 		await setImmediate();
@@ -999,7 +999,7 @@ test('synchronizes independent preset and custom analysis ranges across scales a
 	setup(t);
 	const { projectSession } = evaluateSession();
 	await startActiveProjectSession(projectSession);
-	const controllers = [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController];
+	const controllers = [projectSession.customNodeGraphEffectRendererManagerController, projectSession.timelineRendererManagerController];
 	for (const scale of ['srgb', 'linear', 'ev']) {
 		projectSession.analysisValueScale.value = scale;
 		for (const [preset, minimum, maximum] of [['zeroToOne', 0, 1], ['minusOneToOne', -1, 1], ['minusOneToFour', -1, 4], ['minusHalfToHalf', -0.5, 0.5], ['minusTenToTen', -10, 10], ['custom', 0, 1]]) {
@@ -1037,14 +1037,14 @@ for (const [setting, change, inspect] of [
 	}],
 	['effect render tiling', () => { window.testPreferences.effectRenderTiling = { mode: 'manual', tileSize: 256 }; }, projectSession => {
 		assert.deepEqual(projectSession.timelineRendererManagerController.initialStaticOptions.effectRenderTiling, { mode: 'manual', tileSize: 256 });
-		assert.deepEqual(projectSession.visualModuleRendererManagerController.initialStaticOptions.effectRenderTiling, { mode: 'manual', tileSize: 256 });
+		assert.deepEqual(projectSession.customNodeGraphEffectRendererManagerController.initialStaticOptions.effectRenderTiling, { mode: 'manual', tileSize: 256 });
 	}],
 	['GPU precision', () => { window.testPreferences.enable32bitDataTextures = true; }, projectSession => {
 		assert.equal(projectSession.timelineRendererManagerController.initialStaticOptions.enable32bitDataTextures, true);
 	}],
 	['timeline preview fps', projectSession => { projectSession.timelinePreviewFpsFactor.value = 2; }],
-	['visualModuleLivePreview fps limit', projectSession => { projectSession.visualModuleLivePreviewFpsLimit.value = 24; }],
-	['visualModuleLivePreview time factor', projectSession => { projectSession.visualModuleLivePreviewTimeFactor.value = 0.5; }],
+	['customNodeGraphEffectLivePreview fps limit', projectSession => { projectSession.customNodeGraphEffectLivePreviewFpsLimit.value = 24; }],
+	['customNodeGraphEffectLivePreview time factor', projectSession => { projectSession.customNodeGraphEffectLivePreviewTimeFactor.value = 0.5; }],
 	['clipping display', projectSession => { projectSession.highlightClipping.value = true; }],
 	['warning image source', projectSession => { projectSession.previewWarningImageSource.value = 'previewAdjusted'; }],
 	['gamut warning', projectSession => { projectSession.previewGamutWarning.value = { enabled: true, referenceGamut: 'srgb', bounds: 'unit' }; }],
@@ -1060,7 +1060,7 @@ for (const [setting, change, inspect] of [
 	change(projectSession);
 	await setImmediate();
 	assert.equal(projectSession.renderEngine.errorMessage.value, null);
-	for (const controller of [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController]) {
+	for (const controller of [projectSession.customNodeGraphEffectRendererManagerController, projectSession.timelineRendererManagerController]) {
 		assert.equal(controller.isReady.value, true);
 		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 2);
 	}
@@ -1123,38 +1123,38 @@ test('freezes prepared speech during playback and stops for utterance edits and 
 	} finally { playback.dispose(); }
 });
 
-// 【取り込んだVisual ModuleのUndoではVisual Module Live Preview対象と両レンダラーの定義を解除する】
-// Workerだけを停止するとプレビューのモードがVisual Module Live Previewのまま残り、再起動時に削除済みの対象を再開してしまう。
+// 【取り込んだCustom Node Graph EffectのUndoではCustom Node Graph Effect Live Preview対象と両レンダラーの定義を解除する】
+// Workerだけを停止するとプレビューのモードがCustom Node Graph Effect Live Previewのまま残り、再起動時に削除済みの対象を再開してしまう。
 // ProjectSessionContextの履歴購読まで実コードで通し、Redoでは意図せず自動再生しないことも確認する。
-test('leaves Visual Module Live Preview when an imported Visual Module is undone and restores its registration on redo', async t => {
+test('leaves Custom Node Graph Effect Live Preview when an imported Custom Node Graph Effect is undone and restores its registration on redo', async t => {
 	setup(t);
 	const { projectSession } = evaluateSession();
 	await startActiveProjectSession(projectSession);
 	const manager = projectSession.projectContext.stateManager;
-	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'imported', name: 'Imported Visual Module', nodes: [], paramDefs: [], outputDefs: [],
+	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, id: 'imported', name: 'Imported Custom Node Graph Effect', nodes: [], paramDefs: [], outputDefs: [],
 																								primaryInputId: null, primaryOutputId: null, automationGraphs: [] };
-	manager.commit('importVisualModule', { visualModule, assets: [], players: [], unassignedPlayerNames: [] });
+	manager.commit('importCustomNodeGraphEffect', { customNodeGraphEffect, assets: [], players: [], unassignedPlayerNames: [] });
 	await setImmediate();
-	const visualModuleLivePreview = projectSession.visualModuleRendererManagerController;
+	const customNodeGraphEffectLivePreview = projectSession.customNodeGraphEffectRendererManagerController;
 	const timeline = projectSession.timelineRendererManagerController;
-	assert.ok(visualModuleLivePreview.options.visualModules.some(entry => entry.id === 'imported'));
-	assert.ok(timeline.options.visualModules.some(entry => entry.id === 'imported'));
-	projectSession.previewPlayback.startVisualModuleLivePreview('imported');
+	assert.ok(customNodeGraphEffectLivePreview.options.customNodeGraphEffects.some(entry => entry.id === 'imported'));
+	assert.ok(timeline.options.customNodeGraphEffects.some(entry => entry.id === 'imported'));
+	projectSession.previewPlayback.startCustomNodeGraphEffectLivePreview('imported');
 	manager.undo();
-	assert.equal(projectSession.previewPlayback.visualModuleLivePreviewVisualModuleId.value, null);
+	assert.equal(projectSession.previewPlayback.livePreviewCustomNodeGraphEffectId.value, null);
 	assert.equal(projectSession.previewPlayback.state.value.mode, 'timeline');
 	await setImmediate();
-	assert.ok(!visualModuleLivePreview.options.visualModules.some(entry => entry.id === 'imported'));
-	assert.ok(!timeline.options.visualModules.some(entry => entry.id === 'imported'));
+	assert.ok(!customNodeGraphEffectLivePreview.options.customNodeGraphEffects.some(entry => entry.id === 'imported'));
+	assert.ok(!timeline.options.customNodeGraphEffects.some(entry => entry.id === 'imported'));
 	manager.redo();
 	await setImmediate();
-	assert.ok(visualModuleLivePreview.options.visualModules.some(entry => entry.id === 'imported'));
-	assert.ok(timeline.options.visualModules.some(entry => entry.id === 'imported'));
-	assert.equal(projectSession.previewPlayback.visualModuleLivePreviewVisualModuleId.value, null);
+	assert.ok(customNodeGraphEffectLivePreview.options.customNodeGraphEffects.some(entry => entry.id === 'imported'));
+	assert.ok(timeline.options.customNodeGraphEffects.some(entry => entry.id === 'imported'));
+	assert.equal(projectSession.previewPlayback.livePreviewCustomNodeGraphEffectId.value, null);
 });
 
 // 【描画設定を保存・復元し、Undo/Redoでもタイムラインだけへ同期する】
-// プレビュー用の値だけが変わって保存から漏れたり、Visual Module Live Preview側のfps制限を書き換えたりしないことを保証する。
+// プレビュー用の値だけが変わって保存から漏れたり、Custom Node Graph Effect Live Preview側のfps制限を書き換えたりしないことを保証する。
 test('persists timeline render settings and recreates both previews through undo and redo', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
@@ -1164,10 +1164,10 @@ test('persists timeline render settings and recreates both previews through undo
 	const notifications = [];
 	manager.onChange(changes => notifications.push(changes));
 	const settings = { timelineFps: 29.97, timelineMotionBlur: { enabled: true, shutterAngle: 270, samples: 32 } };
-	const visualModuleLivePreview = projectSession.visualModuleRendererManagerController;
+	const customNodeGraphEffectLivePreview = projectSession.customNodeGraphEffectRendererManagerController;
 	const timeline = projectSession.timelineRendererManagerController;
-	visualModuleLivePreview.updates.length = 0;
-	visualModuleLivePreview.staticUpdates.length = 0;
+	customNodeGraphEffectLivePreview.updates.length = 0;
+	customNodeGraphEffectLivePreview.staticUpdates.length = 0;
 	timeline.staticUpdates.length = 0;
 	timeline.updates.length = 0;
 	manager.commit('setTimelineRenderSettings', settings);
@@ -1178,8 +1178,8 @@ test('persists timeline render settings and recreates both previews through undo
 	assert.deepEqual(timeline.staticOptions.timelineMotionBlur, previewSettings.timelineMotionBlur);
 	assert.deepEqual(timeline.staticUpdates.map(options => ({ timelineFps: options.timelineFps, timelineMotionBlur: options.timelineMotionBlur })), [previewSettings]);
 	assert.deepEqual(timeline.updates, [{ previewFps: settings.timelineFps * projectSession.timelinePreviewFpsFactor.value }]);
-	assert.equal(visualModuleLivePreview.updates.length, 0);
-	assert.ok(visualModuleLivePreview.staticUpdates.length > 0);
+	assert.equal(customNodeGraphEffectLivePreview.updates.length, 0);
+	assert.ok(customNodeGraphEffectLivePreview.staticUpdates.length > 0);
 	manager.undo();
 	await nextTick();
 	await projectSession.renderEngine.retry();
@@ -1385,7 +1385,7 @@ test('uses project render settings with motion blur sampling disabled for the in
 	assert.ok(timeline.updates.every(options => !('timelineFps' in options) && !('timelineMotionBlur' in options)));
 });
 
-// 【プレビューのブラー品質はUIだけで保持し、プロジェクト・Undo履歴・Visual Module Live Previewには反映しない】
+// 【プレビューのブラー品質はUIだけで保持し、プロジェクト・Undo履歴・Custom Node Graph Effect Live Previewには反映しない】
 // プレビューをオフにしても書き出し用サンプル数を失わず、プロジェクトの有効設定は維持する。
 // 読み込み時は保存された書き出し設定を復元し、プレビューは既定の0サンプルへ戻す。
 test('keeps preview motion blur samples separate from project settings and saved files', async t => {
@@ -1400,8 +1400,8 @@ test('keeps preview motion blur samples separate from project settings and saved
 	await projectSession.renderEngine.retry();
 	const historyLength = manager.undoStack.value.length;
 	const timeline = projectSession.timelineRendererManagerController;
-	const visualModuleLivePreview = projectSession.visualModuleRendererManagerController;
-	visualModuleLivePreview.staticUpdates.length = 0;
+	const customNodeGraphEffectLivePreview = projectSession.customNodeGraphEffectRendererManagerController;
+	customNodeGraphEffectLivePreview.staticUpdates.length = 0;
 	assert.deepEqual([...app.TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS], [0, 2, 4, 8]);
 	for (const samples of [2, 4, 8, 0]) {
 		projectSession.timelinePreviewMotionBlurSamples.value = samples;
@@ -1411,7 +1411,7 @@ test('keeps preview motion blur samples separate from project settings and saved
 		assert.deepEqual(manager.state.timelineMotionBlur.value, settings.timelineMotionBlur);
 		assert.equal(manager.undoStack.value.length, historyLength);
 	}
-	assert.ok(visualModuleLivePreview.staticUpdates.length > 0);
+	assert.ok(customNodeGraphEffectLivePreview.staticUpdates.length > 0);
 	manager.undo();
 	await nextTick();
 	await projectSession.renderEngine.retry();
@@ -1441,9 +1441,9 @@ test('keeps preview motion blur samples separate from project settings and saved
 	assert.equal(restoredSession.projectContext.stateManager.state.timelineMotionBlur.value.samples, 32);
 });
 
-// 【倍率はタイムラインの描画頻度だけを変更し、Visual Module Live Previewのfps制限は干渉しない】
+// 【倍率はタイムラインの描画頻度だけを変更し、Custom Node Graph Effect Live Previewのfps制限は干渉しない】
 // appの実際の接続と再生スケジューラを使い、独立した設定が再び混線するのを防ぐ。
-test('applies timeline preview factors independently of the Visual Module Live Preview fps limit', async t => {
+test('applies timeline preview factors independently of the Custom Node Graph Effect Live Preview fps limit', async t => {
 	const window = setup(t);
 	const callbacks = new Map();
 	let nextId = 0;
@@ -1454,11 +1454,11 @@ test('applies timeline preview factors independently of the Visual Module Live P
 	const { projectSession } = app;
 	t.after(() => projectSession.previewPlayback.dispose());
 	projectSession.timelineRendererManagerController.staticUpdates.length = 0;
-	const measure = (factor, visualModuleLivePreviewFpsLimit) => {
+	const measure = (factor, customNodeGraphEffectLivePreviewFpsLimit) => {
 		projectSession.previewPlayback.pauseTimeline();
 		projectSession.previewPlayback.seekTimeline(0);
 		projectSession.timelinePreviewFpsFactor.value = factor;
-		projectSession.visualModuleLivePreviewFpsLimit.value = visualModuleLivePreviewFpsLimit;
+		projectSession.customNodeGraphEffectLivePreviewFpsLimit.value = customNodeGraphEffectLivePreviewFpsLimit;
 		projectSession.previewPlayback.playTimeline();
 		const timeline = projectSession.timelineRendererManagerController;
 		timeline.renders.length = 0;
@@ -1605,7 +1605,7 @@ test('backs up before preview startup and clears timers and unsaved state on dis
 	assert.equal(backups[0].id, handle.id);
 	assert.equal(backups[0].project.name, 'Before startup');
 	assert.equal(projectSession.hasUnsavedChanges.value, true);
-	assert.equal(projectSession.visualModuleRendererManagerController.isReady.value, false);
+	assert.equal(projectSession.customNodeGraphEffectRendererManagerController.isReady.value, false);
 	const closing = projectSession.dispose();
 	assert.equal(projectSession.hasUnsavedChanges.value, false);
 	assert.equal(timers.size, 0);
@@ -1907,7 +1907,7 @@ test('creates a new project from a media path and chooses a separate project sav
 	assert.deepEqual({ ...manager.state.resolution.value }, { width: 640, height: 360 });
 	assert.equal(manager.state.assets.value[0].sourceFilePath, filePath);
 	assert.equal(manager.state.assets.value[0].fileDataType, 'image/png');
-	assert.equal(manager.state.visualModules.value[0].nodes.find(node => node.type === 'effect').effectId, 'image');
+	assert.equal(manager.state.customNodeGraphEffects.value[0].nodes.find(node => node.type === 'effect').effectId, 'image');
 	const handle = fileHandle('from-os-image.gsproj');
 	let saveSelections = 0;
 	window.selectProjectSaveFile = async () => { saveSelections++; return handle; };
@@ -2246,7 +2246,7 @@ test('tracks unsaved content across undo, redo, continuous edits and direct chan
 	await projectSession.saveProject();
 	assert.equal(projectSession.hasUnsavedChanges.value, false);
 	const manager = projectSession.projectContext.stateManager;
-	manager.commit('createVisualModuleEffectNode', { visualModule: { visualModuleId: manager.state.visualModules.value[0].id }, effectId: 'fill' });
+	manager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect: { customNodeGraphEffectId: manager.state.customNodeGraphEffects.value[0].id }, effectId: 'fill' });
 	assert.equal(projectSession.hasUnsavedChanges.value, true);
 	manager.undo();
 	assert.equal(projectSession.hasUnsavedChanges.value, false);
@@ -2342,7 +2342,7 @@ test('saves editable project information, updates the title and preserves undo h
 	const { projectSession } = app;
 	const manager = projectSession.projectContext.stateManager;
 	assert.deepEqual([manager.state.name.value, manager.state.description.value, manager.state.author.value], ['', '', '']);
-	manager.commit('createVisualModuleEffectNode', { visualModule: { visualModuleId: manager.state.visualModules.value[0].id }, effectId: 'fill' });
+	manager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect: { customNodeGraphEffectId: manager.state.customNodeGraphEffects.value[0].id }, effectId: 'fill' });
 	manager.undo();
 	const undoCount = manager.undoStack.value.length;
 	const redoCount = manager.redoStack.value.length;
@@ -2613,15 +2613,15 @@ test('shows a future-version error without changing the current project or Save 
 	window.selectProjectSaveFile = async () => currentHandle;
 	await projectSession.saveProject();
 	const manager = projectSession.projectContext.stateManager;
-	manager.commit('createVisualModuleEffectNode', { visualModule: { visualModuleId: manager.state.visualModules.value[0].id }, effectId: 'fill' });
-	const modules = manager.state.visualModules.value;
+	manager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect: { customNodeGraphEffectId: manager.state.customNodeGraphEffects.value[0].id }, effectId: 'fill' });
+	const customNodeGraphEffects = manager.state.customNodeGraphEffects.value;
 	const undoCount = manager.undoStack.value.length;
 	const future = project({ gsVersion: '2.0.0', name: 'Future project' });
 	const futureHandle = fileHandle('future.gsproj', { bytes: await encodeProjectFile(future) });
 	window.showOpenFilePicker = async () => [futureHandle];
 	assert.equal(await app.openProject(), false);
 	assert.equal(projectSession.projectContext.stateManager.state.name.value, 'Current project');
-	assert.equal(manager.state.visualModules.value, modules);
+	assert.equal(manager.state.customNodeGraphEffects.value, customNodeGraphEffects);
 	assert.equal(manager.undoStack.value.length, undoCount);
 	assert.ok(window.document.title.includes('Current project'));
 	assert.equal(globalThis.projectAlerts.length, 1);
@@ -2648,13 +2648,13 @@ test('passes unscaled project dimensions and resets the preview scale for smalle
 		const file = new File([await encodeProjectFile(project({ resolution }))], 'resolution.gsproj');
 		assert.equal(await app.openProject(file), true);
 		assert.equal(app.projectSession.resolutionFactor.value, factor);
-		for (const controller of [app.projectSession.visualModuleRendererManagerController, app.projectSession.timelineRendererManagerController]) {
+		for (const controller of [app.projectSession.customNodeGraphEffectRendererManagerController, app.projectSession.timelineRendererManagerController]) {
 			assert.deepEqual(controller.options.resolution, resolution);
 			assert.equal(controller.options.resolutionScale, factor);
 		}
 		assert.deepEqual(app.projectSession.projectContext.stateManager.state.resolution.value, resolution);
 	}
-	for (const controller of [app.projectSession.visualModuleRendererManagerController, app.projectSession.timelineRendererManagerController]) {
+	for (const controller of [app.projectSession.customNodeGraphEffectRendererManagerController, app.projectSession.timelineRendererManagerController]) {
 		// 別セッションでも、そのプロジェクトの基準寸法からエンジンを初期化する。
 		assert.deepEqual(controller.initialResolution, { width: 1500, height: 1500 });
 		assert.equal(controller.initialResolutionScale, 1);
@@ -2667,40 +2667,40 @@ test('passes unscaled project dimensions and resets the preview scale for smalle
 test('synchronizes both previews and routes timeline-only edits', async t => {
 	setup(t);
 	const app = evaluate(appBundle);
-	const first = project({ visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'first', nodes: [], paramDefs: [] }] });
+	const first = project({ customNodeGraphEffects: [{ customParameterDefs: [], customParameterValues: {}, id: 'first', nodes: [], paramDefs: [] }] });
 	const projectSession = createStandaloneSession(app, first);
 	await startActiveProjectSession(projectSession);
-	const visualModuleLivePreview = projectSession.visualModuleRendererManagerController;
+	const customNodeGraphEffectLivePreview = projectSession.customNodeGraphEffectRendererManagerController;
 	const timeline = projectSession.timelineRendererManagerController;
-	assert.equal(projectSession.activePreviewRenderer.value, visualModuleLivePreview);
-	assert.deepEqual(visualModuleLivePreview.options.visualModules, first.visualModules);
-	assert.deepEqual(timeline.options.visualModules, first.visualModules);
-	assert.equal('timelineScenes' in visualModuleLivePreview.options, false);
+	assert.equal(projectSession.activePreviewRenderer.value, customNodeGraphEffectLivePreview);
+	assert.deepEqual(customNodeGraphEffectLivePreview.options.customNodeGraphEffects, first.customNodeGraphEffects);
+	assert.deepEqual(timeline.options.customNodeGraphEffects, first.customNodeGraphEffects);
+	assert.equal('timelineScenes' in customNodeGraphEffectLivePreview.options, false);
 	projectSession.previewPlayback.seekTimeline(500);
 	assert.equal(projectSession.activePreviewRenderer.value, timeline);
 	timeline.renders.length = 0;
-	projectSession.projectContext.stateManager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'first', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [] }] } });
+	projectSession.projectContext.stateManager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [{ id: 'layer', layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'first', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], customNodeGraphEffectParamValues: {}, compositingParamValues: {}, automationGraphs: [] }] } });
 	await nextTick();
 	await setImmediate();
-	assert.equal('timelineScenes' in visualModuleLivePreview.options, false);
+	assert.equal('timelineScenes' in customNodeGraphEffectLivePreview.options, false);
 	assert.equal(timeline.options.timelineScenes[0].layers[0].id, 'layer');
 	assert.deepEqual(timeline.patches.at(-1).map(change => change.type), ['layer', 'layerOrder']);
-	assert.equal(visualModuleLivePreview.patches.length, 0);
+	assert.equal(customNodeGraphEffectLivePreview.patches.length, 0);
 	assert.deepEqual(timeline.renders, [500]);
 	projectSession.highlightClipping.value = true;
 	await nextTick();
 	await setImmediate();
-	assert.equal(visualModuleLivePreview.options.highlightClipping, true);
+	assert.equal(customNodeGraphEffectLivePreview.options.highlightClipping, true);
 	assert.equal(timeline.options.highlightClipping, true);
 	assert.equal(timeline.renders.at(-1), 500);
 	const snapshotBeforeExposure = projectSession.projectContext.snapshot();
-	const initializationsBeforeExposure = [visualModuleLivePreview, timeline].map(controller => controller.lifecycle.filter(event => event === 'initialize').length);
+	const initializationsBeforeExposure = [customNodeGraphEffectLivePreview, timeline].map(controller => controller.lifecycle.filter(event => event === 'initialize').length);
 	// 判定対象だけの変更も両Workerへ同期し、停止中の表示・作品・既存の描画資源を保つ。
 	for (const imageSource of ['previewAdjusted', 'original']) {
 		projectSession.previewWarningImageSource.value = imageSource;
 		await nextTick();
 		await setImmediate();
-		for (const [index, controller] of [visualModuleLivePreview, timeline].entries()) {
+		for (const [index, controller] of [customNodeGraphEffectLivePreview, timeline].entries()) {
 			assert.equal(controller.options.previewWarningImageSource, imageSource);
 			assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, initializationsBeforeExposure[index]);
 		}
@@ -2714,7 +2714,7 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 				projectSession.previewGamutWarning.value = { enabled, referenceGamut, bounds };
 				await nextTick();
 				await setImmediate();
-				for (const [index, controller] of [visualModuleLivePreview, timeline].entries()) {
+				for (const [index, controller] of [customNodeGraphEffectLivePreview, timeline].entries()) {
 					assert.deepEqual(controller.options.previewGamutWarning, { enabled, referenceGamut, bounds });
 					assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, initializationsBeforeExposure[index]);
 				}
@@ -2726,7 +2726,7 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	projectSession.previewExposure.value = -2;
 	await nextTick();
 	await setImmediate();
-	for (const [index, controller] of [visualModuleLivePreview, timeline].entries()) {
+	for (const [index, controller] of [customNodeGraphEffectLivePreview, timeline].entries()) {
 		assert.equal(controller.options.previewExposure, -2);
 		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, initializationsBeforeExposure[index]);
 	}
@@ -2737,7 +2737,7 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 		projectSession.previewGamutCompression.value = { mode, customAmount: 0.37 };
 		await nextTick();
 		await setImmediate();
-		for (const [index, controller] of [visualModuleLivePreview, timeline].entries()) {
+		for (const [index, controller] of [customNodeGraphEffectLivePreview, timeline].entries()) {
 			assert.deepEqual(controller.options.previewGamutCompression, { mode, customAmount: 0.37 });
 			assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, initializationsBeforeExposure[index]);
 		}
@@ -2749,7 +2749,7 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 		projectSession.previewSrgbProof.value = enabled;
 		await nextTick();
 		await setImmediate();
-		for (const [index, controller] of [visualModuleLivePreview, timeline].entries()) {
+		for (const [index, controller] of [customNodeGraphEffectLivePreview, timeline].entries()) {
 			assert.equal(controller.options.previewSrgbProof, enabled);
 			assert.deepEqual(controller.options.previewGamutCompression, compressionBeforeProof);
 			assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, initializationsBeforeExposure[index]);
@@ -2760,8 +2760,8 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	await projectSession.dispose();
 	const nextSession = createStandaloneSession(app);
 	await nextSession.start();
-	assert.deepEqual(nextSession.visualModuleRendererManagerController.options.visualModules, []);
-	assert.deepEqual(nextSession.timelineRendererManagerController.options.visualModules, []);
+	assert.deepEqual(nextSession.customNodeGraphEffectRendererManagerController.options.customNodeGraphEffects, []);
+	assert.deepEqual(nextSession.timelineRendererManagerController.options.customNodeGraphEffects, []);
 	assert.deepEqual(nextSession.timelineRendererManagerController.options.timelineScenes[0].layers, []);
 	await nextSession.dispose();
 });
@@ -2777,10 +2777,10 @@ test('refreshes audio only for audio content, source files or loop duration chan
 	window.cancelAnimationFrame = () => {};
 	const app = evaluate(appBundle);
 	const projectSession = createStandaloneSession(app, project({
-		visualModules: [{ customParameterDefs: [], customParameterValues: {}, id: 'module', nodes: [], paramDefs: [] }],
+		customNodeGraphEffects: [{ customParameterDefs: [], customParameterValues: {}, id: 'customNodeGraphEffect', nodes: [], paramDefs: [] }],
 		assets: [{ id: 'audio', name: 'sound.wav', fileData: new Blob(['audio']) }, { id: 'image', fileData: new Blob(['image']) }],
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
-			{ id: 'visual', isDisabled: false, layerType: 'visualModule', visualModuleId: 'module', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 10000 }], visualModuleParamValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
+			{ id: 'visual', isDisabled: false, layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 10000 }], customNodeGraphEffectParamValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
 			{ id: 'audio', isDisabled: false, layerType: 'audio', name: 'Layer', clips: [{ id: 'clip', startMs: 0, sourceInMs: 0, sourceOutMs: 5000, playbackRate: 1, loop: false, durationMs: 5000, assetId: 'audio' }], audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
 		] }],
 	}));
@@ -2856,16 +2856,16 @@ test('waits for both preview workers before restoring the paused timeline', asyn
 	await startActiveProjectSession(projectSession);
 	// 精密シークの位置もWorker再生成をまたいで丸めず復元する。
 	projectSession.previewPlayback.seekTimeline(123, true, 'precise');
-	const visualModuleLivePreview = projectSession.visualModuleRendererManagerController;
+	const customNodeGraphEffectLivePreview = projectSession.customNodeGraphEffectRendererManagerController;
 	const timeline = projectSession.timelineRendererManagerController;
 	await projectSession.suspendPreview();
-	assert.equal(visualModuleLivePreview.isReady.value, false);
+	assert.equal(customNodeGraphEffectLivePreview.isReady.value, false);
 	assert.equal(timeline.isReady.value, false);
 	assert.equal(projectSession.renderEngine.isSuspended.value, true);
 	assert.equal(projectSession.audioOutput.preview.suspended, true);
 	timeline.renders.length = 0;
 	const gate = Promise.withResolvers();
-	visualModuleLivePreview.initialize = async () => { await gate.promise; visualModuleLivePreview.isReady.value = true; };
+	customNodeGraphEffectLivePreview.initialize = async () => { await gate.promise; customNodeGraphEffectLivePreview.isReady.value = true; };
 	const restarting = projectSession.resumePreview();
 	await setImmediate();
 	assert.equal(timeline.isReady.value, true);
@@ -2886,7 +2886,7 @@ test('does not resume audio monitor rendering after a newer preview suspension',
 	await startActiveProjectSession(projectSession);
 	await projectSession.suspendPreview();
 	const gate = Promise.withResolvers();
-	projectSession.visualModuleRendererManagerController.initialize = async () => { await gate.promise; };
+	projectSession.customNodeGraphEffectRendererManagerController.initialize = async () => { await gate.promise; };
 	const restarting = projectSession.resumePreview();
 	await setImmediate();
 	await projectSession.suspendPreview();
@@ -2906,7 +2906,7 @@ test('keeps playback suspended and waits for the other worker after a restart fa
 	await projectSession.suspendPreview();
 	const timeline = projectSession.timelineRendererManagerController;
 	timeline.renders.length = 0;
-	projectSession.visualModuleRendererManagerController.initialize = async () => { throw new Error('GPU unavailable'); };
+	projectSession.customNodeGraphEffectRendererManagerController.initialize = async () => { throw new Error('GPU unavailable'); };
 	const gate = Promise.withResolvers();
 	timeline.initialize = async () => { await gate.promise; timeline.isReady.value = true; };
 	let settled = false;
@@ -3320,13 +3320,13 @@ test('loads snapshots and synchronizes project Automation Graph definitions to b
 	await startActiveProjectSession(projectSession);
 	const context = projectSession.projectContext;
 	assert.deepEqual(context.snapshot().automationGraphs, [automationGraph]);
-	for (const renderer of [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController]) {
+	for (const renderer of [projectSession.customNodeGraphEffectRendererManagerController, projectSession.timelineRendererManagerController]) {
 		assert.deepEqual(renderer.options.automationGraphs, [automationGraph]);
 	}
 	context.stateManager.commit('replaceProjectAutomationGraph', { automationGraphId: ({ ...automationGraph, nameForReference: 'Renamed' }).id, definition: { ...automationGraph, nameForReference: 'Renamed' } });
 	await nextTick();
 	await setImmediate();
-	for (const renderer of [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController]) {
+	for (const renderer of [projectSession.customNodeGraphEffectRendererManagerController, projectSession.timelineRendererManagerController]) {
 		assert.equal(renderer.options.automationGraphs[0].nameForReference, 'Renamed');
 	}
 	assert.equal(context.snapshot().automationGraphs[0].id, automationGraph.id);
@@ -3342,9 +3342,9 @@ test('disposes one session without restarting its renderers or stopping another 
 	const other = createStandaloneSession(app);
 	await startActiveProjectSession(projectSession);
 	await startActiveProjectSession(other);
-	const renderer = projectSession.visualModuleRendererManagerController;
+	const renderer = projectSession.customNodeGraphEffectRendererManagerController;
 	const initializations = renderer.snapshots.length;
-	const otherInitializations = other.visualModuleRendererManagerController.snapshots.length;
+	const otherInitializations = other.customNodeGraphEffectRendererManagerController.snapshots.length;
 	assert.equal(projectSession.projectContext.isDisposed, false);
 	const disposal = projectSession.dispose();
 	assert.equal(projectSession.dispose(), disposal);
@@ -3362,7 +3362,7 @@ test('disposes one session without restarting its renderers or stopping another 
 	await setImmediate();
 	assert.equal(renderer.snapshots.length, initializations);
 	assert.equal(renderer.isReady.value, false);
-	assert.ok(other.visualModuleRendererManagerController.snapshots.length > otherInitializations);
+	assert.ok(other.customNodeGraphEffectRendererManagerController.snapshots.length > otherInitializations);
 	await other.dispose();
 	assert.equal(window.listeners.get('focus').size, 0);
 });
@@ -3378,7 +3378,7 @@ test('observes edits and scene selection before startup and synchronizes once af
 		id, name: id, resolution: { mode: 'project' }, layers: [],
 	})) })));
 	const playback = projectSession.previewPlayback;
-	const controllers = [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController];
+	const controllers = [projectSession.customNodeGraphEffectRendererManagerController, projectSession.timelineRendererManagerController];
 	const manager = projectSession.projectContext.stateManager;
 	const automationGraph = { id: 'curve', nameForReference: 'Curve', isNormalized: false, points: [
 		{ id: 'point', x: 0, y: 0.5, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
@@ -3437,9 +3437,9 @@ test('does not initialize renderers after a session closes during project loadin
 	completeRegistration.resolve();
 	await loading;
 	assert.equal(schedule.mock.callCount(), 0);
-	assert.equal(projectSession.visualModuleRendererManagerController.patches.length, 0);
+	assert.equal(projectSession.customNodeGraphEffectRendererManagerController.patches.length, 0);
 	assert.equal(projectSession.timelineRendererManagerController.patches.length, 0);
-	assert.equal(projectSession.visualModuleRendererManagerController.snapshots.length, 0);
+	assert.equal(projectSession.customNodeGraphEffectRendererManagerController.snapshots.length, 0);
 	assert.equal(projectSession.timelineRendererManagerController.snapshots.length, 0);
 	assert.equal(window.waitingCount, 0);
 	assert.equal(window.listeners.get('focus').size, 0);
@@ -3495,7 +3495,7 @@ test('rejects repeated startup while pending and after completion without changi
 	completeRegistration.resolve();
 	await startup;
 	// 準備の完了だけでは非選択状態を解除せず、選択後に一度だけ両プレビューを初期化する。
-	const controllers = [projectSession.visualModuleRendererManagerController, projectSession.timelineRendererManagerController];
+	const controllers = [projectSession.customNodeGraphEffectRendererManagerController, projectSession.timelineRendererManagerController];
 	assert.equal(projectSession.renderEngine.isSuspended.value, true);
 	assert.equal(projectSession.audioOutput.preview.suspended, true);
 	for (const controller of controllers) {
@@ -3505,7 +3505,7 @@ test('rejects repeated startup while pending and after completion without changi
 	await projectSession.setActive(true);
 	for (const controller of controllers) assert.equal(controller.snapshots.length, 1);
 	assert.equal(projectSession.audioOutput.preview.suspended, false);
-	const renderer = projectSession.visualModuleRendererManagerController;
+	const renderer = projectSession.customNodeGraphEffectRendererManagerController;
 	const initializationCount = renderer.snapshots.length;
 	projectSession.projectContext.stateManager.state.name.value = 'Edited';
 	await assert.rejects(projectSession.start(), /already started/);
@@ -3563,7 +3563,7 @@ for (const closeDuringPreparation of [false, true]) {
 		assert.equal(session.projectContext.stateManager.undoStack.value.length, 0);
 		assert.deepEqual(session.projectContext.snapshot().assets[0].fileData, resolvedSource);
 		assert.deepEqual(registrations, [session.id]);
-		for (const renderer of [session.visualModuleRendererManagerController, session.timelineRendererManagerController]) {
+		for (const renderer of [session.customNodeGraphEffectRendererManagerController, session.timelineRendererManagerController]) {
 			assert.equal(renderer.snapshots.length, 1);
 			assert.deepEqual(renderer.options.assets[0].fileData, resolvedSource);
 			assert.deepEqual(renderer.initialResolution, { width: 4096, height: 2160 });
@@ -3603,7 +3603,7 @@ test('disposes a failed initialization and allows opening a fresh session', asyn
 	const session = await app.projectSessions.open(project());
 	assert.notEqual(session.id, closedIds[0]);
 	assert.equal(app.projectSessions.activeSession.value, session);
-	assert.equal(session.visualModuleRendererManagerController.isReady.value, true);
+	assert.equal(session.customNodeGraphEffectRendererManagerController.isReady.value, true);
 });
 
 // 【保存開始後の終了は後処理を待ち、新たな保存とバックアップは受け付けない】
@@ -3625,7 +3625,7 @@ test('waits for save cleanup while stopping session activity immediately', async
 	const closing = projectSession.dispose().then(() => { closed = true; });
 	assert.equal(projectSession.hasUnsavedChanges.value, false);
 	assert.equal(projectSession.audioOutput.disposed, true);
-	assert.equal(projectSession.visualModuleRendererManagerController.isReady.value, false);
+	assert.equal(projectSession.customNodeGraphEffectRendererManagerController.isReady.value, false);
 	await projectSession.saveProject();
 	await setImmediate();
 	assert.equal(closed, false);
@@ -3689,7 +3689,7 @@ test('preserves per-session history and playback while independently suspending 
 	first.timelineClipboard.value = { kind: 'layer', layer: { id: 'copied-layer' } };
 	const second = await app.newProject();
 	assert.equal(first.renderEngine.isSuspended.value, true);
-	assert.equal(first.visualModuleRendererManagerController.isReady.value, false);
+	assert.equal(first.customNodeGraphEffectRendererManagerController.isReady.value, false);
 	assert.equal(first.audioOutput.preview.suspended, true);
 	assert.equal(second.timelineClipboard.value, null);
 	await first.suspendPreview();

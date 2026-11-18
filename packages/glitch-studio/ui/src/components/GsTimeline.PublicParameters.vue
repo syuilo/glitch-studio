@@ -22,7 +22,7 @@
 				<XPublicParameterDefinitionEditor :def="definition" :supportedTypes="supportedTypes" @update="(changes, mergeKey) => update(definition, changes, mergeKey)" @remove="remove(definition)"/>
 			</GsFolder>
 		</GsFolder>
-		<GsButton data-test-add-timeline-public-parameter icon="ti ti-plus" @click="add">{{ i18n.ts._VisualModule.AddParameter }}</GsButton>
+		<GsButton data-test-add-timeline-public-parameter icon="ti ti-plus" @click="add">{{ i18n.ts._CustomNodeGraphEffect.AddParameter }}</GsButton>
 	</div>
 </GsFolder>
 </template>

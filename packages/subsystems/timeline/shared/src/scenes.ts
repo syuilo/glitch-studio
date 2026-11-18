@@ -1,4 +1,4 @@
-import { isTimelineContainerLayer, isTimelineVisualLayer, isTimelineEffectOrVisualModuleLayer } from './types.ts';
+import { isTimelineContainerLayer, isTimelineVisualLayer, isTimelineEffectOrCustomNodeGraphEffectLayer } from './types.ts';
 import { validateTimelineMask, validateTimelineLayerMask, isTimelineLayerTransformTarget } from './timeline-compositing.ts';
 import { validateTimelineTransform } from './layers/transform/transform.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.js';
@@ -31,7 +31,7 @@ export function validateTimelineLayerStructure(layer: TimelineLayer): void {
 		validateTimelineMask(layer.mask);
 		validateTimelineLayerMask(layer.layerMask);
 	}
-	if (isTimelineEffectOrVisualModuleLayer(layer) && layer.transformTarget != null && !isTimelineLayerTransformTarget(layer.transformTarget)) throw new Error('Invalid timeline layer transform target');
+	if (isTimelineEffectOrCustomNodeGraphEffectLayer(layer) && layer.transformTarget != null && !isTimelineLayerTransformTarget(layer.transformTarget)) throw new Error('Invalid timeline layer transform target');
 	if (!isTimelineContainerLayer(layer)) validateTimelineClips(layer.clips);
 	if (layer.layerType === 'video' || layer.layerType === 'audio') {
 		for (const clip of layer.clips) {
@@ -69,8 +69,8 @@ export function validateTimelineLayer(layer: TimelineLayer): void {
 		...('compositingParamValues' in layer ? [layer.compositingParamValues] : []),
 	];
 	for (const values of parameterGroups) for (const binding of Object.values(values)) validateTimelineParameterBinding(binding);
-	if ('visualModuleParamValues' in layer) {
-		for (const binding of Object.values(layer.visualModuleParamValues)) validateTimelineParameterBinding(binding, true, true);
+	if ('customNodeGraphEffectParamValues' in layer) {
+		for (const binding of Object.values(layer.customNodeGraphEffectParamValues)) validateTimelineParameterBinding(binding, true, true);
 	}
 	if (layer.layerType === 'effect') {
 		for (const binding of Object.values(layer.effectParamValues)) {

@@ -23,7 +23,7 @@ new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(create
 const { COMMAND_DEFS, createTimelineCommandDefinitions, UndoRedo } = loaded.exports;
 
 function fixture(services) {
-	const state = { timelineScenes: { value: [] }, visualModules: { value: [] }, assets: { value: [] } };
+	const state = { timelineScenes: { value: [] }, customNodeGraphEffects: { value: [] }, assets: { value: [] } };
 	const definitions = { ...COMMAND_DEFS, ...createTimelineCommandDefinitions(services) };
 	return { state, definitions, manager: new UndoRedo(state, definitions) };
 }

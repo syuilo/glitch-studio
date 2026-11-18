@@ -34,9 +34,9 @@ features:
   - title: 決定論的
     details: "Glitch Studioは、原則<b>Deterministic</b>な設計になっています。\n同じ入力なら同じ出力が得られ、一貫した映像が得られます。"
   - title: 画像編集
-    details: ノードベースのエディタで「Visual Module」を構築し、画像を作成・加工できます。
-    link: /guide/visual-module
-    linkText: Visual Moduleについて
+    details: ノードベースのエディタで「Custom Node Graph Effect」を構築し、画像を作成・加工できます。
+    link: /guide/custom-node-graph-effect
+    linkText: Custom Node Graph Effectについて
   - title: 動画編集
     details: タイムライン上に画像、動画、音声、エフェクトなどのクリップをレイヤー状に配置し、動画の作成・加工が可能。
     link: /guide/timeline
@@ -52,7 +52,7 @@ features:
   - title: OpenEXR対応
     details: "OpenEXRでのエクスポートに対応していて、広い色域の画像データを劣化することなく保存・他ソフトへ受け渡し可能。"
   - title: Web Component出力
-    details: "作成したVisual Moduleを、任意のWebサイトに埋め込めるWeb Componentとしてエクスポートできます。ポインタ入力も可能で、インタラクティブなビジュアルアートを手軽に設置できます。"
+    details: "作成したCustom Node Graph Effectを、任意のWebサイトに埋め込めるWeb Componentとしてエクスポートできます。ポインタ入力も可能で、インタラクティブなビジュアルアートを手軽に設置できます。"
   - title: MCPサーバー
     details: "AIエージェントにプロジェクトを操作させることが可能です。"
   - title: VOICEVOX連携

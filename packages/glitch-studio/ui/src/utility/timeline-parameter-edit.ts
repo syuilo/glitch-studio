@@ -5,7 +5,7 @@ import { findTimelineLayer } from "@gs/subsystems_timeline_shared/layer-tree.ts"
 import { resolveParameter, walkParameters } from "@gs/shared/parameter/parameter-path.ts";
 import { isValueParameterBinding } from "@gs/shared/parameter/parameter-binding.ts";
 import { preserveParameterExpressionModifier, validateParameterExpressionModifier, supportsParameterExpressionModifier } from "@gs/shared/parameter/parameter-expression-modifier.ts";
-import { getTimelineVisualModuleArgumentDefault } from "@gs/subsystems_timeline_shared/layers/visual-module/visual-module-arguments.ts";
+import { getTimelineCustomNodeGraphEffectArgumentDefault } from "@gs/subsystems_timeline_shared/layers/custom-node-graph-effect/custom-node-graph-effect-arguments.ts";
 import { updateStructParameterFields } from "./struct-parameter-edit.ts";
 import type { StructParameterFieldBindings } from "./struct-parameter-edit.ts";
 import { createLowerLayerOutputBinding, getEffectLayerParameterDefault } from "@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts";
@@ -26,7 +26,7 @@ import type { EditableTimelineParameterBinding } from "../types/parameter-edit.t
 import type { TimelineLayerPublicParameterReferenceBinding, TimelineParameterBinding } from "@gs/subsystems_timeline_shared/parameter-binding.ts";
 import type { TimelineEffectParameterBinding, TimelineLowerLayerOutputBinding } from "@gs/subsystems_timeline_shared/parameter-binding.ts";
 import type { ValueParameterEdit } from "@/types/parameter-edit.ts";
-import { getVisualModule } from "@/utility/visual-module-target.ts";
+import { getCustomNodeGraphEffect } from "@/utility/custom-node-graph-effect-target.ts";
 import { createResetParameterBinding } from "@/utility/parameter-default.ts";
 import { createInlineKeyframesTimeline } from "@/utility/keyframes-timeline.ts";
 import { createInlineAutomationGraph } from "@/utility/automation-graph.ts";
@@ -45,7 +45,7 @@ export function setTimelineLayerParameterRoot(layer: TimelineLayer, target: Time
 			if ((binding.inputSource === 'lowerLayerOutput' || binding.inputSource === 'anotherLayerOutput') && !('fitMode' in binding)) throw new Error('Effect image input requires sampling');
 			values[rootKey] = deepClone(binding as TimelineEffectParameterBinding);
 		}
-	} else if (target === 'module') {
+	} else if (target === 'customNodeGraphEffect') {
 		const values = getLayerParameterValues(layer, target);
 		if (binding == null) delete values[rootKey];
 		else {
@@ -69,13 +69,13 @@ export type TimelineParameterEditInput = {
 	paramPath: ParamPath;
 } & (
 	| { target?: TimelineParameterTarget; edit: ValueParameterEdit | { kind: 'structFields'; fields: StructParameterFieldBindings } | { kind: 'timelineLayerPublicParameterReference'; value: TimelineLayerPublicParameterReferenceBinding } | { kind: 'inputSource'; inputSource: 'timelineLayerPublicParameterReference' } }
-	| { target: 'effect' | 'module'; edit: { kind: 'inputSource'; inputSource: 'lowerLayerAudio' | 'anotherLayerAudio' } | { kind: 'anotherLayerAudio'; value: string | null } }
-	| { target: 'effect' | 'module'; edit: { kind: 'lowerLayerOutput'; value: TimelineLowerLayerOutputBinding } | { kind: 'inputSource'; inputSource: 'lowerLayerOutput' | 'anotherLayerOutput' } | { kind: 'anotherLayerOutput'; value: TimelineAnotherLayerOutputBinding | TimelineEffectAnotherLayerOutputBinding } }
+	| { target: 'effect' | 'customNodeGraphEffect'; edit: { kind: 'inputSource'; inputSource: 'lowerLayerAudio' | 'anotherLayerAudio' } | { kind: 'anotherLayerAudio'; value: string | null } }
+	| { target: 'effect' | 'customNodeGraphEffect'; edit: { kind: 'lowerLayerOutput'; value: TimelineLowerLayerOutputBinding } | { kind: 'inputSource'; inputSource: 'lowerLayerOutput' | 'anotherLayerOutput' } | { kind: 'anotherLayerOutput'; value: TimelineAnotherLayerOutputBinding | TimelineEffectAnotherLayerOutputBinding } }
 );
 
 /** UIイベントを作業用Layerへ反映する。呼び出し側がLayerを複製し、公開Commandへ完成したBindingを渡す。 */
 export function applyTimelineParameterEdit(state: ProjectState, payload: TimelineParameterEditInput) {
-		const target = payload.target ?? 'module';
+		const target = payload.target ?? 'customNodeGraphEffect';
 		const rootKey = payload.paramPath[0];
 		const getLayer = (state: ProjectState) => {
 			const layer = findTimelineLayer(getScene(state, payload.sceneId).layers, payload.layerId);
@@ -88,11 +88,11 @@ export function applyTimelineParameterEdit(state: ProjectState, payload: Timelin
 		const defs = getLayerParameterDefinitions(state, layer, target);
 		const rootDef = defs[rootKey];
 		if (rootDef == null) throw new Error('Timeline parameter not found');
-		const visualModule = target === 'module' && (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule')
-			? layer.layerType === 'inlineVisualModule' ? layer.visualModule : getVisualModule(state, layer) : null;
+		const customNodeGraphEffect = target === 'customNodeGraphEffect' && (layer.layerType === 'customNodeGraphEffect' || layer.layerType === 'inlineCustomNodeGraphEffect')
+			? layer.layerType === 'inlineCustomNodeGraphEffect' ? layer.customNodeGraphEffect : getCustomNodeGraphEffect(state, layer) : null;
 		
 			const currentRoot = values[rootKey] ?? null;
-			const defaultBinding = visualModule ? getTimelineVisualModuleArgumentDefault(visualModule, visualModule.paramDefs.find(def => def.id === rootKey)!)
+			const defaultBinding = customNodeGraphEffect ? getTimelineCustomNodeGraphEffectArgumentDefault(customNodeGraphEffect, customNodeGraphEffect.paramDefs.find(def => def.id === rootKey)!)
 				: target === 'effect' && layer.layerType === 'effect' ? getEffectLayerParameterDefault(getEffectDefinitions(state)[layer.effectId], rootKey) : rootDef.defaultValue;
 			const draft = { [rootKey]: deepClone(currentRoot ?? defaultBinding) };
 			const resolved = resolveParameter<EditableTimelineParameterBinding>(defs, draft, payload.paramPath);
@@ -146,7 +146,7 @@ export function applyTimelineParameterEdit(state: ProjectState, payload: Timelin
 					...edit.options,
 				}; break;
 				case 'reset':
-					if (payload.paramPath.length === 1 && (def.dataType.kind === 'audioSource' || visualModule?.primaryInputId === rootKey)) { next = deepClone(defaultBinding); break; }
+					if (payload.paramPath.length === 1 && (def.dataType.kind === 'audioSource' || customNodeGraphEffect?.primaryInputId === rootKey)) { next = deepClone(defaultBinding); break; }
 					next = target === 'effect' && layer.layerType === 'effect' && payload.paramPath.length === 1
 					&& getEffectDefinitions(state)[layer.effectId].kind === 'modify' && getEffectDefinitions(state)[layer.effectId].primaryInputParameter === rootKey
 						? createLowerLayerOutputBinding() : createResetParameterBinding(def); break;

@@ -36,7 +36,7 @@ GsAssetのメニューから、リロード、再リンク、外部参照から�
 
 Web版は外部参照の作成・解決に対応せず、参照情報を保持して利用不可を表示します。Webでの保存はパス表記を変更せず、別フォルダーへ移した場合の相対パスの再計算は行いません。
 
-`.gsvm`書き出しでは外部参照も原本を埋め込み、プロジェクト内のモードは変更しません。参照切れなら書き出しに失敗します。外部参照から埋め込みへの変換と`.gsvm`書き出しには、原本全体を読み込むメモリ制約が残ります。プロジェクトのバックアップは外部原本を含まず、参照情報だけを保存します。
+`.gscnge`書き出しでは外部参照も原本を埋め込み、プロジェクト内のモードは変更しません。参照切れなら書き出しに失敗します。外部参照から埋め込みへの変換と`.gscnge`書き出しには、原本全体を読み込むメモリ制約が残ります。プロジェクトのバックアップは外部原本を含まず、参照情報だけを保存します。
 
 ## ファイルの取り込み
 
@@ -58,11 +58,11 @@ Web版は外部参照の作成・解決に対応せず、参照情報を保持�
 
 App.vueの全体受付でも、ファイルのホバー中は「Drop here」を表示します。専用受付で伝播が止められた場合や、アプリ外へ離れた場合は全体表示を消します。windowのcaptureでは表示状態だけをリセットし、ファイルの受付自体はルートの通常バブリングで行います。
 
-## Visual Module Editorへのドロップ
+## Custom Node Graph Effect Editorへのドロップ
 
-`GsVisualModuleEditor.vue`はTimelineと共通の`useAssetDrop`でファイル・Assetのホバー表示と受付を行います。編集先と処理は親が`VisualModuleAssetDropActions`として渡し、登録済み・インラインの違いを共通Editorへ持ち込みません。画像はImage、動画はVideo、音声はAudio Waveformのノードを通常ノード一覧の末尾（出力ノードの直前）へ追加し、既存の配線と出力接続は保持します。動画・音声はそのAssetのPlayerを参照し、Playerがなければ作成します。
+`GsCustomNodeGraphEffectEditor.vue`はTimelineと共通の`useAssetDrop`でファイル・Assetのホバー表示と受付を行います。編集先と処理は親が`CustomNodeGraphEffectAssetDropActions`として渡し、登録済み・インラインの違いを共通Editorへ持ち込みません。画像はImage、動画はVideo、音声はAudio Waveformのノードを通常ノード一覧の末尾（出力ノードの直前）へ追加し、既存の配線と出力接続は保持します。動画・音声はそのAssetのPlayerを参照し、Playerがなければ作成します。
 
-ファイルの読み込み・サムネイル生成からノード反映まで同じprogressダイアログを維持します。`importAssets`の配置準備コールバックへ読み込んだAsset・Player・ダイアログを渡し、`AssetImportPlacement`でTimelineまたはVisual Moduleへの配置を指定します。Asset・Player・ノードを一つのCommandで反映し、参照の検証が失敗した場合は部分追加しません。既存Assetは進捗ダイアログを表示せず、`addVisualModuleAssetNodes`で不足するPlayerとノードだけを追加します。ノードに対応しないファイルはAssetsへ取り込んでパネルを開き、同じ種類の既存Assetは無視します。
+ファイルの読み込み・サムネイル生成からノード反映まで同じprogressダイアログを維持します。`importAssets`の配置準備コールバックへ読み込んだAsset・Player・ダイアログを渡し、`AssetImportPlacement`でTimelineまたはCustom Node Graph Effectへの配置を指定します。Asset・Player・ノードを一つのCommandで反映し、参照の検証が失敗した場合は部分追加しません。既存Assetは進捗ダイアログを表示せず、`addCustomNodeGraphEffectAssetNodes`で不足するPlayerとノードだけを追加します。ノードに対応しないファイルはAssetsへ取り込んでパネルを開き、同じ種類の既存Assetは無視します。
 
 ## 静的設定からのAsset参照
 
@@ -76,7 +76,7 @@ App.vueの全体受付でも、ファイルのホバー中は「Drop here」を�
 
 `.cube`は取り込み時に`application/x-cube-lut`へ正規化し、原本のBlobを保存します。表示名の拡張子を再判定しないため、改名後も種類は維持されます。Playerは作りません。内容の解析・検証はエフェクトが使用する際に行い、取り込み時にはデコードしません。
 
-`{ kind: 'assetReference', assetType: 'lut' }`はAsset IDまたはnullを保存し、LUTだけを選択候補に表示します。Asset差し替え、Visual Module内の参照解除とUndo/Redo、`.gsproj`の原本保存、`.gsvm`の参照収集とID再割り当てに対応します。未選択は入力を通し、不正なファイルは描画エラーになります。その他のAsset参照と同様に、タイムラインの静的設定などに残った参照切れは描画前の検証で通知します。
+`{ kind: 'assetReference', assetType: 'lut' }`はAsset IDまたはnullを保存し、LUTだけを選択候補に表示します。Asset差し替え、Custom Node Graph Effect内の参照解除とUndo/Redo、`.gsproj`の原本保存、`.gscnge`の参照収集とID再割り当てに対応します。未選択は入力を通し、不正なファイルは描画エラーになります。その他のAsset参照と同様に、タイムラインの静的設定などに残った参照切れは描画前の検証で通知します。
 
 LUTの解析・GPU処理はEffect subsystemの`fx/applyLut`が所有し、UIやプロジェクトに依存しません。詳しくは[Apply LUT](../packages/subsystems/effect/shared/src/fx/applyLut/README.md)を参照してください。
 
@@ -84,7 +84,7 @@ LUTの解析・GPU処理はEffect subsystemの`fx/applyLut`が所有し、UIや�
 
 動画の取り込み・差し替え時には、主映像トラックの0%から100%まで10%間隔でサムネイルを生成します。100%は最後のフレームです。長辺を320px以下に縮小し、小さな動画は拡大しません。同じtimestampに対応する地点は重複保存しません。
 
-`ProjectAsset.thumbnailSequence`は寸法と、実際のフレーム時刻・画像Blobの列を所有します。レンダリング用の`Asset`には追加せず、Workerへの素材同期・書き出しでは表示用情報を除きます。`.gsproj`では画像バイト列と実際のMIMEを保存します。`.gsvm`には含めません。
+`ProjectAsset.thumbnailSequence`は寸法と、実際のフレーム時刻・画像Blobの列を所有します。レンダリング用の`Asset`には追加せず、Workerへの素材同期・書き出しでは表示用情報を除きます。`.gsproj`では画像バイト列と実際のMIMEを保存します。`.gscnge`には含めません。
 
 `api.ts`が取り込み完了前に生成を待ち、`utility/open-media-file.ts`が`ui.progress()`で取り込み全体とファイル単位の進捗を表示します。生成失敗は素材本体の取り込みを妨げず、サムネイルなしとして扱います。`importAssets`・`addAsset`・`replaceAsset` Commandは原本とサムネイル列を一緒に扱います。
 

@@ -5,15 +5,15 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const bundle = await build({ stdin: { contents: `
-	export * from './src/gsproj.ts'; export * from './src/gsvm.ts';
+	export * from './src/gsproj.ts'; export * from './src/custom-node-graph-effect-file-codec.ts';
 	export * from './src/external-assets.ts'; export { createProjectBackupFingerprint } from './src/project-backups.ts';
 `, loader: 'ts', resolveDir: fileURLToPath(new URL('../', import.meta.url)) }, bundle: true, platform: 'node', format: 'cjs', write: false });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { encodeProjectFile, decodeProjectFile, mapProjectAssetPaths, encodeVisualModuleFile, decodeVisualModuleFile, resolveExternalAssets, createProjectBackupFingerprint } = module.exports;
+const { encodeProjectFile, decodeProjectFile, mapProjectAssetPaths, encodeCustomNodeGraphEffectFile, decodeCustomNodeGraphEffectFile, resolveExternalAssets, createProjectBackupFingerprint } = module.exports;
 const asset = () => ({ id: 'asset', name: 'video.mp4', isExternalReference: true, sourceFilePath: 'assets/video.mp4',
 	width: 1920, height: 1080, fileDataType: 'video/mp4', fileData: { url: null, size: 0, error: 'missing' }, thumbnailSequence: null });
-const project = assets => ({ assets, generatedSpeech: [], visualModules: [], timelineScenes: [] });
+const project = assets => ({ assets, generatedSpeech: [], customNodeGraphEffects: [], timelineScenes: [] });
 
 // 【保存先ごとにパスを相対化し、読み込み時にはそのプロジェクトの場所で解決する】
 // 実行中の絶対パスを変更すると、Save As後の再保存やUndoで参照先がずれてしまう。
@@ -75,15 +75,15 @@ test('resolves current references while keeping runtime health out of dirty trac
 	assert.notEqual(fingerprint(original), before);
 });
 
-// 【gsvmだけに原本を埋め込み、プロジェクト内の外部参照を変更しない】
-// 可搬なVisual Moduleに実行中だけ有効なURLや元PCのパスを持ち込まない。
-test('embeds external bytes in Visual Module exports without changing project storage', async t => {
+// 【gscngeだけに原本を埋め込み、プロジェクト内の外部参照を変更しない】
+// 可搬なCustom Node Graph Effectに実行中だけ有効なURLや元PCのパスを持ち込まない。
+test('embeds external bytes in Custom Node Graph Effect exports without changing project storage', async t => {
 	t.mock.method(globalThis, 'fetch', async () => new Response(new Uint8Array([1, 2, 3])));
 	const external = asset();
 	external.fileData = { url: 'app://external-assets/current', size: 3, error: null };
-	const file = { kind: 'glitch-studio-visual-module', formatVersion: 1, gsVersion: '1.0.0', name: 'Visual Module', assets: [external], players: [], visualModule: { customParameterDefs: [], customParameterValues: {}, nodes: [], paramDefs: [], outputDefs: [], automationGraphs: [] } };
-	const encoded = await encodeVisualModuleFile(file);
-	const restored = decodeVisualModuleFile(encoded, '2.0.0');
+	const file = { kind: 'glitch-studio-custom-node-graph-effect', formatVersion: 1, gsVersion: '1.0.0', name: 'Custom Node Graph Effect', assets: [external], players: [], customNodeGraphEffect: { customParameterDefs: [], customParameterValues: {}, nodes: [], paramDefs: [], outputDefs: [], automationGraphs: [] } };
+	const encoded = await encodeCustomNodeGraphEffectFile(file);
+	const restored = decodeCustomNodeGraphEffectFile(encoded, '2.0.0');
 	assert.deepEqual(new Uint8Array(await restored.assets[0].fileData.arrayBuffer()), new Uint8Array([1, 2, 3]));
 	assert.equal('sourceFilePath' in restored.assets[0], false);
 	assert.equal('isExternalReference' in restored.assets[0], false);

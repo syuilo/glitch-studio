@@ -18,11 +18,11 @@ const { default: imageDefinition } = await load('@gs/subsystems_effect_shared/fx
 const { default: videoEffect } = await load('@gs/subsystems_effect_shared/fx/video/_impl_.ts');
 const { default: videoDefinition } = await load('@gs/subsystems_effect_shared/fx/video/_def_.ts');
 const { default: structArrayDefinition } = await load('@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts');
-const { VisualModuleRenderer } = await load('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts');
+const { CustomNodeGraphEffectRenderer } = await load('@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-renderer.ts');
 const { UniformOrTextureToTextureResolver } = await load('@gs/shared/gpu/uniform-or-texture-to-texture-resolver.ts');
 const { toShaderInput } = await load('@gs/shared/gpu/shader-input.ts');
 const { TimelineRenderer } = await load('@gs/subsystems_timeline_renderer/timeline-renderer.ts');
-const { createVisualModuleTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/visual-module/visual-module-timeline-layer.ts');
+const { createCustomNodeGraphEffectTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/custom-node-graph-effect/custom-node-graph-effect-timeline-layer.ts');
 const { createTimelineCompositor, getTimelinePlacement } = await load('@gs/subsystems_timeline_renderer/timeline-compositor.ts');
 const { createSceneOutput } = await load('@gs/subsystems_timeline_renderer/scene-output.ts');
 const { createImageTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/image/image-timeline-layer.ts');
@@ -112,12 +112,12 @@ test('keeps rendering transparent video while player frames are missing and resu
 	} };
 	const videoTextures = new Map();
 	const videoFrameVersions = new Map();
-	const renderer = new VisualModuleRenderer({ expressionEvaluator: new ExpressionEvaluator(),
+	const renderer = new CustomNodeGraphEffectRenderer({ expressionEvaluator: new ExpressionEvaluator(),
 		gpuDevice: device, fallbackTexture: {}, resolution: { width: 16, height: 9 },
 		enableStats: false, timingHelper: null, enable32bitDataTextures: false,
 		assets: [], assetTextures: new Map(), getPlayerVideoTexture: id => videoTextures.get(id) ?? null, videoFrameVersions,
 		effectDefinitions: { video: videoDefinition }, effectImplementations: { video: videoEffect },
-		visualModule: { customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null, primaryOutputId: 'output', outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], automationGraphs: [],
+		customNodeGraphEffect: { customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null, primaryOutputId: 'output', outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], automationGraphs: [],
 			nodes: [{ id: 'video', type: 'effect', effectId: 'video', staticSettings: { player: 'player' }, params: { fit: literal('stretch') }, resolution: { mode: 'auto', scale: 1 }, isBypass: false },
 				{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'video', outputPort: 'output' } } }] },
 	});
@@ -261,7 +261,7 @@ test('keeps stretched replace outputs in scene coordinates without copying the s
 });
 
 // 【ノード入力は同じ縦横比でもSceneの宣言寸法へ揃える】
-// EffectとVisual ModuleはTimelineのregionを知らないため、正方形の物理テクスチャを
+// EffectとCustom Node Graph EffectはTimelineのregionを知らないため、正方形の物理テクスチャを
 // 横長の合成結果としてそのまま渡すと入力サンプリングで再びFitされてしまう。
 // 定数と確定済み画像では、空のencoder作成・GPU送信も省く必要がある。
 test('normalizes node inputs to declared scene dimensions while borrowing already matching frames', () => {
@@ -373,9 +373,9 @@ test('only bypasses anchor placement when position cancels the fitted origin', (
 	compositor.dispose();
 });
 
-// モジュールの主出力IDを変更すると描画対象が切り替わり、nullなら主出力を返さない。
+// Custom Node Graph Effectの主出力IDを変更すると描画対象が切り替わり、nullなら主出力を返さない。
 // 出力配列の先頭や以前の主出力を暗黙に使い続ける不具合を防ぐ。
-test('renders the selected module primary output after updates', () => {
+test('renders the selected Custom Node Graph Effect primary output after updates', () => {
 	const { device, encoder } = gpuFixture();
 	const module = {
 		customParameterDefs: [],
@@ -390,9 +390,9 @@ test('renders the selected module primary output after updates', () => {
 	const context = () => renderContext({ paramInputs: new Map(module.paramDefs.map(def => [def.id, { kind: 'uniform', value: def.defaultValue.value }])) });
 	try {
 		assert.deepEqual(renderer.render(context(), encoder).value, [0, 1, 0, 1]);
-		renderer.updateVisualModule({ ...module, primaryOutputId: 'a' });
+		renderer.updateCustomNodeGraphEffect({ ...module, primaryOutputId: 'a' });
 		assert.deepEqual(renderer.render(context(), encoder).value, [1, 0, 0, 1]);
-		renderer.updateVisualModule({ ...module, primaryOutputId: null });
+		renderer.updateCustomNodeGraphEffect({ ...module, primaryOutputId: null });
 		assert.equal(renderer.render(context(), encoder), null);
 		assert.deepEqual([...renderer.renderOutputs({ ...context(), outputIds: ['b'] }, encoder).keys()], ['b']);
 	} finally { renderer.destroy(); }
@@ -511,8 +511,8 @@ test('publishes output resolutions only after drawing and when state changes', a
 	} finally { renderer.destroy(); }
 });
 
-// 複数のVisual Moduleをまたいでも定数のまま受け渡し、色を二重乗算しない。
-test('preserves constant outputs across timeline module layers', async () => {
+// 複数のCustom Node Graph Effectをまたいでも定数のまま受け渡し、色を二重乗算しない。
+test('preserves constant outputs across timeline Custom Node Graph Effect layers', async () => {
 	const { device, calls, encoder } = gpuFixture();
 	const presented = [];
 	const module = {
@@ -527,7 +527,7 @@ test('preserves constant outputs across timeline module layers', async () => {
 		fallbackOutput: constant,
 		createLayer() {
 			const renderer = createRenderer(device, module);
-			return createVisualModuleTimelineLayer(module, { visualModuleParamValues: {}, automationGraphs: [] }, {
+			return createCustomNodeGraphEffectTimelineLayer(module, { customNodeGraphEffectParamValues: {}, automationGraphs: [] }, {
 				prepare: (context, signal) => renderer.prepare(context, signal),
 				render: async context => ({ output: renderer.render(context, encoder), gpuTime: 0 }),
 				destroy: () => renderer.destroy(),
@@ -544,7 +544,7 @@ test('preserves constant outputs across timeline module layers', async () => {
 });
 
 // In→バイパス→エフェクトでも定数の精度と乗算済み色を保ち、GPUへの転送を発生させない。
-test('passes module constants through bypasses without allocating input textures', async () => {
+test('passes Custom Node Graph Effect constants through bypasses without allocating input textures', async () => {
 	const { device, calls, encoder } = gpuFixture();
 	const captured = [];
 	const connection = (port, nodeId = 'in') => ({ fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', inputSource: 'node', nodeId, outputPort: port });
@@ -587,7 +587,7 @@ test('passes module constants through bypasses without allocating input textures
 });
 
 // 同じInポートの定数/画像切替を検出し、各接続の設定を独立して適用する。
-test('switches module outputs between constants and borrowed textures', () => {
+test('switches Custom Node Graph Effect outputs between constants and borrowed textures', () => {
 	const { device, calls, encoder } = gpuFixture();
 	const captured = [];
 	const mix = { id: 'mix', type: 'effect', resolution: { mode: 'context', scale: 1 }, effectId: 'colorMix', params: {
@@ -701,8 +701,8 @@ test('resolves nested array inputs and invalidates sampling changes', () => {
 	} finally { renderer.destroy(); }
 });
 
-function createRenderer(device, visualModule, overrides = {}) {
-	return new VisualModuleRenderer({ expressionEvaluator: new ExpressionEvaluator(), gpuDevice: device, defaultVertexShaderModule: {}, resolution: { width: 32, height: 32 }, enableStats: false, enable32bitDataTextures: false, videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), effectDefinitions: { colorMix: definition, image: imageDefinition }, effectImplementations: { colorMix: effect, image: imageEffect }, visualModule, ...overrides });
+function createRenderer(device, customNodeGraphEffect, overrides = {}) {
+	return new CustomNodeGraphEffectRenderer({ expressionEvaluator: new ExpressionEvaluator(), gpuDevice: device, defaultVertexShaderModule: {}, resolution: { width: 32, height: 32 }, enableStats: false, enable32bitDataTextures: false, videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), effectDefinitions: { colorMix: definition, image: imageDefinition }, effectImplementations: { colorMix: effect, image: imageEffect }, customNodeGraphEffect, ...overrides });
 }
 
 function renderContext(overrides = {}) {
@@ -777,8 +777,8 @@ test('resolves colorMix inputs through the renderer without constant textures', 
 	const mix = { id: 'mix', type: 'effect', resolution: { mode: 'context', scale: 1 }, effectId: 'colorMix', isBypass: false, params: {
 		inputA: literal([1, 0, 0, 0.5]), inputB: literal([0, 0, 1, 1]), amount: { inputSource: 'expression', expression: '0.25' },
 	} };
-	const visualModule = { customParameterDefs: [], customParameterValues: {}, paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out', nodes: [mix, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } }] };
-	const renderer = createRenderer(device, visualModule);
+	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out', nodes: [mix, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } }] };
+	const renderer = createRenderer(device, customNodeGraphEffect);
 	const context = renderContext();
 	renderer.render(context, encoder);
 	assert.equal(calls.textures.length, 1, 'only the output texture is allocated');
@@ -791,7 +791,7 @@ test('resolves colorMix inputs through the renderer without constant textures', 
 	// 同じ出力を参照したまま接続側fit/wrapだけを変更しても再描画される。
 	const source = { ...mix, id: 'source', params: { ...mix.params } };
 	mix.params.inputA = { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', inputSource: 'node', nodeId: 'source', outputPort: 'output' };
-	renderer.updateNodes([source, ...visualModule.nodes]);
+	renderer.updateNodes([source, ...customNodeGraphEffect.nodes]);
 	renderer.render(context, encoder);
 	const before = calls.draws;
 	mix.params.inputA.fitMode = 'contain';
@@ -835,7 +835,7 @@ test('refreshes external textures and restores constants after disconnecting the
 	renderer.render(context, encoder);
 	assert.equal(calls.draws, 4);
 	assert.equal(calls.writes.at(-1)[16], 0);
-	assert.equal(calls.shaders.length, 3); // モジュール共通の頂点シェーダーと、定数・テクスチャ入力の2構成。
+	assert.equal(calls.shaders.length, 3); // Custom Node Graph Effect共通の頂点シェーダーと、定数・テクスチャ入力の2構成。
 	renderer.render(context, encoder);
 	assert.equal(calls.draws, 4);
 	// 上流の定数も外部入力として渡せる。同値はキャッシュし、値の変更を検出する。
@@ -859,9 +859,9 @@ test('resizes automatic image outputs to the selected asset and preserves borrow
 	const assets = new Map([['asset', asset], ['replacement', device.createTexture({ size: [4, 9], format: 'rgba8unorm' })]]);
 	const raw = { id: 'raw', type: 'effect', resolution: { mode: 'auto', scale: 1 }, effectId: 'image', staticSettings: { image: 'asset' }, params: { fit: literal('cover') } };
 	const output = { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'raw', outputPort: 'output' } } };
-	const visualModule = { customParameterDefs: [], customParameterValues: {}, nodes: [raw, output], paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out' };
+	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, nodes: [raw, output], paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out' };
 	const metadata = { id: 'asset', width: 7, height: 3, fileDataType: 'image/png', fileData: new Blob() };
-	const renderer = createRenderer(device, visualModule, { assets: [metadata, { ...metadata, id: 'replacement', width: 4, height: 9 }], assetTextures: assets });
+	const renderer = createRenderer(device, customNodeGraphEffect, { assets: [metadata, { ...metadata, id: 'replacement', width: 4, height: 9 }], assetTextures: assets });
 	const initial = renderer.render(renderContext(), encoder).texture;
 	assert.deepEqual([initial.width, initial.height], [7, 3]);
 	const allocated = calls.textures.length;
@@ -869,20 +869,20 @@ test('resizes automatic image outputs to the selected asset and preserves borrow
 	assert.equal(calls.textures.length, allocated);
 	const replacement = assets.get('replacement');
 	raw.staticSettings.image = 'replacement';
-	renderer.updateNodes(visualModule.nodes);
+	renderer.updateNodes(customNodeGraphEffect.nodes);
 	const resized = renderer.render(renderContext(), encoder).texture;
 	assert.deepEqual([resized.width, resized.height], [4, 9]);
 	assert.equal(initial.destroyed, true);
 	// プロジェクトモードはfitによらず描画先の寸法を使う。
 	raw.resolution = { mode: 'context', scale: 1 };
-	renderer.updateNodes(visualModule.nodes);
+	renderer.updateNodes(customNodeGraphEffect.nodes);
 	for (const fit of ['stretch', 'cover', 'contain']) {
 		raw.params.fit = literal(fit);
 		const normal = renderer.render(renderContext(), encoder).texture;
 		assert.deepEqual([normal.width, normal.height], [32, 32]);
 	}
 	raw.resolution = { mode: 'auto', scale: 1 };
-	renderer.updateNodes(visualModule.nodes);
+	renderer.updateNodes(customNodeGraphEffect.nodes);
 	const original = renderer.render(renderContext(), encoder).texture;
 	assert.deepEqual([original.width, original.height], [4, 9]);
 	// 自動のImage→プロジェクト解像度のcolorMixでも、元の比率をサンプリングに使う。

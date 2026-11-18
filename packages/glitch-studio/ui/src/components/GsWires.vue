@@ -15,7 +15,7 @@
 	<svg
 		v-for="(wire, index) in renderedWires" :key="wire.key"
 		version="1.1" :viewBox="`0 0 ${width} ${height}`" :class="$style.wire"
-		:data-test-visual-module-wire="wire.key"
+		:data-test-custom-node-graph-effect-wire="wire.key"
 	>
 		<defs>
 			<linearGradient :id="`${gradientId}-${index}-color`" gradientUnits="userSpaceOnUse" :gradientTransform="getGradientTransform(wire)" x1="0" y1="0" x2="1" y2="0">
@@ -51,25 +51,25 @@
 import { useProjectSession } from '@/project-session.ts';
 import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import { computed, onMounted, onBeforeUnmount, ref, shallowReactive, shallowRef, useId, useTemplateRef, watch } from 'vue';
-import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
+import { getNodeOutputs } from '@gs/subsystems_custom-node-graph-effect_shared/node-outputs.ts';
 import { getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import type { ComponentPublicInstance } from 'vue';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
-import { getVisualModuleWireInputElements, useVisualModuleWires } from '@/utility/visual-module-wires.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import { getCustomNodeGraphEffectWireInputElements, useCustomNodeGraphEffectWires } from '@/utility/custom-node-graph-effect-wires.ts';
 import { wireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 import { walkNodeParams } from '@/utility/node-params.ts';
 import { preferences } from '@/preferences.ts';
-import { getVisualModuleWirePath } from '@/utility/visual-module-wire-path.ts';
+import { getCustomNodeGraphEffectWirePath } from '@/utility/custom-node-graph-effect-wire-path.ts';
 
 const projectSession = useProjectSession();
 
 const effectDefinitions = computed(() => getEffectDefinitions(projectSession.projectContext.stateManager.state));
 
-const wireMap = useVisualModuleWires();
+const wireMap = useCustomNodeGraphEffectWires();
 
-const props = defineProps<{ visualModule: VisualModule }>();
+const props = defineProps<{ customNodeGraphEffect: CustomNodeGraphEffect }>();
 
 // 両端を結ぶ直線距離に含まれる模様の周期数（正の数）。
 const gradientRepeatCount = 4;
@@ -95,10 +95,10 @@ type Wire = {
 };
 
 // 接続先の列挙はレイアウトから独立させ、座標変更では再走査しない。
-const paramDefs = computed(() => props.visualModule.paramDefs);
-const outputDefs = computed(() => props.visualModule.outputDefs);
+const paramDefs = computed(() => props.customNodeGraphEffect.paramDefs);
+const outputDefs = computed(() => props.customNodeGraphEffect.outputDefs);
 const nodesById = computed(() => {
-	const nodes = props.visualModule.nodes;
+	const nodes = props.customNodeGraphEffect.nodes;
 	return new Map(nodes.map(node => [node.id, node]));
 });
 
@@ -138,7 +138,7 @@ const connections = computed(() => {
 			result.push({
 				key: JSON.stringify([node.id, path, value.nodeId, value.outputPort]),
 				from,
-				inputs: getVisualModuleWireInputElements(wireMap, node.id, path),
+				inputs: getCustomNodeGraphEffectWireInputElements(wireMap, node.id, path),
 				...getWireColors(getNodeOutputs(nodesById.value.get(value.nodeId), paramDefs.value, effectDefinitions.value)[value.outputPort]?.dataType ?? { kind: 'any' }, getNodeInputDataType(def) ?? { kind: 'any' }),
 			});
 		}
@@ -233,7 +233,7 @@ const wires = computed(() => {
 // 設定変更はパスだけへ反映し、接続情報やポートのDOMを再計測しない。
 const renderedWires = computed(() => wires.value.map(wire => ({
 	...wire,
-	path: getVisualModuleWirePath(wire.from, wire.to, preferences.r.visualModuleWireStyle.value),
+	path: getCustomNodeGraphEffectWirePath(wire.from, wire.to, preferences.r.customNodeGraphEffectWireStyle.value),
 })));
 
 function getWireColors(outputType: TextureDataType, inputType: TextureDataType) {

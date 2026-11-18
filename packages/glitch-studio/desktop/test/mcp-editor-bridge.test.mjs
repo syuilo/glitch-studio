@@ -52,7 +52,7 @@ test('serves documentation without projects and invalidates pending requests on 
 	const { bridge, createWindow } = fixture(t);
 	const editor = createWindow(1);
 	editor.invoke('mcp-project-sessions', []);
-	const result = bridge.invoke('get_scripting_api', { names: ['Command:createVisualModule'] });
+	const result = bridge.invoke('get_scripting_api', { names: ['Command:createCustomNodeGraphEffect'] });
 	const rejected = assert.rejects(result, /EDITOR_CLOSED/);
 	const { requestId } = editor.sent[0][1];
 	editor.window.webContents.emit('did-start-loading');

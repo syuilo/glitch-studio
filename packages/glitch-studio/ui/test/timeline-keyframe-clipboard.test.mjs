@@ -46,7 +46,7 @@ function fixture(t) {
 	const layer = createShapeTimelineLayer('rectangle', 100);
 	layer.id = 'shape';
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] };
-	const state = { timelineScenes: { value: [scene] }, visualModules: { value: [] }, assets: { value: [] } };
+	const state = { timelineScenes: { value: [scene] }, customNodeGraphEffects: { value: [] }, assets: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const changes = [];
 	history.onChange(value => changes.push(value));
@@ -174,21 +174,21 @@ test('requires the original scene and compatible surviving lanes without requiri
 	assert.equal(prepareTimelineKeyframePaste(f.state, f.scene, clipboard, 1000), null);
 });
 
-// 【未設定のモジュール引数では既定Bindingを変更せず、Undoで未設定へ戻す】
+// 【未設定のCustom Node Graph Effect引数では既定Bindingを変更せず、Undoで未設定へ戻す】
 // 既定値のキーを共有定義に直接追加すると、別の配置にもキーが増えてしまう。
 // enumの候補が更新された場合も、追加する値を現在の選択肢で検証する。
-test('materializes default module arguments independently and validates enum options at paste time', t => {
+test('materializes default Custom Node Graph Effect arguments independently and validates enum options at paste time', t => {
 	const f = fixture(t);
 	const dataType = { kind: 'enum', options: ['one', 'two'] };
 	const def = { id: 'choice', dataType, ui: { label: 'Choice', control: { labels: {} } }, canNode: false,
 		defaultValue: { inputSource: 'literal', value: 'one' } };
 	def.defaultValue = createInlineKeyframesTimeline(def);
 	def.defaultValue.keyframesTimeline.keyframes[0].id = 'default-key';
-	const visualModule = { id: 'module', paramDefs: [def] };
-	f.state.visualModules.value.push(visualModule);
-	f.scene.layers.push({ id: 'module-layer', layerType: 'visualModule', visualModuleId: 'module', visualModuleParamValues: {}, clips: [], compositingParamValues: {} });
+	const customNodeGraphEffect = { id: 'customNodeGraphEffect', paramDefs: [def] };
+	f.state.customNodeGraphEffects.value.push(customNodeGraphEffect);
+	f.scene.layers.push({ id: 'custom-node-graph-effect-layer', layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect', customNodeGraphEffectParamValues: {}, clips: [], compositingParamValues: {} });
 	f.selection.length = 0;
-	f.selection.push({ layerId: 'module-layer', target: 'module', paramPath: ['choice'], keyframeId: 'default-key' });
+	f.selection.push({ layerId: 'custom-node-graph-effect-layer', target: 'customNodeGraphEffect', paramPath: ['choice'], keyframeId: 'default-key' });
 	const clipboard = f.clipboard;
 	const originalDefault = structuredClone(def.defaultValue);
 	const keyframes = prepareTimelineKeyframePaste(f.state, f.scene, clipboard, 1000);
@@ -196,7 +196,7 @@ test('materializes default module arguments independently and validates enum opt
 	assert.deepEqual(def.defaultValue, originalDefault);
 	assert.deepEqual(f.read(f.selection[0]).keyframesTimeline.keyframes.map(point => point.x), [0, 1000]);
 	f.history.undo();
-	assert.deepEqual(f.scene.layers.at(-1).visualModuleParamValues, {});
+	assert.deepEqual(f.scene.layers.at(-1).customNodeGraphEffectParamValues, {});
 	def.dataType.options = ['two'];
 	assert.equal(prepareTimelineKeyframePaste(f.state, f.scene, clipboard, 1000), null);
 	const malformed = structuredClone(keyframes);
@@ -221,19 +221,19 @@ test('removes default keys from independent root drafts and restores unset argum
 			def.defaultValue.value[0].binding.value.x = structuredClone(keys);
 			def.defaultValue.value[0].binding.value.y = structuredClone(keys);
 		} else def.defaultValue = keys;
-		const visualModule = { id: 'module', paramDefs: [def] };
-		f.state.visualModules.value.push(visualModule);
-		for (const id of ['edited', 'untouched']) f.scene.layers.push({ id, layerType: 'visualModule', visualModuleId: 'module',
-			visualModuleParamValues: {}, clips: [], compositingParamValues: {} });
+		const customNodeGraphEffect = { id: 'customNodeGraphEffect', paramDefs: [def] };
+		f.state.customNodeGraphEffects.value.push(customNodeGraphEffect);
+		for (const id of ['edited', 'untouched']) f.scene.layers.push({ id, layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect',
+			customNodeGraphEffectParamValues: {}, clips: [], compositingParamValues: {} });
 		const paths = nested ? [['value', 'first', 'x'], ['value', 'first', 'y']] : [['value']];
-		const selection = paths.map(paramPath => ({ layerId: 'edited', target: 'module', paramPath, keyframeId: 'remove' }));
+		const selection = paths.map(paramPath => ({ layerId: 'edited', target: 'customNodeGraphEffect', paramPath, keyframeId: 'remove' }));
 		const before = structuredClone(f.scene);
 		const originalDefault = structuredClone(def.defaultValue);
 		f.history.commit('removeTimelineKeyframes', { sceneId: 'scene', keyframes: selection });
 		const after = structuredClone(f.scene);
 		for (const point of selection) assert.deepEqual(f.read(point).keyframesTimeline.keyframes.map(key => key.id), ['keep']);
 		assert.deepEqual(def.defaultValue, originalDefault);
-		assert.deepEqual(f.scene.layers.at(-1).visualModuleParamValues, {});
+		assert.deepEqual(f.scene.layers.at(-1).customNodeGraphEffectParamValues, {});
 		assert.equal(f.history.undoStack.value.length, 1);
 		for (let repeat = 0; repeat < 2; repeat++) {
 			f.history.undo();

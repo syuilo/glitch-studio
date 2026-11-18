@@ -9,7 +9,7 @@
 			</div>
 			<div :class="$style.center">
 				<button v-if="previewTargetName" :class="$style.previewTargetName" class="_button" @click="showPreviewTargetMenu">
-					<i v-if="previewPlayback.state.value.mode === 'timeline'" class="ti ti-memory"></i><i v-else-if="previewPlayback.state.value.mode === 'visualModuleLivePreview'" class="ti ti-chart-dots-3"></i> {{ previewTargetName }} <i class="ti ti-chevron-down"></i>
+					<i v-if="previewPlayback.state.value.mode === 'timeline'" class="ti ti-memory"></i><i v-else-if="previewPlayback.state.value.mode === 'customNodeGraphEffectLivePreview'" class="ti ti-chart-dots-3"></i> {{ previewTargetName }} <i class="ti ti-chevron-down"></i>
 				</button>
 			</div>
 			<div :class="$style.right">
@@ -126,7 +126,7 @@ import * as ui from '@/ui.ts';
 
 const projectSession = useProjectSession();
 
-const { activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, previewWarningImageSource, previewGamutWarning, previewExposure, resolutionFactor, visualModuleLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = projectSession;
+const { activePreviewRenderer, customNodeGraphEffectRendererManagerController, previewPlayback, highlightClipping, previewWarningImageSource, previewGamutWarning, previewExposure, resolutionFactor, customNodeGraphEffectLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = projectSession;
 const renderTilingProgressText = computed(() => {
 	const progress = activePreviewRenderer.value.renderTilingProgress.value;
 	if (progress == null || progress.totalTiles === 0) return null;
@@ -157,7 +157,7 @@ const renderValidationErrorMessage = renderValidation.errorMessage;
 const renderFailureLocation = computed(() => {
 	const origin = renderEngine.runtimeDiagnostic.value?.origin;
 	return origin && renderValidation.errorMessage.value == null
-		? formatRenderFailureOrigin(origin, stateManager.state.visualModules.value, stateManager.state.timelineScenes.value) : null;
+		? formatRenderFailureOrigin(origin, stateManager.state.customNodeGraphEffects.value, stateManager.state.timelineScenes.value) : null;
 });
 
 const canvasContainer = useTemplateRef('canvasContainer');
@@ -206,8 +206,8 @@ function updateEditingDocument() {
 
 watch(containerContainer, updateEditingDocument);
 onBeforeUnmount(() => { for (const doc of editingDocuments) doc.removeEventListener('keydown', onEditingKeydown); });
-const visualModuleLivePreviewTime = ref(0);
-const time = computed(() => previewPlayback.state.value.mode === 'timeline' ? previewPlayback.currentTimelineTime.value : visualModuleLivePreviewTime.value);
+const customNodeGraphEffectLivePreviewTime = ref(0);
+const time = computed(() => previewPlayback.state.value.mode === 'timeline' ? previewPlayback.currentTimelineTime.value : customNodeGraphEffectLivePreviewTime.value);
 const currentFrameNumber = computed(() => {
 	if (previewPlayback.state.value.mode !== 'timeline') return null;
 	// シーク・コマ送り・キャッシュと同じプレビューの時計で番号を表示する。
@@ -217,10 +217,10 @@ const previewTargetName = computed(() => {
 	const state = previewPlayback.state.value;
 	return state.mode === 'timeline'
 		? activeScene.value?.name ?? null
-		: stateManager.state.visualModules.value.find(visualModule => visualModule.id === state.visualModuleId)?.name ?? null;
+		: stateManager.state.customNodeGraphEffects.value.find(customNodeGraphEffect => customNodeGraphEffect.id === state.customNodeGraphEffectId)?.name ?? null;
 });
 const previewResolution = computed(() => {
-	if (previewPlayback.state.value.mode === 'visualModuleLivePreview') return visualModuleRendererManagerController.outputResolution.value;
+	if (previewPlayback.state.value.mode === 'customNodeGraphEffectLivePreview') return customNodeGraphEffectRendererManagerController.outputResolution.value;
 	const scene = activeScene.value;
 	if (scene == null) return null;
 	return scaleResolution(getSceneBaseResolution(scene.resolution, stateManager.state.resolution.value), resolutionFactor.value);
@@ -250,8 +250,8 @@ function update(t: number) {
 	if (renderEngine.isSuspended.value) return;
 	const delta = latestTime == null ? 0 : t - latestTime;
 	latestTime = t;
-	if (previewPlayback.state.value.mode === 'visualModuleLivePreview') visualModuleLivePreviewTime.value += delta * visualModuleLivePreviewTimeFactor.value;
-	projectSession.previewParameterEditing.time.value = visualModuleLivePreviewTime.value;
+	if (previewPlayback.state.value.mode === 'customNodeGraphEffectLivePreview') customNodeGraphEffectLivePreviewTime.value += delta * customNodeGraphEffectLivePreviewTimeFactor.value;
+	projectSession.previewParameterEditing.time.value = customNodeGraphEffectLivePreviewTime.value;
 	updatePreviewDevicePixelRatio();
 	fitInitialZoom();
 	updateGridLines();
@@ -434,9 +434,9 @@ function clearRulerPointer() {
 }
 
 function onPointermove(ev: PointerEvent) {
-	if (canvasContainer.value == null || previewPlayback.state.value.mode !== 'visualModuleLivePreview') return;
+	if (canvasContainer.value == null || previewPlayback.state.value.mode !== 'customNodeGraphEffectLivePreview') return;
 	const rect = canvasContainer.value.getBoundingClientRect();
-	visualModuleRendererManagerController.updatePointerPosition({
+	customNodeGraphEffectRendererManagerController.updatePointerPosition({
 		x: (((ev.clientX - rect.left) / rect.width) - 0.5) * 2,
 		y: -(((ev.clientY - rect.top) / rect.height) - 0.5) * 2,
 	});
@@ -513,14 +513,14 @@ function showPreviewTargetMenu(ev: PointerEvent) {
 		})),
 	}, {
 		type: 'parent',
-		text: i18n.ts.VisualModule,
+		text: i18n.ts.CustomNodeGraphEffect,
 		icon: 'ti ti-box-multiple',
-		children: () => stateManager.state.visualModules.value.map(visualModule => ({
-			text: visualModule.name,
-			active: previewPlayback.visualModuleLivePreviewVisualModuleId.value === visualModule.id,
+		children: () => stateManager.state.customNodeGraphEffects.value.map(customNodeGraphEffect => ({
+			text: customNodeGraphEffect.name,
+			active: previewPlayback.livePreviewCustomNodeGraphEffectId.value === customNodeGraphEffect.id,
 			action: () => {
-				// 同じVisual Module Live Preview対象の再選択では、Preview Paramsで設定した値を初期化しない。
-				if (previewPlayback.visualModuleLivePreviewVisualModuleId.value !== visualModule.id) previewPlayback.startVisualModuleLivePreview(visualModule.id);
+				// 同じCustom Node Graph Effect Live Preview対象の再選択では、Preview Paramsで設定した値を初期化しない。
+				if (previewPlayback.livePreviewCustomNodeGraphEffectId.value !== customNodeGraphEffect.id) previewPlayback.startCustomNodeGraphEffectLivePreview(customNodeGraphEffect.id);
 			},
 		})),
 	}], ev.currentTarget ?? ev.target);

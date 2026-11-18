@@ -35,7 +35,7 @@ function fixture() {
 		resolution: { value: { width: 1920, height: 1080 } }, timelineFps: { value: 30 },
 		timelineMotionBlur: { value: { enabled: false, shutterAngle: 180, samples: 8 } }, exportSettings: { value: null },
 		automationGraphs: { value: [] }, customShaderEffects: { value: [] }, generatedSpeech: { value: [] },
-		assets: { value: [] }, players: { value: [] }, visualModules: { value: [] }, timelineScenes: { value: [] },
+		assets: { value: [] }, players: { value: [] }, customNodeGraphEffects: { value: [] }, timelineScenes: { value: [] },
 	};
 	const manager = new UndoRedo(state, COMMAND_DEFS);
 	const errors = [];
@@ -67,13 +67,13 @@ test('documents every public Command and Query with serializable schemas and par
 // 影響しないこと、一覧へ巨大なスキーマを埋め込まないことを確認する。
 test('exposes searchable detached references to AiScript without editing the project', async () => {
 	const { controller, manager, errors } = fixture();
-	controller.source.value = '<: Script:search("createVisualModule")\nlet reference = Script:describe("Command:createVisualModule")\nreference.description = "Local"\n<: Script:describe("Command:createVisualModule").description';
+	controller.source.value = '<: Script:search("createCustomNodeGraphEffect")\nlet reference = Script:describe("Command:createCustomNodeGraphEffect")\nreference.description = "Local"\n<: Script:describe("Command:createCustomNodeGraphEffect").description';
 	await controller.run();
 	assert.deepEqual(errors, []);
 	assert.equal(manager.undoStack.value.length, 0);
-	assert.match(controller.output.value[0], /Command:createVisualModule/);
+	assert.match(controller.output.value[0], /Command:createCustomNodeGraphEffect/);
 	assert.notEqual(controller.output.value[1], 'Local');
-	assert.equal(Object.hasOwn(searchProjectScriptApi('createVisualModule')[0], 'inputSchema'), false);
+	assert.equal(Object.hasOwn(searchProjectScriptApi('createCustomNodeGraphEffect')[0], 'inputSchema'), false);
 });
 
 // 【自己完結した公開サンプルが新規プロジェクト上でCommand・Queryを呼び出せる】

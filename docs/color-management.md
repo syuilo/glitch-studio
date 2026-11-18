@@ -1,6 +1,6 @@
 # 色空間と画像の入出力
 
-作業色空間は、sRGBの原色とD65白色点を使うlinear RGBへ固定する。プロジェクト・Scene・Visual Moduleごとの作業色空間設定は持たない。
+作業色空間は、sRGBの原色とD65白色点を使うlinear RGBへ固定する。プロジェクト・Scene・Custom Node Graph Effectごとの作業色空間設定は持たない。
 
 ## 保存値とGPUの規約
 

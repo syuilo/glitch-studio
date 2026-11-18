@@ -16,7 +16,7 @@ const bundle = await build({
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
-		export { commitVisualModuleEdit } from './src/utility/visual-module-edit.ts';
+		export { commitCustomNodeGraphEffectEdit } from './src/utility/custom-node-graph-effect-edit.ts';
 		export { createNamedParameterFromLiteral } from './src/utility/named-parameter-creation.ts';
 	` },
 	plugins: [i18nPlugin, { name: 'public-parameter-platform', setup(build) {
@@ -28,47 +28,47 @@ const bundle = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { COMMAND_DEFS, UndoRedo, commitVisualModuleEdit, createNamedParameterFromLiteral } = module.exports;
+const { COMMAND_DEFS, UndoRedo, commitCustomNodeGraphEffectEdit, createNamedParameterFromLiteral } = module.exports;
 
 function fixture() {
 	const node = { id: 'node', type: 'effect', effectId: 'test', params: { amount: literal(0.3), weights: structuredClone(array.defaultValue) } };
-	const visualModule = { customParameterDefs: [], customParameterValues: {}, id: 'visual-module', nodes: [node], paramDefs: [], primaryInputId: null, primaryAudioInputId: null, automationGraphs: [] };
+	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, id: 'custom-node-graph-effect', nodes: [node], paramDefs: [], primaryInputId: null, primaryAudioInputId: null, automationGraphs: [] };
 	const layer = { id: 'layer', name: 'Layer', layerType: 'effect', effectId: 'test', automationGraphs: [], effectParamValues: structuredClone(node.params) };
 	const scene = { id: 'scene', resolution: { mode: 'customAbsolute', width: 1600, height: 800 }, layers: [layer] };
-	const state = { visualModules: { value: [visualModule] }, timelineScenes: { value: [scene] }, resolution: { value: { width: 1600, height: 800 } } };
+	const state = { customNodeGraphEffects: { value: [customNodeGraphEffect] }, timelineScenes: { value: [scene] }, resolution: { value: { width: 1600, height: 800 } } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const changes = [];
 	history.onChange(value => changes.push(value));
-	return { get node() { return visualModule.nodes.find(candidate => candidate.id === node.id); }, visualModule, layer, scene, state, history, changes };
+	return { get node() { return customNodeGraphEffect.nodes.find(candidate => candidate.id === node.id); }, customNodeGraphEffect, layer, scene, state, history, changes };
 }
 
 for (const inline of [false, true]) {
 	// 【カスタム化の作成と接続を一回のUndoで戻し、Redoでも同じIDを使う】
 	// メニュー由来の編集通知をCommandまで通し、公開と同名を許可しつつ
 	// 元の固定値・型・UIを保持し、空だった定義・値もUndoで元に戻す。
-	test(`creates and connects a custom parameter in an inline Visual Module: ${inline}`, () => {
+	test(`creates and connects a custom parameter in an inline Custom Node Graph Effect: ${inline}`, () => {
 		const f = fixture();
-		const target = inline ? { sceneId: 'scene', inlineVisualModuleLayerId: 'inline' } : { visualModuleId: f.visualModule.id };
-		if (inline) f.scene.layers.push({ id: 'inline', layerType: 'inlineVisualModule', visualModule: f.visualModule });
-		f.visualModule.paramDefs.push({ ...structuredClone(scalar), id: 'public-amount', nameForReference: 'amount', canNode: false });
-		const before = structuredClone(f.visualModule);
-		commitVisualModuleEdit(f.history, target, { kind: 'editNodeParam', nodeId: f.node.id, edit: { kind: 'createCustomParameter', paramPath: ['amount'] } });
-		const definition = f.visualModule.customParameterDefs[0];
+		const target = inline ? { sceneId: 'scene', inlineCustomNodeGraphEffectLayerId: 'inline' } : { customNodeGraphEffectId: f.customNodeGraphEffect.id };
+		if (inline) f.scene.layers.push({ id: 'inline', layerType: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: f.customNodeGraphEffect });
+		f.customNodeGraphEffect.paramDefs.push({ ...structuredClone(scalar), id: 'public-amount', nameForReference: 'amount', canNode: false });
+		const before = structuredClone(f.customNodeGraphEffect);
+		commitCustomNodeGraphEffectEdit(f.history, target, { kind: 'editNodeParam', nodeId: f.node.id, edit: { kind: 'createCustomParameter', paramPath: ['amount'] } });
+		const definition = f.customNodeGraphEffect.customParameterDefs[0];
 		assert.deepEqual(definition.dataType, scalar.dataType);
 		assert.deepEqual(definition.ui, { label: 'Amount', control: scalar.ui.control });
 		assert.notEqual(definition.ui.control, scalar.ui.control);
 		assert.deepEqual(definition.defaultValue, literal(0.3));
 		assert.equal(definition.canNode, false);
 		assert.equal(definition.nameForReference, 'amount');
-		assert.deepEqual(f.node.params.amount, { inputSource: 'visualModuleCustomParameterValueReference', parameterId: definition.id });
-		assert.equal(f.visualModule.paramDefs.length, 1);
+		assert.deepEqual(f.node.params.amount, { inputSource: 'customNodeGraphEffectCustomParameterValueReference', parameterId: definition.id });
+		assert.equal(f.customNodeGraphEffect.paramDefs.length, 1);
 		assert.equal(f.history.undoStack.value.length, 1);
-		assert.deepEqual(f.changes[0].map(change => change.type), ['visualModule']);
-		const after = structuredClone(f.visualModule);
+		assert.deepEqual(f.changes[0].map(change => change.type), ['customNodeGraphEffect']);
+		const after = structuredClone(f.customNodeGraphEffect);
 		f.history.undo();
-		assert.deepEqual(f.visualModule, before);
+		assert.deepEqual(f.customNodeGraphEffect, before);
 		f.history.redo();
-		assert.deepEqual(f.visualModule, after);
+		assert.deepEqual(f.customNodeGraphEffect, after);
 	});
 }
 
@@ -77,22 +77,22 @@ for (const inline of [false, true]) {
 test('promotes an array leaf without replacing existing custom definitions or values', () => {
 	const f = fixture();
 	const existing = { ...structuredClone(scalar), id: 'existing', nameForReference: 'weights', canNode: false };
-	f.visualModule.customParameterDefs = [existing];
-	f.visualModule.customParameterValues = { existing: { inputSource: 'expression', expression: 'TIME' } };
-	f.visualModule.paramDefs = [{ ...existing, id: 'public-weights', nameForReference: 'weights_2' }];
-	const before = structuredClone(f.visualModule);
-	f.history.commit('createVisualModuleCustomParameterFromParameter', { target: { visualModule: { visualModuleId: f.visualModule.id }, nodeId: f.node.id }, parameterPath: ['weights', 'second'] });
-	const definition = f.visualModule.customParameterDefs[1];
+	f.customNodeGraphEffect.customParameterDefs = [existing];
+	f.customNodeGraphEffect.customParameterValues = { existing: { inputSource: 'expression', expression: 'TIME' } };
+	f.customNodeGraphEffect.paramDefs = [{ ...existing, id: 'public-weights', nameForReference: 'weights_2' }];
+	const before = structuredClone(f.customNodeGraphEffect);
+	f.history.commit('createCustomNodeGraphEffectCustomParameterFromParameter', { target: { customNodeGraphEffect: { customNodeGraphEffectId: f.customNodeGraphEffect.id }, nodeId: f.node.id }, parameterPath: ['weights', 'second'] });
+	const definition = f.customNodeGraphEffect.customParameterDefs[1];
 	assert.equal(definition.nameForReference, 'weights_2');
 	assert.deepEqual(definition.defaultValue, literal(0.8));
-	assert.deepEqual(f.visualModule.customParameterValues, before.customParameterValues);
+	assert.deepEqual(f.customNodeGraphEffect.customParameterValues, before.customParameterValues);
 	assert.deepEqual(f.node.params.weights.value[0], before.nodes[0].params.weights.value[0]);
-	assert.deepEqual(f.node.params.weights.value[1], { id: 'second', binding: { inputSource: 'visualModuleCustomParameterValueReference', parameterId: definition.id } });
-	const after = structuredClone(f.visualModule);
+	assert.deepEqual(f.node.params.weights.value[1], { id: 'second', binding: { inputSource: 'customNodeGraphEffectCustomParameterValueReference', parameterId: definition.id } });
+	const after = structuredClone(f.customNodeGraphEffect);
 	f.history.undo();
-	assert.deepEqual(f.visualModule, before);
+	assert.deepEqual(f.customNodeGraphEffect, before);
 	f.history.redo();
-	assert.deepEqual(f.visualModule, after);
+	assert.deepEqual(f.customNodeGraphEffect, after);
 });
 
 // 【移動できない入力はカスタム化のCommandからも拒否し、部分的な作成を残さない】
@@ -110,8 +110,8 @@ test('rejects unsupported custom parameter promotion without changing state or h
 		const path = binding === array.defaultValue ? ['weights'] : ['amount'];
 		f.node.params[path[0]] = structuredClone(binding);
 		const before = structuredClone(f.state);
-		assert.throws(() => f.history.commit('createVisualModuleCustomParameterFromParameter', {
-			target: { visualModule: { visualModuleId: f.visualModule.id }, nodeId: f.node.id }, parameterPath: path,
+		assert.throws(() => f.history.commit('createCustomNodeGraphEffectCustomParameterFromParameter', {
+			target: { customNodeGraphEffect: { customNodeGraphEffectId: f.customNodeGraphEffect.id }, nodeId: f.node.id }, parameterPath: path,
 		}), /Only literal/);
 		assert.deepEqual(f.state, before);
 		assert.equal(f.history.undoStack.value.length, 0);
@@ -122,86 +122,86 @@ test('rejects unsupported custom parameter promotion without changing state or h
 for (const inline of [false, true]) {
 	// 【カスタムの定義・値・参照を、通常配置とインライン配置の両方でUndoできる】
 	// 公開と同名でも作成でき、名前変更でID参照を失わず、削除・復元・型変更が同じ履歴で戻ることを確認する。
-	test(`edits custom parameter definitions and bindings with undo in an inline Visual Module: ${inline}`, () => {
+	test(`edits custom parameter definitions and bindings with undo in an inline Custom Node Graph Effect: ${inline}`, () => {
 		const f = fixture();
-		const target = inline ? { sceneId: 'scene', inlineVisualModuleLayerId: 'inline' } : { visualModuleId: f.visualModule.id };
-		if (inline) f.scene.layers.push({ id: 'inline', layerType: 'inlineVisualModule', visualModule: f.visualModule });
+		const target = inline ? { sceneId: 'scene', inlineCustomNodeGraphEffectLayerId: 'inline' } : { customNodeGraphEffectId: f.customNodeGraphEffect.id };
+		if (inline) f.scene.layers.push({ id: 'inline', layerType: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: f.customNodeGraphEffect });
 		const definition = { ...scalar, id: 'custom-id', nameForReference: 'speed', canNode: false };
-		f.visualModule.paramDefs.push({ ...definition, id: 'public-id' });
-		const before = structuredClone(f.visualModule);
-		commitVisualModuleEdit(f.history, target, { kind: 'updateCustomParameter', definition });
-		definition.id = f.visualModule.customParameterDefs[0].id;
-		const afterCreation = structuredClone(f.visualModule);
+		f.customNodeGraphEffect.paramDefs.push({ ...definition, id: 'public-id' });
+		const before = structuredClone(f.customNodeGraphEffect);
+		commitCustomNodeGraphEffectEdit(f.history, target, { kind: 'updateCustomParameter', definition });
+		definition.id = f.customNodeGraphEffect.customParameterDefs[0].id;
+		const afterCreation = structuredClone(f.customNodeGraphEffect);
 		f.history.undo();
-		assert.deepEqual(f.visualModule, before);
+		assert.deepEqual(f.customNodeGraphEffect, before);
 		f.history.redo();
-		assert.deepEqual(f.visualModule, afterCreation);
-		commitVisualModuleEdit(f.history, target, { kind: 'editCustomParameter', parameterId: definition.id, edit: { kind: 'expression', value: 'PUBLIC("speed") * 2' } });
-		commitVisualModuleEdit(f.history, target, { kind: 'editCustomParameter', parameterId: definition.id, edit: { kind: 'expressionModifier', value: { enabled: true, code: 'VALUE + TIME' } } });
-		const binding = structuredClone(f.visualModule.customParameterValues[definition.id]);
-		commitVisualModuleEdit(f.history, target, { kind: 'editNodeParam', nodeId: f.node.id, edit: { kind: 'visualModuleCustomParameterValueReference', paramPath: ['amount'], value: definition.id } });
-		commitVisualModuleEdit(f.history, target, { kind: 'updateCustomParameter', definition: { ...definition, nameForReference: 'renamed' } });
+		assert.deepEqual(f.customNodeGraphEffect, afterCreation);
+		commitCustomNodeGraphEffectEdit(f.history, target, { kind: 'editCustomParameter', parameterId: definition.id, edit: { kind: 'expression', value: 'PUBLIC("speed") * 2' } });
+		commitCustomNodeGraphEffectEdit(f.history, target, { kind: 'editCustomParameter', parameterId: definition.id, edit: { kind: 'expressionModifier', value: { enabled: true, code: 'VALUE + TIME' } } });
+		const binding = structuredClone(f.customNodeGraphEffect.customParameterValues[definition.id]);
+		commitCustomNodeGraphEffectEdit(f.history, target, { kind: 'editNodeParam', nodeId: f.node.id, edit: { kind: 'customNodeGraphEffectCustomParameterValueReference', paramPath: ['amount'], value: definition.id } });
+		commitCustomNodeGraphEffectEdit(f.history, target, { kind: 'updateCustomParameter', definition: { ...definition, nameForReference: 'renamed' } });
 		assert.equal(f.node.params.amount.parameterId, definition.id);
-		assert.deepEqual(f.visualModule.customParameterValues[definition.id], binding);
-		assert.equal(f.visualModule.paramDefs.length, 1);
-		commitVisualModuleEdit(f.history, target, { kind: 'removeCustomParameter', parameterId: definition.id });
+		assert.deepEqual(f.customNodeGraphEffect.customParameterValues[definition.id], binding);
+		assert.equal(f.customNodeGraphEffect.paramDefs.length, 1);
+		commitCustomNodeGraphEffectEdit(f.history, target, { kind: 'removeCustomParameter', parameterId: definition.id });
 		assert.equal(f.node.params.amount.parameterId, definition.id);
-		assert.equal(f.visualModule.customParameterDefs.length, 0);
+		assert.equal(f.customNodeGraphEffect.customParameterDefs.length, 0);
 		f.history.undo();
-		assert.equal(f.visualModule.customParameterDefs[0].nameForReference, 'renamed');
-		assert.deepEqual(f.visualModule.customParameterValues[definition.id], binding);
-		commitVisualModuleEdit(f.history, target, { kind: 'updateCustomParameter', definition: { ...definition, dataType: { kind: 'string' }, ui: { label: 'Text', control: {} }, defaultValue: literal('initial') } });
-		assert.equal(f.visualModule.customParameterValues[definition.id], undefined);
+		assert.equal(f.customNodeGraphEffect.customParameterDefs[0].nameForReference, 'renamed');
+		assert.deepEqual(f.customNodeGraphEffect.customParameterValues[definition.id], binding);
+		commitCustomNodeGraphEffectEdit(f.history, target, { kind: 'updateCustomParameter', definition: { ...definition, dataType: { kind: 'string' }, ui: { label: 'Text', control: {} }, defaultValue: literal('initial') } });
+		assert.equal(f.customNodeGraphEffect.customParameterValues[definition.id], undefined);
 		f.history.undo();
-		assert.deepEqual(f.visualModule.customParameterValues[definition.id], binding);
-		assert.throws(() => commitVisualModuleEdit(f.history, target, { kind: 'updateCustomParameter', definition: { ...definition, id: 'duplicate', nameForReference: 'renamed' } }), /unique/);
-		assert.ok(f.changes.some(changes => changes.some(change => change.type === 'visualModule' && change.customParameterValuesOnly === true)));
+		assert.deepEqual(f.customNodeGraphEffect.customParameterValues[definition.id], binding);
+		assert.throws(() => commitCustomNodeGraphEffectEdit(f.history, target, { kind: 'updateCustomParameter', definition: { ...definition, id: 'duplicate', nameForReference: 'renamed' } }), /unique/);
+		assert.ok(f.changes.some(changes => changes.some(change => change.type === 'customNodeGraphEffect' && change.customParameterValuesOnly === true)));
 	});
 }
 
 for (const inline of [false, true]) {
-	// 【通常とインラインのVisual Moduleで、作成・接続を一つのUndoにする】
+	// 【通常とインラインのCustom Node Graph Effectで、作成・接続を一つのUndoにする】
 	// エディタの通知から実際のCommandまでを通し、型・UI・現在値の引き継ぎと
 	// Redo時のID維持、元の詳細設定を公開先に持ち込まないことを確認する。
-	test(`creates and connects a public parameter in an inline Visual Module: ${inline}`, () => {
+	test(`creates and connects a public parameter in an inline Custom Node Graph Effect: ${inline}`, () => {
 		const f = fixture();
-		const target = inline ? { sceneId: 'scene', inlineVisualModuleLayerId: 'inline' } : { visualModuleId: f.visualModule.id };
-		if (inline) f.scene.layers.push({ id: 'inline', layerType: 'inlineVisualModule', visualModule: f.visualModule });
-		const before = structuredClone(f.visualModule);
-		commitVisualModuleEdit(f.history, target, { kind: 'editNodeParam', nodeId: f.node.id, edit: { kind: 'createPublicParameter', paramPath: ['amount'] } });
-		const definition = f.visualModule.paramDefs[0];
+		const target = inline ? { sceneId: 'scene', inlineCustomNodeGraphEffectLayerId: 'inline' } : { customNodeGraphEffectId: f.customNodeGraphEffect.id };
+		if (inline) f.scene.layers.push({ id: 'inline', layerType: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: f.customNodeGraphEffect });
+		const before = structuredClone(f.customNodeGraphEffect);
+		commitCustomNodeGraphEffectEdit(f.history, target, { kind: 'editNodeParam', nodeId: f.node.id, edit: { kind: 'createPublicParameter', paramPath: ['amount'] } });
+		const definition = f.customNodeGraphEffect.paramDefs[0];
 		assert.deepEqual(definition.dataType, scalar.dataType);
 		assert.deepEqual(definition.ui, { label: 'Amount', control: scalar.ui.control });
 		assert.deepEqual(definition.defaultValue, literal(0.3));
 		assert.equal(definition.canNode, false);
 		assert.equal(definition.nameForReference, 'amount');
-		assert.deepEqual(f.node.params.amount, { inputSource: 'visualModulePublicParameterReference', parameterId: definition.id });
+		assert.deepEqual(f.node.params.amount, { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: definition.id });
 		assert.equal(f.history.undoStack.value.length, 1);
-		assert.equal(f.changes[0][0].type, 'visualModule');
-		const after = structuredClone(f.visualModule);
+		assert.equal(f.changes[0][0].type, 'customNodeGraphEffect');
+		const after = structuredClone(f.customNodeGraphEffect);
 		f.history.undo();
-		assert.deepEqual(f.visualModule, before);
+		assert.deepEqual(f.customNodeGraphEffect, before);
 		f.history.redo();
-		assert.deepEqual(f.visualModule, after);
+		assert.deepEqual(f.customNodeGraphEffect, after);
 	});
 }
 
-for (const scope of ['visualModule', 'timeline']) {
+for (const scope of ['customNodeGraphEffect', 'timeline']) {
 	// 【配列の末端だけを公開し、同名の参照名を衝突させない】
 	// 配列の安定IDと兄弟Bindingを維持し、既存定義を上書きしない。
 	// 元定義とのオブジェクト共有も避け、公開先のUI編集が元のエフェクトへ漏れないことを確認する。
 	test(`promotes an array leaf with a unique name in ${scope}`, () => {
 		const f = fixture();
 		const existing = { ...structuredClone(scalar), canNode: false, id: 'existing', nameForReference: 'weights' };
-		if (scope === 'visualModule') f.visualModule.paramDefs.push(existing);
+		if (scope === 'customNodeGraphEffect') f.customNodeGraphEffect.paramDefs.push(existing);
 		else f.layer.publicParameterDefs = [existing];
-		const owner = scope === 'visualModule' ? f.visualModule : f.layer;
+		const owner = scope === 'customNodeGraphEffect' ? f.customNodeGraphEffect : f.layer;
 		const before = structuredClone(owner);
-		f.history.commit(scope === 'visualModule' ? 'createVisualModulePublicParameterFromParameter' : 'createTimelineLayerPublicParameterFromParameter', {
-			...(scope === 'visualModule' ? { target: { visualModule: { visualModuleId: f.visualModule.id }, nodeId: f.node.id } } : { sceneId: 'scene', layerId: f.layer.id, parameterGroup: 'effect' }), parameterPath: ['weights', 'second'],
+		f.history.commit(scope === 'customNodeGraphEffect' ? 'createCustomNodeGraphEffectPublicParameterFromParameter' : 'createTimelineLayerPublicParameterFromParameter', {
+			...(scope === 'customNodeGraphEffect' ? { target: { customNodeGraphEffect: { customNodeGraphEffectId: f.customNodeGraphEffect.id }, nodeId: f.node.id } } : { sceneId: 'scene', layerId: f.layer.id, parameterGroup: 'effect' }), parameterPath: ['weights', 'second'],
 		});
-		const definitions = scope === 'visualModule' ? f.visualModule.paramDefs : f.layer.publicParameterDefs;
-		const values = scope === 'visualModule' ? f.node.params : f.layer.effectParamValues;
+		const definitions = scope === 'customNodeGraphEffect' ? f.customNodeGraphEffect.paramDefs : f.layer.publicParameterDefs;
+		const values = scope === 'customNodeGraphEffect' ? f.node.params : f.layer.effectParamValues;
 		assert.equal(definitions[1].nameForReference, 'weights_2');
 		assert.deepEqual(definitions[1].defaultValue, literal(0.8));
 		assert.deepEqual(values.weights.value[0], array.defaultValue.value[0]);
@@ -217,21 +217,21 @@ for (const scope of ['visualModule', 'timeline']) {
 }
 
 // 【Timelineで未保存の既定値を公開し、所有レイヤーだけへ接続する】
-// Visual Moduleの引数が未保存でも現在の既定値を引き継ぎ、他の利用レイヤーへ
+// Custom Node Graph Effectの引数が未保存でも現在の既定値を引き継ぎ、他の利用レイヤーへ
 // 影響させない。Undoで不要な保存値と公開パラメータ定義を残さないことも保証する。
-test('promotes an unset inline Visual Module argument into its owning timeline layer', () => {
+test('promotes an unset inline Custom Node Graph Effect argument into its owning timeline layer', () => {
 	const f = fixture();
-	f.visualModule.paramDefs = [{ ...structuredClone(scalar), id: 'amount', nameForReference: 'amount', canNode: false, defaultValue: literal(0.75) }];
-	f.layer = { id: 'inline', layerType: 'inlineVisualModule', visualModule: f.visualModule, visualModuleParamValues: {}, automationGraphs: [] };
+	f.customNodeGraphEffect.paramDefs = [{ ...structuredClone(scalar), id: 'amount', nameForReference: 'amount', canNode: false, defaultValue: literal(0.75) }];
+	f.layer = { id: 'inline', layerType: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: f.customNodeGraphEffect, customNodeGraphEffectParamValues: {}, automationGraphs: [] };
 	f.scene.layers = [f.layer];
 	const before = structuredClone(f.layer);
-	f.history.commit('createTimelineLayerPublicParameterFromParameter', { sceneId: 'scene', layerId: f.layer.id, parameterGroup: 'visualModule', parameterPath: ['amount'] });
+	f.history.commit('createTimelineLayerPublicParameterFromParameter', { sceneId: 'scene', layerId: f.layer.id, parameterGroup: 'customNodeGraphEffect', parameterPath: ['amount'] });
 	const definition = f.layer.publicParameterDefs[0];
 	assert.deepEqual(definition.defaultValue, literal(0.75));
-	assert.deepEqual(f.layer.visualModuleParamValues.amount, { inputSource: 'timelineLayerPublicParameterReference', layerId: f.layer.id, parameterId: definition.id });
-	assert.equal(f.visualModule.paramDefs.length, 1);
+	assert.deepEqual(f.layer.customNodeGraphEffectParamValues.amount, { inputSource: 'timelineLayerPublicParameterReference', layerId: f.layer.id, parameterId: definition.id });
+	assert.equal(f.customNodeGraphEffect.paramDefs.length, 1);
 	assert.equal(f.history.undoStack.value.length, 1);
-	assert.deepEqual(f.changes[0][0].changes, [{ type: 'definition' }, { type: 'parameter', target: 'module', kind: 'connection' }]);
+	assert.deepEqual(f.changes[0][0].changes, [{ type: 'definition' }, { type: 'parameter', target: 'customNodeGraphEffect', kind: 'connection' }]);
 	const after = structuredClone(f.layer);
 	f.history.undo();
 	assert.deepEqual(f.layer, before);
@@ -257,7 +257,7 @@ test('uses the fixed default when promoting an unset camera distance', () => {
 // メニュー表示後の状態変更や誤った呼び出しでも、式・接続・加工式・コンテナが
 // 途中まで公開されないようにし、失敗時は履歴と保存状態を維持する。
 test('rejects nonliteral bindings modifiers and containers without changing state or history', () => {
-	for (const scope of ['visualModule', 'timeline']) {
+	for (const scope of ['customNodeGraphEffect', 'timeline']) {
 		for (const binding of [
 			{ inputSource: 'expression', expression: 'PUBLIC("amount")' },
 			{ inputSource: 'node', nodeId: 'other', outputPort: 'output' },
@@ -267,11 +267,11 @@ test('rejects nonliteral bindings modifiers and containers without changing stat
 		]) {
 			const f = fixture();
 			const path = binding === array.defaultValue ? ['weights'] : ['amount'];
-			if (scope === 'visualModule') f.node.params[path[0]] = structuredClone(binding);
+			if (scope === 'customNodeGraphEffect') f.node.params[path[0]] = structuredClone(binding);
 			else f.layer.effectParamValues[path[0]] = structuredClone(binding);
 			const before = structuredClone(f.state);
-			assert.throws(() => f.history.commit(scope === 'visualModule' ? 'createVisualModulePublicParameterFromParameter' : 'createTimelineLayerPublicParameterFromParameter', {
-				...(scope === 'visualModule' ? { target: { visualModule: { visualModuleId: f.visualModule.id }, nodeId: f.node.id } } : { sceneId: 'scene', layerId: f.layer.id, parameterGroup: 'effect' }), parameterPath: path,
+			assert.throws(() => f.history.commit(scope === 'customNodeGraphEffect' ? 'createCustomNodeGraphEffectPublicParameterFromParameter' : 'createTimelineLayerPublicParameterFromParameter', {
+				...(scope === 'customNodeGraphEffect' ? { target: { customNodeGraphEffect: { customNodeGraphEffectId: f.customNodeGraphEffect.id }, nodeId: f.node.id } } : { sceneId: 'scene', layerId: f.layer.id, parameterGroup: 'effect' }), parameterPath: path,
 			}), /Only literal/);
 			assert.deepEqual(f.state, before);
 			assert.equal(f.history.undoStack.value.length, 0);
@@ -303,22 +303,22 @@ test('generates valid unique reference names without altering labels or sharing 
 // 検証に失敗したCommandは状態と通知を残さず、先行した成功分は一履歴として手動で戻せる。
 test('returns stable references and retains only successful changes in an asynchronous group', async () => {
 	const f = fixture();
-	const before = structuredClone(f.visualModule);
+	const before = structuredClone(f.customNodeGraphEffect);
 	let created;
 	await assert.rejects(f.history.runGroup('Script', async () => {
-		created = await f.history.execute('createVisualModuleCustomParameter', { visualModule: { visualModuleId: f.visualModule.id }, definition: { ...scalar, canNode: false, nameForReference: 'created' } });
-		await f.history.execute('setVisualModuleCustomParameterSource', { target: created, source: { inputSource: 'expression', expression: 'TIME' } });
-		await f.history.execute('replaceVisualModuleNodeParameterBinding', { target: { visualModule: { visualModuleId: f.visualModule.id }, nodeId: f.node.id }, parameterPath: ['weights'], binding: { inputSource: 'literal', value: [{ id: 'same', binding: literal(1) }, { id: 'same', binding: literal(2) }] } });
+		created = await f.history.execute('createCustomNodeGraphEffectCustomParameter', { customNodeGraphEffect: { customNodeGraphEffectId: f.customNodeGraphEffect.id }, definition: { ...scalar, canNode: false, nameForReference: 'created' } });
+		await f.history.execute('setCustomNodeGraphEffectCustomParameterSource', { target: created, source: { inputSource: 'expression', expression: 'TIME' } });
+		await f.history.execute('replaceCustomNodeGraphEffectNodeParameterBinding', { target: { customNodeGraphEffect: { customNodeGraphEffectId: f.customNodeGraphEffect.id }, nodeId: f.node.id }, parameterPath: ['weights'], binding: { inputSource: 'literal', value: [{ id: 'same', binding: literal(1) }, { id: 'same', binding: literal(2) }] } });
 	}), /Duplicate array element ID/);
 	assert.equal(f.history.undoStack.value.length, 1);
 	assert.equal(f.changes.length, 2);
-	assert.deepEqual(f.visualModule.customParameterValues[created.parameterId], { inputSource: 'expression', expression: 'TIME' });
-	const after = structuredClone(f.visualModule);
+	assert.deepEqual(f.customNodeGraphEffect.customParameterValues[created.parameterId], { inputSource: 'expression', expression: 'TIME' });
+	const after = structuredClone(f.customNodeGraphEffect);
 	created.parameterId = 'caller-mutated';
 	f.history.undo();
-	assert.deepEqual(f.visualModule, before);
+	assert.deepEqual(f.customNodeGraphEffect, before);
 	f.history.redo();
-	assert.deepEqual(f.visualModule, after);
+	assert.deepEqual(f.customNodeGraphEffect, after);
 });
 
 // 【配列要素の生成結果を編集へ渡し、No-opと失敗でRedoを壊さない】
@@ -326,16 +326,16 @@ test('returns stable references and retains only successful changes in an asynch
 // 履歴と通知を増やさず、取り消した操作をやり直せる状態を維持する。
 test('returns array element paths and keeps redo on no-op or invalid edits', async () => {
 	const f = fixture();
-	const input = { target: { visualModule: { visualModuleId: f.visualModule.id }, nodeId: f.node.id }, parameterPath: ['weights'] };
-	const inserted = await f.history.execute('insertVisualModuleNodeParameterArrayElement', { ...input, beforeElementId: 'second' });
+	const input = { target: { customNodeGraphEffect: { customNodeGraphEffectId: f.customNodeGraphEffect.id }, nodeId: f.node.id }, parameterPath: ['weights'] };
+	const inserted = await f.history.execute('insertCustomNodeGraphEffectNodeParameterArrayElement', { ...input, beforeElementId: 'second' });
 	assert.deepEqual(inserted.parameterPath.slice(0, -1), ['weights']);
 	assert.equal(f.node.params.weights.value[1].id, inserted.parameterPath.at(-1));
-	await f.history.execute('setVisualModuleNodeParameterSource', { ...inserted, source: literal(0.4) });
+	await f.history.execute('setCustomNodeGraphEffectNodeParameterSource', { ...inserted, source: literal(0.4) });
 	assert.deepEqual(f.node.params.weights.value[1].binding, literal(0.4));
 	f.history.undo();
 	const notifications = f.changes.length;
-	await f.history.execute('setVisualModuleNodeParameterSource', { ...inserted, source: literal(0) });
-	await assert.rejects(f.history.execute('insertVisualModuleNodeParameterArrayElement', { ...input, beforeElementId: 'missing' }), /not found/);
+	await f.history.execute('setCustomNodeGraphEffectNodeParameterSource', { ...inserted, source: literal(0) });
+	await assert.rejects(f.history.execute('insertCustomNodeGraphEffectNodeParameterArrayElement', { ...input, beforeElementId: 'missing' }), /not found/);
 	assert.equal(f.history.redoStack.value.length, 1);
 	assert.equal(f.changes.length, notifications);
 	f.history.redo();

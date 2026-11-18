@@ -8,7 +8,7 @@ import { createTextTimelineLayer } from '../utility/text-timeline-layer.ts';
 import { createShapeTimelineLayer } from '../utility/shape-timeline-layer.ts';
 import { createCameraTimelineLayer } from '../utility/camera-timeline-layer.ts';
 import { createVoicevoxTimelineLayer } from '../utility/voicevox-timeline-layer.ts';
-import { createInlineVisualModuleLayer } from '../utility/inline-visual-module-layer.ts';
+import { createInlineCustomNodeGraphEffectLayer } from '../utility/inline-custom-node-graph-effect-layer.ts';
 import { createImageLayer } from '../utility/image-layer.ts';
 import { getEffectDefinitions } from '../utility/project-effects.ts';
 import type { ProjectState } from '../Project.ts';
@@ -21,8 +21,8 @@ export type TimelineClipReference = TimelineLayerReference & { clipId: string };
 export type TimelineLayerRecipe = { name?: string } & (
 	| { layerType: 'effect'; effectId: string }
 	| { layerType: 'shape'; shapeType: ShapeType }
-	| { layerType: 'visualModule'; visualModuleId: string }
-	| { layerType: 'text' | 'camera' | 'voicevox' | 'inlineVisualModule' | 'image' | 'video' | 'audio' | 'scene' | 'folder' | 'parameterContainer' | 'transform' | 'group' }
+	| { layerType: 'customNodeGraphEffect'; customNodeGraphEffectId: string }
+	| { layerType: 'text' | 'camera' | 'voicevox' | 'inlineCustomNodeGraphEffect' | 'image' | 'video' | 'audio' | 'scene' | 'folder' | 'parameterContainer' | 'transform' | 'group' }
 );
 
 export type TimelineClipRecipe = TimelineClipData extends infer Clip ? Clip extends TimelineClipData ? Omit<Clip, 'id'> : never : never;
@@ -44,7 +44,7 @@ export function createTimelineLayerFromRecipe(state: ProjectState, recipe: Timel
 		case 'text': layer = createTextTimelineLayer(0); break;
 		case 'camera': layer = createCameraTimelineLayer(0); break;
 		case 'voicevox': layer = createVoicevoxTimelineLayer(0); break;
-		case 'inlineVisualModule': layer = createInlineVisualModuleLayer(0); break;
+		case 'inlineCustomNodeGraphEffect': layer = createInlineCustomNodeGraphEffectLayer(0); break;
 		case 'folder':
 		case 'parameterContainer':
 		case 'transform':
@@ -64,11 +64,11 @@ export function createTimelineLayerFromRecipe(state: ProjectState, recipe: Timel
 			layer = { ...image, layerType: 'scene', clips: [], audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) } };
 			break;
 		}
-		case 'visualModule': {
-			const visualModule = state.visualModules.value.find(candidate => candidate.id === recipe.visualModuleId);
-			if (visualModule == null) throw new Error(`Visual Module not found: ${recipe.visualModuleId}`);
-			const image = createImageLayer('', 0, visualModule.name);
-			layer = { ...image, layerType: 'visualModule', visualModuleId: visualModule.id, transformTarget: 'image', visualModuleParamValues: {}, clips: [] };
+		case 'customNodeGraphEffect': {
+			const customNodeGraphEffect = state.customNodeGraphEffects.value.find(candidate => candidate.id === recipe.customNodeGraphEffectId);
+			if (customNodeGraphEffect == null) throw new Error(`Custom Node Graph Effect not found: ${recipe.customNodeGraphEffectId}`);
+			const image = createImageLayer('', 0, customNodeGraphEffect.name);
+			layer = { ...image, layerType: 'customNodeGraphEffect', customNodeGraphEffectId: customNodeGraphEffect.id, transformTarget: 'image', customNodeGraphEffectParamValues: {}, clips: [] };
 			break;
 		}
 		default: throw new Error('Unknown timeline layer type');

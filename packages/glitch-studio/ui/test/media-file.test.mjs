@@ -80,7 +80,7 @@ test('imports cube assets with stable types and round trips their original conte
 		assert.equal(source.type, 'application/x-cube-lut');
 		assert.equal(source.width, 0);
 		assert.equal(source.height, 0);
-		const encoded = await encodeProjectFile({ generatedSpeech: [], visualModules: [], timelineFps: 60,
+		const encoded = await encodeProjectFile({ generatedSpeech: [], customNodeGraphEffects: [], timelineFps: 60,
 																																												timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [],
 																																												assets: [{ ...source, id: 'lut', name: 'Renamed', fileDataType: source.type }] });
 		const restored = decodeProjectFile(encoded).assets[0];
@@ -107,7 +107,7 @@ test('retains each source path when importing multiple desktop Files', async t =
 	const imported = await openMediaFile({ files, multiple: true, includeFonts: true });
 	assert.deepEqual(requestedFiles, files);
 	assert.deepEqual(imported.map(source => source.sourceFilePath), paths);
-	const encoded = await encodeProjectFile({ generatedSpeech: [], visualModules: [], timelineFps: 60,
+	const encoded = await encodeProjectFile({ generatedSpeech: [], customNodeGraphEffects: [], timelineFps: 60,
 																																											timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [],
 																																											assets: imported.map((source, index) => ({ id: String(index), ...source, fileDataType: source.type })) });
 	const restored = decodeProjectFile(encoded).assets;
@@ -176,7 +176,7 @@ for (const media of mediaTypes) {
 			assert.ok(platform.decodedSources.every(source => source === imported.fileData));
 			assert.equal(platform.activeUrls.size, 0);
 			assert.equal(platform.closedBitmaps, media.type.startsWith('image/') ? 1 : 0);
-			const encoded = await encodeProjectFile({ generatedSpeech: [], visualModules: [], timelineFps: 60,
+			const encoded = await encodeProjectFile({ generatedSpeech: [], customNodeGraphEffects: [], timelineFps: 60,
 																																													timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [],
 																																													assets: [{ id: 'asset', ...imported, fileDataType: imported.type }] });
 			assert.equal(await decodeProjectFile(encoded).assets[0].fileData.text(), original);
@@ -212,7 +212,7 @@ test('imports arbitrary files without decoding and retains their contents throug
 	assert.deepEqual(imported.map(source => source.type), types);
 	assert.deepEqual(platform.decodedSources, []);
 	assert.ok(imported.every(source => source.width === 0 && source.height === 0 && source.thumbnailSequence === null));
-	const encoded = await encodeProjectFile({ generatedSpeech: [], visualModules: [], timelineFps: 60,
+	const encoded = await encodeProjectFile({ generatedSpeech: [], customNodeGraphEffects: [], timelineFps: 60,
 																																											timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [],
 																																											assets: imported.map((source, index) => ({ id: String(index), ...source, fileDataType: source.type })) });
 	const restored = decodeProjectFile(encoded).assets;
@@ -292,7 +292,7 @@ test('imports and serializes each native selection with its own source path and 
 	assert.deepEqual(imported.map(file => file.sourceFilePath), selected.map(file => file.path));
 	assert.deepEqual(imported.map(file => file.type), mediaTypes.map(media => media.expectedType ?? media.type));
 	assert.ok(imported.every(file => file.isExternalReference === false && file.fileData instanceof Blob));
-	const encoded = await encodeProjectFile({ generatedSpeech: [], visualModules: [], timelineFps: 60,
+	const encoded = await encodeProjectFile({ generatedSpeech: [], customNodeGraphEffects: [], timelineFps: 60,
 		timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [],
 		assets: imported.map((source, index) => ({ id: String(index), ...source, fileDataType: source.type })) });
 	const restored = decodeProjectFile(encoded).assets;

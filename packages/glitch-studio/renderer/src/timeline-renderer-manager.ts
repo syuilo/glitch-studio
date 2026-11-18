@@ -8,9 +8,9 @@ import type { PreviewGamutCompressionSettings } from '@gs/glitch-studio_shared/p
 import type { PreviewGamutWarningSettings } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
 import type { PreviewImageSource } from '@gs/glitch-studio_shared/preview-image-source.ts';
 import { createProjectEffects } from './custom-shader-effects.ts';
-import { isVisualModuleValueChange } from './project-change-policy.ts';
-import type { VisualModuleValueChange } from './project-change-policy.ts';
-import { visualModuleTargetKey } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
+import { isCustomNodeGraphEffectValueChange } from './project-change-policy.ts';
+import type { CustomNodeGraphEffectValueChange } from './project-change-policy.ts';
+import { customNodeGraphEffectTargetKey } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import { createTimelineLayerPublicParameterContextIndex } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import type { TimelineLayerPublicParameterContext } from '@gs/subsystems_timeline_shared/public-parameters.ts';
@@ -26,12 +26,12 @@ import { TimelineFrameRenderer } from '@gs/subsystems_timeline_renderer/timeline
 import { createMotionBlurAccumulator } from '@gs/subsystems_timeline_renderer/motion-blur-accumulator.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { getTimelineScene } from '@gs/subsystems_timeline_shared/scenes.ts';
-import { applyRendererProjectChanges, findRendererVisualModule } from '@gs/glitch-studio_shared/project/renderer-state.ts';
+import { applyRendererProjectChanges, findRendererCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { getSceneBaseResolution, resolveSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import EventEmitter from 'eventemitter3';
-import { VisualModuleRenderer } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
-import { createVisualModuleTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/visual-module/visual-module-timeline-layer.ts';
+import { CustomNodeGraphEffectRenderer } from '@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-renderer.ts';
+import { createCustomNodeGraphEffectTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/custom-node-graph-effect/custom-node-graph-effect-timeline-layer.ts';
 import { createSceneTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/scene/scene-timeline-layer.ts';
 import { createImageTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/image/image-timeline-layer.ts';
 import { createEffectTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/effect/effect-timeline-layer.ts';
@@ -78,16 +78,16 @@ import type { TimelineCompositingObserver } from '@gs/subsystems_timeline_render
 import type { TimelineMotionBlurCameraCuts, TimelineMotionBlurLoop } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.ts';
-import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
+import type { CustomNodeGraphEffectTarget } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
-import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
+import type { ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import type { TimelineImage } from '@gs/subsystems_timeline_renderer/timeline-image.ts';
-import type { FrameScheduler } from '@gs/subsystems_visual-module_renderer/visual-module-live-preview-render-loop.ts';
+import type { FrameScheduler } from '@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-live-preview-render-loop.ts';
 import type { TimelineLayerRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT, type Asset } from '@gs/shared/types.ts';
-import type { TimelineScene, TimelineLayer, TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import type { VisualModule, VisualModulePublicParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { TimelineScene, TimelineLayer, TimelineCustomNodeGraphEffectLayer, TimelineInlineCustomNodeGraphEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectPublicParameterId } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.js';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
 
@@ -149,7 +149,7 @@ export type TimelineRendererManagerDynamicOptions = {
 	analysisWaveformViewports: PreviewWaveformViewports | null;
 	analysisHistogramViewport: ImageValueRange | null;
 	generatedSpeech: GeneratedSpeech[];
-	visualModules: ProjectVisualModule[];
+	customNodeGraphEffects: ProjectCustomNodeGraphEffect[];
 	timelineScenes: TimelineScene[];
 	automationGraphs: AutomationGraph[];
 	sceneId: string | null;
@@ -227,8 +227,8 @@ export class TimelineRendererManager extends EventEmitter<{
 	private frameCacheRevision = 0;
 	private readonly frameCacheReportIntervalId: ReturnType<typeof setInterval> | null = null;
 	private activePreviewFrame: PreviewFrameCapture | null = null;
-	private pendingVisualModuleValueChanges = new Map<string, VisualModuleValueChange>();
-	private pendingVisualModuleValueRevision: number | null = null;
+	private pendingCustomNodeGraphEffectValueChanges = new Map<string, CustomNodeGraphEffectValueChange>();
+	private pendingCustomNodeGraphEffectValueRevision: number | null = null;
 	private frameRenderer: TimelineFrameRenderer<TimelineImage>;
 	private motionBlurAccumulator: ReturnType<typeof createMotionBlurAccumulator> | null = null;
 	private motionBlurTiming: { boundaries: number[]; loops: TimelineMotionBlurLoop[]; cameras: TimelineMotionBlurCameraCuts[] } | null = null;
@@ -284,7 +284,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		analysisWaveformViewports: null,
 		analysisHistogramViewport: null,
 		generatedSpeech: [],
-		visualModules: [],
+		customNodeGraphEffects: [],
 		timelineScenes: [],
 		automationGraphs: [],
 		sceneId: null,
@@ -495,9 +495,9 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateDynamicOptions(newOptions: Partial<TimelineRendererManagerDynamicOptions>) {
-		if (['generatedSpeech', 'resolution', 'resolutionScale', 'visualModules', 'automationGraphs', 'timelineScenes', 'sceneId', 'previewFps'].some(key => Object.hasOwn(newOptions, key))) {
+		if (['generatedSpeech', 'resolution', 'resolutionScale', 'customNodeGraphEffects', 'automationGraphs', 'timelineScenes', 'sceneId', 'previewFps'].some(key => Object.hasOwn(newOptions, key))) {
 			// 描画を作り直す要求では、保留していた値も現在の状態へ反映してから切り替える。
-			this.applyPendingVisualModuleValues();
+			this.applyPendingCustomNodeGraphEffectValues();
 		}
 		if (Object.hasOwn(newOptions, 'previewFps') && newOptions.previewFps != null && (!Number.isFinite(newOptions.previewFps) || newOptions.previewFps <= 0)) throw new RangeError('Invalid preview FPS');
 		if (newOptions.generatedSpeech) {
@@ -531,7 +531,7 @@ export class TimelineRendererManager extends EventEmitter<{
 
 		// Scene選択・出力解像度のnullは解除要求なので、差分のプロパティの有無で判定する。
 		// Partialの差分では省略は変更なし、明示的なnullは解除要求。値の有無ではなくown propertyで判定する。
-		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale') || Object.hasOwn(newOptions, 'visualModules') || Object.hasOwn(newOptions, 'automationGraphs') || Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'sceneId') || Object.hasOwn(newOptions, 'previewFps')) {
+		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale') || Object.hasOwn(newOptions, 'customNodeGraphEffects') || Object.hasOwn(newOptions, 'automationGraphs') || Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'sceneId') || Object.hasOwn(newOptions, 'previewFps')) {
 			this.clearTimelineRenderers();
 		}
 		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale') || Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'sceneId') || Object.hasOwn(newOptions, 'outputResolution')) {
@@ -552,33 +552,33 @@ export class TimelineRendererManager extends EventEmitter<{
 		}
 	}
 
-	public applyProjectChanges(changes: readonly RendererProjectChange[], previewRevision = (this.pendingVisualModuleValueRevision ?? this.dynamicOptions.previewRevision) + 1) {
+	public applyProjectChanges(changes: readonly RendererProjectChange[], previewRevision = (this.pendingCustomNodeGraphEffectValueRevision ?? this.dynamicOptions.previewRevision) + 1) {
 		if ((this.staticOptions.effectRenderTiling?.mode ?? 'auto') !== 'disabled' && this.activePreviewFrame != null
-			&& changes.length > 0 && changes.every(isVisualModuleValueChange)) {
+			&& changes.length > 0 && changes.every(isCustomNodeGraphEffectValueChange)) {
 			// 呼び出し時の検証は維持し、描画中の状態はまだ変更しない。
-			applyRendererProjectChanges(this.dynamicOptions, [...this.pendingVisualModuleValueChanges.values(), ...changes]);
+			applyRendererProjectChanges(this.dynamicOptions, [...this.pendingCustomNodeGraphEffectValueChanges.values(), ...changes]);
 			for (const change of changes) {
-				const key = JSON.stringify([visualModuleTargetKey(change.target), change.type, change.type === 'node' ? change.node.id : null]);
-				// 同じノードの値は最新だけ残す。Visual Module全体の更新と混在しても
+				const key = JSON.stringify([customNodeGraphEffectTargetKey(change.target), change.type, change.type === 'node' ? change.node.id : null]);
+				// 同じノードの値は最新だけ残す。Custom Node Graph Effect全体の更新と混在しても
 				// 最後に届いたスナップショットが後から適用されるよう、順序も更新する。
-				this.pendingVisualModuleValueChanges.delete(key);
-				this.pendingVisualModuleValueChanges.set(key, change);
+				this.pendingCustomNodeGraphEffectValueChanges.delete(key);
+				this.pendingCustomNodeGraphEffectValueChanges.set(key, change);
 			}
-			this.pendingVisualModuleValueRevision = previewRevision;
+			this.pendingCustomNodeGraphEffectValueRevision = previewRevision;
 			return;
 		}
-		const combined = [...this.pendingVisualModuleValueChanges.values(), ...changes];
+		const combined = [...this.pendingCustomNodeGraphEffectValueChanges.values(), ...changes];
 		this.applyProjectChangesNow(combined, previewRevision);
-		this.pendingVisualModuleValueChanges.clear();
-		this.pendingVisualModuleValueRevision = null;
+		this.pendingCustomNodeGraphEffectValueChanges.clear();
+		this.pendingCustomNodeGraphEffectValueRevision = null;
 	}
 
-	private applyPendingVisualModuleValues() {
-		if (this.pendingVisualModuleValueChanges.size === 0) return;
-		const changes = [...this.pendingVisualModuleValueChanges.values()];
-		const revision = this.pendingVisualModuleValueRevision!;
-		this.pendingVisualModuleValueChanges.clear();
-		this.pendingVisualModuleValueRevision = null;
+	private applyPendingCustomNodeGraphEffectValues() {
+		if (this.pendingCustomNodeGraphEffectValueChanges.size === 0) return;
+		const changes = [...this.pendingCustomNodeGraphEffectValueChanges.values()];
+		const revision = this.pendingCustomNodeGraphEffectValueRevision!;
+		this.pendingCustomNodeGraphEffectValueChanges.clear();
+		this.pendingCustomNodeGraphEffectValueRevision = null;
 		// 待機中の最新シークを消さず、完成した旧フレームだけをキャッシュ・通知から除外する。
 		this.applyProjectChangesNow(changes, revision, true);
 	}
@@ -659,7 +659,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	public resetRenderHistory() {
-		this.applyPendingVisualModuleValues();
+		this.applyPendingCustomNodeGraphEffectValues();
 		this.previewRenderDelayMonitor.clear();
 		// リセット前に送信したフレームの後処理で、画像キャッシュや完了通知を復活させない。
 		// Schedulerの世代も進め、次の評価は旧フレームのGPU完了後に行う。
@@ -748,7 +748,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				// CPU側の評価で使う参照の寿命を分け、前フレームの後始末で次の参照を消さない。
 				if (this.activePreviewFrame === capture) {
 					this.activePreviewFrame = null;
-					this.applyPendingVisualModuleValues();
+					this.applyPendingCustomNodeGraphEffectValues();
 				}
 				if (this.previewFrameTiming === timing) this.previewFrameTiming = null;
 				if (this.pendingTransformPreview === preview) this.pendingTransformPreview = null;
@@ -1113,13 +1113,13 @@ export class TimelineRendererManager extends EventEmitter<{
 					getLayerVersion: (entry, childClipId) => this.getLayerVersion(scene.id, entry, childClipId),
 				});
 			}
-			case 'visualModule': {
-				const visualModule = this.dynamicOptions.visualModules.find(module => module.id === layer.visualModuleId);
-				if (visualModule == null) throw new Error(`Visual module not found: ${layer.visualModuleId}`);
-				return this.createVisualModuleLayer(visualModule, layer, clipId, layerPath, sceneBaseResolution, sceneId);
+			case 'customNodeGraphEffect': {
+				const customNodeGraphEffect = this.dynamicOptions.customNodeGraphEffects.find(candidateCustomNodeGraphEffect => candidateCustomNodeGraphEffect.id === layer.customNodeGraphEffectId);
+				if (customNodeGraphEffect == null) throw new Error(`Custom Node Graph Effect not found: ${layer.customNodeGraphEffectId}`);
+				return this.createCustomNodeGraphEffectLayer(customNodeGraphEffect, layer, clipId, layerPath, sceneBaseResolution, sceneId);
 			}
-			case 'inlineVisualModule':
-				return this.createVisualModuleLayer(layer.visualModule, layer, clipId, layerPath, sceneBaseResolution, sceneId);
+			case 'inlineCustomNodeGraphEffect':
+				return this.createCustomNodeGraphEffectLayer(layer.customNodeGraphEffect, layer, clipId, layerPath, sceneBaseResolution, sceneId);
 		}
 		throw new Error(`Unrecognized layer type: ${layer.layerType}`);
 	}
@@ -1135,20 +1135,20 @@ export class TimelineRendererManager extends EventEmitter<{
 		};
 	}
 
-	private createVisualModuleLayer(visualModule: VisualModule, layer: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer, clipId: string, layerPath: string[], sceneBaseResolution: Resolution, sceneId: string): TimelineLayerRenderer<TimelineImage> {
-		const target: VisualModuleTarget = layer.layerType === 'visualModule' ? { visualModuleId: layer.visualModuleId }
-			: { sceneId, inlineVisualModuleLayerId: layer.id };
-		const getModule = () => findRendererVisualModule(this.dynamicOptions, target)!;
-		const getLayer = () => this.getLayer(sceneId, layer.id) as TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer;
-		let moduleRevision = this.projectVersions.module(target).revision;
+	private createCustomNodeGraphEffectLayer(customNodeGraphEffect: CustomNodeGraphEffect, layer: TimelineCustomNodeGraphEffectLayer | TimelineInlineCustomNodeGraphEffectLayer, clipId: string, layerPath: string[], sceneBaseResolution: Resolution, sceneId: string): TimelineLayerRenderer<TimelineImage> {
+		const target: CustomNodeGraphEffectTarget = layer.layerType === 'customNodeGraphEffect' ? { customNodeGraphEffectId: layer.customNodeGraphEffectId }
+			: { sceneId, inlineCustomNodeGraphEffectLayerId: layer.id };
+		const getCustomNodeGraphEffect = () => findRendererCustomNodeGraphEffect(this.dynamicOptions, target)!;
+		const getLayer = () => this.getLayer(sceneId, layer.id) as TimelineCustomNodeGraphEffectLayer | TimelineInlineCustomNodeGraphEffectLayer;
+		let customNodeGraphEffectRevision = this.projectVersions.customNodeGraphEffect(target).revision;
 		const statusSource = this.createLayerStatusSource(layer.id, clipId, layerPath);
-		const getInputResolutions = () => new Map(getModule().paramDefs.map(definition => {
-			const binding = getLayer().visualModuleParamValues[definition.id];
+		const getInputResolutions = () => new Map(getCustomNodeGraphEffect().paramDefs.map(definition => {
+			const binding = getLayer().customNodeGraphEffectParamValues[definition.id];
 			const isTexture = binding?.inputSource === 'lowerLayerOutput' || binding?.inputSource === 'anotherLayerOutput'
-				|| (binding == null && definition.id === getModule().primaryInputId);
+				|| (binding == null && definition.id === getCustomNodeGraphEffect().primaryInputId);
 			return [definition.id, isTexture ? scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale) : null] as const;
 		}));
-		const renderer = new VisualModuleRenderer({
+		const renderer = new CustomNodeGraphEffectRenderer({
 			expressionEvaluator: new ExpressionEvaluator(),
 			gpuDevice: this.gpuDevice,
 			fallbackTexture: this.fallbackTexture,
@@ -1162,7 +1162,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			onEffectState: (nodeId, status) => this.emit('ev', { type: 'effectState', ctx: { source: statusSource, nodeId, status } }),
 			videoFrameVersions: new Map(),
 			assets: this.resources.assets,
-			visualModule,
+			customNodeGraphEffect,
 			assetTextures: this.assetTextures.textures,
 			effectDefinitions: this.effectDefinitions,
 			effectImplementations: this.effectImplementations,
@@ -1175,8 +1175,8 @@ export class TimelineRendererManager extends EventEmitter<{
 			resolution: scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale),
 			beginPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
 		});
-		const inputFrames = new Map<VisualModulePublicParameterId, ReturnType<typeof createSceneOutput>>();
-		const instance = createVisualModuleTimelineLayer(getModule, getLayer, {
+		const inputFrames = new Map<CustomNodeGraphEffectPublicParameterId, ReturnType<typeof createSceneOutput>>();
+		const instance = createCustomNodeGraphEffectTimelineLayer(getCustomNodeGraphEffect, getLayer, {
 			getImageInput: (input, parameterId) => {
 				let inputFrame = inputFrames.get(parameterId);
 				if (inputFrame == null) {
@@ -1231,12 +1231,12 @@ export class TimelineRendererManager extends EventEmitter<{
 		});
 		return {
 			evaluate: (context, signal) => {
-				const version = this.projectVersions.module(target);
-				if (version.revision !== moduleRevision) {
-					const currentVisualModule = getModule();
-					const preserveStaticState = version.staticResetRevision <= moduleRevision;
+				const version = this.projectVersions.customNodeGraphEffect(target);
+				if (version.revision !== customNodeGraphEffectRevision) {
+					const currentCustomNodeGraphEffect = getCustomNodeGraphEffect();
+					const preserveStaticState = version.staticResetRevision <= customNodeGraphEffectRevision;
 					if (!preserveStaticState) {
-						const parameterIds = new Set(currentVisualModule.paramDefs.map(definition => definition.id));
+						const parameterIds = new Set(currentCustomNodeGraphEffect.paramDefs.map(definition => definition.id));
 						// 公開定義の編集では配置を維持するため、消えた入力のGPU資源をここで解放する。
 						for (const [parameterId, frame] of inputFrames) {
 							if (parameterIds.has(parameterId)) continue;
@@ -1245,11 +1245,11 @@ export class TimelineRendererManager extends EventEmitter<{
 						}
 					}
 					// 公開入力の寸法も定義変更時だけ宣言し、新しい配線と同時に計画する。
-					renderer.updateVisualModule(currentVisualModule, {
+					renderer.updateCustomNodeGraphEffect(currentCustomNodeGraphEffect, {
 						preserveStaticState,
 						...(preserveStaticState ? {} : { inputResolutions: getInputResolutions() }),
 					});
-					moduleRevision = version.revision;
+					customNodeGraphEffectRevision = version.revision;
 				}
 				return instance.evaluate(context, signal);
 			},
@@ -1263,8 +1263,8 @@ export class TimelineRendererManager extends EventEmitter<{
 		if (this.renderingResourcesReleased) return;
 		this.renderingResourcesReleased = true;
 		this.previewRenderDelayMonitor.stop();
-		this.pendingVisualModuleValueChanges.clear();
-		this.pendingVisualModuleValueRevision = null;
+		this.pendingCustomNodeGraphEffectValueChanges.clear();
+		this.pendingCustomNodeGraphEffectValueRevision = null;
 		if (this.frameCacheReportIntervalId != null) clearInterval(this.frameCacheReportIntervalId);
 		this.frameCache.dispose();
 		if (this.telemetryReportIntervalId != null) clearInterval(this.telemetryReportIntervalId);

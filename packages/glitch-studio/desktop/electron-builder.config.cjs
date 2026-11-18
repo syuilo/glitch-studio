@@ -32,8 +32,8 @@ const applicationFiles = [
 	'media-file-types.cjs',
 	'export-files.mjs',
 	'export-file-ipc.mjs',
-	'portable-visual-module-ipc.mjs',
-	'dist/portable-visual-module-worker.mjs',
+	'portable-custom-node-graph-effect-ipc.mjs',
+	'dist/portable-custom-node-graph-effect-worker.mjs',
 	'desktop-update.mjs',
 	'desktop-instances.mjs',
 	'github-updates.mjs',
@@ -46,10 +46,10 @@ module.exports = {
 	publish: [{ provider: 'github', owner: 'syuilo', repo: 'glitch-studio', channel: 'latest' }],
 	afterPack: async context => {
 		// pnpmのworkspace探索で別パッケージが選ばれても、起動不能な配布物を公開しない。
-		const { verifyPackagedApplication, verifyPackagedPortableVisualModule } = await import('./release.mjs');
+		const { verifyPackagedApplication, verifyPackagedPortableCustomNodeGraphEffect } = await import('./release.mjs');
 		const resourcesDirectory = context.packager.getResourcesDir(context.appOutDir);
 		verifyPackagedApplication(require('node:path').join(resourcesDirectory, 'app.asar'), applicationFiles);
-		await verifyPackagedPortableVisualModule(resourcesDirectory, context.electronPlatformName, Arch[context.arch]);
+		await verifyPackagedPortableCustomNodeGraphEffect(resourcesDirectory, context.electronPlatformName, Arch[context.arch]);
 	},
 	directories: { output: '../../../release' },
 	extraMetadata: {
@@ -62,7 +62,7 @@ module.exports = {
 	extraResources: [
 		{ from: '../ui/dist-electron', to: 'ui' },
 		// esbuildのネイティブプロセスが読むため、ビルド資材はASAR外へ配置する。
-		{ from: 'dist/portable-visual-module-catalog', to: 'portable-visual-module-catalog' },
+		{ from: 'dist/portable-custom-node-graph-effect-catalog', to: 'portable-custom-node-graph-effect-catalog' },
 		// OSがタスクバー用のアイコンを直接読み取れるよう、asarの外に配置する。
 		{ from: 'resources/icon.ico', to: 'icon.ico' },
 	],

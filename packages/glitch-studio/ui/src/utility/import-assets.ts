@@ -6,10 +6,10 @@ import type { progress } from '../ui.ts';
 import type { ProjectContext, ProjectAsset } from '../Project.ts';
 import type { Player } from '@gs/shared/types.ts';
 import type { TimelineAssetPlacement } from './timeline-asset-layer.ts';
-import type { VisualModuleAssetPlacement } from './visual-module-asset-node.ts';
+import type { CustomNodeGraphEffectAssetPlacement } from './custom-node-graph-effect-asset-node.ts';
 import { i18n } from '@/i18n.ts';
 
-export type AssetImportPlacement = { timeline?: TimelineAssetPlacement | null; visualModule?: VisualModuleAssetPlacement | null };
+export type AssetImportPlacement = { timeline?: TimelineAssetPlacement | null; customNodeGraphEffect?: CustomNodeGraphEffectAssetPlacement | null };
 
 /** ファイル選択と全体ドロップで同じ取り込み・Player作成・Undo単位を使う。 */
 export async function importAssets(destination: ProjectContext | (() => Promise<ProjectContext | null>), files?: readonly File[],

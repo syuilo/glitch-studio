@@ -19,7 +19,7 @@ export type TimelineLayerContext<Output> = {
 	publicParameters?: TimelineLayerPublicParameterContext | null;
 	renderSpace?: TimelineRenderSpace;
 	isExport: boolean;
-	/** レイヤー設定・キーは所属Scene上、素材・モジュールは内容時刻で評価する。 */
+	/** レイヤー設定・キーは所属Scene上、素材・Custom Node Graph Effectは内容時刻で評価する。 */
 	sceneTimeMs: number;
 	contentTimeMs: number;
 	/** 子Sceneでは内容時刻へ変換して渡す。サンプル時刻を新しい基準時刻にしない。 */

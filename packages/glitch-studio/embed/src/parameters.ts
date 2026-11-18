@@ -8,7 +8,7 @@ import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-bindin
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
-import type { VisualModuleParamDef } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { CustomNodeGraphEffectParamDef } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return value != null && typeof value === 'object' && !Array.isArray(value);
@@ -50,7 +50,7 @@ export function validatePortableParameterValue(definition: ParameterDefinition, 
 }
 
 /** 属性・APIの更新は全項目を検証してから確定し、途中の更新や呼び出し元の参照を残さない。 */
-export function validatePortableParameters(definitions: readonly VisualModuleParamDef[], values: unknown): Record<string, unknown> {
+export function validatePortableParameters(definitions: readonly CustomNodeGraphEffectParamDef[], values: unknown): Record<string, unknown> {
 	if (!isRecord(values)) throw new Error('Parameters must be an object');
 	for (const [name, value] of Object.entries(values)) {
 		const definition = definitions.find(definition => definition.nameForReference === name);
@@ -60,7 +60,7 @@ export function validatePortableParameters(definitions: readonly VisualModulePar
 	return structuredClone(values);
 }
 
-export function getPortableParameterDefaults(definitions: readonly VisualModuleParamDef[], expressionEvaluator: ExpressionEngine | null): Record<string, unknown> {
+export function getPortableParameterDefaults(definitions: readonly CustomNodeGraphEffectParamDef[], expressionEvaluator: ExpressionEngine | null): Record<string, unknown> {
 	const evaluator = new ParameterBindingEvaluator(expressionEvaluator);
 	return Object.fromEntries(definitions.map(definition => [definition.nameForReference,
 		mapParameterTree<ValueParameterBinding>(definition, definition.defaultValue, [], (leaf, binding) => {

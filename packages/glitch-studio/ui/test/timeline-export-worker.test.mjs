@@ -190,7 +190,7 @@ for (const failing of [false, true]) {
 		const job = f.run({ resolutionScale: 1, settings: { format: 'exr', compression: 'zip', width: 3, height: 19, positionMs: 250 },
 			renderer: { enable32bitDataTextures: false }, project: { timelineFps: 60,
 				timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, customShaderEffects: [], automationGraphs: [],
-				resolution: { width: 3, height: 19 }, assets: [], visualModules: [], sceneId: 'scene',
+				resolution: { width: 3, height: 19 }, assets: [], customNodeGraphEffects: [], sceneId: 'scene',
 				timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect',
 					clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] }] }],
 			} });
@@ -222,7 +222,7 @@ for (const format of ['mp4', 'webp']) {
 			settings: { format, quality: 'high', width: 3, height: 5, positionMs: 1000,
 				...(format === 'mp4' ? { fps: 30, endTimeMs: 1010 } : {}) },
 			renderer: { enable32bitDataTextures: true, enableStats: true },
-			project: { customShaderEffects: [], automationGraphs: [], timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, resolution: { width: 3, height: 5 }, assets: [{ id: 'image' }], visualModules: [{ id: 'module' }], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto', scale: 1 }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
+			project: { customShaderEffects: [], automationGraphs: [], timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, resolution: { width: 3, height: 5 }, assets: [{ id: 'image' }], customNodeGraphEffects: [{ id: 'customNodeGraphEffect' }], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto', scale: 1 }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
 		};
 		const job = f.run(request);
 		await f.preparing.promise;
@@ -258,7 +258,7 @@ test('reports asset preparation failures without rendering export frames', { tim
 		resolutionScale: 1,
 		settings: { format: 'webp', quality: 'lossless', width: 2, height: 2, positionMs: 0 },
 		renderer: { enable32bitDataTextures: false, },
-		project: { customShaderEffects: [], automationGraphs: [], timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, resolution: { width: 2, height: 2 }, assets: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto', scale: 1 }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
+		project: { customShaderEffects: [], automationGraphs: [], timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, resolution: { width: 2, height: 2 }, assets: [], customNodeGraphEffects: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto', scale: 1 }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
 	});
 	await f.preparing.promise;
 	assert.deepEqual(structuredClone(f.deviceSettings.requiredFeatures), []);
@@ -285,7 +285,7 @@ for (const [type, source, label] of [
 			resolutionScale: 1,
 			settings: { format: 'webp', quality: 'lossless', width: 2, height: 2, positionMs: 0 },
 			renderer: { enable32bitDataTextures: false, },
-			project: { customShaderEffects: [], automationGraphs: [], timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, resolution: { width: 2, height: 2 }, assets: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto', scale: 1 }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
+			project: { customShaderEffects: [], automationGraphs: [], timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, resolution: { width: 2, height: 2 }, assets: [], customNodeGraphEffects: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto', scale: 1 }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
 		});
 		await f.preparing.promise;
 		f.instance.renderErrorEvent = { type, ctx: { ...source, status: { status: { type: 'error', message: 'Invalid expression' } } } };
@@ -302,7 +302,7 @@ for (const [type, source, label] of [
 // 同じ倍率を渡し、プロジェクト解像度を参照する子の基準は元の値に保つ。
 test('exports custom scene sizes with an explicit scale and unchanged project dimensions', { timeout: 2000 }, async () => {
 	const f = fixture();
-	const project = { resolution: { width: 1920, height: 1080 }, assets: [], visualModules: [], sceneId: 'root', timelineScenes: [
+	const project = { resolution: { width: 1920, height: 1080 }, assets: [], customNodeGraphEffects: [], sceneId: 'root', timelineScenes: [
 		{ id: 'root', name: 'Root', resolution: { mode: 'customAbsolute', width: 513, height: 257 }, layers: [
 			{ id: 'nested', layerType: 'scene', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000, sceneId: 'child' }],
 				audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
@@ -330,7 +330,7 @@ for (const format of ['mp4', 'webp']) {
 	test(`renders custom ${format} dimensions without changing child scenes`, { timeout: 2000 }, async () => {
 		const f = fixture();
 		const project = { automationGraphs: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 0 },
-			resolution: { width: 1920, height: 1080 }, assets: [], visualModules: [], sceneId: 'root', timelineScenes: [
+			resolution: { width: 1920, height: 1080 }, assets: [], customNodeGraphEffects: [], sceneId: 'root', timelineScenes: [
 				{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [
 					{ id: 'nested', layerType: 'scene', audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [],
 						clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000, sceneId: 'child' }] },

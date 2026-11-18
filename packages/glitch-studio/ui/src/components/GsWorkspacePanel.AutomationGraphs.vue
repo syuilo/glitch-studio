@@ -6,7 +6,7 @@
 	</div>
 	<template v-if="selectedGraph != null">
 		<div :class="$style.header">
-			<GsTabs v-model="tab" :def="tabs" data-test-visual-module-tabs/>
+			<GsTabs v-model="tab" :def="tabs" data-test-custom-node-graph-effect-tabs/>
 		</div>
 
 		<div v-if="tab === 'graph'" :class="$style.editor">

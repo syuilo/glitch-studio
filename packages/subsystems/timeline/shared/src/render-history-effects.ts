@@ -1,10 +1,10 @@
 import { getTimelineClipLayers } from './layer-tree.ts';
 import type { TimelineScene } from './types.ts';
-import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 
-/** 配置された定義を検査する。未使用のVisual ModuleやVisual Module Live Previewだけの構成は対象にしない。 */
-export function findTimelineHistoryEffects(scenes: readonly TimelineScene[], getVisualModule: (id: string) => VisualModule | null, definitions: Record<string, EffectDefinition>): string[] {
+/** 配置された定義を検査する。未使用のCustom Node Graph EffectやCustom Node Graph Effect Live Previewだけの構成は対象にしない。 */
+export function findTimelineHistoryEffects(scenes: readonly TimelineScene[], getCustomNodeGraphEffect: (id: string) => CustomNodeGraphEffect | null, definitions: Record<string, EffectDefinition>): string[] {
 	const result = new Set<string>();
 	const inspectEffect = (id: string) => {
 		if (definitions[id]?.dependsOnRenderHistory) result.add(id);
@@ -12,9 +12,9 @@ export function findTimelineHistoryEffects(scenes: readonly TimelineScene[], get
 	for (const scene of scenes) for (const layer of getTimelineClipLayers(scene.layers)) {
 		if (layer.clips.length === 0) continue;
 		if (layer.layerType === 'effect') inspectEffect(layer.effectId);
-		const visualModule = layer.layerType === 'inlineVisualModule' ? layer.visualModule
-			: layer.layerType === 'visualModule' ? getVisualModule(layer.visualModuleId) : null;
-		if (visualModule) for (const node of visualModule.nodes) {
+		const customNodeGraphEffect = layer.layerType === 'inlineCustomNodeGraphEffect' ? layer.customNodeGraphEffect
+			: layer.layerType === 'customNodeGraphEffect' ? getCustomNodeGraphEffect(layer.customNodeGraphEffectId) : null;
+		if (customNodeGraphEffect) for (const node of customNodeGraphEffect.nodes) {
 			if (node.type === 'effect') inspectEffect(node.effectId);
 		}
 	}

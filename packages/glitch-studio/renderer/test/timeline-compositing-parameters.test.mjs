@@ -43,7 +43,7 @@ test('defaults to normal compositing with an identity transform', () => {
 	assert.deepEqual(evaluate({}), { transformTarget: 'image', mask: null, layerMask: null, coordinateSpace: 'screen', depth: 0, clipToFrame: false, blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 });
 });
 
-// 合成設定にはレイヤーの変数だけを公開し、Scene時刻を明示し、モジュールの進行率や解像度は継承しない。
+// 合成設定にはレイヤーの変数だけを公開し、Scene時刻を明示し、Custom Node Graph Effectの進行率や解像度は継承しない。
 test('evaluates expressions and environment variables in layer context', () => {
 	const result = evaluate({
 		position: expression('[TEST_SAME_NAME, 0]'),

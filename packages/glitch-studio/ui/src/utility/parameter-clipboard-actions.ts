@@ -1,11 +1,11 @@
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
-import { createParameterClipboard, createVisualModuleClipboardSource, parseParameterClipboard, prepareParameterBindingPaste, prepareProjectParameterPaste, resolveProjectClipboardTarget } from './parameter-clipboard.ts';
+import { createParameterClipboard, createCustomNodeGraphEffectClipboardSource, parseParameterClipboard, prepareParameterBindingPaste, prepareProjectParameterPaste, resolveProjectClipboardTarget } from './parameter-clipboard.ts';
 import { clipboardText } from './clipboard-text.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
-import type { VisualModuleArgumentBindings, VisualModuleParameterBinding, VisualModuleValueParameterBinding, VisualModulePublicParameterId, VisualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { CustomNodeGraphEffectArgumentBindings, CustomNodeGraphEffectParameterBinding, CustomNodeGraphEffectValueParameterBinding, CustomNodeGraphEffectPublicParameterId, CustomNodeGraphEffectCustomParameterId } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import type { EditableTimelineParameterBinding } from '../types/parameter-edit.ts';
 import type { ClipboardTextAccess } from './clipboard-text.ts';
 import type { ProjectParameterClipboardTarget } from './parameter-clipboard.ts';
@@ -31,16 +31,16 @@ export async function handleProjectParameterClipboard(
 		return;
 	}
 	const initialContext = initial.context;
-	const originalOwner = initialContext.kind === 'node' ? initialContext.visualModule.nodes.find(node => node.id === initialContext.nodeId)
-		: initialContext.kind === 'customParameter' ? initialContext.visualModule.customParameterDefs.find(definition => definition.id === target.paramPath[0]) : initialContext.layer;
+	const originalOwner = initialContext.kind === 'node' ? initialContext.customNodeGraphEffect.nodes.find(node => node.id === initialContext.nodeId)
+		: initialContext.kind === 'customParameter' ? initialContext.customNodeGraphEffect.customParameterDefs.find(definition => definition.id === target.paramPath[0]) : initialContext.layer;
 	const originalType = deepClone(initial.def.dataType);
 	const data = parseParameterClipboard(await clipboard.readText());
 	if (data == null || !isActive() || context.isDisposed) return;
 	try {
 		const current = resolveProjectClipboardTarget(state, projectSessionId, target);
 		const currentContext = current.context;
-		const currentOwner = currentContext.kind === 'node' ? currentContext.visualModule.nodes.find(node => node.id === currentContext.nodeId)
-			: currentContext.kind === 'customParameter' ? currentContext.visualModule.customParameterDefs.find(definition => definition.id === target.paramPath[0]) : currentContext.layer;
+		const currentOwner = currentContext.kind === 'node' ? currentContext.customNodeGraphEffect.nodes.find(node => node.id === currentContext.nodeId)
+			: currentContext.kind === 'customParameter' ? currentContext.customNodeGraphEffect.customParameterDefs.find(definition => definition.id === target.paramPath[0]) : currentContext.layer;
 		if (currentOwner !== originalOwner || !areDataTypesEqual(originalType, current.def.dataType)) return;
 	} catch { return; }
 	const update = prepareProjectParameterPaste(state, projectSessionId, target, data);
@@ -49,19 +49,19 @@ export async function handleProjectParameterClipboard(
 	// Commandへは編集対象と完成したBindingだけを渡し、他の呼び出し元と同じ検証を通す。
 	const parameterPath: ParamPath = [target.paramPath[0]];
 	if (target.kind === 'node') {
-		context.stateManager.commit('replaceVisualModuleNodeParameterBinding', {
-			target: { visualModule: target.visualModuleTarget, nodeId: target.nodeId }, parameterPath,
-			binding: update.after as VisualModuleParameterBinding,
+		context.stateManager.commit('replaceCustomNodeGraphEffectNodeParameterBinding', {
+			target: { customNodeGraphEffect: target.customNodeGraphEffectTarget, nodeId: target.nodeId }, parameterPath,
+			binding: update.after as CustomNodeGraphEffectParameterBinding,
 		});
 	} else if (target.kind === 'customParameter') {
-		context.stateManager.commit('replaceVisualModuleCustomParameterBinding', {
-			target: { visualModule: target.visualModuleTarget, parameterId: parameterPath[0] as VisualModuleCustomParameterId },
-			binding: update.after as VisualModuleValueParameterBinding,
+		context.stateManager.commit('replaceCustomNodeGraphEffectCustomParameterBinding', {
+			target: { customNodeGraphEffect: target.customNodeGraphEffectTarget, parameterId: parameterPath[0] as CustomNodeGraphEffectCustomParameterId },
+			binding: update.after as CustomNodeGraphEffectValueParameterBinding,
 		});
 	} else {
 		context.stateManager.commit('replaceTimelineLayerParameterBinding', {
 			sceneId: target.sceneId, layerId: target.layerId,
-			parameterGroup: target.parameterTarget === 'module' ? 'visualModule' : target.parameterTarget,
+			parameterGroup: target.parameterTarget,
 			parameterPath, binding: update.after as EditableTimelineParameterBinding,
 		});
 	}
@@ -71,25 +71,25 @@ export async function handleProjectParameterClipboard(
 export async function handlePreviewParameterClipboard(
 	context: ProjectContext,
 	projectSessionId: string,
-	visualModuleId: string,
+	customNodeGraphEffectId: string,
 	requestedPath: ParamPath,
 	operation: 'copy' | 'paste',
-	values: () => VisualModuleArgumentBindings,
+	values: () => CustomNodeGraphEffectArgumentBindings,
 	isActive: () => boolean,
-	apply: (id: VisualModulePublicParameterId, binding: ValueParameterBinding) => void,
+	apply: (id: CustomNodeGraphEffectPublicParameterId, binding: ValueParameterBinding) => void,
 	clipboard: ClipboardTextAccess = clipboardText,
 ): Promise<void> {
 	if (context.isDisposed || !isActive()) return;
 	const state = context.stateManager.state;
-	const visualModule = state.visualModules.value.find(candidate => candidate.id === visualModuleId);
-	if (visualModule == null) return;
+	const customNodeGraphEffect = state.customNodeGraphEffects.value.find(candidate => candidate.id === customNodeGraphEffectId);
+	if (customNodeGraphEffect == null) return;
 	const path: ParamPath = [...requestedPath];
-	const rootDefinition = visualModule.paramDefs.find(definition => definition.id === path[0]);
+	const rootDefinition = customNodeGraphEffect.paramDefs.find(definition => definition.id === path[0]);
 	if (rootDefinition == null) return;
 	const rootId = rootDefinition.id;
 
 	const resolve = () => {
-		const definition = visualModule.paramDefs.find(candidate => candidate.id === rootId);
+		const definition = customNodeGraphEffect.paramDefs.find(candidate => candidate.id === rootId);
 		if (definition == null) throw new Error('Preview parameter not found');
 		const draft = { [rootId]: deepClone(values()[rootId] ?? definition.defaultValue) };
 		return { draft, parameter: resolveParameter<ValueParameterBinding>({ [rootId]: definition }, draft, path) };
@@ -97,7 +97,7 @@ export async function handlePreviewParameterClipboard(
 
 	let initial;
 	try { initial = resolve(); } catch { return; }
-	const source = { ...createVisualModuleClipboardSource(projectSessionId, { visualModuleId }, visualModule), localAutomationGraphIds: [] };
+	const source = { ...createCustomNodeGraphEffectClipboardSource(projectSessionId, { customNodeGraphEffectId }, customNodeGraphEffect), localAutomationGraphIds: [] };
 	if (operation === 'copy') {
 		await clipboard.writeText(JSON.stringify(createParameterClipboard(initial.parameter.def, initial.parameter.value, source)));
 		return;
@@ -105,13 +105,13 @@ export async function handlePreviewParameterClipboard(
 	const originalType = deepClone(initial.parameter.def.dataType);
 	const data = parseParameterClipboard(await clipboard.readText());
 	if (data == null || !isActive() || context.isDisposed
-		|| !state.visualModules.value.includes(visualModule)) return;
+		|| !state.customNodeGraphEffects.value.includes(customNodeGraphEffect)) return;
 	let nextRoot: ValueParameterBinding;
 	try {
 		const current = resolve();
 		if (!areDataTypesEqual(originalType, current.parameter.def.dataType)) return;
 		const binding = prepareParameterBindingPaste(current.parameter.def, data, {
-			kind: 'preview', state, visualModule, source,
+			kind: 'preview', state, customNodeGraphEffect, source,
 		});
 		if (binding == null) return;
 		current.parameter.setValue(binding as ValueParameterBinding);

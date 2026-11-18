@@ -25,20 +25,20 @@
 						</GsSelect>
 
 						<GsFolder defaultOpen>
-							<template #label>{{ i18n.ts._Workspace.VisualModuleEditor }}</template>
+							<template #label>{{ i18n.ts._Workspace.CustomNodeGraphEffectEditor }}</template>
 
 							<div class="_gaps_l">
-								<GsSwitch v-model="visualModuleAutoConnectOnNodeAdd" data-test-visual-module-auto-connect-on-node-add>
-									{{ i18n.ts._Settings.VisualModuleAutoConnectOnNodeAdd }}
-									<template #caption>{{ i18n.ts._Settings.VisualModuleAutoConnectOnNodeAddHint }}</template>
+								<GsSwitch v-model="customNodeGraphEffectAutoConnectOnNodeAdd" data-test-custom-node-graph-effect-auto-connect-on-node-add>
+									{{ i18n.ts._Settings.CustomNodeGraphEffectAutoConnectOnNodeAdd }}
+									<template #caption>{{ i18n.ts._Settings.CustomNodeGraphEffectAutoConnectOnNodeAddHint }}</template>
 								</GsSwitch>
 								<GsSelect
-									v-model="visualModuleWireStyle" large :items="[
-										{ value: 'straight', label: i18n.ts._Settings.VisualModuleWireStyleStraight },
-										{ value: 'curved', label: i18n.ts._Settings.VisualModuleWireStyleCurved },
-									]" data-test-visual-module-wire-style
+									v-model="customNodeGraphEffectWireStyle" large :items="[
+										{ value: 'straight', label: i18n.ts._Settings.CustomNodeGraphEffectWireStyleStraight },
+										{ value: 'curved', label: i18n.ts._Settings.CustomNodeGraphEffectWireStyleCurved },
+									]" data-test-custom-node-graph-effect-wire-style
 								>
-								<template #label>{{ i18n.ts._Settings.VisualModuleWireStyle }}</template>
+								<template #label>{{ i18n.ts._Settings.CustomNodeGraphEffectWireStyle }}</template>
 								</GsSelect>
 							</div>
 						</GsFolder>
@@ -166,8 +166,8 @@ const timelineFrameCacheMaxGiB = preferences.model('timelineFrameCacheMaxGiB');
 const timelineFrameCachePrecision = preferences.model('timelineFrameCachePrecision');
 const timelinePreviewFramesAhead = preferences.model('timelinePreviewFramesAhead');
 const previewDisplayMode = preferences.model('previewDisplayMode');
-const visualModuleAutoConnectOnNodeAdd = preferences.model('visualModuleAutoConnectOnNodeAdd');
-const visualModuleWireStyle = preferences.model('visualModuleWireStyle');
+const customNodeGraphEffectAutoConnectOnNodeAdd = preferences.model('customNodeGraphEffectAutoConnectOnNodeAdd');
+const customNodeGraphEffectWireStyle = preferences.model('customNodeGraphEffectWireStyle');
 
 function selectLocale(locale: string) {
 	// リセット後の表示値更新で言語変更の案内が重複しないよう、保存は選択イベントからだけ行う。

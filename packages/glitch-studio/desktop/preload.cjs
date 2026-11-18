@@ -22,8 +22,8 @@ contextBridge.exposeInMainWorld('desktop', {
 	},
 	respondMcpRequest: response => ipcRenderer.invoke('desktop:mcp-response', response),
 	updateMcpProjectSessions: sessions => ipcRenderer.invoke('desktop:mcp-project-sessions', sessions),
-	buildPortableVisualModule: (requestId, requirements) => ipcRenderer.invoke('desktop:build-portable-visual-module', requestId, requirements),
-	cancelPortableVisualModule: requestId => ipcRenderer.invoke('desktop:cancel-portable-visual-module', requestId),
+	buildPortableCustomNodeGraphEffect: (requestId, requirements) => ipcRenderer.invoke('desktop:build-portable-custom-node-graph-effect', requestId, requirements),
+	cancelPortableCustomNodeGraphEffect: requestId => ipcRenderer.invoke('desktop:cancel-portable-custom-node-graph-effect', requestId),
 	onProjectCloseRequested: listener => {
 		const handler = (_event, requestId) => listener(requestId);
 		ipcRenderer.on('desktop:project-close-requested', handler);

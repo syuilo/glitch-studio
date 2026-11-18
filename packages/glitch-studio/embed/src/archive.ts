@@ -1,5 +1,5 @@
 /** HTMLとJSを一回のダウンロードで渡すための、非圧縮ZIP。外部ツール・複数ダウンロード許可を必要としない。 */
-export function createPortableVisualModuleArchive(files: { html: string; javascript: string; readme: string }): Blob {
+export function createPortableCustomNodeGraphEffectArchive(files: { html: string; javascript: string; readme: string }): Blob {
 	const encoder = new TextEncoder();
 	const entries = [['index.html', files.html], ['artwork.js', files.javascript], ['README.md', files.readme]];
 	const parts: BlobPart[] = [];

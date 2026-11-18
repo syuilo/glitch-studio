@@ -45,7 +45,7 @@ function fixture(t) {
 		{ id: 'b', startMs: 400, durationMs: 200, contentOffsetMs: 30.75 },
 	];
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] };
-	const state = { timelineScenes: { value: [scene] }, visualModules: { value: [] }, assets: { value: [] } };
+	const state = { timelineScenes: { value: [scene] }, customNodeGraphEffects: { value: [] }, assets: { value: [] } };
 	let mediaDurationMs = 10000;
 	const definitions = { ...COMMAND_DEFS, ...module.exports.createTimelineCommandDefinitions({ inspectMedia: () => ({ durationMs: mediaDurationMs, audioAvailable: true, audioError: null }) }) };
 	const history = new UndoRedo(state, definitions);

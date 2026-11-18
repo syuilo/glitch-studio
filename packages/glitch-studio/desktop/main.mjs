@@ -1,4 +1,4 @@
-import { registerPortableVisualModuleIpc } from './portable-visual-module-ipc.mjs';
+import { registerPortableCustomNodeGraphEffectIpc } from './portable-custom-node-graph-effect-ipc.mjs';
 import path from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, net, Notification, protocol, shell, utilityProcess } from 'electron';
@@ -174,8 +174,8 @@ function createWindow(startupFilePath = null) {
 		process.platform === 'win32' || process.platform === 'darwin' ? app : null,
 		{ registerProject });
 	registerExportFileIpc(ipc, dialog, exportFiles, getTrustedMainWindow, fileDialogs);
-	registerPortableVisualModuleIpc(ipc, utilityProcess, path.join(import.meta.dirname, 'dist/portable-visual-module-worker.mjs'),
-		app.isPackaged ? path.join(process.resourcesPath, 'portable-visual-module-catalog') : path.join(import.meta.dirname, 'dist/portable-visual-module-catalog'), getTrustedMainWindow,
+	registerPortableCustomNodeGraphEffectIpc(ipc, utilityProcess, path.join(import.meta.dirname, 'dist/portable-custom-node-graph-effect-worker.mjs'),
+		app.isPackaged ? path.join(process.resourcesPath, 'portable-custom-node-graph-effect-catalog') : path.join(import.meta.dirname, 'dist/portable-custom-node-graph-effect-catalog'), getTrustedMainWindow,
 		app.isPackaged ? path.join(process.resourcesPath, 'app.asar.unpacked/node_modules/@esbuild', `${process.platform}-${process.arch}`, process.platform === 'win32' ? 'esbuild.exe' : 'bin/esbuild') : null);
 	ipc.handle('desktop:set-session-project-file', (_event, sessionId, id) => editorWindows.setSessionProject(context, sessionId, id));
 	ipc.handle('desktop:close-project-session', (_event, sessionId) => editorWindows.closeProjectSession(context, sessionId));

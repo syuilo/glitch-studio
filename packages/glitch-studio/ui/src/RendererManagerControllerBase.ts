@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import type { VisualModuleRendererManager } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
+import type { CustomNodeGraphEffectRendererManager } from '@gs/glitch-studio_renderer/custom-node-graph-effect-renderer-manager.ts';
 import type { TimelineRendererManager } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { RenderFailureOrigin } from './utility/render-failure.ts';
 
@@ -7,7 +7,7 @@ type ManagerMethods<T> = {
 	[K in keyof T as T[K] extends (...args: never[]) => unknown ? K : never]: Extract<T[K], (...args: never[]) => unknown>;
 };
 
-type RendererManager = VisualModuleRendererManager | TimelineRendererManager;
+type RendererManager = CustomNodeGraphEffectRendererManager | TimelineRendererManager;
 type ManagerEvent<T extends RendererManager> = Parameters<T['emit']>[1];
 type ManagerEventHandlers<T extends RendererManager> = {
 	[E in ManagerEvent<T> as E['type']]: (ctx: E['ctx']) => void;
@@ -28,7 +28,7 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 	public onRenderFailure?: (error: Error, origin?: RenderFailureOrigin) => void;
 
 	protected reportRenderFailure(error: Error, origin?: RenderFailureOrigin) {
-		// Visual Module Live Preview・Timelineの破棄は所有者がまとめて行う。ここでは同じManagerを重ねて破棄しない。
+		// Custom Node Graph Effect Live Preview・Timelineの破棄は所有者がまとめて行う。ここでは同じManagerを重ねて破棄しない。
 		this.onRenderFailure?.(error, origin);
 		this.onError(error);
 	}

@@ -12,7 +12,7 @@ const bundle = await build({
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { createTextTimelineLayer } from './src/utility/text-timeline-layer.ts';
-		export { createInlineVisualModuleLayer } from './src/utility/inline-visual-module-layer.ts';
+		export { createInlineCustomNodeGraphEffectLayer } from './src/utility/inline-custom-node-graph-effect-layer.ts';
 		export { createInlineKeyframesTimeline } from './src/utility/keyframes-timeline.ts';
 		export { createInlineAutomationGraph } from './src/utility/automation-graph.ts';
 		export { default as definition } from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
@@ -27,7 +27,7 @@ const bundle = await build({
 });
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
-const { COMMAND_DEFS, UndoRedo, definition, createTextTimelineLayer, createInlineVisualModuleLayer, createInlineKeyframesTimeline, createInlineAutomationGraph } = loaded.exports;
+const { COMMAND_DEFS, UndoRedo, definition, createTextTimelineLayer, createInlineCustomNodeGraphEffectLayer, createInlineKeyframesTimeline, createInlineAutomationGraph } = loaded.exports;
 const literal = value => ({ inputSource: 'literal', value });
 const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: { controlType: 'number' } }, defaultValue: literal(0) };
 
@@ -35,27 +35,27 @@ function fixture(t) {
 	let now = 0;
 	t.mock.method(performance, 'now', () => now);
 	t.mock.method(console, 'log', () => {});
-	const createVisualModule = id => ({
+	const createCustomNodeGraphEffect = id => ({
 		id, nodes: ['first-node', 'second-node'].map(id => ({ id, type: 'effect', effectId: definition.id,
 			params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
 		})),
 		paramDefs: [{ id: 'gain', nameForReference: 'gain', canNode: false, ...scalar }],
 		customParameterDefs: [{ id: 'gain', nameForReference: 'gain', canNode: false, ...scalar }], customParameterValues: {},
 	});
-	const visualModules = [createVisualModule('first-visual-module'), createVisualModule('second-visual-module')];
+	const customNodeGraphEffects = [createCustomNodeGraphEffect('first-custom-node-graph-effect'), createCustomNodeGraphEffect('second-custom-node-graph-effect')];
 	const textLayer = { ...createTextTimelineLayer(0), id: 'text-layer' };
 	const timelineScenes = ['first-scene', 'second-scene'].map(id => ({ id, name: id, layers: [
-		structuredClone(textLayer), { ...createInlineVisualModuleLayer(0), id: 'inline-layer', visualModule: createVisualModule('inline-definition') },
+		structuredClone(textLayer), { ...createInlineCustomNodeGraphEffectLayer(0), id: 'inline-layer', customNodeGraphEffect: createCustomNodeGraphEffect('inline-definition') },
 	] }));
-	const state = { visualModules: { value: visualModules }, timelineScenes: { value: timelineScenes } };
+	const state = { customNodeGraphEffects: { value: customNodeGraphEffects }, timelineScenes: { value: timelineScenes } };
 	const manager = new UndoRedo(state, COMMAND_DEFS);
-	const target = { visualModuleId: visualModules[0].id, nodeId: 'first-node', paramPath: ['buzzs', 'first', 'x'] };
-	const value = () => visualModules[0].nodes[0].params.buzzs.value[0].binding.value.x;
+	const target = { customNodeGraphEffectId: customNodeGraphEffects[0].id, nodeId: 'first-node', paramPath: ['buzzs', 'first', 'x'] };
+	const value = () => customNodeGraphEffects[0].nodes[0].params.buzzs.value[0].binding.value.x;
 	const notifications = [];
 	manager.onChange(changes => notifications.push({ changes: structuredClone(changes), value: structuredClone(value()) }));
-	return { state, manager, target, value, visualModules, timelineScenes, notifications,
+	return { state, manager, target, value, customNodeGraphEffects, timelineScenes, notifications,
 		at(time) { now = time; },
-		set(value, mergeKey = null) { manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: value } }, mergeKey); },
+		set(value, mergeKey = null) { manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: value } }, mergeKey); },
 	};
 }
 
@@ -89,19 +89,19 @@ test('starts another history entry after more than 2000ms of inactivity', t => {
 	f.manager.redo(); f.manager.redo(); assert.deepEqual(f.value(), literal(2));
 });
 
-// 【種類・Visual Moduleの所在・ノード・末端パスが違う編集を独立させる】
+// 【種類・Custom Node Graph Effectの所在・ノード・末端パスが違う編集を独立させる】
 // 同じローカルIDが登録先やSceneを跨いで現れたり、配列内の隣の項目へ移っても、
 // 最初と最後だけを履歴へ残すことで途中の編集が欠落してはならない。
 test('separates command types and complete node parameter addresses', t => {
 	const f = fixture(t);
 	const before = structuredClone(f.state);
 	const targets = [f.target, { ...f.target, paramPath: ['buzzs', 'first', 'y'] },
-		{ ...f.target, nodeId: 'second-node' }, { ...f.target, visualModuleId: 'second-visual-module' },
-		{ sceneId: 'first-scene', inlineVisualModuleLayerId: 'inline-layer', nodeId: 'first-node', paramPath: f.target.paramPath },
-		{ sceneId: 'second-scene', inlineVisualModuleLayerId: 'inline-layer', nodeId: 'first-node', paramPath: f.target.paramPath }];
-	for (const target of targets) f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: 1 } });
-	f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...targets.at(-1) }), source: { inputSource: 'expression', expression: 'TIME' } });
-	f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...targets.at(-1) }), source: { inputSource: 'expression', expression: 'TIME * 2' } });
+		{ ...f.target, nodeId: 'second-node' }, { ...f.target, customNodeGraphEffectId: 'second-custom-node-graph-effect' },
+		{ sceneId: 'first-scene', inlineCustomNodeGraphEffectLayerId: 'inline-layer', nodeId: 'first-node', paramPath: f.target.paramPath },
+		{ sceneId: 'second-scene', inlineCustomNodeGraphEffectLayerId: 'inline-layer', nodeId: 'first-node', paramPath: f.target.paramPath }];
+	for (const target of targets) f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: 1 } });
+	f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...targets.at(-1) }), source: { inputSource: 'expression', expression: 'TIME' } });
+	f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...targets.at(-1) }), source: { inputSource: 'expression', expression: 'TIME * 2' } });
 	assert.equal(f.manager.undoStack.value.length, targets.length + 1);
 	while (f.manager.canUndo.value) f.manager.undo();
 	assert.deepEqual(f.state, before);
@@ -133,10 +133,10 @@ test('normalizes the default timeline parameter target and restores omitted bind
 	const f = fixture(t);
 	const target = { sceneId: 'first-scene', layerId: 'inline-layer', paramPath: ['gain'] };
 	f.manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ ...target }), source: { inputSource: 'literal', value: 1 } });
-	f.manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ ...target, target: 'module' }), source: { inputSource: 'literal', value: 2 } });
+	f.manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ ...target, target: 'customNodeGraphEffect' }), source: { inputSource: 'literal', value: 2 } });
 	assert.equal(f.manager.undoStack.value.length, 1);
-	f.manager.undo(); assert.deepEqual(f.timelineScenes[0].layers[1].visualModuleParamValues, {});
-	f.manager.redo(); assert.deepEqual(f.timelineScenes[0].layers[1].visualModuleParamValues.gain, literal(2));
+	f.manager.undo(); assert.deepEqual(f.timelineScenes[0].layers[1].customNodeGraphEffectParamValues, {});
+	f.manager.redo(); assert.deepEqual(f.timelineScenes[0].layers[1].customNodeGraphEffectParamValues.gain, literal(2));
 });
 
 // 【カスタム値は同じ定義の値入力だけをまとめ、既定値への暗黙の追従をUndoで戻す】
@@ -144,15 +144,15 @@ test('normalizes the default timeline parameter target and restores omitted bind
 // 登録先や編集方式が変わった操作も独立したUndo単位にする。
 test('merges custom parameter values without changing definitions or losing omitted values', t => {
 	const f = fixture(t);
-	const target = { visualModuleId: 'first-visual-module', parameterId: 'gain' };
-	for (const value of [1, 2]) f.manager.commit('setVisualModuleCustomParameterSource', { target: customParameterTarget({ ...target }), source: { inputSource: 'literal', value: value } });
+	const target = { customNodeGraphEffectId: 'first-custom-node-graph-effect', parameterId: 'gain' };
+	for (const value of [1, 2]) f.manager.commit('setCustomNodeGraphEffectCustomParameterSource', { target: customParameterTarget({ ...target }), source: { inputSource: 'literal', value: value } });
 	assert.equal(f.manager.undoStack.value.length, 1);
-	f.manager.undo(); assert.deepEqual(f.visualModules[0].customParameterValues, {});
-	f.manager.redo(); assert.deepEqual(f.visualModules[0].customParameterValues.gain, literal(2));
-	for (const value of ['TIME', 'TIME * 2']) f.manager.commit('setVisualModuleCustomParameterSource', { target: customParameterTarget({ ...target }), source: { inputSource: 'expression', expression: value } });
-	f.manager.commit('setVisualModuleCustomParameterSource', { target: customParameterTarget({ ...target, visualModuleId: 'second-visual-module' }), source: { inputSource: 'literal', value: 3 } });
+	f.manager.undo(); assert.deepEqual(f.customNodeGraphEffects[0].customParameterValues, {});
+	f.manager.redo(); assert.deepEqual(f.customNodeGraphEffects[0].customParameterValues.gain, literal(2));
+	for (const value of ['TIME', 'TIME * 2']) f.manager.commit('setCustomNodeGraphEffectCustomParameterSource', { target: customParameterTarget({ ...target }), source: { inputSource: 'expression', expression: value } });
+	f.manager.commit('setCustomNodeGraphEffectCustomParameterSource', { target: customParameterTarget({ ...target, customNodeGraphEffectId: 'second-custom-node-graph-effect' }), source: { inputSource: 'literal', value: 3 } });
 	assert.equal(f.manager.undoStack.value.length, 3);
-	assert.deepEqual(f.visualModules[0].customParameterDefs[0].defaultValue, literal(0));
+	assert.deepEqual(f.customNodeGraphEffects[0].customParameterDefs[0].defaultValue, literal(0));
 });
 
 // 【キー・グラフ・リセット・定義変更は短時間に繰り返しても自動でまとめない】
@@ -163,10 +163,10 @@ test('keeps keyframe graph reset and definition commands out of automatic mergin
 	const keyframes = createInlineKeyframesTimeline(scalar);
 	const graph = createInlineAutomationGraph();
 	const operations = [
-		() => f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: keyframes }),
-		() => f.manager.commit('setVisualModuleNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: graph }),
-		() => f.manager.commit('resetVisualModuleNodeParameter', { ...nodeParameterTarget(f.target) }),
-		() => f.manager.commit('replaceVisualModulePublicParameterDefinition', { target: { visualModule: { visualModuleId: 'first-visual-module' }, parameterId: 'gain' }, definition: { ...f.visualModules[0].paramDefs[0], defaultValue: literal(1) } }),
+		() => f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: keyframes }),
+		() => f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: graph }),
+		() => f.manager.commit('resetCustomNodeGraphEffectNodeParameter', { ...nodeParameterTarget(f.target) }),
+		() => f.manager.commit('replaceCustomNodeGraphEffectPublicParameterDefinition', { target: { customNodeGraphEffect: { customNodeGraphEffectId: 'first-custom-node-graph-effect' }, parameterId: 'gain' }, definition: { ...f.customNodeGraphEffects[0].paramDefs[0], defaultValue: literal(1) } }),
 	];
 	for (const operation of operations) { operation(); operation(); }
 	assert.equal(f.manager.undoStack.value.length, operations.length);
@@ -192,17 +192,17 @@ test('preserves explicit merging and isolates it from automatic merging', t => {
 test('keeps explicit edit sessions independent and preserves redo on cancellation', t => {
 	const f = fixture(t);
 	f.set(1);
-	const cancelled = f.manager.beginEdit('setVisualModuleNodeParameterSource');
+	const cancelled = f.manager.beginEdit('setCustomNodeGraphEffectNodeParameterSource');
 	cancelled.update({ ...nodeParameterTarget(f.target), source: { inputSource: 'literal', value: 2 } }); cancelled.cancel();
 	f.set(3);
-	const empty = f.manager.beginEdit('setVisualModuleNodeParameterSource'); empty.finish();
+	const empty = f.manager.beginEdit('setCustomNodeGraphEffectNodeParameterSource'); empty.finish();
 	f.set(4);
-	const finished = f.manager.beginEdit('setVisualModuleNodeParameterSource');
+	const finished = f.manager.beginEdit('setCustomNodeGraphEffectNodeParameterSource');
 	finished.update({ ...nodeParameterTarget(f.target), source: { inputSource: 'literal', value: 5 } }); finished.finish();
 	f.set(6);
 	assert.equal(f.manager.undoStack.value.length, 5);
 	f.manager.undo();
-	const session = f.manager.beginEdit('setVisualModuleNodeParameterSource');
+	const session = f.manager.beginEdit('setCustomNodeGraphEffectNodeParameterSource');
 	session.update({ ...nodeParameterTarget(f.target), source: { inputSource: 'literal', value: 7 } }); session.cancel();
 	assert.equal(f.manager.redoStack.value.length, 1);
 	f.manager.redo(); assert.deepEqual(f.value(), literal(6));

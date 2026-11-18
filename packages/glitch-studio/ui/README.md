@@ -14,13 +14,13 @@ Electronのファイル参照はIDと名前だけを持ち、読み込み関数�
 
 `ProjectSaveController`はセッション生成時にファイル名・保存先を受け取り、保存済み状態の比較基準とバックアップの予約を設定する。確定した保存先は一つのリアクティブな状態として所有し、公開するファイル名・ハンドル・バックアップ可否はそこから導出する。Fileだけで開いた名前は保存先が確定するまで使う。通常保存では同じバックアップ先を維持し、予約間隔や履歴をリセットしない。新規プロジェクトは初回保存が必要な状態、Fileだけで開いたプロジェクトは保存先ハンドルがなくても読み込んだ内容を保存済みとして扱う。起動前の編集も生成時の内容と比較するため、プレビューの起動によって保存済み状態は変わらない。未初期化の状態や後から初期化するメソッドは持たず、終了時は未保存表示を解除し、バックアップを停止する。終了後に届いた保存処理の結果は終了状態で無効化し、実行中の書き込みと予約の解放を待って保存先を手放す。
 
-素材操作・Visual Module取り込み・パラメータ貼り付けの遅延結果は`ProjectContext.isDisposed`で失効させる。音声生成もセッションごとに一つのインスタンスを所有し、終了後の結果を採用せず、再利用用のリセットやプロジェクト世代を持たない。対象の削除・Undoによる復元・素材の変更に対する同一性確認と、Workerの再生成・保存先変更に対する世代管理は、それぞれの操作の寿命に必要なため維持する。
+素材操作・Custom Node Graph Effect取り込み・パラメータ貼り付けの遅延結果は`ProjectContext.isDisposed`で失効させる。音声生成もセッションごとに一つのインスタンスを所有し、終了後の結果を採用せず、再利用用のリセットやプロジェクト世代を持たない。対象の削除・Undoによる復元・素材の変更に対する同一性確認と、Workerの再生成・保存先変更に対する世代管理は、それぞれの操作の寿命に必要なため維持する。
 
 新規作成・ファイルを開く・メディアからの新規作成は新しいタブへ追加する。タブバーは2件以上のときだけ表示し、1件のときもFileメニューから追加・終了できる。同じ保存先を再度開くとファイルを読み込まず既存タブを選択し、未保存の編集内容を維持する。保存先の異なるファイルは内容が同じでも別々に開ける。読込失敗・選択取消では現在のタブを維持する。
 
 `ProjectSessionManager`が所有する`ProjectFileOperationController`を各セッションの保存管理と共有し、新規作成・Open・Save・Save as・Closeはウィンドウ内で一つだけ受け付ける。ファイル選択・権限確認の前に同期的に受付を確保し、完了・キャンセル・失敗と後処理まで保持する。処理中の追加要求はキューへ積まず拒否し、ヘッダー・Dashboard・タブバーの対応ボタンも無効にする。タブ切替と編集は引き続き可能で、保存中の編集内容は次の明示的なSaveで保存する。UI側に保存先の予約Mapは持たず、確定した保存先だけを照合する。Electronのmain側の予約・所有権管理は別ウィンドウとの競合を防ぐため維持する。
 
-切替時は編集画面のDOMとUndo履歴・選択・プレビュー設定・Timelineの再生位置を保持する。非アクティブなセッションはプレビューと音声再生を休止し、映像WorkerとGPU資源を解放する。戻ると最新のプロジェクト状態でレンダラーを再生成するため、Visual Moduleの実行中の描画履歴・Playerの実行状態は引き継がない。タブ非選択・書き出しの休止理由は独立し、別の処理の完了で裏のタブを再開しない。環境設定と保存されるワークスペース配置はウィンドウ共通、ワークスペース内の選択とTimelineの内部クリップボードはセッションごとに保持する。
+切替時は編集画面のDOMとUndo履歴・選択・プレビュー設定・Timelineの再生位置を保持する。非アクティブなセッションはプレビューと音声再生を休止し、映像WorkerとGPU資源を解放する。戻ると最新のプロジェクト状態でレンダラーを再生成するため、Custom Node Graph Effectの実行中の描画履歴・Playerの実行状態は引き継がない。タブ非選択・書き出しの休止理由は独立し、別の処理の完了で裏のタブを再開しない。環境設定と保存されるワークスペース配置はウィンドウ共通、ワークスペース内の選択とTimelineの内部クリップボードはセッションごとに保持する。
 
 `createProjectActions(projectSessions)`はファイル選択・初期データの作成を行い、マネージャーへ渡す。 `importAssets()`には既存のProjectContext、または取り込み先を返す非同期関数を渡す。後者は素材が一つ以上読み込めた時点で呼ぶため、Dashboardからの取り込みに失敗しても空のセッションを作らない。プロジェクトに属するダイアログは`ui.popup(component, props, events, projectSession)`で開き、素材選択には`ui.selectAsset(projectSession, options)`を使う。`GsProjectEditor`が所属ポップアップを表示し、`GsPopup`はDOMを増やさずセッションを提供する。切り離したパネルも開いたプロジェクトに固定され、非アクティブ時は休止する。アプリ共通のポップアップは`App.vue`が表示し、セッションを持たない。
 
@@ -40,7 +40,7 @@ Tablerのアイコンフォントは、開発時にはパッケージの通常�
 
 プロジェクトの操作はCommandを通し、Undo/Redoとレンダラー同期を同じ変更通知から行う。
 
-通常のパラメータの固定値・式入力は、同じCommandの種類・編集対象・パラメータパス・編集種別への更新が前回から2000ms以内なら、一つのUndo履歴へ自動でまとめる。対象はノード、Timelineレイヤー、Visual Moduleのカスタム値。公開・カスタムパラメータの定義編集、キー・Automation Graphの編集、接続・入力方式変更・リセットなどは自動マージしない。`CommandDef.getAutoMergeKey`が対象と項目の同一性を定義し、`UndoRedo`が直前の履歴と経過時間を判定する。値の反映と変更通知は更新ごとに行い、Undoでは最初の状態、Redoでは最後の状態を復元する。
+通常のパラメータの固定値・式入力は、同じCommandの種類・編集対象・パラメータパス・編集種別への更新が前回から2000ms以内なら、一つのUndo履歴へ自動でまとめる。対象はノード、Timelineレイヤー、Custom Node Graph Effectのカスタム値。公開・カスタムパラメータの定義編集、キー・Automation Graphの編集、接続・入力方式変更・リセットなどは自動マージしない。`CommandDef.getAutoMergeKey`が対象と項目の同一性を定義し、`UndoRedo`が直前の履歴と経過時間を判定する。値の反映と変更通知は更新ごとに行い、Undoでは最初の状態、Redoでは最後の状態を復元する。
 
 通常入力ではドラッグ中・ポップアップ表示中・フォーカス中も時間で履歴を区切るため、2000msを超えて更新が止まれば次の更新は別履歴になる。Undo/Redo、別のCommand、明示的な`mergeKey`による操作、`beginEdit()`を挟んだ場合も自動マージの連続性を切る。Timelineのドラッグやキー・グラフ編集の明示キー、プレビュー編集などの`beginEdit()`による確定・取消しは維持し、自動マージとは結合しない。
 
@@ -52,7 +52,7 @@ Tablerのアイコンフォントは、開発時にはパッケージの通常�
 
 公開CommandとQueryはZodの入力・結果スキーマ、説明、AiScript例を持つ。`project-api/contract.ts`が構造検証とJSON Schema化を行い、参照先の存在や編集条件は既存のドメイン検証に任せる。`commands/definition.ts`の`definePublicCommand()`はスキーマから型を推論し、`withCommandContract()`は既存のドメイン型を保って契約を付ける。検証はCommandのprepare前とapply前に行い、型の自動変換や未知フィールドの削除はしない。内部用Commandは契約を必須にしない。
 
-`PROJECT_SCRIPT_QUERY_DEFINITIONS`がQueryの契約と読み取りを一か所で定義する。`project-script-api-reference.ts`は公開Commandの契約漏れを型で検出し、公開APIだけの検索・説明取得を提供する。AiScriptでは`Script:search(text)`と`Script:describe("Command:createVisualModule")`から同じ資料を読める。MCPサーバーの通信処理はこの層に含めない。
+`PROJECT_SCRIPT_QUERY_DEFINITIONS`がQueryの契約と読み取りを一か所で定義する。`project-script-api-reference.ts`は公開Commandの契約漏れを型で検出し、公開APIだけの検索・説明取得を提供する。AiScriptでは`Script:search(text)`と`Script:describe("Command:createCustomNodeGraphEffect")`から同じ資料を読める。MCPサーバーの通信処理はこの層に含めない。
 
 Electron版では`mcp/editor-connection.ts`が開いている編集セッションの一覧をmainへ通知し、指定セッションでのAiScript実行・API資料の取得・プレビュー画像の取得を受け付ける。`ProjectScriptingController.runExternal()`はScriptingパネルと実行中状態を共有し、本文・出力は変更しない。`mcp/capture-preview.ts`は保留中のプロジェクト変更を描画側へ同期し、選択中のプレビューの新しいフレームをPNGとして受け取る。設定画面と`desktop-mcp-settings.ts`はmainの状態を購読し、トークン再発行とクライアント設定のコピーを提供する。
 
@@ -66,7 +66,7 @@ API・参照形式・実行例・制限は[スクリプティング](../../../do
 
 ## プレビューでのXYパラメータ編集
 
-`controlType: 'xy'`のパラメータにはcursorボタンを表示する。対応するVisual Module Live Preview、または停止中の所属Sceneのプレビューで有効化でき、複数パラメータのハンドルを同時に表示できる。ドラッグは円形のハンドルからだけ開始できる。ラベルはハンドルの上側に中央揃えで、名前と現在のX/Y基準値を二行で表示し、ポインター操作は受け取らない。近い位置のハンドルはラベルを上方向にずらして表示する。再押下で個別解除、Escで全解除する。ドラッグ中のEsc・ウィンドウ離脱・対象変更はそのドラッグを取り消す。対象の編集UIを閉じた場合や、プロジェクト・プレビュー対象を切り替えた場合も解除する。有効状態は保存しない。
+`controlType: 'xy'`のパラメータにはcursorボタンを表示する。対応するCustom Node Graph Effect Live Preview、または停止中の所属Sceneのプレビューで有効化でき、複数パラメータのハンドルを同時に表示できる。ドラッグは円形のハンドルからだけ開始できる。ラベルはハンドルの上側に中央揃えで、名前と現在のX/Y基準値を二行で表示し、ポインター操作は受け取らない。近い位置のハンドルはラベルを上方向にずらして表示する。再押下で個別解除、Escで全解除する。ドラッグ中のEsc・ウィンドウ離脱・対象変更はそのドラッグを取り消す。対象の編集UIを閉じた場合や、プロジェクト・プレビュー対象を切り替えた場合も解除する。有効状態は保存しない。
 
 ハンドルは数値欄と同じ加工前の基準値を、表示中の画像領域に対応させて示す。座標は長辺全体を1、中央を原点、上を+Yとする。後段の変形・繰り返し・Timelineの合成変換・加工式は逆算しないため、最終画像中の図形とハンドルが一致するとは限らない。式・Automation Graph・ノード接続・パラメータ参照は直接編集しない。固定値とキーの基準値を編集し、加工式は保持する。キーは現在時刻へ追加・更新し、クリックだけではキーや履歴を作らない。
 
@@ -80,7 +80,7 @@ API・参照形式・実行例・制限は[スクリプティング](../../../do
 
 `utility/parameter-clipboard.ts`が型情報・Binding全体・参照元の編集セッション／所有者を保存する。参照元には保存ファイルのIDではなく`ProjectSessionContext.id`を使う。同じ保存IDを持つファイルを別セッションで開いても参照は共有せず、同じセッションで別名保存しても参照は有効なままになる。固定値、式、加工式、インラインのキーフレーム／Automation Graph、接続とサンプリング設定を保持し、型・入力方式・配列の要素数・参照先を検査する。配列・構造体は子まで含めて一括適用し、一つでも非互換なら履歴を増やさず全体を無視する。値の型変換・式の書き換え・キーフレーム時刻の移動は行わない。
 
-通常の値とインライン設定は別セッションにも貼り付けられる。ノードとVisual Module公開パラメータの参照は同じセッション・同じVisual Module、特定レイヤーの参照は同じセッション・同じSceneで、貼り付け先から利用できる場合だけ受け入れる。Player参照も同じセッション内に限定する。下位レイヤー入力は貼り付け先を基準とする相対入力として扱う。参照先のノード・レイヤー・素材は複製しない。Automation Graph参照はコピー時のセッションと所有先を保持し、Visual Module内部ではローカル定義、Live Preview引数ではプロジェクト定義、Timelineでは所属レイヤーまたはプロジェクト定義の利用範囲を守る。
+通常の値とインライン設定は別セッションにも貼り付けられる。ノードとCustom Node Graph Effect公開パラメータの参照は同じセッション・同じCustom Node Graph Effect、特定レイヤーの参照は同じセッション・同じSceneで、貼り付け先から利用できる場合だけ受け入れる。Player参照も同じセッション内に限定する。下位レイヤー入力は貼り付け先を基準とする相対入力として扱う。参照先のノード・レイヤー・素材は複製しない。Automation Graph参照はコピー時のセッションと所有先を保持し、Custom Node Graph Effect内部ではローカル定義、Live Preview引数ではプロジェクト定義、Timelineでは所属レイヤーまたはプロジェクト定義の利用範囲を守る。
 
 保存状態への適用は`pasteParameter` Commandで行い、貼り付け先の加工式も含めて置き換える。Undoでは未設定だったルートを未設定へ戻し、Redoでは確定済みのBindingとIDを復元する。Binding内の配列要素・キー・インラインのグラフ点・Color Ramp stopには貼り付けごとに新しいIDを発行する。Live Preview引数は既存のプレビュー編集と同様に保存状態・履歴へ含めない。非同期の読み取り中にセッション終了・対象の削除や置換・型変更が発生した場合は適用しない。
 
@@ -104,7 +104,7 @@ API・参照形式・実行例・制限は[スクリプティング](../../../do
 
 ## Timelineのプレビュー再生・BAKE
 
-環境設定の「レンダリング」にある「タイムラインプレビューの先行フレーム数」は、処理中の1フレームに追加する先行数を0・1・2・3の選択肢から選び、選択時に即時保存します。既定値は1（合計2フレーム）、0では各フレームのGPU完了を待ってから次を処理します。端末・編集ウィンドウの環境設定として保存し、プロジェクトには含めません。変更時は`PreviewRenderEngine`が両プレビューのWorkerを再生成するため、プレビューの初期化とフレームキャッシュの消去が発生します。Scene・現在位置・Timelineの再生状態は維持します。Visual Moduleの履歴とPlayerのメディア要素も作り直すため、Playerの再生位置はリセットされ、Webcamは再接続します。
+環境設定の「レンダリング」にある「タイムラインプレビューの先行フレーム数」は、処理中の1フレームに追加する先行数を0・1・2・3の選択肢から選び、選択時に即時保存します。既定値は1（合計2フレーム）、0では各フレームのGPU完了を待ってから次を処理します。端末・編集ウィンドウの環境設定として保存し、プロジェクトには含めません。変更時は`PreviewRenderEngine`が両プレビューのWorkerを再生成するため、プレビューの初期化とフレームキャッシュの消去が発生します。Scene・現在位置・Timelineの再生状態は維持します。Custom Node Graph Effectの履歴とPlayerのメディア要素も作り直すため、Playerの再生位置はリセットされ、Webcamは再接続します。
 
 通常再生では`TimelineAudioPreview.currentTime()`が音声出力のtimestamp対から現在時刻を補間し、`PreviewPlaybackController`は毎RAFで表示対象フレームの変化を判定します。FPS制限をRAF間隔でも重ねると時計の位相差・浮動小数点の誤差で描画機会を逃すため、描画要求は表示フレームの変化だけで制限します。明示的な`refresh()`は編集・Worker復帰のため同じ時刻でも再描画します。
 
@@ -138,17 +138,17 @@ GPU処理を止めたCanvasも画面合成に影響するため、休止中は�
 
 進捗UIも毎画面の合成がエンコード経路と競合する環境があるため、ドットは静止表示にし、進捗バーは`GsProgressBar`の`static`指定でアニメーションを止める。準備中・エンコードの終了処理中・総量未確定の保存・ファイルの最終確定中は、`progress: null`でindeterminate表示にする。Workerからの進捗通知で数値とバーを更新し、キャンセル操作は常時受け付ける。
 
-## Visual Moduleのエクスポート・インポート
+## Custom Node Graph Effectのエクスポート・インポート
 
-環境設定のVisual Module Editorにある「追加したノードを自動接続する」で、エフェクトノード追加時の自動接続を切り替える。既定値は無効。有効時は現在の主出力の接続元（副出力ポートも含む）を追加ノードの主入力へ引き継ぎ、追加ノードの主出力をVisual Moduleの主出力へ接続する。それぞれ接続可能な場合だけ変更し、明示的に指定されたパラメータは優先する。登録済み・インラインの両方で適用し、Undo/Redoでは設定変更にかかわらず追加時の配線を復元する。素材ドロップによる追加は既存の配線を維持する。
+環境設定のCustom Node Graph Effect Editorにある「追加したノードを自動接続する」で、エフェクトノード追加時の自動接続を切り替える。既定値は無効。有効時は現在の主出力の接続元（副出力ポートも含む）を追加ノードの主入力へ引き継ぎ、追加ノードの主出力をCustom Node Graph Effectの主出力へ接続する。それぞれ接続可能な場合だけ変更し、明示的に指定されたパラメータは優先する。登録済み・インラインの両方で適用し、Undo/Redoでは設定変更にかかわらず追加時の配線を復元する。素材ドロップによる追加は既存の配線を維持する。
 
-`GsVisualModuleEditor`はファイル・Assetのドロップ受付と表示を担当し、親が渡す`VisualModuleAssetDropActions`で保存先へ反映する。登録済みとインラインの両方で`utility/visual-module-drop-actions.ts`を使い、画像・動画・音声からImage・Video・Audio Waveformノードを通常ノード一覧の末尾へ追加する。ノード生成は`visual-module-asset-node.ts`、Asset・Player・ノードの一括追加とUndo/RedoはCommandが担当する。既存の配線と出力接続は変更しない。
+`GsCustomNodeGraphEffectEditor`はファイル・Assetのドロップ受付と表示を担当し、親が渡す`CustomNodeGraphEffectAssetDropActions`で保存先へ反映する。登録済みとインラインの両方で`utility/custom-node-graph-effect-drop-actions.ts`を使い、画像・動画・音声からImage・Video・Audio Waveformノードを通常ノード一覧の末尾へ追加する。ノード生成は`custom-node-graph-effect-asset-node.ts`、Asset・Player・ノードの一括追加とUndo/RedoはCommandが担当する。既存の配線と出力接続は変更しない。
 
-`gsvm.ts`は`.gsvm`（MessagePack）の依存収集・バイナリ変換・取り込み準備を担当する。ノードの値と公開パラメータの既定値・設定ツリーから静的な素材／Player参照を収集し、取り込み用のプロジェクト内IDを生成する。素材参照の加工式は無効化中や基準値がnullの場合も含めて転送を拒否する。元PCのパスや利用側のレイヤー／Visual Module Live Previewの状態は保存しない。
+`custom-node-graph-effect-file-codec.ts`は`.gscnge`（MessagePack）の依存収集・バイナリ変換・取り込み準備を担当する。ノードの値と公開パラメータの既定値・設定ツリーから静的な素材／Player参照を収集し、取り込み用のプロジェクト内IDを生成する。素材参照の加工式は無効化中や基準値がnullの場合も含めて転送を拒否する。元PCのパスや利用側のレイヤー／Custom Node Graph Effect Live Previewの状態は保存しない。
 
-`utility/visual-module-file.ts`が選択・ダウンロード・エラー表示を担当する。共通のVisual ModuleエディターはOtherタブから`requestExport`を通知し、登録済み／インラインそれぞれの親が対象名とプロジェクトを渡す。ImportはApp.vueのFile → Import → Visual Module (.gsvm)、または登録済みVisual Moduleの選択メニューから同じ処理を呼び出し、`importVisualModule` Commandで依存リソースごと一括追加する。ファイル選択・読み出しの間に取り込み先のProjectContextが終了した場合は、その結果を破棄する。
+`utility/custom-node-graph-effect-file.ts`が選択・ダウンロード・エラー表示を担当する。共通のCustom Node Graph EffectエディターはOtherタブから`requestExport`を通知し、登録済み／インラインそれぞれの親が対象名とプロジェクトを渡す。ImportはApp.vueのFile → Import → Custom Node Graph Effect (.gscnge)、または登録済みCustom Node Graph Effectの選択メニューから同じ処理を呼び出し、`importCustomNodeGraphEffect` Commandで依存リソースごと一括追加する。ファイル選択・読み出しの間に取り込み先のProjectContextが終了した場合は、その結果を破棄する。
 
-`visualModuleRegistration`の通知は追加・削除後の最終値を両レンダラーへ送る。同じターンの内部編集は登録データへ吸収し、UndoでVisual Module Live Preview対象が消えたときはTimeline表示へ戻す。
+`customNodeGraphEffectRegistration`の通知は追加・削除後の最終値を両レンダラーへ送る。同じターンの内部編集は登録データへ吸収し、UndoでCustom Node Graph Effect Live Preview対象が消えたときはTimeline表示へ戻す。
 
 ## Workspaceのパネル表示
 
@@ -160,11 +160,11 @@ Electron版の通常の別ウィンドウは`GsDetachedWindowFrame.vue`でタイ
 
 計測設定`preferences.renderingStatsEnabled`の既定値はtrue。App.vueのフッターのStatsボタンから両プレビューの計測をまとめて切り替え、preferencesに保存して再起動後も復元する。GPUデバイスの計測機能とリソース追跡の有無を変更するため、既存のstatic options更新でWorkerを再生成する。計測無効時はStatsパネルの定期サンプリングも停止し、Live PreviewのフッターFPSは実測値の代わりに設定上限を表示する。プロジェクト・Undo履歴には保存しない。書き出しWorkerはプレビュー設定にかかわらず`enableStats: false`を指定する。
 
-設定の「レンダリング → プレビューの表示方式」で、完成画像をGPU経由またはCPU経由で表示する方式を選ぶ。`preferences.previewDisplayMode`の既定値は`gpu`。CPU方式も作品の計算はWebGPUで行い、プレビュー倍率を適用した完成画像を読み戻してCanvas 2Dへ表示する。Timeline・Visual Module Live Previewと映像解析Canvasに適用し、音声モニターの表示方式は変更しない。設定変更時はプレビューを再初期化するためフレームキャッシュもクリアする。書き出しには適用しない。
+設定の「レンダリング → プレビューの表示方式」で、完成画像をGPU経由またはCPU経由で表示する方式を選ぶ。`preferences.previewDisplayMode`の既定値は`gpu`。CPU方式も作品の計算はWebGPUで行い、プレビュー倍率を適用した完成画像を読み戻してCanvas 2Dへ表示する。Timeline・Custom Node Graph Effect Live Previewと映像解析Canvasに適用し、音声モニターの表示方式は変更しない。設定変更時はプレビューを再初期化するためフレームキャッシュもクリアする。書き出しには適用しない。
 
 CPU方式は画面合成との同期による待ちを抑えられる場合がある一方、CPU変換・メモリ転送のコストがある。UIでのフレーム要求・Canvas 2D表示やGPUデバイスは共有するため、UI負荷から完全に独立するわけではない。主映像の転送量は0.5xで1xの約1/4、0.25xで約1/16になるが、ヒストグラム・縦横の映像波形の寸法は主映像の倍率から独立しており、同じ比率では転送量が減らない。両方式の比較では解像度・FPS・Analyze・フレームキャッシュを揃える。TimelineのFrame totalは読み戻し・RGBA変換までの実経過時間であり、UIへ転送した後のCanvas描画時間は含まない。手動シーク・BAKEの完了通知はUIで画像を描いてから受け取る。
 
-解析モニターの設定`preferences.analysisMonitorsEnabled`の既定値はtrue。App.vueのフッターのAnalyzeから、TimelineとVisual Module Live Previewのヒストグラム・縦横の波形と、音声波形・スペクトラム・スペクトログラムの監視パネルをまとめて切り替える。Statsとは独立した設定で、preferencesに保存して再起動後も復元し、プロジェクト・Undo履歴には保存しない。
+解析モニターの設定`preferences.analysisMonitorsEnabled`の既定値はtrue。App.vueのフッターのAnalyzeから、TimelineとCustom Node Graph Effect Live Previewのヒストグラム・縦横の波形と、音声波形・スペクトラム・スペクトログラムの監視パネルをまとめて切り替える。Statsとは独立した設定で、preferencesに保存して再起動後も復元し、プロジェクト・Undo履歴には保存しない。
 
 映像側はstatic optionsの`enableWaveformAndHistogram`へ反映してWorkerを再生成し、無効時は解析用GPUリソースの生成・集計・描画を省く。書き出しWorkerでは常に無効にする。音声側は`AudioPreview.setAnalysisEnabled()`でFFT等の解析・GPU描画ループを止め、パネルに無効の案内を表示する。Canvas・設定・PCM履歴は維持し、再度有効にしたときは同じパネルで復帰する。音声再生・基本の音量メーター・作品内の音声解析エフェクト・通常のプレビュー描画は継続する。
 
@@ -180,7 +180,7 @@ Analyze設定と書き出し等の一時休止は別に保持し、音声モニ�
 
 `useWaveformViewport()`は縦横それぞれの波形のホイールズームとドラッグ移動を扱う。ポインターを支点に1〜100倍へズームし、左・中ボタンやタッチのドラッグで元のグラフ内を移動する。Home・0でリセットし、+ / −と矢印キーでも操作できる。Escape・フォーカス喪失・別ウィンドウへの移動・中断・破棄ではドラッグ開始位置へ戻す。通常時の更新は`CoalescedAsyncUpdate`で100ms単位に集約し、一つの解析が終わるまで次を送らない。終了・取消しでは最終設定を`flush()`する。目盛りは要求中の設定ではなく反映済みの表示領域に追従し、Canvasと一致させる。軸とポインターのラベルは有効数字2桁で表示し、目盛りの値・位置の計算には丸める前の値を使う。表示領域はProjectSessionContextの一時状態で、プロジェクト・preferences・Undo履歴へ保存しない。
 
-Statsパネルは表示中のプレビューに追従する。Timelineではフレーム全体・動画取得待ち・動画取り込み（CPU）・GPU完了待ちをmsで表示し、約100msごとの完了フレームの平均をグラフにする。凡例の括弧内は各項目の最大値で、同一フレームの値とは限らない。全体には個別の待ち時間が含まれるため、四項目を足し合わせない。凡例のツールチップで各計測範囲を確認できる。Visual Module Live Previewは従来のGPU移動平均を表示し、表示モード切り替え時にグラフの履歴を分ける。TimelineのScene変更・Worker破棄時には古い統計を消す。
+Statsパネルは表示中のプレビューに追従する。Timelineではフレーム全体・動画取得待ち・動画取り込み（CPU）・GPU完了待ちをmsで表示し、約100msごとの完了フレームの平均をグラフにする。凡例の括弧内は各項目の最大値で、同一フレームの値とは限らない。全体には個別の待ち時間が含まれるため、四項目を足し合わせない。凡例のツールチップで各計測範囲を確認できる。Custom Node Graph Effect Live Previewは従来のGPU移動平均を表示し、表示モード切り替え時にグラフの履歴を分ける。TimelineのScene変更・Worker破棄時には古い統計を消す。
 
 アプリ内のHTML Drag and Dropは`composables/useDragSession.ts`を使う。`utility/drag-and-drop.ts`が型付きデータのスナップショット・開始元の識別・終了処理を所有し、dragoverでも同じセッションのデータを参照できる。GsTimeline、GsDraggable、GsWorkspacePanel、GsWorkspaceDivider、GsAssetはドラッグ状態をこの仕組みへ委ねる。操作ごとの移動条件や配置計算、Command・preferencesへの反映は各コンポーネントが所有する。APIと寿命の詳細は[UIのドラッグセッション](../../../docs/drag-and-drop.md)を参照。
 
@@ -270,7 +270,7 @@ Speechレーンのダブルクリック、またはAdd speech key at playheadで
 
 プレビューでは再生開始時の生成音声一覧を固定し、シーク・ループ・通常音量編集でもその一覧を維持する。生成完了は再生を止めず、停止後の次回再生で採用する。未生成の発話は無音だが字幕を表示する。発話キー・声・クリップ・有効状態の編集とUndo/Redoは再生を停止する。動画書き出しは独立した編集状態のスナップショットを取り、必要な音声を準備してから開始する。失敗した発話を無音のまま書き出さず、取消しは生成待ちからも復帰できる。ダイアログの音声有無・サイズ概算は実行時の準備完了検証と分離し、未生成の発話も音声ありとして表示する。生成済みの場合は実際の音声長で選択範囲への交差を判定する。
 
-UIの`timeline-keyframe-lanes.ts`が選択・スナップ・移動に必要な位置情報だけを公開する。`utterance`対象はUI側だけで扱い、パラメータBindingやTextレイヤーの定義には追加しない。コピーは本文・読み・声のスタイルIDを保持し、同じScene・レイヤーへシーク位置を先頭にして新しいIDで貼り付ける。発話または通常キーの一つでも衝突する場合は全体を貼り付けない。キー削除もルートBindingを独立した案として編集し、未設定のVisual Module引数や配列・構造体内のキーを削除した場合は、Undoで元の未設定状態へ戻す。
+UIの`timeline-keyframe-lanes.ts`が選択・スナップ・移動に必要な位置情報だけを公開する。`utterance`対象はUI側だけで扱い、パラメータBindingやTextレイヤーの定義には追加しない。コピーは本文・読み・声のスタイルIDを保持し、同じScene・レイヤーへシーク位置を先頭にして新しいIDで貼り付ける。発話または通常キーの一つでも衝突する場合は全体を貼り付けない。キー削除もルートBindingを独立した案として編集し、未設定のCustom Node Graph Effect引数や配列・構造体内のキーを削除した場合は、Undoで元の未設定状態へ戻す。
 
 ## 描画の検証と停止
 
@@ -286,11 +286,11 @@ Controllerの`setInitialAssets()`と`updatePlayers()`は次に生成するManage
 
 音声プレビューは音声計画・ループ長の編集で再生成する。素材原本の変更は上記のプレビュー全体の再生成・再開で反映し、音声側では素材ファイルを別途監視しない。Player定義の準備でも旧Workerへ空フレームを送らず、再生中の読み取り失敗によるフレーム解除は引き続き行う。
 
-Controllerは失敗を通知し、破棄の調整は`PreviewRenderEngine`に集約する。`RendererProjectSynchronizer`は差分の送信と成功・失敗の通知だけを担当し、失敗後の全量同期を行わない。RPC更新はエンジンの開始世代を捕捉して行い、素材更新等で破棄されたWorkerの遅延失敗を新世代のエラーとして扱わない。静的診断の解除とプレビュー固有設定の変更では再試行を予約し、同じターンの通知をまとめる。Inline Visual Moduleの公開定義変更時は所有レイヤーの引数も再検証する。
+Controllerは失敗を通知し、破棄の調整は`PreviewRenderEngine`に集約する。`RendererProjectSynchronizer`は差分の送信と成功・失敗の通知だけを担当し、失敗後の全量同期を行わない。RPC更新はエンジンの開始世代を捕捉して行い、素材更新等で破棄されたWorkerの遅延失敗を新世代のエラーとして扱わない。静的診断の解除とプレビュー固有設定の変更では再試行を予約し、同じターンの通知をまとめる。Inline Custom Node Graph Effectの公開定義変更時は所有レイヤーの引数も再検証する。
 
 初回起動・静的設定変更・素材変更・復旧での再生成は`PreviewRenderEngine`が調整する。`ProjectSessionContext`は起動ごとに最新のプロジェクト・環境設定・プレビュー設定をスナップショット化し、Controllerの`initialize()`へ渡す。ControllerはWorker・Canvas・RPCを所有し、独自のreload、初期化中の差分キュー、復旧用のプロジェクト複製を持たない。初期化中に通常の描画内容が変わった場合は旧Workerを破棄して取り込み直し、静的設定変更ではTimeline固有の設定でも両プレビューを再生成する。両Workerが揃ってから再生を復元し、起動済みの通常編集は差分で反映する。レンダラーの`renderError`は失敗のみを通知し、Controllerのエラー表示は新しいManagerの初期化完了で解除する。Timelineの状態ストアは描画失敗を保持せず、Managerの破棄時に全状態を解除する。
 
-Custom Shader Effectの通常適用は、定義と補正済みの全Visual Module・Timeline・Automation Graphを一つの更新で送る。Workerと固定資源を維持し、全描画インスタンス・履歴・キャッシュだけを作り直す。初期化中の適用も`PreviewRenderEngine.runRendererUpdate()`でその起動の完了を待って送信し、起動が取り消された場合は破棄する。コンパイルエラー等で既に停止した場合の修正は、最新状態からWorkerを再生成する従来の復旧経路を使う。
+Custom Shader Effectの通常適用は、定義と補正済みの全Custom Node Graph Effect・Timeline・Automation Graphを一つの更新で送る。Workerと固定資源を維持し、全描画インスタンス・履歴・キャッシュだけを作り直す。初期化中の適用も`PreviewRenderEngine.runRendererUpdate()`でその起動の完了を待って送信し、起動が取り消された場合は破棄する。コンパイルエラー等で既に停止した場合の修正は、最新状態からWorkerを再生成する従来の復旧経路を使う。
 
 書き出しは編集時の検証結果を使用し、開始時のプロジェクト全体の再検証は行わない。書き出し専用の出力設定と、実素材・GPU・エンコーダーの検証は別途行う。
 
@@ -324,4 +324,4 @@ Electron版では保存中・エクスポート中でない場合に`hasUnsavedC
 
 `GsModal`は通常のclose時とアンマウント前にフォーカス制御を解除します。popupを直接破棄して別の確認へ移る場合にも背景の`inert`を残さず、破棄時には新しいモーダルのフォーカスを移動しません。
 
-`ApplicationActivity`は読込・素材取込・書き出しとアプリ更新の受付を調整します。TimelineとVisual Moduleの書き出しは`acquireExport()`で受け付け、最後の書き出しが完了するまで読み取り専用の`isExporting`をtrueに保ち、終了ガードへ渡します。`ProjectSessionManager.reserveForDesktopUpdate()`はセッション0件かつファイル操作が完了していることを確認し、同期的に`ApplicationActivity`で更新を予約します。最後のタブが一覧から消えても、保存・バックアップ・音声・main側の終了処理中は更新できません。更新のための保存・プレビューの休止や復帰は持ちません。通常の終了では各画面の終了ガードが保存・書き出し中の終了を拒否し、未保存変更の破棄を確認します。全体終了でも同意した画面から個別に閉じ、別画面の取消で閉じた画面を戻しません。更新準備はProjectやUndo/Redoの状態に含めません。配布とリリース手順は[desktopのREADME](../desktop/README.md)を参照してください。
+`ApplicationActivity`は読込・素材取込・書き出しとアプリ更新の受付を調整します。TimelineとCustom Node Graph Effectの書き出しは`acquireExport()`で受け付け、最後の書き出しが完了するまで読み取り専用の`isExporting`をtrueに保ち、終了ガードへ渡します。`ProjectSessionManager.reserveForDesktopUpdate()`はセッション0件かつファイル操作が完了していることを確認し、同期的に`ApplicationActivity`で更新を予約します。最後のタブが一覧から消えても、保存・バックアップ・音声・main側の終了処理中は更新できません。更新のための保存・プレビューの休止や復帰は持ちません。通常の終了では各画面の終了ガードが保存・書き出し中の終了を拒否し、未保存変更の破棄を確認します。全体終了でも同意した画面から個別に閉じ、別画面の取消で閉じた画面を戻しません。更新準備はProjectやUndo/Redoの状態に含めません。配布とリリース手順は[desktopのREADME](../desktop/README.md)を参照してください。

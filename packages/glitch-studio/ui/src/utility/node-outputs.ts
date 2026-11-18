@@ -1,10 +1,10 @@
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
-import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
+import { getNodeOutputs } from '@gs/subsystems_custom-node-graph-effect_shared/node-outputs.ts';
 import { areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
 import { prettyId } from '@gs/shared/utility/id.js';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { VisualModuleNode, NodeOutputReference, VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { CustomNodeGraphEffectNode, NodeOutputReference, CustomNodeGraphEffect } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import { preferences } from '@/preferences.ts';
 import { getEffectNodeName } from './node-name.ts';
 
@@ -25,7 +25,7 @@ export function nodeOutputKey(connection: { nodeId: string; outputPort: string }
 }
 
 // 接続済みの警告は、forceTypeSafetyによる候補の絞り込みとは独立して判定する。
-export function hasNodeInputTypeMismatch(nodes: VisualModuleNode[], connection: { nodeId: string; outputPort: string } | null, inputDataType: TextureDataType | null, paramDefs: VisualModule['paramDefs'] = [], definitions: Readonly<Record<string, EffectDefinition>> = effectDefinitions): boolean {
+export function hasNodeInputTypeMismatch(nodes: CustomNodeGraphEffectNode[], connection: { nodeId: string; outputPort: string } | null, inputDataType: TextureDataType | null, paramDefs: CustomNodeGraphEffect['paramDefs'] = [], definitions: Readonly<Record<string, EffectDefinition>> = effectDefinitions): boolean {
 	if (connection == null || inputDataType == null) return false;
 	return nodes.some(node => {
 		if (node.id === connection.nodeId) {
@@ -38,7 +38,7 @@ export function hasNodeInputTypeMismatch(nodes: VisualModuleNode[], connection: 
 
 // undefinedは入力型による絞り込みを省略、nullは接続可能な入力型がないことを表す。
 // getNodeInputDataTypeのnullを「全型を許可」に変えないため、ここでは省略と明示的なnullを区別する。
-export function getNodeOutputItems(nodes: VisualModuleNode[], excludedNodeId?: string, inputDataType?: TextureDataType | null, paramDefs: VisualModule['paramDefs'] = [], definitions: Readonly<Record<string, EffectDefinition>> = effectDefinitions,
+export function getNodeOutputItems(nodes: CustomNodeGraphEffectNode[], excludedNodeId?: string, inputDataType?: TextureDataType | null, paramDefs: CustomNodeGraphEffect['paramDefs'] = [], definitions: Readonly<Record<string, EffectDefinition>> = effectDefinitions,
 	currentConnection?: Pick<NodeOutputReference, 'nodeId' | 'outputPort'> | null,
 ): { label: string; value: string; connection: NodeOutputReference; dataType: TextureDataType; typeCompatible: boolean; icon?: string | null }[] {
 	return nodes.flatMap(node => {

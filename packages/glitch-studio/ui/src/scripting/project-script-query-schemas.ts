@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import { EFFECT_TAGS } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import { parameterDefinitionSchema, textureDataTypeSchema, staticSettingDefinitionSchema } from '../commands/parameter-contract-schemas.ts';
-import { visualModuleTargetSchema, visualModuleNodeReferenceSchema, visualModuleNodeSchema, visualModuleSchema } from '../commands/visual-module-contract-schemas.ts';
+import { customNodeGraphEffectTargetSchema, customNodeGraphEffectNodeReferenceSchema, customNodeGraphEffectNodeSchema, customNodeGraphEffectSchema } from '../commands/custom-node-graph-effect-contract-schemas.ts';
 import { timelineLayerSchema, timelineClipSchema, timelineSceneResolutionSchema, timelineSceneReferenceSchema, timelineLayerReferenceSchema, timelineClipReferenceSchema, timelineEditableParameterBindingSchema } from '../commands/timeline-contract-schemas.ts';
 import { playerSchema, automationGraphSchema, projectCustomShaderEffectSchema, projectResolutionSchema, timelineMotionBlurSettingsSchema } from '../commands/project-contract-schemas.ts';
 
@@ -47,18 +47,18 @@ export const projectSummarySchema = z.looseObject({
 	exportSettings: exportDialogSettingsSchema.nullable(),
 });
 
-export const visualModuleSummarySchema = z.looseObject({ target: visualModuleTargetSchema, name: z.string() });
-export const visualModuleResultSchema = z.intersection(visualModuleSchema, visualModuleSummarySchema.extend({
-	id: identifierSchema.optional().describe('Present on registered Visual Modules. Inline Visual Modules are identified by target instead.'),
+export const customNodeGraphEffectSummarySchema = z.looseObject({ target: customNodeGraphEffectTargetSchema, name: z.string() });
+export const customNodeGraphEffectResultSchema = z.intersection(customNodeGraphEffectSchema, customNodeGraphEffectSummarySchema.extend({
+	id: identifierSchema.optional().describe('Present on registered Custom Node Graph Effects. Inline Custom Node Graph Effects are identified by target instead.'),
 }));
-export const visualModuleNodeSummarySchema = z.looseObject({
-	target: visualModuleNodeReferenceSchema,
+export const customNodeGraphEffectNodeSummarySchema = z.looseObject({
+	target: customNodeGraphEffectNodeReferenceSchema,
 	id: identifierSchema,
 	type: z.enum(['effect', 'globalIn', 'globalOut', 'relay']),
 	effectId: z.string().nullable(),
 	displayName: z.string(),
 });
-export const visualModuleNodeResultSchema = z.intersection(visualModuleNodeSchema, z.looseObject({ target: visualModuleNodeReferenceSchema }));
+export const customNodeGraphEffectNodeResultSchema = z.intersection(customNodeGraphEffectNodeSchema, z.looseObject({ target: customNodeGraphEffectNodeReferenceSchema }));
 
 export const timelineSceneSummarySchema = z.looseObject({ target: timelineSceneReferenceSchema, name: z.string(), resolution: timelineSceneResolutionSchema });
 export const timelineSceneResultSchema = timelineSceneSummarySchema.extend({ id: identifierSchema, layers: z.array(timelineLayerSchema) });
@@ -66,7 +66,7 @@ export const timelineLayerSummarySchema = z.looseObject({
 	target: timelineLayerReferenceSchema,
 	parentLayerId: z.string().nullable().describe('Parent layer ID, or null for a Scene root layer.'),
 	name: z.string(),
-	layerType: z.enum(['visualModule', 'inlineVisualModule', 'effect', 'shape', 'text', 'audio', 'camera', 'voicevox', 'image', 'video', 'scene', 'group', 'transform', 'folder', 'parameterContainer']),
+	layerType: z.enum(['customNodeGraphEffect', 'inlineCustomNodeGraphEffect', 'effect', 'shape', 'text', 'audio', 'camera', 'voicevox', 'image', 'video', 'scene', 'group', 'transform', 'folder', 'parameterContainer']),
 	isDisabled: z.boolean(),
 	isSolo: z.boolean(),
 });
@@ -75,7 +75,7 @@ export const timelineClipResultSchema = z.intersection(timelineClipSchema, z.loo
 export const timelineLayerParametersSchema = z.record(z.string(), z.looseObject({
 	definitions: z.record(z.string(), parameterDefinitionSchema),
 	values: z.record(z.string(), timelineEditableParameterBindingSchema),
-})).describe('Available parameter groups keyed by publicParameter, visualModule, effect, shape, text, voicevoxSubtitle, camera, transform, compositing or audio. Values are stored bindings, not evaluated values.');
+})).describe('Available parameter groups keyed by publicParameter, customNodeGraphEffect, effect, shape, text, voicevoxSubtitle, camera, transform, compositing or audio. Values are stored bindings, not evaluated values.');
 
 export const assetMetadataSchema = z.looseObject({
 	target: assetReferenceSchema,

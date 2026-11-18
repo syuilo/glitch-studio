@@ -1,14 +1,14 @@
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { findTimelineLayer, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
-import type { ProjectCustomShaderEffect, ProjectVisualModule } from './types.ts';
-import type { VisualModule, VisualModuleNode, VisualModuleNodeChange } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { ProjectCustomShaderEffect, ProjectCustomNodeGraphEffect } from './types.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectNode, CustomNodeGraphEffectNodeChange } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import type { TimelineClipLayer, TimelineContainerLayer, TimelineLayer, TimelineLayerChange, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
-import type { VisualModuleTarget } from './visual-module-target.ts';
+import type { CustomNodeGraphEffectTarget } from './custom-node-graph-effect-target.ts';
 
 export type RendererProjectState = {
 	automationGraphs: AutomationGraph[];
-	visualModules: ProjectVisualModule[];
+	customNodeGraphEffects: ProjectCustomNodeGraphEffect[];
 	timelineScenes: TimelineScene[];
 };
 
@@ -27,19 +27,19 @@ export type RendererProjectChange =
 	// 入出力の編集で補正した配置も同時に交換し、新旧の定義・Bindingを混在させない。
 	| { type: 'customShaderEffects'; customShaderEffects: ProjectCustomShaderEffect[]; project: RendererProjectState }
 	| { type: 'automationGraphs'; automationGraphs: AutomationGraph[] }
-	| { type: 'node'; target: VisualModuleTarget; node: VisualModuleNode; changes: VisualModuleNodeChange[] }
-	| { type: 'visualModule'; target: VisualModuleTarget; visualModule: VisualModule; customParameterValuesOnly?: boolean }
-	| { type: 'visualModuleRegistration'; visualModuleId: string; visualModule: ProjectVisualModule | null }
+	| { type: 'node'; target: CustomNodeGraphEffectTarget; node: CustomNodeGraphEffectNode; changes: CustomNodeGraphEffectNodeChange[] }
+	| { type: 'customNodeGraphEffect'; target: CustomNodeGraphEffectTarget; customNodeGraphEffect: CustomNodeGraphEffect; customParameterValuesOnly?: boolean }
+	| { type: 'customNodeGraphEffectRegistration'; customNodeGraphEffectId: string; customNodeGraphEffect: ProjectCustomNodeGraphEffect | null }
 	| { type: 'layer'; sceneId: string; layerId: string; layer: RendererLayerState | null; changes: TimelineLayerChange[] }
 	// 階層の最終状態を一度だけ送る。同時に編集した設定・ノードの変更種別は別の差分に残す。
 	| { type: 'layerTree'; sceneId: string; layers: TimelineLayer[] }
 	| { type: 'layerOrder'; sceneId: string; layerIds: string[] }
 	| { type: 'scene'; sceneId: string; scene: TimelineScene | null };
 
-export function findRendererVisualModule(state: RendererProjectState, target: VisualModuleTarget): VisualModule | null {
-	if ('visualModuleId' in target) return state.visualModules.find(visualModule => visualModule.id === target.visualModuleId) ?? null;
-	const layer = findTimelineLayer(state.timelineScenes.find(scene => scene.id === target.sceneId)?.layers ?? [], target.inlineVisualModuleLayerId);
-	return layer?.layerType === 'inlineVisualModule' ? layer.visualModule : null;
+export function findRendererCustomNodeGraphEffect(state: RendererProjectState, target: CustomNodeGraphEffectTarget): CustomNodeGraphEffect | null {
+	if ('customNodeGraphEffectId' in target) return state.customNodeGraphEffects.find(customNodeGraphEffect => customNodeGraphEffect.id === target.customNodeGraphEffectId) ?? null;
+	const layer = findTimelineLayer(state.timelineScenes.find(scene => scene.id === target.sceneId)?.layers ?? [], target.inlineCustomNodeGraphEffectLayerId);
+	return layer?.layerType === 'inlineCustomNodeGraphEffect' ? layer.customNodeGraphEffect : null;
 }
 
 /**
@@ -49,7 +49,7 @@ export function findRendererVisualModule(state: RendererProjectState, target: Vi
  */
 export function applyRendererProjectChanges(state: RendererProjectState, changes: readonly RendererProjectChange[]): RendererProjectState {
 	let automationGraphs = state.automationGraphs;
-	let visualModules = state.visualModules;
+	let customNodeGraphEffects = state.customNodeGraphEffects;
 	let timelineScenes = state.timelineScenes;
 	const updateScene = (id: string, update: (scene: TimelineScene) => TimelineScene) => {
 		const index = timelineScenes.findIndex(scene => scene.id === id);
@@ -60,42 +60,42 @@ export function applyRendererProjectChanges(state: RendererProjectState, changes
 	for (const change of changes) {
 		switch (change.type) {
 			case 'customShaderEffects': {
-				({ automationGraphs, visualModules, timelineScenes } = change.project);
+				({ automationGraphs, customNodeGraphEffects, timelineScenes } = change.project);
 				break;
 			}
 			case 'automationGraphs': automationGraphs = change.automationGraphs; break;
-			case 'visualModuleRegistration': {
-				if (change.visualModule == null) visualModules = visualModules.filter(visualModule => visualModule.id !== change.visualModuleId);
+			case 'customNodeGraphEffectRegistration': {
+				if (change.customNodeGraphEffect == null) customNodeGraphEffects = customNodeGraphEffects.filter(customNodeGraphEffect => customNodeGraphEffect.id !== change.customNodeGraphEffectId);
 				else {
-					if (change.visualModule.id !== change.visualModuleId) throw new Error('Visual Module ID does not match');
-					const index = visualModules.findIndex(visualModule => visualModule.id === change.visualModuleId);
-					visualModules = index < 0 ? [...visualModules, change.visualModule] : visualModules.with(index, change.visualModule);
+					if (change.customNodeGraphEffect.id !== change.customNodeGraphEffectId) throw new Error('Custom Node Graph Effect ID does not match');
+					const index = customNodeGraphEffects.findIndex(customNodeGraphEffect => customNodeGraphEffect.id === change.customNodeGraphEffectId);
+					customNodeGraphEffects = index < 0 ? [...customNodeGraphEffects, change.customNodeGraphEffect] : customNodeGraphEffects.with(index, change.customNodeGraphEffect);
 				}
 				break;
 			}
 			case 'node':
-			case 'visualModule': {
-				const update = (module: VisualModule): VisualModule => {
-					if (change.type === 'visualModule') return change.visualModule;
-					const index = module.nodes.findIndex(node => node.id === change.node.id);
+			case 'customNodeGraphEffect': {
+				const update = (customNodeGraphEffect: CustomNodeGraphEffect): CustomNodeGraphEffect => {
+					if (change.type === 'customNodeGraphEffect') return change.customNodeGraphEffect;
+					const index = customNodeGraphEffect.nodes.findIndex(node => node.id === change.node.id);
 					if (index < 0) throw new Error('Node not found: ' + change.node.id);
-					const previous = module.nodes[index];
+					const previous = customNodeGraphEffect.nodes[index];
 					if (previous.type !== change.node.type || (previous.type === 'effect' && change.node.type === 'effect' && previous.effectId !== change.node.effectId)) {
 						throw new Error('Node type cannot change');
 					}
-					return { ...module, nodes: module.nodes.with(index, change.node) };
+					return { ...customNodeGraphEffect, nodes: customNodeGraphEffect.nodes.with(index, change.node) };
 				};
 				const target = change.target;
-				if ('visualModuleId' in target) {
-					const index = visualModules.findIndex(module => module.id === target.visualModuleId);
-					if (index < 0) throw new Error('Visual module not found: ' + target.visualModuleId);
-					const previous = visualModules[index];
-					visualModules = visualModules.with(index, { ...update(previous), id: previous.id, name: previous.name });
+				if ('customNodeGraphEffectId' in target) {
+					const index = customNodeGraphEffects.findIndex(customNodeGraphEffect => customNodeGraphEffect.id === target.customNodeGraphEffectId);
+					if (index < 0) throw new Error('Custom Node Graph Effect not found: ' + target.customNodeGraphEffectId);
+					const previous = customNodeGraphEffects[index];
+					customNodeGraphEffects = customNodeGraphEffects.with(index, { ...update(previous), id: previous.id, name: previous.name });
 				} else {
 					updateScene(target.sceneId, scene => {
-						const layer = findTimelineLayer(scene.layers, target.inlineVisualModuleLayerId);
-						if (layer?.layerType !== 'inlineVisualModule') throw new Error('Inline visual module not found');
-						return { ...scene, layers: updateTimelineLayer(scene.layers, layer.id, () => ({ ...layer, visualModule: update(layer.visualModule) })) };
+						const layer = findTimelineLayer(scene.layers, target.inlineCustomNodeGraphEffectLayerId);
+						if (layer?.layerType !== 'inlineCustomNodeGraphEffect') throw new Error('Inline Custom Node Graph Effect not found');
+						return { ...scene, layers: updateTimelineLayer(scene.layers, layer.id, () => ({ ...layer, customNodeGraphEffect: update(layer.customNodeGraphEffect) })) };
 					});
 				}
 				break;
@@ -133,5 +133,5 @@ export function applyRendererProjectChanges(state: RendererProjectState, changes
 			}
 		}
 	}
-	return { automationGraphs, visualModules, timelineScenes };
+	return { automationGraphs, customNodeGraphEffects, timelineScenes };
 }

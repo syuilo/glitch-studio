@@ -5,7 +5,7 @@ description: パラメータについて
 # パラメータ
 
 パラメータは、エフェクトの強さ、色、レイヤーの位置・不透明度・音量などを決める設定です。
-静的に値を設定するだけでなく、式やキーフレームで動的に変化させたり、Visual Module内部では別のノードの出力を入力したりできます。
+静的に値を設定するだけでなく、式やキーフレームで動的に変化させたり、Custom Node Graph Effect内部では別のノードの出力を入力したりできます。
 
 ## 制御方式
 
@@ -20,8 +20,8 @@ description: パラメータについて
 | **Expression** | すべて | 式を評価する |
 | **Graph (Inline)** | すべて | カーブを使う |
 | **Graph (Reference)** | すべて | カーブを参照する |
-| **Node** | Visual Module | 別ノードの出力を受け取る |
-| **Public Parameter** | Visual Module | 公開パラメータを受け取る |
+| **Node** | Custom Node Graph Effect | 別ノードの出力を受け取る |
+| **Public Parameter** | Custom Node Graph Effect | 公開パラメータを受け取る |
 | **Keyframes** | タイムライン | 時刻ごとに値を設定する |
 | **Layers below** | タイムライン | 下層の合成画像を受け取る |
 | **Audio from layers below / Audio from layer** | タイムライン | 下層全体または指定レイヤーの音声を使う |
@@ -32,7 +32,7 @@ description: パラメータについて
 
 式は[AiScript](https://aiscript-dev.github.io/)として解釈されます。
 
-Visual Module内部では、公開パラメータを `PUBLIC("amount")` のように参照できます。引数には対象の公開パラメータのReference Nameを指定します。
+Custom Node Graph Effect内部では、公開パラメータを `PUBLIC("amount")` のように参照できます。引数には対象の公開パラメータのReference Nameを指定します。
 
 Uniformな公開パラメータ(ノード入力不能な公開パラメータ)のみ参照できます。
 
@@ -50,4 +50,4 @@ Uniformな公開パラメータ(ノード入力不能な公開パラメータ)�
 
 ## テクスチャのサンプリング設定
 
-Visual ModuleのNode入力や、エフェクトレイヤーのLayers below入力では、**Sampling** からテクスチャの読み取り方法を設定できます。
+Custom Node Graph EffectのNode入力や、エフェクトレイヤーのLayers below入力では、**Sampling** からテクスチャの読み取り方法を設定できます。

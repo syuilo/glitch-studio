@@ -14,11 +14,10 @@ const bundle = await build({ absWorkingDir: directory, external: ['vue'], bundle
 																													stdin: { contents: 'export { default as Parameter } from \'./src/components/GsVisualParam.vue\'; export { modifierUiTest } from \'@/ui.ts\'; export { timelineParameterEditorContextKey } from \'./src/utility/timeline-parameter-editor-context.ts\';', resolveDir: directory },
 																													plugins: [i18nPlugin, { name: 'modifier-editor', setup(build) {
 																														build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'preferences' }));
-																														build.onLoad({ filter: /.*/, namespace: 'preferences' }, () => ({ contents: 'export const preferences = { s: { forceTypeSafety: false } };', loader: 'ts' }));
-																														build.onResolve({ filter: /^@\/(app|project-session|ui|utility\/visual-module-wires)\.ts$/ }, ({ path }) => ({ path, namespace: 'stub' }));
+																														build.onLoad({ filter: /.*/, namespace: 'preferences' }, () => ({ contents: 'export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: { value: false } } };', loader: 'ts' }));
+																														build.onResolve({ filter: /^@\/(app|project-session|ui)\.ts$/ }, ({ path }) => ({ path, namespace: 'stub' }));
 																														build.onLoad({ filter: /.*/, namespace: 'stub' }, ({ path }) => ({ contents: (path.endsWith('app.ts') || path.endsWith('project-session.ts')) ? 'export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: { state: {} } } };'
-																															: path.endsWith('ui.ts') ? 'export const modifierUiTest = { menu: [] }; export function popupMenu(menu) { modifierUiTest.menu = menu; } export function popup() {} export function contextMenu() {}'
-																															: 'export function useVisualModuleWires() { return { in: {} }; }', loader: 'ts' }));
+																															: 'export const modifierUiTest = { menu: [] }; export function popupMenu(menu) { modifierUiTest.menu = menu; } export function popup() {} export function contextMenu() {}', loader: 'ts' }));
 																														build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'effects' }));
 																														build.onLoad({ filter: /.*/, namespace: 'effects' }, () => ({ contents: 'export const effectDefinitions = {};', loader: 'ts' }));
 																														build.onResolve({ filter: /\.vue$/ }, ({ path }) => path.endsWith('GsVisualParam.vue') ? null : { path: basename(path), namespace: 'control' });
@@ -57,7 +56,7 @@ test('requests copying and pasting the parameter from its menu without changing 
 });
 
 function fixture(t, timeline = null) {
-	const element = tag => ({ tag, props: {}, children: [], parent: null });
+	const element = tag => ({ tag, props: {}, style: {}, children: [], parent: null });
 	const renderer = createRenderer({ createElement: element, createText: () => element('text'), createComment: () => element('comment'), querySelector: () => element('body'),
 																																			setText() {}, setElementText(node, text) { node.text = text; }, patchProp(node, key, _old, value) { node.props[key] = value; },
 																																			insert(node, parent, anchor = null) {
@@ -85,32 +84,32 @@ function fixture(t, timeline = null) {
 
 // 【ノードとカスタム値の両方から、種類とIDを指定して内部の共通値を選べる】
 // 公開引数のエディタへ内部参照を漏らさず、型変更・削除後も元の参照IDを表示して修正できるようにする。
-test('offers custom references only inside Visual Modules and preserves unavailable selections', async t => {
+test('offers custom references only inside Custom Node Graph Effects and preserves unavailable selections', async t => {
 	const f = fixture(t, { context: computed(() => ({ layer: { id: 'layer', publicParameterDefs: [] }, ancestors: [] })), isPublicParameterValue: false });
 	f.props.paramValue = { inputSource: 'literal', value: 1 };
 	const custom = { ...f.props.paramDef, id: 'custom-id', nameForReference: 'speed', canNode: false };
-	f.props.visualModule = { customParameterValues: {}, nodes: [], paramDefs: [], customParameterDefs: [custom, { ...custom, id: 'text', dataType: { kind: 'string' } }], automationGraphs: [] };
+	f.props.customNodeGraphEffect = { customParameterValues: {}, nodes: [], paramDefs: [], customParameterDefs: [custom, { ...custom, id: 'text', dataType: { kind: 'string' } }], automationGraphs: [] };
 	await nextTick();
 	const menu = () => {
 		f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
 		return modifierUiTest.menu.find(item => item.type === 'parent').children;
 	};
-	assert.equal(menu().some(item => item.id === 'inputSource:visualModuleCustomParameterValueReference'), false);
-	f.props.visualModuleParameterReferencesEnabled = true;
+	assert.equal(menu().some(item => item.id === 'inputSource:customNodeGraphEffectCustomParameterValueReference'), false);
+	f.props.customNodeGraphEffectParameterReferencesEnabled = true;
 	await nextTick();
 	assert.equal(menu().some(item => item.id === 'inputSource:timelineLayerPublicParameterReference'), false);
 	assert.equal(modifierUiTest.menu.some(item => item.id === 'createPublicParameter'), false);
-	menu().find(item => item.id === 'inputSource:visualModuleCustomParameterValueReference').action();
-	assert.equal(f.edits.at(-1).inputSource, 'visualModuleCustomParameterValueReference');
-	f.props.paramValue = { inputSource: 'visualModuleCustomParameterValueReference', parameterId: 'custom-id' };
+	menu().find(item => item.id === 'inputSource:customNodeGraphEffectCustomParameterValueReference').action();
+	assert.equal(f.edits.at(-1).inputSource, 'customNodeGraphEffectCustomParameterValueReference');
+	f.props.paramValue = { inputSource: 'customNodeGraphEffectCustomParameterValueReference', parameterId: 'custom-id' };
 	await nextTick();
-	let select = f.find('data-test-visual-module-custom-parameter-reference');
+	let select = f.find('data-test-custom-node-graph-effect-custom-parameter-reference');
 	assert.deepEqual(select.props.items.map(item => item.value), ['', 'custom-id']);
 	select.props['onUpdate:modelValue']('custom-id');
 	assert.equal(f.edits.at(-1).value, 'custom-id');
-	f.props.visualModule.customParameterDefs = [];
+	f.props.customNodeGraphEffect.customParameterDefs = [];
 	await nextTick();
-	select = f.find('data-test-visual-module-custom-parameter-reference');
+	select = f.find('data-test-custom-node-graph-effect-custom-parameter-reference');
 	assert.equal(select.props.modelValue, 'custom-id');
 	assert.equal(select.props.items.at(-1).value, 'custom-id');
 });
@@ -128,7 +127,7 @@ test('offers named parameter creation only for literal leaves with an owning sco
 	await nextTick();
 	assert.equal(action(), undefined);
 	assert.equal(action('createCustomParameter'), undefined);
-	f.props.visualModule = { customParameterDefs: [], customParameterValues: {}, paramDefs: [], nodes: [], automationGraphs: [] };
+	f.props.customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, paramDefs: [], nodes: [], automationGraphs: [] };
 	f.props.node = { id: 'node', type: 'effect', params: {} };
 	f.props.paramPath = ['settings', 'amount'];
 	await nextTick();
@@ -140,7 +139,7 @@ test('offers named parameter creation only for literal leaves with an owning sco
 		{ inputSource: 'expression', expression: 'TIME' },
 		{ inputSource: 'keyframesTimelineInline', keyframesTimeline: { keyframes: [] } },
 		{ inputSource: 'automationGraphReference', automationGraphId: null },
-		{ inputSource: 'visualModulePublicParameterReference', parameterId: '' },
+		{ inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: '' },
 		{ inputSource: 'node', nodeId: null, outputPort: null },
 		{ inputSource: 'literal', value: 0.3, expressionModifier: { enabled: false, code: 'VALUE' } },
 	]) {
@@ -205,9 +204,9 @@ test('selects typed timeline references and retains unresolved saved identities'
 	assert.deepEqual(select().props.items.map(item => item.value), [null, '["child","local"]', '["root","shared"]']);
 });
 
-// 【公開パラメータの値では自身を除外し、Visual Module内部へ参照方式を公開しない】
+// 【公開パラメータの値では自身を除外し、Custom Node Graph Effect内部へ参照方式を公開しない】
 // 共用エディタの利用でも各スコープの制約を保ち、UIから循環やドメイン越境する接続を作らせない。
-test('excludes own public parameter values and keeps timeline sources out of Visual Module nodes', async t => {
+test('excludes own public parameter values and keeps timeline sources out of Custom Node Graph Effect nodes', async t => {
 	const scalar = { id: 'speed', nameForReference: 'speed', dataType: { kind: 'scalar' }, ui: { label: 'Speed', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } };
 	const context = computed(() => ({ layer: { id: 'child', name: 'Child', publicParameterDefs: [scalar] }, ancestors: [{ id: 'root', name: 'Root', publicParameterDefs: [scalar] }] }));
 	const f = fixture(t, { context, isPublicParameterValue: true });
@@ -219,8 +218,8 @@ test('excludes own public parameter values and keeps timeline sources out of Vis
 	f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
 	const inputSourceItems = modifierUiTest.menu.find(item => item.type === 'parent').children;
 	assert.equal(inputSourceItems.some(item => item.id === 'inputSource:timelineLayerPublicParameterReference'), false);
-	inputSourceItems.find(item => item.id === 'inputSource:visualModulePublicParameterReference').action();
-	assert.equal(f.edits.at(-1).inputSource, 'visualModulePublicParameterReference');
+	inputSourceItems.find(item => item.id === 'inputSource:customNodeGraphEffectPublicParameterReference').action();
+	assert.equal(f.edits.at(-1).inputSource, 'customNodeGraphEffectPublicParameterReference');
 });
 
 // 【加工式の本文・無効化・削除を基準式とは独立した編集として通知する】

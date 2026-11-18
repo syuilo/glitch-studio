@@ -17,15 +17,15 @@ const bundled = await build({
 		export const effectDefinitions = [${effectNames.map((_name, index) => `definition${index}`).join(',')}];
 		export { z } from 'zod';
 		export { parameterDefinitionSchema, staticSettingDefinitionSchema } from './src/commands/parameter-contract-schemas.ts';
-		export { visualModuleCustomParameterInputSchema, visualModuleSchema } from './src/commands/visual-module-contract-schemas.ts';
+		export { customNodeGraphEffectCustomParameterInputSchema, customNodeGraphEffectSchema } from './src/commands/custom-node-graph-effect-contract-schemas.ts';
 		export { parseProjectApiValue } from './src/project-api/contract.ts';
-		export { createProjectVisualModule } from './src/utility/project-visual-module.ts';
+		export { createProjectCustomNodeGraphEffect } from './src/utility/project-custom-node-graph-effect.ts';
 	` },
 });
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
 const { z, effectDefinitions, parameterDefinitionSchema, staticSettingDefinitionSchema,
-	visualModuleCustomParameterInputSchema, visualModuleSchema, parseProjectApiValue, createProjectVisualModule } = loaded.exports;
+	customNodeGraphEffectCustomParameterInputSchema, customNodeGraphEffectSchema, parseProjectApiValue, createProjectCustomNodeGraphEffect } = loaded.exports;
 
 // 【すべての内蔵エフェクトの定義を公開契約で読み取れる】
 // Query:getEffectの結果検証が、既存エフェクトの配列・構造体・Viewportや静的設定を
@@ -69,7 +69,7 @@ test('documents array element bindings and custom parameter restrictions', () =>
 	assert.ok(value.items.properties.binding);
 	assert.ok(array.properties.element);
 	assert.ok(array.properties.ui.properties.control.properties.element);
-	const customDocumentation = z.toJSONSchema(visualModuleCustomParameterInputSchema, { io: 'input' });
+	const customDocumentation = z.toJSONSchema(customNodeGraphEffectCustomParameterInputSchema, { io: 'input' });
 	for (const branch of customDocumentation.anyOf) {
 		const restrictions = branch.properties;
 		assert.ok((restrictions.canNode.allOf ?? [restrictions.canNode]).some(schema => schema.const === false));
@@ -81,42 +81,42 @@ test('documents array element bindings and custom parameter restrictions', () =>
 		ui: { label: 'Amount', control: { controlType: 'range', min: 0, max: 1 } },
 		defaultValue: { inputSource: 'literal', value: 2.5 },
 	};
-	assert.equal(visualModuleCustomParameterInputSchema.safeParse(custom).success, true);
-	assert.equal(visualModuleCustomParameterInputSchema.safeParse({ ...custom, canNode: true }).success, false);
+	assert.equal(customNodeGraphEffectCustomParameterInputSchema.safeParse(custom).success, true);
+	assert.equal(customNodeGraphEffectCustomParameterInputSchema.safeParse({ ...custom, canNode: true }).success, false);
 	const arrayDefinition = effectDefinitions.find(definition => definition.id === 'testStructArray').paramDefs.buzzs;
-	assert.equal(visualModuleCustomParameterInputSchema.safeParse({ ...arrayDefinition, nameForReference: 'items', canNode: false }).success, false);
+	assert.equal(customNodeGraphEffectCustomParameterInputSchema.safeParse({ ...arrayDefinition, nameForReference: 'items', canNode: false }).success, false);
 });
 
 // 【保存済みの参照・HDR値・省略された設定をQueryの契約で保持する】
 // 削除した公開入力の参照はUndo用に残り、既存UIの接続にはサンプリングの省略形もある。
 // 構造の検証で参照の実在性まで要求したり、資料にない追加情報を削除してはいけない。
-test('preserves persisted Visual Module bindings and nullable modifiers', () => {
-	const visualModule = createProjectVisualModule(0);
+test('preserves persisted Custom Node Graph Effect bindings and nullable modifiers', () => {
+	const customNodeGraphEffect = createProjectCustomNodeGraphEffect(0);
 	const definition = effectDefinitions.find(candidate => candidate.id === 'testStructArray');
 	const parameters = Object.fromEntries(Object.entries(definition.paramDefs).map(([key, parameter]) => [key, structuredClone(parameter.defaultValue)]));
 	parameters.buzzs.value[0].binding.value.image = { inputSource: 'node', nodeId: 'removed-node', outputPort: 'removed-output' };
 	parameters.buzzs.value[0].binding.value.x = { inputSource: 'literal', value: 4.5, expressionModifier: null };
-	visualModule.nodes.push({
+	customNodeGraphEffect.nodes.push({
 		id: 'effect', type: 'effect', effectId: definition.id, params: parameters, staticSettings: {},
 		isBypass: false, resolution: { mode: 'auto', scale: 1 }, displayName: '',
 	});
-	visualModule.nodes.push({
+	customNodeGraphEffect.nodes.push({
 		id: 'fill', type: 'effect', effectId: 'fill', staticSettings: {}, isBypass: false, displayName: '',
 		resolution: { mode: 'auto', scale: 1 },
 		params: { color: { inputSource: 'node', nodeId: 'removed-node', outputPort: 'removed-output' } },
 	});
-	visualModule.customParameterDefs.push({
+	customNodeGraphEffect.customParameterDefs.push({
 		id: 'custom-color', nameForReference: 'hdr', canNode: false, dataType: { kind: 'color' },
 		ui: { label: 'HDR', control: {} }, defaultValue: { inputSource: 'literal', value: [-1, 4.5, 0.5, 1] },
 	});
-	visualModule.customParameterValues['custom-color'] = {
+	customNodeGraphEffect.customParameterValues['custom-color'] = {
 		inputSource: 'keyframesTimelineInline', expressionModifier: null, trimmedDurationMs: null, offsetMode: 'start', wrapMode: 'repeat',
 		keyframesTimeline: { dataType: { kind: 'color' }, isNormalized: true, keyframes: [
 			{ id: 'key', x: 0, value: [-1, 4.5, 0.5, 1], interpolation: { type: 'ease:cubic', direction: 'inOut' } },
 		] },
 	};
-	const original = structuredClone(visualModule);
-	assert.equal(parseProjectApiValue(visualModuleSchema, visualModule, 'Visual Module'), visualModule);
-	assert.deepEqual(visualModule, original);
-	assert.equal(Object.hasOwn(visualModule, 'primaryAudioInputId'), false);
+	const original = structuredClone(customNodeGraphEffect);
+	assert.equal(parseProjectApiValue(customNodeGraphEffectSchema, customNodeGraphEffect, 'Custom Node Graph Effect'), customNodeGraphEffect);
+	assert.deepEqual(customNodeGraphEffect, original);
+	assert.equal(Object.hasOwn(customNodeGraphEffect, 'primaryAudioInputId'), false);
 });
