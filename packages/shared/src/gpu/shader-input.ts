@@ -54,8 +54,13 @@ export type ShaderInputValues<Schema extends ShaderInputSchema = ShaderInputSche
 	readonly [Key in keyof Schema]: ShaderInputValue<Schema[Key]>;
 };
 
+// パイプラインを準備する段階では値・GPUTexture・サンプリング設定は不要。既に実値がある
+// 呼び出し元はそのまま渡せ、事前計画する呼び出し元は同じ形の種別だけを渡せる。
+type ShaderInputShape = Pick<ShaderInput, 'kind'>;
+type ShaderInputShapes = Readonly<Record<string, ShaderInputShape | readonly ShaderInputShape[]>>;
+
 // 配列長と各要素の種別も構成に含める。値・接続先・サンプリング設定は含めない。
-export function shaderInputVariantKey(schema: ShaderInputSchema, inputs: ShaderInputValues): string {
+export function shaderInputVariantKey<Inputs extends ShaderInputShapes>(schema: ShaderInputSchema, inputs: Inputs): string {
 	return JSON.stringify(Object.entries(schema).map(([name, type]) => {
 		const value = inputs[name];
 		if (value == null || (typeof type === 'object') !== Array.isArray(value)) throw new Error(`Shader input shape mismatch: ${name}`);
@@ -64,7 +69,7 @@ export function shaderInputVariantKey(schema: ShaderInputSchema, inputs: ShaderI
 }
 
 /** WGSLとbindingの対応を同時に決定し、エフェクト側の二重管理を避ける。 */
-export function generateShaderInputs(schema: ShaderInputSchema, inputs: ShaderInputValues, group = 0, sampling: 'implicit' | 'level0' = 'implicit', scalarGradients = false) {
+export function generateShaderInputs<Inputs extends ShaderInputShapes>(schema: ShaderInputSchema, inputs: Inputs, group = 0, sampling: 'implicit' | 'level0' = 'implicit', scalarGradients = false) {
 	if (scalarGradients && sampling !== 'level0') throw new Error('Scalar gradients require level0 sampling');
 	const variantKey = shaderInputVariantKey(schema, inputs);
 	const names = new Set(Object.keys(schema));
@@ -73,6 +78,8 @@ export function generateShaderInputs(schema: ShaderInputSchema, inputs: ShaderIn
 	}
 	const slots: { name: string; sourceName: string; elementIndex?: number | null; type: ShaderInputType; index: number; kind: ShaderInput['kind']; textureBinding: number; samplerBinding: number }[] = [];
 	const arrays: { name: string; type: ShaderInputType; elements: string[] }[] = [];
+	// 定数は共通uniformに入る。前に多数の定数があっても画像のbinding番号がDevice上限を超えないようにする。
+	let nextTextureBinding = 1;
 	for (const [sourceName, type] of Object.entries(schema)) {
 		const value = inputs[sourceName];
 		const elements = 'kind' in value ? [value] : value;
@@ -93,9 +100,10 @@ export function generateShaderInputs(schema: ShaderInputSchema, inputs: ShaderIn
 				type: typeof type === 'object' ? type.array : type,
 				index,
 				kind: input.kind,
-				textureBinding: index * 2 + 1,
-				samplerBinding: index * 2 + 2,
+				textureBinding: nextTextureBinding,
+				samplerBinding: nextTextureBinding + 1,
 			});
+			if (input.kind === 'texture') nextTextureBinding += 2;
 			elementNames.push(name);
 		}
 		if (typeof type === 'object') arrays.push({ name: sourceName, type: type.array, elements: elementNames });

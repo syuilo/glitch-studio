@@ -29,6 +29,24 @@ function fixture() {
 	return { device, calls };
 }
 
+// 【入力の種別だけで準備した配列のbindingへ実際の画像・定数を渡せる】
+// Graphの準備時には上流の描画結果がない。現在の値やテクスチャを作らずに決めた配置が、
+// 実際に描画する時点の配列長・要素の種別に一致し、定数がサンプラー枠を消費しないことを確認する。
+test('prepares mixed array bindings before any input values are available', () => {
+	const schema = { images: { array: 'color' }, fixed: 'color' };
+	const planned = generateShaderInputs(schema, { images: [{ kind: 'uniform' }, { kind: 'texture' }], fixed: { kind: 'uniform' } });
+	const sampled = textureShaderInput(texture, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' });
+	const values = { images: [red, sampled], fixed: red };
+	assert.equal(planned.variantKey, generateShaderInputs(schema, values).variantKey);
+	assert.equal(planned.entries.filter(entry => entry.sampler != null).length, 1);
+	assert.deepEqual(planned.entries.map(entry => entry.binding), [0, 1, 2]);
+	const { device } = fixture();
+	const bindings = createShaderInputBindings(device, planned);
+	bindings.update(values, output);
+	assert.throws(() => bindings.update({ ...values, images: [sampled, red] }, output), /kind changed/);
+	bindings.dispose();
+});
+
 // 【配列要素ごとに配置先の寸法を指定しても、同じFit処理とパイプラインを使う】
 // 扇形の配置先は要素ごとに縦横比が異なる。定数要素でインデックスを詰めたり、
 // 配列全体の寸法を流用したりすると別の画像へFitが適用されるため、固定入力との混在でも確認する。
