@@ -1,0 +1,28 @@
+{
+	"type": "module",
+	"name": "@gs/subsystems_effect-new_renderer",
+	"private": true,
+	"exports": {
+		"./effect-instance.ts": "./src/effect-instance.ts",
+		"./texture-effect-instance.ts": "./src/texture-effect-instance.ts",
+		"./create-effect-instance.ts": "./src/create-effect-instance.ts",
+		"./native-effect/native-effect-implementation.ts": "./src/native-effect/native-effect-implementation.ts"
+	},
+	"scripts": {
+		"test": "node --test test/*.test.mjs",
+		"typecheck": "tsc6 --noEmit",
+		"eslint": "eslint --quiet './src/**/*.ts'",
+		"lint": "pnpm typecheck && pnpm eslint"
+	},
+	"dependencies": {
+		"@gs/shared": "workspace:*",
+		"@gs/subsystems_effect-new_shared": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/web": "0.0.359",
+		"@typescript-eslint/parser": "8.72.1",
+		"@webgpu/types": "0.1.74",
+		"esbuild": "0.28.2",
+		"vite": "8.3.5"
+	}
+}
