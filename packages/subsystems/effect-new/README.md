@@ -4,15 +4,18 @@
 
 ## Effect を配置する
 
-`EffectCatalog` に、ID で引ける Custom Node Graph Effect と Custom Shader Effect の定義を渡す。Native Effect の定義は組み込みで、サンプルの ID は `solidColor`。ID の名前空間は種別ごとに独立する。`getDefinition(source)` で共通の入出力を取得でき、`validate(source)` で子孫の参照・配線まで検証できる。
+`EffectCatalog` に、ID で引ける Custom Node Graph Effect と Custom Shader Effect の定義を渡す。Native Effect の定義は組み込みで、サンプルの ID は `solidColor`。ID の名前空間は種別ごとに独立する。`getDefinition(source)` で共通の入出力を取得できる。
+
+呼び出し側は定義の読み込み時と、その定義や参照先の編集時に `catalog.validate(source)` を呼び、子孫の参照・配線まで検証する。同じ検証済みの定義から複数の描画インスタンスを生成できる。配置寸法が GPU の上限に収まるかは、各インスタンスの生成時に検査する。
 
 ```ts
 import { EffectCatalog } from '@gs/subsystems_effect-new_shared/effect-catalog.ts';
 import { createEffectRenderInstance } from '@gs/subsystems_effect-new_renderer/create-effect-render-instance.ts';
 
 const catalog = new EffectCatalog();
-const instance = createEffectRenderInstance(catalog, { type: 'nativeEffect', id: 'solidColor' },
-	{ device }, { resolution: { width: 1920, height: 1080 } });
+const source = { type: 'nativeEffect', id: 'solidColor' } as const;
+catalog.validate(source);
+const instance = createEffectRenderInstance(catalog, source, { device }, { resolution: { width: 1920, height: 1080 } });
 const outputIds = new Set(['color']);
 try {
 	await instance.prepare(outputIds);

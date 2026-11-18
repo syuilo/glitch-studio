@@ -48,9 +48,14 @@ export async function run() {
 	if (adapter == null) throw new Error('WebGPU adapter unavailable');
 	const device = await adapter.requestDevice();
 	device.pushErrorScope('validation');
-	const instanceFor = (shader: CustomShaderEffect) => createEffectRenderInstance(new EffectCatalog({
-		customShaderEffects: new Map([['shader', shader]]), customNodeGraphEffects: new Map([['child', child]]),
-	}), { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: parent }, { device }, { resolution: { width: 8, height: 8 } });
+	const source = { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: parent } as const;
+	const instanceFor = (shader: CustomShaderEffect) => {
+		const catalog = new EffectCatalog({
+			customShaderEffects: new Map([['shader', shader]]), customNodeGraphEffects: new Map([['child', child]]),
+		});
+		catalog.validate(source);
+		return createEffectRenderInstance(catalog, source, { device }, { resolution: { width: 8, height: 8 } });
+	};
 	const instance = instanceFor(customShaderEffect);
 	const invalidInstance = instanceFor({ ...customShaderEffect, code: 'fn main(p: vec2f) -> Output { return unknown_symbol; }' });
 	const readback = device.createBuffer({ size: 768, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });

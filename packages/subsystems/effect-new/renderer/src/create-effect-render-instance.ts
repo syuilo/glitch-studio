@@ -14,9 +14,8 @@ const nativeEffectFactories = {
 	solidColor: createSolidColorRenderInstance,
 } satisfies Record<NativeEffectId, (environment: EffectRenderEnvironment, resolution: Resolution) => EffectRenderInstance>;
 
-/** 定義を検証してから配置を作る。子の生成は同じ検証済みの参照グラフをたどる。 */
+/** 呼び出し側が catalog.validate(source) で検証した定義と参照先から、配置ごとの描画インスタンスを作る。 */
 export function createEffectRenderInstance(catalog: EffectCatalog, source: EffectSource, environment: EffectRenderEnvironment, options: EffectPlacementOptions): EffectRenderInstance {
-	catalog.validate(source);
 	return createPlacement(source, options);
 
 	function checkResolution(resolution: Resolution): Resolution {

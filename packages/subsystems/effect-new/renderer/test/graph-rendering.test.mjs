@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { EffectCatalog } from '@gs/subsystems_effect-new_shared/effect-catalog.ts';
 import { loadEffectNew } from './load-effect-new.mjs';
 
+const { createEffectRenderInstance } = await loadEffectNew('../src/create-effect-render-instance.ts');
 const { createCustomNodeGraphEffectRenderInstance } = await loadEffectNew('../src/custom-node-graph-effect/custom-node-graph-effect-renderer.ts');
 const scalar = (canNode = true) => ({ dataType: { kind: 'scalar' }, canNode,
 	ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } });
@@ -13,6 +15,25 @@ const leaf = { type: 'nativeEffect', id: 'instrumented' };
 const inherited = { width: 16, height: 9 };
 const request = (...outputIds) => ({ parameters: new Map(), outputIds: new Set(outputIds), time: 0, commandEncoder: {} });
 const uniform = value => ({ kind: 'uniform', value: [value] });
+
+// 【定義を一度検証して複数の寸法で配置し、GPUの寸法上限は配置ごとに検査する】
+// 同じ定義を複数レイヤーで使うたびにグラフ全体を再検証すると、編集していない設定を繰り返し走査してしまう。
+test('reuses caller validation across placements and enforces the device limit for each placement', t => {
+	const catalog = new EffectCatalog();
+	const source = { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: {
+		paramDefs: {}, outputDefs: {}, primaryInputId: null, primaryAudioInputId: null, primaryOutputId: null,
+		nodes: [], outputs: {},
+	} };
+	const validate = t.mock.method(catalog, 'validate');
+	catalog.validate(source);
+
+	const environment = { device: { limits: { maxTextureDimension2D: 16 } } };
+	const place = width => createEffectRenderInstance(catalog, source, environment, { resolution: { width, height: 1 } });
+	place(8).destroy();
+	place(16).destroy();
+	assert.throws(() => place(17), /Invalid Effect resolution/);
+	assert.equal(validate.mock.callCount(), 1);
+});
 
 // 【複数出力の要求を配置ごとにまとめ、履歴を独立させる】
 // 同じグラフを二か所に置いても、公開ポートの個数・配線の合流・描画順が別配置の履歴を進めてはいけない。

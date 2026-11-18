@@ -11,7 +11,7 @@ export class EffectCatalog {
 	private readonly customNodeGraphEffects: ReadonlyMap<string, CustomNodeGraphEffect>;
 	private readonly customShaderEffects: ReadonlyMap<string, CustomShaderEffect>;
 
-	constructor(options: {
+	public constructor(options: {
 		customNodeGraphEffects?: ReadonlyMap<string, CustomNodeGraphEffect>;
 		customShaderEffects?: ReadonlyMap<string, CustomShaderEffect>;
 	} = {}) {
@@ -19,20 +19,20 @@ export class EffectCatalog {
 		this.customShaderEffects = options.customShaderEffects ?? new Map();
 	}
 
-	getCustomNodeGraphEffect(source: CustomNodeGraphEffectSource): CustomNodeGraphEffect {
+	public getCustomNodeGraphEffect(source: CustomNodeGraphEffectSource): CustomNodeGraphEffect {
 		if (source.type === 'inlineCustomNodeGraphEffect') return source.customNodeGraphEffect;
 		const definition = this.customNodeGraphEffects.get(source.id);
 		if (definition == null) throw new Error(`Unknown Custom Node Graph Effect: ${source.id}`);
 		return definition;
 	}
 
-	getCustomShaderEffect(id: string): CustomShaderEffect {
+	public getCustomShaderEffect(id: string): CustomShaderEffect {
 		const definition = this.customShaderEffects.get(id);
 		if (definition == null) throw new Error(`Unknown Custom Shader Effect: ${id}`);
 		return definition;
 	}
 
-	getDefinition(source: EffectSource): EffectDefinition {
+	public getDefinition(source: EffectSource): EffectDefinition {
 		switch (source.type) {
 			case 'nativeEffect': return nativeEffectDefinitions[getNativeEffectId(source.id)];
 			case 'customShaderEffectReference': return this.getCustomShaderEffect(source.id);
@@ -41,7 +41,7 @@ export class EffectCatalog {
 	}
 
 	/** 設定の受け入れ時に呼ぶ。同じ定義の複数配置は有効で、検査結果は今回の走査内でのみ共有する。 */
-	validate(source: EffectSource): void {
+	public validate(source: EffectSource): void {
 		const checked = new Set<EffectDefinition>();
 		const activeGraphs = new Map<CustomNodeGraphEffect, string>();
 		const visit = (current: EffectSource): EffectDefinition => {
