@@ -54,8 +54,12 @@ export type ShaderInputValues<Schema extends ShaderInputSchema = ShaderInputSche
 	readonly [Key in keyof Schema]: ShaderInputValue<Schema[Key]>;
 };
 
+// WGSLとレイアウトの生成には区分だけを使う。初期化時に入力テクスチャや評価済みの値を要求しない。
+type ShaderInputSlot = Pick<ShaderInput, 'kind'>;
+type ShaderInputSlots = Readonly<Record<string, ShaderInputSlot | readonly ShaderInputSlot[]>>;
+
 // 配列長と各要素の種別も構成に含める。値・接続先・サンプリング設定は含めない。
-export function shaderInputVariantKey(schema: ShaderInputSchema, inputs: ShaderInputValues): string {
+export function shaderInputVariantKey<Inputs extends ShaderInputSlots>(schema: ShaderInputSchema, inputs: Inputs): string {
 	return JSON.stringify(Object.entries(schema).map(([name, type]) => {
 		const value = inputs[name];
 		if (value == null || (typeof type === 'object') !== Array.isArray(value)) throw new Error(`Shader input shape mismatch: ${name}`);
@@ -64,7 +68,7 @@ export function shaderInputVariantKey(schema: ShaderInputSchema, inputs: ShaderI
 }
 
 /** WGSLとbindingの対応を同時に決定し、エフェクト側の二重管理を避ける。 */
-export function generateShaderInputs(schema: ShaderInputSchema, inputs: ShaderInputValues, group = 0, sampling: 'implicit' | 'level0' = 'implicit', scalarGradients = false) {
+export function generateShaderInputs<Inputs extends ShaderInputSlots>(schema: ShaderInputSchema, inputs: Inputs, group = 0, sampling: 'implicit' | 'level0' = 'implicit', scalarGradients = false) {
 	if (scalarGradients && sampling !== 'level0') throw new Error('Scalar gradients require level0 sampling');
 	const variantKey = shaderInputVariantKey(schema, inputs);
 	const names = new Set(Object.keys(schema));
@@ -179,6 +183,7 @@ fn ${prefix}_${name}(index: u32, position: vec2f${extra}) -> ${resultType} {
 		code: `struct GsInputUniforms { ${declarations} };\n@group(${group}) @binding(0) var<uniform> gs_inputs: GsInputUniforms;\n${functions}\n${selectors}`,
 		schema,
 		variantKey,
+		arrayLengths: arrays.map(({ name, elements }) => ({ name, length: elements.length })),
 		entries,
 		slots,
 		// 各入力はvec4を2つ使い、CPUとWGSLのalignmentを一致させる。
@@ -204,14 +209,18 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 	return {
 		layout,
 		update(inputs: ShaderInputValues, output: { width: number; height: number }, inputReferenceResolutions: ShaderInputReferenceResolutions = {}) {
-			if (shaderInputVariantKey(generated.schema, inputs) !== generated.variantKey) throw new Error('Shader input shape or kind changed');
+			// このbind groupの構成は確定済み。配列長と各スロットを直接照合し、毎フレームのキー生成を省く。
+			for (const { name, length } of generated.arrayLengths) {
+				const array = inputs[name];
+				if (!Array.isArray(array) || array.length !== length) throw new Error('Shader input shape or kind changed');
+			}
 			const entries: GPUBindGroupEntry[] = [{ binding: 0, resource: { buffer } }];
 			const resources: (GPUTexture | GPUSampler)[] = [];
 			values.fill(0);
 			for (const slot of generated.slots) {
 				const value = inputs[slot.sourceName];
-				const input = 'kind' in value ? value : value[slot.elementIndex!];
-				if (input.kind !== slot.kind) throw new Error(`Shader input kind changed: ${slot.name}`);
+				const input = value == null || 'kind' in value ? value : value[slot.elementIndex!];
+				if (input?.kind !== slot.kind) throw new Error(`Shader input kind changed: ${slot.name}`);
 				if (input.kind === 'uniform') {
 					values.set(input.value, slot.index * 8);
 					continue;
