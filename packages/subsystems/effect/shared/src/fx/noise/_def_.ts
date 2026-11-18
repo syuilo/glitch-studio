@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'noise',
 	displayName: 'Noise',
-	description: {
+	summary: {
 		'ja-JP': '複数のノイズを重ねたフラクタルノイズを生成します。座標場を入力して模様を変形できます。',
 		'en-US': 'Generates fractal noise by layering noise octaves, with coordinate field input for domain warping.',
 	},

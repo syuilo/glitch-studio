@@ -10,5 +10,5 @@ export type ProjectVisualModule = VisualModule & {
 export type ProjectCustomShaderEffect = CustomShaderEffectDefinition & {
 	id: string;
 	name: string;
-	description: string;
+	summary: string;
 };

@@ -6,7 +6,7 @@ export const MAGNETIC_PENDULUM_MINIMUM_ZOOM = 0.001;
 export default defineEffect({
 	id: 'magneticPendulum',
 	displayName: 'Magnetic Pendulum',
-	description: {
+	summary: {
 		'ja-JP': '磁気振り子の収束先を色分けし、フラクタル模様を生成します。',
 		'en-US': 'Generates fractal patterns by coloring where magnetic pendulums settle.',
 	},

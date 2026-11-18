@@ -4,7 +4,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'streamlines',
 	displayName: 'Streamlines',
-	description: {
+	summary: {
 		'ja-JP': 'ベクトル場の流れを線で描き、向きや強さを可視化します。',
 		'en-US': 'Draws streamlines to visualize the direction and magnitude of a vector field.',
 	},

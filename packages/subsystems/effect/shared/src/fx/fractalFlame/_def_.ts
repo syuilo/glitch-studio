@@ -41,7 +41,7 @@ const addedTransform = transformDefaultValue([0, 0], [0.7, 0.7], 0, 0.5, { linea
 export default defineEffect({
 	id: 'fractalFlame',
 	displayName: 'Fractal Flame',
-	description: {
+	summary: {
 		'ja-JP': '複数の非線形変換を組み合わせ、光の煙や花弁のようなフラクタル模様を生成します。',
 		'en-US': 'Combines nonlinear transforms to generate luminous, smoke-like or petal-like fractal flames.',
 	},

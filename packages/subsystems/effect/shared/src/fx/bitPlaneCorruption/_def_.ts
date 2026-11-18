@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'bitPlaneCorruption',
 	displayName: 'Bit Plane Corruption',
-	description: {
+	summary: {
 		'ja-JP': '色のビットを壊し、デジタルデータの破損のような色の乱れを加えます。',
 		'en-US': 'Corrupts color bits to create glitches resembling damaged digital data.',
 	},

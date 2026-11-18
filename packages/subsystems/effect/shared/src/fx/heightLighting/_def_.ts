@@ -4,7 +4,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'heightLighting',
 	displayName: 'Height Lighting',
-	description: {
+	summary: {
 		'ja-JP': '高さ場の凹凸に方向光と環境光を当て、入力画像に陰影を加えます。',
 		'en-US': 'Shades the input image using a height field, directional light, and hemispherical ambient light.',
 	},

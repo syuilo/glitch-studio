@@ -4,7 +4,7 @@ import { MIN_ZOOM_BLUR_SAMPLES, MAX_ZOOM_BLUR_SAMPLES } from './sampling.ts';
 export default defineEffect({
 	id: 'zoomBlur',
 	displayName: 'Zoom Blur',
-	description: {
+	summary: {
 		'ja-JP': '中心から放射状に画像をぼかします。中心の保護、色分散、ハイライトの強調、渦状の軌跡を調整できます。',
 		'en-US': 'Blurs the image radially from a center, with a protected focus zone, spectral dispersion, highlight emphasis, and spiral streaks.',
 	},

@@ -6,7 +6,7 @@ export const DOUBLE_PENDULUM_FRACTAL_SPAN_AT_ZOOM_ONE = 2 * Math.PI;
 export default defineEffect({
 	id: 'doublePendulumFractal',
 	displayName: 'Double Pendulum Fractal',
-	description: {
+	summary: {
 		'ja-JP': '初期角度の異なる二重振り子を指定時間まで計算し、角度や角速度から模様を生成します。',
 		'en-US': 'Generates patterns from the angles and angular velocities of double pendulums with different initial angles.',
 	},

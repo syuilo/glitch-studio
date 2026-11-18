@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'gradient',
 	displayName: 'Gradient',
-	description: {
+	summary: {
 		'ja-JP': '直線状または放射状に変化するスカラー場と、その勾配のベクトル場を生成します。',
 		'en-US': 'Generates a linear or radial scalar field and a vector field of its gradient.',
 	},

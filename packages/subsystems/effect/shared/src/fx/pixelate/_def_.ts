@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'pixelate',
 	displayName: 'Pixelate',
-	description: {
+	summary: {
 		'ja-JP': '入力画像を大きな画素のモザイク状に変換します。',
 		'en-US': 'Turns the input image into a mosaic of large pixels.',
 	},

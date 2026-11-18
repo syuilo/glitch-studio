@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'audioSpectrogram',
 	displayName: 'Audio Spectrogram',
-	description: {
+	summary: {
 		'ja-JP': '入力音声の周波数成分と時間変化をスペクトログラムで表示します。',
 		'en-US': 'Visualizes input audio as a spectrogram showing frequency content over time.',
 	},

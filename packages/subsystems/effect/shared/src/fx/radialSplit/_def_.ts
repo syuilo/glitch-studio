@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'radialSplit',
 	displayName: 'Radial Split',
-	description: {
+	summary: {
 		'ja-JP': '複数の画像や色を、一定幅の隙間を持つ均等な扇形の領域へ配置します。',
 		'en-US': 'Arranges images or colors in equal angular sectors with constant-width gaps.',
 	},

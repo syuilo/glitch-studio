@@ -4,7 +4,7 @@ import { vectorMathOperationIds, vectorMathOperationLabels } from './operations.
 export default defineEffect({
 	id: 'vectorMath',
 	displayName: 'Vector Math',
-	description: {
+	summary: {
 		'ja-JP': 'ベクトル場の四則演算・スカラー倍・回転などで、座標や変位を加工します。',
 		'en-US': 'Transforms coordinate and displacement fields using vector arithmetic, scaling, rotation, and mathematical functions.',
 	},

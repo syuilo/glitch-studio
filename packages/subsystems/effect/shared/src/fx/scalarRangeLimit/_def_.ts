@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'scalarRangeLimit',
 	displayName: 'Scalar Range Limit',
-	description: {
+	summary: {
 		'ja-JP': 'スカラー入力を、クランプ・繰り返し・反転する繰り返しで指定範囲内に収めます。',
 		'en-US': 'Keeps scalar values within a specified range by clamping, wrapping, or ping-pong reflection.',
 	},

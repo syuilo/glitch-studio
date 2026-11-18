@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'blindsWipe',
 	displayName: 'Blinds Wipe',
-	description: {
+	summary: {
 		'ja-JP': '複数の帯をブラインドのように開き、画像Aから画像Bへ切り替えます。',
 		'en-US': 'Transitions from image A to image B by opening a series of parallel bands.',
 	},

@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'decomposeColorHsl',
 	displayName: 'Decompose Color (HSL)',
-	description: {
+	summary: {
 		'ja-JP': '色を色相・彩度・明度・アルファのスカラー値に分解します。',
 		'en-US': 'Splits a color into hue, saturation, lightness, and alpha scalar values.',
 	},

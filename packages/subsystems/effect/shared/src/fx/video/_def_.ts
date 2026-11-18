@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'video',
 	displayName: 'Video',
-	description: {
+	summary: {
 		'ja-JP': 'Playerで再生中の映像を出力します。',
 		'en-US': 'Outputs the current video frame from a Player.',
 	},

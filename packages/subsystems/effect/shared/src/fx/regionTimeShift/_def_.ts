@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'regionTimeShift',
 	displayName: 'Region Time Shift',
-	description: {
+	summary: {
 		'ja-JP': 'ブロックや帯、RGBチャンネルごとに映像を遅らせ、異なる時刻が混在する画像を作ります。',
 		'en-US': 'Delays blocks, bands, or RGB channels to combine different moments in one image.',
 	},

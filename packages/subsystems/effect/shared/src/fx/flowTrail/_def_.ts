@@ -5,7 +5,7 @@ const halfLifeAt60Fps = (retention: number) => -Math.LN2 / Math.log(retention) *
 export default defineEffect({
 	id: 'flowTrail',
 	displayName: 'Flow Trail',
-	description: {
+	summary: {
 		'ja-JP': '移動速度に応じた太さの軌跡を描き、ぼかした流れで移流させます。',
 		'en-US': 'Paints speed-sensitive trails and advects them with a blurred flow field.',
 	},

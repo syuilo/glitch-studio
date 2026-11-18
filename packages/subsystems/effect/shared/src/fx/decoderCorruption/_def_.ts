@@ -4,7 +4,7 @@ import { maximumSubdivisionLevels } from './partition.ts';
 export default defineEffect({
 	id: 'decoderCorruption',
 	displayName: 'Decoder Corruption',
-	description: {
+	summary: {
 		'ja-JP': '動画の復号エラーのような色の破綻や模様の引き伸ばしを加えます。',
 		'en-US': 'Creates spreading color errors and stretched imagery resembling video decoding errors.',
 	},

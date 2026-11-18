@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'linearWipe',
 	displayName: 'Linear Wipe',
-	description: {
+	summary: {
 		'ja-JP': '直線の境界を移動させ、画像Aから画像Bへ切り替えます。',
 		'en-US': 'Transitions from image A to image B along a moving straight edge.',
 	},

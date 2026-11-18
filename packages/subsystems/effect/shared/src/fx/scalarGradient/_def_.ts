@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'scalarGradient',
 	displayName: 'Scalar Gradient',
-	description: {
+	summary: {
 		'ja-JP': 'スカラー場の勾配を計算し、ベクトル場として出力します。',
 		'en-US': 'Computes the gradient of a scalar field and outputs it as a vector field.',
 	},

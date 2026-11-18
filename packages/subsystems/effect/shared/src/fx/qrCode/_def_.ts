@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'qrCode',
 	displayName: 'QR Code',
-	description: {
+	summary: {
 		'ja-JP': '文字列からQRコードを生成します。',
 		'en-US': 'Generates a QR code from text.',
 	},

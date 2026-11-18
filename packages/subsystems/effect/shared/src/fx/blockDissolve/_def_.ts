@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'blockDissolve',
 	displayName: 'Block Dissolve',
-	description: {
+	summary: {
 		'ja-JP': '正方形のセルごとに、ランダムまたは指定方向の順序で画像Aを画像Bへ切り替えます。',
 		'en-US': 'Transitions from image A to image B in square cells, in random or directional order.',
 	},

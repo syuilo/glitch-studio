@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'phaseScramble',
 	displayName: 'Phase Scramble',
-	description: {
+	summary: {
 		'ja-JP': '画像の周波数成分の位相を乱し、輪郭や構造がほどけるような変化を加えます。画面全体・ブロック単位の処理に対応します。',
 		'en-US': 'Scrambles Fourier phases to dissolve image structure, globally or in overlapping blocks.',
 	},

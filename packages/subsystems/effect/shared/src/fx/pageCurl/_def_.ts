@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'pageCurl',
 	displayName: 'Page Curl',
-	description: {
+	summary: {
 		'ja-JP': '画像Aを紙のように丸めて裏面を見せながらめくり、下の画像Bへ切り替えます。',
 		'en-US': 'Curls image A like a sheet of paper, revealing its back and image B underneath.',
 	},

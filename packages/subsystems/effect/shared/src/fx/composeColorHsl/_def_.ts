@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'composeColorHsl',
 	displayName: 'Compose Color (HSL)',
-	description: {
+	summary: {
 		'ja-JP': '色相・彩度・明度・アルファのスカラー入力を組み合わせ、色を作ります。',
 		'en-US': 'Combines hue, saturation, lightness, and alpha scalar inputs into a color.',
 	},

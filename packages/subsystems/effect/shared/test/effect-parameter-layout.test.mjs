@@ -17,7 +17,7 @@ new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createR
 const { defineEffect, heightLighting } = module.exports;
 const parameter = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } };
 const definition = {
-	id: 'layout', displayName: 'Layout', description: { 'ja-JP': 'テスト', 'en-US': 'Test' }, kind: 'generate', dependsOnRenderHistory: false, tags: [],
+	id: 'layout', displayName: 'Layout', summary: { 'ja-JP': 'テスト', 'en-US': 'Test' }, kind: 'generate', dependsOnRenderHistory: false, tags: [],
 	paramDefs: { first: parameter, second: parameter, third: parameter },
 	primaryInputParameter: null, resolutionInputParameters: [], outputDefs: {}, primaryOutput: null,
 };

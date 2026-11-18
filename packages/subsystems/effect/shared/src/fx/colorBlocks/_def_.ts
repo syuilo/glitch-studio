@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'colorBlocks',
 	displayName: 'Color Blocks',
-	description: {
+	summary: {
 		'ja-JP': '入力画像にランダムな色のブロックを重ねます。',
 		'en-US': 'Overlays randomly colored blocks on the input image.',
 	},

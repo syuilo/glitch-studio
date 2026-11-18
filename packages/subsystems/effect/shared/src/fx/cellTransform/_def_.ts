@@ -4,7 +4,7 @@ import { cellSubdivisionParameterDefinitions } from '../../cell-subdivision.ts';
 export default defineEffect({
 	id: 'cellTransform',
 	displayName: 'Cell Transform',
-	description: {
+	summary: {
 		'ja-JP': '入力画像を格子状に分割し、各部分の参照元の位置を指定したり、移動・拡縮・回転させたりします。',
 		'en-US': 'Splits the input image into grid cells with per-cell source positions, translation, scale, and rotation.',
 	},

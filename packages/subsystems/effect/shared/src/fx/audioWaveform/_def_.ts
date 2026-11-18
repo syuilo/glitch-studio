@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'audioWaveform',
 	displayName: 'Audio Waveform',
-	description: {
+	summary: {
 		'ja-JP': '入力音声を波形で表示します。',
 		'en-US': 'Visualizes input audio as a waveform.',
 	},

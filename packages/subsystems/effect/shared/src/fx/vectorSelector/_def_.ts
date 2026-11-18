@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'vectorSelector',
 	displayName: 'Selector (Vector)',
-	description: {
+	summary: {
 		'ja-JP': '複数のベクトル入力を切り替えたり、なめらかに混ぜ合わせたりします。',
 		'en-US': 'Switches or smoothly blends between multiple vector inputs.',
 	},

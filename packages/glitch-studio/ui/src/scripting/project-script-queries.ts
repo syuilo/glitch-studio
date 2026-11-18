@@ -213,10 +213,10 @@ export const PROJECT_SCRIPT_QUERY_DEFINITIONS = {
 	}),
 	'Query:listEffects': defineQuery({
 		argumentCount: 0, inputSchema: z.null(), resultSchema: z.array(effectSummarySchema),
-		description: 'List built-in Effects and the current Project custom Effects with display names, Japanese/English descriptions, kinds and tags. Use an effectId with Query:getEffect before constructing parameter bindings.',
+		description: 'List built-in Effects and the current Project custom Effects with display names, Japanese/English summaries, kinds and tags. Use an effectId with Query:getEffect before constructing parameter bindings.',
 		examples: ['<: Query:listEffects()'],
 		execute: state => snapshot(Object.values(getEffectDefinitions(state)).map(effect => ({
-			target: { effectId: effect.id }, id: effect.id, displayName: effect.displayName, description: effect.description, kind: effect.kind, tags: effect.tags,
+			target: { effectId: effect.id }, id: effect.id, displayName: effect.displayName, summary: effect.summary, kind: effect.kind, tags: effect.tags,
 		}))),
 	}),
 	'Query:getEffect': defineQuery({
@@ -247,9 +247,9 @@ export const PROJECT_SCRIPT_QUERY_DEFINITIONS = {
 	}),
 	'Query:listCustomShaderEffects': defineQuery({
 		argumentCount: 0, inputSchema: z.null(), resultSchema: z.array(customShaderEffectSummarySchema),
-		description: 'List Project-owned Custom Shader Effects with names, descriptions and customShaderEffectId references. Use Query:getCustomShaderEffect to inspect the editable shader definition.',
+		description: 'List Project-owned Custom Shader Effects with names, summaries and customShaderEffectId references. Use Query:getCustomShaderEffect to inspect the editable shader definition.',
 		examples: ['<: Query:listCustomShaderEffects()'],
-		execute: state => state.customShaderEffects.value.map(effect => ({ target: { customShaderEffectId: effect.id }, name: effect.name, description: effect.description })),
+		execute: state => state.customShaderEffects.value.map(effect => ({ target: { customShaderEffectId: effect.id }, name: effect.name, summary: effect.summary })),
 	}),
 	'Query:getCustomShaderEffect': defineQuery({
 		argumentCount: 1, inputSchema: customShaderEffectReferenceSchema, resultSchema: customShaderEffectResultSchema,

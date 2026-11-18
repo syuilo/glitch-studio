@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'filmColor',
 	displayName: 'Film Color',
-	description: {
+	summary: {
 		'ja-JP': '柔らかな階調、高彩度部の圧縮、明暗別の色付けでフィルム写真のような色合いを作ります。',
 		'en-US': 'Creates film-inspired colors with soft tonal transitions, chroma compression, and separate shadow and highlight tints.',
 	},

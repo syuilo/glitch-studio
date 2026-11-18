@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'sampleImage',
 	displayName: 'Sample Image',
-	description: {
+	summary: {
 		'ja-JP': 'ベクトル場の値を絶対座標として、その位置の入力画像の色を出力します。',
 		'en-US': 'Samples the input image at absolute positions supplied by a vector field.',
 	},

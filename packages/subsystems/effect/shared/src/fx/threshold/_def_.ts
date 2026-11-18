@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'threshold',
 	displayName: 'Threshold',
-	description: {
+	summary: {
 		'ja-JP': '入力画像のRGB成分をそれぞれ二値化し、色をくっきりと分けます。',
 		'en-US': 'Binarizes each RGB channel of the input image to create stark color separation.',
 	},

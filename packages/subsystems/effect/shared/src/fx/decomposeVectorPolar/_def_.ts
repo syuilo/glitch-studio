@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'decomposeVectorPolar',
 	displayName: 'Decompose Vector (Polar)',
-	description: {
+	summary: {
 		'ja-JP': '2次元ベクトルを角度と長さに分解します。',
 		'en-US': 'Splits a two-dimensional vector into angle and length.',
 	},

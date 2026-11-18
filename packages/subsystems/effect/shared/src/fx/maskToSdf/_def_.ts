@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'maskToSdf',
 	displayName: 'Mask to SDF',
-	description: {
+	summary: {
 		'ja-JP': 'スカラーマスクの輪郭から符号付き距離場を生成します。',
 		'en-US': 'Generates a signed distance field from the contour of a scalar mask.',
 	},

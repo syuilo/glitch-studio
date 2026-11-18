@@ -1,7 +1,7 @@
 <template>
 <button class="_button" :class="[$style.root, { [$style.detailed]: detailed }]" @click="emit('click', $event)">
 	<span :class="$style.title">{{ effect.displayName }}</span>
-	<span v-if="detailed" :class="$style.description">{{ effect.description['ja-JP'] }}</span>
+	<span v-if="detailed" :class="$style.summary">{{ effect.summary['ja-JP'] }}</span>
 	<div v-if="detailed" :class="$style.footer">
 		<div :class="$style.ports">
 			<GsNodePort v-for="input in inputPorts.filter(port => port.isPrimary)" :key="input.key" v-tooltip="`${input.label} (${input.dataType.kind})`" style="margin-right: 3px;" :dataType="input.dataType"/>
@@ -27,7 +27,7 @@ import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-defin
 import { getEffectInputPorts, getEffectOutputPorts } from '@/utility/effect-ports.ts';
 
 const props = withDefaults(defineProps<{
-	effect: Pick<EffectDefinition, 'displayName' | 'description' | 'paramDefs' | 'outputDefs' | 'primaryInputParameter' | 'primaryOutput'>;
+	effect: Pick<EffectDefinition, 'displayName' | 'summary' | 'paramDefs' | 'outputDefs' | 'primaryInputParameter' | 'primaryOutput'>;
 	detailed?: boolean;
 }>(), {
 	detailed: false,
@@ -65,11 +65,11 @@ const outputPorts = computed(() => getEffectOutputPorts(props.effect));
 	}
 }
 
-.title, .description {
+.title, .summary {
 	overflow-wrap: anywhere;
 }
 
-.description {
+.summary {
 	line-height: 1.5;
 	font-size: 90%;
 	color: color-mix(in srgb, var(--THEME-fg), transparent 50%);

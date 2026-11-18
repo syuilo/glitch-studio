@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'checker',
 	displayName: 'Checker',
-	description: {
+	summary: {
 		'ja-JP': '市松模様を描画します。',
 		'en-US': 'Draws a checkerboard pattern.',
 	},

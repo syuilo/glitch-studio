@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'splitTransition',
 	displayName: 'Split Transition',
-	description: {
+	summary: {
 		'ja-JP': '画面を左右または上下に分割し、各領域に合わせて画像を配置しながらAからBへ切り替えます。',
 		'en-US': 'Transitions from image A to image B by resizing their side-by-side or stacked regions and fitting each image within its region.',
 	},

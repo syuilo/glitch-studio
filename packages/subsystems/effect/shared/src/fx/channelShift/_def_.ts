@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'channelShift',
 	displayName: 'Channel Shift',
-	description: {
+	summary: {
 		'ja-JP': '入力画像のRGBチャンネルをずらし、色ずれを作ります。',
 		'en-US': 'Shifts the RGB channels of the input image to create color separation.',
 	},

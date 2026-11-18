@@ -94,7 +94,7 @@ export const effectSummarySchema = z.looseObject({
 	target: effectReferenceSchema,
 	id: identifierSchema,
 	displayName: z.string(),
-	description: z.looseObject({ 'ja-JP': z.string(), 'en-US': z.string() }),
+	summary: z.looseObject({ 'ja-JP': z.string(), 'en-US': z.string() }),
 	kind: z.enum(['generate', 'modify']),
 	tags: z.array(z.enum(EFFECT_TAGS)),
 });
@@ -114,5 +114,5 @@ export const effectDefinitionResultSchema = effectSummarySchema.extend({
 });
 
 export const projectAutomationGraphResultSchema = z.intersection(automationGraphSchema, z.looseObject({ target: projectAutomationGraphReferenceSchema }));
-export const customShaderEffectSummarySchema = z.looseObject({ target: customShaderEffectReferenceSchema, name: z.string(), description: z.string() });
+export const customShaderEffectSummarySchema = z.looseObject({ target: customShaderEffectReferenceSchema, name: z.string(), summary: z.string() });
 export const customShaderEffectResultSchema = z.intersection(projectCustomShaderEffectSchema, customShaderEffectSummarySchema);

@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'displacementTransition',
 	displayName: 'Displacement Transition',
-	description: {
+	summary: {
 		'ja-JP': 'ベクトル場に沿って2枚の画像を逆方向へ歪ませながら、画像Aから画像Bへ切り替えます。',
 		'en-US': 'Transitions from image A to image B while warping the images in opposite directions along a vector field.',
 	},

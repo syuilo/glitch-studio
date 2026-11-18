@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'multiply',
 	displayName: 'Multiply',
-	description: {
+	summary: {
 		'ja-JP': '入力のスカラー値に指定した数値を掛けます。',
 		'en-US': 'Multiplies the scalar input by the specified value.',
 	},

@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'composeColor',
 	displayName: 'Compose Color',
-	description: {
+	summary: {
 		'ja-JP': '赤・緑・青とアルファのスカラー入力を組み合わせ、色を作ります。',
 		'en-US': 'Combines red, green, blue, and alpha scalar inputs into a color.',
 	},

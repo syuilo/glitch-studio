@@ -43,7 +43,7 @@ const exposureParameter = (label: string): ParameterDefinition_Scalar & { canNod
 export default defineEffect({
 	id: 'filmPhotography',
 	displayName: 'Film Photography',
-	description: {
+	summary: {
 		'ja-JP': '仮想カラーネガの分光感度・現像応答・色素吸収を設計し、印画紙への露光と反射まで計算します。',
 		'en-US': 'Designs a virtual color negative through spectral sensitivity, development and dye absorption, then simulates photographic printing.',
 	},

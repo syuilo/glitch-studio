@@ -13,11 +13,11 @@ export function isCustomShaderEffectReference(id: string): boolean {
 }
 
 /** 保存Binding・配線は固定ID、WGSLとの対応は実装側が所有する。 */
-export function createCustomShaderEffectDefinition(definition: CustomShaderEffectDefinition, identity: { id: string; name: string; description: string }): EffectDefinition {
+export function createCustomShaderEffectDefinition(definition: CustomShaderEffectDefinition, identity: { id: string; name: string; summary: string }): EffectDefinition {
 	return {
 		id: customShaderEffectReference(identity.id),
 		displayName: identity.name,
-		description: { 'ja-JP': identity.description, 'en-US': identity.description },
+		summary: { 'ja-JP': identity.summary, 'en-US': identity.summary },
 		kind: definition.kind,
 		dependsOnRenderHistory: false,
 		// カスタムシェーダーは自動タイル制御の対象外とし、分割が必要な場合は手動設定で行う。

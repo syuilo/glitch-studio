@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'mapTransition',
 	displayName: 'Map Transition',
-	description: {
+	summary: {
 		'ja-JP': 'スカラー場の値が小さい場所から順に、画像Aを画像Bへ切り替えます。',
 		'en-US': 'Transitions from image A to image B in the order defined by a scalar map.',
 	},

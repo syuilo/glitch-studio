@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'cellMatch',
 	displayName: 'Cell Match',
-	description: {
+	summary: {
 		'ja-JP': '主入力をセルに分割し、副入力の平均色・明暗・セル内構造に近づくように画像片を配置します。セルの再利用も選択できます。',
 		'en-US': 'Places image fragments from the input to resemble the reference, with optional cell reuse.',
 	},

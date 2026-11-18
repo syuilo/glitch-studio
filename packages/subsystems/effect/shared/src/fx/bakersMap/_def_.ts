@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'bakersMap',
 	displayName: "Baker's Map",
-	description: {
+	summary: {
 		'ja-JP': '画像を引き伸ばして切り分け、積み直す変換を繰り返します。逆方向の変換も選べます。',
 		'en-US': 'Repeatedly stretches, cuts, and stacks the image using the baker\'s map, with forward and inverse directions.',
 	},

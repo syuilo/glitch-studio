@@ -4,7 +4,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'mangaPrint',
 	displayName: 'Manga Print',
-	description: {
+	summary: {
 		'ja-JP': '明暗の段階化、ドットトーン、輪郭線、紙の質感で漫画の印刷紙面のような見た目を作ります。',
 		'en-US': 'Creates a manga print look with stepped tones, halftone dots, outlines, and paper grain.',
 	},

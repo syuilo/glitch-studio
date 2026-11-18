@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'contentErrorPropagation',
 	displayName: 'Content Error Propagation',
-	description: {
+	summary: {
 		'ja-JP': '画像の輪郭や色の変化に沿って色の誤差を広げ、色がにじみ出すようなグリッチを加えます。',
 		'en-US': 'Spreads color errors along image contours and color changes to create bleeding glitch patterns.',
 	},

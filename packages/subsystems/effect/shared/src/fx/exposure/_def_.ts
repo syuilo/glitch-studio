@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'exposure',
 	displayName: 'Exposure',
-	description: {
+	summary: {
 		'ja-JP': 'linear RGBの光量をEV単位で調整します。HDR・負値を保持します。',
 		'en-US': 'Adjusts linear RGB exposure in EV while preserving HDR and negative values.',
 	},

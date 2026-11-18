@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'vectorLength',
 	displayName: 'Vector Length',
-	description: {
+	summary: {
 		'ja-JP': '2次元ベクトルの長さをスカラー値として出力します。',
 		'en-US': 'Outputs the length of a two-dimensional vector as a scalar value.',
 	},

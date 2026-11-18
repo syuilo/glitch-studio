@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'splitLayout',
 	displayName: 'Split Layout',
-	description: {
+	summary: {
 		'ja-JP': '任意の角度で画面を二分し、各画像の中心を領域の面積重心に合わせて配置します。',
 		'en-US': 'Splits the canvas at any angle and centers each image on the area centroid of its region.',
 	},

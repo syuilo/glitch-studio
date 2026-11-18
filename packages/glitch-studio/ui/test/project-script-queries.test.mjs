@@ -20,7 +20,7 @@ const bundled = await build({
 		build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ loader: 'ts', contents: `
 			export const effectDefinitions = {
 				fill: {
-					id: 'fill', displayName: 'Fill', description: { 'ja-JP': '塗りつぶし', 'en-US': 'Fill' },
+					id: 'fill', displayName: 'Fill', summary: { 'ja-JP': '塗りつぶし', 'en-US': 'Fill' },
 					kind: 'generate', dependsOnRenderHistory: false, tags: ['color'],
 					paramDefs: { color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } } },
 					primaryInputParameter: null, resolutionInputParameters: [],

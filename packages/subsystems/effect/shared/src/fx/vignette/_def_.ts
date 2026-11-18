@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'vignette',
 	displayName: 'Vignette',
-	description: {
+	summary: {
 		'ja-JP': '透明度を保ちながら、楕円の外側へ向かって画像を滑らかに暗くします。',
 		'en-US': 'Smoothly darkens the image outside an ellipse while preserving transparency.',
 	},

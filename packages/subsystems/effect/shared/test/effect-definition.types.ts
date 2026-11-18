@@ -32,7 +32,7 @@ const values = {
 	defaultValue: { inputSource: 'literal', value: [] as [] },
 } as const;
 const definition = {
-	id: 'typeTest', displayName: 'Type Test', description: { 'ja-JP': '型検査用', 'en-US': 'Type test' },
+	id: 'typeTest', displayName: 'Type Test', summary: { 'ja-JP': '型検査用', 'en-US': 'Type test' },
 	kind: 'generate', dependsOnRenderHistory: false, tags: [] as EffectTags[],
 	paramDefs: { input, amount: scalar, audio, group, groups, values },
 	primaryInputParameter: null, resolutionInputParameters: [],

@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'decomposeVector',
 	displayName: 'Decompose Vector',
-	description: {
+	summary: {
 		'ja-JP': '2次元ベクトルをX成分とY成分のスカラー値に分解します。',
 		'en-US': 'Splits a two-dimensional vector into X and Y scalar components.',
 	},

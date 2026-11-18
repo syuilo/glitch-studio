@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'dilateErode',
 	displayName: 'Dilate / Erode',
-	description: {
+	summary: {
 		'ja-JP': 'スカラーマスクの領域を広げたり狭めたりします。',
 		'en-US': 'Expands or shrinks regions in a scalar mask.',
 	},

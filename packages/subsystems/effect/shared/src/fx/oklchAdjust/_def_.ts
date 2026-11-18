@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'oklchAdjust',
 	displayName: 'OKLCH Adjust',
-	description: {
+	summary: {
 		'ja-JP': 'OKLCHの明度Lの加算・クロマCの倍率・色相Hの回転を調整します。色域外の値も保持します。',
 		'en-US': 'Adjusts OKLCH lightness offset, chroma multiplier, and hue rotation without clipping out-of-gamut values.',
 	},

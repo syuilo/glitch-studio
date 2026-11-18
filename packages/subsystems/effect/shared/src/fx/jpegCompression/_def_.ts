@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'jpegCompression',
 	displayName: 'JPEG Compression',
-	description: {
+	summary: {
 		'ja-JP': 'JPEG圧縮による細部の消失、色のにじみ、ブロック模様を再現します。',
 		'en-US': 'Simulates detail loss, chroma bleeding, and block artifacts from JPEG compression.',
 	},

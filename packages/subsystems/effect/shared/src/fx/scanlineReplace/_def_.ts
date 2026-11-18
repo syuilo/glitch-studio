@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'scanlineReplace',
 	displayName: 'Scanline Replace',
-	description: {
+	summary: {
 		'ja-JP': '横帯ごとに画像AからBへ切り替え、切替中の帯へ横ずれと色ずれを加えます。',
 		'en-US': 'Replaces image A with image B in horizontal bands, adding displacement and chromatic shifts during each band transition.',
 	},

@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'jpegGlitch',
 	displayName: 'JPEG Glitch',
-	description: {
+	summary: {
 		'ja-JP': 'JPEGデータの破損による色の乱れやにじみ、ブロックのずれを再現します。',
 		'en-US': 'Simulates color corruption, bleeding, and displaced blocks caused by damaged JPEG data.',
 	},

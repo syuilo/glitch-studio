@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'scalarSelector',
 	displayName: 'Selector (Scalar)',
-	description: {
+	summary: {
 		'ja-JP': '複数のスカラー入力を切り替えたり、なめらかに混ぜ合わせたりします。',
 		'en-US': 'Switches or smoothly blends between multiple scalar inputs.',
 	},

@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'irisWipe',
 	displayName: 'Iris Wipe',
-	description: {
+	summary: {
 		'ja-JP': '円の境界を広げる、または縮めることで、画像Aから画像Bへ切り替えます。',
 		'en-US': 'Transitions from image A to image B with an expanding or contracting circle.',
 	},

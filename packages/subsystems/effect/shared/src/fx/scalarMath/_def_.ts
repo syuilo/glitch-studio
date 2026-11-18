@@ -4,7 +4,7 @@ import { scalarMathOperationIds, scalarMathOperationLabels } from './operations.
 export default defineEffect({
 	id: 'scalarMath',
 	displayName: 'Scalar Math',
-	description: {
+	summary: {
 		'ja-JP': 'スカラー場に四則演算や数学関数を適用し、値や模様を加工します。',
 		'en-US': 'Applies arithmetic and mathematical functions to scalar fields to modify values and patterns.',
 	},

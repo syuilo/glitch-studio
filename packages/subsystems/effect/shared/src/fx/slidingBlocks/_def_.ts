@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'slidingBlocks',
 	displayName: 'Sliding Blocks',
-	description: {
+	summary: {
 		'ja-JP': '動いた領域を過去画像のブロックとして切り出し、その画像を保持したまま滑らせます。',
 		'en-US': 'Detaches moving regions as frozen image blocks and lets them slide independently.',
 	},

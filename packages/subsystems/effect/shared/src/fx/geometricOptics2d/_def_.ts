@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'geometricOptics2d',
 	displayName: '2D Geometric Optics',
-	description: {
+	summary: {
 		'ja-JP': 'SDFで配置した鏡・透明物体・遮蔽物に光を当て、反射・屈折・分散の光路を描画します。',
 		'en-US': 'Traces reflection, refraction and dispersion through SDF mirrors, dielectrics and blockers in 2D.',
 	},

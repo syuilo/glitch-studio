@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'textPattern',
 	displayName: 'Text Pattern',
-	description: {
+	summary: {
 		'ja-JP': '文字列を繰り返し配置し、文字ごとに動きや色の変化を加えた模様を作ります。',
 		'en-US': 'Repeats text to create patterns with motion and color variation for each character.',
 	},

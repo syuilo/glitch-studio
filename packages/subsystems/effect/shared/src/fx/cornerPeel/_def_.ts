@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'cornerPeel',
 	displayName: 'Corner Peel',
-	description: {
+	summary: {
 		'ja-JP': '画像Aの隅を対角方向へ剥がし、丸まった紙の裏面と下の画像Bを見せます。',
 		'en-US': 'Peels a corner of image A diagonally, revealing the curled back and image B underneath.',
 	},

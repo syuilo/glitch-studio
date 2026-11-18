@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'normalizeVector',
 	displayName: 'Normalize Vector',
-	description: {
+	summary: {
 		'ja-JP': '2次元ベクトルの方向を保ち、長さを1に揃えます。',
 		'en-US': 'Normalizes a two-dimensional vector to length one while preserving its direction.',
 	},

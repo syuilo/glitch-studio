@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'blockShiftGlitch',
 	displayName: 'Block Shift Glitch',
-	description: {
+	summary: {
 		'ja-JP': '入力画像をブロックごとに上下・左右へランダムな量だけシフトします。',
 		'en-US': 'Shifts blocks of the input image horizontally and vertically by random amounts.',
 	},

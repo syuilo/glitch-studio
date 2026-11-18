@@ -20,7 +20,7 @@ test('collects immutable resources and custom shaders without local paths or dev
 	// Imageの静的設定名は実際の定義から取得する。参照を取り落とす変更も検出する。
 	input.visualModule.nodes[0].staticSettings = { [Object.keys(image.staticSettingDefs)[0]]: 'image' };
 	input.visualModule.nodes[1].staticSettings = { [Object.keys(video.staticSettingDefs)[0]]: 'camera' };
-	const shader = { id: 'shader', name: 'Shader', description: '', shaderApiVersion: 1, codeLanguage: 'wgsl', kind: 'generate', paramDefs: [],
+	const shader = { id: 'shader', name: 'Shader', summary: '', shaderApiVersion: 1, codeLanguage: 'wgsl', kind: 'generate', paramDefs: [],
 		outputDefs: [{ id: 'output', nameForReference: 'color', label: 'Color', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'output', resolutionInputIds: [],
 		code: 'fn main(position: vec2f) -> Output { var output: Output; output.color = vec4f(1); return output; }' };
 	input.customShaderEffects = [shader, { ...shader, id: 'unused' }];

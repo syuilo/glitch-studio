@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'flowColor',
 	displayName: 'Flow Color',
-	description: {
+	summary: {
 		'ja-JP': 'ベクトル場と軌跡の強度から虹色の帯を作り、背景へ表示色空間で加算します。',
 		'en-US': 'Adds phase-shifted RGB flow bands to the background in display color space.',
 	},

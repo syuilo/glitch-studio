@@ -48,6 +48,7 @@ const { ProjectRenderValidation, COMMAND_DEFS, getEffectDefinitions, createEffec
 
 function usageFixture() {
 	const definition = createProjectCustomShaderEffect([]);
+	definition.summary = 'Adds a mask output.';
 	definition.paramDefs.push({ id: 'amount', nameForReference: 'amount', canNode: true, dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0.25 } });
 	definition.outputDefs.push({ id: 'mask', nameForReference: 'mask', label: 'Mask', dataType: { kind: 'scalar' } });
 	const visualModule = { id: 'visualModule', name: 'Visual Module', nodes: [], paramDefs: [], outputDefs: [{ id: 'out', name: 'out', label: 'Out', dataType: { kind: 'scalar' } }], primaryInputId: null, primaryOutputId: null, customParameterDefs: [], customParameterValues: {}, automationGraphs: [] };
@@ -71,7 +72,7 @@ test('rejects invalid shader metadata and execution modes without mutating proje
 	const before = JSON.stringify(state.customShaderEffects.value);
 	assert.throws(() => manager.commit('createCustomShaderEffect', { name: 42 }), /input: name:/);
 	assert.throws(() => manager.commit('duplicateCustomShaderEffect', { ...original, name: {} }), /input: name:/);
-	for (const changes of [{ name: 42 }, { description: false }, { code: [] }, { codeLanguage: 'javascript' }, { kind: 'other' }]) {
+	for (const changes of [{ name: 42 }, { summary: false }, { code: [] }, { codeLanguage: 'javascript' }, { kind: 'other' }]) {
 		const definition = { ...JSON.parse(before)[0], ...changes };
 		assert.throws(() => manager.commit('replaceCustomShaderEffectDefinition', { ...original, definition }), new RegExp(`input: definition\\.${Object.keys(changes)[0]}:`));
 		assert.equal(JSON.stringify(state.customShaderEffects.value), before);
@@ -87,6 +88,7 @@ test('creates project shader nodes and layers with stable parameter IDs and inde
 	const { definition, state, manager, visualModule, layer } = usageFixture();
 	const node = visualModule.nodes[0];
 	assert.equal(node.effectId, customShaderEffectReference(definition.id));
+	assert.deepEqual(getEffectDefinitions(state)[node.effectId].summary, { 'ja-JP': definition.summary, 'en-US': definition.summary });
 	assert.deepEqual(node.params.amount, { inputSource: 'literal', value: 0.25 });
 	assert.equal(layer.effectParamValues[definition.primaryInputId].inputSource, 'lowerLayerOutput');
 	assert.equal(layer.transformTarget, 'region');

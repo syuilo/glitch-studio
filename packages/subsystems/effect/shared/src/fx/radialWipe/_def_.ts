@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'radialWipe',
 	displayName: 'Radial Wipe',
-	description: {
+	summary: {
 		'ja-JP': '中心の周りを回る扇形の境界で、画像Aから画像Bへ切り替えます。',
 		'en-US': 'Transitions from image A to image B with an angular sweep around a center.',
 	},

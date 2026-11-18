@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'decomposeColor',
 	displayName: 'Decompose Color',
-	description: {
+	summary: {
 		'ja-JP': '色を赤・緑・青とアルファのスカラー値に分解します。',
 		'en-US': 'Splits a color into red, green, blue, and alpha scalar values.',
 	},

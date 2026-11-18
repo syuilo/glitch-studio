@@ -13,7 +13,7 @@ import type { ProjectState } from '../Project.ts';
 function validateProjectCustomShaderEffect(definition: ProjectCustomShaderEffect): void {
 	// UIの型付き入力以外からも呼び出す。作品側の文字列と実行方式を検証してから、
 	// エフェクトドメインが所有する入出力・参照の検証へ渡す。
-	for (const field of ['name', 'description', 'code'] as const) {
+	for (const field of ['name', 'summary', 'code'] as const) {
 		if (typeof definition[field] !== 'string') throw new Error(`Custom Shader Effect ${field} must be a string`);
 	}
 	if (!['wgsl'].includes(definition.codeLanguage)) throw new Error('Unsupported Custom Shader Effect code language');
@@ -68,7 +68,7 @@ const replaceCustomShaderEffectDefinition = definePublicCommand({
 	label: 'Replace Custom Shader Effect definition',
 	inputSchema: z.object({ customShaderEffectId: z.string().min(1), definition: projectCustomShaderEffectDefinitionSchema }), resultSchema: z.null(),
 	description: 'Replace the full Custom Shader Effect definition while retaining its ID. Reconciles existing Node and Layer uses with changed inputs and outputs. Interface validation runs immediately; WGSL compilation is checked by the renderer.',
-	examples: ['let effect = Command:createCustomShaderEffect({})\nlet definition = Obj:pick(Query:getCustomShaderEffect(effect), ["name", "description", "shaderApiVersion", "codeLanguage", "code", "kind", "paramDefs", "outputDefs", "primaryInputId", "primaryOutputId", "resolutionInputIds"])\ndefinition.description = "Updated description"\nCommand:replaceCustomShaderEffectDefinition({ customShaderEffectId: effect.customShaderEffectId, definition: definition })'],
+	examples: ['let effect = Command:createCustomShaderEffect({})\nlet definition = Obj:pick(Query:getCustomShaderEffect(effect), ["name", "summary", "shaderApiVersion", "codeLanguage", "code", "kind", "paramDefs", "outputDefs", "primaryInputId", "primaryOutputId", "resolutionInputIds"])\ndefinition.summary = "Updated summary"\nCommand:replaceCustomShaderEffectDefinition({ customShaderEffectId: effect.customShaderEffectId, definition: definition })'],
 	prepare(state, { customShaderEffectId, definition }) {
 		const beforeDefinition = state.customShaderEffects.value.find(candidate => candidate.id === customShaderEffectId);
 		if (beforeDefinition == null) throw new Error('Custom Shader Effect not found');

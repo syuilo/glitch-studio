@@ -6,7 +6,7 @@ export const IMAGE_TRAP_MINIMUM_ZOOM = 0.001;
 export default defineEffect({
 	id: 'imageTrap',
 	displayName: 'Image Trap',
-	description: {
+	summary: {
 		'ja-JP': 'Mandelbrot・Juliaの反復軌道で入力画像を参照し、フラクタル状に繰り返して合成します。',
 		'en-US': 'Samples and composites an input image along Mandelbrot or Julia orbits to create fractal repetitions.',
 	},

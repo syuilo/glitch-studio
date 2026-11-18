@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'imageMorph',
 	displayName: 'Image Morph',
-	description: {
+	summary: {
 		'ja-JP': '2つの画像の対応を推定し、中間の形へ変形してなめらかに混ぜ合わせます。',
 		'en-US': 'Estimates bidirectional image correspondences and warps both inputs into an intermediate shape before blending.',
 	},

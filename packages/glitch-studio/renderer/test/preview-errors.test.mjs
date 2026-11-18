@@ -857,7 +857,7 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 		const destroyedPlacement = t.mock.method(previous, 'destroy');
 		const updated = structuredClone(initial);
 		updated.paramDefs[0].defaultValue.value = [0, 1, 0, 1];
-		const customShaderEffect = { id: 'shader', name: 'Shader', description: '', shaderApiVersion: 1, codeLanguage: 'wgsl', kind: 'generate',
+		const customShaderEffect = { id: 'shader', name: 'Shader', summary: '', shaderApiVersion: 1, codeLanguage: 'wgsl', kind: 'generate',
 			paramDefs: [], outputDefs: [{ id: 'color', nameForReference: 'color', label: 'Color', dataType: { kind: 'color' } }],
 			primaryInputId: null, primaryOutputId: 'color', resolutionInputIds: [], code: '' };
 		const project = { automationGraphs: [], visualModules: [updated], timelineScenes: f.renderer.dynamicOptions.timelineScenes ?? [] };

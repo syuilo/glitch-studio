@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'invert',
 	displayName: 'Invert',
-	description: {
+	summary: {
 		'ja-JP': '入力画像の赤・緑・青のうち、選択した成分を反転します。',
 		'en-US': 'Inverts the selected red, green, and blue channels of the input image.',
 	},

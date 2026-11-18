@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'contrast',
 	displayName: 'Contrast',
-	description: {
+	summary: {
 		'ja-JP': 'sRGB値の基準値を中心にコントラストを調整します。HDR・負値を保持します。',
 		'en-US': 'Adjusts contrast around an sRGB pivot while preserving HDR and negative values.',
 	},

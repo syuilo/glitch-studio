@@ -8,7 +8,7 @@ export const MAXIMUM_BURN_IN = 2048;
 export default defineEffect({
 	id: 'cliffordDeJongAttractor',
 	displayName: 'Clifford / De Jong Attractor',
-	description: {
+	summary: {
 		'ja-JP': 'Clifford・De Jongアトラクターから、煙や織物のような模様を生成します。',
 		'en-US': 'Generates smoke-like or woven patterns from Clifford or De Jong attractors.',
 	},

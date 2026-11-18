@@ -4,7 +4,7 @@ import { MIN_LINEAR_BLUR_SAMPLES, MAX_LINEAR_BLUR_SAMPLES } from './sampling.ts'
 export default defineEffect({
 	id: 'linearBlur',
 	displayName: 'Linear Blur',
-	description: {
+	summary: {
 		'ja-JP': '指定した方向へ直線状に画像をぼかします。中心の保護、色分散、軌跡の偏り、ハイライトの強調を調整できます。',
 		'en-US': 'Blurs the image along a direction, with a protected center zone, spectral dispersion, directional bias, and highlight emphasis.',
 	},

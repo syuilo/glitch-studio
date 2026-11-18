@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'timePatchwork',
 	displayName: 'Time Patchwork',
-	description: {
+	summary: {
 		'ja-JP': 'ブロックごとに異なる時刻の映像を表示します。動きに応じて遅延を変化させたり、動いた領域の更新を一時停止したりできます。',
 		'en-US': 'Displays different moments in each block, with motion-driven delays and temporary freezes in moving regions.',
 	},

@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'toneCompression',
 	displayName: 'Tone Compression',
-	description: {
+	summary: {
 		'ja-JP': '暗部を黒から持ち上げ、明部を圧縮します。それぞれの明度の閾値・なだらかさ・補正量を調整でき、HDRの階調差を保持します。',
 		'en-US': 'Lifts shadows including black and compresses highlights, with separate lightness thresholds, softness, and amounts while retaining HDR tonal differences.',
 	},

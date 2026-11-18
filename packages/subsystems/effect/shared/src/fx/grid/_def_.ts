@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'grid',
 	displayName: 'Grid',
-	description: {
+	summary: {
 		'ja-JP': '格子模様を描画します。',
 		'en-US': 'Draws a grid pattern.',
 	},

@@ -38,7 +38,7 @@ export async function runCustomShaderEffectLivePreview() {
 	const gpuContext = canvas.getContext('webgpu');
 	if (gpuContext == null) throw new Error('WebGPU canvas unavailable');
 	const customShaderEffect: ProjectCustomShaderEffect = {
-		id: 'live-preview-shader', name: 'Live Preview Shader', description: '', shaderApiVersion: 1, codeLanguage: 'wgsl', kind: 'modify',
+		id: 'live-preview-shader', name: 'Live Preview Shader', summary: '', shaderApiVersion: 1, codeLanguage: 'wgsl', kind: 'modify',
 		paramDefs: [{ id: 'source-id', nameForReference: 'source', canNode: true, dataType: { kind: 'color' }, ui: { label: 'Source', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } }],
 		outputDefs: [{ id: 'color-id', nameForReference: 'color', label: 'Color', dataType: { kind: 'color' } }], primaryInputId: 'source-id', primaryOutputId: 'color-id', resolutionInputIds: ['source-id'],
 		code: 'fn main(position: vec2f) -> Output { var output: Output; output.color = read_source(position); return output; }',
@@ -104,7 +104,7 @@ export async function runCustomShaderEffectTimelineUpdates() {
 	const gpuContext = canvas.getContext('webgpu');
 	if (gpuContext == null) throw new Error('WebGPU canvas unavailable');
 	const customShaderEffect: ProjectCustomShaderEffect = {
-		id: 'timeline-shader', name: 'Timeline Shader', description: '', shaderApiVersion: 1, codeLanguage: 'wgsl', kind: 'generate',
+		id: 'timeline-shader', name: 'Timeline Shader', summary: '', shaderApiVersion: 1, codeLanguage: 'wgsl', kind: 'generate',
 		paramDefs: [], outputDefs: [{ id: 'color-id', nameForReference: 'color', label: 'Color', dataType: { kind: 'color' } }],
 		primaryInputId: null, primaryOutputId: 'color-id', resolutionInputIds: [],
 		code: 'fn main(position: vec2f) -> Output { var output: Output; output.color = vec4f(1.0, 0.0, 1.0, 1.0); return output; }',
@@ -163,7 +163,7 @@ export async function checkCustomShaderEffects(device: GPUDevice, vertex: GPUSha
 	return output;
 }`,
 	};
-	const effectDefinition = createCustomShaderEffectDefinition(definition, { id: 'test', name: 'Test', description: '' });
+	const effectDefinition = createCustomShaderEffectDefinition(definition, { id: 'test', name: 'Test', summary: '' });
 	const implementation = createCustomShaderEffectImplementation(definition);
 	const resolution = { width: 8, height: 4 };
 	const fallbackTexture = device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING });
@@ -229,7 +229,7 @@ export async function checkCustomShaderEffects(device: GPUDevice, vertex: GPUSha
 	output.color = vec4f(position + vec2f(0.5, 0.25), get_pixel_size(), 1.0);
 	return output;
 }` };
-		const coordinateRenderer = new EffectRenderer({ definition: createCustomShaderEffectDefinition(coordinates, { id: 'coordinates', name: 'Coordinates', description: '' }), implementation: createCustomShaderEffectImplementation(coordinates), resolution, fallbackTexture, staticResources: {}, wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false } });
+		const coordinateRenderer = new EffectRenderer({ definition: createCustomShaderEffectDefinition(coordinates, { id: 'coordinates', name: 'Coordinates', summary: '' }), implementation: createCustomShaderEffectImplementation(coordinates), resolution, fallbackTexture, staticResources: {}, wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false } });
 		try {
 			coordinateRenderer.prepare({}, controller.signal);
 			await coordinateRenderer.waitUntilReady(controller.signal);
@@ -247,7 +247,7 @@ export async function checkCustomShaderEffects(device: GPUDevice, vertex: GPUSha
 			outputDefs: [{ id: 'raw-id', nameForReference: 'raw', label: 'Raw', dataType: { kind: 'any' } }],
 			code: 'fn main(position: vec2f) -> Output { var output: Output; output.raw = read_raw(position); return output; }',
 		};
-		const rawRenderer = new EffectRenderer({ definition: createCustomShaderEffectDefinition(rawDefinition, { id: 'raw', name: 'Raw', description: '' }), implementation: createCustomShaderEffectImplementation(rawDefinition), resolution, fallbackTexture, staticResources: {}, wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false } });
+		const rawRenderer = new EffectRenderer({ definition: createCustomShaderEffectDefinition(rawDefinition, { id: 'raw', name: 'Raw', summary: '' }), implementation: createCustomShaderEffectImplementation(rawDefinition), resolution, fallbackTexture, staticResources: {}, wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false } });
 		try {
 			const rawParams = { 'raw-id': constantShaderInput('any', [0.2, 0.4, 0.6, 0.5]) };
 			rawRenderer.prepare(rawParams, controller.signal);

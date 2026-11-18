@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'imageStack',
 	displayName: 'Image Stack',
-	description: {
+	summary: {
 		'ja-JP': '複数の画像や色を、均等な領域に分けて横または縦に並べます。',
 		'en-US': 'Arranges images or colors horizontally or vertically in equally sized regions.',
 	},

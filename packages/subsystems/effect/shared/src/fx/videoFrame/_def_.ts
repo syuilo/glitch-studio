@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'videoFrame',
 	displayName: 'Video Frame',
-	description: {
+	summary: {
 		'ja-JP': '動画素材から指定した時刻のフレームを取り出します。',
 		'en-US': 'Extracts a frame at the specified time from a video asset.',
 	},

@@ -82,7 +82,7 @@ const context = (defs, params, overrides = {}) => ({
 	customParameterValues: {},
 	nodes: [node(params)],
 	paramDefs: [],
-	effectDefinitions: { test: { id: 'test', displayName: 'Test', description: { 'ja-JP': 'パラメータの評価を検証します。', 'en-US': 'Verifies parameter evaluation.' }, tags: [], paramDefs: defs, primaryInputParameter: null, resolutionInputParameters: [], outputDefs: {}, primaryOutput: null } },
+	effectDefinitions: { test: { id: 'test', displayName: 'Test', summary: { 'ja-JP': 'パラメータの評価を検証します。', 'en-US': 'Verifies parameter evaluation.' }, tags: [], paramDefs: defs, primaryInputParameter: null, resolutionInputParameters: [], outputDefs: {}, primaryOutput: null } },
 	automationGraphs: [],
 	resolution: { width: 640, height: 360 },
 	time: 500,

@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'blockShuffle',
 	displayName: 'Block Shuffle',
-	description: {
+	summary: {
 		'ja-JP': '入力画像をブロックごとにランダムにずらします。',
 		'en-US': 'Randomly shifts blocks of the input image.',
 	},

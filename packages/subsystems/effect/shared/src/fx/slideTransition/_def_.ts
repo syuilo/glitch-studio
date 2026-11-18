@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'slideTransition',
 	displayName: 'Slide Transition',
-	description: {
+	summary: {
 		'ja-JP': '画像Bを滑り込ませる、または画像Aを滑り去らせることで、AからBへ切り替えます。',
 		'en-US': 'Transitions from A to B by sliding B in or sliding A out.',
 	},

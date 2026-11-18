@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'cellSort',
 	displayName: 'Cell Sort',
-	description: {
+	summary: {
 		'ja-JP': '入力画像をセルに分割し、セルの平均色などを基準に画像片を並べ替えます。',
 		'en-US': 'Splits the input into cells and sorts image fragments by their average color or a custom field.',
 	},

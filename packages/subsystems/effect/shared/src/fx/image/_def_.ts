@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'image',
 	displayName: 'Image',
-	description: {
+	summary: {
 		'ja-JP': '読み込んだ画像素材を出力します。',
 		'en-US': 'Outputs an imported image asset.',
 	},

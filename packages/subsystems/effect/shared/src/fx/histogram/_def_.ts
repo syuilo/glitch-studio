@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'histogram',
 	displayName: 'Histogram',
-	description: {
+	summary: {
 		'ja-JP': '入力画像の明るさやRGBの分布をヒストグラムで表示します。',
 		'en-US': 'Displays the luminance or RGB distribution of the input image as a histogram.',
 	},

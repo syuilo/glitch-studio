@@ -4,7 +4,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'gyroidGlow',
 	displayName: 'Gyroid Glow',
-	description: {
+	summary: {
 		'ja-JP': '入り組んだ発光する膜と、その中を移動する光の塊を生成します。',
 		'en-US': 'Generates intricate luminous folds with a glowing orb moving through them.',
 	},

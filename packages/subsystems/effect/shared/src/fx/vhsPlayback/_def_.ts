@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'vhsPlayback',
 	displayName: 'VHS Playback',
-	description: {
+	summary: {
 		'ja-JP': 'VHSの記録信号を変調・復調し、トラッキング不良、テープの欠損、時間軸の乱れを再現します。',
 		'en-US': 'Modulates and demodulates VHS recording signals to simulate tracking errors, tape dropouts, and time-base instability.',
 	},

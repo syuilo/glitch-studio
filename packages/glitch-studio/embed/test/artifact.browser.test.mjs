@@ -70,7 +70,7 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 			iconset: { inputSource: 'visualModulePublicParameterReference', parameterId: 'iconset' } } };
 	await add('symbols', symbolInput);
 	const custom = fixture();
-	custom.customShaderEffects = [{ id: 'shader', name: 'Shader', description: '', shaderApiVersion: 1, codeLanguage: 'wgsl', kind: 'generate', paramDefs: [],
+	custom.customShaderEffects = [{ id: 'shader', name: 'Shader', summary: '', shaderApiVersion: 1, codeLanguage: 'wgsl', kind: 'generate', paramDefs: [],
 		outputDefs: [{ id: 'output', nameForReference: 'color', label: 'Color', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'output', resolutionInputIds: [],
 		code: 'fn main(position: vec2f) -> Output { var output: Output; output.color = vec4f(position.x + 0.5, position.y + 0.5, 0.0, 1.0); return output; }' }];
 	custom.visualModule.nodes[0] = { ...custom.visualModule.nodes[0], effectId: 'customShaderEffect:shader', params: {} };

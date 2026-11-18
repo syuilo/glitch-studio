@@ -37,7 +37,7 @@ const customShaderEffectParameterSchema = z.intersection(parameterDefinitionSche
 })) as z.ZodType<CustomShaderEffectParameterDefinition>;
 
 export const projectCustomShaderEffectDefinitionSchema = z.object({
-	name: z.string(), description: z.string(),
+	name: z.string(), summary: z.string(),
 	shaderApiVersion: z.literal(1), codeLanguage: z.literal('wgsl'),
 	code: z.string().describe('WGSL source. Incomplete source may be saved; compilation is checked by the renderer.'),
 	kind: z.enum(['generate', 'modify']),

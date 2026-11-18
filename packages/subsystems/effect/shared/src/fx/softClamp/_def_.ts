@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'softClamp',
 	displayName: 'Soft Clamp',
-	description: {
+	summary: {
 		'ja-JP': '明度を指定した上下限に収めます。下限・上限それぞれの境界をなだらかにし、対象外の中間調と透明度を維持します。',
 		'en-US': 'Limits lightness to a range with separately softened lower and upper boundaries, preserving unaffected midtones and alpha.',
 	},

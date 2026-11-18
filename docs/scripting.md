@@ -117,9 +117,9 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 | `Query:getTimelineClip(target)` | Clip参照 | Clipの保存内容 |
 | `Query:listAssets()` / `Query:getAsset(target)` | 一覧は引数なし／Asset参照 | 素材の名前・寸法・ファイル種別などのメタデータ。バイナリ・サムネイルは含まない |
 | `Query:listPlayers()` / `Query:getPlayer(target)` | 一覧は引数なし／Player参照 | Playerの保存内容 |
-| `Query:listEffects()` / `Query:getEffect(target)` | 一覧は引数なし／Effect参照 | 一覧の概要、またはパラメータ・静的設定・出力を含むEffect定義 |
+| `Query:listEffects()` / `Query:getEffect(target)` | 一覧は引数なし／Effect参照 | どちらも日英の概要を `summary` で返す。取得ではパラメータ・静的設定・出力も返す |
 | `Query:listProjectAutomationGraphs()` / `Query:getProjectAutomationGraph(target)` | 一覧は引数なし／Automation Graph参照 | ProjectのAutomation Graph |
-| `Query:listCustomShaderEffects()` / `Query:getCustomShaderEffect(target)` | 一覧は引数なし／Custom Shader Effect参照 | 一覧の概要、または保存されたCustom Shader Effect定義 |
+| `Query:listCustomShaderEffects()` / `Query:getCustomShaderEffect(target)` | 一覧は引数なし／Custom Shader Effect参照 | どちらも入力された概要を文字列の `summary` で返す。取得では保存された定義全体を返す |
 
 対象参照の形式は次のとおりです。存在しない対象の取得はエラーになります。
 

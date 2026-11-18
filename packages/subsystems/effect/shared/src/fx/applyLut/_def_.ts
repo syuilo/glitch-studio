@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'applyLut',
 	displayName: 'Apply LUT',
-	description: {
+	summary: {
 		'ja-JP': 'LUTを使って入力画像の色調を変換します。',
 		'en-US': 'Transforms the colors of the input image using a LUT.',
 	},

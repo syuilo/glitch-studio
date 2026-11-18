@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'vectorSmear',
 	displayName: 'Vector Smear',
-	description: {
+	summary: {
 		'ja-JP': 'ベクトル場と強度に沿って画像を片側へ引き伸ばします。',
 		'en-US': 'Smears an image in one direction along a vector field.',
 	},

@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'bloom',
 	displayName: 'Bloom',
-	description: {
+	summary: {
 		'ja-JP': '入力画像の明るい部分をにじませ、光の広がりを加えます。',
 		'en-US': 'Spreads light from bright areas of the input image to create a glow.',
 	},

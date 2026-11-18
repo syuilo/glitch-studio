@@ -4,7 +4,7 @@ import { MIN_ANGULAR_BLUR_SAMPLES, MAX_ANGULAR_BLUR_SAMPLES } from './sampling.t
 export default defineEffect({
 	id: 'angularBlur',
 	displayName: 'Angular Blur',
-	description: {
+	summary: {
 		'ja-JP': '中心の周りの円弧に沿って画像をぼかします。中心の保護、色分散、軌跡の偏り、ハイライトの強調を調整できます。',
 		'en-US': 'Blurs the image along arcs around a center, with a protected focus zone, spectral dispersion, directional bias, and highlight emphasis.',
 	},

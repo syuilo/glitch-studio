@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'lightTracing2d',
 	displayName: '2D Light Tracing',
-	description: {
+	summary: {
 		'ja-JP': '入力画像の不透明部分を光源・遮蔽物として、2Dの光の広がりと影を描画します。',
 		'en-US': 'Draws 2D light and shadows using opaque parts of the input image as emitters and occluders.',
 	},

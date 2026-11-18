@@ -4,7 +4,7 @@ import { cellSubdivisionParameterDefinitions } from '../../cell-subdivision.ts';
 export default defineEffect({
 	id: 'cellRepeater',
 	displayName: 'Cell Repeater',
-	description: {
+	summary: {
 		'ja-JP': '画像や色を格子状に繰り返し配置し、タイル状の模様を作ります。',
 		'en-US': 'Repeats images or colors in a grid to create tiled patterns.',
 	},

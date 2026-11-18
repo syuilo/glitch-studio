@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'paletteMatch',
 	displayName: 'Palette Match',
-	description: {
+	summary: {
 		'ja-JP': '主入力の形状と透明度を保ちながら、Oklabの平均色・共分散を副入力へ近づけて配色を移します。',
 		'en-US': 'Transfers the reference palette by matching Oklab means and covariances while preserving input geometry and alpha.',
 	},

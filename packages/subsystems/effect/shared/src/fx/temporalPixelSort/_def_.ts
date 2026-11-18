@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'temporalPixelSort',
 	displayName: 'Temporal Pixel Sort',
-	description: {
+	summary: {
 		'ja-JP': '現在と過去の画素を明るさなどで並べ替え、時間をまたいだ色の再配置を行います。',
 		'en-US': 'Sorts current and historical pixels by brightness or other properties to rearrange colors across time.',
 	},

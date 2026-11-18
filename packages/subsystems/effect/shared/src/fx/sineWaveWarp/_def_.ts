@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'sineWaveWarp',
 	displayName: 'Sine Wave Warp',
-	description: {
+	summary: {
 		'ja-JP': '正弦波に沿って入力画像を任意の方向に歪め、変位に応じた色収差を加えます。',
 		'en-US': 'Warps the input image along a sine wave in any direction, with optional chromatic aberration proportional to the displacement.',
 	},

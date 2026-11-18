@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'birefringence',
 	displayName: 'Birefringence',
-	description: {
+	summary: {
 		'ja-JP': '厚み・複屈折量・速軸の向きから、2枚の偏光板越しに見える干渉色を生成します。',
 		'en-US': 'Generates interference colors between two polarizers from thickness, birefringence, and fast-axis orientation.',
 	},

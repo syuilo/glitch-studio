@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'heightCaustics',
 	displayName: 'Height Caustics',
-	description: {
+	summary: {
 		'ja-JP': '高さ場で屈折した平行光を受光面へ集め、コースティクスの画像と照度を生成します。',
 		'en-US': 'Refracts parallel light through a height field to generate caustic images and irradiance on a receiving plane.',
 	},

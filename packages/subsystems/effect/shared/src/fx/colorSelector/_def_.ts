@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'colorSelector',
 	displayName: 'Selector (Color)',
-	description: {
+	summary: {
 		'ja-JP': '複数の画像や色を切り替えたり、なめらかに混ぜ合わせたりします。',
 		'en-US': 'Switches or smoothly blends between multiple images or colors.',
 	},

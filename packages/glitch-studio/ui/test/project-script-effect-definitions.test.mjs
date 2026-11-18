@@ -42,8 +42,9 @@ test('queries every built-in Effect definition without rejecting or dropping its
 	const query = createProjectScriptQueries({});
 	const summaries = query['Query:listEffects']();
 	assert.deepEqual(summaries.map(summary => summary.target.effectId), effectNames);
-	for (const { target } of summaries) {
+	for (const { target, summary } of summaries) {
 		const expected = effectDefinitions[target.effectId];
+		assert.deepEqual(summary, expected.summary, target.effectId);
 		const result = query['Query:getEffect'](target);
 		assert.deepEqual(result, { target, ...expected }, target.effectId);
 		assert.notEqual(result.paramDefs, expected.paramDefs, target.effectId);

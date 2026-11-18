@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'pixelateTransition',
 	displayName: 'Pixelate Transition',
-	description: {
+	summary: {
 		'ja-JP': '画像Aを粗いモザイクに変え、画像Bへ切り替えてから細部を戻します。',
 		'en-US': 'Pixelates image A, transitions to image B, then restores fine detail.',
 	},

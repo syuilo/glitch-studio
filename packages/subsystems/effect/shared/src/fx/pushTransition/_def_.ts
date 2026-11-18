@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'pushTransition',
 	displayName: 'Push Transition',
-	description: {
+	summary: {
 		'ja-JP': '画像Bが画像Aを押し出すように、2つの画像を同じ方向へ移動して切り替えます。',
 		'en-US': 'Moves both images in the same direction as image B pushes image A out of view.',
 	},

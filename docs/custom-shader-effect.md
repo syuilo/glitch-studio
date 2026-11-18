@@ -68,7 +68,7 @@ WGSLの構文・型検査はWebGPUコンパイラに任せます。ユーザー�
 ## 責務
 
 - Effect Sharedの`CustomShaderEffectDefinition`が、プロジェクトから独立したコード・入出力・実行契約を所有します。
-- Glitch Studio Sharedの`ProjectCustomShaderEffect`が登録ID・名前・説明を加えます。
+- Glitch Studio Sharedの`ProjectCustomShaderEffect`が登録ID・名前・概要（`summary`）を加えます。
 - UIのProjectContextが定義一覧と保存を所有し、専用Commandが更新・履歴・変更通知を担当します。
 - Effect RendererがWGSL生成・コンパイル・複数出力の描画を所有します。Nodeの配線・Timelineの時計・Projectは知りません。
 

@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'rasterDesync',
 	displayName: 'Raster Desync',
-	description: {
+	summary: {
 		'ja-JP': '画像の読み取りの同期が乱れたような、行のずれや画像の崩れを加えます。',
 		'en-US': 'Creates shifted rows and scrambled imagery resembling a loss of raster synchronization.',
 	},

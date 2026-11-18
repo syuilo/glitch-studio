@@ -4,7 +4,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'nebula',
 	displayName: 'Nebula',
-	description: {
+	summary: {
 		'ja-JP': '立体的な雲の密度に沿って発光と吸収を計算し、流れる星雲を生成します。',
 		'en-US': 'Generates a flowing nebula by integrating emission and absorption through a three-dimensional cloud.',
 	},

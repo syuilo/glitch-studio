@@ -5,7 +5,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'water',
 	displayName: 'Water',
-	description: {
+	summary: {
 		'ja-JP': '入力画像に、水面越しに見たような揺らぎや光の模様を加えます。',
 		'en-US': 'Adds ripples and light patterns to the input image as if viewed through water.',
 	},

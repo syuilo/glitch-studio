@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'pixelSort',
 	displayName: 'Pixel Sort',
-	description: {
+	summary: {
 		'ja-JP': '指定した輝度範囲内の画素を並べ替え、色が流れるような模様を作ります。',
 		'en-US': 'Sorts pixels within a luminance range to create streaks of color.',
 	},

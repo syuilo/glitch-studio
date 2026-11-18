@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'rgbOffset',
 	displayName: 'RGB Offset',
-	description: {
+	summary: {
 		'ja-JP': 'sRGBのRGB各成分へ同じ値を加算します。HDR・負値を保持します。',
 		'en-US': 'Adds the same offset to each sRGB channel while preserving HDR and negative values.',
 	},

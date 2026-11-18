@@ -4,7 +4,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'vectorFieldVisualization',
 	displayName: 'Vector Field Visualization',
-	description: {
+	summary: {
 		'ja-JP': 'ベクトル場の向きと大きさを矢印や色で可視化します。',
 		'en-US': 'Visualizes the direction and magnitude of a vector field with arrows and colors.',
 	},

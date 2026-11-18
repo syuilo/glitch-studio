@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'thinFilmInterference',
 	displayName: 'Thin Film Interference',
-	description: {
+	summary: {
 		'ja-JP': '薄膜の干渉による反射色や透過色を生成し、シャボン玉のような虹色を作ります。',
 		'en-US': 'Generates thin-film reflection or transmission colors to create soap-bubble-like iridescence.',
 	},

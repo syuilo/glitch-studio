@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'grayscale',
 	displayName: 'Grayscale',
-	description: {
+	summary: {
 		'ja-JP': '入力画像をグレースケールに変換します。',
 		'en-US': 'Converts the input image to grayscale.',
 	},

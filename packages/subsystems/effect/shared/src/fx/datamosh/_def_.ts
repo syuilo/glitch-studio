@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'datamosh',
 	displayName: 'Datamoshing',
-	description: {
+	summary: {
 		'ja-JP': 'ブロックごとの動きで過去の映像を変形し、Datamoshingのような色の引きずりや映像の残留を作ります。',
 		'en-US': 'Warps accumulated frames with block motion to create datamoshing trails and persistent imagery.',
 	},

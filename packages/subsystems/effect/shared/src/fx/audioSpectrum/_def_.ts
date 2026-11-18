@@ -4,7 +4,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'audioSpectrum',
 	displayName: 'Audio Spectrum',
-	description: {
+	summary: {
 		'ja-JP': '入力音声を周波数ごとの強さで表示します。',
 		'en-US': 'Visualizes input audio as a frequency spectrum.',
 	},

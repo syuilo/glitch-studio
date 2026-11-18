@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'zoomTransition',
 	displayName: 'Zoom Transition',
-	description: {
+	summary: {
 		'ja-JP': '同じ中心へズームインまたはズームアウトしながら、画像Aから画像Bへ切り替えます。',
 		'en-US': 'Transitions from image A to image B while zooming in or out around a shared center.',
 	},

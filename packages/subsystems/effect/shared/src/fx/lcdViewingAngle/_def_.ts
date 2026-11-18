@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'lcdViewingAngle',
 	displayName: 'LCD Viewing Angle',
-	description: {
+	summary: {
 		'ja-JP': '液晶画面を斜めから見たような、視線方向に応じた色・階調の変化や階調反転を加えます。',
 		'en-US': 'Simulates viewing-angle-dependent color shifts, contrast loss, and grayscale inversion on an LCD screen.',
 	},

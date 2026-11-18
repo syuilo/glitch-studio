@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'testStructArray',
 	displayName: 'Test of Struct and Array',
-	description: {
+	summary: {
 		'ja-JP': '構造体・配列パラメータの受け渡しを確認する、開発用のエフェクトです。',
 		'en-US': 'A development effect for checking how struct and array parameters are passed.',
 	},

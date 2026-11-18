@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'blur',
 	displayName: 'Blur',
-	description: {
+	summary: {
 		'ja-JP': '入力画像をぼかします。',
 		'en-US': 'Blurs the input image.',
 	},

@@ -25,7 +25,7 @@ export function createProjectCustomShaderEffect(definitions: readonly ProjectCus
 	return {
 		id: genId(),
 		name,
-		description: '',
+		summary: '',
 		shaderApiVersion: 1,
 		kind: 'modify',
 		codeLanguage: 'wgsl',

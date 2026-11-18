@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'vectorDotProduct',
 	displayName: 'Vector Dot Product',
-	description: {
+	summary: {
 		'ja-JP': '2つのベクトル場の内積を計算し、スカラー場として出力します。',
 		'en-US': 'Computes the dot product of two vector fields and outputs a scalar field.',
 	},

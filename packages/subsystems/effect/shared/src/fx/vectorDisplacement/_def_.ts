@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'vectorDisplacement',
 	displayName: 'Vector Displacement',
-	description: {
+	summary: {
 		'ja-JP': '入力したベクトル場に沿って画像を変形します。',
 		'en-US': 'Warps the input image using a vector field.',
 	},

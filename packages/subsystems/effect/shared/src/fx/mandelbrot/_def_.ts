@@ -7,7 +7,7 @@ export { MANDELBROT_SPAN_AT_ZOOM_ONE, MANDELBROT_MINIMUM_ZOOM } from './mandelbr
 export default defineEffect({
 	id: 'mandelbrot',
 	displayName: 'Mandelbrot',
-	description: {
+	summary: {
 		'ja-JP': 'マンデルブロ集合のフラクタル模様を生成します。',
 		'en-US': 'Generates fractal patterns of the Mandelbrot set.',
 	},

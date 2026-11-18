@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'adaptiveBlockGlitch',
 	displayName: 'Adaptive Block Glitch',
-	description: {
+	summary: {
 		'ja-JP': '入力の色・透明度の変化に応じて大小のブロックに分割し、位置ずれや色の破損を加えます。',
 		'en-US': 'Divides the input into blocks sized according to color and opacity variation, then applies displacement and color corruption.',
 	},

@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'positionTrail',
 	displayName: 'Position Trail',
-	description: {
+	summary: {
 		'ja-JP': '位置の移動から、時間とともに薄れる動きのベクトル場と軌跡のスカラー場を生成します。',
 		'en-US': 'Generates a motion vector field and a scalar trail from position changes, both fading over time.',
 	},

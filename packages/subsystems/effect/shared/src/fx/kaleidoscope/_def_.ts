@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'kaleidoscope',
 	displayName: 'Kaleidoscope',
-	description: {
+	summary: {
 		'ja-JP': '入力画像を円周方向に繰り返し、万華鏡のような模様を作ります。',
 		'en-US': 'Repeats the input image around a center to create a kaleidoscope pattern.',
 	},

@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'glass',
 	displayName: 'Glass',
-	description: {
+	summary: {
 		'ja-JP': '符号付き距離場の形に沿って、入力画像にガラスのような屈折・ぼかし・色収差・ハイライトを加えます。',
 		'en-US': 'Adds glass-like refraction, blur, chromatic aberration, and highlights to an image using a signed distance field as the shape.',
 	},

@@ -5,7 +5,7 @@ import { MAX_POINT_COUNT, MAX_NEIGHBOR_COUNT } from './constants.ts';
 export default defineEffect({
 	id: 'pointNetwork3d',
 	displayName: 'Point Network 3D',
-	description: {
+	summary: {
 		'ja-JP': '3D空間を漂う点を近接距離で結び、点・線・三角形のネットワークを描画します。',
 		'en-US': 'Draws drifting 3D points connected by proximity with lines and triangular faces.',
 	},

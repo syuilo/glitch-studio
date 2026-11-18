@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'luminanceGradient',
 	displayName: 'Luminance Gradient',
-	description: {
+	summary: {
 		'ja-JP': '画像の輝度をぼかし、明るくなる方向と変化の急さをベクトル場として出力します。',
 		'en-US': 'Smooths image luminance and outputs its direction and rate of increase as a vector field.',
 	},

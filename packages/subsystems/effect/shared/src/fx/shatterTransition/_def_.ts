@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'shatterTransition',
 	displayName: 'Shatter Transition',
-	description: {
+	summary: {
 		'ja-JP': '画像Aを不規則な三角形の破片に分け、3D空間で飛散・回転させて画像Bへ切り替えます。',
 		'en-US': 'Breaks image A into irregular triangular shards that scatter and rotate in 3D, revealing image B.',
 	},

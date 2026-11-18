@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'multiscaleGlitch',
 	displayName: 'Multiscale Glitch',
-	description: {
+	summary: {
 		'ja-JP': '画像の細部・中間の模様・大きな形をそれぞれずらしたり変色させたりし、大小のグリッチを重ねます。',
 		'en-US': 'Displaces and recolors fine details, medium structures, and coarse shapes to layer glitches at different scales.',
 	},

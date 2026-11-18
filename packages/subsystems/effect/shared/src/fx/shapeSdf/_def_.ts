@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'shapeSdf',
 	displayName: 'Shape SDF',
-	description: {
+	summary: {
 		'ja-JP': '楕円や角丸矩形の符号付き距離場を生成します。',
 		'en-US': 'Generates a signed distance field for an ellipse or rounded rectangle.',
 	},

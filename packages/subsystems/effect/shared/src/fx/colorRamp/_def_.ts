@@ -4,7 +4,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'colorRamp',
 	displayName: 'Color Ramp',
-	description: {
+	summary: {
 		'ja-JP': 'スカラー値をグラデーションに沿った色に変換します。',
 		'en-US': 'Maps scalar values to colors along a gradient.',
 	},

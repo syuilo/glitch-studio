@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'sdfBoolean',
 	displayName: 'SDF Boolean',
-	description: {
+	summary: {
 		'ja-JP': '符号付き距離場の形状を結合したり、重なりを取り出したり、くり抜いたりします。接合部をなめらかに繋ぐこともできます。',
 		'en-US': 'Combines, intersects, or subtracts shapes defined by signed distance fields, with smooth blending at the junctions.',
 	},

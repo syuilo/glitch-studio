@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'frequencyTransplant',
 	displayName: 'Frequency Transplant',
-	description: {
+	summary: {
 		'ja-JP': '別の画像の模様や細部を取り込み、元画像の形と組み合わせます。',
 		'en-US': 'Combines the original image structure with textures or details from another image.',
 	},

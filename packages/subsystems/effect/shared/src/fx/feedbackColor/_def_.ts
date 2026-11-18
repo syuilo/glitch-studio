@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'feedbackColor',
 	displayName: 'Feedback (Color)',
-	description: {
+	summary: {
 		'ja-JP': '入力画像の色を時間とともに蓄積・減衰させ、残像やなめらかな色の変化を作ります。',
 		'en-US': 'Accumulates and fades image colors over time to create trails and smooth color transitions.',
 	},

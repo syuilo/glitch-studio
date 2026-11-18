@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'composeVectorPolar',
 	displayName: 'Compose Vector (Polar)',
-	description: {
+	summary: {
 		'ja-JP': '角度と長さから2次元ベクトルを作ります。',
 		'en-US': 'Creates a two-dimensional vector from angle and length.',
 	},

@@ -76,7 +76,7 @@ export type EffectDefinition<In extends Record<string, ParameterDefinition> = Re
 	id: string;
 	displayName: string;
 	// 説明の翻訳漏れを定義時に検出できるよう、日本語・英語の両方を必須にする。
-	description: Record<'ja-JP' | 'en-US', string>;
+	summary: Record<'ja-JP' | 'en-US', string>;
 	// レイヤー作成時の主入力と合成方法を決める。入力の有無からは推測しない。
 	kind: 'modify' | 'generate';
 	/**

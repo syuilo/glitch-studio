@@ -6,7 +6,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'neuroNoise',
 	displayName: 'Neuro Noise',
-	description: {
+	summary: {
 		'ja-JP': '神経網のように入り組んだノイズ模様を生成します。',
 		'en-US': 'Generates intricate noise patterns resembling a network of neurons.',
 	},

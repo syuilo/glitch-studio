@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'feedback',
 	displayName: 'Feedback',
-	description: {
+	summary: {
 		'ja-JP': '入力データを時間とともに蓄積・減衰させたり、変化をなめらかにしたりします。',
 		'en-US': 'Accumulates and fades input data over time or smooths its changes.',
 	},

@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'burnTransition',
 	displayName: 'Burn Transition',
-	description: {
+	summary: {
 		'ja-JP': 'スカラー場に沿って画像Aを侵食し、残る境界を発光させながら画像Bへ切り替えます。',
 		'en-US': 'Erodes image A according to a scalar map, revealing image B with a glowing remaining edge.',
 	},

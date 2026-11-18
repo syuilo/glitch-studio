@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'phaseTransfer',
 	displayName: 'Phase Transfer',
-	description: {
+	summary: {
 		'ja-JP': '主入力の周波数振幅を保ちながら副入力の位相を移植し、画像の構造を組み合わせます。画面全体・ブロック単位の処理に対応します。',
 		'en-US': 'Transfers reference phases while retaining input spectral magnitudes, globally or in overlapping blocks.',
 	},

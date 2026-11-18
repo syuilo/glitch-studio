@@ -549,6 +549,7 @@ test('persists Custom Shader Effect definitions through project snapshots and fi
 	assert.deepEqual(manager.state.customShaderEffects.value, []);
 	const customShaderEffect = app.createProjectCustomShaderEffect([]);
 	customShaderEffect.code = 'unfinished WGSL';
+	customShaderEffect.summary = 'A shader with an unfinished draft.';
 	customShaderEffect.outputDefs.push({ id: 'mask', nameForReference: 'mask', label: 'Mask', dataType: { kind: 'scalar' } });
 	manager.commit('insertCustomShaderEffect', { definition: customShaderEffect });
 	const snapshot = context.snapshot();

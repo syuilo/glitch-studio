@@ -6,7 +6,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'liquidMetal',
 	displayName: 'Liquid Metal',
-	description: {
+	summary: {
 		'ja-JP': '入力画像を流れる金属のような光沢と模様で表現します。',
 		'en-US': 'Gives the input image the sheen and flowing patterns of liquid metal.',
 	},

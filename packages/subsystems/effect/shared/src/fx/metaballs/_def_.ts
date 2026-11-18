@@ -5,7 +5,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'metaballs',
 	displayName: 'Metaballs',
-	description: {
+	summary: {
 		'ja-JP': '互いに溶け合うように繋がる、色付きの丸い模様を生成します。',
 		'en-US': 'Generates colored blobs that smoothly merge into one another.',
 	},

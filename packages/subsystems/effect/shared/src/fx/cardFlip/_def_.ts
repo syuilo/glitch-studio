@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'cardFlip',
 	displayName: 'Card Flip',
-	description: {
+	summary: {
 		'ja-JP': '中央を軸にカードを180度回転させ、表の画像Aから裏の画像Bへ切り替えます。',
 		'en-US': 'Rotates a card 180 degrees around its center, switching from image A on the front to image B on the back.',
 	},

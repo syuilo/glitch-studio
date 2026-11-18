@@ -3,7 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'colorClamp',
 	displayName: 'Color Clamp',
-	description: {
+	summary: {
 		'ja-JP': '入力画像のRGB成分の範囲を制限し、色や明るさを抑えます。',
 		'en-US': 'Limits the range of RGB channels to constrain colors and brightness in the input image.',
 	},
