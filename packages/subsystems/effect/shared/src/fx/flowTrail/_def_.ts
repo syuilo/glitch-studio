@@ -1,6 +1,7 @@
 import { defineEffect } from '../../effect-definition.ts';
 
-const halfLifeAt60Fps = (retention: number) => -Math.LN2 / Math.log(retention) * 1000 / 60;
+export const referenceSimulationRate = 60;
+const halfLifeAtReferenceRate = (retention: number) => -Math.LN2 / Math.log(retention) * 1000 / referenceSimulationRate;
 
 export default defineEffect({
 	id: 'flowTrail',
@@ -38,22 +39,22 @@ export default defineEffect({
 		inputHalfLife: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Pointer Momentum Half-Life (ms)', control: { controlType: 'range', min: 0, max: 1000, step: 1 } },
-			defaultValue: { inputSource: 'literal', value: halfLifeAt60Fps(0.8) },
+			defaultValue: { inputSource: 'literal', value: halfLifeAtReferenceRate(0.8) },
 		},
 		velocityHalfLife: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Motion Half-Life (ms)', control: { controlType: 'range', min: 0, max: 5000, step: 1 } },
-			defaultValue: { inputSource: 'literal', value: halfLifeAt60Fps(0.975) },
+			defaultValue: { inputSource: 'literal', value: halfLifeAtReferenceRate(0.975) },
 		},
 		halfLife: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Slow Trail Half-Life (ms)', control: { controlType: 'range', min: 0, max: 5000, step: 1 } },
-			defaultValue: { inputSource: 'literal', value: halfLifeAt60Fps(0.95) },
+			defaultValue: { inputSource: 'literal', value: halfLifeAtReferenceRate(0.95) },
 		},
 		fastHalfLife: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Fast Trail Half-Life (ms)', control: { controlType: 'range', min: 0, max: 5000, step: 1 } },
-			defaultValue: { inputSource: 'literal', value: halfLifeAt60Fps(0.8) },
+			defaultValue: { inputSource: 'literal', value: halfLifeAtReferenceRate(0.8) },
 		},
 		advectionStrength: {
 			dataType: { kind: 'scalar' },
@@ -77,6 +78,11 @@ export default defineEffect({
 		},
 		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: { inputSource: 'literal', value: 0 } },
 		reset: { dataType: { kind: 'bool' }, ui: { label: 'Reset', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		simulationRate: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Simulation Rate (Hz)', isAdvanced: true, control: { controlType: 'number' } },
+			defaultValue: { inputSource: 'literal', value: referenceSimulationRate },
+		},
 		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
 	},
 	primaryInputParameter: null,

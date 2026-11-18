@@ -2,8 +2,9 @@ struct Uniforms {
 	halfExtent: vec2f,
 	drawFrom: vec4f,
 	drawTo: vec4f,
-	injection: vec2f,
-	dissipation: vec3f,
+	flowInjection: vec2f,
+	trailInjectionScale: vec2f,
+	decayLoss: vec3f,
 	minimumChange: f32,
 	advectionSeconds: f32,
 	advectionStrength: f32,
@@ -58,16 +59,16 @@ fn advance(@location(0) coordinate: vec2f) -> @location(0) vec4f {
 	let position = coordinate * uniforms.halfExtent;
 	let uv = coordinate * vec2f(0.5, -0.5) + 0.5;
 	let low = textureSampleLevel(lowTexture, stateSampler, uv, 0.0);
-	var velocity = (low.xy - 0.5) * VELOCITY_TO_WORLD * uniforms.advectionStrength;
+	var velocity = low.xy * VELOCITY_TO_WORLD * uniforms.advectionStrength;
 	if (uniforms.noiseStrength > 0.0) {
 		// 場に依存する二段ノイズ。静的curlへ置き換えると軌跡の崩れ方が変わる。
+		let encodedFlow = low.xy + 0.5;
 		let noisePosition = (position + uniforms.halfExtent) / uniforms.noiseSize + uniforms.seedOffset;
-		let first = gradientNoise(noisePosition * (1.0 - low.xy));
-		let noise = gradientNoise(noisePosition * (2.0 - low.xy * (0.5 + first.x) + first.yz * 0.1)).yz;
+		let first = gradientNoise(noisePosition * (1.0 - encodedFlow));
+		let noise = gradientNoise(noisePosition * (2.0 - encodedFlow * (0.5 + first.x) + first.yz * 0.1)).yz;
 		velocity -= noise * (low.z + low.w) * uniforms.noiseStrength;
 	}
-	var previous = sampleState(position - velocity * uniforms.advectionSeconds);
-	previous = vec4f(previous.xy - 0.5, previous.zw);
+	let previous = sampleState(position - velocity * uniforms.advectionSeconds);
 	let movement = uniforms.drawTo.xy - uniforms.drawFrom.xy;
 	let squaredDistance = dot(movement, movement);
 	var brush = 0.0;
@@ -81,12 +82,12 @@ fn advance(@location(0) coordinate: vec2f) -> @location(0) vec4f {
 			strength = radiusStrength.y;
 		}
 	}
-	var change = (uniforms.dissipation.xxyz - 1.0) * previous
-		+ vec4f(uniforms.injection * brush, vec2f(strength * brush));
-	// UNORM8への丸めで弱い軌跡が永久に残らないよう、元の最小変化量も保つ。
+	var change = -uniforms.decayLoss.xxyz * previous
+		+ vec4f(uniforms.flowInjection * brush, uniforms.trailInjectionScale * (strength * brush));
+	// 弱い軌跡も有限の時間で消えるよう、経過時間で換算した最小変化量を適用する。
 	change = vec4f(change.xy, sign(change.zw) * max(vec2f(uniforms.minimumChange), abs(change.zw)));
 	let next = previous + change;
-	return clamp(vec4f(next.xy + 0.5, next.zw), vec4f(0.0), vec4f(1.0));
+	return vec4f(clamp(next.xy, vec2f(-0.5), vec2f(0.5)), clamp(next.zw, vec2f(0.0), vec2f(1.0)));
 }
 
 @fragment
@@ -121,5 +122,5 @@ struct Outputs {
 @fragment
 fn output(@location(0) coordinate: vec2f) -> Outputs {
 	let state = sampleState(coordinate * uniforms.halfExtent);
-	return Outputs((state.xy - 0.5) * VELOCITY_TO_WORLD, (state.z + state.w) * 0.5);
+	return Outputs(state.xy * VELOCITY_TO_WORLD, (state.z + state.w) * 0.5);
 }

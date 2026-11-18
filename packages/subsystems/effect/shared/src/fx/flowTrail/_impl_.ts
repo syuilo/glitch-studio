@@ -3,11 +3,22 @@ import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import code, { uniforms as codeUniforms } from './shader.wgsl?shader';
-import type definition from './_def_.ts';
+import { type default as definition, referenceSimulationRate } from './_def_.ts';
 
 const simulationLongSide = 480;
-const stepSeconds = 1 / 60;
+const referenceStepSeconds = 1 / referenceSimulationRate;
 const maximumSteps = 64;
+const stateFormat: GPUTextureFormat = 'rgba16float';
+
+function decayLoss(halfLifeMs: number, durationSeconds: number): number {
+	return halfLifeMs > 0 ? -Math.expm1(-Math.LN2 * durationSeconds * 1000 / halfLifeMs) : 1;
+}
+
+// 一定の入力に対して、60Hzでの1回分の加算と同じ平衡値へ収束するように換算する。
+// 経過時間だけで加算を比例配分すると、同時に減衰する量がステップ幅に応じて変わる。
+function sourceScale(halfLifeMs: number, stepSeconds: number): number {
+	return decayLoss(halfLifeMs, stepSeconds) / decayLoss(halfLifeMs, referenceStepSeconds);
+}
 
 export default implementEffect<typeof definition>({
 	disableCache: true,
@@ -25,10 +36,10 @@ export default implementEffect<typeof definition>({
 		const scale = simulationLongSide / Math.max(resolution.width, resolution.height);
 		const simulationSize = { width: Math.max(2, Math.round(resolution.width * scale)), height: Math.max(2, Math.round(resolution.height * scale)) };
 		const lowSize = { width: Math.max(1, Math.floor(simulationSize.width / 2)), height: Math.max(1, Math.floor(simulationSize.height / 2)) };
-		// このUNORM8は色の作業精度ではなく、飽和と最小減衰を含む状態更新の仕様。
-		// 公開するベクトル・スカラーは通常の16/32bitデータ形式へ復号する。
+		// 高いレートで微小な注入や減衰がUNORM8の丸めで消えないよう、符号付きの流れを直接保持する。
+		// 値の飽和範囲と軌跡の最小変化量はシェーダーで扱う。
 		const createState = (size: { width: number; height: number }) => device.createTexture({
-			size, format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+			size, format: stateFormat, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		});
 		const states = [createState(simulationSize), createState(simulationSize)];
 		const lowState = createState(lowSize);
@@ -59,7 +70,7 @@ export default implementEffect<typeof definition>({
 		const verticalGroup = createGroup(blurView, blurView);
 		const shaderModule = device.createShaderModule({ code });
 		const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [layout] });
-		const createPipeline = (entryPoint: string, targets: GPUColorTargetState[] = [{ format: 'rgba8unorm' }]) => device.createRenderPipeline({
+		const createPipeline = (entryPoint: string, targets: GPUColorTargetState[] = [{ format: stateFormat }]) => device.createRenderPipeline({
 			layout: pipelineLayout, vertex: { module: defaultVertexShaderModule },
 			fragment: { module: shaderModule, entryPoint, targets }, primitive: { topology: 'triangle-list' },
 		});
@@ -82,6 +93,10 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				const params = ctx.params;
+				const stepSeconds = 1 / params.simulationRate;
+				if (params.simulationRate <= 0 || !Number.isFinite(Math.fround(params.simulationRate)) || !Number.isFinite(Math.fround(stepSeconds))) {
+					throw new Error('Flow Trail Simulation Rate must be a positive, finite rate in Hz.');
+				}
 				const numericParameters = [
 					...params.position, params.strength, params.radius, params.fullRadiusSpeed, params.inputHalfLife,
 					params.velocityHalfLife, params.halfLife, params.fastHalfLife, params.advectionStrength,
@@ -95,7 +110,7 @@ export default implementEffect<typeof definition>({
 				if (reset) {
 					for (const view of [...stateViews, lowView, blurView]) {
 						ctx.createPassEncoder(ctx.commandEncoder, { colorAttachments: [{
-							view, loadOp: 'clear', storeOp: 'store', clearValue: { r: 0.5, g: 0.5, b: 0, a: 0 },
+							view, loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 0 },
 						}] }).end();
 					}
 					previousInput = null;
@@ -115,17 +130,21 @@ export default implementEffect<typeof definition>({
 				}
 				const from = previousInput;
 				const elapsed = pendingSeconds + seconds;
-				const tickCount = Math.floor((elapsed + 1e-9) / stepSeconds);
+				const tickCount = seconds > 0 ? Math.floor(elapsed * params.simulationRate + 1e-9) : 0;
 				const stepCount = Math.min(maximumSteps, tickCount);
-				const tailTicks = Math.max(0, tickCount - stepCount);
+				const tailSeconds = (tickCount - stepCount) * stepSeconds;
 				const referenceScale = getSizeReferenceLength(params.sizeReference, resolution) / Math.max(resolution.width, resolution.height);
-				const decay = (halfLife: number, ticks = 1) => halfLife > 0 ? Math.exp(-Math.LN2 * stepSeconds * ticks * 1000 / halfLife) : 0;
+				const momentumRetention = 1 - decayLoss(params.inputHalfLife, stepSeconds);
+				const momentumGain = simulationLongSide * referenceStepSeconds ** 2 * 0.8 * sourceScale(params.inputHalfLife, stepSeconds) * params.strength;
+				const flowInjectionScale = sourceScale(params.velocityHalfLife, stepSeconds);
+				const trailInjectionScale = [sourceScale(params.halfLife, stepSeconds), sourceScale(params.fastHalfLife, stepSeconds)];
 				const seed = Math.trunc(params.seed) >>> 0;
-				const writeUniforms = (index: number, drawFrom: readonly number[], drawTo: readonly number[], injection: readonly number[], ticks = 1, transport = true) => {
+				const writeUniforms = (index: number, drawFrom: readonly number[], drawTo: readonly number[], injection: readonly number[], durationSeconds = stepSeconds, transport = true) => {
 					uniformValues.set({
-						halfExtent: getSpatialHalfExtent(resolution), drawFrom, drawTo, injection,
-						dissipation: [decay(params.velocityHalfLife, ticks), decay(params.halfLife, ticks), decay(params.fastHalfLife, ticks)],
-						minimumChange: 0.004 * ticks, advectionSeconds: transport ? stepSeconds : 0,
+						halfExtent: getSpatialHalfExtent(resolution), drawFrom, drawTo, trailInjectionScale,
+						flowInjection: [injection[0] * flowInjectionScale, injection[1] * flowInjectionScale],
+						decayLoss: [decayLoss(params.velocityHalfLife, durationSeconds), decayLoss(params.halfLife, durationSeconds), decayLoss(params.fastHalfLife, durationSeconds)],
+						minimumChange: 0.004 * (durationSeconds / referenceStepSeconds), advectionSeconds: transport ? durationSeconds : 0,
 						advectionStrength: Math.max(0, params.advectionStrength),
 						noiseStrength: Math.max(0, params.noiseStrength), noiseSize: Math.max(0.0001, params.noiseSize * referenceScale),
 						smoothing: Math.max(0, params.smoothing * referenceScale),
@@ -134,30 +153,36 @@ export default implementEffect<typeof definition>({
 					uniformData.set(new Uint8Array(uniformValues.arrayBuffer), index * uniformStride);
 				};
 				for (let step = 0; step < stepCount; step++) {
-					const ratio = seconds > 0 ? Math.min(1, (stepSeconds * (step + 1) - pendingSeconds) / seconds) : 1;
+					// レートを上げて新しい刻み幅が繰り越し時間より短くなった場合、過去側の位置には直近の入力を使う。
+					const ratio = Math.max(0, Math.min(1, (stepSeconds * (step + 1) - pendingSeconds) / seconds));
 					const next: readonly [number, number] = [from[0] + (position[0] - from[0]) * ratio, from[1] + (position[1] - from[1]) * ratio];
 					const movement = [next[0] - previousStep[0], next[1] - previousStep[1]];
-					const speed = Math.hypot(...movement) / stepSeconds;
+					const strokeLength = Math.hypot(...movement);
+					const speed = strokeLength / stepSeconds;
 					const radius = canEmit ? Math.max(0, params.radius) * referenceScale * Math.min(1, speed / Math.max(0.000001, params.fullRadiusSpeed)) : 0;
-					// 元のu_vel = u_vel * .8 + deltaPixels * dt * .8。位置だけ共通単位へ換算する。
 					momentum = canEmit ? [
-						momentum[0] * decay(params.inputHalfLife) + movement[0] * simulationLongSide * stepSeconds * 0.8 * params.strength,
-						momentum[1] * decay(params.inputHalfLife) + movement[1] * simulationLongSide * stepSeconds * 0.8 * params.strength,
+						momentum[0] * momentumRetention + (movement[0] / stepSeconds) * momentumGain,
+						momentum[1] * momentumRetention + (movement[1] / stepSeconds) * momentumGain,
 					] : [0, 0];
-					const strength = canEmit ? params.strength : 0;
-					writeUniforms(step, [...previousStep, previousRadius, strength], [...next, radius, strength], momentum);
+					// 同じ速度でも刻み幅が短いほど描画する線分が短くなる。半径 r のブラシの
+					// smoothstep で重みづけした面積はおよそ r × 線分長 + 0.3πr² なので、
+					// 60Hzと面積の比を取って、移動中に描き足される軌跡と流れの量を揃える。
+					const capCoverageLength = 0.3 * Math.PI * (previousRadius + radius) / 2;
+					const strokeScale = strokeLength > 0 ? (speed * referenceStepSeconds + capCoverageLength) / (strokeLength + capCoverageLength) : 1;
+					const strength = canEmit ? params.strength * strokeScale : 0;
+					writeUniforms(step, [...previousStep, previousRadius, strength], [...next, radius, strength], [momentum[0] * strokeScale, momentum[1] * strokeScale]);
 					previousStep = next;
 					previousRadius = radius;
 				}
-				if (tailTicks > 0) {
+				if (tailSeconds > 0) {
 					// 大きな停止時間でGPUへ無制限にパスを積まない。残りは減衰だけを進め、
-					// 未観測の長いポインター移動を注入しない。通常の60Hz比較には入らない経路。
-					writeUniforms(stepCount, [...position, 0, 0], [...position, 0, 0], [0, 0], tailTicks, false);
+					// 未観測の長いポインター移動を注入しない。
+					writeUniforms(stepCount, [...position, 0, 0], [...position, 0, 0], [0, 0], tailSeconds, false);
 					previousStep = [position[0], position[1]];
 					previousRadius = 0;
 					momentum = [0, 0];
 				}
-				const passCount = stepCount + (tailTicks > 0 ? 1 : 0);
+				const passCount = stepCount + (tailSeconds > 0 ? 1 : 0);
 				if (passCount === 0) writeUniforms(0, [...position, 0, 0], [...position, 0, 0], [0, 0]);
 				device.queue.writeBuffer(uniformBuffer, 0, uniformData, 0, Math.max(1, passCount) * uniformStride);
 				const draw = (pipeline: GPURenderPipeline, group: GPUBindGroup, view: GPUTextureView, step: number) => {
