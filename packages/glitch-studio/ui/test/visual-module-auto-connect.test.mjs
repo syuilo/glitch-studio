@@ -7,7 +7,7 @@ import { build } from 'esbuild';
 
 const bundled = await build({
 	stdin: {
-		contents: "export { COMMAND_DEFS } from './commands.ts';",
+		contents: "export { COMMAND_DEFS } from './commands.ts'; export { getNodeOutputItems } from './utility/node-outputs.ts';",
 		resolveDir: fileURLToPath(new URL('../src/', import.meta.url)), loader: 'ts',
 	},
 	bundle: true, platform: 'node', format: 'cjs', write: false,
@@ -44,7 +44,7 @@ function fixture(enabled = false, inline = false) {
 		timelineScenes: { value: [{ id: 'scene', layers: [{ id: 'inline', layerType: 'inlineVisualModule', visualModule }] }] } };
 	const target = inline ? { sceneId: 'scene', inlineVisualModuleLayerId: 'inline' } : { visualModuleId: 'visual-module' };
 	const command = (payload = {}) => prepareTestCommand(module.exports.COMMAND_DEFS.createVisualModuleEffectNode, { visualModule: target, effectId: 'filter', connectionMode: enabled ? 'appendToPrimaryOutput' : 'none', ...payload });
-	return { preferences, visualModule, state, command, disconnected, target, definitions: module.exports.COMMAND_DEFS };
+	return { preferences, visualModule, state, command, disconnected, target, definitions: module.exports.COMMAND_DEFS, getNodeOutputItems: module.exports.getNodeOutputItems };
 }
 
 // 【自動接続を無効にした追加では既存の配線と入力の既定値を維持する】
@@ -232,4 +232,34 @@ test('renames and clears a relay label with undo and redo', () => {
 	assert.equal(Object.hasOwn(relay, 'label'), false);
 	rename.execute(f.state);
 	assert.equal(relay.label, 'Shared mask');
+});
+
+// 【中継ノードの型変更は配線を保ち、型安全設定でも既存の接続元を表示する】
+// 型を変えた直後に接続元を見失わないよう、既存の不一致を表示しつつ、新しい不一致候補は除外する。
+test('changes the relay data type without hiding or rewriting existing connections', () => {
+	const f = fixture();
+	const target = prepareTestCommand(f.definitions.createVisualModuleRelayNode, { visualModule: f.target }).execute(f.state);
+	const relay = f.visualModule.nodes.find(node => node.id === target.nodeId);
+	const input = { nodeId: 'previous', outputPort: 'secondary' };
+	const output = { nodeId: relay.id, outputPort: 'output' };
+	prepareTestCommand(f.definitions.setVisualModuleRelayInput, { target, source: input }).execute(f.state);
+	const out = f.visualModule.nodes.at(-1);
+	out.inputs.primary = output;
+
+	const changeType = prepareTestCommand(f.definitions.setVisualModuleRelayDataType, { target, dataType: { kind: 'scalar' } });
+	changeType.execute(f.state);
+	assert.deepEqual(relay.dataType, { kind: 'scalar' });
+	assert.deepEqual(relay.input, input);
+	assert.deepEqual(out.inputs.primary, output);
+	assert.deepEqual(f.getNodeOutputItems(f.visualModule.nodes, relay.id, relay.dataType, [], undefined, input)
+		.map(item => [item.connection.outputPort, item.typeCompatible]), [['secondary', false]]);
+	const selectedOutput = f.getNodeOutputItems(f.visualModule.nodes, out.id, { kind: 'color' }, [], undefined, output)
+		.find(item => item.connection.nodeId === relay.id);
+	assert.equal(selectedOutput.typeCompatible, false);
+	assert.equal(f.getNodeOutputItems(f.visualModule.nodes, out.id, { kind: 'color' }).some(item => item.connection.nodeId === relay.id), false);
+	changeType.undo(f.state);
+	assert.deepEqual(relay.dataType, { kind: 'any' });
+	changeType.execute(f.state);
+	assert.deepEqual(relay.dataType, { kind: 'scalar' });
+	assert.deepEqual(out.inputs.primary, output);
 });

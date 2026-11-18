@@ -477,8 +477,8 @@ const visualModuleCustomParameterValueReferenceItems = computed(() => {
 	if (id != null && id !== '' && !items.some(item => item.value === id)) items.push({ label: i18n.ts._Parameter.UnavailablePublicParameter, value: id });
 	return items;
 });
-const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value, paramDefs.value, effectDefinitions.value));
 const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.inputSource === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);
+const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value, paramDefs.value, effectDefinitions.value, nodeConnection.value));
 const controlComponent = useTemplateRef('controlComponent');
 const inlineGraphEditorOpen = ref(false);
 
@@ -777,7 +777,13 @@ function connectNode(value: NodeOutputReference | null, preserveSampling = true)
 }
 
 function updateParamAsNode(key: string | null) {
-	connectNode(nodeOutputItems.value.find(item => item.value === key)?.connection ?? null);
+	if (key === nodeOutputKey(nodeConnection.value)) return;
+	if (key == null) {
+		connectNode(null);
+		return;
+	}
+	const item = nodeOutputItems.value.find(item => item.value === key);
+	if (item != null) connectNode(item.connection);
 }
 
 function addElement() {

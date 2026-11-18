@@ -1,4 +1,5 @@
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
+import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { NodeOutputReference, VisualModulePublicParameterId, VisualModuleOutputDef, VisualModuleParamDef } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { ParamEdit } from '@/components/GsVisualParam.vue';
 import type { VisualModuleCustomParameterDefinition, VisualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
@@ -18,6 +19,7 @@ export type VisualModuleEdit =
 	| { kind: 'editCustomParameter'; parameterId: VisualModuleCustomParameterId; edit: VisualModuleValueParameterEdit; mergeKey?: string | null }
 	| { kind: 'addRelayNode' }
 	| { kind: 'setRelayInput'; nodeId: string; value: NodeOutputReference | null }
+	| { kind: 'setRelayDataType'; nodeId: string; dataType: TextureDataType }
 	| { kind: 'removeNode'; nodeId: string }
 	| { kind: 'setNodeBypass'; nodeId: string; bypass: boolean }
 	| { kind: 'setNodeResolution'; nodeId: string; resolution: EffectResolution }

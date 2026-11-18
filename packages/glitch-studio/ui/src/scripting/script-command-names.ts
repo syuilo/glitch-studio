@@ -17,6 +17,7 @@ export const SCRIPT_COMMAND_NAMES = [
 	'createVisualModuleEffectNode',
 	'createVisualModuleRelayNode',
 	'setVisualModuleRelayInput',
+	'setVisualModuleRelayDataType',
 	'moveVisualModuleNode',
 	'removeVisualModuleNode',
 	'setVisualModuleNodeParameterSource',

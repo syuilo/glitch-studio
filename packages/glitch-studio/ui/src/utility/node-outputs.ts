@@ -38,13 +38,19 @@ export function hasNodeInputTypeMismatch(nodes: VisualModuleNode[], connection: 
 
 // undefinedは入力型による絞り込みを省略、nullは接続可能な入力型がないことを表す。
 // getNodeInputDataTypeのnullを「全型を許可」に変えないため、ここでは省略と明示的なnullを区別する。
-export function getNodeOutputItems(nodes: VisualModuleNode[], excludedNodeId?: string, inputDataType?: TextureDataType | null, paramDefs: VisualModule['paramDefs'] = [], definitions: Readonly<Record<string, EffectDefinition>> = effectDefinitions): { label: string; value: string; connection: NodeOutputReference; dataType: TextureDataType; typeCompatible: boolean; icon?: string | null }[] {
+export function getNodeOutputItems(nodes: VisualModuleNode[], excludedNodeId?: string, inputDataType?: TextureDataType | null, paramDefs: VisualModule['paramDefs'] = [], definitions: Readonly<Record<string, EffectDefinition>> = effectDefinitions,
+	currentConnection?: Pick<NodeOutputReference, 'nodeId' | 'outputPort'> | null,
+): { label: string; value: string; connection: NodeOutputReference; dataType: TextureDataType; typeCompatible: boolean; icon?: string | null }[] {
 	return nodes.flatMap(node => {
 		if (node.id === excludedNodeId || node.type === 'globalOut') return [];
 		const name = node.type === 'effect' ? getEffectNodeName(node, definitions)
 			: node.type === 'relay' ? node.label || 'Relay'
 			: 'In';
-		const outputs = Object.entries(getNodeOutputs(node, paramDefs, definitions)).filter(([, output]) => inputDataType === undefined || canConnectNodeDataTypes(output.dataType, inputDataType)).map(([outputPort, output]) => {
+		// 型の変更後も配線は残るため、型安全設定で絞り込む場合も現在の接続元を表示する。
+		const outputs = Object.entries(getNodeOutputs(node, paramDefs, definitions)).filter(([outputPort, output]) =>
+			(currentConnection?.nodeId === node.id && currentConnection.outputPort === outputPort)
+			|| inputDataType === undefined || canConnectNodeDataTypes(output.dataType, inputDataType));
+		return outputs.map(([outputPort, output]) => {
 			const connection: NodeOutputReference = {
 				nodeId: node.id,
 				outputPort,
@@ -62,6 +68,5 @@ export function getNodeOutputItems(nodes: VisualModuleNode[], excludedNodeId?: s
 				icon: typeCompatible ? null : 'ti ti-alert-triangle',
 			};
 		});
-		return outputs;
 	});
 }

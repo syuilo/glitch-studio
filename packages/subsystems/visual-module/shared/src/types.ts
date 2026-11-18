@@ -62,7 +62,7 @@ export type VisualModuleRelayNode = {
 	id: string;
 	type: 'relay';
 	label?: string;
-	// 作成時に指定する固定の宣言型。UIの接続判定に使い、レンダラーでは型の強制や変換を行わない。
+	// 入出力の宣言型。接続時の互換性判定に使い、レンダラーでは型の強制や変換を行わない。
 	dataType: TextureDataType;
 	input: { nodeId: string; outputPort: string } | { nodeId: null; outputPort: null };
 	pos?: { x: number; y: number };

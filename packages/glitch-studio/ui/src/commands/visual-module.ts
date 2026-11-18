@@ -10,10 +10,11 @@ import { getVisualModule } from '../utility/visual-module-target.ts';
 import { resolveNodeParam, walkNodeParams } from '../utility/node-params.ts';
 import { validateVisualModuleNodeParameterBinding } from './visual-module-parameter-validation.ts';
 import { defineCommand, definePublicCommand } from './definition.ts';
-import { staticSettingValuesSchema } from './parameter-contract-schemas.ts';
+import { staticSettingValuesSchema, textureDataTypeSchema } from './parameter-contract-schemas.ts';
 import { connectionTypePolicySchema, registeredVisualModuleTargetSchema, visualModuleNodeOutputReferenceSchema, visualModuleNodeReferenceSchema, visualModuleParameterBindingSchema, visualModuleTargetSchema } from './visual-module-contract-schemas.ts';
 import { prepareVisualModuleFields, prepareVisualModuleValue } from './visual-module-change.ts';
 import type { VisualModuleEffectNode, VisualModuleNode, VisualModuleRelayNode, NodeOutputReference } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModuleNodeReference } from './visual-module-change.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { ProjectState } from '../Project.ts';
 import type { VisualModuleImport } from '../gsvm.ts';
@@ -202,12 +203,7 @@ const setVisualModuleRelayInput = definePublicCommand({
 	resultSchema: z.null(),
 	prepare(state, input) {
 		const policy = input.connectionTypePolicy ?? 'strict';
-		const getRelayNode = (currentState: ProjectState) => {
-			const node = stateUtility.findNode(currentState, { ...input.target.visualModule, nodeId: input.target.nodeId });
-			if (node?.type !== 'relay') throw new Error('Visual Module relay node not found');
-			return node;
-		};
-		const relayNode = getRelayNode(state);
+		const relayNode = getVisualModuleRelayNode(state, input.target);
 		const source = input.source;
 		if (source != null) {
 			if (source.nodeId === relayNode.id) throw new Error('Relay node cannot connect to itself');
@@ -222,10 +218,30 @@ const setVisualModuleRelayInput = definePublicCommand({
 			? { nodeId: null, outputPort: null }
 			: { nodeId: source.nodeId, outputPort: source.outputPort };
 		return prepareVisualModuleValue(relayNode.input, after,
-			(currentState, value) => { getRelayNode(currentState).input = value; },
+			(currentState, value) => { getVisualModuleRelayNode(currentState, input.target).input = value; },
 			[{ type: 'visualModule', target: input.target.visualModule }]);
 	},
 });
+
+const setVisualModuleRelayDataType = definePublicCommand({
+	label: 'Set Visual Module relay data type',
+	description: 'Set the declared input and output data type of a relay node. Retains existing connections and passes through the original data without conversion.',
+	examples: ['let visualModule = Command:createVisualModule({})\nlet relay = Command:createVisualModuleRelayNode({ visualModule: visualModule })\nCommand:setVisualModuleRelayDataType({ target: relay, dataType: { kind: "scalar" } })'],
+	inputSchema: z.object({ target: visualModuleNodeReferenceSchema, dataType: textureDataTypeSchema }),
+	resultSchema: z.null(),
+	prepare(state, { target, dataType }) {
+		const relayNode = getVisualModuleRelayNode(state, target);
+		return prepareVisualModuleValue(relayNode.dataType, { kind: dataType.kind },
+			(currentState, value) => { getVisualModuleRelayNode(currentState, target).dataType = value; },
+			[{ type: 'visualModule', target: target.visualModule }]);
+	},
+});
+
+function getVisualModuleRelayNode(state: ProjectState, target: VisualModuleNodeReference): VisualModuleRelayNode {
+	const node = stateUtility.findNode(state, { ...target.visualModule, nodeId: target.nodeId });
+	if (node?.type !== 'relay') throw new Error('Visual Module relay node not found');
+	return node;
+}
 
 const moveVisualModuleNode = definePublicCommand({
 	label: 'Move Visual Module node',
@@ -300,5 +316,5 @@ const removeVisualModuleNode = definePublicCommand({
 
 export const VISUAL_MODULE_COMMAND_DEFS = {
 	createVisualModule, importVisualModule, setVisualModuleName,
-	createVisualModuleEffectNode, createVisualModuleRelayNode, setVisualModuleRelayInput, moveVisualModuleNode, removeVisualModuleNode,
+	createVisualModuleEffectNode, createVisualModuleRelayNode, setVisualModuleRelayInput, setVisualModuleRelayDataType, moveVisualModuleNode, removeVisualModuleNode,
 };

@@ -46,6 +46,7 @@
 							:class="$style.node"
 							@dragStart="dragStart"
 							@changeInput="value => emit('edit', { kind: 'setRelayInput', nodeId: node.id, value })"
+							@setDataType="dataType => emit('edit', { kind: 'setRelayDataType', nodeId: node.id, dataType })"
 							@remove="emit('edit', { kind: 'removeNode', nodeId: node.id })"
 							@setDisplayName="displayName => emit('edit', { kind: 'setNodeDisplayName', nodeId: node.id, displayName })"
 						/>

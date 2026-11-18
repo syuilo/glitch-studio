@@ -46,7 +46,7 @@ const inputRow = useTemplateRef('inputRow');
 const paramDefs = computed(() => props.visualModule.paramDefs);
 const nodes = computed(() => props.visualModule.nodes);
 const connection = computed(() => props.input?.nodeId == null ? null : props.input);
-const outputItems = computed(() => getNodeOutputItems(nodes.value, props.nodeId, props.dataType, paramDefs.value, effectDefinitions.value));
+const outputItems = computed(() => getNodeOutputItems(nodes.value, props.nodeId, props.dataType, paramDefs.value, effectDefinitions.value, connection.value));
 
 function connect(value: NodeOutputReference | null) {
 	if (value != null && !outputItems.value.some(item => item.value === nodeOutputKey(value))) return;
@@ -54,6 +54,7 @@ function connect(value: NodeOutputReference | null) {
 }
 
 function selectInput(key: string | null) {
+	if (key === nodeOutputKey(connection.value)) return;
 	if (key == null) connect(null);
 	else {
 		const item = outputItems.value.find(item => item.value === key);

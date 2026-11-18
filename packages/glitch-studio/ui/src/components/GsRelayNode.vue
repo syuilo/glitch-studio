@@ -28,7 +28,7 @@
 			/>
 		</div>
 	</div>
-	<div v-if="showSettings" class="_spacer">
+	<div v-if="showSettings" class="_spacer _gaps_s">
 		<GsInput
 			large
 			manualSave
@@ -38,6 +38,15 @@
 		>
 			<template #label>{{ i18n.ts.Name }}</template>
 		</GsInput>
+		<GsSelect
+			large
+			:modelValue="node.dataType.kind"
+			:items="dataTypeItems"
+			data-test-relay-node-data-type
+			@update:modelValue="kind => emit('setDataType', { kind })"
+		>
+			<template #label>{{ i18n.ts._ParameterEditor.DataType }}</template>
+		</GsSelect>
 	</div>
 	<GsVisualModuleNodeInput
 		:visualModule="visualModule"
@@ -57,8 +66,10 @@
 import { ref } from 'vue';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
+import GsSelect from './common/GsSelect.vue';
 import GsNodeOutputs from './GsNodeOutputs.vue';
 import GsVisualModuleNodeInput from './GsVisualModuleNodeInput.vue';
+import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { NodeOutputReference, VisualModule, VisualModuleRelayNode } from '@gs/subsystems_visual-module_shared/types.ts';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
@@ -74,9 +85,14 @@ const emit = defineEmits<{
 	dragStart: [event: DragEvent];
 	remove: [];
 	setDisplayName: [displayName: string];
+	setDataType: [dataType: TextureDataType];
 }>();
 
 const showSettings = ref(false);
+const dataTypeItems = (['any', 'color', 'scalar', 'vector'] as const).map(kind => ({
+	label: i18n.ts._EffectPicker._DataTypes[kind],
+	value: kind,
+}));
 
 function onHeaderContextmenu(event: PointerEvent) {
 	ui.contextMenu([{
