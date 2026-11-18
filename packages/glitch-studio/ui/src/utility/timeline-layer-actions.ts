@@ -1,8 +1,8 @@
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { getTimelineContainerConversionTargets } from '@gs/subsystems_timeline_shared/container-layer.ts';
-import type { TimelineContainerLayerType } from '@gs/subsystems_timeline_shared/container-layer.ts';
-import { getTimelineContainerTypeLabel } from './container-timeline-layer.ts';
 import { findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
+import { getTimelineContainerTypeLabel } from './container-timeline-layer.ts';
+import type { TimelineContainerLayerType } from '@gs/subsystems_timeline_shared/container-layer.ts';
 import type { Ref } from 'vue';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { ProjectState, AppStateChange } from '@/Project.ts';
@@ -66,7 +66,7 @@ export function createTimelineLayerActions(options: TimelineLayerActionsOptions)
 		if (ids.length === 1) menu.push({
 			id: 'rename',
 			text: i18n.ts.Rename,
-			icon: 'ti ti-edit',
+			icon: 'ti ti-forms',
 			action: () => rename(ids[0]),
 		});
 		menu.push({

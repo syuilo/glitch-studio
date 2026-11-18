@@ -105,7 +105,7 @@ function showSceneMenu(ev: PointerEvent) {
 		},
 	}, {
 		text: i18n.ts._Timeline.RenameScene,
-		icon: 'ti ti-edit',
+		icon: 'ti ti-forms',
 		action: setTimelineSceneName,
 	}, {
 		text: i18n.ts._Timeline.DuplicateScene,

@@ -37,7 +37,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 			preferences: "import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false) } };",
 			effects: `export const effectDefinitions = { test: ${JSON.stringify(effect)} };`,
 			app: 'export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: { state: { resolution: { value: { width: 1920, height: 1080 } }, automationGraphs: { value: [] } } } } };',
-			ui: 'export function popupMenu() {} export function popup() {} export function contextMenu() {} export function alert() {}',
+			ui: 'export function popupMenu() {} export function popup() {} export function contextMenu() {} export function alert() {} export async function inputText() { return { canceled: true }; }',
 		}[path] }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsVisualParam\.vue$|GsEffectNode\.vue$|GsEffectParameterLayout\.vue$|GsTimeline\.EffectSettings\.vue$/.test(path) ? null : { path: basename(path), namespace: 'control' });
 		build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ loader: 'ts', contents: `

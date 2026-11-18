@@ -103,7 +103,7 @@ import { i18n } from '@/i18n.ts';
 import { connectedNodeParameterPathKeysKey, useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { paramPathKey, walkNodeParams } from '@/utility/node-params.ts';
 import { getEffectNodeName } from '@/utility/node-name.ts';
-import { clipboardText } from '@/utility/clipboard-text.ts';
+import { getVisualModuleNodeHeaderMenuItems } from '@/utility/visual-module-node-menu.ts';
 import * as ui from '@/ui.ts';
 
 const projectSession = useProjectSession();
@@ -177,17 +177,7 @@ function showEffectError() {
 }
 
 function onHeaderContextmenu(ev: PointerEvent) {
-	ui.contextMenu([{
-		id: 'copyNodeId',
-		text: i18n.ts._Node.CopyNodeId,
-		icon: 'ti ti-hash',
-		action: () => clipboardText.writeText(props.node.id),
-	}, {
-		id: 'copyEffectId',
-		text: i18n.ts._Node.CopyEffectId,
-		icon: 'ti ti-hash',
-		action: () => clipboardText.writeText(props.node.effectId),
-	}], ev);
+	ui.contextMenu(getVisualModuleNodeHeaderMenuItems(props.node, name => emit('setDisplayName', name)), ev);
 }
 
 function remove() {

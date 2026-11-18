@@ -28,7 +28,7 @@ const bundle = await build({
 			preferences: "import { ref } from 'vue'; export const preferences = { r: { showAdvancedParameters: ref(false) } };",
 			app: 'export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: { state: { resolution: { value: { width: 1920, height: 1080 } } } } } };',
 			effects: "export const effectDefinitions = { test: { displayName: 'Test', paramDefs: {}, primaryOutput: 'output' } };",
-			ui: 'export function alert() {}',
+			ui: 'export function alert() {} export function contextMenu() {} export async function inputText() { return { canceled: true }; }',
 		}[path] }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsEffectNode\.vue$|GsEffectParameterLayout\.vue$|GsTimeline\.EffectSettings\.vue$/.test(path)
 			? null : { path: basename(path, '.vue'), namespace: 'control' });

@@ -7,25 +7,28 @@
 		@contextmenu.prevent.stop="onHeaderContextmenu"
 	>
 		<b :class="$style.name">{{ node.label || i18n.ts._VisualModule.RelayNode }}</b>
-		<div :class="$style.headerButtons">
-			<GsButton
-				v-tooltip="i18n.ts.Settings"
-				:class="$style.headerButton"
-				:transparent="!showSettings"
-				:primary="showSettings"
-				iconOnly
-				icon="ti ti-settings"
-				data-test-relay-node-settings
-				@click="showSettings = !showSettings"
-			/>
-			<GsButton
-				v-tooltip="i18n.ts.Remove"
-				:class="$style.headerButton"
-				transparent
-				iconOnly
-				icon="ti ti-x"
-				@click="emit('remove')"
-			/>
+		<div :class="$style.headerRight">
+			<span class="_monospace" data-test-relay-node-id>{{ prettyId(node.id) }}</span>
+			<div :class="$style.headerButtons">
+				<GsButton
+					v-tooltip="i18n.ts.Settings"
+					:class="$style.headerButton"
+					:transparent="!showSettings"
+					:primary="showSettings"
+					iconOnly
+					icon="ti ti-settings"
+					data-test-relay-node-settings
+					@click="showSettings = !showSettings"
+				/>
+				<GsButton
+					v-tooltip="i18n.ts.Remove"
+					:class="$style.headerButton"
+					transparent
+					iconOnly
+					icon="ti ti-x"
+					@click="emit('remove')"
+				/>
+			</div>
 		</div>
 	</div>
 	<div v-if="showSettings" class="_spacer _gaps_s">
@@ -64,6 +67,7 @@
 
 <script lang="ts" setup>
 import { ref } from 'vue';
+import { prettyId } from '@gs/shared/utility/id.ts';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
@@ -73,7 +77,7 @@ import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { NodeOutputReference, VisualModule, VisualModuleRelayNode } from '@gs/subsystems_visual-module_shared/types.ts';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
-import { clipboardText } from '@/utility/clipboard-text.ts';
+import { getVisualModuleNodeHeaderMenuItems } from '@/utility/visual-module-node-menu.ts';
 
 const props = defineProps<{
 	visualModule: VisualModule;
@@ -95,12 +99,7 @@ const dataTypeItems = (['any', 'color', 'scalar', 'vector'] as const).map(kind =
 }));
 
 function onHeaderContextmenu(event: PointerEvent) {
-	ui.contextMenu([{
-		id: 'copyNodeId',
-		text: i18n.ts._Node.CopyNodeId,
-		icon: 'ti ti-hash',
-		action: () => clipboardText.writeText(props.node.id),
-	}], event);
+	ui.contextMenu(getVisualModuleNodeHeaderMenuItems(props.node, name => emit('setDisplayName', name)), event);
 }
 </script>
 
@@ -129,9 +128,15 @@ function onHeaderContextmenu(event: PointerEvent) {
 	white-space: nowrap;
 }
 
+.headerRight {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: 8px;
+}
+
 .headerButtons {
 	display: flex;
-	flex-shrink: 0;
 	gap: 4px;
 }
 

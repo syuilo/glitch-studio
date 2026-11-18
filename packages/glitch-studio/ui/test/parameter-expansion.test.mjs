@@ -30,7 +30,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 			preferences: "import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false), visualModuleWireStyle: ref('straight') } };",
 			effects: "import definition from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts'; export const effectDefinitions = { testStructArray: definition };",
 			app: 'export const projectSession = {}; export function useProjectSession() { return projectSession; }',
-			ui: 'export function popupMenu() {} export function popup() {} export function contextMenu() {} export function alert() {}',
+			ui: 'export function popupMenu() {} export function popup() {} export function contextMenu() {} export function alert() {} export async function inputText() { return { canceled: true }; }',
 		}[path] }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsVisualParam\.vue$|GsEffectNode\.vue$|GsEffectParameterLayout\.vue$|GsTimeline\.EffectSettings\.vue$|GsWires\.vue$|GsNodePort\.vue$/.test(path)
 			? null : { path: basename(path), namespace: 'control' });
