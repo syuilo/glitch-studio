@@ -102,16 +102,26 @@ test('invalidates composed shader layouts in the Vite development server', async
 	await writeFile(dependency, 'export const count = 2;');
 	await writeFile(path.join(directory, 'test.shader.ts'), "import { count } from './constants.ts'; export default `struct Settings { values: array<vec4f, ${count}>, } @group(0) @binding(0) var<uniform> settings: Settings;`;");
 	const server = await createServer({ configFile: false, root: directory, plugins: [wgslShaderVitePlugin()], server: { middlewareMode: true }, logLevel: 'silent' });
-	t.after(() => server.close());
-	const first = await server.transformRequest('/test.shader.ts?shader');
-	assert.match(first.code, /"byteLength":32/);
-	await writeFile(dependency, 'export const count = 4;');
-	server.watcher.emit('change', dependency);
-	let changed = false;
-	for (let attempt = 0; attempt < 50; attempt++) {
-		await new Promise(resolve => setTimeout(resolve, 20));
-		const next = await server.transformRequest('/test.shader.ts?shader');
-		if (next.code.includes('"byteLength":64')) { changed = true; break; }
+	try {
+		// Viteが整形したJSのexportを読み、WGSLと配置情報が同じ定数で更新されることを確かめる。
+		async function loadTransformedShader() {
+			const { code } = await server.transformRequest('/test.shader.ts?shader');
+			return import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
+		}
+		const first = await loadTransformedShader();
+		assert.equal(first.uniforms.settings.byteLength, 32);
+		assert.match(first.default, /array<vec4f, 2>/);
+		await writeFile(dependency, 'export const count = 4;');
+		server.watcher.emit('change', dependency);
+		let updated = await loadTransformedShader();
+		for (let attempt = 0; updated.uniforms.settings.byteLength === 32 && attempt < 50; attempt++) {
+			await new Promise(resolve => setTimeout(resolve, 20));
+			updated = await loadTransformedShader();
+		}
+		assert.equal(updated.uniforms.settings.byteLength, 64, 'composed shader must reload when a constant changes');
+		assert.match(updated.default, /array<vec4f, 4>/);
+	} finally {
+		// 一時ディレクトリを削除する前に、Viteの監視とキャッシュの書き込みを終了する。
+		await server.close();
 	}
-	assert.equal(changed, true, 'composed shader must reload when a constant changes');
 });
