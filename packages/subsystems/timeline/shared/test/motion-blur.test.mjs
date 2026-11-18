@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { EffectCatalog } from '@gs/subsystems_effect-new_shared/effect-catalog.ts';
 import { loadSource } from './helpers/load-source.mjs';
 
 const { getTimelineMotionBlurBoundaries, getTimelineMotionBlurLoops, getTimelineSampleTimes, validateTimelineFps, validateTimelineMotionBlur } = await loadSource(fileURLToPath(new URL('../src/motion-blur.ts', import.meta.url)));
@@ -153,16 +154,29 @@ test('validates finite fps, angles and bounded integer sample counts', () => {
 	}
 });
 
-// 【配置されたエフェクトとCustom Node Graph Effectを検査し、Custom Node Graph Effect Live Preview専用の定義を警告しない】
-// 履歴依存はノード自身の定義にあるため、直接レイヤーと内部ノードの両方を調べる必要がある。
+// 【クリップのある配置から参照グラフとインライングラフをたどる】
+// 同じIDの異なる種類は区別し、同じ定義の複数配置・未配置の定義が警告を増やさないことを確かめる。
 test('finds history effects in placed definitions only', () => {
-	const definitions = { feedback: { dependsOnRenderHistory: true }, flow: { dependsOnRenderHistory: true }, unused: { dependsOnRenderHistory: true }, fill: { dependsOnRenderHistory: false } };
-	const customNodeGraphEffects = new Map([['used', { nodes: [{ type: 'effect', effectId: 'flow' }] }], ['customNodeGraphEffectLivePreview', { nodes: [{ type: 'effect', effectId: 'unused' }] }]]);
+	const native = { type: 'nativeEffect', id: 'solidColor' };
+	const shader = { type: 'customShaderEffectReference', id: 'solidColor' };
+	const child = { type: 'customNodeGraphEffectReference', id: 'child' };
+	const unused = { type: 'customShaderEffectReference', id: 'unused' };
+	const graph = (...effects) => ({
+		paramDefs: {}, outputDefs: {}, primaryInputId: null, primaryAudioInputId: null, primaryOutputId: null,
+		nodes: effects.map((effect, i) => ({ id: String(i), effect, params: {} })), outputs: {},
+	});
+	const catalog = new EffectCatalog({ customNodeGraphEffects: new Map([['child', graph(shader)], ['unused', graph(unused)]]) });
 	const scenes = [scene('root', [
-		{ layerType: 'effect', effectId: 'feedback', clips: [clip(0, 100)] },
-		{ layerType: 'effect', effectId: 'unused', clips: [] },
-		{ layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'used', clips: [clip(0, 100)] },
-		{ layerType: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: { nodes: [{ type: 'effect', effectId: 'feedback' }, { type: 'effect', effectId: 'fill' }] }, clips: [clip(0, 100)] },
+		{ layerType: 'effect', effect: native, clips: [clip(0, 100)] },
+		{ layerType: 'effect', effect: unused, clips: [] },
+		{ layerType: 'effect', effect: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph(child, native) }, clips: [clip(0, 100)] },
+		{ layerType: 'effect', effect: child, clips: [clip(0, 100)] },
 	])];
-	assert.deepEqual(findTimelineHistoryEffects(scenes, id => customNodeGraphEffects.get(id), definitions), ['feedback', 'flow']);
+	const inspected = [];
+	const result = findTimelineHistoryEffects(scenes, catalog, reference => {
+		inspected.push(reference);
+		return reference.type === 'customShaderEffectReference';
+	});
+	assert.deepEqual(inspected, [native, shader]);
+	assert.deepEqual(result, [shader]);
 });

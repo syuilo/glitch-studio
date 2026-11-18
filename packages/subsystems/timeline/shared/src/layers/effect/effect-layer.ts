@@ -1,37 +1,51 @@
-import { validateStaticSettings } from '@gs/shared/static-setting.ts';
-import { isCustomShaderEffectReference } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
-import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.js';
-import { deepClone } from '@gs/shared/utility/deep-clone.js';
+import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import { hasPrimaryColorOutput } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
 import { createLowerLayerOutputBinding, validateTimelineParameterTree } from '../../parameter-binding.ts';
-import type { TimelineEffectParameterBinding } from '../../types.ts';
-import type { TimelineEffectLayer } from '../../types.ts';
-import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
+import { validateTimelineEffectLayerResolution } from './effect-layer-resolution.ts';
+import type { ParameterBindingBase } from '@gs/shared/parameter/parameter-binding.ts';
+import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
+import type { EffectCatalog } from '@gs/subsystems_effect-new_shared/effect-catalog.ts';
+import type { EffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import type { TimelineEffectLayer, TimelineEffectParameterBinding } from '../../types.ts';
+
 export { createLowerLayerOutputBinding } from '../../parameter-binding.ts';
 
-export function validateEffectLayerOutput(layer: TimelineEffectLayer, definition: EffectDefinition | null | undefined): void {
-	if (definition == null) throw new Error(`Effect not found: ${layer.effectId}`);
-	// データ出力だけのCustom Shader EffectはNodeから使う。Layerの出力を別ポートへ暗黙に切り替えない。
-	if (isCustomShaderEffectReference(layer.effectId) && (definition.primaryOutput == null || definition.outputDefs[definition.primaryOutput]?.dataType.kind !== 'color')) {
-		throw new Error('Custom Shader Effect Layer requires a primary color output');
+export function getTimelineEffectLayerOutputId(definition: EffectDefinition): string {
+	const id = definition.primaryOutputId;
+	if (id == null || !hasPrimaryColorOutput(definition)) throw new Error('Timeline Effect layer requires a primary color output');
+	return id;
+}
+
+// レイヤーの自動接続はEffectを呼ぶ側の規則。ノードとして配置した場合の既定値には影響しない。
+export function getEffectLayerParameterDefault(definition: EffectDefinition, id: string): TimelineEffectParameterBinding {
+	if (!Object.hasOwn(definition.paramDefs, id)) throw new Error(`Unknown Effect parameter: ${id}`);
+	if (definition.primaryAudioInputId === id) return { inputSource: 'lowerLayerAudio' };
+	if (definition.primaryInputId === id) return createLowerLayerOutputBinding();
+	return deepClone(definition.paramDefs[id].defaultValue);
+}
+
+export function getTimelineEffectLayerParameterBindings(layer: TimelineEffectLayer, definition: EffectDefinition): Record<string, TimelineEffectParameterBinding> {
+	for (const id of Object.keys(layer.effectParamValues)) {
+		if (!Object.hasOwn(definition.paramDefs, id)) throw new Error(`Unknown Effect parameter: ${id}`);
 	}
+	return Object.fromEntries(Object.keys(definition.paramDefs).map(id => [id,
+		Object.hasOwn(layer.effectParamValues, id) ? layer.effectParamValues[id] : getEffectLayerParameterDefault(definition, id),
+	]));
 }
 
-// エフェクト定義の既定値は変更しない。レイヤーとしての作成・リセットだけで上書きする。
-export function getEffectLayerParameterDefault(definition: EffectDefinition, key: string): TimelineEffectParameterBinding {
-	if (definition.primaryAudioInputParameter === key) return { inputSource: 'lowerLayerAudio' };
-	return definition.kind === 'modify' && definition.primaryInputParameter === key
-		? createLowerLayerOutputBinding() : deepClone(definition.paramDefs[key].defaultValue);
+export function getTimelineEffectLayerDefinition(layer: TimelineEffectLayer, catalog: EffectCatalog): EffectDefinition {
+	const definition = layer.effect == null ? null : catalog.getDefinition(layer.effect);
+	if (definition == null) throw new Error(`Unknown or missing Effect source on layer ${layer.id}`);
+	return definition;
 }
 
-// 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
-export function validateTimelineEffectLayer(layer: TimelineEffectLayer, definition: EffectDefinition | null | undefined): void {
-	if (definition == null) throw new Error(`Effect not found: ${layer.effectId}`);
-	validateEffectLayerOutput(layer, definition);
-	validateEffectResolution(layer.resolution);
-	validateStaticSettings(definition.staticSettingDefs ?? {}, layer.effectStaticSettings ?? {});
-	for (const [key, def] of Object.entries(definition.paramDefs)) {
-		validateTimelineParameterTree(def, layer.effectParamValues[key] ?? getEffectLayerParameterDefault(definition, key), true, true, (_definition, binding) => {
-			if ((binding.inputSource === 'lowerLayerOutput' || binding.inputSource === 'anotherLayerOutput') && !('fitMode' in binding)) throw new Error('Effect image input requires sampling');
-		});
+export function validateTimelineEffectLayer(layer: TimelineEffectLayer, catalog: EffectCatalog,
+	onValue?: (definition: ParameterDefinition, binding: ParameterBindingBase) => void): void {
+	validateTimelineEffectLayerResolution(layer.resolution);
+	const definition = getTimelineEffectLayerDefinition(layer, catalog);
+	catalog.validate(layer.effect);
+	getTimelineEffectLayerOutputId(definition);
+	for (const [id, binding] of Object.entries(getTimelineEffectLayerParameterBindings(layer, definition))) {
+		validateTimelineParameterTree(definition.paramDefs[id], binding, true, true, onValue);
 	}
 }

@@ -25,8 +25,7 @@
 		"./timeline-compositing-parameters.ts": "./src/timeline-compositing-parameters.ts",
 		"./timeline-compositor.ts": "./src/timeline-compositor.ts",
 		"./timeline-preview-scheduler.ts": "./src/timeline-preview-scheduler.ts",
-		"./layers/video/video-timeline-layer.ts": "./src/layers/video/video-timeline-layer.ts",
-		"./layers/custom-node-graph-effect/custom-node-graph-effect-timeline-layer.ts": "./src/layers/custom-node-graph-effect/custom-node-graph-effect-timeline-layer.ts"
+		"./layers/video/video-timeline-layer.ts": "./src/layers/video/video-timeline-layer.ts"
 	},
 	"devDependencies": {
 		"@types/web": "0.0.359",
@@ -36,11 +35,9 @@
 	},
 	"dependencies": {
 		"@gs/shared": "workspace:*",
-		"@gs/subsystems_effect_renderer": "workspace:*",
-		"@gs/subsystems_effect_shared": "workspace:*",
+		"@gs/subsystems_effect-new_renderer": "workspace:*",
+		"@gs/subsystems_effect-new_shared": "workspace:*",
 		"@gs/subsystems_timeline_shared": "workspace:*",
-		"@gs/subsystems_custom-node-graph-effect_renderer": "workspace:*",
-		"@gs/subsystems_custom-node-graph-effect_shared": "workspace:*",
 		"@gs/subsystems_audio_shared": "workspace:*"
 	}
 }

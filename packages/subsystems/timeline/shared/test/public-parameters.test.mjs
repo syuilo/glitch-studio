@@ -117,7 +117,7 @@ test('validates local definitions and keeps timeline references separate from Cu
 	assert.throws(() => validateTimelineLayerPublicParameterDefinitions([scalar('one', 'speed'), scalar('two', 'speed')]), /reference name/);
 	assert.throws(() => validateTimelineLayerPublicParameterDefinitions([{ ...scalar('one'), canNode: true }]), /node inputs/);
 	assert.doesNotThrow(() => validateTimelineParameterTree(scalar('one'), reference(null, null)));
-	assert.throws(() => validateTimelineParameterTree(scalar('one'), { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'one' }), /Unsupported/);
+	assert.throws(() => validateTimelineParameterTree(scalar('one'), { type: 'publicParameter', parameterId: 'one' }), /Unsupported/);
 	const root = layer('root', [scalar('one')], { one: expression('PUBLIC("one")') });
 	assert.throws(() => evaluate([root], root, expression('PUBLIC("one")')), /Unknown or unavailable/);
 	assert.throws(() => evaluate([root], root, expression('PUBLIC(1)')), /requires a parameter name/);

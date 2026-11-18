@@ -4,7 +4,7 @@ import { getTimelineSoloState } from './solo.ts';
 import type { TimelineLayer, TimelineVisualLayer } from './types.ts';
 import type { TimelineAnotherLayerOutputBinding } from './parameter-binding.ts';
 
-export type TimelineImageInputReference = { inputSource: 'lowerLayerOutput' } | TimelineAnotherLayerOutputBinding;
+export type TimelineImageInputReference = { inputSource: 'lowerLayerOutput' } | Pick<TimelineAnotherLayerOutputBinding, 'inputSource' | 'layerId' | 'outputStage'>;
 
 /** Group以外のコンテナは境界を作らない。Group自身は外側、子孫はGroup内の合成空間に属する。 */
 export function getTimelineLayerMaskSources(layers: TimelineLayer[], ownerLayerId: string): TimelineVisualLayer[] {

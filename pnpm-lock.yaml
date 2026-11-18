@@ -714,21 +714,15 @@ importers:
       '@gs/subsystems_audio_shared':
         specifier: workspace:*
         version: link:../../audio/shared
-      '@gs/subsystems_effect_renderer':
+      '@gs/subsystems_effect-new_renderer':
         specifier: workspace:*
-        version: link:../../effect/renderer
-      '@gs/subsystems_effect_shared':
+        version: link:../../effect-new/renderer
+      '@gs/subsystems_effect-new_shared':
         specifier: workspace:*
-        version: link:../../effect/shared
+        version: link:../../effect-new/shared
       '@gs/subsystems_timeline_shared':
         specifier: workspace:*
         version: link:../shared
-      '@gs/subsystems_custom-node-graph-effect_renderer':
-        specifier: workspace:*
-        version: link:../../custom-node-graph-effect/renderer
-      '@gs/subsystems_custom-node-graph-effect_shared':
-        specifier: workspace:*
-        version: link:../../custom-node-graph-effect/shared
     devDependencies:
       '@types/web':
         specifier: 0.0.359
@@ -748,12 +742,9 @@ importers:
       '@gs/shared':
         specifier: workspace:*
         version: link:../../../shared
-      '@gs/subsystems_effect_shared':
+      '@gs/subsystems_effect-new_shared':
         specifier: workspace:*
-        version: link:../../effect/shared
-      '@gs/subsystems_custom-node-graph-effect_shared':
-        specifier: workspace:*
-        version: link:../../custom-node-graph-effect/shared
+        version: link:../../effect-new/shared
     devDependencies:
       '@types/web':
         specifier: 0.0.359

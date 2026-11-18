@@ -2,7 +2,9 @@
 
 `solo.ts`はScene全体の`isSolo`から評価の有効状態・各合成境界への参加・最終出力への参加を解決します。UI・映像・音声は同じ判定を使い、保存された表示設定を変更しません。非ソロのレイヤーも参照元として評価でき、非ソロGroupの内部合成は維持します。子だけのソロでは祖先を有効にして兄弟を除外し、コンテナ自身のソロでは内部の通常表示を使います。カメラと参照先Sceneのソロ範囲は独立です。通常合成の除外をソロで上書きする場合は、レイヤー出力の依存グラフにも有効になる辺を加えます。
 
-エフェクト・Custom Node Graph Effect（インラインを含む）の`transformTarget`は`image`（画像を変形）または`region`（適用範囲を変形）を保存する静的な設定で、未指定は`image`。入力接続の変更では切り替えず、式・キーでも評価しない。新規の加工系エフェクトは`region`、生成系とCustom Node Graph Effectは`image`とする。範囲はScene基準の矩形で、位置・支点・拡縮・回転・祖先Transform・カメラで配置する。FitとClip to Frameは画像モードだけで使い、保存したBindingは切り替え時にも保持する。
+Effect レイヤーの `effect` は `effect-new` の `EffectSource`。Native Effect、Custom Shader Effect・Custom Node Graph Effect の参照、インラインの Custom Node Graph Effect を同じ `layerType: 'effect'` で配置する。`effectParamValues` は公開パラメータの ID をキーとし、`EffectCatalog` から解決した定義の主色出力を合成する。
+
+`transformTarget` は画像を変形する `image`（既定）と、適用範囲を変形する `region` を選ぶ静的な設定。範囲は Scene 基準の矩形で、位置・支点・拡縮・回転・祖先 Transform・カメラで配置する。Fit と Clip to Frame は画像モードで適用し、両モードの切り替え時にも保存した Binding を保持する。
 
 各種レイヤー固有の処理はlayersディレクトリ内の各エフェクトのディレクトリ内に置く。各種レイヤーの実装は分離・独立させ、あるレイヤーの実装が他のレイヤーに依存・参照したりしてはらない。
 
@@ -10,7 +12,7 @@
 
 `layer-transform.ts`は、合成前の素材寸法・Scene寸法・評価済みtransformから素材座標をScene座標へ写す純粋関数を持つ。fitの規則はGPU共通基盤の`input-fit.ts`を使い、透明な余白・origin・負のscale・画面アスペクト比を合成シェーダーと揃える。ポインター・ハンドル・スナップ・選択状態はUIが所有する。
 
-`src/layers/`にレイヤー種別固有の定義・初期値・検証をまとめる。`effect`・`custom-node-graph-effect`・`text`・`shape`の各ディレクトリに既存の実装を置き、Scene・クリップ・Binding・合成・音声などの共通契約は`src/`直下に置く。
+`src/layers/`にレイヤー種別固有の定義・初期値・検証をまとめる。`effect`・`text`・`shape`の各ディレクトリに既存の実装を置き、Scene・クリップ・Binding・合成・音声などの共通契約は`src/`直下に置く。
 
 Scene・レイヤー・クリップと、その時間・合成・音声設定の契約を定義する。キーフレームの補間や式エンジンは共通基盤を利用し、Scene時刻で評価することや許可するBindingなどの規約をこのドメインで決める。
 
@@ -30,7 +32,7 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 音声計画の`sourceTiming`は`TimelineMediaSourceTiming`として最上位Scene上の再生原点・素材範囲・倍率・ループを持つ。親Sceneのトリムは表示区間だけに適用し、時計の原点を変更しない。生成音声も準備後に同じ契約へ変換する。全周期の配置は展開しない。`getTimelineMotionBlurLoops()`は映像クリップの倍率を反映した周期を収集し、各フレームではループの前後の境界だけで露光区間を狭める。
 
-`TimelineTextLayer`は本文・組み方向・サイズ・最大幅／最大高さとoverflow・色・輪郭・影・位置・整列・行間を`textParamValues`に所有し、フォントAsset IDは`textStaticSettings.font`に直接保存し、クリップは時間情報だけを持つ。`layers/text/text.ts`が定義・初期値・評価済み型を所有し、既存のTextエフェクトとは定義・描画処理を共有しない。サイズはScene長辺比、最大幅はScene幅比、縦書きの最大高さはScene高さ比、輪郭・影・行間は文字サイズ比。横書きが既定で、`writingMode: vertical-rl`では上から下へ文字を送り、改行で右から左へ列を送る。入力はTimelineの値Bindingを許可し、式・automation・キーは所属Scene時刻で評価する。合成設定の変形・不透明度は文字の配置と独立する。
+`TimelineTextLayer`は本文・組み方向・サイズ・最大幅／最大高さとoverflow・色・輪郭・影・位置・整列・行間を`textParamValues`に所有し、フォントAsset IDは`textStaticSettings.font`に直接保存し、クリップは時間情報だけを持つ。`layers/text/text.ts`が定義・初期値・評価済み型を所有する。サイズはScene長辺比、最大幅はScene幅比、縦書きの最大高さはScene高さ比、輪郭・影・行間は文字サイズ比。横書きが既定で、`writingMode: vertical-rl`では上から下へ文字を送り、改行で右から左へ列を送る。入力はTimelineの値Bindingを許可し、式・automation・キーは所属Scene時刻で評価する。合成設定の変形・不透明度は文字の配置と独立する。
 
 `TimelineShapeLayer`は一つの形状を所有し、クリップは時間情報だけを持つ。初期対応は楕円と角丸を含む長方形で、作成後に種類は変更しない。`layers/shape/shape.ts`が形状の種類別パラメータ定義と保存用・評価済みの型を所有し、Sceneやレイヤーの情報には依存しない。将来の多角形・シンボル・パスも同じレイヤー種別へ追加する。
 
@@ -42,23 +44,23 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 `expression.ts`はレイヤーに公開する変数名、`evaluation-scope.ts`は映像と音声で共通のScene時刻の評価スコープを定義する。Custom Node Graph Effect内部の変数・公開パラメータ・グラフ一覧は継承しない。
 
-`parameter-binding.ts`は共通方式と公開パラメータ直接参照を扱う`TimelineParameterBinding`、音声入力用の`lowerLayerAudio` / `anotherLayerAudio`と画像入力用の`lowerLayerOutput` / `anotherLayerOutput`を加えた`TimelineCustomNodeGraphEffectParameterBinding`、画像入力にサンプリングを組み合わせた`TimelineEffectParameterBinding`を定義する。合成設定・音量にも同じ公開パラメータ参照を使う。音声入力Bindingは`audioSource`型だけで選択できる。`anotherLayerAudio`は`layerId: string | null`を保存し、引数を所有するレイヤーと同じSceneのグループ内を含め、音声・動画・VOICEVOX・Scene・グループレイヤーを選ぶ。`null`や削除・欠落した参照先は入力なしとして扱うが、保存したIDは維持する。TimelineではPlayerを指定できず、音声入力の式・キー・automationも扱わない。
+`TimelineEffectParameterBinding` は `TimelineParameterBinding` に画像入力と音声入力を加える。Effect の種類を問わず、画像の接続には fit・wrap・filter を指定する。合成設定・音量にも同じ公開パラメータ参照を使う。音声入力Bindingは`audioSource`型だけで選択できる。`anotherLayerAudio`は`layerId: string | null`を保存し、引数を所有するレイヤーと同じSceneのグループ内を含め、音声・動画・VOICEVOX・Scene・グループレイヤーを選ぶ。`null`や削除・欠落した参照先は入力なしとして扱うが、保存したIDは維持する。TimelineではPlayerを指定できず、音声入力の式・キー・automationも扱わない。
 
 `timeline-audio.ts`の`resolveTimelineAnotherLayerAudioReference()`は、所属Scene内のグループを含む探索・自身の除外・音声出力の有無による参照可否を判定する純粋関数。Commandと描画側で同じ規則を使い、解決できない選択の拒否や入力なしへの変換はそれぞれの呼び出し側が行う。無効・空のレイヤーや音声無効の動画も有効な参照先として返す。
 
-`parameter-binding.ts`で保存データの制約を配列・構造体内部まで検証し、CPU値の評価にはTimelineの`TimelineParameterBindingEvaluator`を使う。`lowerLayerOutput`はTimeline Renderer内のエフェクト・Custom Node Graph Effectレイヤーが下層の合成結果として解決する。他ドメインの入力方式を列挙せず、このスコープが扱える方式だけを受け入れる。
+`parameter-binding.ts`で保存データの制約を配列・構造体内部まで検証し、CPU値の評価にはTimelineの`TimelineParameterBindingEvaluator`を使う。`lowerLayerOutput`はTimeline Renderer内のEffect レイヤーが下層の合成結果として解決する。他ドメインの入力方式を列挙せず、このスコープが扱える方式だけを受け入れる。
 
 UIの静的検証で使う`inspectTimelineLayer()`は、`validateTimelineLayerStructure()`でレイヤー自身の区間・解像度・固有設定を検証し、パラメータは`validateTimelineParameterTree()`で一度だけ走査する。コンテナの構造・末端の入力方式の検証と、呼び出し側による参照収集を同じ走査で行う。子レイヤーの検証は含めず、それぞれを独立した検証単位として扱う。
 
 Scene一覧の重複ID・参照先の欠落・循環参照などの診断は、状態を所有する呼び出し側が管理する。`scenes.ts`の`canReferenceScene()`は追加する参照の選択可否を扱い、Scene一覧全体を検証する入口は設けない。
 
-`getSceneAudioClips(scenes, sceneId, selection)`は音声計画を作る。選択は`{ type: 'all' }`（既定値）、`{ type: 'belowLayer', layerId }`、`{ type: 'layer', layerId }`。下層指定では自分と上層を除外し、レイヤー指定では並び順によらず指定レイヤー単体の出力を使う。下層指定はTransformの境界を透過し、最も近いGroupまたはSceneの下層までを対象にし、指定レイヤーの取得はScene内のグループをまたいで解決する。参照先の祖先の音量は含めないが、祖先が無効なら入力なしとする。選んだSceneレイヤーはその配置のトリムと音量を適用した子Scene全体を含める。子Scene内部のレイヤーは直接選べない。無効レイヤー・音声無効の動画を除外し、各階層の音量はミックス側へ渡す。`primaryAudioInputParameter` / `primaryAudioInputId`を持つエフェクト・Custom Node Graph Effectの主音声入力は、初期値・リセット時に`lowerLayerAudio`になる。画像の主入力と合成設定は独立する。
+`getSceneAudioClips(scenes, sceneId, selection)`は音声計画を作る。選択は`{ type: 'all' }`（既定値）、`{ type: 'belowLayer', layerId }`、`{ type: 'layer', layerId }`。下層指定では自分と上層を除外し、レイヤー指定では並び順によらず指定レイヤー単体の出力を使う。下層指定はTransformの境界を透過し、最も近いGroupまたはSceneの下層までを対象にし、指定レイヤーの取得はScene内のグループをまたいで解決する。参照先の祖先の音量は含めないが、祖先が無効なら入力なしとする。選んだSceneレイヤーはその配置のトリムと音量を適用した子Scene全体を含める。子Scene内部のレイヤーは直接選べない。無効レイヤー・音声無効の動画を除外し、各階層の音量はミックス側へ渡す。Effect の `primaryAudioInputId` が指す主音声入力は、初期値・リセット時に`lowerLayerAudio`になる。画像の主入力と合成設定は独立する。
 
 `motion-blur.ts`はシャッター角・サンプル数の設定と検証、最上位Sceneの端と映像クリップ境界の収集、中央露光のサンプル時刻計算を担当する。子Sceneのブラー対象のカットは配置の内容オフセットを反映し、表示区間内だけ親へ渡す。子Sceneの長さ自体は境界に含めず、固定・非表示・音声レイヤーの終端がSceneの長さを通じて露光を制限することを防ぐ。映像レイヤーの`forceDisableMotionBlur`がtrueなら、その枝のカットとループ境界を露光制限から除外する。グループ・Sceneの配下も除外するが、Sceneの長さや子の保存設定は変更しない。切り詰めた露光区間へ指定数のサンプルを等間隔で再配置するため、重みは均等で合計1となる。0・1サンプル、角度0、無効時は基準時刻を1回評価する。時間は整数msに丸めない。
 
 描画用途ごとのサンプル数は呼び出し側が選ぶ。プレビュー品質の選択肢・プロジェクトの既定fps・既定ブラー設定はUIが所有し、このパッケージには含めない。
 
-`render-history-effects.ts`は配置されたエフェクトとCustom Node Graph Effectの定義から`dependsOnRenderHistory`を調べる。これは警告用の検査であり、実行制限や履歴リセットの方針ではない。
+`findTimelineHistoryEffects` はクリップのある Effect レイヤーから、参照・インラインのグラフの子孫までたどる。呼び出し側が渡す履歴依存の判定を満たした実装を、種別と ID で重複を除いて返す。
 
 ## VOICEVOXレイヤー
 
@@ -115,8 +117,8 @@ Groupを祖先に持つカメラはUIの静的検証で診断する。無効な�
 音声計画はTransformを音量なしで透過し、下層入力も外側へ継続する。Group・Sceneは従来の合成境界を維持する。
 
 
-画像入力はエフェクトとCustom Node Graph Effectレイヤーの公開画像入力に`lowerLayerOutput` / `anotherLayerOutput`を許可する。`anotherLayerOutput`は`layerId`と`outputStage: source | rendered | composited`を持つ。公開入力のBindingにはサンプリングを持たせず、エフェクト用Bindingにだけfit・wrap・filterを組み合わせる。公開主入力の既定値・リセットは`lowerLayerOutput`とする。`layer-output.ts`は同じScene内の画像参照と、素材・合成境界・Group以外のコンテナの透過を区別した依存グラフを所有する。静的な循環は無効化・クリップ期間にかかわらず拒否する。
+Effect レイヤーは、画像接続を許可したパラメータで `lowerLayerOutput` と `anotherLayerOutput` を使える。主画像入力の既定値は `lowerLayerOutput`。`anotherLayerOutput` は `layerId` と出力段階（`source`・`rendered`・`composited`）を指定する。`layer-output.ts` は素材・合成境界・コンテナを区別して依存関係を組み立て、クリップ期間や無効化の状態にかかわらず循環を検出する。
 
-`layer-static-settings.ts`はEffect・Text・VOICEVOXの独立した静的設定の定義と保存値を組み合わせる。エフェクトレイヤーは`effectStaticSettings`を持ち、共通の`StaticSettingValues`へIDや値を直接保存する。素材参照型は通常・公開パラメータから除外する。
+`layer-static-settings.ts` は Text と VOICEVOX の静的設定の定義と値を対応付ける。Effect レイヤーは配置する `EffectSource` と公開パラメータへの Binding を保存する。
 
 公開する位置・移動・距離・CameraのXY/Zは[共通空間単位](../../../../docs/spatial-coordinate.md)です。Originは透明余白を含む素材の長辺単位、Positionは配置先のScene単位です。画像合成・クリップ・行列は内部の各軸[-1,+1]で扱い、`layer-transform.ts`が境界の換算を担当します。カメラの画角と既定Zも長辺基準とし、パラメータ定義・作成・評価にはSceneの解像度を渡しません。投影と祖先Transformの座標換算には引き続き描画先のScene寸法を使います。

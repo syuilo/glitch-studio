@@ -1,198 +1,152 @@
-import type { EffectRenderTiling, EffectRenderTilingProgressObserver } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
-import { getEffectIntrinsicResolution, resolveEffectStaticResources } from '@gs/subsystems_effect_renderer/effect-static-settings.ts';
-import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
+import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
 import { createResolutionExpressionVariables } from '@gs/shared/expression/resolution-variables.ts';
-import { getEffectInputResolution } from '@gs/subsystems_effect_shared/effect-resolution-inputs.ts';
-import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
-import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
-import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
-import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
-import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
-import { getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import { toShaderInput } from '@gs/shared/gpu/shader-input.ts';
-import { EffectRenderer } from '@gs/subsystems_effect_renderer/effect-renderer.ts';
-import { resolveEffectParameterValue } from '@gs/subsystems_effect_renderer/effect-parameter-value.ts';
-import { resolveEffectNodeResolution } from '@gs/subsystems_effect_shared/effect-node-resolution.ts';
-import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
-import { walkParameterLeaves } from '@gs/shared/parameter/parameter-tree.ts';
-import { isTimelineAudioInputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
-import { createTimelineAudioInputResolver } from '../../timeline-audio-input-resolver.ts';
-import { createSceneOutput } from '../../scene-output.ts';
-import { createTimelineCompositor } from '../../timeline-compositor.ts';
-import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
-import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
-import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
-import type { EffectImplementation, EffectGpuContext } from '@gs/subsystems_effect_shared/effect-implementation.ts';
-import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
-import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import type { TimelineEffectParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
+import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
+import { mapParameterTree, walkParameterLeaves } from '@gs/shared/parameter/parameter-tree.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
-import type { Asset } from '@gs/shared/types.ts';
-import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
-import type { TimelineImage } from '../../timeline-image.ts';
+import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import { createEffectRenderInstance } from '@gs/subsystems_effect-new_renderer/create-effect-render-instance.ts';
+import type { EffectRenderEnvironment, EffectRenderRequest } from '@gs/subsystems_effect-new_renderer/effect-render-instance.ts';
+import type { EffectCatalog } from '@gs/subsystems_effect-new_shared/effect-catalog.ts';
+import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
+import { getEffectLayerParameterDefault, getTimelineEffectLayerDefinition, getTimelineEffectLayerOutputId } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
+import { resolveTimelineEffectLayerResolution } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer-resolution.ts';
+import { isTimelineAudioInputBinding, isTimelineImageInputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import type { TimelineEffectParameterBinding, TimelineLowerLayerOutputBinding, TimelineAnotherLayerOutputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
+import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { createSceneOutput } from '../../scene-output.ts';
+import { createTimelineAudioInputResolver } from '../../timeline-audio-input-resolver.ts';
 import type { TimelineAudioInputProvider } from '../../timeline-audio-input-resolver.ts';
+import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
+import { createTimelineCompositor } from '../../timeline-compositor.ts';
+import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
+import type { TimelineImage } from '../../timeline-image.ts';
+import type { TimelineLayerContext, TimelineLayerEvaluation, TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
-/** レイヤーの評価スコープ・入力・合成を所有し、エフェクト自身の実行はEffectRendererへ委ねる。 */
-export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition: EffectDefinition, implementation: EffectImplementation, options: {
-	wgpu: EffectGpuContext;
-	effectRenderTiling?: EffectRenderTiling;
-	fallbackTexture: GPUTexture;
+function imageSourceKey(binding: TimelineLowerLayerOutputBinding | TimelineAnotherLayerOutputBinding): string {
+	return binding.inputSource === 'lowerLayerOutput' ? 'lowerLayerOutput' : JSON.stringify([binding.layerId, binding.outputStage]);
+}
+
+/** Effectの種類に関わらず、レイヤーが入力の取得・Scene時刻の引数評価と出力の合成を所有する。 */
+export function createEffectTimelineLayer(layer: TimelineEffectLayer, catalog: EffectCatalog, options: EffectRenderEnvironment & {
+	vertex: GPUShaderModule;
 	/** 倍率適用済みの所属Sceneの寸法。 */
 	resolution: Resolution;
 	resolutionScale: number;
-	assets: readonly Asset[];
-	assetTextures: ReadonlyMap<string, GPUTexture>;
 	getAudioInput?: TimelineAudioInputProvider;
-	onState?: (state: EffectInstanceState | null) => void;
-	onTilingProgress?: EffectRenderTilingProgressObserver;
+	resolveAudioSource?: EffectRenderRequest['resolveAudioSource'];
 	onCompositing?: TimelineCompositingObserver | null;
 }): TimelineLayerRenderer<TimelineImage> {
-	// 設定更新時はManagerがインスタンスを作り直す。Bindingの検証と既定値の補完は
-	// 受け入れ時に行い、毎フレーム、未評価のキーフレーム列まで複製・再検証しない。
-	const port = definition.primaryOutput;
-	// 出力のないエフェクトは透明画像としてreplaceせず、合成自体をスキップする。
-	if (port == null) return { evaluate: async () => ({ gpuTime: 0 }), destroy() {} };
-	const { device } = options.wgpu;
-	const staticSettings = createStaticSettingValues(definition.staticSettingDefs ?? {}, layer.effectStaticSettings);
-	const inputResolution = getEffectInputResolution<TimelineEffectParameterBinding>(definition, Object.fromEntries(Object.keys(definition.paramDefs).map(key => [key, layer.effectParamValues[key] ?? getEffectLayerParameterDefault(definition, key)])), binding =>
-		binding.inputSource === 'lowerLayerOutput' || binding.inputSource === 'anotherLayerOutput' ? options.resolution : null);
-	const effectResolution = resolveEffectNodeResolution({
-		setting: layer.resolution, contextResolution: options.resolution, resolutionScale: options.resolutionScale,
-		intrinsicResolution: layer.resolution.mode === 'auto' ? getEffectIntrinsicResolution(definition, staticSettings, options) : null,
-		inputResolution, maxDimension: device.limits.maxTextureDimension2D,
-	});
-	const renderer = new EffectRenderer({
-		definition,
-		implementation,
-		resolution: effectResolution,
-		staticResources: resolveEffectStaticResources(definition, staticSettings, options),
-		wgpu: options.wgpu,
-		fallbackTexture: options.fallbackTexture,
-		onState: options.onState,
-		effectRenderTiling: options.effectRenderTiling,
-	});
-	const compositor = createTimelineCompositor({
-		device,
-		vertex: options.wgpu.defaultVertexShaderModule,
-		onCompositing: options.onCompositing,
-		resolution: options.resolution,
-	});
-	const inputFrame = createSceneOutput({
-		device,
-		vertex: options.wgpu.defaultVertexShaderModule,
-		resolution: options.resolution,
-	});
-	// 出力段階ごとに別の確定画像を保持する。同じ変換先を使うと、複数入力の最後の画像で
-	// 先に解決した入力まで上書きされてしまう。
-	const referenceFrames = new Map<string, ReturnType<typeof createSceneOutput>>();
+	const definition = getTimelineEffectLayerDefinition(layer, catalog);
+	const outputId = getTimelineEffectLayerOutputId(definition);
+	const outputIds = new Set([outputId]);
+	const effectResolution = resolveTimelineEffectLayerResolution(layer.resolution, options.resolution, options.resolutionScale);
+	const defaultBindings = new Map(Object.keys(definition.paramDefs).map(id => [id, getEffectLayerParameterDefault(definition, id)]));
+	const getBinding = (id: string) => Object.hasOwn(layer.effectParamValues, id) ? layer.effectParamValues[id] : defaultBindings.get(id)!;
+
+	// 画像を受け取れる公開ポートには、入力の取得前からSceneフレームの寸法を宣言できる。
+	// ノードの配線・寸法・入力元の変更時には新しい配置を作る。
+	const inputResolutions = new Map<string, Resolution>();
+	for (const [id, parameter] of Object.entries(definition.paramDefs)) {
+		if (parameter.canNode === true && isTimelineImageInputBinding(getBinding(id))) inputResolutions.set(id, options.resolution);
+	}
+	const instance = createEffectRenderInstance(catalog, layer.effect, options, { resolution: effectResolution, inputResolutions });
 	const evaluator = new TimelineParameterBindingEvaluator();
+	const expressionEngine = new ExpressionEvaluator();
 	const compositing = new TimelineCompositingParameters();
-	const usedOutputPorts = new Set([port]);
-	const parameters = Object.entries(definition.paramDefs).map(([key, def]) => ({
-		key,
-		def,
-		binding: layer.effectParamValues[key] ?? getEffectLayerParameterDefault(definition, key),
-	}));
-	let disposed = false;
-	return {
-		async evaluate(context, signal) {
-			if (disposed || signal.aborted) return { gpuTime: 0 };
-			const baseScope = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, publicParameters: context.publicParameters, automationGraphs: layer.automationGraphs });
-			const scope = { ...baseScope, variables: { ...baseScope.variables, ...createResolutionExpressionVariables(effectResolution) } };
-			const resolveAudioInput = createTimelineAudioInputResolver(options.getAudioInput, context.sceneTimeMs, context.isExport);
-			const references = new Map<string, TimelineImage>();
-			let lowerLayerOutput: TimelineImage | null = null;
-			for (const { param: binding } of walkParameterLeaves<TimelineEffectParameterBinding>(definition.paramDefs, Object.fromEntries(parameters.map(parameter => [parameter.key, parameter.binding])))) {
-				if (binding.inputSource === 'lowerLayerOutput' && lowerLayerOutput == null) lowerLayerOutput = await context.getInput();
-				if (binding.inputSource !== 'anotherLayerOutput') continue;
-				const key = JSON.stringify([binding.layerId, binding.outputStage]);
-				if (references.has(key)) continue;
-				let image = await context.getLayerOutput(binding.layerId, binding.outputStage);
-				if (signal.aborted) return { gpuTime: 0 };
-				{
-					let frame = referenceFrames.get(key);
-					if (frame == null) {
-						frame = createSceneOutput({
-							device,
-							vertex: options.wgpu.defaultVertexShaderModule,
-							resolution: options.resolution,
-						});
-						referenceFrames.set(key, frame);
-					}
-					image = frame.renderInput(image);
-				}
-				references.set(key, image);
-			}
+	let evaluationLifetime = new AbortController();
+	let compositor: ReturnType<typeof createTimelineCompositor> | null = null;
+	const frames = new Map<string, ReturnType<typeof createSceneOutput>>();
+
+	async function evaluateFrame(context: TimelineLayerContext<TimelineImage>, signal: AbortSignal): Promise<TimelineLayerEvaluation<TimelineImage>> {
+		// この配置で使うのは主色出力だけ。子グラフのデータ出力だけに必要な入力元まで待たない。
+		const required = instance.getRequiredParameterIds?.(outputIds) ?? Object.keys(definition.paramDefs);
+		const parameterIds = [...required];
+		const definitions = Object.fromEntries(parameterIds.map(id => [id, definition.paramDefs[id]]));
+		const bindings = Object.fromEntries(parameterIds.map(id => [id, getBinding(id)]));
+		await instance.prepare(outputIds);
+		if (signal.aborted) return { gpuTime: 0 };
+		const images = new Map<string, TimelineImage>();
+		for (const { param: binding } of walkParameterLeaves<TimelineEffectParameterBinding>(definitions, bindings)) {
+			if (!isTimelineImageInputBinding(binding)) continue;
+			const key = imageSourceKey(binding);
+			if (images.has(key)) continue;
+			const image = binding.inputSource === 'lowerLayerOutput' ? await context.getInput() : await context.getLayerOutput(binding.layerId, binding.outputStage);
 			if (signal.aborted) return { gpuTime: 0 };
-			// Effectの入力は有限のSceneフレーム。中間画像の可変範囲をノードへ漏らさない。
-			let input: TimelineImage | null = null;
-			const getInput = () => {
-				input ??= inputFrame.renderInput(lowerLayerOutput!);
-				return input;
-			};
-			const params = Object.fromEntries(parameters.map(({ key, def, binding }) => {
-				return [key, mapParameterTree<TimelineEffectParameterBinding>(def, binding, [key], (leaf, value) => {
-					if (value.inputSource === 'lowerLayerOutput') return toShaderInput(getInput(), value);
-					if (value.inputSource === 'anotherLayerOutput') return toShaderInput(references.get(JSON.stringify([value.layerId, value.outputStage]))!, value);
-					if (isTimelineAudioInputBinding(value)) return resolveAudioInput(value);
-					const fallback = value.inputSource === 'automationGraphReference' || (leaf.dataType.kind === 'enum' && value.inputSource === 'keyframesTimelineInline')
-						? leaf.defaultValue.value : leaf.dataType.kind === 'enum' ? null : genEmptyValue(leaf);
-					// await前に評価結果だけを固定する。literalの配列を準備中の編集と共有せず、
-					// AssetやGPUリソースはこの後の変換で借用する。
-					const evaluated = coerceParameterValue(leaf, deepClone(validateEnumParameterValue(leaf, evaluator.evaluate(value, scope, fallback, leaf))));
-					return resolveEffectParameterValue(leaf, evaluated);
-				})];
+			images.set(key, image);
+		}
+
+		// 全ての非同期待機の後で素材を確定し、同じ区間内でEffectのコマンドを送信する。
+		// 別のシークが確定用のテクスチャやuniformバッファを更新する余地を残さない。
+		for (const [key, image] of images) {
+			let frame = frames.get(key);
+			if (frame == null) {
+				frame = createSceneOutput({ device: options.device, vertex: options.vertex, resolution: options.resolution });
+				frames.set(key, frame);
+			}
+			images.set(key, frame.renderInput(image));
+		}
+		const baseScope = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, publicParameters: context.publicParameters, automationGraphs: layer.automationGraphs });
+		const scope = { ...baseScope, variables: { ...baseScope.variables, ...createResolutionExpressionVariables(effectResolution) } };
+		const resolveAudioInput = createTimelineAudioInputResolver(options.getAudioInput, context.sceneTimeMs, context.isExport);
+		const parameters = new Map<string, unknown>();
+		for (const id of parameterIds) {
+			parameters.set(id, mapParameterTree<TimelineEffectParameterBinding>(definitions[id], bindings[id], [], (leaf, binding) => {
+				if (isTimelineImageInputBinding(binding)) return toShaderInput(images.get(imageSourceKey(binding))!, binding);
+				if (isTimelineAudioInputBinding(binding)) return resolveAudioInput(binding);
+				const fallback = binding.inputSource === 'automationGraphReference' || (leaf.dataType.kind === 'enum' && binding.inputSource === 'keyframesTimelineInline')
+					? leaf.defaultValue.value : leaf.dataType.kind === 'enum' ? null : genEmptyValue(leaf);
+				return deepClone(validateEnumParameterValue(leaf, evaluator.evaluate(binding, scope, fallback, leaf)));
 			}));
-			renderer.setUsedOutputPorts(usedOutputPorts);
-			renderer.prepare(params, signal);
-			if (!await renderer.waitUntilReady(signal) || signal.aborted || disposed) return { gpuTime: 0 };
-			const encoder = device.createCommandEncoder();
+		}
+		if (signal.aborted) return { gpuTime: 0 };
+		const commandEncoder = options.device.createCommandEncoder();
+		const outputs = instance.render({
+			commandEncoder, parameters, outputIds, expressionEngine, resolveAudioSource: options.resolveAudioSource,
+			time: context.contentTimeMs / 1000, endTime: context.contentEndTimeMs / 1000,
+		});
+		options.device.queue.submit([commandEncoder.finish()]);
+		const image = outputs.get(outputId);
+		// 公開ポートがあっても未接続なら、このレイヤーの合成をスキップする。
+		if (image == null) return { gpuTime: 0 };
+		const settings = compositing.evaluate({
+			time: context.sceneTimeMs, isExport: context.isExport, publicParameters: context.publicParameters, automationGraphs: layer.automationGraphs,
+			coordinateSpace: layer.coordinateSpace, mask: layer.mask, layerMask: layer.layerMask, transformTarget: layer.transformTarget, paramValues: layer.compositingParamValues,
+		});
+		compositor ??= createTimelineCompositor(options);
+		return compositor.evaluate(context, image, settings);
+	}
+
+	return {
+		async evaluate(context, frameSignal) {
+			const signal = AbortSignal.any([frameSignal, evaluationLifetime.signal]);
+			if (signal.aborted) return { gpuTime: 0 };
+			// 中断済みのフレームは、コンパイルや参照先の画像待ちが終わる前に呼び出し元へ返す。
+			const cancelled = Promise.withResolvers<TimelineLayerEvaluation<TimelineImage>>();
+			const abort = () => cancelled.resolve({ gpuTime: 0 });
+			signal.addEventListener('abort', abort, { once: true });
 			try {
-				// キー・式はScene時刻だが、エフェクト固有のアニメーションには内容時刻（秒）を渡す。
-				const renderContext = {
-					params,
-					time: context.contentTimeMs / 1000,
-					timeDelta: context.timeDelta,
-					pointerPosition: { x: -99999, y: -99999 },
-					pointerVector: { x: 0, y: 0 },
-					usedOutputPorts,
-					commandEncoder: encoder,
-				};
-				if (renderer.shouldRenderTiled(renderContext)) await renderer.renderTiled(renderContext, signal,
-					!context.isExport && options.onTilingProgress != null ? progress => {
-						if (!signal.aborted && !disposed) options.onTilingProgress?.(progress);
-					} : null);
-				else renderer.render(renderContext);
-				signal.throwIfAborted();
-				const texture = renderer.getOutputTexture(port);
-				if (texture == null) return { gpuTime: 0 };
-				const settings = compositing.evaluate({
-					time: context.sceneTimeMs,
-					isExport: context.isExport,
-					coordinateSpace: layer.coordinateSpace,
-					mask: layer.mask,
-					layerMask: layer.layerMask,
-					transformTarget: layer.transformTarget,
-					paramValues: layer.compositingParamValues,
-					publicParameters: context.publicParameters,
-					automationGraphs: layer.automationGraphs,
-				});
-				return { ...compositor.evaluate(context, { kind: 'texture', texture }, settings), gpuTime: 0 };
+				return await Promise.race([evaluateFrame(context, signal), cancelled.promise]);
 			} finally {
-				// 次のフレームによる出力の再利用・破棄より先に、その出力を読む合成もsubmitする。
-				device.queue.submit([encoder.finish()]);
+				signal.removeEventListener('abort', abort);
 			}
 		},
 		resetRenderHistory() {
-			if (definition.dependsOnRenderHistory) renderer.resetRenderHistory();
+			if (evaluationLifetime.signal.aborted) return;
+			// リセット前に始めた非同期評価が、新しい履歴を進めることを防ぐ。
+			evaluationLifetime.abort();
+			evaluationLifetime = new AbortController();
+			instance.resetRenderHistory();
 		},
 		destroy() {
-			disposed = true;
-			renderer.dispose();
-			inputFrame.dispose();
-			for (const frame of referenceFrames.values()) frame.dispose();
-			compositor.dispose();
+			if (evaluationLifetime.signal.aborted) return;
+			evaluationLifetime.abort();
+			instance.destroy();
+			for (const frame of frames.values()) frame.dispose();
+			frames.clear();
+			compositor?.dispose();
 		},
 	};
 }

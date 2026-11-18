@@ -1,10 +1,62 @@
-import definition from '@gs/subsystems_effect_shared/fx/text/_def_.ts';
-import implementation from '@gs/subsystems_effect_shared/fx/text/_impl_.ts';
-import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { createTextRenderer } from '../../src/text-rendering/text-renderer.ts';
 import type { TextRenderValues } from '../../src/text-rendering/text-render-values.ts';
-import type { RuntimeEffectParameters } from '@gs/subsystems_effect_shared/effect-implementation.ts';
+import { drawVerticalTextLine } from '@gs/shared/text/vertical-text.ts';
+import { layoutText } from '../../src/text-rendering/text-layout.ts';
+import { createTextShadowMaskRenderer } from '../../src/text-rendering/text-shadow.ts';
+
+/** Scene原寸で字形を直接描く。切り出し範囲・GPUテクスチャの寸法・GPU合成結果は参照しない。 */
+function renderReferenceAlpha(values: TextRenderValues, width: number, height: number) {
+	const canvas = new OffscreenCanvas(width, height);
+	const context = canvas.getContext('2d')!;
+	context.textAlign = values.align;
+	context.textBaseline = 'alphabetic';
+	context.direction = 'ltr';
+	context.lineJoin = 'round';
+	context.fillStyle = '#fff';
+	context.strokeStyle = '#fff';
+	const longSide = Math.max(width, height);
+	const layout = layoutText({
+		...values, fontSize: values.size * longSide, alignment: values.align,
+		maxInlineSize: values.writingMode === 'vertical-rl' ? values.maxHeight * height : values.maxWidth * width,
+	}, (line, size) => {
+		context.font = `${size}px sans-serif`;
+		return context.measureText(line);
+	});
+	if (layout == null) throw new Error('Expected text layout');
+	const x = width / 2 + values.position[0] * longSide;
+	const y = height / 2 - values.position[1] * longSide;
+	const shadowRenderer = createTextShadowMaskRenderer();
+	try {
+		shadowRenderer.render(context, { x, y, layout, fontFamily: 'sans-serif', alignment: values.align, settings: { blur: values.shadowBlur, offset: values.shadowOffset } });
+	} finally {
+		shadowRenderer.dispose();
+	}
+	const shadow = context.getImageData(0, 0, width, height).data;
+	context.clearRect(0, 0, width, height);
+	context.font = `${layout.fontSize}px sans-serif`;
+	context.lineWidth = layout.outlineWidth * 2;
+	context.translate(x, y);
+	if (values.writingMode === 'vertical-rl') context.rotate(Math.PI / 2);
+	context.scale(layout.inlineScale, 1);
+	const draw = (stroke: boolean) => {
+		for (const [index, line] of layout.lines.entries()) {
+			const baseline = layout.firstBaselineOffset + index * layout.lineAdvance;
+			if (layout.verticalLines != null) drawVerticalTextLine(context, layout.verticalLines[index], layout.fontSize, baseline, stroke);
+			else if (stroke) context.strokeText(line, 0, baseline);
+			else context.fillText(line, 0, baseline);
+		}
+		return context.getImageData(0, 0, width, height).data;
+	};
+	const fill = draw(false);
+	const expanded = draw(true);
+	// 輪郭は本体の外側、影は前景の背後。本体・輪郭のalphaが異なるので層の取り違えも検出できる。
+	return Uint8ClampedArray.from({ length: width * height }, (_, i) => {
+		const index = i * 4 + 3;
+		const foreground = fill[index] * values.color[3] + (expanded[index] - fill[index]) * values.outlineColor[3];
+		return foreground + shadow[index] * values.shadowColor[3] * (1 - foreground / 255);
+	});
+}
 
 export async function run() {
 	const adapter = await navigator.gpu.requestAdapter();
@@ -50,10 +102,6 @@ export async function run() {
 	try {
 		for (const [width, height] of [[480, 320], [320, 480]]) {
 			const resolution = { width, height };
-			const wgpu = { device, enable32bitDataTextures: false, defaultVertexShaderModule: vertex };
-			const output = implementation.outputTextureFactories.output({ wgpu, resolution });
-			const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value])) as RuntimeEffectParameters<typeof definition.paramDefs>;
-			const effect = implementation.init({ wgpu, resolution, params: defaults, resources: { font: null }, reportStatus: () => {}, fallbackTexture: output });
 			const timeline = createTextRenderer({ device, vertex, resolution, fontFileSource: null });
 			await timeline.waitUntilReady(new AbortController().signal);
 			try {
@@ -66,19 +114,12 @@ export async function run() {
 								position: [0.04, -0.02], color: [1, 1, 1, 0.7], outlineWidth: 0.08, outlineColor: [1, 0.2, 0.1, 0.8],
 								shadowEnabled: true, shadowColor: [0.3, 0.5, 1, 0.6], shadowOffset: [0.2, -0.15], shadowBlur: 0.06,
 							};
-							const params = { ...defaults, ...values, color: constantShaderInput('color', values.color), outlineColor: constantShaderInput('color', values.outlineColor), shadowColor: constantShaderInput('color', values.shadowColor) };
 							const encoder = device.createCommandEncoder();
-							effect.render({ params, commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
-								outputDataMap: { output: { texture: output, textureView: output.createView(), previousFrameTexture: null, previousFrameTextureView: null } },
-								createPassEncoder: (commandEncoder, descriptor) => commandEncoder.beginRenderPass(descriptor),
-								createComputePassEncoder: commandEncoder => commandEncoder.beginComputePass(),
-								createPassEncoderFor: (commandEncoder, view) => commandEncoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
-							});
 							const image = timeline.render(encoder, values);
 							device.queue.submit([encoder.finish()]);
 							assert(image.kind === 'texture' && image.region != null, 'Timeline text must retain its crop region');
 							if (image.kind !== 'texture' || image.region == null) throw new Error('Missing Timeline texture');
-							const expected = await read(output);
+							const expectedAlpha = renderReferenceAlpha(values, width, height);
 							const cropped = new OffscreenCanvas(image.texture.width, image.texture.height);
 							cropped.getContext('2d')!.putImageData(new ImageData(await read(image.texture), image.texture.width, image.texture.height), 0, 0);
 							const restored = new OffscreenCanvas(width, height);
@@ -90,9 +131,9 @@ export async function run() {
 							// Canvasへ戻すと非乗算色になるため、比較は被覆率のalphaだけを使う。
 							let alphaDifference = 0;
 							let alphaSum = 0;
-							for (let index = 3; index < expected.length; index += 4) {
-								alphaDifference += Math.abs(actual[index] - expected[index]);
-								alphaSum += expected[index];
+							for (const [index, alpha] of expectedAlpha.entries()) {
+								alphaDifference += Math.abs(actual[index * 4 + 3] - alpha);
+								alphaSum += alpha;
 							}
 							assert(alphaSum > 10000, 'Text must produce visible pixels');
 							assert(alphaDifference / alphaSum < 0.025, `${writingMode}/${overflow}/${align} ${width}x${height}: cropped mask differs by ${alphaDifference / alphaSum}`);
@@ -102,9 +143,7 @@ export async function run() {
 					}
 				}
 			} finally {
-				effect.dispose();
 				timeline.dispose();
-				output.destroy();
 			}
 		}
 		const preview = new OffscreenCanvas(640, 480);

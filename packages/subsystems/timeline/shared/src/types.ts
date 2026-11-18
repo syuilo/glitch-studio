@@ -1,4 +1,3 @@
-import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import type { TextStaticSettings } from './layers/text/text.ts';
 import type { VoicevoxSubtitleStaticSettings } from './layers/voicevox/voicevox-subtitle.ts';
 import type { timelineCompositingParamDefs, TimelineLayerCoordinateSpace, TimelineLayerTransformTarget, TimelineMask, TimelineLayerMask } from './timeline-compositing.ts';
@@ -6,18 +5,18 @@ import type { TimelineCameraParameterValues } from './layers/camera/camera.ts';
 import type { TimelineTransformParameterValues } from './layers/transform/transform.ts';
 import type { TimelineClip, TimelineContentClip, TimelineMediaClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from './clip.ts';
 import type { TimelineSceneResolution } from './scene-resolution.ts';
-import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.js';
+import type { TimelineEffectResolution } from './layers/effect/effect-layer-resolution.ts';
 import type { ParameterChangeKind } from '@gs/shared/parameter/parameter-definition.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
-import type { TimelineParameterBinding, TimelineEffectParameterBinding, TimelineCustomNodeGraphEffectParameterBinding } from './parameter-binding.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_custom-node-graph-effect_shared/types.js';
+import type { TimelineParameterBinding, TimelineEffectParameterBinding } from './parameter-binding.ts';
+import type { EffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
 import type { VoicevoxSubtitleParameterValues } from './layers/voicevox/voicevox-subtitle.ts';
 import type { TextParameterValues } from './layers/text/text.ts';
 import type { Shape } from './layers/shape/shape.ts';
 import type { TimelineLayerPublicParameterDefinition } from './public-parameters.ts';
 import type { VoicevoxSettings, VoicevoxUtterance } from './layers/voicevox/voicevox.ts';
 
-export type TimelineParameterTarget = 'publicParameter' | 'customNodeGraphEffect' | 'effect' | 'shape' | 'text' | 'voicevoxSubtitle' | 'camera' | 'transform' | 'compositing' | 'audio';
+export type TimelineParameterTarget = 'publicParameter' | 'effect' | 'shape' | 'text' | 'voicevoxSubtitle' | 'camera' | 'transform' | 'compositing' | 'audio';
 
 // definitionはレイヤー全体の追加・削除・置換。部分編集では変更した内容を列挙し、
 // 実行インスタンスの扱いは利用側へ委ねる。
@@ -61,28 +60,13 @@ type TimelineVisualLayerBase = {
 
 export type { TimelineParameterBinding, TimelineEffectParameterBinding } from './parameter-binding.ts';
 
-export type TimelineCustomNodeGraphEffectLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
-	layerType: 'customNodeGraphEffect';
-	/** 未指定は画像を変形する。入力接続とは独立した静的な設定。 */
-	transformTarget?: TimelineLayerTransformTarget;
-	customNodeGraphEffectId: string;
-	customNodeGraphEffectParamValues: Record<string, TimelineCustomNodeGraphEffectParameterBinding>;
-};
-
-export type TimelineInlineCustomNodeGraphEffectLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
-	layerType: 'inlineCustomNodeGraphEffect';
-	transformTarget?: TimelineLayerTransformTarget;
-	customNodeGraphEffect: CustomNodeGraphEffect;
-	customNodeGraphEffectParamValues: Record<string, TimelineCustomNodeGraphEffectParameterBinding>;
-};
-
 export type TimelineEffectLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
 	layerType: 'effect';
+	/** 未指定は画像を変形する。入力接続とは独立した静的な設定。 */
 	transformTarget?: TimelineLayerTransformTarget;
-	effectId: string;
+	effect: EffectSource;
 	effectParamValues: Record<string, TimelineEffectParameterBinding>;
-	effectStaticSettings: StaticSettingValues;
-	resolution: EffectResolution;
+	resolution: TimelineEffectResolution;
 };
 
 /** シェイプはレイヤー所有。クリップは表示区間だけを持ち、形状のキーはScene時刻で評価する。 */
@@ -141,7 +125,7 @@ export type TimelineGroupLayer = TimelineLayerCommon & TimelineLayerParameters &
 	layers: TimelineLayer[];
 };
 
-export type TimelineClipLayer = TimelineCustomNodeGraphEffectLayer | TimelineInlineCustomNodeGraphEffectLayer | TimelineEffectLayer | TimelineShapeLayer | TimelineTextLayer | TimelineAudioLayer | TimelineImageLayer | TimelineVideoLayer | TimelineSceneLayer | TimelineVoicevoxLayer | TimelineCameraLayer;
+export type TimelineClipLayer = TimelineEffectLayer | TimelineShapeLayer | TimelineTextLayer | TimelineAudioLayer | TimelineImageLayer | TimelineVideoLayer | TimelineSceneLayer | TimelineVoicevoxLayer | TimelineCameraLayer;
 /** 子を平面化せず、座標系の移動だけを継承する。自身の画像・クリップ・音量は持たない。 */
 export type TimelineTransformLayer = TimelineLayerCommon & TimelineLayerParameters & {
 	layerType: 'transform';
@@ -171,12 +155,8 @@ export function hasTimelineLayerParameters<Layer extends TimelineLayer>(layer: L
 	return layer.layerType !== 'folder';
 }
 
-export function isTimelineEffectOrCustomNodeGraphEffectLayer(layer: TimelineLayer): layer is TimelineEffectLayer | TimelineCustomNodeGraphEffectLayer | TimelineInlineCustomNodeGraphEffectLayer {
-	return layer.layerType === 'effect' || layer.layerType === 'customNodeGraphEffect' || layer.layerType === 'inlineCustomNodeGraphEffect';
-}
-
 export function getTimelineLayerTransformTarget(layer: TimelineLayer): TimelineLayerTransformTarget {
-	return isTimelineEffectOrCustomNodeGraphEffectLayer(layer) ? layer.transformTarget ?? 'image' : 'image';
+	return layer.layerType === 'effect' ? layer.transformTarget ?? 'image' : 'image';
 }
 
 // 通信上はlayersを省くため、種別だけで分類し、絞り込み後も呼び出し元の型を保つ。
