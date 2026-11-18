@@ -1,5 +1,5 @@
 <template>
-<div :class="$style.root">
+<div :class="[$style.root, { [$style.small]: small, [$style.large]: large }]">
 	<div :class="$style.label"><slot name="label"></slot></div>
 	<div
 		:class="[$style.input, { [$style.disabled]: disabled, [$style.focused]: editing }]"
@@ -56,6 +56,8 @@ const props = withDefaults(defineProps<{
 	logarithmic?: boolean;
 	textConverter?: (value: number) => string;
 	continuousUpdate?: boolean;
+	small?: boolean;
+	large?: boolean;
 }>(), {
 	step: 1,
 });
@@ -217,6 +219,14 @@ onBeforeUnmount(() => finishDrag?.());
 <style lang="scss" module>
 .root {
 	--height: var(--GS-CONTROL-HEIGHT);
+
+	&.small {
+		--height: var(--GS-CONTROL-HEIGHT-SMALL);
+	}
+
+	&.large {
+		--height: var(--GS-CONTROL-HEIGHT-LARGE);
+	}
 }
 
 .label {
