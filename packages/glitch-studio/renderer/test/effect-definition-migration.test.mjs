@@ -43,10 +43,11 @@ function checkParameter(dataType, settings, control) {
 test('keeps all effect schemas and string enum defaults consistent', () => {
 	assert.ok(definitions.length > 0);
 	for (const definition of definitions) {
-		assert.ok(definition.primaryOutput === null || Object.hasOwn(definition.outputDefs, definition.primaryOutput));
-		const keys = Object.keys(definition);
-		assert.equal(keys.indexOf('primaryInputParameter'), keys.indexOf('paramDefs') + 1);
-		assert.equal(keys.indexOf('primaryOutput'), keys.indexOf('outputDefs') + 1);
+		// 主入出力はキーで参照するため、UIレイアウトを含む定義でも参照先の存在を確認する。
+		assert.ok(definition.primaryInputParameter === null || Object.hasOwn(definition.paramDefs, definition.primaryInputParameter),
+			`Unknown primary input parameter in ${definition.id}: ${definition.primaryInputParameter}`);
+		assert.ok(definition.primaryOutput === null || Object.hasOwn(definition.outputDefs, definition.primaryOutput),
+			`Unknown primary output in ${definition.id}: ${definition.primaryOutput}`);
 		for (const parameter of Object.values(definition.paramDefs)) {
 			checkParameter(parameter.dataType, parameter, parameter.ui.control);
 		}
@@ -121,32 +122,33 @@ test('rejects unknown and missing struct fields in effect definitions', () => {
 	const source = `
 import { defineEffect } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import definition from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
-const struct = definition.paramDefs.foo;
-const array = definition.paramDefs.buzzs;
+// テスト用のparamDefsに差し替えるため、元のパラメータ名に結び付くUIレイアウトは除く。
+const { paramDefs: { foo: struct, buzzs: array }, ui: _ui, ...definitionMetadata } = definition;
+const base = { ...definitionMetadata, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameters: [] };
 const uiField = struct.ui.control.fields.node;
 const fieldSettings = struct.fields.node;
 const binding = struct.defaultValue.value.node;
 // 正しいフィールドと既存のBindingは受け入れる。
-const valid = defineEffect({ ...definition, paramDefs: { struct, array }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameters: [] });
+const valid = defineEffect({ ...base, paramDefs: { struct, array } });
 const preserved: true = valid.paramDefs.struct.fields.node.canNode;
 // @ts-expect-error UIに存在しないfieldを追加できない。
-defineEffect({ ...definition, paramDefs: { struct: { ...struct, ui: { ...struct.ui, control: { fields: { ...struct.ui.control.fields, typo: uiField } } } } }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameters: [] });
+defineEffect({ ...base, paramDefs: { struct: { ...struct, ui: { ...struct.ui, control: { fields: { ...struct.ui.control.fields, typo: uiField } } } } } });
 // @ts-expect-error 初期値に存在しないfieldを追加できない。
-defineEffect({ ...definition, paramDefs: { struct: { ...struct, defaultValue: { inputSource: 'literal', value: { node: binding, typo: binding } } } }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameters: [] });
+defineEffect({ ...base, paramDefs: { struct: { ...struct, defaultValue: { inputSource: 'literal', value: { node: binding, typo: binding } } } } });
 // @ts-expect-error 子設定に存在しないfieldを追加できない。
-defineEffect({ ...definition, paramDefs: { struct: { ...struct, fields: { ...struct.fields, typo: fieldSettings } } }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameters: [] });
+defineEffect({ ...base, paramDefs: { struct: { ...struct, fields: { ...struct.fields, typo: fieldSettings } } } });
 // @ts-expect-error UIの必須fieldを省略できない。
-defineEffect({ ...definition, paramDefs: { struct: { ...struct, ui: { ...struct.ui, control: { fields: {} } } } }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameters: [] });
+defineEffect({ ...base, paramDefs: { struct: { ...struct, ui: { ...struct.ui, control: { fields: {} } } } } });
 // @ts-expect-error 初期値の必須fieldを省略できない。
-defineEffect({ ...definition, paramDefs: { struct: { ...struct, defaultValue: { inputSource: 'literal', value: {} } } }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameters: [] });
+defineEffect({ ...base, paramDefs: { struct: { ...struct, defaultValue: { inputSource: 'literal', value: {} } } } });
 // @ts-expect-error 配列の要素UIに存在しないfieldを追加できない。
-defineEffect({ ...definition, paramDefs: { array: { ...array, ui: { ...array.ui, control: { element: { fields: { ...array.ui.control.element.fields, typo: uiField } } } } } }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameters: [] });
+defineEffect({ ...base, paramDefs: { array: { ...array, ui: { ...array.ui, control: { element: { fields: { ...array.ui.control.element.fields, typo: uiField } } } } } } });
 // @ts-expect-error 配列内の構造体初期値にも存在しないfieldを追加できない。
-defineEffect({ ...definition, paramDefs: { array: { ...array, defaultValue: { inputSource: 'literal', value: [{ id: 'first', binding: { inputSource: 'literal', value: { ...array.element.defaultValue.value, typo: binding } } }] } } }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameters: [] });
+defineEffect({ ...base, paramDefs: { array: { ...array, defaultValue: { inputSource: 'literal', value: [{ id: 'first', binding: { inputSource: 'literal', value: { ...array.element.defaultValue.value, typo: binding } } }] } } } });
 // @ts-expect-error 要素追加時の初期値にも存在しないfieldを追加できない。
-defineEffect({ ...definition, paramDefs: { array: { ...array, element: { ...array.element, defaultValue: { inputSource: 'literal', value: { ...array.element.defaultValue.value, typo: binding } } } } }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameters: [] });
+defineEffect({ ...base, paramDefs: { array: { ...array, element: { ...array.element, defaultValue: { inputSource: 'literal', value: { ...array.element.defaultValue.value, typo: binding } } } } } });
 // @ts-expect-error 正しいfield名でもリテラルの型は一致する必要がある。
-defineEffect({ ...definition, paramDefs: { array: { ...array, element: { ...array.element, defaultValue: { inputSource: 'literal', value: { ...array.element.defaultValue.value, x: { inputSource: 'literal', value: 'bad' } } } } } }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameters: [] });
+defineEffect({ ...base, paramDefs: { array: { ...array, element: { ...array.element, defaultValue: { inputSource: 'literal', value: { ...array.element.defaultValue.value, x: { inputSource: 'literal', value: 'bad' } } } } } } });
 `;
 	assertTypeChecks(fileName, source);
 });
