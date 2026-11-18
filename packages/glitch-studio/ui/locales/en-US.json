@@ -850,6 +850,8 @@
 		"InputDefs": "Input Defs",
 		"OutputDefs": "Output Defs",
 		"AddEffectNode": "Add Effect Node",
+		"AddRelayNode": "Add Relay Node",
+		"RelayNode": "Relay Node",
 		"Export": "Export Visual Module",
 		"ExportTitle": "Export Visual Module",
 		"Import": "Import Visual Module",

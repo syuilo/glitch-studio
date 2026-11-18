@@ -850,6 +850,8 @@
 		"InputDefs": "入力定義",
 		"OutputDefs": "出力定義",
 		"AddEffectNode": "エフェクトノードを追加",
+		"AddRelayNode": "中継ノードを追加",
+		"RelayNode": "中継ノード",
 		"Export": "Visual Moduleを書き出す",
 		"ExportTitle": "Visual Moduleを書き出す",
 		"Import": "Visual Moduleをインポート",

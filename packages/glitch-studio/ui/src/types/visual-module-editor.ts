@@ -16,6 +16,8 @@ export type VisualModuleEdit =
 	| { kind: 'updateCustomParameter'; definition: VisualModuleCustomParameterDefinition; mergeKey?: string | null }
 	| { kind: 'removeCustomParameter'; parameterId: VisualModuleCustomParameterId }
 	| { kind: 'editCustomParameter'; parameterId: VisualModuleCustomParameterId; edit: VisualModuleValueParameterEdit; mergeKey?: string | null }
+	| { kind: 'addRelayNode' }
+	| { kind: 'setRelayInput'; nodeId: string; value: NodeOutputReference | null }
 	| { kind: 'removeNode'; nodeId: string }
 	| { kind: 'setNodeBypass'; nodeId: string; bypass: boolean }
 	| { kind: 'setNodeResolution'; nodeId: string; resolution: EffectResolution }

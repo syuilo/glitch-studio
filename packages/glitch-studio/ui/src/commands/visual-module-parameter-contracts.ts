@@ -57,7 +57,7 @@ export const VISUAL_MODULE_PARAMETER_CONTRACTS = {
 		inputSchema: z.object({ target: visualModuleNodeReferenceSchema, bypass: z.boolean() }), resultSchema: z.null(),
 	},
 	setVisualModuleNodeDisplayName: {
-		description: 'Set an effect node\'s display name. An empty string lets the UI use the effect name; the effect ID and node ID remain unchanged.',
+		description: 'Set the display name of an effect or relay node. Pass an empty string to use the default name.',
 		examples: [nodeSetup + 'Command:setVisualModuleNodeDisplayName({ target: node, displayName: "Background color" })'],
 		inputSchema: z.object({ target: visualModuleNodeReferenceSchema, displayName: z.string() }), resultSchema: z.null(),
 	},

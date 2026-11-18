@@ -46,6 +46,10 @@ export function commitVisualModuleEdit(manager: ProjectCommands, target: VisualM
 			manager.commit('setVisualModuleNodeDisplayName', { target: { visualModule: target, nodeId: event.nodeId }, displayName: event.displayName }); break;
 		case 'setNodeResolution':
 			manager.commit('setVisualModuleNodeResolution', { target: { visualModule: target, nodeId: event.nodeId }, resolution: event.resolution }); break;
+		case 'addRelayNode':
+			manager.commit('createVisualModuleRelayNode', { visualModule: target }); break;
+		case 'setRelayInput':
+			manager.commit('setVisualModuleRelayInput', { target: { visualModule: target, nodeId: event.nodeId }, source: event.value, connectionTypePolicy }); break;
 		case 'removeNode':
 			manager.commit('removeVisualModuleNode', { target: { visualModule: target, nodeId: event.nodeId }, reconnection: 'primaryInput', connectionTypePolicy }); break;
 		case 'setNodeBypass':

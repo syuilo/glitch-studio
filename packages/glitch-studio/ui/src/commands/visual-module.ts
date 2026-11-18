@@ -11,9 +11,9 @@ import { resolveNodeParam, walkNodeParams } from '../utility/node-params.ts';
 import { validateVisualModuleNodeParameterBinding } from './visual-module-parameter-validation.ts';
 import { defineCommand, definePublicCommand } from './definition.ts';
 import { staticSettingValuesSchema } from './parameter-contract-schemas.ts';
-import { connectionTypePolicySchema, registeredVisualModuleTargetSchema, visualModuleNodeReferenceSchema, visualModuleParameterBindingSchema, visualModuleTargetSchema } from './visual-module-contract-schemas.ts';
+import { connectionTypePolicySchema, registeredVisualModuleTargetSchema, visualModuleNodeOutputReferenceSchema, visualModuleNodeReferenceSchema, visualModuleParameterBindingSchema, visualModuleTargetSchema } from './visual-module-contract-schemas.ts';
 import { prepareVisualModuleFields, prepareVisualModuleValue } from './visual-module-change.ts';
-import type { VisualModuleEffectNode, VisualModuleNode, NodeOutputReference } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModuleEffectNode, VisualModuleNode, VisualModuleRelayNode, NodeOutputReference } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { ProjectState } from '../Project.ts';
 import type { VisualModuleImport } from '../gsvm.ts';
@@ -172,6 +172,61 @@ const createVisualModuleEffectNode = definePublicCommand({
 	},
 });
 
+const createVisualModuleRelayNode = definePublicCommand({
+	label: 'Create Visual Module relay node',
+	description: 'Create a disconnected relay node with data type any, before the Visual Module Out node. Returns a node target for setVisualModuleRelayInput and Query:getNode. The relay output port is "output".',
+	examples: ['let visualModule = Command:createVisualModule({})\nlet relay = Command:createVisualModuleRelayNode({ visualModule: visualModule })\n<: Query:getNode(relay)'],
+	inputSchema: z.object({ visualModule: visualModuleTargetSchema }),
+	resultSchema: visualModuleNodeReferenceSchema,
+	prepare(state, input) {
+		const target = { visualModule: deepClone(input.visualModule), nodeId: genId() };
+		return prepareVisualModuleFields(state, target.visualModule, ['nodes'], visualModule => {
+			// 作成時は未接続なので、後から任意のテクスチャ型を中継できる宣言型で追加する。
+			const node: VisualModuleRelayNode = { id: target.nodeId, type: 'relay', dataType: { kind: 'any' }, input: { nodeId: null, outputPort: null } };
+			const outputIndex = visualModule.nodes.findIndex(candidate => candidate.type === 'globalOut');
+			visualModule.nodes.splice(outputIndex < 0 ? visualModule.nodes.length : outputIndex, 0, node);
+			return target;
+		});
+	},
+});
+
+const setVisualModuleRelayInput = definePublicCommand({
+	label: 'Set Visual Module relay input',
+	description: 'Connect a relay node to an output port of another node in the same Visual Module. Pass source: null to disconnect. connectionTypePolicy defaults to strict. The relay passes the source through unchanged.',
+	examples: ['let visualModule = Command:createVisualModule({})\nlet source = Command:createVisualModuleEffectNode({ visualModule: visualModule, effectId: "fill" })\nlet relay = Command:createVisualModuleRelayNode({ visualModule: visualModule })\nCommand:setVisualModuleRelayInput({ target: relay, source: { nodeId: source.nodeId, outputPort: "output" } })'],
+	inputSchema: z.object({
+		target: visualModuleNodeReferenceSchema,
+		source: visualModuleNodeOutputReferenceSchema.nullable(),
+		connectionTypePolicy: connectionTypePolicySchema.nullish(),
+	}),
+	resultSchema: z.null(),
+	prepare(state, input) {
+		const policy = input.connectionTypePolicy ?? 'strict';
+		const getRelayNode = (currentState: ProjectState) => {
+			const node = stateUtility.findNode(currentState, { ...input.target.visualModule, nodeId: input.target.nodeId });
+			if (node?.type !== 'relay') throw new Error('Visual Module relay node not found');
+			return node;
+		};
+		const relayNode = getRelayNode(state);
+		const source = input.source;
+		if (source != null) {
+			if (source.nodeId === relayNode.id) throw new Error('Relay node cannot connect to itself');
+			const visualModule = getVisualModule(state, input.target.visualModule);
+			const sourceNode = visualModule.nodes.find(candidate => candidate.id === source.nodeId);
+			const output = getNodeOutputs(sourceNode, visualModule.paramDefs, getEffectDefinitions(state))[source.outputPort];
+			if (output == null) throw new Error('Node output not found in this Visual Module');
+			if (!canConnectVisualModuleTypes(output.dataType, relayNode.dataType, policy)) throw new Error('Node output type does not match the relay input');
+		}
+		// 出力元だけを保存し、サンプリングはRelayを参照する側の接続に任せる。
+		const after: VisualModuleRelayNode['input'] = source == null
+			? { nodeId: null, outputPort: null }
+			: { nodeId: source.nodeId, outputPort: source.outputPort };
+		return prepareVisualModuleValue(relayNode.input, after,
+			(currentState, value) => { getRelayNode(currentState).input = value; },
+			[{ type: 'visualModule', target: input.target.visualModule }]);
+	},
+});
+
 const moveVisualModuleNode = definePublicCommand({
 	label: 'Move Visual Module node',
 	description: 'Move a node to an absolute zero-based index in the Visual Module node array. The In/Out nodes cannot move, and their reserved end positions cannot be occupied. This changes order, not canvas coordinates.',
@@ -245,5 +300,5 @@ const removeVisualModuleNode = definePublicCommand({
 
 export const VISUAL_MODULE_COMMAND_DEFS = {
 	createVisualModule, importVisualModule, setVisualModuleName,
-	createVisualModuleEffectNode, moveVisualModuleNode, removeVisualModuleNode,
+	createVisualModuleEffectNode, createVisualModuleRelayNode, setVisualModuleRelayInput, moveVisualModuleNode, removeVisualModuleNode,
 };

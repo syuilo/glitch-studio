@@ -39,9 +39,24 @@
 							@setResolution="resolution => emit('edit', { kind: 'setNodeResolution', nodeId: node.id, resolution })"
 							@setDisplayName="displayName => emit('edit', { kind: 'setNodeDisplayName', nodeId: node.id, displayName })"
 						/>
+						<GsRelayNode
+							v-else-if="node.type === 'relay'"
+							:visualModule="visualModule"
+							:node="node"
+							:class="$style.node"
+							@dragStart="dragStart"
+							@changeInput="value => emit('edit', { kind: 'setRelayInput', nodeId: node.id, value })"
+							@remove="emit('edit', { kind: 'removeNode', nodeId: node.id })"
+							@setDisplayName="displayName => emit('edit', { kind: 'setNodeDisplayName', nodeId: node.id, displayName })"
+						/>
 					</template>
 					<template #footer>
-						<GsButton large :class="$style.addButton" full style="margin-top: 8px;" icon="ti ti-plus" @click="emit('requestAddEffectNode')">{{ `${i18n.ts._VisualModule.AddEffectNode}...` }}</GsButton>
+						<div :class="$style.addButtons">
+							<GsButton large :class="$style.addEffectButton" icon="ti ti-plus" @click="emit('requestAddEffectNode')">
+								{{ i18n.ts._VisualModule.AddEffectNode }}...
+							</GsButton>
+							<GsButton large fit data-test-visual-module-add-node-menu @click="showAddNodeMenu">...</GsButton>
+						</div>
 					</template>
 				</GsDraggable>
 
@@ -108,6 +123,7 @@ import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsDraggable from './common/GsDraggable.vue';
 import GsDropOverlay from './common/GsDropOverlay.vue';
+import GsRelayNode from './GsRelayNode.vue';
 import XEffectNode from './GsEffectNode.vue';
 import XGlobalInNode from './GsGlobalInNode.vue';
 import XGlobalOutNode from './GsGlobalOutNode.vue';
@@ -174,6 +190,14 @@ const tabs = [
 const globalInNode = computed(() => props.visualModule.nodes.find((node): node is VisualModuleGlobalInNode => node.type === 'globalIn'));
 const globalOutNode = computed(() => props.visualModule.nodes.find((node): node is VisualModuleGlobalOutNode => node.type === 'globalOut'));
 
+function showAddNodeMenu(event: PointerEvent) {
+	ui.popupMenu([{
+		id: 'add-relay-node',
+		text: i18n.ts._VisualModule.AddRelayNode,
+		action: () => emit('edit', { kind: 'addRelayNode' }),
+	}], event.currentTarget ?? event.target);
+}
+
 function onSorted(nodes: VisualModuleNode[]) {
 	emit('edit', { kind: 'reorderNodes', nodeIds: nodes.map(node => node.id) });
 }
@@ -213,7 +237,13 @@ function onOutputInputChange(outputId: string, value: NodeOutputReference | null
 	width: 100%;
 }
 
-.addButton {
+.addButtons {
+	display: flex;
+	gap: 4px;
 	margin-top: 8px;
+}
+
+.addEffectButton {
+	flex: 1;
 }
 </style>

@@ -111,17 +111,20 @@ const connections = computed(() => {
 		toColor: string;
 	}[] = [];
 	for (const node of nodesById.value.values()) {
-		if (node.type === 'globalOut') {
-			for (const def of outputDefs.value) {
-				const connection = node.inputs[def.id];
+		if (node.type === 'globalOut' || node.type === 'relay') {
+			const inputs = node.type === 'relay'
+				? [{ id: 'input', dataType: node.dataType, connection: node.input }]
+				: outputDefs.value.map(def => ({ id: def.id, dataType: def.dataType, connection: node.inputs[def.id] }));
+			for (const { id, dataType, connection } of inputs) {
 				if (connection?.nodeId == null || !nodesById.value.has(connection.nodeId)) continue;
 				const { nodeId, outputPort } = connection;
 				const from = wireMap.out[nodeId]?.[outputPort];
+				const input = wireMap.in[node.id]?.[id];
 				if (from) result.push({
-					key: JSON.stringify([node.id, def.id, nodeId, outputPort]),
+					key: JSON.stringify([node.id, id, nodeId, outputPort]),
 					from,
-					inputs: wireMap.in[node.id]?.[def.id] == null ? [] : [wireMap.in[node.id][def.id]],
-					...getWireColors(getNodeOutputs(nodesById.value.get(nodeId), paramDefs.value, effectDefinitions.value)[outputPort]?.dataType ?? { kind: 'any' }, def.dataType),
+					inputs: input == null ? [] : [input],
+					...getWireColors(getNodeOutputs(nodesById.value.get(nodeId), paramDefs.value, effectDefinitions.value)[outputPort]?.dataType ?? { kind: 'any' }, dataType),
 				});
 			}
 			continue;

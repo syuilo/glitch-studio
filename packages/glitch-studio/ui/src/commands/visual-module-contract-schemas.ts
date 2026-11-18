@@ -18,9 +18,9 @@ export const visualModulePublicParameterReferenceSchema = z.object({ visualModul
 export const visualModuleCustomParameterReferenceSchema = z.object({ visualModule: visualModuleTargetSchema, parameterId: visualModuleCustomParameterIdSchema });
 export const visualModuleOutputReferenceSchema = z.object({ visualModule: visualModuleTargetSchema, outputId: identifierSchema });
 export const connectionTypePolicySchema = z.enum(['strict', 'allowMismatch']).describe('strict rejects incompatible texture types. allowMismatch explicitly permits them; it does not convert the data.');
-const connectedOutputSchema = z.object({ nodeId: z.string(), outputPort: z.string() });
+export const visualModuleNodeOutputReferenceSchema = z.object({ nodeId: z.string(), outputPort: z.string() });
 const unconnectedOutputSchema = z.object({ nodeId: z.null(), outputPort: z.null() });
-export const visualModuleNodeOutputConnectionSchema = z.union([connectedOutputSchema, unconnectedOutputSchema]);
+export const visualModuleNodeOutputConnectionSchema = z.union([visualModuleNodeOutputReferenceSchema, unconnectedOutputSchema]);
 // UIの再接続もサンプリング設定を省略できる。型付きの保存表現に合わせて必須にすると
 // 既存のCommand経路を拒否してしまうため、境界ではrendererが扱う省略形を受け入れる。
 const nodeParameterBindingSchema = z.union([

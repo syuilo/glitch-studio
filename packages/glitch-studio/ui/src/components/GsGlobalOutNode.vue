@@ -7,13 +7,23 @@
 	</div>
 
 	<div style="padding: 4px 0;">
-		<GsGlobalOutInput v-for="def in visualModule.outputDefs" :key="def.id" :visualModule="visualModule" :node="node" :def="def" @change="value => emit('changeInput', def.id, value)"/>
+		<GsVisualModuleNodeInput
+			v-for="def in visualModule.outputDefs"
+			:key="def.id"
+			:visualModule="visualModule"
+			:nodeId="node.id"
+			:inputId="def.id"
+			:label="def.label"
+			:dataType="def.dataType"
+			:input="node.inputs[def.id] ?? null"
+			@change="value => emit('changeInput', def.id, value)"
+		/>
 	</div>
 </div>
 </template>
 
 <script lang="ts" setup>
-import GsGlobalOutInput from './GsGlobalOutInput.vue';
+import GsVisualModuleNodeInput from './GsVisualModuleNodeInput.vue';
 import type { NodeOutputReference, VisualModule, VisualModuleGlobalOutNode } from '@gs/subsystems_visual-module_shared/types.ts';
 
 defineProps<{

@@ -25,7 +25,7 @@ import { validateVisualModuleNodeParameterBinding } from './visual-module-parame
 import { getParameterBindingChangeKind } from './parameter-change.ts';
 import { defineCommand, withCommandContract } from './definition.ts';
 import { VISUAL_MODULE_PARAMETER_CONTRACTS } from './visual-module-parameter-contracts.ts';
-import { canConnectVisualModuleTypes } from './visual-module.ts';
+import { canConnectVisualModuleTypes, stateUtility } from './visual-module.ts';
 import { getVisualModuleEffectNode, prepareVisualModuleFields, prepareVisualModuleValue } from './visual-module-change.ts';
 import type { StructParameterFieldBindings } from '../utility/struct-parameter-edit.ts';
 import type { ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
@@ -174,9 +174,21 @@ const setVisualModuleNodeDisplayName = defineCommand<{ target: VisualModuleNodeR
 	label: 'Set Visual Module node display name',
 	prepare(state, input) {
 		if (typeof input.displayName !== 'string') throw new Error('Display name must be a string');
-		return prepareVisualModuleValue(getVisualModuleEffectNode(state, input.target).displayName, input.displayName,
-			(currentState, value) => { getVisualModuleEffectNode(currentState, input.target).displayName = value; },
-			[{ type: 'nodeName', target: input.target.visualModule, nodeId: input.target.nodeId }]);
+		const { visualModule, nodeId } = input.target;
+		const getNode = (currentState: ProjectState) => {
+			const node = stateUtility.findNode(currentState, { ...visualModule, nodeId });
+			if (node?.type !== 'effect' && node?.type !== 'relay') throw new Error('Visual Module effect or relay node not found');
+			return node;
+		};
+		const node = getNode(state);
+		const before = node.type === 'effect' ? node.displayName : node.label ?? null;
+		const after = node.type === 'relay' && input.displayName === '' ? null : input.displayName;
+		return prepareVisualModuleValue(before, after, (currentState, displayName) => {
+			const currentNode = getNode(currentState);
+			if (currentNode.type === 'effect') currentNode.displayName = displayName ?? '';
+			else if (displayName == null) delete currentNode.label;
+			else currentNode.label = displayName;
+		}, [{ type: 'nodeName', target: visualModule, nodeId }]);
 	},
 });
 const setVisualModuleNodeStaticSetting = defineCommand<{ target: VisualModuleNodeReference; key: string; value: string | number | boolean | null }>({

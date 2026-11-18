@@ -65,6 +65,34 @@ test('runs the default named Command example and redoes its exact result', async
 	assert.equal(controller.output.value.length, 1);
 });
 
+// 【AiScriptで中継ノードを追加し、入力を接続・解除できる】
+// コマンド定義だけを変更して公開リストへの登録を忘れると呼び出せないため、
+// 実際のスクリプトから両方の操作を実行し、読み取り結果と履歴も確認する。
+test('creates and rewires a relay node from AiScript', async () => {
+	const { controller, manager, state, errors } = fixture();
+	controller.source.value = `let visualModule = Command:createVisualModule({})
+let source = Command:createVisualModuleEffectNode({ visualModule: visualModule, effectId: "fill" })
+let relay = Command:createVisualModuleRelayNode({ visualModule: visualModule })
+let connection = { nodeId: source.nodeId, outputPort: "output" }
+Command:setVisualModuleRelayInput({ target: relay, source: connection })
+<: Query:getNode(relay).input.outputPort
+Command:setVisualModuleRelayInput({ target: relay, source: null })
+<: Query:getNode(relay).input.nodeId == null
+Command:setVisualModuleRelayInput({ target: relay, source: connection })`;
+	await controller.run();
+	assert.deepEqual(errors, []);
+	assert.deepEqual(controller.output.value, ['output', 'true']);
+	const visualModule = structuredClone(state.visualModules.value[0]);
+	const source = visualModule.nodes.find(node => node.type === 'effect');
+	const relay = visualModule.nodes.find(node => node.type === 'relay');
+	assert.deepEqual(relay.input, { nodeId: source.id, outputPort: 'output' });
+	assert.equal(manager.undoStack.value.length, 1);
+	manager.undo();
+	assert.deepEqual(state.visualModules.value, []);
+	manager.redo();
+	assert.deepEqual(state.visualModules.value, [visualModule]);
+});
+
 // 【実行途中の検証エラーでも出力と成功済み編集を残す】
 // エラー表示時には履歴を確定し、失敗後の文は実行せず、一回のUndoで開始前へ戻せる必要がある。
 test('retains completed changes and output after an API failure', async () => {

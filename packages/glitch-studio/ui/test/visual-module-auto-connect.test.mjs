@@ -156,3 +156,80 @@ test('reconnects relay inputs on removal and restores the graph on undo', () => 
 		assert.deepEqual(f.visualModule, before);
 	}
 });
+
+// 【登録済み・インラインのVisual Moduleで中継ノードの追加と再配線を取り消せる】
+// 追加だけで既存の配線を変えず、入力を差し替えても接続先の出力ポートやサンプリング設定を変えない。
+test('adds, rewires, and disconnects relay nodes with undo and redo', () => {
+	for (const inline of [false, true]) {
+		const f = fixture(true, inline);
+		const before = structuredClone(f.visualModule);
+		const create = prepareTestCommand(f.definitions.createVisualModuleRelayNode, { visualModule: f.target });
+		const target = create.execute(f.state);
+		const node = () => f.visualModule.nodes.find(candidate => candidate.id === target.nodeId);
+		const disconnected = { nodeId: null, outputPort: null };
+		assert.deepEqual(node(), { id: target.nodeId, type: 'relay', dataType: { kind: 'any' }, input: disconnected });
+		assert.equal(f.visualModule.nodes.at(-2).id, target.nodeId);
+		assert.deepEqual(f.visualModule.nodes.at(-1).inputs, before.nodes.at(-1).inputs);
+		const editInput = source => prepareTestCommand(f.definitions.setVisualModuleRelayInput, { target, source });
+		const first = { nodeId: 'previous', outputPort: 'secondary' };
+		const second = { nodeId: 'previous', outputPort: 'main' };
+		const connect = editInput({ ...first, filterMode: 'nearest' });
+		const rewire = editInput(second);
+		const disconnect = editInput(null);
+		connect.execute(f.state);
+		assert.deepEqual(node().input, first);
+		rewire.execute(f.state);
+		assert.deepEqual(node().input, second);
+		disconnect.execute(f.state);
+		assert.deepEqual(node().input, disconnected);
+		disconnect.undo(f.state);
+		assert.deepEqual(node().input, second);
+		rewire.undo(f.state);
+		assert.deepEqual(node().input, first);
+		connect.undo(f.state);
+		create.undo(f.state);
+		assert.deepEqual(f.visualModule, before);
+		assert.deepEqual(create.execute(f.state), target);
+		connect.execute(f.state);
+		assert.deepEqual(node().input, first);
+	}
+});
+
+// 【固定型の中継ノードでは型安全設定を尊重し、存在しないポートと自己接続を拒否する】
+// インポートされた中継ノードには具体的な型があり、候補選択以外から渡された配線も検査する。
+test('validates relay source ports and honors the connection type policy', () => {
+	const f = fixture();
+	const relay = { id: 'relay', type: 'relay', dataType: { kind: 'scalar' }, input: { nodeId: null, outputPort: null } };
+	f.visualModule.nodes.splice(1, 0, relay);
+	const target = { visualModule: f.target, nodeId: relay.id };
+	const command = f.definitions.setVisualModuleRelayInput;
+	const source = { nodeId: 'previous', outputPort: 'main' };
+	assert.throws(() => command.prepare(f.state, { target, source }), /type does not match/);
+	assert.throws(() => command.prepare(f.state, { target, source: { ...source, outputPort: 'missing' } }), /Node output not found/);
+	assert.throws(() => command.prepare(f.state, { target, source: { nodeId: relay.id, outputPort: 'output' } }), /cannot connect to itself/);
+	assert.deepEqual(relay.input, { nodeId: null, outputPort: null });
+	command.prepare(f.state, { target, source, connectionTypePolicy: 'allowMismatch' }).change.apply(f.state);
+	assert.deepEqual(relay.input, source);
+});
+
+// 【中継ノードの名前を消すと既定表示へ戻り、Undoで名前と未設定状態を復元できる】
+// エフェクトと同じ表示名コマンドを通しても、中継ノードの保存値は任意項目のlabelに保つ。
+test('renames and clears a relay label with undo and redo', () => {
+	const f = fixture();
+	const create = prepareTestCommand(f.definitions.createVisualModuleRelayNode, { visualModule: f.target });
+	const target = create.execute(f.state);
+	const relay = f.visualModule.nodes.find(node => node.id === target.nodeId);
+	const rename = prepareTestCommand(f.definitions.setVisualModuleNodeDisplayName, { target, displayName: 'Shared mask' });
+	const clear = prepareTestCommand(f.definitions.setVisualModuleNodeDisplayName, { target, displayName: '' });
+	assert.equal(Object.hasOwn(relay, 'label'), false);
+	rename.execute(f.state);
+	assert.equal(relay.label, 'Shared mask');
+	clear.execute(f.state);
+	assert.equal(Object.hasOwn(relay, 'label'), false);
+	clear.undo(f.state);
+	assert.equal(relay.label, 'Shared mask');
+	rename.undo(f.state);
+	assert.equal(Object.hasOwn(relay, 'label'), false);
+	rename.execute(f.state);
+	assert.equal(relay.label, 'Shared mask');
+});
