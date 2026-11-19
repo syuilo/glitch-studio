@@ -1,0 +1,24 @@
+{
+	"name": "@gs/subsystems_effect-new_native-effects",
+	"type": "module",
+	"private": true,
+	"exports": {
+		"./*": "./src/*"
+	},
+	"scripts": {
+		"test": "node --test test/*.test.mjs",
+		"typecheck": "tsc6 --noEmit",
+		"eslint": "eslint --quiet src/**/*.ts",
+		"lint": "pnpm typecheck && pnpm eslint"
+	},
+	"dependencies": {
+		"@gs/shared": "workspace:*",
+		"@gs/subsystems_effect-new_shared": "workspace:*",
+		"@gs/subsystems_effect-new_renderer": "workspace:*"
+	},
+	"devDependencies": {
+		"esbuild": "0.28.2",
+		"@types/web": "0.0.359",
+		"vite": "8.3.5"
+	}
+}

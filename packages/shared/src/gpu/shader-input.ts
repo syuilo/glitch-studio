@@ -32,7 +32,7 @@ export function toShaderInput(source: UniformOrTexture, sampling: ShaderInputSam
 }
 
 /** 色のリテラルは未乗算linear sRGB。画像入力と同じ意味になる境界で一度だけ乗算する。 */
-export function constantShaderInput(dataType: string, value: any): ShaderInput {
+export function constantShaderInput(dataType: string, value: any): UniformValue {
 	if (dataType === 'color') {
 		const alpha = value?.[3] ?? 0;
 		return { kind: 'uniform', value: [(value?.[0] ?? 0) * alpha, (value?.[1] ?? 0) * alpha, (value?.[2] ?? 0) * alpha, alpha] };
@@ -53,9 +53,11 @@ type ShaderInputValue<T extends ShaderInputSchema[string]> = T extends ShaderInp
 export type ShaderInputValues<Schema extends ShaderInputSchema = ShaderInputSchema> = {
 	readonly [Key in keyof Schema]: ShaderInputValue<Schema[Key]>;
 };
+// WGSLとレイアウトの生成に必要なのは種別だけ。初期化時点で実際の入力テクスチャを要求しない。
+type ShaderInputShape = Readonly<Record<string, Pick<ShaderInput, 'kind'> | readonly Pick<ShaderInput, 'kind'>[]>>;
 
 // 配列長と各要素の種別も構成に含める。値・接続先・サンプリング設定は含めない。
-export function shaderInputVariantKey(schema: ShaderInputSchema, inputs: ShaderInputValues): string {
+export function shaderInputVariantKey(schema: ShaderInputSchema, inputs: ShaderInputShape): string {
 	return JSON.stringify(Object.entries(schema).map(([name, type]) => {
 		const value = inputs[name];
 		if (value == null || (typeof type === 'object') !== Array.isArray(value)) throw new Error(`Shader input shape mismatch: ${name}`);
@@ -64,7 +66,7 @@ export function shaderInputVariantKey(schema: ShaderInputSchema, inputs: ShaderI
 }
 
 /** WGSLとbindingの対応を同時に決定し、エフェクト側の二重管理を避ける。 */
-export function generateShaderInputs(schema: ShaderInputSchema, inputs: ShaderInputValues, group = 0, sampling: 'implicit' | 'level0' = 'implicit', scalarGradients = false) {
+export function generateShaderInputs(schema: ShaderInputSchema, inputs: ShaderInputShape, group = 0, sampling: 'implicit' | 'level0' = 'implicit', scalarGradients = false) {
 	if (scalarGradients && sampling !== 'level0') throw new Error('Scalar gradients require level0 sampling');
 	const variantKey = shaderInputVariantKey(schema, inputs);
 	const names = new Set(Object.keys(schema));
@@ -186,8 +188,7 @@ fn ${prefix}_${name}(index: u32, position: vec2f${extra}) -> ${resultType} {
 	};
 }
 
-/** 生成済みの構成に対応するuniformとbind group。入力テクスチャの所有権は持たない。 */
-export function createShaderInputBindings(device: GPUDevice, generated: ReturnType<typeof generateShaderInputs>) {
+function createShaderInputBindingResources(device: GPUDevice, generated: ReturnType<typeof generateShaderInputs>) {
 	const textureCount = generated.slots.filter(slot => slot.kind === 'texture').length;
 	// 個別binding方式の上限。内部groupを含む合計の検証はpipeline作成時にもGPUが行う。
 	if (textureCount > device.limits?.maxSampledTexturesPerShaderStage || textureCount > device.limits?.maxSamplersPerShaderStage
@@ -199,6 +200,36 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 	const values = new Float32Array(generated.byteLength / 4);
 	const samplers = new Map<string, GPUSampler>();
 	const views = new WeakMap<GPUTexture, GPUTextureView>();
+
+	function getSampler(input: ShaderInputSampling): GPUSampler {
+		const key = `${input.wrapMode}:${input.filterMode}`;
+		let sampler = samplers.get(key);
+		if (sampler == null) {
+			const addressMode = input.wrapMode === 'repeatMirrored' ? 'mirror-repeat' : input.wrapMode === 'repeat' ? 'repeat' : 'clamp-to-edge';
+			sampler = device.createSampler({
+				minFilter: input.filterMode, magFilter: input.filterMode,
+				addressModeU: addressMode, addressModeV: addressMode,
+			});
+			samplers.set(key, sampler);
+		}
+		return sampler;
+	}
+
+	function getView(texture: GPUTexture): GPUTextureView {
+		let view = views.get(texture);
+		if (view == null) {
+			view = texture.createView();
+			views.set(texture, view);
+		}
+		return view;
+	}
+
+	return { layout, buffer, values, getSampler, getView };
+}
+
+/** 生成済みの構成に対応するuniformとbind group。入力テクスチャの所有権は持たない。 */
+export function createShaderInputBindings(device: GPUDevice, generated: ReturnType<typeof generateShaderInputs>) {
+	const { layout, buffer, values, getSampler, getView } = createShaderInputBindingResources(device, generated);
 	let previousResources: (GPUTexture | GPUSampler)[] = [];
 	let bindGroup: GPUBindGroup;
 	return {
@@ -220,25 +251,9 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 				const reference = references == null ? output : 'width' in references ? references : references[slot.elementIndex ?? 0] ?? output;
 				const scale = inputUvScale(input.texture, reference, input.fitMode);
 				values.set([...scale, Number(input.filterMode === 'nearest'), Number(input.wrapMode === 'transparent')], slot.index * 8 + 4);
-				const samplerKey = `${input.wrapMode}:${input.filterMode}`;
-				let sampler = samplers.get(samplerKey);
-				if (sampler == null) {
-					const addressMode = input.wrapMode === 'repeatMirrored' ? 'mirror-repeat' : input.wrapMode === 'repeat' ? 'repeat' : 'clamp-to-edge';
-					sampler = device.createSampler({
-						minFilter: input.filterMode,
-						magFilter: input.filterMode,
-						addressModeU: addressMode,
-						addressModeV: addressMode,
-					});
-					samplers.set(samplerKey, sampler);
-				}
+				const sampler = getSampler(input);
 				resources.push(input.texture, sampler);
-				let view = views.get(input.texture);
-				if (view == null) {
-					view = input.texture.createView();
-					views.set(input.texture, view);
-				}
-				entries.push({ binding: slot.textureBinding, resource: view }, { binding: slot.samplerBinding, resource: sampler });
+				entries.push({ binding: slot.textureBinding, resource: getView(input.texture) }, { binding: slot.samplerBinding, resource: sampler });
 			}
 			device.queue.writeBuffer(buffer, 0, values);
 			if (bindGroup == null || resources.some((resource, i) => resource !== previousResources[i])) {
@@ -249,4 +264,72 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 		},
 		dispose: () => buffer.destroy(),
 	};
+}
+
+type FixedShaderInput<Frame> =
+	| { kind: 'uniform'; read: (frame: Frame) => UniformValue }
+	| { kind: 'texture'; resolution: Resolution; sampling: ShaderInputSampling; read: (frame: Frame) => TextureValue };
+
+/** 種別・寸法・samplingが固定された単一値入力。フレーム中は値と借用テクスチャの差し替えだけを扱う。 */
+export function createFixedShaderInputBindings<Frame>(device: GPUDevice, schema: Readonly<Record<string, ShaderInputType>>,
+	inputs: Readonly<Record<string, FixedShaderInput<Frame>>>, output: Resolution) {
+	const generated = generateShaderInputs(schema, inputs, 0, 'level0');
+	const { layout, buffer, values, getSampler, getView } = createShaderInputBindingResources(device, generated);
+	const entries: GPUBindGroupEntry[] = [{ binding: 0, resource: { buffer } }];
+	const uniforms: { offset: number; channels: number; read: (frame: Frame) => UniformValue }[] = [];
+	const textures: { binding: number; entryIndex: number; read: (frame: Frame) => TextureValue; previous: GPUTexture | null }[] = [];
+	try {
+		for (const slot of generated.slots) {
+			const input = inputs[slot.name];
+			if (input.kind === 'uniform') {
+				uniforms.push({ offset: slot.index * 8, channels: slot.type === 'scalar' ? 1 : slot.type === 'vector' ? 2 : 4, read: input.read });
+			} else {
+				const scale = inputUvScale(input.resolution, output, input.sampling.fitMode);
+				values.set([...scale, Number(input.sampling.filterMode === 'nearest'), Number(input.sampling.wrapMode === 'transparent')], slot.index * 8 + 4);
+				entries.push({ binding: slot.samplerBinding, resource: getSampler(input.sampling) });
+				// 実体は初回描画時に取得する。初期化のためだけに仮のテクスチャを生成しない。
+				textures.push({ binding: slot.textureBinding, entryIndex: entries.length, read: input.read, previous: null });
+				entries.length++;
+			}
+		}
+		let uploadUniforms = true;
+		if (uniforms.length === 0) {
+			device.queue.writeBuffer(buffer, 0, values);
+			uploadUniforms = false;
+		}
+		let bindGroup = textures.length === 0 ? device.createBindGroup({ layout, entries }) : null;
+		return {
+			code: generated.code, layout,
+			update(frame: Frame): GPUBindGroup {
+				for (const { offset, channels, read } of uniforms) {
+					const { value } = read(frame);
+					// r/rg値をvec4として読む場合はテクスチャと同じ欠落チャンネルの値を使う。
+					// GPUに渡す32bitの値が同じなら固定値のフレームごとの転送を省く。
+					for (let channel = 0; channel < channels; channel++) {
+						const component = Math.fround(value[channel] ?? (channel === 3 ? 1 : 0));
+						if (Object.is(values[offset + channel], component)) continue;
+						values[offset + channel] = component;
+						uploadUniforms = true;
+					}
+				}
+				if (uploadUniforms) {
+					device.queue.writeBuffer(buffer, 0, values);
+					uploadUniforms = false;
+				}
+				for (const input of textures) {
+					const { texture } = input.read(frame);
+					if (texture === input.previous) continue;
+					entries[input.entryIndex] = { binding: input.binding, resource: getView(texture) };
+					input.previous = texture;
+					bindGroup = null;
+				}
+				bindGroup ??= device.createBindGroup({ layout, entries });
+				return bindGroup;
+			},
+			dispose: () => buffer.destroy(),
+		};
+	} catch (error) {
+		buffer.destroy();
+		throw error;
+	}
 }

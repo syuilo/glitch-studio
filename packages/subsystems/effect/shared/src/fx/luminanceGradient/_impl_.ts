@@ -8,6 +8,7 @@ import commonCode, { uniforms as commonUniforms } from './common.wgsl?shader';
 import prepareCode from './prepare.wgsl?raw';
 import smoothCode from './smooth.wgsl?raw';
 import gradientCode from './gradient.wgsl?raw';
+import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
@@ -80,7 +81,7 @@ export default implementEffect<typeof definition>({
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 
 				// 定数は空間的に一様。画像の境界を作らず、輝度・ぼかし用textureも確保しない。
-				let luminanceInput = constantShaderInput('scalar', 0);
+				let luminanceInput: ShaderInput = constantShaderInput('scalar', 0);
 				if (input.kind === 'texture') {
 					const buffers = ensureIntermediate(input.texture.width, input.texture.height);
 					const sourceSampling = { fitMode: 'stretch', wrapMode: input.wrapMode, filterMode: input.filterMode } as const;
