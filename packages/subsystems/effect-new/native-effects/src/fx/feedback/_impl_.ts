@@ -13,7 +13,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
 			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' } },
 		] });
-		const inputBindings = createNativeEffectInputBindings(device, resolution, 'any', inputs.input);
+		const inputBindings = createNativeEffectInputBindings({ device, resolution, schema: { input: 'any' }, inputs, group: 1, sampling: 'level0' });
 		let buffer: GPUBuffer | null = null;
 		let alternate: GPUTexture | null = null;
 

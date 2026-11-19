@@ -30,7 +30,9 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs, 'i
 		}
 
 		try {
-			if (color != null) inputBindings = createNativeEffectInputBindings(device, resolution, 'color', inputs.input!);
+			if (color != null) inputBindings = createNativeEffectInputBindings({
+				device, resolution, schema: { input: 'color' }, inputs: { input: inputs.input! }, group: 1, sampling: 'level0',
+			});
 			const group = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer } }] });
 			const pipeline = await device.createRenderPipelineAsync({
 				layout: device.createPipelineLayout({ bindGroupLayouts: inputBindings == null ? [layout] : [layout, inputBindings.layout] }),
