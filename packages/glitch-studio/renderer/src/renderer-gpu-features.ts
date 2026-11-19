@@ -1,4 +1,4 @@
-import type { EffectRenderTiling } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
+import type { EffectRenderTiling } from '@gs/subsystems_effect-new_shared/effect-render-tiling.ts';
 
 /** プレビュー・書き出しで共通のGPU機能要求。CPUだけの統計にはQueryを要求しない。 */
 export function getRendererRequiredGpuFeatures(adapter: Pick<GPUAdapter, 'features'>, options: {

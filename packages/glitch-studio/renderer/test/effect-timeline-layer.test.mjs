@@ -1,3 +1,4 @@
+import { snapshotNativeInputs } from './helpers/manager-gpu.mjs';
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -24,10 +25,10 @@ const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { TimelineRendererManager } = await load('../src/timeline-renderer-manager.ts');
 const { createEffectTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/effect/effect-timeline-layer.ts');
 const { timelineCompositingParamDefs } = await load('@gs/subsystems_timeline_shared/timeline-compositing.ts');
-const { default: nested } = await load('@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts');
+const { default: nested } = await load('@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
-const input = { inputSource: 'lowerLayerOutput', fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' };
+const input = { inputSource: 'lowerLayerOutput', sampling: { fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' } };
 const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: literal(0) };
 const color = { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, canNode: true, defaultValue: literal([1, 0, 0, 0.5]) };
 const definition = {
@@ -41,7 +42,7 @@ const definition = {
 const compositing = () => ({ ...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])), blendMode: literal('replace') });
 const clip = (id, startMs, durationMs, contentOffsetMs = 0) => ({ id, startMs, durationMs, contentOffsetMs });
 const layer = (id, values = {}, overrides = {}) => ({
-	id, name: id, layerType: 'effect', effectId: 'probe', resolution: { mode: 'auto', scale: 1 },
+	id, name: id, layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'probe' }, resolution: { mode: 'auto', scale: 1 },
 	clips: [clip('clip', 100, 1000, 20.5)], automationGraphs: [], compositingParamValues: compositing(),
 	effectStaticSettings: {}, effectParamValues: { ...Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])), ...values }, ...overrides,
 });
@@ -65,21 +66,30 @@ async function fixture(t, options = {}) {
 		queue: { submit() { calls.submits++; }, async onSubmittedWorkDone() {}, writeTexture() {}, writeBuffer() {} },
 	};
 	const implementation = {
-		outputTextureFactories: { output: ({ resolution }) => texture({ size: resolution }), unused: ({ resolution }) => texture({ size: resolution }) },
-		init({ reportStatus, resolution }) {
-			const instance = { disposed: false, reportStatus, resolution };
+		init({ resolution, inputs, outputTextures, resources }) {
+			const gate = Promise.withResolvers();
+			const instance = { disposed: false, resolution, pending: false, reportStatus(status) {
+				if (status.type === 'loading') this.pending = true;
+				else if (status.type === 'ready') gate.resolve();
+				else gate.reject(new Error(status.message));
+			} };
 			calls.instances.push(instance);
 			options.initialize?.(instance);
 			return {
-				render(args) { calls.renders.push({ ...args, instance }); },
-				dispose() { instance.disposed = true; },
+				prepare(frame, signal) {
+					if (!instance.pending) return;
+					return Promise.race([gate.promise, new Promise(resolve => signal.addEventListener('abort', resolve, { once: true }))]);
+				},
+				render(frame) { calls.renders.push({ ...frame, instance, params: snapshotNativeInputs(inputs), resources,
+					outputDataMap: Object.fromEntries([...outputTextures].map(([id, texture]) => [id, { texture }])) }); },
+				dispose() { instance.disposed = true; gate.resolve(); },
 			};
 		},
 	};
 	const manager = await TimelineRendererManager.create({
 		gpuDevice: device, gpuContext: { canvas: { width: 16, height: 16 }, configure() {}, getCurrentTexture: texture },
-		effectDefinitions: { probe: definition, noOutput: { ...definition, id: 'noOutput', primaryOutput: null } },
-		effectImplementations: { probe: implementation, noOutput: implementation },
+		nativeEffectDefinitions: { probe: definition, noOutput: { ...definition, id: 'noOutput', primaryOutput: null } },
+		nativeEffectImplementations: { probe: implementation, noOutput: implementation },
 	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enable32bitDataTextures: false, }, { assets: [{ id: 'intrinsic', width: 200, height: 100, fileDataType: 'video/mp4', fileData: new Blob() }] });
 	manager.presentOutput = output => calls.outputs.push(output);
 	manager.on('ev', event => {
@@ -92,7 +102,7 @@ async function fixture(t, options = {}) {
 	});
 	return { manager, calls, setup, implementation, directOptions: {
 		wgpu: { device, defaultVertexShaderModule: {}, enable32bitDataTextures: false },
-		fallbackTexture: texture(), resolution: { width: 160, height: 90 }, resolutionScale: 0.5, assets: [], assetTextures: new Map(),
+		sceneBaseResolution: { width: 320, height: 180 }, resolutionScale: 0.5, assets: [], assetTextures: new Map(),
 	} };
 }
 
@@ -121,14 +131,11 @@ test('routes region transforms through both Custom Node Graph Effect layer rende
 	const f = await fixture(t);
 	const observations = [];
 	f.manager.createCompositingObserver = () => (_source, settings) => observations.push(settings);
-	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, id: 'visual', name: 'Visual', paramDefs: [{ ...color, id: 'color', nameForReference: 'color' }], primaryOutputId: 'output', automationGraphs: [],
-		outputDefs: [{ id: 'output', name: 'Output', label: 'Output', dataType: { kind: 'color' } }],
-		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'color' } } }] };
-	for (const layerType of ['customNodeGraphEffect', 'inlineCustomNodeGraphEffect']) {
-		const entry = { id: layerType, name: layerType, layerType, customNodeGraphEffectId: customNodeGraphEffect.id, customNodeGraphEffect,
-			transformTarget: 'region', clips: [clip('clip', 100, 1000)], isDisabled: false, automationGraphs: [],
-			compositingParamValues: compositing(), customNodeGraphEffectParamValues: {} };
-		await f.setup([entry], { customNodeGraphEffects: [customNodeGraphEffect] });
+	const customNodeGraphEffect = { ...definition, kind: 'generate', resolutionInputParameters: [], primaryInputParameter: null,
+		paramDefs: { color }, nodes: [], outputSources: { output: { parameterId: 'color' } } };
+	for (const effectSource of [{ type: 'customNodeGraphEffectReference', id: 'visual' }, { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect }]) {
+		const entry = layer(effectSource.type, {}, { effectSource, effectParamValues: {}, transformTarget: 'region' });
+		await f.setup([entry], { customNodeGraphEffects: [{ id: 'visual', name: 'Visual', definition: customNodeGraphEffect }] });
 		const count = observations.length;
 		await f.manager.renderTimelineFrame(350, 0);
 		assert.ok(observations.length > count);
@@ -228,15 +235,16 @@ test('preserves unaffected effect instances across tree edits and resets restore
 		changes: [{ type: 'parameter', target: 'effect', kind: 'value' }] }]);
 	await f.manager.renderTimelineFrame(350, 0);
 	const editedInstance = f.calls.renders.find(call => call.params.amount === 3).instance;
-	assert.equal(foregroundInstance.disposed, true);
+	assert.equal(foregroundInstance.disposed, false);
 	assert.equal(childInstance.disposed, false);
-	assert.equal(f.calls.instances.length, 3);
+	assert.equal(editedInstance, foregroundInstance);
+	assert.equal(f.calls.instances.length, 2);
 	f.manager.applyProjectChanges([treeChange([edited])]);
 	f.manager.applyProjectChanges([treeChange([edited, nested])]);
 	await f.manager.renderTimelineFrame(350, 0);
 	assert.equal(editedInstance.disposed, false);
 	assert.equal(childInstance.disposed, true);
-	assert.equal(f.calls.instances.length, 4);
+	assert.equal(f.calls.instances.length, 3);
 });
 
 // 【参照先Sceneの階層変更でも、親Sceneの配置と無関係な子の履歴を維持する】
@@ -262,7 +270,7 @@ test('keeps child scene instances while applying its current layer tree', async 
 
 // 【直接エフェクトの編集では対象レイヤーだけを再生成する】
 // この種類の編集では対象の履歴リセットを許容するが、全タイムラインのリセットにはしない。
-test('recreates only an edited effect layer', async t => {
+test('preserves effect layer instances for external value edits', async t => {
 	const f = await fixture(t);
 	const first = layer('first', { amount: literal(1) });
 	const second = layer('second', { amount: literal(2) });
@@ -278,11 +286,11 @@ test('recreates only an edited effect layer', async t => {
 	assert.equal(f.calls.renders.at(-1).params.amount, 1);
 	f.manager.applyProjectChanges([patch]);
 	await f.manager.renderTimelineFrame(350, 20);
-	assert.equal(firstInstance.disposed, true);
+	assert.equal(firstInstance.disposed, false);
 	assert.equal(secondInstance.disposed, false);
-	assert.equal(f.calls.instances.length, 3);
+	assert.equal(f.calls.instances.length, 2);
 	assert.equal(f.calls.renders.at(-1).params.amount, 3);
-	assert.equal(f.calls.renders.at(-1).timeDelta, 0);
+	assert.equal(f.calls.renders.at(-1).timeDelta, 20);
 });
 
 // 【編集中の非同期フレームは中断し、変更のない準備済みインスタンスを次の描画へ使う】
@@ -324,7 +332,7 @@ test('evaluates nested bindings at scene time and renders primary output at cont
 			],
 		} }, y: expression('TIME'),
 	};
-	await f.setup([layer('skip', {}, { effectId: 'noOutput' }), entry]);
+	await f.setup([entry]);
 	await f.manager.renderTimelineFrame(350, 40);
 	const rendered = f.calls.renders.at(-1);
 	assert.equal(f.calls.instances.length, 1);
@@ -333,9 +341,9 @@ test('evaluates nested bindings at scene time and renders primary output at cont
 	assert.equal(rendered.params.amount, 350);
 	assert.equal(rendered.params.exported, 1);
 	assert.equal(rendered.params.forbidden, 0);
-	assert.deepEqual(rendered.params.input, { kind: 'uniform', value: [0, 0, 0, 0] });
+	assert.equal(rendered.params.input.kind, 'texture');
 	assert.deepEqual(rendered.params.buzzs, [{ image: rendered.params.input, x: 7, y: 0.35 }]);
-	assert.deepEqual([...rendered.usedOutputPorts], ['output']);
+	assert.deepEqual(Object.keys(rendered.outputDataMap), ['output']);
 	assert.equal(rendered.outputDataMap.unused, undefined);
 	assert.equal(f.calls.outputs.at(-1).texture, rendered.outputDataMap.output.texture);
 	await f.manager.renderTimelineAt(400);
@@ -361,10 +369,10 @@ test('normalizes lower composites for secondary inputs and preserves premultipli
 	assert.deepEqual(receiver.instance.resolution, { width: 160, height: 90 });
 	assert.equal(source.outputDataMap.output.texture.destroyed, false);
 	assert.equal(f.calls.passes.length, 1);
-	const direct = createEffectTimelineLayer(top, definition, f.implementation, f.directOptions);
+	const direct = createEffectTimelineLayer(top, { ...f.directOptions, definitions: { getNativeEffect: () => definition }, getNativeEffectImplementation: () => f.implementation });
 	t.after(() => direct.destroy());
-	await direct.evaluate({ sceneTimeMs: 350, contentTimeMs: 270.5, timeDelta: 0, isExport: false, getInput: async () => ({ kind: 'uniform', value: [0.25, 0, 0, 0.5] }) }, new AbortController().signal);
-	assert.deepEqual(f.calls.renders.at(-1).params.input, { kind: 'uniform', value: [0.25, 0, 0, 0.5] });
+	await direct.evaluate({ sceneTimeMs: 350, contentTimeMs: 270.5, timeDelta: 0, isExport: false, getInput: async () => ({ kind: 'texture', texture: source.outputDataMap.output.texture }) }, new AbortController().signal);
+	assert.equal(f.calls.renders.at(-1).params.input.kind, 'texture');
 });
 
 // 【解像度は素材・入力・Sceneの優先順で解決し、倍率を一度だけ適用する】
@@ -380,7 +388,7 @@ test('resolves context and intrinsic sizes within nested scenes without inheriti
 	] });
 	await f.manager.renderTimelineFrame(1050, 0);
 	assert.deepEqual(f.calls.renders.at(-1).instance.resolution, { width: 120, height: 60 });
-	assert.deepEqual(f.calls.renders.at(-1).params.input, { kind: 'uniform', value: [0, 0, 0, 0] });
+	assert.equal(f.calls.renders.at(-1).params.input.kind, 'texture');
 	assert.equal(f.calls.renders.at(-1).time, 0.2705);
 	const childSource = f.calls.states.find(event => event.source.layerId === 'child').source;
 	assert.deepEqual(childSource, { type: 'timelineLayer', instanceId: childSource.instanceId,
@@ -405,13 +413,13 @@ test('applies effect layer scales to intrinsic input and context sizes and refre
 		await f.setup([layer('scaled', values, { resolution, effectStaticSettings: { source: values.amount?.value === 1 ? 'intrinsic' : null } })], { resolutionScale: 0.5 });
 		await f.manager.renderTimelineFrame(350, 0);
 		assert.deepEqual(f.calls.renders.at(-1).instance.resolution, expected);
-		assert.deepEqual(f.calls.states.at(-1).status.outputs.output, expected);
+		assert.deepEqual(f.calls.instances.at(-1).resolution, expected);
 	}
 	const edited = layer('scaled', { input }, { resolution: { mode: 'context', scale: 2 } });
 	f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: edited.id, layer: edited, changes: [{ type: 'resolution' }] }]);
 	await f.manager.renderTimelineFrame(350, 0);
 	assert.deepEqual(f.calls.renders.at(-1).instance.resolution, { width: 320, height: 180 });
-	assert.deepEqual(f.calls.states.at(-1).status.outputs.output, { width: 320, height: 180 });
+	assert.deepEqual(f.calls.instances.at(-1).resolution, { width: 320, height: 180 });
 });
 
 // 【同じエフェクトでも隣接クリップに履歴を引き継がず、非同期待機を中断できる】
@@ -457,10 +465,10 @@ test('publishes effect layer states with clip identities and suppresses disposed
 	assert.deepEqual(first.source, { type: 'timelineLayer', instanceId: first.source.instanceId,
 		rootSceneId: 'scene', layerId: 'effect', clipId: 'first', layerPath: ['effect'] });
 	assert.equal('nodeId' in first, false);
-	assert.deepEqual(first.status, { status: { type: 'loading' }, outputs: { output: null, unused: null } });
+	assert.deepEqual(first.status, { type: 'loading' });
 	f.calls.instances[0].reportStatus({ type: 'ready' });
 	await firstRender;
-	assert.deepEqual(f.calls.states.at(-1).status, { status: { type: 'ready' }, outputs: { output: { width: 320, height: 180 }, unused: null } });
+	assert.deepEqual(f.calls.states.at(-1).status, { type: 'ready' });
 	const secondRender = f.manager.renderTimelineFrame(200, 0);
 	await new Promise(setImmediate);
 	const second = f.calls.states.at(-1);
@@ -472,7 +480,7 @@ test('publishes effect layer states with clip identities and suppresses disposed
 	assert.equal(f.calls.states.length, count);
 	f.calls.instances[1].reportStatus({ type: 'error', message: 'decode failed' });
 	await assert.rejects(secondRender, /decode failed/);
-	assert.deepEqual(f.calls.states.findLast(event => event.status != null).status.status, { type: 'error', message: 'decode failed' });
+	assert.deepEqual(f.calls.states.findLast(event => event.status != null).status.error.message, 'decode failed');
 	await f.manager.renderTimelineFrame(300, 0);
 	assert.equal(f.calls.states.at(-1).status, null);
 	assert.equal(f.calls.states.at(-1).source.instanceId, second.source.instanceId);
@@ -487,10 +495,11 @@ test('snapshots evaluated leaf arrays before asynchronous preparation', async t 
 		ui: { label: 'Vectors', control: { element: {} } }, element: { defaultValue: literal([0, 0]) }, defaultValue: literal([]) };
 	const def = { ...definition, paramDefs: { ...definition.paramDefs, vectors } };
 	const entry = layer('effect', { vectors: literal([{ id: 'vector', binding: literal([1, 2]) }]) });
-	const renderer = createEffectTimelineLayer(entry, def, f.implementation, f.directOptions);
+	const renderer = createEffectTimelineLayer(entry, { ...f.directOptions, definitions: { getNativeEffect: () => def }, getNativeEffectImplementation: () => f.implementation });
 	t.after(() => renderer.destroy());
-	const context = { sceneTimeMs: 150, contentTimeMs: 70.5, timeDelta: 0, isExport: false, input: { kind: 'uniform', value: [0, 0, 0, 0] } };
+	const context = { sceneTimeMs: 150, contentTimeMs: 70.5, timeDelta: 0, isExport: false, getInput: async () => { throw new Error('Unexpected input'); } };
 	const rendering = renderer.evaluate(context, new AbortController().signal);
+	await new Promise(setImmediate);
 	entry.effectParamValues.vectors.value[0].binding.value[0] = 9;
 	f.calls.instances[0].reportStatus({ type: 'ready' });
 	await rendering;
@@ -572,26 +581,24 @@ test('resolves nested source references across groups and skips unavailable targ
 	for (const target of ['source', 'missing', null]) {
 		await f.setup([{ ...group, isDisabled: true }, layer('receiver', { input: imageReference(target) })]);
 		await f.manager.renderTimelineFrame(350, 0);
-		assert.deepEqual(f.calls.renders.at(-1).params.input, { kind: 'uniform', value: [0, 0, 0, 0] });
+		assert.equal(f.calls.renders.at(-1).params.input.kind, 'texture');
 	}
 	await f.setup([layer('receiver', { input: imageReference('source', 'composited') }), layer('source', {}, { clips: [] })]);
 	await f.manager.renderTimelineFrame(350, 0);
-	assert.deepEqual(f.calls.renders.at(-1).params.input, { kind: 'uniform', value: [0, 0, 0, 0] });
+	assert.equal(f.calls.renders.at(-1).params.input.kind, 'texture');
 });
 
 // 【Custom Node Graph Effectの明示した公開主入力を優先し、素材をSceneの宣言寸法へ揃える】
 // 同じ縦横比の素材も入口で正規化し、クリップの切り替えで入力寸法が変化しないようにする。
 test('normalizes an explicit public primary input before routing it through a Custom Node Graph Effect', async t => {
 	const f = await fixture(t);
-	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, id: 'visual', name: 'Visual', paramDefs: [{ ...color, id: 'image', nameForReference: 'image' }],
-		primaryInputId: 'image', primaryOutputId: 'output', automationGraphs: [],
-		outputDefs: [{ id: 'output', name: 'Output', label: 'Output', dataType: { kind: 'color' } }],
-		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'image', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' } } }] };
-	const customNodeGraphEffectLayer = { id: 'visual-layer', name: 'Visual', layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'visual',
+	const customNodeGraphEffect = { ...definition, paramDefs: { image: color }, primaryInputParameter: 'image', resolutionInputParameters: ['image'],
+		nodes: [], outputSources: { output: { parameterId: 'image' } } };
+	const customNodeGraphEffectLayer = { id: 'visual-layer', name: 'Visual', layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'visual' }, resolution: { mode: 'context', scale: 1 }, effectStaticSettings: {},
 		clips: [clip('clip', 100, 1000)], isDisabled: false, automationGraphs: [], compositingParamValues: compositing(),
-		customNodeGraphEffectParamValues: { image: { inputSource: 'anotherLayerOutput', layerId: 'source', outputStage: 'source' } } };
+		effectParamValues: { image: { inputSource: 'anotherLayerOutput', layerId: 'source', outputStage: 'source' } } };
 	await f.setup([layer('receiver', { amount: literal(22), input: imageReference('visual-layer') }), customNodeGraphEffectLayer,
-		layer('source', { amount: literal(11) }, { resolution: { mode: 'customAbsolute', width: 80, height: 45 } })], { customNodeGraphEffects: [customNodeGraphEffect] });
+		layer('source', { amount: literal(11) }, { resolution: { mode: 'customAbsolute', width: 80, height: 45 } })], { customNodeGraphEffects: [{ id: 'visual', name: 'Visual', definition: customNodeGraphEffect }] });
 	await f.manager.renderTimelineFrame(350, 0);
 	assert.equal(f.calls.renders.length, 2);
 	const [source, receiver] = f.calls.renders;
@@ -606,25 +613,23 @@ test('normalizes an explicit public primary input before routing it through a Cu
 // 未接続の主入力を削除しても、同じ画像を使う別の公開入力は新しいテクスチャで描画を続ける。
 test('releases deleted public input frames while preserving the placement and remaining inputs', async t => {
 	const f = await fixture(t);
-	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, id: 'visual', name: 'Visual', paramDefs: ['unused', 'kept'].map(id => ({ ...color, id, nameForReference: id })),
-		primaryInputId: 'unused', primaryOutputId: 'output', automationGraphs: [],
-		outputDefs: [{ id: 'output', name: 'Output', label: 'Output', dataType: { kind: 'color' } }],
-		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'kept', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' } } }] };
-	const publicLayer = { id: 'public', name: 'Public', layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'visual', clips: [clip('clip', 100, 1000)],
-		isDisabled: false, automationGraphs: [], compositingParamValues: compositing(), customNodeGraphEffectParamValues: { kept: { inputSource: 'lowerLayerOutput' } } };
+	const customNodeGraphEffect = { ...definition, paramDefs: { unused: color, kept: color }, primaryInputParameter: 'unused', resolutionInputParameters: [],
+		nodes: [], outputSources: { output: { parameterId: 'kept' } } };
+	const publicLayer = { id: 'public', name: 'Public', layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'visual' }, resolution: { mode: 'context', scale: 1 }, effectStaticSettings: {}, clips: [clip('clip', 100, 1000)],
+		isDisabled: false, automationGraphs: [], compositingParamValues: compositing(), effectParamValues: { kept: { inputSource: 'lowerLayerOutput' } } };
 	const background = layer('background');
 	background.compositingParamValues.position = literal([2, 0]);
 	let publicOutput;
 	f.manager.createCompositingObserver = (_sceneId, layerId) => source => { if (layerId === 'public') publicOutput = source; };
 	await f.setup([{ id: 'group', name: 'Group', layerType: 'group', layers: [publicLayer, background], isDisabled: false,
-		automationGraphs: [], compositingParamValues: compositing(), audioParamValues: {} }], { customNodeGraphEffects: [customNodeGraphEffect] });
+		automationGraphs: [], compositingParamValues: compositing(), audioParamValues: {} }], { customNodeGraphEffects: [{ id: 'visual', name: 'Visual', definition: customNodeGraphEffect }] });
 	await f.manager.renderTimelineFrame(350, 0);
 	const firstFrame = publicOutput.texture;
 	const backgroundInstance = f.calls.instances[0];
 	assert.equal(firstFrame.width, 320);
 	assert.equal(firstFrame.destroyed, false);
-	f.manager.applyProjectChanges([{ type: 'customNodeGraphEffect', target: { customNodeGraphEffectId: 'visual' },
-		customNodeGraphEffect: { ...customNodeGraphEffect, primaryInputId: null, paramDefs: customNodeGraphEffect.paramDefs.filter(def => def.id === 'kept') } }]);
+	f.manager.applyProjectChanges([{ type: 'customNodeGraphEffect', customNodeGraphEffectId: 'visual',
+		customNodeGraphEffect: { ...customNodeGraphEffect, primaryInputParameter: null, paramDefs: { kept: color } } }]);
 	await f.manager.renderTimelineFrame(350, 0);
 	assert.equal(firstFrame.destroyed, true);
 	assert.notStrictEqual(publicOutput.texture, firstFrame);

@@ -1,3 +1,4 @@
+import { createSolidTimelineImage } from './solid-timeline-image.ts';
 import { createTransformTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/transform/transform-timeline-layer.ts';
 import { createTimelineTransformParameterValues } from '@gs/subsystems_timeline_shared/layers/transform/transform.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
@@ -107,6 +108,8 @@ export async function run() {
 	let sceneLayers: TimelineLayer[] = [];
 	let childScene: TimelineScene;
 	const imageSources = new Map<string, GPUTexture>();
+	const transparent = createSolidTimelineImage(device, frame, [0, 0, 0, 0]);
+	const red = createSolidTimelineImage(device, frame, [1, 0, 0, 1]);
 	const image = (width: number, height: number, pixel: (x: number, y: number) => number[]): TimelineLayer => {
 		const id = `image${nextId++}`;
 		const texture = device.createTexture({ size: { width, height }, format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
@@ -126,7 +129,7 @@ export async function run() {
 	};
 	const createLayer = (layer: TimelineLayer, clipId: string | null): TimelineLayerRenderer<TimelineImage> => {
 		switch (layer.layerType) {
-			case 'transform': return createTransformTimelineLayer(() => layer, { resolution: frame, fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] } as TimelineImage, createLayer });
+			case 'transform': return createTransformTimelineLayer(() => layer, { resolution: frame, fallbackOutput: transparent, createLayer });
 			case 'group': return createGroupTimelineLayer(() => layer, { ...options, createLayer, getLayerVersion: () => 0 });
 			case 'shape': return createShapeTimelineLayer(layer, options);
 			case 'image': {
@@ -144,7 +147,7 @@ export async function run() {
 							automationGraphs: [],
 						});
 						const texture = imageSources.get(layer.clips[0].assetId);
-						const source: TimelineImage = texture ? { kind: 'texture', texture } : { kind: 'uniform', value: layer.name === 'red' ? [1, 0, 0, 1] : [0, 0, 0, 0] };
+						const source: TimelineImage = texture ? { kind: 'texture', texture } : layer.name === 'red' ? red : transparent;
 						return compositor.evaluate(context, source, settings);
 					},
 					destroy() { compositor.dispose(); },
@@ -161,7 +164,7 @@ export async function run() {
 		}
 	};
 	const renderer = new TimelineRenderer<TimelineImage, TimelineLayer>({
-		fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] },
+		fallbackOutput: transparent,
 		createLayer,
 		getRenderSpace: (time, isExport) => ({
 			parent: TIMELINE_IDENTITY,
@@ -332,5 +335,5 @@ export async function run() {
 		const error = await device.popErrorScope();
 		if (error) throw new Error(error.message);
 		return completed;
-	} finally { renderer.clear(); output.dispose(); readback.destroy(); target.destroy(); for (const texture of imageSources.values()) texture.destroy(); device.destroy(); }
+	} finally { renderer.clear(); transparent.texture.destroy(); red.texture.destroy(); output.dispose(); readback.destroy(); target.destroy(); for (const texture of imageSources.values()) texture.destroy(); device.destroy(); }
 }

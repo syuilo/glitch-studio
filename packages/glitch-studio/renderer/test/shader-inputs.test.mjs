@@ -22,7 +22,7 @@ const { CustomNodeGraphEffectRenderer } = await load('@gs/subsystems_custom-node
 const { UniformOrTextureToTextureResolver } = await load('@gs/shared/gpu/uniform-or-texture-to-texture-resolver.ts');
 const { toShaderInput } = await load('@gs/shared/gpu/shader-input.ts');
 const { TimelineRenderer } = await load('@gs/subsystems_timeline_renderer/timeline-renderer.ts');
-const { createCustomNodeGraphEffectTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/custom-node-graph-effect/custom-node-graph-effect-timeline-layer.ts');
+import { createTimelineEffectProbe } from './helpers/timeline-effect-probe.mjs';
 const { createTimelineCompositor, getTimelinePlacement } = await load('@gs/subsystems_timeline_renderer/timeline-compositor.ts');
 const { createSceneOutput } = await load('@gs/subsystems_timeline_renderer/scene-output.ts');
 const { createImageTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/image/image-timeline-layer.ts');
@@ -273,8 +273,6 @@ test('normalizes node inputs to declared scene dimensions while borrowing alread
 	const resolution = { width: 8, height: 4 };
 	const output = createSceneOutput({ device, vertex: {}, resolution });
 	const region = { bounds: { left: -1, bottom: -1, right: 1, top: 1 }, frameSize: resolution };
-	const uniform = { kind: 'uniform', value: [0, 0, 0, 0] };
-	assert.equal(output.renderInput(uniform), uniform);
 	const matching = { kind: 'texture', texture: device.createTexture({ size: [8, 4], format: 'rgba16float' }), region };
 	assert.equal(output.renderInput(matching), matching);
 	assert.equal(calls.draws, 0);
@@ -304,7 +302,7 @@ test('keeps background sampling unchanged when the composite bounds expand', () 
 	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 } });
 	const background = { kind: 'texture', texture: device.createTexture({ size: [8, 4], format: 'rgba16float' }) };
 	const settings = { blendMode: 0, opacity: 1, fitMode: 'contain', position: [1, 0], origin: [0, 0], scale: [1, 1], rotation: 0, depth: 0 };
-	const output = compositor.render(encoder, background, { kind: 'uniform', value: [0, 0, 0, 0] }, settings, { parent: [1, 0, 0, 1, 0, 0], depth: 0 });
+	const output = compositor.render(encoder, background, { kind: 'texture', texture: { width: 8, height: 4, createView: () => ({}) } }, settings, { parent: [1, 0, 0, 1, 0, 0], depth: 0 });
 	assert.deepEqual([output.texture.width, output.texture.height], [16, 4]);
 	assert.deepEqual([...calls.writes.at(-1).slice(4, 6)], [1, 1]);
 	compositor.dispose();
@@ -317,11 +315,11 @@ test('preserves background bounds and frame size when applying an oversized mask
 	const resolution = { width: 8, height: 4 };
 	const compositor = createTimelineCompositor({ device, vertex: {}, resolution });
 	const region = { bounds: { left: -2, right: 3, bottom: -1, top: 2 }, frameSize: resolution };
-	const background = { kind: 'uniform', value: [0, 0, 1, 1], region };
+	const background = { kind: 'texture', texture: { width: 8, height: 4, createView: () => ({}) }, region };
 	const settings = { mask: { channel: 'alpha', inverted: false }, coordinateSpace: 'screen', blendMode: 0, opacity: 1,
 		fitMode: 'contain', position: [10, 0], origin: [0, 0], scale: [5, 5], rotation: 0, depth: 0 };
 	try {
-		const output = compositor.render(encoder, background, { kind: 'uniform', value: [1, 1, 1, 1] }, settings, { parent: [1, 0, 0, 1, 0, 0], depth: 0 });
+		const output = compositor.render(encoder, background, { kind: 'texture', texture: { width: 8, height: 4, createView: () => ({}) } }, settings, { parent: [1, 0, 0, 1, 0, 0], depth: 0 });
 		assert.deepEqual(output.region, region);
 		assert.deepEqual([output.texture.width, output.texture.height], [20, 6]);
 	} finally { compositor.dispose(); }
@@ -333,7 +331,7 @@ test('preserves background bounds and frame size when applying an oversized mask
 test('maps source-relative origins through fit while keeping positions in output space', () => {
 	const { device, calls, encoder } = gpuFixture();
 	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 100, height: 100 } });
-	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
+	const background = { kind: 'texture', texture: { width: 100, height: 100, createView: () => ({}) } };
 	const wide = { kind: 'texture', texture: device.createTexture({ size: [400, 200], format: 'rgba16float' }) };
 	const tall = { kind: 'texture', texture: device.createTexture({ size: [200, 400], format: 'rgba16float' }) };
 	const settings = { blendMode: 0, opacity: 1, position: [0.25, -0.5], origin: [1, -1], scale: [1, 1], rotation: 0 };
@@ -360,10 +358,10 @@ test('maps source-relative origins through fit while keeping positions in output
 test('only bypasses anchor placement when position cancels the fitted origin', () => {
 	const { device, calls, encoder } = gpuFixture();
 	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 } });
-	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
+	const background = { kind: 'texture', texture: { width: 8, height: 4, createView: () => ({}) } };
 	const textureSource = { kind: 'texture', texture: device.createTexture({ size: [4, 2], format: 'rgba16float' }) };
 	const settings = { blendMode: 19, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [1, -1], scale: [1, 1], rotation: 0 };
-	for (const source of [textureSource, { kind: 'uniform', value: [1, 0, 0, 1] }]) {
+	for (const source of [textureSource, { kind: 'texture', texture: { width: 8, height: 4, createView: () => ({}) } }]) {
 		assert.notEqual(compositor.render(encoder, background, source, settings), source);
 		assert.deepEqual(compositor.render(encoder, background, source, { ...settings, position: [1, -1] }), {
 			...source, region: { bounds: { left: -1, bottom: -1, right: 1, top: 1 }, frameSize: { width: 8, height: 4 } },
@@ -422,8 +420,8 @@ test('owns separate timeline targets and reuses pipelines across parameter chang
 	const options = { device, vertex: {}, resolution: { width: 8, height: 4 } };
 	const first = createTimelineCompositor(options);
 	const second = createTimelineCompositor(options);
-	const background = { kind: 'uniform', value: [0, 0, 1, 1] };
-	const source = { kind: 'uniform', value: [0.5, 0, 0, 0.5] };
+	const background = { kind: 'texture', texture: { width: 8, height: 4, createView: () => ({}) } };
+	const source = { kind: 'texture', texture: { width: 8, height: 4, createView: () => ({}) } };
 	const settings = { blendMode: 0, opacity: 0.5, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
 	const a = first.render(encoder, background, source, settings);
 	const shaderCount = calls.shaders.length;
@@ -511,36 +509,19 @@ test('publishes output resolutions only after drawing and when state changes', a
 	} finally { renderer.destroy(); }
 });
 
-// 複数のCustom Node Graph Effectをまたいでも定数のまま受け渡し、色を二重乗算しない。
-test('preserves constant outputs across timeline Custom Node Graph Effect layers', async () => {
-	const { device, calls, encoder } = gpuFixture();
-	const presented = [];
-	const module = {
-		customParameterDefs: [],
-		customParameterValues: {},
-		paramDefs: [{ id: 'input', nameForReference: 'input', dataType: { kind: 'color' }, canNode: true, defaultValue: literal([0, 0, 0, 0]) }], primaryInputId: 'input',
-		automationGraphs: [], outputDefs: [{ id: 'out' }], primaryOutputId: 'out',
-		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'in', outputPort: 'input' } } }],
-	};
-	const constant = { kind: 'uniform', value: [0.25, 0.125, 0, 0.25] };
-	const timeline = new TimelineRenderer({
-		fallbackOutput: constant,
-		createLayer() {
-			const renderer = createRenderer(device, module);
-			return createCustomNodeGraphEffectTimelineLayer(module, { customNodeGraphEffectParamValues: {}, automationGraphs: [] }, {
-				prepare: (context, signal) => renderer.prepare(context, signal),
-				render: async context => ({ output: renderer.render(context, encoder), gpuTime: 0 }),
-				destroy: () => renderer.destroy(),
-			});
-		},
-		present: output => presented.push(output),
-	});
-	try {
-		await timeline.renderAt(10, [{ id: 'a', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 100 }] }, { id: 'b', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 100 }] }]);
-		assert.strictEqual(presented[0], constant);
-		assert.equal(calls.textures.length, 0);
-		assert.equal(calls.uploads, 0);
-	} finally { timeline.clear(); }
+// 【Timelineの下層textureをGraphの公開入力へ渡す】
+// 下層で既に乗算した色を再変換せず、Scene寸法の同じtextureを借用する。
+test('borrows the scene texture through a public graph input', async t => {
+	let received;
+	const layer = createTimelineEffectProbe({ primaryInputParameter: 'image',
+		paramDefs: { image: { canNode: true, dataType: { kind: 'color' }, defaultValue: literal([0, 0, 0, 0]) } },
+		render(frame, inputs) { received = inputs.image; } });
+	t.after(() => layer.destroy());
+	const image = layer.texture();
+	await layer.evaluate({ sceneTimeMs: 10, contentTimeMs: 10, contentEndTimeMs: 100, clipElapsedTimeMs: 10, clipDurationMs: 100,
+		timeDelta: 0, isExport: false, getInput: async () => image }, new AbortController().signal);
+	assert.equal(received.kind, 'texture');
+	assert.equal(received.texture, image.texture);
 });
 
 // In→バイパス→エフェクトでも定数の精度と乗算済み色を保ち、GPUへの転送を発生させない。

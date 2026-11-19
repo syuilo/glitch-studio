@@ -1,4 +1,4 @@
-import type { EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
+import type { EffectRenderTilingProgress } from '@gs/subsystems_effect-new_shared/effect-render-tiling.ts';
 
 const RENDER_DELAY_THRESHOLD_MS = 300;
 const RENDER_DELAY_CHECK_INTERVAL_MS = 100;

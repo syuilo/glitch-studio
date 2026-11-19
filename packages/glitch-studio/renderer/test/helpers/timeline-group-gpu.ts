@@ -1,3 +1,4 @@
+import { createSolidTimelineImage } from './solid-timeline-image.ts';
 import { checkTimelineCompositor } from './timeline-compositor-gpu.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
@@ -7,12 +8,13 @@ import { createGroupTimelineLayer } from '@gs/subsystems_timeline_renderer/layer
 import { TimelineRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import type { TimelineGroupLayer, TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
+import type { TimelineImage } from '@gs/subsystems_timeline_renderer/timeline-image.ts';
 
 export async function checkTimelineGroups(device: GPUDevice, vertex: GPUShaderModule, read: (output: GPUTexture) => Promise<number[]>) {
 	const resolution = { width: 8, height: 4 };
-	const blue: UniformOrTexture = { kind: 'uniform', value: [0, 0, 1, 1] };
-	const transparent: UniformOrTexture = { kind: 'uniform', value: [0, 0, 0, 0] };
+	const blue = createSolidTimelineImage(device, resolution, [0, 0, 1, 1]);
+	const red = createSolidTimelineImage(device, resolution, [1, 0, 0, 1]);
+	const transparent = createSolidTimelineImage(device, resolution, [0, 0, 0, 0]);
 	const child: TimelineLayer = {
 		id: 'child',
 		name: 'child',
@@ -55,10 +57,10 @@ export async function checkTimelineGroups(device: GPUDevice, vertex: GPUShaderMo
 	});
 	const inner = group('inner', [child]);
 	const outer = group('outer', [inner]);
-	const contexts: TimelineLayerContext<UniformOrTexture>[] = [];
+	const contexts: TimelineLayerContext<TimelineImage>[] = [];
 	const destroyed: string[] = [];
 	const completed: string[] = [];
-	const createLayer = (layer: TimelineLayer, clipId: string | null): TimelineLayerRenderer<UniformOrTexture> => {
+	const createLayer = (layer: TimelineLayer, clipId: string | null): TimelineLayerRenderer<TimelineImage> => {
 		if (layer.layerType === 'group') {
 			if (clipId != null) throw new Error('Groups must not create artificial clips');
 			return createGroupTimelineLayer(() => layer, {
@@ -72,17 +74,16 @@ export async function checkTimelineGroups(device: GPUDevice, vertex: GPUShaderMo
 		return {
 			async evaluate(context) {
 				contexts.push(context);
-				return { output: clipId === 'red' ? { kind: 'uniform', value: [1, 0, 0, 1] } : transparent, gpuTime: 7 };
+				return { output: clipId === 'red' ? red : transparent, gpuTime: 7 };
 			},
 			destroy() { destroyed.push(clipId!); },
 		};
 	};
-	const renderer = new TimelineRenderer<UniformOrTexture, TimelineLayer>({ fallbackOutput: blue, createLayer });
+	const renderer = new TimelineRenderer<TimelineImage, TimelineLayer>({ fallbackOutput: blue, createLayer });
 	async function check(name: string, time: number, expected: number[], delta = 0) {
 		const result = await renderer.evaluateAt(time, [outer], delta, true);
 		if (!result) throw new Error('Frame unexpectedly cancelled');
-		const actual = result.output.kind === 'texture' ? await read(result.output.texture)
-			: Array.from({ length: 32 }, () => result.output.kind === 'uniform' ? result.output.value.map(value => Math.round(value * 255)) : []).flat();
+		const actual = await read(result.output.texture);
 		if (actual.length !== 128 || actual.some((value, i) => Math.abs(value - expected[i % 4]) > 2)) throw new Error(`${name}: ${actual} != ${expected}`);
 		completed.push(name);
 		return result;
@@ -124,7 +125,7 @@ export async function checkTimelineGroups(device: GPUDevice, vertex: GPUShaderMo
 		outer.mask = { channel: 'alpha', inverted: true };
 		await check('inverted group mask uses combined child coverage', 150, [0, 0, 191, 191]);
 		return completed;
-	} finally { renderer.clear(); }
+	} finally { renderer.clear(); blue.texture.destroy(); red.texture.destroy(); transparent.texture.destroy(); }
 }
 
 // 【グループ単体のGPU検証を他のエフェクトの成否から独立させる】

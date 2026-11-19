@@ -1,16 +1,16 @@
 import { createEffectTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/effect/effect-timeline-layer.ts';
 import { TimelineRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
-import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
-import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
-import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.ts';
-import fillDefinition from '@gs/subsystems_effect_shared/fx/fill/_def_.ts';
-import fill from '@gs/subsystems_effect_shared/fx/fill/_impl_.ts';
-import mixDefinition from '@gs/subsystems_effect_shared/fx/colorMix/_def_.ts';
-import mix from '@gs/subsystems_effect_shared/fx/colorMix/_impl_.ts';
-import meshDefinition from '@gs/subsystems_effect_shared/fx/meshGradient/_def_.ts';
-import mesh from '@gs/subsystems_effect_shared/fx/meshGradient/_impl_.ts';
-import blurDefinition from '@gs/subsystems_effect_shared/fx/blur/_def_.ts';
-import blur from '@gs/subsystems_effect_shared/fx/blur/_impl_.ts';
+import { createSolidTimelineImage } from './solid-timeline-image.ts';
+import type { NativeEffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import type { NativeEffectImplementation } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
+import fillDefinition from '@gs/subsystems_effect-new_native-effects/fx/fill/_def_.ts';
+import fill from '@gs/subsystems_effect-new_native-effects/fx/fill/_impl_.ts';
+import mixDefinition from '@gs/subsystems_effect-new_native-effects/fx/colorMix/_def_.ts';
+import mix from '@gs/subsystems_effect-new_native-effects/fx/colorMix/_impl_.ts';
+import meshDefinition from '@gs/subsystems_effect-new_native-effects/fx/meshGradient/_def_.ts';
+import mesh from '@gs/subsystems_effect-new_native-effects/fx/meshGradient/_impl_.ts';
+import blurDefinition from '@gs/subsystems_effect-new_native-effects/fx/blur/_def_.ts';
+import blur from '@gs/subsystems_effect-new_native-effects/fx/blur/_impl_.ts';
 import { createLowerLayerOutputBinding, getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
@@ -26,7 +26,7 @@ export async function checkBlurRegionTimelineLayer(device: GPUDevice, vertex: GP
 		id: 'blur',
 		name: 'Blur',
 		layerType: 'effect',
-		effectId: 'blur',
+		effectSource: { type: 'nativeEffect', id: 'blur' },
 		transformTarget: 'region',
 		isDisabled: false,
 		color: null,
@@ -49,17 +49,16 @@ export async function checkBlurRegionTimelineLayer(device: GPUDevice, vertex: GP
 			blendMode: { inputSource: 'literal', value: 'replace' },
 		},
 	};
-	const renderer = createEffectTimelineLayer(layer, blurDefinition, blur, {
+	const renderer = createEffectTimelineLayer(layer, {
+		definitions: { getNativeEffect: () => blurDefinition, getCustomShaderEffect: () => { throw new Error('Unexpected shader'); }, getCustomNodeGraphEffect: () => { throw new Error('Unexpected graph'); } },
+		getNativeEffectImplementation: () => blur,
 		wgpu: {
 			device,
 			defaultVertexShaderModule: vertex,
 			enable32bitDataTextures: false,
 		},
-		fallbackTexture: background,
-		resolution,
+		sceneBaseResolution: resolution,
 		resolutionScale: 1,
-		assets: [],
-		assetTextures: new Map(),
 	});
 	const context = {
 		sceneTimeMs: 0,
@@ -105,16 +104,16 @@ export async function checkBlurRegionTimelineLayer(device: GPUDevice, vertex: GP
 
 export async function checkEffectTimelineLayers(device: GPUDevice, vertex: GPUShaderModule, read: (output: GPUTexture) => Promise<number[]>) {
 	// 実際の登録一覧と同様、異なるパラメータ構造を持つ定義を共通の実行時契約へまとめる。
-	const definitions: Record<string, EffectDefinition> = { fill: { ...fillDefinition }, colorMix: { ...mixDefinition }, meshGradient: { ...meshDefinition } };
-	const implementations: Record<'fill' | 'colorMix' | 'meshGradient', EffectImplementation<any>> = { fill, colorMix: mix, meshGradient: mesh };
+	const definitions: Record<string, NativeEffectDefinition> = { fill: { ...fillDefinition }, colorMix: { ...mixDefinition }, meshGradient: { ...meshDefinition } };
+	const implementations: Record<'fill' | 'colorMix' | 'meshGradient', NativeEffectImplementation> = { fill, colorMix: mix, meshGradient: mesh };
 	// UIの生成処理はUIパッケージのテストで検証する。GPUテストの入力は共有定義から構築する。
-	function createLayer(effectId: keyof typeof implementations): TimelineEffectLayer {
-		const definition = definitions[effectId];
+	function createLayer(id: keyof typeof implementations): TimelineEffectLayer {
+		const definition = definitions[id];
 		return {
-			id: effectId,
+			id,
 			name: definition.displayName,
 			layerType: 'effect',
-			effectId,
+			effectSource: { type: 'nativeEffect', id },
 			clips: [{
 				id: 'clip',
 				startMs: 100,
@@ -138,20 +137,14 @@ export async function checkEffectTimelineLayers(device: GPUDevice, vertex: GPUSh
 			},
 		};
 	}
-	const fallbackTexture = device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING });
-	const timeline = new TimelineRenderer<UniformOrTexture, TimelineEffectLayer>({
-		fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] },
-		createLayer: layer => createEffectTimelineLayer(layer, definitions[layer.effectId as keyof typeof definitions], implementations[layer.effectId as keyof typeof implementations], {
-			wgpu: {
-				device,
-				defaultVertexShaderModule: vertex,
-				enable32bitDataTextures: false,
-			},
-			fallbackTexture,
-			resolution: { width: 4, height: 4 },
-			resolutionScale: 1,
-			assets: [],
-			assetTextures: new Map(),
+	const fallback = createSolidTimelineImage(device, { width: 4, height: 4 }, [0, 0, 0, 0]);
+	const timeline = new TimelineRenderer<TimelineImage, TimelineEffectLayer>({
+		fallbackOutput: fallback,
+		createLayer: layer => createEffectTimelineLayer(layer, {
+			wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false },
+			definitions: { getNativeEffect: id => definitions[id], getCustomShaderEffect: () => { throw new Error('Unexpected shader'); }, getCustomNodeGraphEffect: () => { throw new Error('Unexpected graph'); } },
+			getNativeEffectImplementation: id => implementations[id as keyof typeof implementations],
+			sceneBaseResolution: { width: 4, height: 4 }, resolutionScale: 1,
 		}),
 	});
 	const completed: string[] = [];
@@ -213,6 +206,6 @@ export async function checkEffectTimelineLayers(device: GPUDevice, vertex: GPUSh
 		return completed;
 	} finally {
 		timeline.clear();
-		fallbackTexture.destroy();
+		fallback.texture.destroy();
 	}
 }

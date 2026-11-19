@@ -10,7 +10,7 @@ const { AudioHistory } = await load('@gs/subsystems_audio_renderer/audio-history
 const { playerAudioSourceId } = await load('@gs/shared/audio.ts');
 const { PlayerAudioInputs } = await loadShaderSource(fileURLToPath(new URL('../src/player-audio-inputs.ts', import.meta.url)));
 const { CustomNodeGraphEffectRenderer } = await load('@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-renderer.ts');
-const { createCustomNodeGraphEffectTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/custom-node-graph-effect/custom-node-graph-effect-timeline-layer.ts');
+import { createTimelineEffectProbe } from './helpers/timeline-effect-probe.mjs';
 const { default: waveform } = await load('@gs/subsystems_effect_shared/fx/audioWaveform/_impl_.ts');
 const { default: waveformDefinition } = await load('@gs/subsystems_effect_shared/fx/audioWaveform/_def_.ts');
 const literal = value => ({ inputSource: 'literal', value });
@@ -72,7 +72,7 @@ test('deduplicates ready windows and retries cancelled or failed requests', asyn
 	assert.deepEqual(statuses.at(-1), { type: 'ready' });
 });
 
-// 【Custom Node Graph Effect Live Previewのモノラルを両チャンネルへ複製し、取得後の履歴更新から独立させる】
+// 【Effect Live Previewのモノラルを両チャンネルへ複製し、取得後の履歴更新から独立させる】
 // 同じPlayerを使う複数ノードや非同期準備の途中で、波形が別の再生位置へ変わらないようにする。
 test('freezes player PCM, pads missing history, and duplicates mono channels', () => {
 	const history = new AudioHistory();
@@ -226,25 +226,23 @@ test('delegates literal audio selections without knowing their source domain', (
 // Noneを明示した場合は自動割り当てを上書きし、音声の読み出しも行わない。
 test('anchors Custom Node Graph Effect audio to scene time while preserving content time and explicit none', async () => {
 	const publicAudio = { ...audioDef, id: 'audio-id', nameForReference: 'sound' };
-	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, paramDefs: [publicAudio], primaryInputId: null, primaryAudioInputId: publicAudio.id };
-	const layer = { customNodeGraphEffectParamValues: {}, automationGraphs: [] };
 	const calls = [];
 	const input = { cacheKey: 'lower', readWindow: () => window() };
 	let prepared;
-	const renderer = createCustomNodeGraphEffectTimelineLayer(customNodeGraphEffect, layer, {
-		getAudioInput: (...args) => { calls.push(args); return input; },
-		prepare: async context => { prepared = context; }, render: context => { assert.equal(context, prepared); return { gpuTime: 0 }; }, destroy() {},
-	});
+	const create = params => createTimelineEffectProbe({ paramDefs: { [publicAudio.id]: publicAudio }, params, primaryAudioInputParameter: publicAudio.id,
+		getAudioInput: (...args) => { calls.push(args); return input; }, render(frame, values) { prepared = { frame, values }; } });
+	const renderer = create({});
 	const context = { input: { kind: 'uniform', value: [0, 0, 0, 0] }, sceneTimeMs: 600.25, contentTimeMs: 120.25, contentEndTimeMs: 500,
 		clipElapsedTimeMs: 100, clipDurationMs: 400, timeDelta: 0, isExport: true };
 	await renderer.evaluate(context, signal());
 	assert.deepEqual(calls, [[{ inputSource: 'lowerLayerAudio' }, 600.25, true]]);
-	assert.equal(prepared.time, 120.25);
-	assert.equal(prepared.audioParamInputs.get(publicAudio.id), input);
-	assert.equal(prepared.evaluatedParamValues.has(publicAudio.id), false);
-	layer.customNodeGraphEffectParamValues[publicAudio.id] = literal(null);
-	await renderer.evaluate(context, signal());
-	assert.equal(prepared.audioParamInputs.get(publicAudio.id), null);
+	assert.equal(prepared.frame.time, 0.12025);
+	assert.equal(prepared.values[publicAudio.id], input);
+	renderer.destroy();
+	const none = create({ [publicAudio.id]: literal(null) });
+	await none.evaluate(context, signal());
+	assert.equal(prepared.values[publicAudio.id], null);
+	none.destroy();
 	assert.equal(calls.length, 1);
 });
 
@@ -258,22 +256,20 @@ test('resolves independent public audio sources and shares only matching frame i
 		missing: { inputSource: 'anotherLayerAudio', layerId: 'missing' }, missing_again: { inputSource: 'anotherLayerAudio', layerId: 'missing' },
 		none: { inputSource: 'anotherLayerAudio', layerId: null },
 	};
-	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, primaryInputId: null, primaryAudioInputId: null,
-		paramDefs: Object.keys(bindings).map(id => ({ ...audioDef, id, nameForReference: id })) };
 	const calls = [];
 	let prepared;
-	const renderer = createCustomNodeGraphEffectTimelineLayer(customNodeGraphEffect, { customNodeGraphEffectParamValues: bindings, automationGraphs: [] }, {
+	const renderer = createTimelineEffectProbe({ paramDefs: Object.fromEntries(Object.keys(bindings).map(id => [id, audioDef])), params: bindings,
 		getAudioInput: (binding, time, isExport) => {
 			calls.push([binding, time, isExport]);
 			return binding.layerId === 'missing' ? null : { cacheKey: JSON.stringify(binding), readWindow: () => window() };
 		},
-		prepare: async context => { prepared = context; }, render: () => ({ gpuTime: 0 }), destroy() {},
+		render(frame, values) { prepared = new Map(Object.entries(values)); },
 	});
 	const context = { input: { kind: 'uniform', value: [0, 0, 0, 0] }, sceneTimeMs: 400.25, contentTimeMs: 10, contentEndTimeMs: 100,
 		clipElapsedTimeMs: 10, clipDurationMs: 100, timeDelta: 0, isExport: true };
 	await renderer.evaluate(context, signal());
 	assert.deepEqual(calls, [bindings.lower, bindings.first, bindings.second, bindings.missing].map(binding => [binding, 400.25, true]));
-	const inputs = prepared.audioParamInputs;
+	const inputs = prepared;
 	assert.equal(inputs.get('first'), inputs.get('again'));
 	assert.notEqual(inputs.get('lower'), inputs.get('first'));
 	assert.notEqual(inputs.get('first'), inputs.get('second'));
@@ -281,7 +277,7 @@ test('resolves independent public audio sources and shares only matching frame i
 	assert.equal(inputs.get('none'), null);
 	await renderer.evaluate(context, signal());
 	assert.equal(calls.length, 8);
-	assert.notEqual(prepared.audioParamInputs.get('first'), inputs.get('first'));
+	assert.notEqual(prepared.get('first'), inputs.get('first'));
 });
 
 // 【波形は短いピークを保持し、未選択と無音を区別する】

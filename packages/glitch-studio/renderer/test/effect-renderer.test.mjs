@@ -9,7 +9,6 @@ const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { EffectRenderer } = await load('@gs/subsystems_effect_renderer/effect-renderer.ts');
 const { default: TimingHelper } = await load('@gs/shared/gpu/TimingHelper.ts');
 const { CustomNodeGraphEffectRenderer } = await load('@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-renderer.ts');
-const { createCustomNodeGraphEffectTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/custom-node-graph-effect/custom-node-graph-effect-timeline-layer.ts');
 const { createVideoFrameLoader } = await load('@gs/subsystems_effect_shared/fx/videoFrame/frame-loader.ts');
 const { createTextFontLoader } = await load('@gs/subsystems_effect_shared/text-font-loader.ts');
 const { default: mandelbrotImplementation } = await load('@gs/subsystems_effect_shared/fx/mandelbrot/_impl_.ts');
@@ -855,22 +854,17 @@ test('does not render an aborted timeline request and reuses its prepared effect
 	const g = gpu();
 	const source = probe(g, { loading: true, history: true });
 	const f = graph(t, g, { source }, [node('source')]);
-	const layer = createCustomNodeGraphEffectTimelineLayer(f.customNodeGraphEffect, { automationGraphs: [], customNodeGraphEffectParamValues: {} }, {
-		prepare: (ctx, signal) => f.renderer.prepare(ctx, signal),
-		render: async ctx => ({ output: f.render(ctx), gpuTime: 0 }), destroy: () => f.renderer.destroy(),
-	});
-	const ctx = { sceneTimeMs: 1000, contentTimeMs: 250, contentEndTimeMs: 500, clipElapsedTimeMs: 50, clipDurationMs: 300, timeDelta: 20, isExport: false, input: uniform };
+	const ctx = { time: 250, timeDelta: 0, endTime: 500, isExport: false, pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 }, evaluatedParamValues: new Map() };
 	const controller = new AbortController();
-	const waiting = layer.evaluate(ctx, controller.signal);
+	const waiting = f.renderer.prepare(ctx, controller.signal);
 	controller.abort();
 	await waiting;
 	assert.equal(source.renders.length, 0);
-	assert.equal(source.instances[0].disposed, 0);
-	const next = layer.evaluate({ ...ctx, contentTimeMs: 300 }, new AbortController().signal);
 	source.instances[0].args.reportStatus({ type: 'ready' });
-	await next;
+	const next = { ...ctx, time: 300 };
+	await f.renderer.prepare(next, new AbortController().signal);
+	f.render(next);
 	assert.equal(source.instances.length, 1);
-	assert.equal(source.renders.length, 1);
 	assert.equal(source.renders[0].time, 0.3);
 });
 

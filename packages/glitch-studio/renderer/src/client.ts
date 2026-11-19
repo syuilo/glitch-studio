@@ -4,8 +4,8 @@ export function createTimelineRendererManagerWorker() {
 	});
 }
 
-export function createCustomNodeGraphEffectRendererManagerWorker() {
-	return new Worker(new URL('./custom-node-graph-effect-renderer-manager-worker.ts', import.meta.url), {
+export function createEffectLivePreviewManagerWorker() {
+	return new Worker(new URL('./effect-live-preview-manager-worker.ts', import.meta.url), {
 		type: 'module',
 	});
 }

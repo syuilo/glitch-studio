@@ -1,12 +1,12 @@
-import type { CustomNodeGraphEffectRendererManager } from '../src/custom-node-graph-effect-renderer-manager.ts';
+import type { EffectLivePreviewManager } from '../src/effect-live-preview-manager.ts';
 import type { TimelineRendererManager } from '../src/timeline-renderer-manager.ts';
 
-declare const customNodeGraphEffectLivePreview: CustomNodeGraphEffectRendererManager;
+declare const effectLivePreview: EffectLivePreviewManager;
 declare const timeline: TimelineRendererManager;
 
 // 【イベントの種類からpayloadを絞り込む】
 // UIがキャストせずに扱え、種類と異なるpayloadを送る実装も検出できることを保証する。
-customNodeGraphEffectLivePreview.on('ev', event => {
+effectLivePreview.on('ev', event => {
 	if (event.type === 'renderError') {
 		const message: string = event.ctx.message;
 		void message;
@@ -14,8 +14,8 @@ customNodeGraphEffectLivePreview.on('ev', event => {
 		const fps: number = event.ctx.fpsAverage;
 		void fps;
 	} else if (event.type === 'effectState') {
-		const nodeId: string = event.ctx.nodeId;
-		void nodeId;
+		const status = event.ctx.status;
+		void status;
 	}
 });
 timeline.on('ev', event => {
@@ -28,10 +28,9 @@ timeline.on('ev', event => {
 	} else if (event.type === 'renderError') {
 		const message: string = event.ctx.message;
 		void message;
-	} else if (event.type === 'effectState') {
-		const nodeId: string = event.ctx.nodeId;
-		void nodeId;
 	} else if (event.type === 'effectLayerState') {
+		const status = event.ctx.status;
+		void status;
 		const layerId: string = event.ctx.source.layerId;
 		const clipId: string = event.ctx.source.clipId;
 		void [layerId, clipId];
@@ -41,13 +40,13 @@ timeline.on('ev', event => {
 });
 
 // @ts-expect-error renderError cannot carry an effectState payload.
-customNodeGraphEffectLivePreview.emit('ev', { type: 'renderError', ctx: { nodeId: 'node', status: null } });
+effectLivePreview.emit('ev', { type: 'renderError', ctx: { nodeId: 'node', status: null } });
 // @ts-expect-error effectState cannot carry a renderError payload.
 timeline.emit('ev', { type: 'effectState', ctx: { message: null } });
 
 // 【描画エラーイベントは失敗だけを通知する】
 // 正常描画による解除通知を復活させず、UIのエンジン再生成に復旧の責務を揃える。
 // @ts-expect-error renderError cannot carry a recovery notification.
-customNodeGraphEffectLivePreview.emit('ev', { type: 'renderError', ctx: { message: null } });
+effectLivePreview.emit('ev', { type: 'renderError', ctx: { message: null } });
 // @ts-expect-error renderError cannot carry a recovery notification.
 timeline.emit('ev', { type: 'renderError', ctx: { message: null } });

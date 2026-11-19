@@ -1,5 +1,8 @@
-import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
-import type { EffectRenderTiling, EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
+import { diffEffectRegistrationSnapshots } from './effect-registration-changes.ts';
+import { createProjectEffectDefinitions, type NativeEffectDefinitions } from '@gs/glitch-studio_shared/project/effects.ts';
+import type { EffectDefinitions } from '@gs/subsystems_effect-new_shared/effect-source.ts';
+import type { NativeEffectImplementation, EffectPreparationStatus } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
+import type { EffectRenderTiling, EffectRenderTilingProgress } from '@gs/subsystems_effect-new_shared/effect-render-tiling.ts';
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes, PreviewImageAnalysisDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
@@ -7,10 +10,8 @@ import type { PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-
 import type { PreviewGamutCompressionSettings } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
 import type { PreviewGamutWarningSettings } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
 import type { PreviewImageSource } from '@gs/glitch-studio_shared/preview-image-source.ts';
-import { createProjectEffects } from './custom-shader-effects.ts';
 import { isCustomNodeGraphEffectValueChange } from './project-change-policy.ts';
 import type { CustomNodeGraphEffectValueChange } from './project-change-policy.ts';
-import { customNodeGraphEffectTargetKey } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import { createTimelineLayerPublicParameterContextIndex } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import type { TimelineLayerPublicParameterContext } from '@gs/subsystems_timeline_shared/public-parameters.ts';
@@ -26,12 +27,10 @@ import { TimelineFrameRenderer } from '@gs/subsystems_timeline_renderer/timeline
 import { createMotionBlurAccumulator } from '@gs/subsystems_timeline_renderer/motion-blur-accumulator.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { getTimelineScene } from '@gs/subsystems_timeline_shared/scenes.ts';
-import { applyRendererProjectChanges, findRendererCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/renderer-state.ts';
+import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { getSceneBaseResolution, resolveSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import EventEmitter from 'eventemitter3';
-import { CustomNodeGraphEffectRenderer } from '@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-renderer.ts';
-import { createCustomNodeGraphEffectTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/custom-node-graph-effect/custom-node-graph-effect-timeline-layer.ts';
 import { createSceneTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/scene/scene-timeline-layer.ts';
 import { createImageTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/image/image-timeline-layer.ts';
 import { createEffectTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/effect/effect-timeline-layer.ts';
@@ -43,7 +42,6 @@ import { LinearImageReadback } from './linear-image-readback.ts';
 import { SrgbImageReadback } from './srgb-image-readback.ts';
 import { getTimelineScenesWithProjectAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
-import { createTimelineCompositor } from '@gs/subsystems_timeline_renderer/timeline-compositor.ts';
 import { TimelineCompositingParameters } from '@gs/subsystems_timeline_renderer/timeline-compositing-parameters.ts';
 import { isTimelineClipActive } from '@gs/subsystems_timeline_shared/timing.ts';
 import { createVideoTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/video/video-timeline-layer.ts';
@@ -78,18 +76,13 @@ import type { TimelineCompositingObserver } from '@gs/subsystems_timeline_render
 import type { TimelineMotionBlurCameraCuts, TimelineMotionBlurLoop } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.ts';
-import type { CustomNodeGraphEffectTarget } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import type { TimelineImage } from '@gs/subsystems_timeline_renderer/timeline-image.ts';
-import type { FrameScheduler } from '@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-live-preview-render-loop.ts';
+import type { FrameScheduler } from './effect-live-preview-render-loop.ts';
 import type { TimelineLayerRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
-import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
-import { INTERMEDIATE_TEXTURE_FORMAT, type Asset } from '@gs/shared/types.ts';
-import type { TimelineScene, TimelineLayer, TimelineCustomNodeGraphEffectLayer, TimelineInlineCustomNodeGraphEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectPublicParameterId } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
-import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.js';
-import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
+import type { Asset } from '@gs/shared/types.ts';
+import type { TimelineScene, TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 
 export type { TimelinePreviewFrameTiming, TimelinePreviewStatistics } from './timeline-preview-statistics.ts';
 
@@ -150,6 +143,7 @@ export type TimelineRendererManagerDynamicOptions = {
 	analysisHistogramViewport: ImageValueRange | null;
 	generatedSpeech: GeneratedSpeech[];
 	customNodeGraphEffects: ProjectCustomNodeGraphEffect[];
+	customShaderEffects: ProjectCustomShaderEffect[];
 	timelineScenes: TimelineScene[];
 	automationGraphs: AutomationGraph[];
 	sceneId: string | null;
@@ -160,8 +154,8 @@ export type TimelineRendererManagerDynamicOptions = {
 	previewFps: number | null;
 };
 
-/** 素材は寿命中に固定する。Custom Shader Effectは初期値で、配置と一括更新できる。 */
-export type TimelineRendererManagerResources = { customShaderEffects?: readonly ProjectCustomShaderEffect[]; assets: readonly Asset[] };
+/** 素材は寿命中に固定する。Effectの登録情報はプロジェクト状態に含める。 */
+export type TimelineRendererManagerResources = { assets: readonly Asset[] };
 
 /** Managerが所有するGPU環境と、注入する描画機能。 */
 export type TimelineRendererManagerCoreConfig = {
@@ -173,8 +167,8 @@ export type TimelineRendererManagerCoreConfig = {
 	histogramGpuContext?: PreviewCanvasContext;
 	waveformHorizontalGpuContext?: PreviewCanvasContext;
 	waveformVerticalGpuContext?: PreviewCanvasContext;
-	effectDefinitions: Record<string, EffectDefinition<any>>;
-	effectImplementations: Record<string, EffectImplementation<any>>;
+	nativeEffectDefinitions: NativeEffectDefinitions;
+	nativeEffectImplementations: Readonly<Record<string, NativeEffectImplementation>>;
 };
 
 type CachedLayerTransform = Pick<TimelineTransformPreview, 'clipId' | 'geometry' | 'outputResolution' | 'parentGeometries'>;
@@ -202,8 +196,7 @@ export type TimelineRendererManagerEvents = {
 	'frameCache': (ctx: TimelinePreviewFrameCacheState) => void;
 	/** 完了通知を要求した手動シークだけを、最終出力のGPU処理完了後に通知する。 */
 	'frameRendered': (ctx: { requestId: number; sceneId: string | null; time: number; revision: number }) => void;
-	'effectState': (ctx: { source: TimelineLayerStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
-	'effectLayerState': (ctx: { source: TimelineLayerStatusSource; status: EffectInstanceState | null }) => void;
+	'effectLayerState': (ctx: { source: TimelineLayerStatusSource; status: EffectPreparationStatus | null }) => void;
 	'renderError': (ctx: { message: string }) => void;
 	'layerTransform': (ctx: TimelineTransformPreview) => void;
 };
@@ -240,17 +233,15 @@ export class TimelineRendererManager extends EventEmitter<{
 	private gpuDevice: GPUDevice;
 	private canvasRenderer: CanvasRenderer;
 	private defaultVertexShaderModule: GPUShaderModule;
-	private fallbackTexture: GPUTexture;
 	private sceneOutput: ReturnType<typeof createSceneOutput> | null = null;
 	private imageExportOutput: LinearImageReadback | SrgbImageReadback | null = null;
 	private renderingResourcesReleased = false;
 	private assetTextures: AssetTextures;
 	private readonly resources: TimelineRendererManagerResources;
 	private audioInputs: TimelineAudioInputs;
-	private effectDefinitions: Record<string, EffectDefinition<any>>;
-	private effectImplementations: Record<string, EffectImplementation<any>>;
-	private readonly builtinEffectDefinitions: Record<string, EffectDefinition<any>>;
-	private readonly builtinEffectImplementations: Record<string, EffectImplementation<any>>;
+	private definitions: EffectDefinitions;
+	private readonly nativeEffectDefinitions: NativeEffectDefinitions;
+	private readonly nativeEffectImplementations: Readonly<Record<string, NativeEffectImplementation>>;
 	private projectVersions = new ProjectStateVersions();
 	private evaluationScenes: TimelineScene[] = [];
 	private layerActivityBySceneId = new Map<string, TimelineLayerActivityMap>();
@@ -285,6 +276,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		analysisHistogramViewport: null,
 		generatedSpeech: [],
 		customNodeGraphEffects: [],
+		customShaderEffects: [],
 		timelineScenes: [],
 		automationGraphs: [],
 		sceneId: null,
@@ -305,21 +297,13 @@ export class TimelineRendererManager extends EventEmitter<{
 
 		this.gpuDevice = coreConfig.gpuDevice;
 		this.gpuContext = coreConfig.gpuContext;
-		this.builtinEffectDefinitions = coreConfig.effectDefinitions;
-		this.builtinEffectImplementations = coreConfig.effectImplementations;
-		const effects = createProjectEffects(resources.customShaderEffects ?? [], coreConfig.effectDefinitions, coreConfig.effectImplementations);
-		this.effectDefinitions = effects.definitions;
-		this.effectImplementations = effects.implementations;
+		this.nativeEffectDefinitions = coreConfig.nativeEffectDefinitions;
+		this.nativeEffectImplementations = coreConfig.nativeEffectImplementations;
+		this.definitions = createProjectEffectDefinitions(this.dynamicOptions, this.nativeEffectDefinitions);
 
 		const canvasOutput = coreConfig.canvasOutput ?? createSrgbCanvasOutputSettings();
 		this.configureCanvas = createCanvasOutputConfigurator(this.gpuDevice, this.gpuContext, canvasOutput);
 		this.configureCanvas('premultiplied');
-
-		this.fallbackTexture = this.gpuDevice.createTexture({
-			size: [1, 1],
-			format: INTERMEDIATE_TEXTURE_FORMAT,
-			usage: GPUTextureUsage.TEXTURE_BINDING,
-		});
 
 		this.defaultVertexShaderModule = this.gpuDevice.createShaderModule({
 			code: defaultVertexShaderCode,
@@ -338,6 +322,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		});
 
 		const camera = new TimelineSceneCamera();
+		const getFallbackOutput = () => this.getSceneOutput().transparentImage;
 		this.timelineRenderer = new TimelineRenderer<TimelineImage, TimelineLayer>({
 			getLayerActivity: () => this.dynamicOptions.sceneId == null ? undefined : this.layerActivityBySceneId.get(this.dynamicOptions.sceneId),
 			getRenderSpace: (time, isExport, referenceTime) => ({
@@ -347,7 +332,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				camera: camera.evaluate(this.evaluationScenes.find(scene => scene.id === this.dynamicOptions.sceneId)?.layers ?? [], time, isExport,
 					scaleResolution(this.sceneBaseResolution, this.dynamicOptions.resolutionScale), referenceTime?.timeMs),
 			}),
-			fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] },
+			get fallbackOutput() { return getFallbackOutput(); },
 			createLayer: (entry, clipId) => this.createTimelineLayer(entry, clipId, [entry.id], this.sceneBaseResolution),
 			getLayerVersion: (entry, clipId) => this.getLayerVersion(this.dynamicOptions.sceneId!, entry, clipId),
 			present: output => this.presentOutput(output),
@@ -404,14 +389,13 @@ export class TimelineRendererManager extends EventEmitter<{
 		}
 	}
 
+	private getSceneOutput() {
+		return this.sceneOutput ??= createSceneOutput({ device: this.gpuDevice, vertex: this.defaultVertexShaderModule, resolution: this.renderResolution });
+	}
+
 	private presentOutput(output: TimelineImage) {
 		const encoder = this.gpuDevice.createCommandEncoder();
-		this.sceneOutput ??= createSceneOutput({
-			device: this.gpuDevice,
-			vertex: this.defaultVertexShaderModule,
-			resolution: this.renderResolution,
-		});
-		const texture = this.sceneOutput.render(encoder, output);
+		const texture = this.getSceneOutput().render(encoder, output);
 		if (this.imageExportOutput != null) {
 			this.imageExportOutput.capture(texture, encoder);
 			this.gpuDevice.queue.submit([encoder.finish()]);
@@ -495,7 +479,7 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateDynamicOptions(newOptions: Partial<TimelineRendererManagerDynamicOptions>) {
-		if (['generatedSpeech', 'resolution', 'resolutionScale', 'customNodeGraphEffects', 'automationGraphs', 'timelineScenes', 'sceneId', 'previewFps'].some(key => Object.hasOwn(newOptions, key))) {
+		if (['generatedSpeech', 'resolution', 'resolutionScale', 'customNodeGraphEffects', 'customShaderEffects', 'automationGraphs', 'timelineScenes', 'sceneId', 'previewFps'].some(key => Object.hasOwn(newOptions, key))) {
 			// 描画を作り直す要求では、保留していた値も現在の状態へ反映してから切り替える。
 			this.applyPendingCustomNodeGraphEffectValues();
 		}
@@ -506,7 +490,16 @@ export class TimelineRendererManager extends EventEmitter<{
 			this.resolveSpeech = createSpeechResolver(newOptions.generatedSpeech);
 			this.audioInputs.setGeneratedSpeech(newOptions.generatedSpeech);
 		}
+		const replaceTimeline = ['resolution', 'resolutionScale', 'automationGraphs', 'timelineScenes', 'sceneId', 'previewFps'].some(key => Object.hasOwn(newOptions, key));
+		const syncRegistrations = newOptions.customNodeGraphEffects != null || newOptions.customShaderEffects != null;
+		if (syncRegistrations && !replaceTimeline) {
+			const changes = diffEffectRegistrationSnapshots(this.dynamicOptions, newOptions);
+			if (changes.length > 0) this.applyProjectChangesNow(changes, newOptions.previewRevision ?? this.dynamicOptions.previewRevision);
+		}
 		this.dynamicOptions = { ...this.dynamicOptions, ...newOptions };
+		if (syncRegistrations && replaceTimeline) {
+			this.definitions = createProjectEffectDefinitions(this.dynamicOptions, this.nativeEffectDefinitions);
+		}
 		if (Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'automationGraphs')) this.refreshEvaluationScenes();
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.previewWarningImageSource = this.dynamicOptions.previewWarningImageSource;
@@ -531,9 +524,7 @@ export class TimelineRendererManager extends EventEmitter<{
 
 		// Scene選択・出力解像度のnullは解除要求なので、差分のプロパティの有無で判定する。
 		// Partialの差分では省略は変更なし、明示的なnullは解除要求。値の有無ではなくown propertyで判定する。
-		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale') || Object.hasOwn(newOptions, 'customNodeGraphEffects') || Object.hasOwn(newOptions, 'automationGraphs') || Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'sceneId') || Object.hasOwn(newOptions, 'previewFps')) {
-			this.clearTimelineRenderers();
-		}
+		if (replaceTimeline) this.clearTimelineRenderers();
 		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale') || Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'sceneId') || Object.hasOwn(newOptions, 'outputResolution')) {
 			try {
 				// 出力寸法を上書きする書き出しでも、Scene内部の寸法を先に検証する。
@@ -558,7 +549,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			// 呼び出し時の検証は維持し、描画中の状態はまだ変更しない。
 			applyRendererProjectChanges(this.dynamicOptions, [...this.pendingCustomNodeGraphEffectValueChanges.values(), ...changes]);
 			for (const change of changes) {
-				const key = JSON.stringify([customNodeGraphEffectTargetKey(change.target), change.type, change.type === 'node' ? change.node.id : null]);
+				const key = JSON.stringify([change.customNodeGraphEffectId, change.type, change.type === 'node' ? change.node.id : null]);
 				// 同じノードの値は最新だけ残す。Custom Node Graph Effect全体の更新と混在しても
 				// 最後に届いたスナップショットが後から適用されるよう、順序も更新する。
 				this.pendingCustomNodeGraphEffectValueChanges.delete(key);
@@ -585,9 +576,9 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	private applyProjectChangesNow(changes: readonly RendererProjectChange[], previewRevision: number, keepPendingRender = false) {
 		const next = applyRendererProjectChanges(this.dynamicOptions, changes);
-		const customShaderEffects = changes.findLast(change => change.type === 'customShaderEffects');
-		const effects = customShaderEffects == null ? null : createProjectEffects(customShaderEffects.customShaderEffects, this.builtinEffectDefinitions, this.builtinEffectImplementations);
-		const changesRootScene = customShaderEffects != null || changes.some(change => change.type === 'scene' && change.sceneId === this.dynamicOptions.sceneId);
+		const definitions = next.customShaderEffects === this.dynamicOptions.customShaderEffects && next.customNodeGraphEffects === this.dynamicOptions.customNodeGraphEffects
+			? this.definitions : createProjectEffectDefinitions(next, this.nativeEffectDefinitions);
+		const changesRootScene = changes.some(change => change.type === 'scene' && change.sceneId === this.dynamicOptions.sceneId);
 		const resolution = changesRootScene ? this.resolveProjectOutputResolution(next) : null;
 		// 差分の検証が成功するまで公開状態を変更しない。即時反映の変更は描画を中断し、
 		// 値だけの変更を完了境界から反映する場合は、待機中の描画要求を維持する。
@@ -602,15 +593,11 @@ export class TimelineRendererManager extends EventEmitter<{
 			this.frameRenderer.cancel();
 		}
 		this.motionBlurTiming = null;
-		this.projectVersions.apply(changes, this.dynamicOptions);
+		this.projectVersions.apply(changes, this.dynamicOptions, next);
 		Object.assign(this.dynamicOptions, next);
 		this.refreshEvaluationScenes();
-		if (effects != null) {
-			this.effectDefinitions = effects.definitions;
-			this.effectImplementations = effects.implementations;
-		}
-		// 定義変更では参照先の探索をせず、全描画インスタンスとキャッシュを再生成する。
-		if (effects != null || changes.some(change => change.type === 'automationGraphs')) this.clearTimelineRenderers();
+		this.definitions = definitions;
+		if (changes.some(change => change.type === 'automationGraphs')) this.clearTimelineRenderers();
 		this.dynamicOptions.previewRevision = previewRevision;
 		if (!next.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId)) {
 			this.dynamicOptions.sceneId = null;
@@ -884,7 +871,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				viewport: TIMELINE_FRAME,
 			});
 			// 範囲モードのハンドルは出力の物理解像度・比率に依存しないSceneの矩形を操作する。
-			preview.geometry = parent && invertTimelineAffine(parent) ? { sourceSize: settings.transformTarget === 'region' ? sceneSize : timelineImageFrame(source, sceneSize), sceneSize, transform: settings } : null;
+			preview.geometry = parent && invertTimelineAffine(parent) ? { sourceSize: settings.transformTarget === 'region' ? sceneSize : timelineImageFrame(source), sceneSize, transform: settings } : null;
 			preview.parentGeometries = parent ? [{
 				sourceSize: sceneSize,
 				sceneSize,
@@ -984,16 +971,18 @@ export class TimelineRendererManager extends EventEmitter<{
 	private createTimelineLayerRenderer(layer: TimelineLayer, clipId: string | null, layerPath: string[], sceneBaseResolution: Resolution, sceneId = this.dynamicOptions.sceneId!): TimelineLayerRenderer<TimelineImage> {
 		const renderResolution = scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale);
 		if (layer.layerType === 'transform') {
-			return createTransformTimelineLayer(() => {
+			const background = createSceneOutput({ device: this.gpuDevice, vertex: this.defaultVertexShaderModule, resolution: renderResolution });
+			const transform = createTransformTimelineLayer(() => {
 				const current = this.getLayer(sceneId, layer.id);
 				if (current?.layerType !== 'transform') throw new Error('Transform not found');
 				return current;
 			}, {
 				resolution: renderResolution,
-				fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] } as TimelineImage,
+				get fallbackOutput() { return background.transparentImage; },
 				createLayer: (entry, childClipId) => this.createTimelineLayer(entry, childClipId, [...layerPath.slice(0, -1), entry.id], sceneBaseResolution, sceneId),
 				getLayerVersion: (entry, childClipId) => this.getLayerVersion(sceneId, entry, childClipId),
 			});
+			return { ...transform, destroy() { transform.destroy(); background.dispose(); } };
 		}
 		if (layer.layerType === 'group') {
 			return createGroupTimelineLayer(() => {
@@ -1041,29 +1030,51 @@ export class TimelineRendererManager extends EventEmitter<{
 					resolution: renderResolution,
 				});
 			case 'effect': {
-				const definition = this.effectDefinitions[layer.effectId];
-				const implementation = this.effectImplementations[layer.effectId];
-				if (!definition || !implementation) throw new Error(`Effect not found: ${layer.effectId}`);
 				const source = this.createLayerStatusSource(layer.id, clipId, layerPath);
-				return createEffectTimelineLayer(layer, definition, implementation, {
-					effectRenderTiling: this.staticOptions.effectRenderTiling,
+				// 配線と入力種別は固定し、通常の値編集だけは次の評価で最新の配置から読む。
+				let scenes = this.evaluationScenes;
+				let currentLayer = layer;
+				const readValues = () => {
+					if (scenes !== this.evaluationScenes) {
+						scenes = this.evaluationScenes;
+						const current = this.getLayer(sceneId, layer.id);
+						if (current?.layerType === 'effect') currentLayer = current;
+					}
+					return currentLayer.effectParamValues;
+				};
+				let active = true;
+				let previousStatus: EffectPreparationStatus['type'] | null = null;
+				const renderer = createEffectTimelineLayer({
+					...layer,
+					get effectParamValues() { return readValues(); },
+				}, {
+					definitions: this.definitions,
+					getNativeEffectImplementation: id => this.nativeEffectImplementations[id],
+					tiling: this.staticOptions.effectRenderTiling ?? { mode: 'auto' },
 					onCompositing,
 					wgpu: {
 						device: this.gpuDevice,
 						defaultVertexShaderModule: this.defaultVertexShaderModule,
 						enable32bitDataTextures: this.staticOptions.enable32bitDataTextures,
 					},
-					fallbackTexture: this.fallbackTexture,
-					resolution: renderResolution,
+					sceneBaseResolution,
 					resolutionScale: this.dynamicOptions.resolutionScale,
-					assets: this.resources.assets,
-					assetTextures: this.assetTextures.textures,
+					resources: { assets: this.resources.assets, assetTextures: this.assetTextures.textures },
 					getAudioInput: (binding, time, isExport) => this.audioInputs.getInput(this.evaluationScenes, sceneId, layer.id, binding, time, isExport),
-					onState: status => this.emit('ev', { type: 'effectLayerState', ctx: { source, status } }),
+					onPreparationStatus: status => {
+						if (!active || (previousStatus === status.type && status.type !== 'error')) return;
+						previousStatus = status.type;
+						this.emit('ev', { type: 'effectLayerState', ctx: { source, status } });
+					},
 					onTilingProgress: progress => {
 						if (this.activePreviewFrame != null) this.previewRenderDelayMonitor.updateTilingProgress(this.activePreviewFrame, progress);
 					},
 				});
+				return { ...renderer, destroy: () => {
+					active = false;
+					renderer.destroy();
+					this.emit('ev', { type: 'effectLayerState', ctx: { source, status: null } });
+				} };
 			}
 			case 'image': {
 				const clip = layer.clips.find(clip => clip.id === clipId)!;
@@ -1113,13 +1124,6 @@ export class TimelineRendererManager extends EventEmitter<{
 					getLayerVersion: (entry, childClipId) => this.getLayerVersion(scene.id, entry, childClipId),
 				});
 			}
-			case 'customNodeGraphEffect': {
-				const customNodeGraphEffect = this.dynamicOptions.customNodeGraphEffects.find(candidateCustomNodeGraphEffect => candidateCustomNodeGraphEffect.id === layer.customNodeGraphEffectId);
-				if (customNodeGraphEffect == null) throw new Error(`Custom Node Graph Effect not found: ${layer.customNodeGraphEffectId}`);
-				return this.createCustomNodeGraphEffectLayer(customNodeGraphEffect, layer, clipId, layerPath, sceneBaseResolution, sceneId);
-			}
-			case 'inlineCustomNodeGraphEffect':
-				return this.createCustomNodeGraphEffectLayer(layer.customNodeGraphEffect, layer, clipId, layerPath, sceneBaseResolution, sceneId);
 		}
 		throw new Error(`Unrecognized layer type: ${layer.layerType}`);
 	}
@@ -1132,129 +1136,6 @@ export class TimelineRendererManager extends EventEmitter<{
 			clipId,
 			rootSceneId: this.dynamicOptions.sceneId!,
 			layerPath,
-		};
-	}
-
-	private createCustomNodeGraphEffectLayer(customNodeGraphEffect: CustomNodeGraphEffect, layer: TimelineCustomNodeGraphEffectLayer | TimelineInlineCustomNodeGraphEffectLayer, clipId: string, layerPath: string[], sceneBaseResolution: Resolution, sceneId: string): TimelineLayerRenderer<TimelineImage> {
-		const target: CustomNodeGraphEffectTarget = layer.layerType === 'customNodeGraphEffect' ? { customNodeGraphEffectId: layer.customNodeGraphEffectId }
-			: { sceneId, inlineCustomNodeGraphEffectLayerId: layer.id };
-		const getCustomNodeGraphEffect = () => findRendererCustomNodeGraphEffect(this.dynamicOptions, target)!;
-		const getLayer = () => this.getLayer(sceneId, layer.id) as TimelineCustomNodeGraphEffectLayer | TimelineInlineCustomNodeGraphEffectLayer;
-		let customNodeGraphEffectRevision = this.projectVersions.customNodeGraphEffect(target).revision;
-		const statusSource = this.createLayerStatusSource(layer.id, clipId, layerPath);
-		const getInputResolutions = () => new Map(getCustomNodeGraphEffect().paramDefs.map(definition => {
-			const binding = getLayer().customNodeGraphEffectParamValues[definition.id];
-			const isTexture = binding?.inputSource === 'lowerLayerOutput' || binding?.inputSource === 'anotherLayerOutput'
-				|| (binding == null && definition.id === getCustomNodeGraphEffect().primaryInputId);
-			return [definition.id, isTexture ? scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale) : null] as const;
-		}));
-		const renderer = new CustomNodeGraphEffectRenderer({
-			expressionEvaluator: new ExpressionEvaluator(),
-			gpuDevice: this.gpuDevice,
-			fallbackTexture: this.fallbackTexture,
-			inputResolutions: getInputResolutions(),
-			resolution: sceneBaseResolution,
-			resolutionScale: this.dynamicOptions.resolutionScale,
-			enable32bitDataTextures: this.staticOptions.enable32bitDataTextures,
-			effectRenderTiling: this.staticOptions.effectRenderTiling,
-			enableStats: false,
-			timingHelper: null,
-			onEffectState: (nodeId, status) => this.emit('ev', { type: 'effectState', ctx: { source: statusSource, nodeId, status } }),
-			videoFrameVersions: new Map(),
-			assets: this.resources.assets,
-			customNodeGraphEffect,
-			assetTextures: this.assetTextures.textures,
-			effectDefinitions: this.effectDefinitions,
-			effectImplementations: this.effectImplementations,
-		});
-		const compositingParameters = new TimelineCompositingParameters();
-		const compositor = createTimelineCompositor({
-			onCompositing: this.createCompositingObserver(sceneId, layer.id, clipId, scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale)),
-			device: this.gpuDevice,
-			vertex: this.defaultVertexShaderModule,
-			resolution: scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale),
-			beginPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
-		});
-		const inputFrames = new Map<CustomNodeGraphEffectPublicParameterId, ReturnType<typeof createSceneOutput>>();
-		const instance = createCustomNodeGraphEffectTimelineLayer(getCustomNodeGraphEffect, getLayer, {
-			getImageInput: (input, parameterId) => {
-				let inputFrame = inputFrames.get(parameterId);
-				if (inputFrame == null) {
-					inputFrame = createSceneOutput({
-						device: this.gpuDevice,
-						vertex: this.defaultVertexShaderModule,
-						resolution: scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale),
-					});
-					inputFrames.set(parameterId, inputFrame);
-				}
-				return inputFrame.renderInput(input);
-			},
-			getAudioInput: (binding, time, isExport) => this.audioInputs.getInput(this.evaluationScenes, sceneId, layer.id, binding, time, isExport),
-			prepare: (context, signal) => renderer.prepare(context, signal),
-			render: async (context, layerContext, signal) => {
-				const previewFrame = !context.isExport ? this.activePreviewFrame : null;
-				const commandEncoder = this.gpuDevice.createCommandEncoder();
-				let result: Awaited<ReturnType<TimelineLayerRenderer<TimelineImage>['evaluate']>> = { gpuTime: 0 };
-				const gpuTime = 0;
-				try {
-					const output = renderer.requiresTiledRendering
-						? await renderer.renderTiled(context, signal, previewFrame == null ? null : progress => {
-							if (!signal.aborted) this.previewRenderDelayMonitor.updateTilingProgress(previewFrame, progress);
-						}) : renderer.render(context, commandEncoder);
-					signal.throwIfAborted();
-					if (output != null) {
-						const settings = compositingParameters.evaluate({
-							time: layerContext.sceneTimeMs,
-							isExport: context.isExport,
-							coordinateSpace: getLayer().coordinateSpace,
-							mask: getLayer().mask,
-							layerMask: getLayer().layerMask,
-							transformTarget: getLayer().transformTarget,
-							paramValues: getLayer().compositingParamValues,
-							automationGraphs: getLayer().automationGraphs,
-							publicParameters: layerContext.publicParameters,
-						});
-						result = compositor.evaluate(layerContext, output, settings);
-					}
-				} finally {
-					// 描画途中の例外でもエンコーダーと計測を完了する。
-					this.gpuDevice.queue.submit([commandEncoder.finish()]);
-				}
-				return { ...result, gpuTime };
-			},
-			resetRenderHistory: () => renderer.resetRenderHistory(),
-			destroy: () => {
-				compositor.dispose();
-				for (const frame of inputFrames.values()) frame.dispose();
-				renderer.destroy();
-			},
-		});
-		return {
-			evaluate: (context, signal) => {
-				const version = this.projectVersions.customNodeGraphEffect(target);
-				if (version.revision !== customNodeGraphEffectRevision) {
-					const currentCustomNodeGraphEffect = getCustomNodeGraphEffect();
-					const preserveStaticState = version.staticResetRevision <= customNodeGraphEffectRevision;
-					if (!preserveStaticState) {
-						const parameterIds = new Set(currentCustomNodeGraphEffect.paramDefs.map(definition => definition.id));
-						// 公開定義の編集では配置を維持するため、消えた入力のGPU資源をここで解放する。
-						for (const [parameterId, frame] of inputFrames) {
-							if (parameterIds.has(parameterId)) continue;
-							frame.dispose();
-							inputFrames.delete(parameterId);
-						}
-					}
-					// 公開入力の寸法も定義変更時だけ宣言し、新しい配線と同時に計画する。
-					renderer.updateCustomNodeGraphEffect(currentCustomNodeGraphEffect, {
-						preserveStaticState,
-						...(preserveStaticState ? {} : { inputResolutions: getInputResolutions() }),
-					});
-					customNodeGraphEffectRevision = version.revision;
-				}
-				return instance.evaluate(context, signal);
-			},
-			resetRenderHistory: () => instance.resetRenderHistory?.(),
-			destroy: () => instance.destroy(),
 		};
 	}
 
@@ -1272,7 +1153,6 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.audioInputs.dispose();
 		this.assetTextures.dispose();
 		this.canvasRenderer.destroy();
-		this.fallbackTexture.destroy();
 	}
 
 	public destroy() {
@@ -1314,8 +1194,8 @@ export async function createManager(options: {
 	staticOptions: TimelineRendererManagerStaticOptions;
 	dynamicOptions: Partial<TimelineRendererManagerDynamicOptions>;
 	resources: TimelineRendererManagerResources;
-	effectDefinitions: Record<string, EffectDefinition>;
-	effectImplementations: Record<string, EffectImplementation>;
+	nativeEffectDefinitions: NativeEffectDefinitions;
+	nativeEffectImplementations: Readonly<Record<string, NativeEffectImplementation>>;
 }) {
 	const adapter = await navigator.gpu?.requestAdapter({
 		powerPreference: 'high-performance',
@@ -1341,8 +1221,8 @@ export async function createManager(options: {
 			histogramGpuContext: createContext(options.histogramCanvas, 'histogramCanvas'),
 			waveformHorizontalGpuContext: createContext(options.waveformHorizontalCanvas, 'waveformHorizontalCanvas'),
 			waveformVerticalGpuContext: createContext(options.waveformVerticalCanvas, 'waveformVerticalCanvas'),
-			effectDefinitions: options.effectDefinitions,
-			effectImplementations: options.effectImplementations,
+			nativeEffectDefinitions: options.nativeEffectDefinitions,
+			nativeEffectImplementations: options.nativeEffectImplementations,
 		};
 	} catch (error) {
 		// Managerへ渡す前の失敗だけは、GPUDeviceを取得したこの呼び出し元が回収する。

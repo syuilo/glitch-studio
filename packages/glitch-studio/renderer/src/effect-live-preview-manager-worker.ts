@@ -1,10 +1,10 @@
 // Managerクラスのメソッドの呼び出しやイベント通知を行うだけ。独自の処理を追加しないこと！ そうしないとWorkerでの利用と非Workerでの利用で機能に差が生まれることになる
 
-import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
-import { effectImplementations } from '@gs/subsystems_effect_shared/effect-implementations.js';
-import { createManager, CustomNodeGraphEffectRendererManager } from './custom-node-graph-effect-renderer-manager.ts';
+import { nativeEffectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
+import { nativeEffectImplementations } from '@gs/subsystems_effect-new_native-effects/implementations.ts';
+import { createManager, EffectLivePreviewManager } from './effect-live-preview-manager.ts';
 
-let manager: CustomNodeGraphEffectRendererManager | null = null;
+let manager: EffectLivePreviewManager | null = null;
 let canvas: OffscreenCanvas | null = null;
 let histogramCanvas: OffscreenCanvas | null = null;
 let waveformHorizontalCanvas: OffscreenCanvas | null = null;
@@ -29,8 +29,8 @@ onmessage = async (event) => {
 					staticOptions: event.data.staticOptions,
 					dynamicOptions: event.data.dynamicOptions,
 					resources: event.data.resources,
-					effectDefinitions,
-					effectImplementations,
+					nativeEffectDefinitions,
+					nativeEffectImplementations,
 				});
 
 				manager.on('ev', ({ type, ctx }) => {

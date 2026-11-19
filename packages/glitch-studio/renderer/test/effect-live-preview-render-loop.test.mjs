@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { CustomNodeGraphEffectLivePreviewRenderLoop } from '@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-live-preview-render-loop.ts';
+import { EffectLivePreviewRenderLoop } from '../src/effect-live-preview-render-loop.ts';
 
 function createFixture(options = {}) {
 	let now = 0;
@@ -9,7 +9,7 @@ function createFixture(options = {}) {
 	const callbacks = new Map();
 	const cancelled = [];
 	const frames = [];
-	const loop = new CustomNodeGraphEffectLivePreviewRenderLoop({
+	const loop = new EffectLivePreviewRenderLoop({
 		fpsLimit: null,
 		timeFactor: 1,
 		onFrame: timing => frames.push(timing),

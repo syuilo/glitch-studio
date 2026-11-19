@@ -1,6 +1,6 @@
+import { createSolidTimelineImage } from './solid-timeline-image.ts';
 import { createTimelineCompositor } from '@gs/subsystems_timeline_renderer/timeline-compositor.ts';
 import type { TimelineCompositingSettings } from '@gs/subsystems_timeline_renderer/timeline-compositing-parameters.ts';
-import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { TimelineRenderSpace } from '@gs/subsystems_timeline_shared/spatial.ts';
 import type { TimelineImage } from '@gs/subsystems_timeline_renderer/timeline-image.ts';
 import { colorBlendModes } from '@gs/shared/color-blend.ts';
@@ -30,11 +30,15 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		scale: [1, 1],
 		rotation: 0,
 	};
-	const uniform = (value: number[]): UniformOrTexture => ({ kind: 'uniform', value });
-	const blue = uniform([0, 0, 1, 1]);
-	const red = uniform([1, 0, 0, 1]);
-	const transparent = uniform([0, 0, 0, 0]);
-	const texture = (width: number, height: number, values: number[], format: 'rgba8unorm' | 'rgba32float' = 'rgba8unorm'): UniformOrTexture => {
+	const solidImage = (color: GPUColor) => {
+		const image = createSolidTimelineImage(device, resolution, color);
+		textures.push(image.texture);
+		return image;
+	};
+	const blue = solidImage([0, 0, 1, 1]);
+	const red = solidImage([1, 0, 0, 1]);
+	const transparent = solidImage([0, 0, 0, 0]);
+	const texture = (width: number, height: number, values: number[], format: 'rgba8unorm' | 'rgba32float' = 'rgba8unorm'): TimelineImage => {
 		const texture = device.createTexture({ size: [width, height], format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 		textures.push(texture);
 		const data = format === 'rgba32float' ? new Float32Array(values) : new Uint8Array(values);
@@ -44,7 +48,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 	const pixels = (pixel: (x: number, y: number) => number[]) => Array.from({ length: 4 }, (_, y) => Array.from({ length: 8 }, (_, x) => pixel(x, y))).flat(2);
 	const solid = (pixel: number[]) => pixels(() => pixel);
 
-	async function check(name: string, background: UniformOrTexture, source: UniformOrTexture, settings: Partial<TimelineCompositingSettings>, expected: number[], space?: TimelineRenderSpace, layerMaskImage: TimelineImage | null = null) {
+	async function check(name: string, background: TimelineImage, source: TimelineImage, settings: Partial<TimelineCompositingSettings>, expected: number[], space?: TimelineRenderSpace, layerMaskImage: TimelineImage | null = null) {
 		const encoder = device.createCommandEncoder();
 		const output = compositor.render(encoder, background, source, { ...defaults, ...settings }, space, false, undefined, layerMaskImage);
 		device.queue.submit([encoder.finish()]);
@@ -62,9 +66,9 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		const leftMask = texture(8, 4, pixels(x => x < 4 ? [255, 255, 255, 255] : [0, 0, 0, 0]));
 		// 【参照マスクは対象だけを減衰させ、premultiplied RGBとalphaを揃える】
 		// 下層全体を切り抜く既存マスクとの取り違えと、opacity・alphaの二重乗算を画素で検出する。
-		await check('timeline referenced alpha mask retains the background', blue, red, { layerMask }, solid([128, 0, 128, 255]), undefined, uniform([0, 1, 0, 0.5]));
-		await check('timeline referenced mask preserves premultiplied translucency', transparent, uniform([0.5, 0, 0, 0.5]), { layerMask, opacity: 0.5 }, solid([32, 0, 0, 32]), undefined, uniform([0.5, 0.5, 0.5, 0.5]));
-		await check('timeline referenced luminance counts alpha once', blue, red, { layerMask: { ...layerMask, channel: 'luminance' } }, solid([128, 0, 128, 255]), undefined, uniform([0.5, 0.5, 0.5, 0.5]));
+		await check('timeline referenced alpha mask retains the background', blue, red, { layerMask }, solid([128, 0, 128, 255]), undefined, solidImage([0, 1, 0, 0.5]));
+		await check('timeline referenced mask preserves premultiplied translucency', transparent, solidImage([0.5, 0, 0, 0.5]), { layerMask, opacity: 0.5 }, solid([32, 0, 0, 32]), undefined, solidImage([0.5, 0.5, 0.5, 0.5]));
+		await check('timeline referenced luminance counts alpha once', blue, red, { layerMask: { ...layerMask, channel: 'luminance' } }, solid([128, 0, 128, 255]), undefined, solidImage([0.5, 0.5, 0.5, 0.5]));
 		await check('timeline referenced luminance reads working RGB weights', blue, red, { layerMask: { ...layerMask, channel: 'luminance' } }, solid([54, 0, 201, 255]), undefined, red);
 		// 【Replaceでは透明な対象もマスク内だけ背景を置換する】
 		// 素材へマスクを乗算するだけでは、マスク外まで透明黒で置き換えてしまう。
@@ -76,7 +80,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		await check('timeline referenced mask stays independent from target placement', blue, red, { layerMask, position: [0.5, 0] }, solid([0, 0, 255, 255]), undefined, leftMask);
 		await check('timeline referenced mask honors placed image bounds', blue, red, { layerMask }, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]), undefined,
 			{
-				...uniform([1, 1, 1, 1]),
+				...solidImage([1, 1, 1, 1]),
 				region: {
 					bounds: {
 						left: -1,
@@ -100,11 +104,11 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		await check('timeline referenced mask limits lower-layer masking', blue, transparent, { layerMask, mask: alphaMask }, pixels(x => x < 4 ? [0, 0, 0, 0] : [0, 0, 255, 255]), undefined, leftMask);
 		// 【Alphaマスクは素材の色を描かず、下層のpremultiplied RGBAをまとめて減衰させる】
 		// alphaだけを書き換えると透明な輪郭に元のRGBが残る。半透明の下層でも検証する。
-		await check('timeline alpha mask attenuates premultiplied background', uniform([0.2, 0.1, 0.05, 0.5]), uniform([0.3, 0.1, 0, 0.5]), { mask: alphaMask }, solid([26, 13, 6, 64]));
+		await check('timeline alpha mask attenuates premultiplied background', solidImage([0.2, 0.1, 0.05, 0.5]), solidImage([0.3, 0.1, 0, 0.5]), { mask: alphaMask }, solid([26, 13, 6, 64]));
 		// 【輝度マスクは色と素材自身の透明度を一度だけ反映する】
 		// Alphaとの取り違えと、premultiplied RGBへのalpha二重乗算を実画素で検出する。
 		await check('timeline luminance mask reads colored source', blue, red, { mask: luminanceMask }, solid([0, 0, 54, 54]));
-		await check('timeline luminance mask counts source alpha once', blue, uniform([0.5, 0.5, 0.5, 0.5]), { mask: luminanceMask }, solid([0, 0, 128, 128]));
+		await check('timeline luminance mask counts source alpha once', blue, solidImage([0.5, 0.5, 0.5, 0.5]), { mask: luminanceMask }, solid([0, 0, 128, 128]));
 		// 【強度0では下層を保持し、中間値はマスク適用前後を補間する】
 		// 透明な素材へopacityを掛ける実装では、0にしても下層が消えてしまう。
 		await check('timeline zero mask strength preserves background', blue, transparent, { mask: alphaMask, opacity: 0 }, solid([0, 0, 255, 255]));
@@ -125,10 +129,10 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		const maskTexture = texture(8, 4, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 0, 0, 0]));
 		await check('timeline texture mask reads alpha without drawing its color', blue, maskTexture, { mask: alphaMask }, pixels(x => x < 4 ? [0, 0, 255, 255] : [0, 0, 0, 0]));
 		// 半透明の素材にopacityを掛けても、RGBへalphaを二重乗算しない。
-		await check('timeline normal opacity preserves premultiplied colors', blue, uniform([0.5, 0, 0, 0.5]), { opacity: 0.5 }, solid([64, 0, 191, 255]));
-		await check('timeline normal combines two translucent layers', uniform([0, 0, 0.5, 0.5]), uniform([0.5, 0, 0, 0.5]), { opacity: 0.5 }, solid([64, 0, 96, 159]));
+		await check('timeline normal opacity preserves premultiplied colors', blue, solidImage([0.5, 0, 0, 0.5]), { opacity: 0.5 }, solid([64, 0, 191, 255]));
+		await check('timeline normal combines two translucent layers', solidImage([0, 0, 0.5, 0.5]), solidImage([0.5, 0, 0, 0.5]), { opacity: 0.5 }, solid([64, 0, 96, 159]));
 		await check('timeline transparent source leaves background intact', blue, transparent, {}, solid([0, 0, 255, 255]));
-		await check('timeline multiply blends straight colors', uniform([0.8, 0.4, 0.2, 1]), uniform([0.5, 1, 0.5, 1]), { blendMode: 3 }, solid([102, 102, 26, 255]));
+		await check('timeline multiply blends straight colors', solidImage([0.8, 0.4, 0.2, 1]), solidImage([0.5, 1, 0.5, 1]), { blendMode: 3 }, solid([102, 102, 26, 255]));
 		// 置き換えでは素材のalpha=0も採用し、opacityは背景からの補間量となる。
 		await check('timeline replace interpolates transparent output', blue, transparent, { blendMode: 19, opacity: 0.5 }, solid([0, 0, 128, 128]));
 		await check('timeline translated source keeps background stationary', blue, red, { position: [0.5, 0] }, pixels(x => x < 4 ? [0, 0, 255, 255] : [255, 0, 0, 255]));

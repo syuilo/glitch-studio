@@ -14,10 +14,9 @@
 		"./canvas-output.ts": "./src/canvas-output.ts",
 		"./srgb-image-readback.ts": "./src/srgb-image-readback.ts",
 		"./client.ts": "./src/client.ts",
-		"./custom-node-graph-effect-renderer-manager.ts": "./src/custom-node-graph-effect-renderer-manager.ts",
+		"./effect-live-preview-manager.ts": "./src/effect-live-preview-manager.ts",
 		"./timeline-renderer-manager.ts": "./src/timeline-renderer-manager.ts",
 		"./asset-textures.ts": "./src/asset-textures.ts",
-		"./custom-shader-effects.ts": "./src/custom-shader-effects.ts",
 		"./portable-canvas-renderer.ts": "./src/portable-canvas-renderer.ts"
 	},
 	"devDependencies": {
@@ -25,20 +24,23 @@
 		"@typescript-eslint/parser": "8.72.1",
 		"@webgpu/types": "0.1.74",
 		"vite": "8.3.5",
-		"webgpu-utils": "2.1.1"
+		"webgpu-utils": "2.1.1",
+		"@gs/subsystems_effect_renderer": "workspace:*",
+		"@gs/subsystems_effect_shared": "workspace:*",
+		"@gs/subsystems_custom-node-graph-effect_renderer": "workspace:*",
+		"@gs/subsystems_custom-node-graph-effect_shared": "workspace:*"
 	},
 	"dependencies": {
-		"@gs/subsystems_effect_renderer": "workspace:*",
 		"@gs/glitch-studio_shared": "workspace:*",
 		"@gs/shared": "workspace:*",
-		"@gs/subsystems_effect_shared": "workspace:*",
 		"@gs/subsystems_timeline_renderer": "workspace:*",
 		"@gs/subsystems_timeline_shared": "workspace:*",
-		"@gs/subsystems_custom-node-graph-effect_renderer": "workspace:*",
-		"@gs/subsystems_custom-node-graph-effect_shared": "workspace:*",
 		"eventemitter3": "5.0.4",
 		"@gs/subsystems_audio_shared": "workspace:*",
 		"@gs/subsystems_audio_renderer": "workspace:*",
-		"@gs/subsystems_timeline_audio-renderer": "workspace:*"
+		"@gs/subsystems_timeline_audio-renderer": "workspace:*",
+		"@gs/subsystems_effect-new_shared": "workspace:*",
+		"@gs/subsystems_effect-new_renderer": "workspace:*",
+		"@gs/subsystems_effect-new_native-effects": "workspace:*"
 	}
 }

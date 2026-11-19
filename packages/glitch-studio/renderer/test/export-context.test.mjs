@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { TimelineRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 import { createCustomNodeGraphEffectRenderer } from './helpers/create-custom-node-graph-effect-renderer.mjs';
-const { createCustomNodeGraphEffectTimelineLayer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_renderer/layers/custom-node-graph-effect/custom-node-graph-effect-timeline-layer.ts')));
+import { createTimelineEffectProbe } from './helpers/timeline-effect-probe.mjs';
 
 globalThis.GPUQueue = class { submit() {} };
 const { CustomNodeGraphEffectRenderer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-renderer.ts')));
@@ -13,12 +13,8 @@ const { CustomNodeGraphEffectRenderer } = await loadShaderSource(fileURLToPath(i
 test('passes export context through timeline layers and resets it for preview', async () => {
 	const contexts = [];
 	const renderer = new TimelineRenderer({
-		fallbackOutput: null,
-		createLayer: () => createCustomNodeGraphEffectTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null }, { customNodeGraphEffectParamValues: {}, automationGraphs: [] }, {
-			async prepare() {},
-			async render(context) { contexts.push(context); return { gpuTime: 0 }; },
-			destroy() {},
-		}),
+		fallbackOutput: { kind: 'texture', texture: { width: 1, height: 1, createView: () => ({}) } },
+		createLayer: () => createTimelineEffectProbe({ render: frame => contexts.push(frame) }),
 		present() {},
 	});
 	const timeline = [{ id: 'layer', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] }];
