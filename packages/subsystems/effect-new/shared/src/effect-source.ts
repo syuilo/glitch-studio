@@ -2,7 +2,8 @@ import type { CustomNodeGraphEffect } from './custom-node-graph-effect.ts';
 import type { CustomShaderEffect } from './custom-shader-effect.ts';
 import type { EffectDefinition, NativeEffectDefinition } from './effect-definition.ts';
 
-type NativeEffectRenderDefinition = Pick<NativeEffectDefinition, keyof EffectDefinition>;
+type NativeEffectRenderDefinition = Pick<NativeEffectDefinition, keyof EffectDefinition>
+	& Partial<Pick<NativeEffectDefinition, 'dependsOnRenderHistory' | 'canHaveLongRunningRenderPass'>>;
 
 export type EffectSource =
 	| { type: 'nativeEffect'; id: string }

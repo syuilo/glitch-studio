@@ -1,6 +1,6 @@
-import type { NativeEffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import { defineNativeEffect } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
 
-const definition = {
+const definition = defineNativeEffect({
 	displayName: 'Fill',
 	summary: { 'ja-JP': '指定した単色を出力します。', 'en-US': 'Outputs a solid color.' },
 	tags: ['color', 'utility'],
@@ -13,6 +13,6 @@ const definition = {
 	resolutionInputParameters: [],
 	outputDefs: { output: { dataType: { kind: 'color' } } },
 	primaryOutput: 'output',
-} satisfies NativeEffectDefinition;
+});
 
 export default definition;

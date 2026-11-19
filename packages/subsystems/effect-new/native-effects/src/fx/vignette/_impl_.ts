@@ -42,6 +42,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs, 'i
 				},
 			});
 			return {
+				cacheKey: 0,
 				render({ commandEncoder }) {
 					const scale = getSizeReferenceLength(inputs.sizeReference.value, resolution) / longSide;
 					const size = inputs.size.value;

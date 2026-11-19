@@ -1,6 +1,6 @@
-import type { NativeEffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import { defineNativeEffect } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
 
-const definition = {
+const definition = defineNativeEffect({
 	displayName: 'Vignette',
 	summary: {
 		'ja-JP': '透明度を保ちながら、楕円の外側へ向かって画像を滑らかに暗くします。',
@@ -50,6 +50,6 @@ const definition = {
 		mask: { dataType: { kind: 'scalar' }, label: 'Mask', inputParameters: ['sizeReference', 'center', 'size', 'rotation', 'feather'] },
 	},
 	primaryOutput: 'output',
-} satisfies NativeEffectDefinition;
+});
 
 export default definition;

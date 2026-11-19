@@ -1,6 +1,6 @@
-import type { NativeEffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import { defineNativeEffect } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
 
-const definition = {
+const definition = defineNativeEffect({
 	displayName: 'Feedback',
 	summary: {
 		'ja-JP': '入力データを時間とともに蓄積・減衰させたり、変化をなめらかにしたりします。',
@@ -51,6 +51,6 @@ const definition = {
 		output: { dataType: { kind: 'any' } },
 	},
 	primaryOutput: 'output',
-} satisfies NativeEffectDefinition;
+});
 
 export default definition;

@@ -18,9 +18,10 @@ function near(actual, expected, reason, tolerance = 0.002) {
 	check(Math.abs(actual - expected) <= tolerance, reason + ': ' + actual + ' != ' + expected);
 }
 
-async function withGpu(run) {
+async function withGpu(run, measure = false) {
 	const adapter = await navigator.gpu.requestAdapter();
-	const device = await adapter.requestDevice();
+	const requiredFeatures = measure && adapter.features.has('timestamp-query') ? ['timestamp-query'] : [];
+	const device = await adapter.requestDevice({ requiredFeatures });
 	device.pushErrorScope('validation');
 	try {
 		const gpu = { device, defaultVertexShaderModule: device.createShaderModule({ code: vertex }), enable32bitDataTextures: false };
@@ -52,8 +53,8 @@ async function withGpu(run) {
 		} });
 		await run({
 			gpu, textures, pipelines: () => pipelineCount, bindGroups: () => bindGroupCount,
-			create: (effectSource, ports, inputs = {}) => createEffectInstance({
-				effectSource, definitions, resolution: { width: 4, height: 4 }, usedOutputPorts: new Set(ports), inputs,
+			create: (effectSource, ports, inputs = {}, options = {}) => createEffectInstance({
+				effectSource, definitions, resolution: { width: 4, height: 4 }, usedOutputPorts: new Set(ports), inputs, ...options,
 			}, gpu, id => nativeEffectImplementations[id]),
 			render(instance, timeDelta = 0) {
 				const encoder = device.createCommandEncoder();
@@ -162,6 +163,81 @@ export async function vignetteIntoFeedback() {
 			const second = await read(history.texture);
 			image.forEach((value, i) => near(second[i], value * 0.5, 'history decays at the same pixel'));
 		} finally { instance.dispose(); }
+	});
+}
+
+export async function tiledHistory() {
+	await withGpu(async ({ create, render, read, gpu }) => {
+		const definition = nativeEffectDefinitions.feedback;
+		const graph = inlineGraph({ ...definition, nodes: [
+			{ id: 'shade', effectSource: native('vignette'), params: { input: literal([2, -1, 0.5, 0.5]) } },
+			{ id: 'history', effectSource: native('feedback'), params: { input: wire('shade', 'output'), mode: literal('interpolate') } },
+		], outputSources: { output: { nodeId: 'history', outputPort: 'output' } } });
+		const reports = [];
+		const plainPaths = new Set();
+		const measured = Promise.withResolvers();
+		const plain = await create(graph, ['output'], {}, {
+			onGpuTime(path) {
+				plainPaths.add(path.join('/'));
+				if (plainPaths.has('shade') && plainPaths.has('history')) measured.resolve();
+			},
+		});
+		const tiled = await create(graph, ['output'], {}, {
+			tiling: { mode: 'manual', tileSize: 2 },
+			onGpuTime(path, index, time) { reports.push([path.join('/'), index, time]); },
+		});
+		const frame = { time: 1, timeDelta: 500 };
+		try {
+			render(plain, 500);
+			const expected = await read(plain.outputs.get('output').texture);
+			await measured.promise;
+			const controller = new AbortController();
+			let aborted = false;
+			try {
+				await tiled.renderTiled(frame, controller.signal, progress => {
+					if (progress?.completedTiles === 1) controller.abort();
+				});
+			} catch (error) { aborted = error.name === 'AbortError'; }
+			check(aborted, 'abort between submitted tiles');
+			let completed = 0;
+			await tiled.renderTiled(frame, undefined, progress => {
+				if (progress?.completedTiles === 4) completed++;
+			});
+			check(completed === 2, 'both placements completed all four tiles');
+			const actual = await read(tiled.outputs.get('output').texture);
+			expected.forEach((v, i) => near(actual[i], v, 'resumed tiled pixel'));
+			check(reports.length === 2 && reports.every(([path, pass, ms]) => ['shade', 'history'].includes(path) && pass === 0 &&
+				(gpu.device.features.has('timestamp-query') ? Number.isFinite(ms) && ms >= 0 : ms === null)), 'per-pass GPU statistics');
+			await tiled.renderTiled(frame);
+			check(reports.length === 3 && reports[2][0] === 'history', 'cache the static upstream while advancing history');
+		} finally { tiled.dispose(); plain.dispose(); }
+	}, true);
+}
+
+export async function automaticTiling() {
+	await withGpu(async ({ create, render, read }) => {
+		const shader = {
+			kind: 'generate', shaderApiVersion: 1, canHaveLongRunningRenderPass: true,
+			primaryInputParameter: null, primaryOutput: 'image', resolutionInputParameters: [], paramDefs: {},
+			outputDefs: { image: { dataType: { kind: 'color' }, nameForReference: 'image' } },
+			code: 'fn main(p: vec2f) -> Output { return Output(vec4f(p.x, p.y, 0.5, 1.0)); }',
+		};
+		const source = { type: 'inlineCustomShaderEffect', customShaderEffect: shader };
+		const resolution = { width: 257, height: 129 };
+		const timings = [];
+		const options = { resolution, onGpuTime: (_path, pass, ms) => timings.push([pass, ms]) };
+		const plain = await create(source, ['image'], {}, options);
+		const automatic = await create(source, ['image'], {}, { ...options, tiling: { mode: 'auto' } });
+		try {
+			render(plain);
+			let last = null;
+			await automatic.renderTiled({ time: 0, timeDelta: 0 }, undefined, progress => { if (progress != null) last = progress; });
+			check(last != null && last.completedTiles === last.totalTiles && last.totalTiles > 1, 'subdivide the full render pass without timestamp queries');
+			check(timings.length === 2 && timings.every(([index, time]) => index === 0 && time === null), 'explicitly report unavailable timestamps');
+			const expected = await read(plain.outputs.get('image').texture);
+			const actual = await read(automatic.outputs.get('image').texture);
+			expected.forEach((v, i) => near(actual[i], v, 'automatic tile pixel'));
+		} finally { automatic.dispose(); plain.dispose(); }
 	});
 }
 

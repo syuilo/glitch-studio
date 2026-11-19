@@ -1,8 +1,8 @@
 import { createShaderInputBindings, generateShaderInputs } from '@gs/shared/gpu/shader-input.ts';
+import { toFixedShaderInput } from './effect-instance.ts';
 import type { FixedShaderInput, ShaderInputType } from '@gs/shared/gpu/shader-input.ts';
 import type { CustomShaderEffect } from '@gs/subsystems_effect-new_shared/custom-shader-effect.ts';
 import type { EffectImageInput, EffectInitContext, EffectRenderOperation } from './effect-instance.ts';
-import { toFixedShaderInput } from './effect-instance.ts';
 
 const wgslTypes = { scalar: 'f32', vector: 'vec2f', color: 'vec4f', any: 'vec4f' } as const;
 
@@ -59,6 +59,7 @@ ${generated.code}`;
 			view: texture.createView(), loadOp: 'clear', clearValue: [0, 0, 0, 0], storeOp: 'store',
 		}));
 		return {
+			cacheKey: 0,
 			render(frame) {
 				const group = getBindGroup();
 				const pass = frame.commandEncoder.beginRenderPass({ colorAttachments });

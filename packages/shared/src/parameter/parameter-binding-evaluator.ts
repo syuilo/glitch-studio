@@ -14,7 +14,9 @@ import type { ParameterEvaluationScope } from './parameter-evaluation-scope.ts';
 
 // 評価結果やスコープは保持せず、同じBindingとスコープから同じ値を返す。
 export class ParameterBindingEvaluator {
-	constructor(private readonly expressionEvaluator: ExpressionEngine | null) {}
+	private readonly expressionEvaluator: ExpressionEngine | null;
+
+	constructor(expressionEvaluator: ExpressionEngine | null) { this.expressionEvaluator = expressionEvaluator; }
 
 	private graphReader(scope: ParameterEvaluationScope): ExpressionFunction {
 		return (...args) => {
@@ -29,18 +31,25 @@ export class ParameterBindingEvaluator {
 		};
 	}
 
-	evaluate(binding: ValueParameterBinding, scope: ParameterEvaluationScope, fallback: any, definition: ExpressionParameterDefinition): any {
-		const base = this.evaluateSource(binding, scope, fallback, definition);
+	public evaluate(binding: ValueParameterBinding, scope: ParameterEvaluationScope, fallback: any, definition: ExpressionParameterDefinition): any {
+		return this.bind(binding, fallback, definition, scope.automationGraphs)(scope);
+	}
+
+	/** 入力方式と参照先が固定の配置では、評価経路を配置の生成時に選ぶ。時刻と値は描画ごとに読む。 */
+	public bind(binding: ValueParameterBinding, fallback: any, definition: ExpressionParameterDefinition,
+		automationGraphs: ParameterEvaluationScope['automationGraphs']): (scope: ParameterEvaluationScope) => unknown {
+		const read = this.bindSource(binding, fallback, definition, automationGraphs);
 		const modifier = binding.expressionModifier;
-		if (modifier == null || !modifier.enabled) return base;
-		try {
-			const value = prepareExpressionParameterValue(definition, base);
-			return this.evaluateExpression(modifier.code, scope, 'modifier', definition, value);
-		} catch (error) {
-			// 基準値の型変換で失敗した場合も、どのパラメータの加工に失敗したかを残す。
-			if (error instanceof ParameterExpressionError) throw error;
-			throw new ParameterExpressionError('modifier', definition, error);
-		}
+		if (modifier?.enabled !== true) return read;
+		return scope => {
+			const base = read(scope);
+			try {
+				return this.evaluateExpression(modifier.code, scope, 'modifier', definition, prepareExpressionParameterValue(definition, base));
+			} catch (error) {
+				if (error instanceof ParameterExpressionError) throw error;
+				throw new ParameterExpressionError('modifier', definition, error);
+			}
+		};
 	}
 
 	private evaluateExpression(code: string, scope: ParameterEvaluationScope, stage: 'base' | 'modifier', definition: ExpressionParameterDefinition, value?: unknown): any {
@@ -64,17 +73,18 @@ export class ParameterBindingEvaluator {
 		}
 	}
 
-	private evaluateSource(binding: ValueParameterBinding, scope: ParameterEvaluationScope, fallback: any, definition: ExpressionParameterDefinition): any {
+	private bindSource(binding: ValueParameterBinding, fallback: any, definition: ExpressionParameterDefinition,
+		graphs: ParameterEvaluationScope['automationGraphs']): (scope: ParameterEvaluationScope) => unknown {
 		switch (binding.inputSource) {
-			case 'literal': return binding.value;
-			case 'envVariable': return Object.hasOwn(scope.variables, binding.variable) ? deepClone(scope.variables[binding.variable]) ?? fallback : fallback;
-			case 'expression': return this.evaluateExpression(binding.expression, scope, 'base', definition);
+			case 'literal': return () => binding.value;
+			case 'envVariable': return scope => Object.hasOwn(scope.variables, binding.variable) ? deepClone(scope.variables[binding.variable]) ?? fallback : fallback;
+			case 'expression': return scope => this.evaluateExpression(binding.expression, scope, 'base', definition);
 			case 'automationGraphReference': {
-				const graph = scope.automationGraphs.find(graph => graph.id === binding.automationGraphId);
-				return graph ? evaluateAutomationGraph(graph, binding, scope.time, scope.endTime) : fallback;
+				const graph = graphs.find(graph => graph.id === binding.automationGraphId);
+				return graph == null ? () => fallback : scope => evaluateAutomationGraph(graph, binding, scope.time, scope.endTime);
 			}
-			case 'automationGraphInline': return evaluateAutomationGraph(binding.automationGraph, binding, scope.time, scope.endTime);
-			case 'keyframesTimelineInline': return evaluateKeyframesTimeline(binding.keyframesTimeline, binding, scope.time, scope.endTime, fallback);
+			case 'automationGraphInline': return scope => evaluateAutomationGraph(binding.automationGraph, binding, scope.time, scope.endTime);
+			case 'keyframesTimelineInline': return scope => evaluateKeyframesTimeline(binding.keyframesTimeline, binding, scope.time, scope.endTime, fallback);
 			default: throw new Error('Unsupported value parameter input source');
 		}
 	}

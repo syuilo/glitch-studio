@@ -14,6 +14,7 @@
 	},
 	"dependencies": {
 		"@gs/shared": "workspace:*",
+		"@gs/subsystems_audio_shared": "workspace:*",
 		"@gs/subsystems_effect-new_shared": "workspace:*"
 	},
 	"devDependencies": {

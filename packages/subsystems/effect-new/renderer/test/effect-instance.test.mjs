@@ -162,6 +162,6 @@ test('collects input dependencies across requested native outputs before schedul
 		instance.render({ time: 1 });
 		instance.dispose();
 		assert.deepEqual(events, ports.length === 1 ? ['allocate mask', 'draw shade'] :
-			['bind gain', 'allocate main', 'allocate mask', 'allocate color', 'draw source', 'evaluate gain', 'draw shade']);
+			['bind gain', 'allocate main', 'allocate mask', 'allocate color', 'evaluate gain', 'draw source', 'draw shade']);
 	}
 });

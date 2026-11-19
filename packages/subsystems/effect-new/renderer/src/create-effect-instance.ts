@@ -1,9 +1,17 @@
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
-import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { EffectGpuContext, EffectInitContext, EffectInstance, EffectRenderContext, NativeEffectImplementation } from './effect-instance.ts';
 import { initCustomShaderEffect } from './custom-shader-effect.ts';
+import { createFramePreparation, type PrepareFrame } from './frame-preparation.ts';
+import { createRenderCache } from './render-cache.ts';
+import { createEffectGpuExecution } from './effect-gpu-execution.ts';
+import { createEffectRenderDevice } from './tiling/effect-render-device.ts';
+import { createEffectFrameMapper } from './graph-evaluation.ts';
+import { resolveEffectStaticResources } from './effect-static-settings.ts';
 import { planEffect, type EffectPlacement } from './plan-effect.ts';
+import type { EffectRenderTilingProgressObserver } from '@gs/subsystems_effect-new_shared/effect-render-tiling.ts';
+import type { EffectGpuContext, EffectInitContext, EffectInstance, EffectFrameContext, EffectRenderContext, NativeEffectImplementation } from './effect-instance.ts';
+import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 export type { EffectPlacement } from './plan-effect.ts';
+export type { EffectStaticResourceContext } from './effect-static-settings.ts';
 
 function outputFormat(type: TextureDataType, enable32bitDataTextures: boolean): GPUTextureFormat {
 	if (type.kind === 'color') return INTERMEDIATE_TEXTURE_FORMAT;
@@ -12,25 +20,59 @@ function outputFormat(type: TextureDataType, enable32bitDataTextures: boolean): 
 }
 
 export async function createEffectInstance(placement: EffectPlacement, gpu: EffectGpuContext,
-	getNativeEffectImplementation: (id: string) => NativeEffectImplementation): Promise<EffectInstance> {
-	const { steps, outputs } = planEffect(placement);
-	const renderSteps: ((frame: EffectRenderContext) => void)[] = [];
+	getNativeEffectImplementation: (id: string) => NativeEffectImplementation, signal?: AbortSignal): Promise<EffectInstance> {
+	signal?.throwIfAborted();
+	const { steps, outputs, contextResolution, resources } = planEffect(placement, gpu.device?.limits?.maxTextureDimension2D);
+	const tiling = placement.tiling ?? { mode: 'disabled' };
+	if (tiling.mode === 'manual' && (!Number.isSafeInteger(tiling.tileSize) || tiling.tileSize <= 0)) throw new Error('Expected a positive tile size');
+	const device = gpu.device;
+	if (tiling.mode !== 'disabled' || placement.onGpuTime != null) gpu = { ...gpu, device: createEffectRenderDevice(device) };
+	const prepareSteps: PrepareFrame[] = [];
+	const preparation = createFramePreparation(prepareSteps, placement.onPreparationStatus);
+	const renderSteps: {
+		needsRender: () => boolean;
+		record: (frame: EffectFrameContext, encoder: GPUCommandEncoder) => void;
+		shouldTile: () => boolean;
+		renderTiled: (frame: EffectFrameContext, signal: AbortSignal, progress?: EffectRenderTilingProgressObserver) => Promise<void>;
+		commit: () => void;
+	}[] = [];
 	const historyResets: (() => void)[] = [];
 	const disposers: (() => void)[] = [];
+	let dependsOnRenderHistory = false;
+	let tiledRequest: AbortController | null = null;
+	let disposed = false;
 
-	function dispose(): void {
-		// 部分的に初期化した場合も、借用した上流のリソースより先に下流を解放する。
-		for (let index = disposers.length - 1; index >= 0; index--) disposers[index]();
-		disposers.length = 0;
-		renderSteps.length = 0;
-		historyResets.length = 0;
+	function reset() {
+		preparation.invalidate();
+		for (const reset of historyResets) reset();
+	}
+
+	function release() {
+		preparation.afterPending(() => {
+			for (let index = disposers.length - 1; index >= 0; index--) disposers[index]();
+			disposers.length = 0;
+		});
+		renderSteps.length = prepareSteps.length = historyResets.length = 0;
 		outputs.clear();
+	}
+
+	function dispose() {
+		if (disposed) return;
+		disposed = true;
+		preparation.invalidate();
+		if (tiledRequest != null) tiledRequest.abort();
+		else release();
+	}
+
+	function checkAvailable() {
+		if (disposed) throw new Error('Effect instance is disposed');
+		if (tiledRequest != null) throw new Error('Tiled rendering is already in progress');
 	}
 
 	try {
 		for (const step of steps) {
 			if ('evaluate' in step) {
-				renderSteps.push(step.evaluate);
+				prepareSteps.push(step.evaluate);
 				continue;
 			}
 			const { effect, resolution } = step;
@@ -45,19 +87,102 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 				bind(texture);
 				disposers.push(() => texture.destroy());
 			}
-			const context: EffectInitContext = { ...gpu, resolution, inputs: step.inputs, staticSettings: step.staticSettings, outputTextures };
-			const operation = effect.type === 'customShaderEffect' ? await initCustomShaderEffect(effect.definition, context) : await native!.init(context, step.bindOutputTextures);
-			renderSteps.push(frame => operation.render(frame));
-			if (operation.resetRenderHistory != null) historyResets.push(operation.resetRenderHistory.bind(operation));
+			const context: EffectInitContext = {
+				...gpu, resolution, inputs: step.inputs, staticSettings: step.staticSettings, outputTextures, signal,
+				resources: resolveEffectStaticResources(effect.definition, step.staticSettings, resources),
+			};
+			// タイル描画の途中で中断されても、未完成の書き込み先を次のノードや公開ポートへ渡さない。
+			const pending = new Map<(texture: GPUTexture) => void, GPUTexture>();
+			const publishers = new Map([...step.bindOutputTextures].map(([id, bind]) => [id, (texture: GPUTexture) => { pending.set(bind, texture); }]));
+			const operation = effect.type === 'customShaderEffect' ? await initCustomShaderEffect(effect.definition, context) : await native!.init(context, publishers);
 			disposers.push(() => operation.dispose());
+			signal?.throwIfAborted();
+			const usesHistory = operation.resetRenderHistory != null || (effect.type === 'nativeEffect' && effect.definition.dependsOnRenderHistory === true);
+			dependsOnRenderHistory ||= usesHistory;
+			const cache = !usesHistory && 'cacheKey' in operation ? createRenderCache(step.inputs, operation) : null;
+			const report = placement.onGpuTime;
+			const gpuExecution = createEffectGpuExecution(device, operation, tiling, effect.definition.canHaveLongRunningRenderPass === true,
+				report == null ? undefined : (pass, time) => report(step.path, pass, time));
+			disposers.push(() => gpuExecution.dispose());
+			let historyResetPending = false;
+			const map = createEffectFrameMapper(contextResolution, resolution);
+			const nodeFrame = (frame: EffectFrameContext) => {
+				const mapped = map(frame);
+				return historyResetPending ? { ...mapped, timeDelta: 0, pointerVector: [0, 0] as const } : mapped;
+			};
+			if (operation.prepare != null) prepareSteps.push((frame, signal) => operation.prepare!(nodeFrame(frame), signal));
+			renderSteps.push({
+				needsRender: () => cache?.needsRender() ?? true,
+				record: (frame, encoder) => gpuExecution.record(nodeFrame(frame), encoder),
+				shouldTile: gpuExecution.shouldTile,
+				renderTiled: (frame, signal, progress) => gpuExecution.renderTiled(nodeFrame(frame), signal, progress),
+				commit() {
+					for (const [bind, texture] of pending) bind(texture);
+					pending.clear();
+					step.version++;
+					historyResetPending = false;
+					cache?.commit();
+				},
+			});
+			historyResets.push(() => {
+				pending.clear(); cache?.reset(); gpuExecution.reset();
+				historyResetPending = usesHistory;
+				operation.resetRenderHistory?.();
+			});
 		}
 		return {
-			outputs,
-			render(frame) {
-				for (const render of renderSteps) render(frame);
+			outputs, dependsOnRenderHistory,
+			get preparationStatus() { return preparation.status; },
+			tryPrepare(frame) { checkAvailable(); return preparation.tryPrepare(frame); },
+			async prepare(frame, signal) { checkAvailable(); await preparation.prepare(frame, signal); },
+			render(source: EffectFrameContext, encoder?: GPUCommandEncoder) {
+				checkAvailable();
+				const frame = preparation.take(source);
+				const commandEncoder = encoder ?? (source as EffectRenderContext).commandEncoder;
+				try {
+					for (const step of renderSteps) {
+						if (!step.needsRender()) continue;
+						step.record(frame, commandEncoder);
+						step.commit();
+					}
+				} catch (error) { reset(); throw error; }
+			},
+			async renderTiled(source, signal, progress) {
+				checkAvailable();
+				signal?.throwIfAborted();
+				tiledRequest = new AbortController();
+				const active = signal == null ? tiledRequest.signal : AbortSignal.any([signal, tiledRequest.signal]);
+				let encoder: GPUCommandEncoder | null = null;
+				const flush = () => {
+					if (encoder != null) device.queue.submit([encoder.finish()]);
+					encoder = null;
+				};
+				try {
+					await preparation.prepare(source, active);
+					active.throwIfAborted();
+					const frame = preparation.take(source);
+					for (const step of renderSteps) {
+						if (!step.needsRender()) continue;
+						if (!step.shouldTile()) {
+							encoder ??= device.createCommandEncoder();
+							step.record(frame, encoder);
+						} else {
+							flush();
+							await step.renderTiled(frame, active, progress);
+							active.throwIfAborted();
+						}
+						step.commit();
+					}
+					flush();
+				} catch (error) { reset(); throw error; } finally {
+					tiledRequest = null;
+					if (disposed) release();
+					progress?.(null);
+				}
 			},
 			resetRenderHistory() {
-				for (const reset of historyResets) reset();
+				if (tiledRequest != null) tiledRequest.abort();
+				else reset();
 			},
 			dispose,
 		};

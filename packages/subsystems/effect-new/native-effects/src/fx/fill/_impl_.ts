@@ -9,6 +9,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			colorAttachments: [{ view: outputTextures.get('output')!.createView(), clearValue: color, loadOp: 'clear', storeOp: 'store' }],
 		};
 		return {
+			cacheKey: 0,
 			render({ commandEncoder }) {
 				const [r, g, b, a] = inputs.color.value;
 				color.r = r * a;

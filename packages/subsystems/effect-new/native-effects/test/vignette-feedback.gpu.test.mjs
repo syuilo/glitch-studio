@@ -15,3 +15,11 @@ test('decays each pixel from a Vignette texture at its original position on WebG
 // 【Feedbackの履歴を配置ごとに一度だけ進め、下流から最新の出力を読む】
 // 初期化時のテクスチャを下流が保持してしまうと、片方のフレームだけ古い画素が表示される。
 test('publishes alternating Feedback textures and resets nested history on WebGPU', options, () => runEffectGpuTest(browserTests, 'feedback'));
+
+// 【タイル描画を中断して再開し、全画素・履歴・パス計測を確認する】
+// 未送信のタイルや中断したフレームのキャッシュが残ると、再開後に古い画像が混ざる。
+test('recovers tiled rendering and reports GPU time per placement and pass', options, () => runEffectGpuTest(browserTests, 'tiledHistory'));
+
+// 【自動分割したCustom Shader Effectで端数タイルまで全画素が一致する】
+// timestamp-queryを要求せず、GPU時間を取得できない環境でも長時間パスを分割し、統計の欠落を通知する。
+test('renders adaptive Custom Shader Effect tiles without timestamp queries', options, () => runEffectGpuTest(browserTests, 'automaticTiling'));
