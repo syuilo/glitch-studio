@@ -1,62 +1,38 @@
-import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
+import type { NativeEffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
 import { analyzePortableCustomNodeGraphEffectRuntime } from './runtime-requirements.ts';
 import { readFileSource } from '@gs/shared/file-source.ts';
-import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { findDependencyCycle } from '@gs/shared/utility/dependency-cycle.ts';
-import { collectCustomNodeGraphEffectResources } from '@gs/glitch-studio_shared/custom-node-graph-effect-resources.ts';
-import { getProjectEffectDefinitions } from '@gs/glitch-studio_shared/project/effects.ts';
+import { collectCustomNodeGraphEffectResources, type CustomNodeGraphEffectResources } from '@gs/glitch-studio_shared/custom-node-graph-effect-resources.ts';
 import { validatePortableCustomNodeGraphEffectSettings } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
-import { inspectCustomNodeGraphEffectNode, validateCustomNodeGraphEffectInterface } from '@gs/subsystems_custom-node-graph-effect_shared/static-validation.ts';
-import { customShaderEffectReference } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
-import { getPortableParameterDefaults, validatePortableParameters } from './parameters.ts';
-import type { Asset, Player } from '@gs/shared/types.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
-import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
-import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import { getPortableParameterDefinitions, getPortableParameterDefaults, validatePortableParameters } from './parameters.ts';
 import type { PortableCustomNodeGraphEffect, PortableCustomNodeGraphEffectSettings } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
 
-export type PortableCustomNodeGraphEffectExportInput = {
+export type PortableCustomNodeGraphEffectExportInput = CustomNodeGraphEffectResources & {
 	name: string;
 	gsVersion: string;
-	customNodeGraphEffect: CustomNodeGraphEffect;
-	assets: Asset[];
-	players: Player[];
-	customShaderEffects: ProjectCustomShaderEffect[];
 	aspectRatio: number;
 	settings: PortableCustomNodeGraphEffectSettings;
 	initialParameters: Record<string, unknown>;
 };
 
-export function preparePortableCustomNodeGraphEffect(input: PortableCustomNodeGraphEffectExportInput, builtinDefinitions: Readonly<Record<string, EffectDefinition>>) {
-	const definitions = getProjectEffectDefinitions(input.customShaderEffects, builtinDefinitions);
-	const resources = collectCustomNodeGraphEffectResources(input, definitions);
-	const customNodeGraphEffect = resources.customNodeGraphEffect;
-	validateCustomNodeGraphEffectInterface(customNodeGraphEffect);
-	const dependencies = new Map<string, string[]>();
-	for (const node of customNodeGraphEffect.nodes) {
-		const inputs: string[] = [];
-		inspectCustomNodeGraphEffectNode(node, customNodeGraphEffect, definitions, id => inputs.push(id));
-		dependencies.set(node.id, inputs);
-	}
-	const cycle = findDependencyCycle(dependencies);
-	if (cycle != null) throw new Error(`Custom Node Graph Effect contains a cycle: ${cycle.join(' → ')}`);
-	const output = customNodeGraphEffect.outputDefs.find(output => output.id === customNodeGraphEffect.primaryOutputId);
-	if (output == null || output.dataType.kind !== 'color') throw new Error('Web export requires a primary color output. Convert scalar or vector fields to color before exporting.');
+export function preparePortableCustomNodeGraphEffect(input: PortableCustomNodeGraphEffectExportInput, nativeDefinitions: Readonly<Record<string, NativeEffectDefinition>>) {
+	const resources = collectCustomNodeGraphEffectResources(input, nativeDefinitions);
+	const { customNodeGraphEffect } = resources;
+	const port = customNodeGraphEffect.primaryOutput;
+	if (port == null || customNodeGraphEffect.outputDefs[port].dataType.kind !== 'color') throw new Error('Web export requires a primary color output. Convert scalar or vector fields to color before exporting.');
 	validatePortableCustomNodeGraphEffectSettings(input.settings);
 	if (!Number.isFinite(input.aspectRatio) || input.aspectRatio <= 0) throw new Error('Aspect ratio must be positive and finite');
-	getPortableParameterDefaults(customNodeGraphEffect.paramDefs, new ExpressionEvaluator());
-	const usedEffects = new Set(customNodeGraphEffect.nodes.flatMap(node => node.type === 'effect' ? [node.effectId] : []));
+	const parameters = getPortableParameterDefinitions(customNodeGraphEffect);
+	getPortableParameterDefaults(parameters);
+	const { runtimeRequirements, resolutionNodes } = analyzePortableCustomNodeGraphEffectRuntime(resources, nativeDefinitions);
 	return {
 		name: input.name, gsVersion: input.gsVersion, customNodeGraphEffect,
 		assets: resources.assets,
-		customShaderEffects: deepClone(input.customShaderEffects.filter(effect => usedEffects.has(customShaderEffectReference(effect.id)))),
+		customShaderEffects: resources.customShaderEffects,
+		customNodeGraphEffects: resources.customNodeGraphEffects.map(({ id, name, definition }) => ({ id, name, definition })),
 		aspectRatio: input.aspectRatio, settings: { ...input.settings },
-		initialParameters: validatePortableParameters(customNodeGraphEffect.paramDefs, input.initialParameters),
-		runtimeRequirements: analyzePortableCustomNodeGraphEffectRuntime(customNodeGraphEffect, definitions),
-		diagnostics: {
-			players: resources.players.map(player => player.name),
-			resolutionNodes: customNodeGraphEffect.nodes.filter(node => node.type === 'effect' && node.resolution.mode !== 'context').map(node => node.type === 'effect' ? node.displayName || definitions[node.effectId].displayName : ''),
-		},
+		initialParameters: validatePortableParameters(parameters, input.initialParameters),
+		runtimeRequirements,
+		diagnostics: { players: resources.players.map(player => player.name), resolutionNodes },
 	};
 }
 
@@ -113,7 +89,7 @@ customNodeGraphEffectElement.play();
 customNodeGraphEffectElement.restart();
 
 Public parameters:
-${artwork.customNodeGraphEffect.paramDefs.map(definition => '- ' + JSON.stringify(definition.nameForReference) + ': ' + definition.dataType.kind).join('\n')}
+${Array.from(getPortableParameterDefinitions(artwork.customNodeGraphEffect), ([name, definition]) => '- ' + JSON.stringify(name) + ': ' + definition.dataType.kind).join('\n')}
 
 API overrides > parameters attribute > exported initial values > public defaults. Colors use straight linear sRGB RGBA; RGB may be outside 0..1. Parameter values are validated atomically. Invalid API values throw; invalid attributes emit error and keep the last valid values.
 
@@ -121,7 +97,7 @@ Attributes: parameters (JSON), resolution-scale, max-pixels, fps-limit (auto or 
 The default FPS setting is automatic: follow requestAnimationFrame without additional frame limiting. fps-limit="auto" overrides an exported numeric limit; removing the attribute restores the exported setting.
 Events: ready, render (detail: resolution, time in seconds), error (detail: message, fatal). ready resolves after GPU and image initialization; render signals a completed frame. Video/font/shader preparation may fail afterwards.
 
-CSS determines the size. Rendering follows device pixels subject to scale and pixel limits. Existing node resolutions are preserved; mismatched output ratios use transparent letterboxing. Resize resets effect history, preserving time. Offscreen/hidden/zero-sized elements suspend their clocks. Removing an element releases resources; reconnecting retains parameter values and time but resets history. restart resets time/history and can retry a failed renderer. Pointer input uses the primary pointer and does not prevent touch scrolling.
+CSS determines the size. Rendering follows device pixels subject to scale and pixel limits. Existing node resolutions are preserved; mismatched output ratios use transparent letterboxing. Resizing or changing the length of a bound public array resets effect history and preserves time. Offscreen/hidden/zero-sized elements suspend their clocks. Removing an element releases resources; reconnecting retains parameter values and time but resets history. restart resets time/history and can retry a failed renderer. Pointer input uses the primary pointer and does not prevent touch scrolling.
 
 All Players (including file Players) remain unconnected. Video Frame reads bundled video assets independently. No tile rendering, external image/audio API or timeline playback is included. IS_EXPORT is false; END_TIME is Infinity; PROGRESS is 0.
 `;

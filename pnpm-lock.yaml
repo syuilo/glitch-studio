@@ -274,15 +274,15 @@ importers:
       '@gs/shared':
         specifier: workspace:*
         version: link:../../shared
-      '@gs/subsystems_effect_shared':
+      '@gs/subsystems_effect-new_native-effects':
         specifier: workspace:*
-        version: link:../../subsystems/effect/shared
-      '@gs/subsystems_custom-node-graph-effect_renderer':
+        version: link:../../subsystems/effect-new/native-effects
+      '@gs/subsystems_effect-new_renderer':
         specifier: workspace:*
-        version: link:../../subsystems/custom-node-graph-effect/renderer
-      '@gs/subsystems_custom-node-graph-effect_shared':
+        version: link:../../subsystems/effect-new/renderer
+      '@gs/subsystems_effect-new_shared':
         specifier: workspace:*
-        version: link:../../subsystems/custom-node-graph-effect/shared
+        version: link:../../subsystems/effect-new/shared
     devDependencies:
       '@types/web':
         specifier: 0.0.359

@@ -1,14 +1,11 @@
-import type { ExpressionEngine } from '@gs/shared/expression/expression-engine.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import type { EffectParameterDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
 import { colorBlendModes } from '@gs/shared/color-blend.ts';
 import { validateColorRamp } from '@gs/shared/color-ramp.ts';
 import { SIZE_REFERENCES } from '@gs/shared/size-reference.ts';
 import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
-import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
-import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
-import type { CustomNodeGraphEffectParamDef } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return value != null && typeof value === 'object' && !Array.isArray(value);
@@ -49,24 +46,27 @@ export function validatePortableParameterValue(definition: ParameterDefinition, 
 	if (!valid) fail();
 }
 
+/** 配布先のAPIとPUBLIC式が、同じ参照名で公開値を引けるようにする。 */
+export function getPortableParameterDefinitions(graph: CustomNodeGraphEffect): ReadonlyMap<string, EffectParameterDefinition> {
+	return new Map(Object.entries(graph.paramDefs).map(([id, def]) => [def.nameForReference ?? id, def]));
+}
+
 /** 属性・APIの更新は全項目を検証してから確定し、途中の更新や呼び出し元の参照を残さない。 */
-export function validatePortableParameters(definitions: readonly CustomNodeGraphEffectParamDef[], values: unknown): Record<string, unknown> {
+export function validatePortableParameters(definitions: ReadonlyMap<string, EffectParameterDefinition>, values: unknown): Record<string, unknown> {
 	if (!isRecord(values)) throw new Error('Parameters must be an object');
 	for (const [name, value] of Object.entries(values)) {
-		const definition = definitions.find(definition => definition.nameForReference === name);
+		const definition = definitions.get(name);
 		if (definition == null) throw new Error(`Unknown public parameter: ${name}`);
 		validatePortableParameterValue(definition, value);
 	}
 	return structuredClone(values);
 }
 
-export function getPortableParameterDefaults(definitions: readonly CustomNodeGraphEffectParamDef[], expressionEvaluator: ExpressionEngine | null): Record<string, unknown> {
-	const evaluator = new ParameterBindingEvaluator(expressionEvaluator);
-	return Object.fromEntries(definitions.map(definition => [definition.nameForReference,
-		mapParameterTree<ValueParameterBinding>(definition, definition.defaultValue, [], (leaf, binding) => {
-			if (leaf.dataType.kind === 'audioSource') return null;
-			// 公開APIは値だけを扱う。既定値の子Bindingは開始時刻で評価し、編集用IDを公開しない。
-			const value = evaluator.evaluate(binding, { variables: { TIME: 0, TIME_MS: 0 }, automationGraphs: [], time: 0, endTime: Infinity }, genEmptyValue(leaf), leaf);
+export function getPortableParameterDefaults(definitions: ReadonlyMap<string, EffectParameterDefinition>): Record<string, unknown> {
+	return Object.fromEntries(Array.from(definitions, ([name, definition]) => [name,
+		mapParameterTree<EffectParameterDefinition['defaultValue']>(definition, definition.defaultValue, [], (leaf, binding) => {
+			// 配布先にはPlayerがなく、配列要素の編集用IDやBindingも公開しない。
+			const value = leaf.dataType.kind === 'audioSource' ? null : binding.value;
 			validatePortableParameterValue(leaf, value);
 			return value;
 		}),

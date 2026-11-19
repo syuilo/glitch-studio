@@ -1,3 +1,4 @@
+import { normalizedToSpatialCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import type { PortableCustomNodeGraphEffect, PortableCustomNodeGraphEffectSettings } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 
@@ -5,7 +6,8 @@ export type PortableCustomNodeGraphEffectFrame = {
 	resolution: Resolution;
 	time: number;
 	pointerElementPosition: { x: number; y: number } | null;
-	parameters: Record<string, unknown>;
+	/** 初回と公開値の変更時だけスナップショットを送る。 */
+	parameters: Record<string, unknown> | null;
 	resetHistory: boolean;
 };
 
@@ -32,14 +34,14 @@ export function getPortableRenderResolution(width: number, height: number, setti
 	return resolution;
 }
 
-/** containの余白を含む要素内位置から、レンダラー境界の各軸[-1,+1]へ換算する。 */
+/** containの余白を含む要素内位置から、配置の等方座標へ換算する。出力と寸法の異なる内部ノードへの換算はeffect-newに任せる。 */
 export function getPortablePointerPosition(position: { x: number; y: number } | null, resolution: Resolution, outputResolution: Resolution) {
-	if (position == null) return { x: -99999, y: -99999 };
+	if (position == null) return null;
 	const aspectRatio = outputResolution.width / outputResolution.height;
 	const width = Math.min(resolution.width, resolution.height * aspectRatio);
 	const height = width / aspectRatio;
-	return {
-		x: (position.x * resolution.width - (resolution.width - width) / 2) / width * 2 - 1,
-		y: 1 - (position.y * resolution.height - (resolution.height - height) / 2) / height * 2,
-	};
+	return normalizedToSpatialCoordinates([
+		(position.x * resolution.width - (resolution.width - width) / 2) / width * 2 - 1,
+		1 - (position.y * resolution.height - (resolution.height - height) / 2) / height * 2,
+	], resolution);
 }
