@@ -25,7 +25,7 @@ const parent = { ...base, nodes: [
 		code: 'fn main(p: vec2f) -> Output { return Output(read_a(p) + read_b(p)); }' } }, params: { a: wire('child', 'main'), b: wire('child', 'aux') } },
 ], outputSources: { main: { nodeId: 'combine', outputPort: 'main' } } };
 
-async function run() {
+export async function run() {
 	const adapter = await navigator.gpu.requestAdapter();
 	const device = await adapter.requestDevice();
 	const definitions = { getNativeEffect: id => nativeEffectDefinitions[id], getCustomShaderEffect: () => shader, getCustomNodeGraphEffect: () => child };
@@ -70,6 +70,3 @@ async function run() {
 		device.destroy();
 	}
 }
-
-try { await fetch('/result', { method: 'POST', body: JSON.stringify(await run()) }); }
-catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ error: error.stack }) }); }

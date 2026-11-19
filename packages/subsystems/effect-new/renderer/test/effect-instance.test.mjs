@@ -132,3 +132,36 @@ test('resolves nested input dimensions without rendering a size-only dependency'
 	assert.deepEqual(allocated, [['draw', 'main', size]]);
 	instance.dispose();
 });
+
+// 【出力を追加したときだけ、その出力が使う配線と式を描画順に含める】
+// Maskだけでも画像の寸法は必要になる。色も要求された場合は、後から見つけた上流と式の評価を描画の前に置く。
+test('collects input dependencies across requested native outputs before scheduling', async () => {
+	const shade = { ...base, paramDefs: { image: scalar, gain: scalar }, resolutionInputParameters: ['image'],
+		outputDefs: { mask: { inputParameters: [] }, color: {} } };
+	const graph = { ...base, nodes: [
+		{ id: 'source', effectSource: native('source'), resolution: size, params: {} },
+		{ id: 'shade', effectSource: native('shade'), params: { image: wire('source', 'main'), gain: { inputSource: 'expression', expression: 'TIME' } } },
+	], outputSources: { mask: { nodeId: 'shade', outputPort: 'mask' }, color: { nodeId: 'shade', outputPort: 'color' } } };
+	for (const ports of [['mask'], ['mask', 'color']]) {
+		const events = [];
+		const instance = await createEffectInstance({
+			effectSource: inline(graph), definitions: { getNativeEffect: id => id === 'shade' ? shade : base },
+			usedOutputPorts: new Set(ports), resolution: { width: 1, height: 1 },
+			bindParameterValue() {
+				events.push('bind gain');
+				return frame => { events.push('evaluate gain'); return frame.time; };
+			},
+		}, {}, id => ({
+			createOutputTexture(port, resolution) {
+				assert.deepEqual(resolution, size);
+				events.push('allocate ' + port);
+				return { destroy() {} };
+			},
+			init() { return { render() { events.push('draw ' + id); }, dispose() {} }; },
+		}));
+		instance.render({ time: 1 });
+		instance.dispose();
+		assert.deepEqual(events, ports.length === 1 ? ['allocate mask', 'draw shade'] :
+			['bind gain', 'allocate main', 'allocate mask', 'allocate color', 'draw source', 'evaluate gain', 'draw shade']);
+	}
+});

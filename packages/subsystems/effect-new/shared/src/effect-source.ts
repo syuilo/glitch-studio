@@ -1,6 +1,8 @@
 import type { CustomNodeGraphEffect } from './custom-node-graph-effect.ts';
 import type { CustomShaderEffect } from './custom-shader-effect.ts';
-import type { EffectDefinition } from './effect-definition.ts';
+import type { EffectDefinition, NativeEffectDefinition } from './effect-definition.ts';
+
+type NativeEffectRenderDefinition = Pick<NativeEffectDefinition, keyof EffectDefinition>;
 
 export type EffectSource =
 	| { type: 'nativeEffect'; id: string }
@@ -11,13 +13,13 @@ export type EffectSource =
 
 /** 登録先の探索と欠落時の診断は呼び出し側が所有する。インライン定義に登録IDは不要。 */
 export interface EffectDefinitions {
-	getNativeEffect(id: string): EffectDefinition;
+	getNativeEffect(id: string): NativeEffectRenderDefinition;
 	getCustomShaderEffect(id: string): CustomShaderEffect;
 	getCustomNodeGraphEffect(id: string): CustomNodeGraphEffect;
 }
 
 export type ResolvedEffect =
-	| { type: 'nativeEffect'; id: string; definition: EffectDefinition }
+	| { type: 'nativeEffect'; id: string; definition: NativeEffectRenderDefinition }
 	| { type: 'customShaderEffect'; definition: CustomShaderEffect }
 	| { type: 'customNodeGraphEffect'; definition: CustomNodeGraphEffect };
 

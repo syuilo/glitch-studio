@@ -271,6 +271,12 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 				}
 			}
 			if (uniforms.length === 0) device.queue.writeBuffer(buffer, 0, values);
+			const uniformGroup = textures.length === 0 ? getBindGroup() : null;
+			// 履歴出力は2枚を交互に公開する。入力側でも両方の組合せを保持し、毎フレームのbind group生成を省く。
+			// 外部入力は任意のtextureに差し替えられるため、保持する組合せは2件までにする。
+			const textureGroups: { textures: GPUTexture[]; group: GPUBindGroup }[] = [];
+			const frameTextures: GPUTexture[] = [];
+			const matchesFrame = (texture: GPUTexture, index: number) => texture === frameTextures[index];
 			return (): GPUBindGroup => {
 				for (const { input, offset } of uniforms) {
 					const components = input.value;
@@ -281,11 +287,19 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 					values[offset + 3] = components[3] ?? 1;
 				}
 				if (uniforms.length > 0) device.queue.writeBuffer(buffer, 0, values);
-				for (let index = 0; index < textures.length; index++) {
-					const { input, slot, sampler } = textures[index];
-					setTexture(slot, index * 2, input.texture, sampler);
+				if (uniformGroup != null) return uniformGroup;
+				for (let index = 0; index < textures.length; index++) frameTextures[index] = textures[index].input.texture;
+				for (const cached of textureGroups) {
+					if (cached.textures.every(matchesFrame)) return cached.group;
 				}
-				return getBindGroup();
+				for (let index = 0; index < textures.length; index++) {
+					const { slot, sampler } = textures[index];
+					setTexture(slot, index * 2, frameTextures[index], sampler);
+				}
+				const group = getBindGroup();
+				if (textureGroups.length === 2) textureGroups.shift();
+				textureGroups.push({ textures: frameTextures.slice(), group });
+				return group;
 			};
 		},
 		update(inputs: ShaderInputValues, output: Resolution, inputReferenceResolutions: ShaderInputReferenceResolutions = {}) {

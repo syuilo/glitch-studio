@@ -26,4 +26,6 @@ instance.render({ commandEncoder, time, timeDelta });
 - Custom Node Graph Effect は各ノードの `effectSource` と公開出力の `outputSources` を持つ。公開入力からの直結はuniformまたはtextureをそのまま転送し、画像を読む接続がFit／Wrap／Filterを指定する。未接続の公開出力は `outputs` に含まれない。出力の寸法は接続元で決まり、uniformは固有寸法を持たない。
 - 既定値と配列要素追加用の値はすべてliteralで、初期化時に展開する。式・キーなどの配置Bindingを使用する場合は `bindParameterValue` に評価器の生成関数を渡す。ノードID列で配置を区別し、戻した評価器が各フレームで値を更新する。
 - Native Effect と Custom Shader Effect は使用する出力にのみtextureを確保する。Custom Shader Effect は全入力の種別に合わせて配置ごとに一度だけpipelineを生成する。コンパイルが失敗した場合は `createEffectInstance()` が失敗する。
+- Native Effect の出力ごとに `inputParameters` で描画に使う入力を指定できる。省略時は全入力を使う。たとえば Vignette の Mask だけを使う配置では、入力画像の寸法から解像度を決め、マスクを1パスで描く。色とマスクを両方使う配置でも Vignette 自体の描画は1パスで済む。
+- Feedback は配置ごとに2枚のtextureを交互に使う。出力ポートは保持できるが、最新のtextureは各フレームの `render()` 後にそのポートの `.texture` から取得する。シークなどで `instance.resetRenderHistory()` を呼ぶと、入れ子を含む各配置は次の描画から新しい履歴を開始する。Feedback は、その最初の描画ではリセット前の経過時間を加算しない。
 - 同じ配置の複数ポートは1回の `render()` で更新する。GPUコマンドを送信した後、配置の利用終了時に `instance.dispose()` を呼ぶ。外部入力のテクスチャは呼び出し側が所有する。

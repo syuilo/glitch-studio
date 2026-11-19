@@ -15,6 +15,7 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 	getNativeEffectImplementation: (id: string) => NativeEffectImplementation): Promise<EffectInstance> {
 	const { steps, outputs } = planEffect(placement);
 	const renderSteps: ((frame: EffectRenderContext) => void)[] = [];
+	const historyResets: (() => void)[] = [];
 	const disposers: (() => void)[] = [];
 
 	function dispose(): void {
@@ -22,6 +23,7 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 		for (let index = disposers.length - 1; index >= 0; index--) disposers[index]();
 		disposers.length = 0;
 		renderSteps.length = 0;
+		historyResets.length = 0;
 		outputs.clear();
 	}
 
@@ -44,14 +46,18 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 				disposers.push(() => texture.destroy());
 			}
 			const context: EffectInitContext = { ...gpu, resolution, inputs: step.inputs, staticSettings: step.staticSettings, outputTextures };
-			const operation = effect.type === 'customShaderEffect' ? await initCustomShaderEffect(effect.definition, context) : await native!.init(context);
+			const operation = effect.type === 'customShaderEffect' ? await initCustomShaderEffect(effect.definition, context) : await native!.init(context, step.bindOutputTextures);
 			renderSteps.push(frame => operation.render(frame));
+			if (operation.resetRenderHistory != null) historyResets.push(operation.resetRenderHistory.bind(operation));
 			disposers.push(() => operation.dispose());
 		}
 		return {
 			outputs,
 			render(frame) {
 				for (const render of renderSteps) render(frame);
+			},
+			resetRenderHistory() {
+				for (const reset of historyResets) reset();
 			},
 			dispose,
 		};

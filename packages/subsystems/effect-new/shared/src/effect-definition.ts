@@ -19,6 +19,8 @@ export interface EffectDefinition {
 
 /** Native Effectの検索・表示と、履歴を持つ配置の識別に使うカタログ情報。 */
 export interface NativeEffectDefinition extends EffectDefinition {
+	/** ポートの画素を求める入力。省略時は全入力。寸法だけの依存はresolutionInputParametersで指定する。 */
+	readonly outputDefs: Readonly<Record<string, EffectDefinition['outputDefs'][string] & { readonly inputParameters?: readonly string[] }>>;
 	readonly displayName: string;
 	readonly summary: Readonly<Record<'ja-JP' | 'en-US', string>>;
 	readonly tags: readonly string[];

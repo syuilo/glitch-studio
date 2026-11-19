@@ -1,0 +1,17 @@
+import { test } from 'node:test';
+import { runEffectGpuTest } from './run-effect-gpu-test.mjs';
+
+const browserTests = new URL('./vignette-feedback-browser.mjs', import.meta.url);
+const options = { skip: process.env.CHROME_PATH == null };
+
+// 【Vignetteは色・マスク・両方の各構成で必要な上流と描画先だけを使用する】
+// 親からマスクを先に要求しても、後から必要となった色入力を先に描き、両出力の画素を一致させる。
+test('renders the selected Vignette ports in one pass on WebGPU', options, () => runEffectGpuTest(browserTests, 'vignette'));
+
+// 【色定数から描いたVignetteをFeedbackに接続し、同じ画素の履歴を減衰させる】
+// 場所によって値の異なる画像を使い、履歴の参照位置のずれや色入力のalpha二重乗算を検出する。
+test('decays each pixel from a Vignette texture at its original position on WebGPU', options, () => runEffectGpuTest(browserTests, 'vignetteIntoFeedback'));
+
+// 【Feedbackの履歴を配置ごとに一度だけ進め、下流から最新の出力を読む】
+// 初期化時のテクスチャを下流が保持してしまうと、片方のフレームだけ古い画素が表示される。
+test('publishes alternating Feedback textures and resets nested history on WebGPU', options, () => runEffectGpuTest(browserTests, 'feedback'));

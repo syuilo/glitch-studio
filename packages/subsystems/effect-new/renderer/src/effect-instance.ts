@@ -1,4 +1,4 @@
-import type { ShaderInputSampling } from '@gs/shared/gpu/shader-input.ts';
+import type { FixedShaderInput, ShaderInputSampling } from '@gs/shared/gpu/shader-input.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import type { ParameterDefaultValue } from '@gs/shared/parameter/parameter-definition.ts';
@@ -9,6 +9,12 @@ import type { EffectParameterDefinition } from '@gs/subsystems_effect-new_shared
 export type EffectImageInput =
 	| { readonly kind: 'uniform'; readonly value: readonly number[] }
 	| { readonly kind: 'texture'; readonly resolution: Resolution; readonly texture: GPUTexture; readonly sampling?: ShaderInputSampling };
+
+export function toFixedShaderInput(input: EffectImageInput): FixedShaderInput {
+	if (input.kind === 'uniform') return input;
+	const sampling = input.sampling ?? { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
+	return { kind: 'texture', ...sampling, resolution: input.resolution, get texture() { return input.texture; } };
+}
 
 export type EffectParameterInput =
 	| EffectImageInput
@@ -24,10 +30,12 @@ export interface EffectRenderContext {
 
 export interface EffectRenderOperation {
 	render(context: EffectRenderContext): void;
+	resetRenderHistory?(): void;
 	dispose(): void;
 }
 
 export interface EffectInstance extends EffectRenderOperation {
+	resetRenderHistory(): void;
 	/** 要求された接続済みポート。値の読み取りは描画を起動せず、所有権も移さない。 */
 	readonly outputs: ReadonlyMap<string, EffectImageInput>;
 }
@@ -55,9 +63,16 @@ export interface EffectInitContext<Inputs = Readonly<Record<string, EffectParame
 	readonly outputTextures: ReadonlyMap<string, GPUTexture>;
 }
 
-export interface NativeEffectImplementation<Params extends Readonly<Record<string, EffectParameterDefinition>> = Readonly<Record<string, EffectParameterDefinition>>> {
+type NativeEffectInputs<Params extends Readonly<Record<string, EffectParameterDefinition>>> = {
+	readonly [Key in keyof Params]: NativeEffectInput<Params[Key]['dataType'], Params[Key]>;
+};
+
+export interface NativeEffectImplementation<Params extends Readonly<Record<string, EffectParameterDefinition>> = Readonly<Record<string, EffectParameterDefinition>>,
+	ConditionalInputs extends keyof Params = never> {
 	/** computeなど、標準の描画用テクスチャ以外を必要とする実装が指定する。 */
 	createOutputTexture?(id: string, resolution: Resolution, gpu: EffectGpuContext): GPUTexture;
 	init(context: EffectInitContext<string extends keyof Params ? Readonly<Record<string, EffectParameterInput>>
-		: { readonly [Key in keyof Params]: NativeEffectInput<Params[Key]['dataType'], Params[Key]> }>): EffectRenderOperation | Promise<EffectRenderOperation>;
+		: Omit<NativeEffectInputs<Params>, ConditionalInputs> & Partial<Pick<NativeEffectInputs<Params>, ConditionalInputs>>>,
+		/** 描画後に同じ寸法・形式の別テクスチャを公開する。所有権は移さない。 */
+		publishOutputTextures: ReadonlyMap<string, (texture: GPUTexture) => void>): EffectRenderOperation | Promise<EffectRenderOperation>;
 }

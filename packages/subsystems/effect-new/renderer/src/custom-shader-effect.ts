@@ -2,12 +2,7 @@ import { createShaderInputBindings, generateShaderInputs } from '@gs/shared/gpu/
 import type { FixedShaderInput, ShaderInputType } from '@gs/shared/gpu/shader-input.ts';
 import type { CustomShaderEffect } from '@gs/subsystems_effect-new_shared/custom-shader-effect.ts';
 import type { EffectImageInput, EffectInitContext, EffectRenderOperation } from './effect-instance.ts';
-
-function shaderInput(input: EffectImageInput): FixedShaderInput {
-	if (input.kind === 'uniform') return input;
-	const sampling = input.sampling ?? { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
-	return { kind: 'texture', ...sampling, resolution: input.resolution, get texture() { return input.texture; } };
-}
+import { toFixedShaderInput } from './effect-instance.ts';
 
 const wgslTypes = { scalar: 'f32', vector: 'vec2f', color: 'vec4f', any: 'vec4f' } as const;
 
@@ -20,7 +15,7 @@ export async function initCustomShaderEffect(definition: CustomShaderEffect, con
 	for (const [id, parameter] of Object.entries(definition.paramDefs)) {
 		const key = 'gs_input' + readers.length;
 		schema[key] = parameter.dataType.kind;
-		inputs[key] = shaderInput(context.inputs[id] as EffectImageInput);
+		inputs[key] = toFixedShaderInput(context.inputs[id] as EffectImageInput);
 		readers.push(`fn read_${parameter.nameForReference}(position: vec2f) -> ${wgslTypes[parameter.dataType.kind]} {
 	return read_${key}(position * ${longSide * 2}.0 / gs_resolution);
 }`);
