@@ -4,7 +4,7 @@ import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type { TextureValue } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { CustomShaderEffect } from '@gs/subsystems_effect-new_shared/custom-shader-effect/custom-shader-effect.ts';
-import type { EffectGpuContext, EffectInstance, EffectInstanceOptions } from '../effect-instance.ts';
+import type { EffectGpuContext, EffectInstance, EffectInstanceOptions, EffectOutputPort } from '../effect-instance.ts';
 import { generateCustomShaderEffectCode } from './shader-code.ts';
 
 function outputFormat(dataType: TextureDataType, enable32bitDataTextures: boolean): GPUTextureFormat {
@@ -43,7 +43,7 @@ export async function createCustomShaderEffectInstance(customShaderEffect: Custo
 		}
 		return { id, name: `gs_input${index}`, dataType: parameter.dataType.kind, layout };
 	});
-	if (options.requestedOutputIds.length === 0) return { outputLayouts: {}, render: () => ({}), dispose: () => {} };
+	if (options.requestedOutputIds.length === 0) return { outputs: {}, render() {}, dispose() {} };
 	const outputIds = [...options.requestedOutputIds];
 	if (outputIds.length > device.limits.maxColorAttachments) throw new Error('Custom Shader Effect exceeds the GPU output limit');
 	const targets = outputIds.map(id => ({ format: outputFormat(customShaderEffect.outputDefs[id].dataType, gpu.enable32bitDataTextures) }));
@@ -74,10 +74,13 @@ export async function createCustomShaderEffectInstance(customShaderEffect: Custo
 		const colorAttachments: GPURenderPassColorAttachment[] = textures.map(texture => ({
 			view: texture.createView(), clearValue: [0, 0, 0, 0], loadOp: 'clear', storeOp: 'store',
 		}));
-		const outputs: Record<string, TextureValue> = Object.fromEntries(outputIds.map((id, index) => [id, { kind: 'texture', texture: textures[index] }]));
+		const outputs = Object.fromEntries(outputIds.map((id, index): [string, EffectOutputPort] => {
+			const output: TextureValue = { kind: 'texture', texture: textures[index] };
+			return [id, { layout: { kind: 'texture', resolution }, source: { type: 'produced', read: () => output } }];
+		}));
 		const values: Record<string, ShaderInput> = {};
 		return {
-			outputLayouts: Object.fromEntries(outputIds.map(id => [id, { kind: 'texture', resolution }])),
+			outputs,
 			render: frame => {
 				for (const input of inputs) values[input.name] = frame.parameters[input.id] as ShaderInput;
 				const bindGroup = bindings.update(values, resolution);
@@ -86,7 +89,6 @@ export async function createCustomShaderEffectInstance(customShaderEffect: Custo
 				pass.setBindGroup(0, bindGroup);
 				pass.draw(3);
 				pass.end();
-				return outputs;
 			},
 			dispose,
 		};

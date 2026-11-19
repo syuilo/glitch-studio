@@ -2,7 +2,7 @@ import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { CustomNodeGraphEffect, CustomNodeGraphEffectConnection, CustomNodeGraphEffectNode } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect/custom-node-graph-effect.ts';
 import type { EffectSource, ResolvedEffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
-import type { EffectFrame, EffectInstance, EffectInstanceOptions, EffectOutputLayout } from '../effect-instance.ts';
+import type { EffectFrame, EffectInstance, EffectInstanceOptions, EffectOutputPort } from '../effect-instance.ts';
 import { largestResolution, planParameter } from './parameter-binding.ts';
 import type { EvaluateCustomNodeGraphEffectBinding, ParameterReader, ParameterReaderContext, PlannedParameter } from './parameter-binding.ts';
 
@@ -16,6 +16,30 @@ type Demand = 'layout' | 'value';
 
 function needsDemand(previous: Demand | undefined, demand: Demand): boolean {
 	return previous == null || (previous === 'layout' && demand === 'value');
+}
+
+type GraphExecution = {
+	instances: EffectInstance[];
+	steps: ((frame: EffectFrame) => void)[];
+};
+
+function readerForPort(port: EffectOutputPort): ParameterReader {
+	const { layout, source } = port;
+	return {
+		layout, output: port,
+		textureResolution: layout.kind === 'texture' ? layout.resolution : null,
+		read: source.type === 'produced' ? source.read : frame => frame.parameters[source.parameterId],
+	};
+}
+
+/** 供給元が確定している配線はそのまま共有する。式などで値を作る引数だけに、その配置の評価ステップを作る。 */
+function bindGraphArgument(reader: ParameterReader, execution: GraphExecution): ParameterReader {
+	if (reader.output != null) return reader;
+	let value: unknown;
+	execution.steps.push(frame => { value = reader.read(frame); });
+	const read = () => value;
+	if (reader.layout.kind === 'value') return { ...reader, read };
+	return readerForPort({ layout: reader.layout, source: { type: 'produced', read: () => value as UniformOrTexture } });
 }
 
 type NodePlan = {
@@ -117,72 +141,88 @@ class CustomNodeGraphEffectPlan {
 		return order;
 	}
 
-	public async instantiate(options: EffectInstanceOptions, createLeafInstance: CreateLeafInstance,
-		evaluateBinding?: EvaluateCustomNodeGraphEffectBinding): Promise<EffectInstance> {
+	/** 入れ子の配置も同じ実行列へ展開する。公開入力・出力を通過するだけのグラフには描画ステップが要らない。 */
+	public async compile(resolution: Readonly<Resolution>, publicInputs: ReadonlyMap<string, ParameterReader>,
+		execution: GraphExecution, createLeafInstance: CreateLeafInstance,
+		evaluateBinding?: EvaluateCustomNodeGraphEffectBinding): Promise<Map<string, ParameterReader>> {
 		const outputsByNode = new Map<string, Map<string, ParameterReader>>();
 		const resolveConnection = (connection: CustomNodeGraphEffectConnection): ParameterReader | null => {
 			if (connection.inputSource === 'node') return outputsByNode.get(connection.nodeId)?.get(connection.outputPort) ?? null;
-			const id = connection.parameterId;
-			const layout = options.inputLayouts[id];
-			// 参照された公開入力には呼び出し元が配置時に固定したlayoutを必ず渡す。
-			return { layout, textureResolution: layout.kind === 'texture' ? layout.resolution : null, read: frame => frame.parameters[id] };
+			const reader = publicInputs.get(connection.parameterId);
+			if (reader == null) throw new Error(`Missing Custom Node Graph Effect input layout: ${connection.parameterId}`);
+			return reader;
 		};
-		const steps: { render: (frame: EffectFrame) => void; instance: EffectInstance }[] = [];
-		const dispose = () => {
-			for (let i = steps.length - 1; i >= 0; i--) steps[i].instance.dispose();
-			steps.length = 0;
-		};
-		try {
-			for (const plan of this.renderOrder()) {
-				let resolution: Readonly<Resolution> = options.resolution;
-				const context: ParameterReaderContext = { resolveConnection, evaluate: (binding, definition, frame) => {
+		// 式の公開引数は配置のスコープに束縛する。画像の配線は式のために読み取らない。
+		const expressionInputs = [...publicInputs].filter(([, reader]) => reader.layout.kind === 'value');
+		for (const plan of this.renderOrder()) {
+			let nodeResolution = resolution;
+			const context: ParameterReaderContext = {
+				resolveConnection,
+				evaluate: (binding, definition, frame) => {
 					if (evaluateBinding == null) throw new Error('Custom Node Graph Effect parameter evaluation is unavailable');
-					return evaluateBinding(binding, definition, { customNodeGraphEffect: this.customNodeGraphEffect, node: plan.node, resolution, frame });
-				} };
-				const readers = Array.from(plan.parameters, ([key, parameter]) => [key, parameter.reader(context)] as const);
-				const parameterReaders = new Map(readers);
-				resolution = plan.node.resolution ?? largestResolution(plan.source.definition.resolutionInputParameters.map(id => parameterReaders.get(id)?.textureResolution ?? null)) ?? options.resolution;
-				const childOptions = { resolution, requestedOutputIds: [...plan.requestedOutputs.keys()], staticSettings: plan.node.staticSettings,
-					inputLayouts: Object.fromEntries(readers.map(([key, reader]) => [key, reader.layout])) };
-				const instance = plan.source.type === 'customNodeGraphEffect'
-					? await plan.childGraph!.instantiate(childOptions, createLeafInstance, evaluateBinding)
-					: await createLeafInstance(plan.source, childOptions);
-				let outputs: Readonly<Record<string, UniformOrTexture>>;
-				outputsByNode.set(plan.node.id, new Map(Object.entries(instance.outputLayouts).map(([id, layout]) => [id, {
-					layout, textureResolution: layout.kind === 'texture' ? layout.resolution : null, read: () => outputs[id],
-				}])));
-				if ([...plan.requestedOutputs.values()].includes('value')) {
-					const frameReaders = readers.filter(([id]) => plan.parameters.get(id)!.demand === 'value');
-					steps.push({ instance, render: frame => {
-						const parameters = Object.fromEntries(frameReaders.map(([key, reader]) => [key, reader.read(frame)]));
-						outputs = instance.render({ ...frame, parameters });
-					} });
-				} else {
-					// Native Effectの出力表現も初期化で確定する。寸法だけの利用なら履歴を進めず、GPU資源も解放できる。
-					instance.dispose();
-				}
-			}
-			const outputLayouts: [string, EffectOutputLayout][] = [];
-			const outputReaders: [string, ParameterReader][] = [];
-			for (const [id, { connection, demand }] of this.publicOutputs) {
-				const source = resolveConnection(connection);
-				if (source == null || source.layout.kind === 'value') continue;
-				outputLayouts.push([id, source.layout]);
-				if (demand === 'value') outputReaders.push([id, source]);
-			}
-			return {
-				outputLayouts: Object.fromEntries(outputLayouts),
-				render: frame => {
-					for (const step of steps) step.render(frame);
-					return Object.fromEntries(outputReaders.map(([key, reader]) => [key, reader.read(frame) as UniformOrTexture]));
+					const parameters = Object.fromEntries(expressionInputs.map(([id, reader]) => [id, reader.read(frame)]));
+					return evaluateBinding(binding, definition, { customNodeGraphEffect: this.customNodeGraphEffect,
+						node: plan.node, resolution: nodeResolution, frame: { ...frame, parameters } });
 				},
-				dispose,
 			};
-		} catch (error) {
-			// 後続ノードのシェーダーコンパイル等が失敗しても、先に生成した配置のGPUリソースを解放する。
-			dispose();
-			throw error;
+			const readers = new Map(Array.from(plan.parameters, ([id, parameter]) => [id, parameter.reader(context)]));
+			nodeResolution = plan.node.resolution
+				?? largestResolution(plan.source.definition.resolutionInputParameters.map(id => readers.get(id)?.textureResolution ?? null))
+				?? resolution;
+			if (plan.source.type === 'customNodeGraphEffect') {
+				for (const [id, reader] of readers) {
+					if (plan.parameters.get(id)!.demand !== 'value') continue;
+					// 空間入力の配線は供給元へ直結する。配列・構造体の中の画像には、要素自身の接続で指定したsamplingが必要。
+					readers.set(id, reader.output != null ? readerForPort(reader.output) : bindGraphArgument(reader, execution));
+				}
+				const outputs = await plan.childGraph!.compile(nodeResolution, readers, execution, createLeafInstance, evaluateBinding);
+				outputsByNode.set(plan.node.id, outputs);
+				continue;
+			}
+			const instance = await createLeafInstance(plan.source, {
+				resolution: nodeResolution,
+				requestedOutputIds: [...plan.requestedOutputs.keys()],
+				staticSettings: plan.node.staticSettings,
+				inputLayouts: Object.fromEntries(Array.from(readers, ([id, reader]) => [id, reader.layout])),
+			});
+
+			const ports = Object.entries(instance.outputs);
+			const renders = ports.some(([id, port]) =>
+				plan.requestedOutputs.get(id) === 'value' && port.source.type === 'produced');
+			// 寸法または入力への直結だけを利用する配置は、確定済みのポート情報だけを残す。
+			if (renders) execution.instances.push(instance);
+			else instance.dispose();
+			const outputs = new Map<string, ParameterReader>();
+			for (const [id, port] of ports) {
+				if (port.source.type === 'produced') {
+					outputs.set(id, readerForPort(port));
+					continue;
+				}
+				const parameterId = port.source.parameterId;
+				let reader = readers.get(parameterId)!;
+				if (plan.requestedOutputs.get(id) === 'value') {
+					reader = bindGraphArgument(reader, execution);
+					readers.set(parameterId, reader);
+				}
+				// Native Effectの入力にも読み取り側のsamplingが付く。直結出力はその前の供給元を公開する。
+				outputs.set(id, reader.output == null ? reader : readerForPort(reader.output));
+			}
+			if (renders) {
+				const frameReaders = [...readers].filter(([id]) => plan.parameters.get(id)!.demand === 'value');
+				execution.steps.push(frame => {
+					const parameters = Object.fromEntries(frameReaders.map(([id, reader]) => [id, reader.read(frame)]));
+					instance.render({ ...frame, parameters });
+				});
+			}
+			outputsByNode.set(plan.node.id, outputs);
 		}
+
+		const outputs = new Map<string, ParameterReader>();
+		for (const [id, { connection }] of this.publicOutputs) {
+			const reader = resolveConnection(connection);
+			if (reader != null) outputs.set(id, reader);
+		}
+		return outputs;
 	}
 }
 
@@ -190,5 +230,35 @@ export async function createCustomNodeGraphEffectInstance(customNodeGraphEffect:
 	resolveSource: ResolveEffectSource, createLeafInstance: CreateLeafInstance, evaluateBinding?: EvaluateCustomNodeGraphEffectBinding): Promise<EffectInstance> {
 	const plan = new CustomNodeGraphEffectPlan(customNodeGraphEffect, resolveSource, () => {});
 	for (const id of options.requestedOutputIds) plan.requireOutput(id, 'value');
-	return plan.instantiate(options, createLeafInstance, evaluateBinding);
+	const publicInputs = new Map<string, ParameterReader>();
+	for (const [id, layout] of Object.entries(options.inputLayouts)) {
+		publicInputs.set(id, layout.kind === 'value'
+			? { layout, textureResolution: null, read: frame => frame.parameters[id] }
+			: readerForPort({ layout, source: { type: 'parameter', parameterId: id } }));
+	}
+
+	const execution: GraphExecution = { instances: [], steps: [] };
+	const dispose = () => {
+		for (let i = execution.instances.length - 1; i >= 0; i--) execution.instances[i].dispose();
+		execution.instances.length = 0;
+		execution.steps.length = 0;
+	};
+	try {
+		const readers = await plan.compile(options.resolution, publicInputs, execution, createLeafInstance, evaluateBinding);
+		const ports: [string, EffectOutputPort][] = [];
+		for (const [id, reader] of readers) {
+			if (reader.output != null) ports.push([id, reader.output]);
+		}
+		return {
+			outputs: Object.fromEntries(ports),
+			render(frame) {
+				for (const step of execution.steps) step(frame);
+			},
+			dispose,
+		};
+	} catch (error) {
+		// 子の初期化が失敗した場合も、それまでに生成した配置が所有するGPUリソースを解放する。
+		dispose();
+		throw error;
+	}
 }

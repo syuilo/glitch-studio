@@ -10,6 +10,14 @@ export type EffectOutputLayout =
 /** valueはCPUで評価したパラメータ。接続可能な空間入力はuniformかtextureで渡す。 */
 export type EffectInputLayout = { readonly kind: 'value' } | EffectOutputLayout;
 
+/** parameterは呼び出し側の入力への配線。producedは値を生成する配置から直接読み取る。 */
+export type EffectOutputPort = {
+	readonly layout: EffectOutputLayout;
+	readonly source:
+		| { readonly type: 'parameter'; readonly parameterId: string }
+		| { readonly type: 'produced'; readonly read: () => UniformOrTexture };
+};
+
 export type EffectInstanceOptions = {
 	readonly requestedOutputIds: readonly string[];
 	readonly inputLayouts: Readonly<Record<string, EffectInputLayout>>;
@@ -33,7 +41,7 @@ export type EffectFrame = {
 
 /** 出力は借用値。次のrender()が同じuniformやテクスチャを更新する前に、呼び出し側で前回分をsubmitする。 */
 export type EffectInstance = {
-	readonly outputLayouts: Readonly<Record<string, EffectOutputLayout>>;
-	render(frame: EffectFrame): Readonly<Record<string, UniformOrTexture>>;
+	readonly outputs: Readonly<Record<string, EffectOutputPort>>;
+	render(frame: EffectFrame): void;
 	dispose(): void;
 };

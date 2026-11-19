@@ -31,10 +31,15 @@ const fill = await createEffectInstance({ type: 'nativeEffect', id: 'fill' }, {
 	getNativeEffectImplementation: id => nativeEffectImplementations.get(id) ?? null,
 });
 
-const commandEncoder = device.createCommandEncoder();
-const { output } = fill.render({ commandEncoder, time: 0, parameters: { color: [1, 0, 0, 0.5] } });
-// このencoderに、借用したoutputを利用する合成や表示のコマンドも記録できる。
-device.queue.submit([commandEncoder.finish()]);
+const { source } = fill.outputs.output;
+if (source.type === 'produced') {
+	// Fill は配置の寿命中、初期化時に確保した同じテクスチャに描く。
+	const output = source.read();
+	const commandEncoder = device.createCommandEncoder();
+	fill.render({ commandEncoder, time: 0, parameters: { color: [1, 0, 0, 0.5] } });
+	// この encoder に、借用した output を使う合成や表示のコマンドも記録できる。
+	device.queue.submit([commandEncoder.finish()]);
+}
 fill.dispose();
 ```
 
@@ -42,7 +47,12 @@ fill.dispose();
 
 自動解像度を求めるためだけに参照する配置は、初期化時に出力寸法を取得して解放する。同じ出力の画素を読み取る配線もある場合は描画対象になり、そのフレームの履歴を一度だけ進める。
 
-`outputLayouts` には各出力の `uniform`／`texture` 区分と、テクスチャなら計画済みの解像度が入る。公開入力を直接出力するグラフは値をそのまま渡す。Fit・Wrap・Filter は内部で実際に画像を読む接続に適用する。入力の値やテクスチャをフレームごとに更新できる。構成・解像度・配線・要求出力の変更では配置を作り直す。出力は借用値で、次の描画を始める前に前回分のコマンドを submit する。
+`instance.outputs[portId]` には、初期化時に確定した `layout` と `source` が入る。`layout` は `uniform`／`texture` の区分と、テクスチャなら計画済みの解像度を持つ。`render(frame): void` は描画計画を実行する。
+
+- `source.type === 'parameter'` は公開入力への直結を表す。呼び出し側は `source.parameterId` で特定した入力の供給元をそのまま下流に接続する。親の `A.output` が子の公開入力と公開出力を経由して `B` に届く場合、初期化時に `B` の入力を `A.output` に配線する。フレーム間で入力の値やテクスチャが変わっても、同じ供給元を使う。
+- `source.type === 'produced'` では `source.read()` がそのポートの借用値を返す。出力テクスチャを固定する Fill や Custom Shader Effect では初期化時にその参照を取得できる。描画によって値そのものを更新するポートは、そのフレームの生成処理の後に読む。
+
+Fit・Wrap・Filter は実際に画像を読む接続に適用する。構成・解像度・配線・要求出力の変更では配置を作り直す。次の描画を始める前に、前回の出力を使うコマンドを submit する。
 
 Custom Shader Effect は、全入力の `uniform`／`texture` 区分を初期化時に必要とする。その区分で一度だけパイプラインを生成し、初期化の Promise で WGSL の診断も返す。ユーザーの `main(position) -> Output` は定義した全メンバーを書ける。描画先には要求された出力だけを割り当てる。
 

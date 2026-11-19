@@ -6,7 +6,7 @@ import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definit
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { CustomNodeGraphEffect, CustomNodeGraphEffectConnection, CustomNodeGraphEffectNode, CustomNodeGraphEffectParameterBinding } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect/custom-node-graph-effect.ts';
-import type { EffectFrame, EffectInputLayout } from '../effect-instance.ts';
+import type { EffectFrame, EffectInputLayout, EffectOutputPort } from '../effect-instance.ts';
 
 export type EvaluateCustomNodeGraphEffectBinding = (binding: ValueParameterBinding, definition: ParameterDefinition, context: {
 	customNodeGraphEffect: CustomNodeGraphEffect;
@@ -19,6 +19,8 @@ export type EvaluateCustomNodeGraphEffectBinding = (binding: ValueParameterBindi
 
 export type ParameterReader = {
 	layout: EffectInputLayout;
+	/** 空間値の供給元。公開ポートを通過する配線では同じポートを下流へ渡す。 */
+	output?: EffectOutputPort;
 	// 配列・構造体も、内部に含まれるテクスチャの最大画素数を自動解像度の候補にする。
 	textureResolution: Readonly<Resolution> | null;
 	read: (frame: EffectFrame) => unknown;
@@ -45,6 +47,13 @@ export function planParameter(definition: ParameterDefinition, binding: CustomNo
 	const canNode = definition.canNode === true;
 	const literalValue = (value: unknown) => canNode ? constantShaderInput(definition.dataType.kind, value) : value;
 	const valueLayout: EffectInputLayout = { kind: canNode ? 'uniform' : 'value' };
+	const constantReader = (value: unknown): ParameterReader => {
+		if (!canNode) return { layout: valueLayout, textureResolution: null, read: () => value };
+		const uniform = constantShaderInput(definition.dataType.kind, value);
+		const read = () => uniform;
+		const layout = { kind: 'uniform' } as const;
+		return { layout, textureResolution: null, read, output: { layout, source: { type: 'produced', read } } };
+	};
 	if (binding.inputSource === 'node' || binding.inputSource === 'customNodeGraphEffectPublicParameterReference') {
 		requireConnection(binding);
 		const sampling = { fitMode: binding.fitMode ?? 'cover', wrapMode: binding.wrapMode ?? 'repeatMirrored', filterMode: binding.filterMode ?? 'linear' } as const;
@@ -52,8 +61,7 @@ export function planParameter(definition: ParameterDefinition, binding: CustomNo
 			const source = context.resolveConnection(binding);
 			if (source == null) {
 				// 未接続の公開出力を参照した入力は自身の既定値を使い、Shader入力の種別もここで固定する。
-				const fallback = literalValue(definition.defaultValue.value);
-				return { layout: valueLayout, textureResolution: null, read: () => fallback };
+				return constantReader(definition.defaultValue.value);
 			}
 			if (!canNode) return source;
 			if (source.layout.kind === 'value') {
@@ -83,8 +91,8 @@ export function planParameter(definition: ParameterDefinition, binding: CustomNo
 		};
 	}
 	if (binding.inputSource === 'literal' && binding.expressionModifier?.enabled !== true) {
-		const value = literalValue(binding.value);
-		return () => ({ layout: valueLayout, textureResolution: null, read: () => value });
+		const reader = constantReader(binding.value);
+		return () => reader;
 	}
 	// 式が公開パラメータを実行時の名前で読む場合にも、子の必要入力を取りこぼさない。
 	requireExpressionScope();

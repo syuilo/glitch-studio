@@ -16,6 +16,12 @@ async function checkNestedGraph(environment, customShaderEffect, resolution) {
 		outputs: { image: fromNode('splitter', 'colorId'), amount: fromNode('splitter', 'dataId') },
 	};
 	const branchSource = { type: 'inlineCustomShaderEffect', customShaderEffect };
+	const passThroughGraph = {
+		kind: 'modify', primaryInputParameter: 'image', primaryOutput: 'output', resolutionInputParameters: ['image'],
+		paramDefs: { image: customShaderEffect.paramDefs.imageId },
+		outputDefs: { output: { dataType: { kind: 'color' } } },
+		nodes: [], outputs: { output: fromPublic('image') },
+	};
 	const rootGraph = {
 		kind: 'generate', primaryInputParameter: null, primaryOutput: null, resolutionInputParameters: [],
 		paramDefs: { fillColor: nativeEffectDefinitions.get('fill').paramDefs.color },
@@ -23,8 +29,11 @@ async function checkNestedGraph(environment, customShaderEffect, resolution) {
 		// 保存順と実行順を逆にし、外側の異なる消費者が同じ子の異なるポートを要求するようにする。
 		nodes: [
 			{ id: 'firstBranch', effectSource: branchSource,
-				params: { imageId: fromNode('nested', 'image'), gainId: { inputSource: 'literal', value: 2 } } },
+				params: { imageId: fromNode('passThrough', 'output'), gainId: { inputSource: 'literal', value: 2 } } },
 			{ id: 'secondBranch', effectSource: branchSource, params: { gainId: fromNode('nested', 'amount') } },
+			// 入力を直結する子を経ても、firstBranchはsplitterの画像を読み、GPUの描画は4パスで済む。
+			{ id: 'passThrough', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: passThroughGraph },
+				params: { image: fromNode('nested', 'image') } },
 			{ id: 'nested', effectSource: { type: 'customNodeGraphEffectReference', id: 'publishedGraph' },
 				params: { source: fromNode('fill', 'output') } },
 			{ id: 'fill', effectSource: { type: 'nativeEffect', id: 'fill' }, params: { color: fromPublic('fillColor') } },
@@ -42,6 +51,9 @@ async function checkNestedGraph(environment, customShaderEffect, resolution) {
 	const nestedPixels = [];
 	const renderPassCounts = [];
 	try {
+		// 内部のCustom Shader Effectが描くテクスチャを、初回のrenderより先に配線する。
+		const firstTexture = instance.outputs.first.source.read().texture;
+		const secondTexture = instance.outputs.second.source.read().texture;
 		for (const red of [0.75, 0.5]) {
 			const encoder = gpu.device.createCommandEncoder();
 			let passes = 0;
@@ -50,9 +62,9 @@ async function checkNestedGraph(environment, customShaderEffect, resolution) {
 				passes++;
 				return beginRenderPass(descriptor);
 			};
-			const outputs = instance.render({ time: 0, commandEncoder: encoder, parameters: { fillColor: [red, 0, 0, 0.5] } });
-			encoder.copyTextureToBuffer({ texture: outputs.first.texture }, { buffer: readback }, resolution);
-			encoder.copyTextureToBuffer({ texture: outputs.second.texture }, { buffer: readback, offset: 4 }, resolution);
+			instance.render({ time: 0, commandEncoder: encoder, parameters: { fillColor: [red, 0, 0, 0.5] } });
+			encoder.copyTextureToBuffer({ texture: firstTexture }, { buffer: readback }, resolution);
+			encoder.copyTextureToBuffer({ texture: secondTexture }, { buffer: readback, offset: 4 }, resolution);
 			gpu.device.queue.submit([encoder.finish()]);
 			await readback.mapAsync(GPUMapMode.READ);
 			const pixels = new Float16Array(readback.getMappedRange());
@@ -104,14 +116,16 @@ export async function checkEffectInstances() {
 	let instance = null;
 	try {
 		instance = await createEffectInstance({ type: 'customShaderEffectReference', id: 'split' }, options, environment);
+		if (Object.keys(instance.outputs).join() !== 'dataId') throw new Error('Allocated an unused output');
+		const dataOutput = instance.outputs.dataId;
+		const dataTexture = dataOutput.source.read().texture;
 		const pixels = [];
 		const image = { kind: 'texture', texture: inputTexture, fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' };
 		for (const [red, gain] of [[255, 2], [0, -1]]) {
 			device.queue.writeTexture({ texture: inputTexture }, new Uint8Array([red, 0, 0, 255]), {}, resolution);
 			const encoder = device.createCommandEncoder();
-			const outputs = instance.render({ commandEncoder: encoder, time: 0, parameters: { gainId: { kind: 'uniform', value: [gain] }, imageId: image } });
-			if (Object.keys(outputs).join() !== 'dataId') throw new Error('Allocated an unused output');
-			encoder.copyTextureToBuffer({ texture: outputs.dataId.texture }, { buffer: readback }, resolution);
+			instance.render({ commandEncoder: encoder, time: 0, parameters: { gainId: { kind: 'uniform', value: [gain] }, imageId: image } });
+			encoder.copyTextureToBuffer({ texture: dataTexture }, { buffer: readback }, resolution);
 			device.queue.submit([encoder.finish()]);
 			await readback.mapAsync(GPUMapMode.READ);
 			pixels.push(new Float32Array(readback.getMappedRange())[0]);
@@ -131,7 +145,7 @@ export async function checkEffectInstances() {
 			compilerError = error.message;
 		}
 		const nestedResult = await checkNestedGraph(environment, customShaderEffect, resolution);
-		return { pixels, outputLayouts: instance.outputLayouts, inputChangeError, compilerError, ...nestedResult };
+		return { pixels, outputLayouts: { dataId: dataOutput.layout }, inputChangeError, compilerError, ...nestedResult };
 	} finally {
 		instance?.dispose();
 		inputTexture.destroy();
