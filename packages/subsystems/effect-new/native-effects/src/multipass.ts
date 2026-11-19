@@ -2,7 +2,7 @@ import { toFixedShaderInput, type EffectImageInput, type EffectParameterInput, t
 import { createFixedInputBindings, type FixedInputs } from './shader-input.ts';
 import type { EffectParameterDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
-import type { ShaderInputSampling, ShaderInputSchema, FixedShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import type { FixedShaderInputSamplingOverrides, ShaderInputSampling, ShaderInputSchema, FixedShaderInput } from '@gs/shared/gpu/shader-input.ts';
 
 type ParameterValues<Inputs> = { readonly [Key in keyof Inputs]: ParameterValue<Inputs[Key]> };
 type ParameterValue<Input> = Input extends EffectImageInput ? FixedShaderInput
@@ -52,11 +52,12 @@ export function createFixedInputPipeline<Key extends string>(inputs: FixedInputs
 	internalLayouts?: readonly GPUBindGroupLayout[];
 	sampling?: 'implicit' | 'level0';
 	scalarGradients?: boolean;
+	samplingOverrides?: FixedShaderInputSamplingOverrides;
 	entryPoint?: string;
 	constants?: Record<string, number>;
 }) {
 	const layouts = options.internalLayouts ?? [];
-	const bindings = createFixedInputBindings(options.device, options.schema, inputs, resolution, layouts.length, options.sampling, options.scalarGradients);
+	const bindings = createFixedInputBindings(options.device, options.schema, inputs, resolution, layouts.length, options.sampling, options.scalarGradients, options.samplingOverrides);
 	try {
 		const pipeline = options.device.createRenderPipeline({
 			layout: options.device.createPipelineLayout({ bindGroupLayouts: [...layouts, bindings.layout] }),

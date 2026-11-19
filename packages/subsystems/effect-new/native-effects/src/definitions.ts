@@ -1,5 +1,9 @@
 import adaptiveBlockGlitch from './fx/adaptiveBlockGlitch/_def_.ts';
 import angularBlur from './fx/angularBlur/_def_.ts';
+import applyLut from './fx/applyLut/_def_.ts';
+import audioSpectrogram from './fx/audioSpectrogram/_def_.ts';
+import audioSpectrum from './fx/audioSpectrum/_def_.ts';
+import audioWaveform from './fx/audioWaveform/_def_.ts';
 import bakersMap from './fx/bakersMap/_def_.ts';
 import birefringence from './fx/birefringence/_def_.ts';
 import bitPlaneCorruption from './fx/bitPlaneCorruption/_def_.ts';
@@ -34,6 +38,7 @@ import contrast from './fx/contrast/_def_.ts';
 import cornerPeel from './fx/cornerPeel/_def_.ts';
 import dataBlend from './fx/dataBlend/_def_.ts';
 import dataMix from './fx/dataMix/_def_.ts';
+import datamosh from './fx/datamosh/_def_.ts';
 import decoderCorruption from './fx/decoderCorruption/_def_.ts';
 import decomposeColor from './fx/decomposeColor/_def_.ts';
 import decomposeColorHsl from './fx/decomposeColorHsl/_def_.ts';
@@ -50,7 +55,9 @@ import fill from './fx/fill/_def_.ts';
 import filmColor from './fx/filmColor/_def_.ts';
 import filmPhotography from './fx/filmPhotography/_def_.ts';
 import flowColor from './fx/flowColor/_def_.ts';
+import flowTrail from './fx/flowTrail/_def_.ts';
 import fractalFlame from './fx/fractalFlame/_def_.ts';
+import frameDifference from './fx/frameDifference/_def_.ts';
 import frequencyTransplant from './fx/frequencyTransplant/_def_.ts';
 import geometricOptics2d from './fx/geometricOptics2d/_def_.ts';
 import glass from './fx/glass/_def_.ts';
@@ -82,6 +89,7 @@ import linearWipe from './fx/linearWipe/_def_.ts';
 import liquidMetal from './fx/liquidMetal/_def_.ts';
 import luminanceGradient from './fx/luminanceGradient/_def_.ts';
 import magneticPendulum from './fx/magneticPendulum/_def_.ts';
+import mandelbrot from './fx/mandelbrot/_def_.ts';
 import mangaPrint from './fx/mangaPrint/_def_.ts';
 import mapTransition from './fx/mapTransition/_def_.ts';
 import maskToSdf from './fx/maskToSdf/_def_.ts';
@@ -94,6 +102,7 @@ import neuroNoise from './fx/neuroNoise/_def_.ts';
 import noise from './fx/noise/_def_.ts';
 import normalizeVector from './fx/normalizeVector/_def_.ts';
 import oklchAdjust from './fx/oklchAdjust/_def_.ts';
+import opticalFlow from './fx/opticalFlow/_def_.ts';
 import pageCurl from './fx/pageCurl/_def_.ts';
 import paletteMatch from './fx/paletteMatch/_def_.ts';
 import phaseScramble from './fx/phaseScramble/_def_.ts';
@@ -102,15 +111,19 @@ import pixelSort from './fx/pixelSort/_def_.ts';
 import pixelate from './fx/pixelate/_def_.ts';
 import pixelateTransition from './fx/pixelateTransition/_def_.ts';
 import pointNetwork3d from './fx/pointNetwork3d/_def_.ts';
+import pointerTrail from './fx/pointerTrail/_def_.ts';
 import polkadot from './fx/polkadot/_def_.ts';
 import position from './fx/position/_def_.ts';
+import positionTrail from './fx/positionTrail/_def_.ts';
 import pushTransition from './fx/pushTransition/_def_.ts';
+import qrCode from './fx/qrCode/_def_.ts';
 import quadtreeFilter from './fx/quadtreeFilter/_def_.ts';
 import radialSplit from './fx/radialSplit/_def_.ts';
 import radialWipe from './fx/radialWipe/_def_.ts';
 import rainDropsOnWindow1 from './fx/rainDropsOnWindow1/_def_.ts';
 import rainDropsOnWindow2 from './fx/rainDropsOnWindow2/_def_.ts';
 import rasterDesync from './fx/rasterDesync/_def_.ts';
+import regionTimeShift from './fx/regionTimeShift/_def_.ts';
 import remap from './fx/remap/_def_.ts';
 import rgbOffset from './fx/rgbOffset/_def_.ts';
 import rgbTo from './fx/rgbTo/_def_.ts';
@@ -126,16 +139,22 @@ import shapeSdf from './fx/shapeSdf/_def_.ts';
 import shatterTransition from './fx/shatterTransition/_def_.ts';
 import sineWaveWarp from './fx/sineWaveWarp/_def_.ts';
 import slideTransition from './fx/slideTransition/_def_.ts';
+import slidingBlocks from './fx/slidingBlocks/_def_.ts';
 import softClamp from './fx/softClamp/_def_.ts';
 import splitLayout from './fx/splitLayout/_def_.ts';
 import splitTransition from './fx/splitTransition/_def_.ts';
 import streamlines from './fx/streamlines/_def_.ts';
 import stripe from './fx/stripe/_def_.ts';
+import symbols from './fx/symbols/_def_.ts';
 import tearings from './fx/tearings/_def_.ts';
+import temporalPixelSort from './fx/temporalPixelSort/_def_.ts';
 import test from './fx/test/_def_.ts';
 import testStructArray from './fx/testStructArray/_def_.ts';
+import text from './fx/text/_def_.ts';
+import textPattern from './fx/textPattern/_def_.ts';
 import thinFilmInterference from './fx/thinFilmInterference/_def_.ts';
 import threshold from './fx/threshold/_def_.ts';
+import timePatchwork from './fx/timePatchwork/_def_.ts';
 import toneCompression from './fx/toneCompression/_def_.ts';
 import transform from './fx/transform/_def_.ts';
 import vectorChromaticAberration from './fx/vectorChromaticAberration/_def_.ts';
@@ -148,6 +167,7 @@ import vectorSelector from './fx/vectorSelector/_def_.ts';
 import vectorSmear from './fx/vectorSmear/_def_.ts';
 import vhsPlayback from './fx/vhsPlayback/_def_.ts';
 import video from './fx/video/_def_.ts';
+import videoFrame from './fx/videoFrame/_def_.ts';
 import vignette from './fx/vignette/_def_.ts';
 import water from './fx/water/_def_.ts';
 import waveform from './fx/waveform/_def_.ts';
@@ -158,6 +178,10 @@ import zoomTransition from './fx/zoomTransition/_def_.ts';
 export const nativeEffectDefinitions = {
 	adaptiveBlockGlitch,
 	angularBlur,
+	applyLut,
+	audioSpectrogram,
+	audioSpectrum,
+	audioWaveform,
 	bakersMap,
 	birefringence,
 	bitPlaneCorruption,
@@ -192,6 +216,7 @@ export const nativeEffectDefinitions = {
 	cornerPeel,
 	dataBlend,
 	dataMix,
+	datamosh,
 	decoderCorruption,
 	decomposeColor,
 	decomposeColorHsl,
@@ -208,7 +233,9 @@ export const nativeEffectDefinitions = {
 	filmColor,
 	filmPhotography,
 	flowColor,
+	flowTrail,
 	fractalFlame,
+	frameDifference,
 	frequencyTransplant,
 	geometricOptics2d,
 	glass,
@@ -240,6 +267,7 @@ export const nativeEffectDefinitions = {
 	liquidMetal,
 	luminanceGradient,
 	magneticPendulum,
+	mandelbrot,
 	mangaPrint,
 	mapTransition,
 	maskToSdf,
@@ -252,6 +280,7 @@ export const nativeEffectDefinitions = {
 	noise,
 	normalizeVector,
 	oklchAdjust,
+	opticalFlow,
 	pageCurl,
 	paletteMatch,
 	phaseScramble,
@@ -260,15 +289,19 @@ export const nativeEffectDefinitions = {
 	pixelate,
 	pixelateTransition,
 	pointNetwork3d,
+	pointerTrail,
 	polkadot,
 	position,
+	positionTrail,
 	pushTransition,
+	qrCode,
 	quadtreeFilter,
 	radialSplit,
 	radialWipe,
 	rainDropsOnWindow1,
 	rainDropsOnWindow2,
 	rasterDesync,
+	regionTimeShift,
 	remap,
 	rgbOffset,
 	rgbTo,
@@ -284,16 +317,22 @@ export const nativeEffectDefinitions = {
 	shatterTransition,
 	sineWaveWarp,
 	slideTransition,
+	slidingBlocks,
 	softClamp,
 	splitLayout,
 	splitTransition,
 	streamlines,
 	stripe,
+	symbols,
 	tearings,
+	temporalPixelSort,
 	test,
 	testStructArray,
+	text,
+	textPattern,
 	thinFilmInterference,
 	threshold,
+	timePatchwork,
 	toneCompression,
 	transform,
 	vectorChromaticAberration,
@@ -306,6 +345,7 @@ export const nativeEffectDefinitions = {
 	vectorSmear,
 	vhsPlayback,
 	video,
+	videoFrame,
 	vignette,
 	water,
 	waveform,

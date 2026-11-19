@@ -51,12 +51,13 @@ export async function withGpu(run, measure = false, requiredFeatures = []) {
 			create: (effectSource, ports, inputs = {}, options = {}) => createEffectInstance({
 				effectSource, definitions, resolution: { width: 4, height: 4 }, usedOutputPorts: new Set(ports), inputs, ...options,
 			}, gpu, id => nativeEffectImplementations[id]),
-			render(instance, timeDelta = 0) {
+			render(instance, frameOrDelta = 0) {
+				const frame = typeof frameOrDelta === 'number' ? { time: 0, timeDelta: frameOrDelta } : frameOrDelta;
 				const encoder = device.createCommandEncoder();
 				const begin = encoder.beginRenderPass.bind(encoder);
 				let passCount = 0;
 				encoder.beginRenderPass = descriptor => { passCount++; return begin(descriptor); };
-				instance.render({ commandEncoder: encoder, time: 0, timeDelta });
+				instance.render(frame, encoder);
 				device.queue.submit([encoder.finish()]);
 				return passCount;
 			},

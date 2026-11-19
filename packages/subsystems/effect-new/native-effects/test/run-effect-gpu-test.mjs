@@ -9,9 +9,9 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 
-export async function runEffectGpuTest(entry, functionName) {
+export async function runEffectGpuTest(entry, functionName, timeout = 45000) {
 	const bundle = await build({ entryPoints: [fileURLToPath(entry)],
-		plugins: [wgslShaderEsbuildPlugin()], platform: 'browser', format: 'esm', bundle: true, write: false, loader: { '.wgsl': 'text' } });
+		plugins: [wgslShaderEsbuildPlugin()], platform: 'browser', format: 'esm', bundle: true, write: false, loader: { '.wgsl': 'text', '.png': 'dataurl' } });
 	const result = Promise.withResolvers();
 	const server = createServer(async (req, res) => {
 		if (req.url === '/result') {
@@ -40,7 +40,7 @@ catch (error) { await fetch('/result', {method: 'POST', body: JSON.stringify({er
 		browser = spawn(process.env.CHROME_PATH, ['--headless=new', '--no-first-run', '--no-default-browser-check', '--enable-unsafe-webgpu',
 			'--user-data-dir=' + profile, 'http://127.0.0.1:' + server.address().port], { windowsHide: true, stdio: 'ignore' });
 		browser.once('error', result.reject);
-		timer = setTimeout(() => result.reject(new Error('WebGPU test timed out')), 45000);
+		timer = setTimeout(() => result.reject(new Error('WebGPU test timed out')), timeout);
 		const output = await result.promise;
 		assert.equal(output.error, undefined, output.error);
 		return output.value;

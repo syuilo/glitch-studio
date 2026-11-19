@@ -18,7 +18,9 @@ const instance = await createEffectInstance({
 const color = instance.outputs.get('color');
 const mask = instance.outputs.get('mask');
 // 各フレームで実行。後続の描画も同じencoderに記録できる。
-instance.render({ commandEncoder, time, timeDelta });
+const frame = { time, timeDelta };
+await instance.prepare(frame);
+instance.render(frame, commandEncoder);
 // colorとmaskから結果を借用し、encoderのsubmitは呼び出し側が行う。
 ```
 

@@ -23,7 +23,9 @@ export async function renderCatalog() {
 						const instance = await create({ type: 'nativeEffect', id }, usedPorts, inputs);
 						try {
 							const initialPipelines = pipelines();
-							const passes = render(instance);
+							const frame = { time: 0, timeDelta: 0 };
+							await instance.prepare(frame);
+							const passes = render(instance, frame);
 							check(id === 'testStructArray' || passes > 0, 'no render pass');
 							await device.queue.onSubmittedWorkDone();
 							check(pipelines() === initialPipelines, 'pipeline created during render');
