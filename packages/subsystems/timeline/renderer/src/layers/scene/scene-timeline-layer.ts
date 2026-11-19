@@ -28,9 +28,10 @@ export function createSceneTimelineLayer(
 	// 定義が同じでも履歴・出力の所有者は配置ごとに分ける。親背景は子に渡さない。
 	const camera = new TimelineSceneCamera();
 	let layerActivity: TimelineLayerActivityMap | undefined;
+	const sceneOutput = createSceneOutput({ ...options, resolution: options.sceneResolution });
 	const renderer = new TimelineRenderer<TimelineImage, TimelineLayer>({
 		getLayerActivity: () => layerActivity,
-		fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] },
+		fallbackOutput: sceneOutput.transparentImage,
 		createLayer: options.createLayer,
 		getLayerVersion: options.getLayerVersion,
 	});
@@ -41,7 +42,6 @@ export function createSceneTimelineLayer(
 		onCompositing: options.onCompositing,
 	});
 	const parameters = new TimelineCompositingParameters();
-	const sceneOutput = createSceneOutput({ ...options, resolution: options.sceneResolution });
 	return {
 		evaluate: async (context, signal) => {
 			const scene = typeof sceneSource === 'function' ? sceneSource() : sceneSource;

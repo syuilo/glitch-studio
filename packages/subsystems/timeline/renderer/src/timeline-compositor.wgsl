@@ -43,8 +43,7 @@ fn readTransformedSource(position: vec2f) -> vec4f {
 fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	let outputPosition = uniforms.outputBounds.xy + position * uniforms.outputBounds.zw;
 	let backgroundPosition = mapBounds(outputPosition, uniforms.backgroundBounds);
-	// 定数出力にも有限の範囲がある。グループの合成範囲を広げたときに、
-	// 下層の一様色が新しくできた余白まで無限に塗り広がらないようにする。
+	// Groupの合成範囲が背景より広い場合、元の画像範囲を越える余白は透明になる。
 	var background = vec4f(0.0);
 	if (all(abs(backgroundPosition) <= vec2f(1.0))) { background = read_background(backgroundPosition); }
 	var coverage = 1.0;

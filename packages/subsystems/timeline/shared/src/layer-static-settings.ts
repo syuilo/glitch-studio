@@ -1,5 +1,5 @@
 import type { StaticSettingDefinitions, StaticSettingValues } from '@gs/shared/static-setting.ts';
-import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import type { EffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
 import { textStaticSettingDefs } from './layers/text/text.ts';
 import { voicevoxSubtitleStaticSettingDefs } from './layers/voicevox/voicevox-subtitle.ts';
 import type { TimelineLayer } from './types.ts';

@@ -1,6 +1,6 @@
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { toShaderInput } from '@gs/shared/gpu/shader-input.ts';
-import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
+import type { TimelineImage } from './timeline-image.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 
 /** Scene全体のpremultiplied RGBAを同じ重みで平均する。通常の画像保存精度とは独立。 */
@@ -51,10 +51,10 @@ export function createMotionBlurAccumulator(options: {
 }`,
 	});
 	return {
-		add(encoder: GPUCommandEncoder, output: UniformOrTexture, index: number): UniformOrTexture {
+		add(encoder: GPUCommandEncoder, output: TimelineImage, index: number): TimelineImage {
 			const target = index % 2;
 			device.queue.writeBuffer(uniforms, 0, new Float32Array([1 / (index + 1)]));
-			// 定数出力も直接読み、Sceneの画面全体へ展開する。入力のRGBは再乗算しない。
+			// Scene画像を直接読む。入力のRGBは再乗算しない。
 			const variant = pipeline.update({ sample: toShaderInput(output, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' }) }, resolution);
 			const pass = encoder.beginRenderPass({
 				colorAttachments: [{

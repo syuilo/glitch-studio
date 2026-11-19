@@ -5,7 +5,7 @@ import blendCode from '@gs/shared/color-blend.wgsl?raw';
 import { TIMELINE_FRAME, TIMELINE_IDENTITY, intersectTimelineBounds, invertTimelineAffine, multiplyTimelineAffine, projectTimelineMatrix, timelineGeometryMatrix, transformTimelineBounds, unionTimelineBounds } from '@gs/subsystems_timeline_shared/spatial.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import code, { uniforms as codeUniforms } from './timeline-compositor.wgsl?shader';
-import { timelineImageBounds, timelineImageFrame, timelineTextureSize } from './timeline-image.ts';
+import { acquireTransparentTimelineImage, timelineImageBounds, timelineImageFrame, timelineTextureSize } from './timeline-image.ts';
 import type { TimelineCompositingSettings } from './timeline-compositing-parameters.ts';
 import type { TimelineAffine, TimelineBounds, TimelineRenderSpace } from '@gs/subsystems_timeline_shared/spatial.ts';
 import type { TimelineImage } from './timeline-image.ts';
@@ -18,7 +18,7 @@ const rows = (matrix: TimelineAffine) => ({ x: [matrix[0], matrix[2], matrix[4],
 export function getTimelinePlacement(source: TimelineImage, resolution: { width: number; height: number }, settings: TimelineCompositingSettings, space?: TimelineRenderSpace) {
 	const transformsRegion = settings.transformTarget === 'region';
 	const local = timelineGeometryMatrix({
-		sourceSize: transformsRegion ? resolution : timelineImageFrame(source, resolution),
+		sourceSize: transformsRegion ? resolution : timelineImageFrame(source),
 		sceneSize: resolution,
 		transform: transformsRegion ? { ...settings, fitMode: 'stretch' } : settings,
 	});
@@ -46,8 +46,10 @@ export function createTimelineCompositor(options: {
 		sampling: 'level0',
 	});
 	let texture: GPUTexture | null = null;
+	let transparent: ReturnType<typeof acquireTransparentTimelineImage> | null = null;
 	let renderedCompositor: ReturnType<typeof createTimelineCompositor> | null = null;
 	return {
+		get transparentImage(): TimelineImage { return (transparent ??= acquireTransparentTimelineImage(device, resolution)).image; },
 		/** 素材のGPU処理は呼び出し側がsubmitし、合成は依存評価が確定してから実行する。 */
 		evaluate(context: TimelineLayerContext<TimelineImage>, source: TimelineImage,
 			settings: TimelineCompositingSettings, projected = false): TimelineLayerEvaluation<TimelineImage> {
@@ -67,7 +69,7 @@ export function createTimelineCompositor(options: {
 					options.onCompositing?.(source, settings, context.renderSpace);
 					// 通常合成と別の出力を保持し、一方を参照中にもう一方で上書きしない。
 					renderedCompositor ??= createTimelineCompositor({ ...options, onCompositing: null });
-					return submit(renderedCompositor, { kind: 'uniform', value: [0, 0, 0, 0] }, { ...settings, blendMode: 0, mask: null }, signal);
+					return submit(renderedCompositor, this.transparentImage, { ...settings, blendMode: 0, mask: null }, signal);
 				},
 				composite: (background, signal) => submit(this, background, settings, signal),
 			};
@@ -117,7 +119,8 @@ export function createTimelineCompositor(options: {
 			}
 			const inverseRows = rows(inverse ?? TIMELINE_IDENTITY);
 			const clipRows = rows(clipInverse ?? TIMELINE_IDENTITY);
-			const maskImage: TimelineImage = layerMaskImage ?? { kind: 'uniform', value: [0, 0, 0, 0] };
+			// マスク無効時はシェーダーが読まない束縛に背景を流用し、代替画像の確保を省く。
+			const maskImage = layerMaskImage ?? (settings.layerMask == null ? background : this.transparentImage);
 			uniforms.set({
 				inverseX: inverseRows.x,
 				inverseY: inverseRows.y,
@@ -161,6 +164,6 @@ export function createTimelineCompositor(options: {
 			pass.end();
 			return { kind: 'texture', texture, region: { bounds: outputBounds, frameSize: resolution } };
 		},
-		dispose() { renderedCompositor?.dispose(); texture?.destroy(); buffer.destroy(); pipelines.dispose(); },
+		dispose() { transparent?.release(); renderedCompositor?.dispose(); texture?.destroy(); buffer.destroy(); pipelines.dispose(); },
 	};
 }

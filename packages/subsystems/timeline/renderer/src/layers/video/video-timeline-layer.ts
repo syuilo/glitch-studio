@@ -62,7 +62,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, fileSource: 
 							// 一度だけ適用する。後続Custom Node Graph Effectの自動解像度は、この計算用寸法を継承する。
 							const uploadStartedAt = timing != null && sample != null ? performance.now() : 0;
 							const foreground: TimelineImage = sample != null ? { kind: 'texture', texture: texture.upload(sample, options.resolutionScale) }
-								: { kind: 'uniform', value: [0, 0, 0, 0] };
+								: compositor.transparentImage;
 							if (timing != null && sample != null) timing.uploadCpuMs = performance.now() - uploadStartedAt;
 							cachedFrame = { contentTimeMs: context.contentTimeMs, sampleTimestampSeconds, foreground };
 						} else {
