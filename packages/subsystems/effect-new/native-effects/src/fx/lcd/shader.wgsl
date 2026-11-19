@@ -1,0 +1,40 @@
+struct Uniforms {
+	cellSize: vec2f,
+	border: f32,
+};
+
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
+
+struct FragmentIn {
+	@location(0) position: vec2f,
+};
+
+@fragment
+fn fs(fragData: FragmentIn) -> @location(0) vec4f {
+	// セルの寸法も入力参照と同じ[-1, 1]単位。中央原点のまま格子を求める。
+	// 中央に1セルを配置し、Density=1の正方形出力でセル全体が画面に収まるようにする。
+	let gridPosition = fragData.position / uniforms.cellSize + vec2f(0.5);
+	let cellIndex = floor(gridPosition);
+	let localPosition = gridPosition - cellIndex;
+	let cellCenter = cellIndex * uniforms.cellSize;
+	let sourceColor = read_input(cellCenter);
+
+	var rgb: vec3f;
+	if (localPosition.x < 1.0 / 3.0) {
+		rgb = vec3f(sourceColor.r, 0.0, 0.0);
+	} else if (localPosition.x < 2.0 / 3.0) {
+		rgb = vec3f(0.0, sourceColor.g, 0.0);
+	} else {
+		rgb = vec3f(0.0, 0.0, sourceColor.b);
+	}
+
+	// 横幅がセルの1/3であるサブピクセルに合わせ、縦横の枠を同じ太さにする。
+	let subpixelPosition = fract(vec2f(localPosition.x * 3.0, localPosition.y));
+	let distanceToEdge = min(subpixelPosition, 1.0 - subpixelPosition);
+	if (distanceToEdge.x < uniforms.border * 0.5 || distanceToEdge.y < uniforms.border / 6.0) {
+		rgb = vec3f(0.0);
+	}
+
+	// 入力は既にpremultiplied alphaなので、RGBへ再度alphaを乗算しない。
+	return vec4f(rgb, sourceColor.a);
+}

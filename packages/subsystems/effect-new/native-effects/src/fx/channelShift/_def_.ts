@@ -1,0 +1,44 @@
+import { defineNativeEffect } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+
+export default defineNativeEffect({
+	displayName: 'Channel Shift',
+	summary: {
+		'ja-JP': '入力画像のRGBチャンネルをずらし、色ずれを作ります。',
+		'en-US': 'Shifts the RGB channels of the input image to create color separation.',
+	},
+	kind: 'modify',
+	dependsOnRenderHistory: false,
+	tags: ['color', 'distortion', 'glitch'],
+	paramDefs: {
+		input: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Input', control: {} },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+		},
+		amount: {
+			dataType: { kind: 'vector' },
+			ui: {
+				label: 'Amount',
+				control: {
+					controlType: 'vector',
+					min: -1,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0.02, 0] },
+		},
+		leftSignal: { dataType: { kind: 'color' }, ui: { label: 'L Signal', control: { controlType: 'signal' } }, defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] } },
+		rightSignal: { dataType: { kind: 'color' }, ui: { label: 'R Signal', control: { controlType: 'signal' } }, defaultValue: { inputSource: 'literal', value: [0, 0, 1, 1] } },
+		channelBlendMode: { dataType: { kind: 'blendMode' }, ui: { label: 'Channel Blend', control: {} }, defaultValue: { inputSource: 'literal', value: 'lighten' } },
+		inputBlendMode: { dataType: { kind: 'blendMode' }, ui: { label: 'Input Blend', control: {} }, defaultValue: { inputSource: 'literal', value: 'lighten' } },
+	},
+	primaryInputParameter: 'input',
+	resolutionInputParameters: ['input'],
+	outputDefs: {
+		output: { dataType: { kind: 'color' } },
+	},
+	primaryOutput: 'output',
+});

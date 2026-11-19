@@ -1,0 +1,32 @@
+import { defineNativeEffect } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+
+export default defineNativeEffect({
+	displayName: 'Compose Vector',
+	summary: {
+		'ja-JP': 'X成分とY成分の入力を組み合わせ、2次元ベクトルを作ります。',
+		'en-US': 'Combines X and Y inputs into a two-dimensional vector.',
+	},
+	kind: 'generate',
+	dependsOnRenderHistory: false,
+	tags: ['math', 'utility'],
+	paramDefs: {
+		x: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'X', control: { controlType: 'number', step: 0.01 } },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		y: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Y', control: { controlType: 'number', step: 0.01 } },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+	},
+	primaryInputParameter: null,
+	resolutionInputParameters: ['x', 'y'],
+	outputDefs: {
+		output: { dataType: { kind: 'vector' } },
+	},
+	primaryOutput: 'output',
+});

@@ -589,7 +589,13 @@ importers:
       '@gs/subsystems_effect-new_shared':
         specifier: workspace:*
         version: link:../shared
+      seedrandom:
+        specifier: 3.0.5
+        version: 3.0.5
     devDependencies:
+      '@types/seedrandom':
+        specifier: 3.0.8
+        version: 3.0.8
       '@types/web':
         specifier: 0.0.359
         version: 0.0.359

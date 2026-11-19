@@ -1,19 +1,25 @@
-import { createShaderInputBindings, generateShaderInputs, type FixedShaderInput, type ShaderInputType } from '@gs/shared/gpu/shader-input.ts';
+import { createShaderInputBindings, generateShaderInputs, type FixedShaderInput, type ShaderInputSchema } from '@gs/shared/gpu/shader-input.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import { toFixedShaderInput, type EffectImageInput } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
 
+export type NativeShaderInput = EffectImageInput | { readonly kind: 'array'; readonly elements: readonly EffectImageInput[] };
+
 /** 配置の生成時に使用する入力だけを束縛する。値とテクスチャの差し替えは各入力のgetterから読む。 */
-export function createNativeEffectInputBindings<Key extends string>({ device, resolution, schema, inputs, group, sampling }: {
+export function createNativeEffectInputBindings<Key extends string>({ device, resolution, schema, inputs, group, sampling, scalarGradients }: {
 	device: GPUDevice;
 	resolution: Resolution;
-	schema: Readonly<Record<Key, ShaderInputType>>;
-	inputs: Readonly<Record<NoInfer<Key>, EffectImageInput>>;
+	schema: Readonly<Record<Key, ShaderInputSchema[string]>>;
+	inputs: Readonly<Record<NoInfer<Key>, NativeShaderInput>>;
 	group: number;
 	sampling?: 'implicit' | 'level0';
+	scalarGradients?: boolean;
 }) {
-	const fixedInputs: Record<string, FixedShaderInput> = Object.create(null);
-	for (const key in schema) fixedInputs[key] = toFixedShaderInput(inputs[key]);
-	const generated = generateShaderInputs(schema, fixedInputs, group, sampling);
+	const fixedInputs: Record<string, FixedShaderInput | readonly FixedShaderInput[]> = Object.create(null);
+	for (const key in schema) {
+		const input = inputs[key];
+		fixedInputs[key] = input.kind === 'array' ? input.elements.map(toFixedShaderInput) : toFixedShaderInput(input);
+	}
+	const generated = generateShaderInputs(schema, fixedInputs, group, sampling, scalarGradients);
 	const bindings = createShaderInputBindings(device, generated);
 	try {
 		return { code: generated.code, layout: bindings.layout, getBindGroup: bindings.bindFixedInputs(fixedInputs, resolution), dispose: bindings.dispose };

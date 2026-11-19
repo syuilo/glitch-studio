@@ -27,8 +27,6 @@ export async function withGpu(run, measure = false) {
 			return texture;
 		};
 		let pipelineCount = 0;
-		const compile = device.createRenderPipelineAsync.bind(device);
-		device.createRenderPipelineAsync = descriptor => { pipelineCount++; return compile(descriptor); };
 		let bindGroupCount = 0;
 		const createBindGroup = device.createBindGroup.bind(device);
 		device.createBindGroup = descriptor => { bindGroupCount++; return createBindGroup(descriptor); };
@@ -44,6 +42,10 @@ export async function withGpu(run, measure = false) {
 	pixels[id.y * textureDimensions(image).x + id.x] = textureLoad(image, id.xy, 0);
 }` }),
 		} });
+		for (const method of ['createRenderPipeline', 'createRenderPipelineAsync', 'createComputePipeline', 'createComputePipelineAsync']) {
+			const compile = device[method].bind(device);
+			device[method] = descriptor => { pipelineCount++; return compile(descriptor); };
+		}
 		await run({
 			gpu, textures, pipelines: () => pipelineCount, bindGroups: () => bindGroupCount,
 			create: (effectSource, ports, inputs = {}, options = {}) => createEffectInstance({

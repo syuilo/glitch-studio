@@ -1,0 +1,59 @@
+import { defineNativeEffect } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+
+export default defineNativeEffect({
+	displayName: 'Block Shuffle',
+	summary: {
+		'ja-JP': '入力画像をブロックごとにランダムにずらします。',
+		'en-US': 'Randomly shifts blocks of the input image.',
+	},
+	kind: 'modify',
+	dependsOnRenderHistory: false,
+	tags: ['glitch'],
+	paramDefs: {
+		input: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Input', control: {} },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+		},
+		amount: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Amount',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.5 },
+		},
+		density: {
+			dataType: { kind: 'vector' },
+			ui: {
+				label: 'Density',
+				control: {
+					controlType: 'dimension',
+					min: 1,
+					max: 1000,
+					logarithmic: true,
+				},
+			},
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [20, 20] },
+		},
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		randomSwap: { dataType: { kind: 'bool' }, ui: { label: 'Random Swap', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		randomRotation: { dataType: { kind: 'bool' }, ui: { label: 'Random Rotation', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		randomFlipX: { dataType: { kind: 'bool' }, ui: { label: 'Random Flip X', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		randomFlipY: { dataType: { kind: 'bool' }, ui: { label: 'Random Flip Y', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: { inputSource: 'literal', value: 0 } },
+	},
+	primaryInputParameter: 'input',
+	resolutionInputParameters: ['input'],
+	outputDefs: {
+		output: { dataType: { kind: 'color' } },
+	},
+	primaryOutput: 'output',
+});
