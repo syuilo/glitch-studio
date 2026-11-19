@@ -36,7 +36,7 @@ export async function renderCatalog() {
 				}
 			}
 		} finally { texture.destroy(); }
-	});
+	}, false, ['float32-filterable']);
 }
 
 export async function scalarGradient() {

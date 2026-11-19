@@ -48,6 +48,8 @@ export interface EffectRenderOperation {
 	readonly cacheKey?: string | number;
 	getRenderWorkloadHint?(): EffectRenderWorkloadHint | null;
 	render(context: EffectRenderContext): void;
+	/** 記録したパスが中断・破棄された場合、再生成できる中間結果を次の描画で計算し直す。 */
+	invalidateRenderCache?(): void;
 	resetRenderHistory?(): void;
 	dispose(): void;
 }

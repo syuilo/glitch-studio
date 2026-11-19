@@ -1,3 +1,4 @@
+import adaptiveBlockGlitch from './fx/adaptiveBlockGlitch/_impl_.ts';
 import angularBlur from './fx/angularBlur/_impl_.ts';
 import bakersMap from './fx/bakersMap/_impl_.ts';
 import birefringence from './fx/birefringence/_impl_.ts';
@@ -6,13 +7,18 @@ import blindsWipe from './fx/blindsWipe/_impl_.ts';
 import blockDissolve from './fx/blockDissolve/_impl_.ts';
 import blockShiftGlitch from './fx/blockShiftGlitch/_impl_.ts';
 import blockShuffle from './fx/blockShuffle/_impl_.ts';
+import bloom from './fx/bloom/_impl_.ts';
 import blur from './fx/blur/_impl_.ts';
 import burnTransition from './fx/burnTransition/_impl_.ts';
+import cardFlip from './fx/cardFlip/_impl_.ts';
+import cellMatch from './fx/cellMatch/_impl_.ts';
 import cellRepeater from './fx/cellRepeater/_impl_.ts';
+import cellSort from './fx/cellSort/_impl_.ts';
 import cellTransform from './fx/cellTransform/_impl_.ts';
 import channelShift from './fx/channelShift/_impl_.ts';
 import checker from './fx/checker/_impl_.ts';
 import chromaticAberration from './fx/chromaticAberration/_impl_.ts';
+import cliffordDeJongAttractor from './fx/cliffordDeJongAttractor/_impl_.ts';
 import colorBlend from './fx/colorBlend/_impl_.ts';
 import colorBlocks from './fx/colorBlocks/_impl_.ts';
 import colorClamp from './fx/colorClamp/_impl_.ts';
@@ -23,14 +29,17 @@ import composeColor from './fx/composeColor/_impl_.ts';
 import composeColorHsl from './fx/composeColorHsl/_impl_.ts';
 import composeVector from './fx/composeVector/_impl_.ts';
 import composeVectorPolar from './fx/composeVectorPolar/_impl_.ts';
+import contentErrorPropagation from './fx/contentErrorPropagation/_impl_.ts';
 import contrast from './fx/contrast/_impl_.ts';
 import cornerPeel from './fx/cornerPeel/_impl_.ts';
 import dataBlend from './fx/dataBlend/_impl_.ts';
 import dataMix from './fx/dataMix/_impl_.ts';
+import decoderCorruption from './fx/decoderCorruption/_impl_.ts';
 import decomposeColor from './fx/decomposeColor/_impl_.ts';
 import decomposeColorHsl from './fx/decomposeColorHsl/_impl_.ts';
 import decomposeVector from './fx/decomposeVector/_impl_.ts';
 import decomposeVectorPolar from './fx/decomposeVectorPolar/_impl_.ts';
+import dilateErode from './fx/dilateErode/_impl_.ts';
 import displacementTransition from './fx/displacementTransition/_impl_.ts';
 import doublePendulumFractal from './fx/doublePendulumFractal/_impl_.ts';
 import drosteRegression from './fx/drosteRegression/_impl_.ts';
@@ -41,39 +50,58 @@ import fill from './fx/fill/_impl_.ts';
 import filmColor from './fx/filmColor/_impl_.ts';
 import filmPhotography from './fx/filmPhotography/_impl_.ts';
 import flowColor from './fx/flowColor/_impl_.ts';
+import fractalFlame from './fx/fractalFlame/_impl_.ts';
+import frequencyTransplant from './fx/frequencyTransplant/_impl_.ts';
+import geometricOptics2d from './fx/geometricOptics2d/_impl_.ts';
 import glass from './fx/glass/_impl_.ts';
 import gradient from './fx/gradient/_impl_.ts';
 import grayscale from './fx/grayscale/_impl_.ts';
 import grid from './fx/grid/_impl_.ts';
 import gyroidGlow from './fx/gyroidGlow/_impl_.ts';
+import heightCaustics from './fx/heightCaustics/_impl_.ts';
 import heightLighting from './fx/heightLighting/_impl_.ts';
 import hexGrid from './fx/hexGrid/_impl_.ts';
 import histogram from './fx/histogram/_impl_.ts';
 import image from './fx/image/_impl_.ts';
+import imageMorph from './fx/imageMorph/_impl_.ts';
 import imageStack from './fx/imageStack/_impl_.ts';
 import imageTrap from './fx/imageTrap/_impl_.ts';
 import invert from './fx/invert/_impl_.ts';
 import irisWipe from './fx/irisWipe/_impl_.ts';
+import jpegCompression from './fx/jpegCompression/_impl_.ts';
+import jpegGlitch from './fx/jpegGlitch/_impl_.ts';
 import kaleidoscope from './fx/kaleidoscope/_impl_.ts';
 import lcd from './fx/lcd/_impl_.ts';
 import lcdViewingAngle from './fx/lcdViewingAngle/_impl_.ts';
+import lcdViewingAngleAdvanced from './fx/lcdViewingAngleAdvanced/_impl_.ts';
 import lensDistortion from './fx/lensDistortion/_impl_.ts';
+import lightTracing2d from './fx/lightTracing2d/_impl_.ts';
 import lineSymmetryMirror from './fx/lineSymmetryMirror/_impl_.ts';
 import linearBlur from './fx/linearBlur/_impl_.ts';
 import linearWipe from './fx/linearWipe/_impl_.ts';
+import liquidMetal from './fx/liquidMetal/_impl_.ts';
+import luminanceGradient from './fx/luminanceGradient/_impl_.ts';
 import magneticPendulum from './fx/magneticPendulum/_impl_.ts';
+import mangaPrint from './fx/mangaPrint/_impl_.ts';
 import mapTransition from './fx/mapTransition/_impl_.ts';
+import maskToSdf from './fx/maskToSdf/_impl_.ts';
 import meshGradient from './fx/meshGradient/_impl_.ts';
 import metaballs from './fx/metaballs/_impl_.ts';
 import multiply from './fx/multiply/_impl_.ts';
+import multiscaleGlitch from './fx/multiscaleGlitch/_impl_.ts';
 import nebula from './fx/nebula/_impl_.ts';
 import neuroNoise from './fx/neuroNoise/_impl_.ts';
 import noise from './fx/noise/_impl_.ts';
 import normalizeVector from './fx/normalizeVector/_impl_.ts';
 import oklchAdjust from './fx/oklchAdjust/_impl_.ts';
 import pageCurl from './fx/pageCurl/_impl_.ts';
+import paletteMatch from './fx/paletteMatch/_impl_.ts';
+import phaseScramble from './fx/phaseScramble/_impl_.ts';
+import phaseTransfer from './fx/phaseTransfer/_impl_.ts';
+import pixelSort from './fx/pixelSort/_impl_.ts';
 import pixelate from './fx/pixelate/_impl_.ts';
 import pixelateTransition from './fx/pixelateTransition/_impl_.ts';
+import pointNetwork3d from './fx/pointNetwork3d/_impl_.ts';
 import polkadot from './fx/polkadot/_impl_.ts';
 import position from './fx/position/_impl_.ts';
 import pushTransition from './fx/pushTransition/_impl_.ts';
@@ -95,11 +123,13 @@ import scanlineReplace from './fx/scanlineReplace/_impl_.ts';
 import sdfBoolean from './fx/sdfBoolean/_impl_.ts';
 import sdfToMask from './fx/sdfToMask/_impl_.ts';
 import shapeSdf from './fx/shapeSdf/_impl_.ts';
+import shatterTransition from './fx/shatterTransition/_impl_.ts';
 import sineWaveWarp from './fx/sineWaveWarp/_impl_.ts';
 import slideTransition from './fx/slideTransition/_impl_.ts';
 import softClamp from './fx/softClamp/_impl_.ts';
 import splitLayout from './fx/splitLayout/_impl_.ts';
 import splitTransition from './fx/splitTransition/_impl_.ts';
+import streamlines from './fx/streamlines/_impl_.ts';
 import stripe from './fx/stripe/_impl_.ts';
 import tearings from './fx/tearings/_impl_.ts';
 import test from './fx/test/_impl_.ts';
@@ -115,15 +145,19 @@ import vectorFieldVisualization from './fx/vectorFieldVisualization/_impl_.ts';
 import vectorLength from './fx/vectorLength/_impl_.ts';
 import vectorMath from './fx/vectorMath/_impl_.ts';
 import vectorSelector from './fx/vectorSelector/_impl_.ts';
+import vectorSmear from './fx/vectorSmear/_impl_.ts';
+import vhsPlayback from './fx/vhsPlayback/_impl_.ts';
 import video from './fx/video/_impl_.ts';
 import vignette from './fx/vignette/_impl_.ts';
 import water from './fx/water/_impl_.ts';
+import waveform from './fx/waveform/_impl_.ts';
 import zoomBlur from './fx/zoomBlur/_impl_.ts';
 import zoomLines from './fx/zoomLines/_impl_.ts';
 import zoomTransition from './fx/zoomTransition/_impl_.ts';
 import type { NativeEffectImplementation } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
 
 export const nativeEffectImplementations = {
+	adaptiveBlockGlitch,
 	angularBlur,
 	bakersMap,
 	birefringence,
@@ -132,13 +166,18 @@ export const nativeEffectImplementations = {
 	blockDissolve,
 	blockShiftGlitch,
 	blockShuffle,
+	bloom,
 	blur,
 	burnTransition,
+	cardFlip,
+	cellMatch,
 	cellRepeater,
+	cellSort,
 	cellTransform,
 	channelShift,
 	checker,
 	chromaticAberration,
+	cliffordDeJongAttractor,
 	colorBlend,
 	colorBlocks,
 	colorClamp,
@@ -149,14 +188,17 @@ export const nativeEffectImplementations = {
 	composeColorHsl,
 	composeVector,
 	composeVectorPolar,
+	contentErrorPropagation,
 	contrast,
 	cornerPeel,
 	dataBlend,
 	dataMix,
+	decoderCorruption,
 	decomposeColor,
 	decomposeColorHsl,
 	decomposeVector,
 	decomposeVectorPolar,
+	dilateErode,
 	displacementTransition,
 	doublePendulumFractal,
 	drosteRegression,
@@ -167,39 +209,58 @@ export const nativeEffectImplementations = {
 	filmColor,
 	filmPhotography,
 	flowColor,
+	fractalFlame,
+	frequencyTransplant,
+	geometricOptics2d,
 	glass,
 	gradient,
 	grayscale,
 	grid,
 	gyroidGlow,
+	heightCaustics,
 	heightLighting,
 	hexGrid,
 	histogram,
 	image,
+	imageMorph,
 	imageStack,
 	imageTrap,
 	invert,
 	irisWipe,
+	jpegCompression,
+	jpegGlitch,
 	kaleidoscope,
 	lcd,
 	lcdViewingAngle,
+	lcdViewingAngleAdvanced,
 	lensDistortion,
+	lightTracing2d,
 	lineSymmetryMirror,
 	linearBlur,
 	linearWipe,
+	liquidMetal,
+	luminanceGradient,
 	magneticPendulum,
+	mangaPrint,
 	mapTransition,
+	maskToSdf,
 	meshGradient,
 	metaballs,
 	multiply,
+	multiscaleGlitch,
 	nebula,
 	neuroNoise,
 	noise,
 	normalizeVector,
 	oklchAdjust,
 	pageCurl,
+	paletteMatch,
+	phaseScramble,
+	phaseTransfer,
+	pixelSort,
 	pixelate,
 	pixelateTransition,
+	pointNetwork3d,
 	polkadot,
 	position,
 	pushTransition,
@@ -221,11 +282,13 @@ export const nativeEffectImplementations = {
 	sdfBoolean,
 	sdfToMask,
 	shapeSdf,
+	shatterTransition,
 	sineWaveWarp,
 	slideTransition,
 	softClamp,
 	splitLayout,
 	splitTransition,
+	streamlines,
 	stripe,
 	tearings,
 	test,
@@ -241,9 +304,12 @@ export const nativeEffectImplementations = {
 	vectorLength,
 	vectorMath,
 	vectorSelector,
+	vectorSmear,
+	vhsPlayback,
 	video,
 	vignette,
 	water,
+	waveform,
 	zoomBlur,
 	zoomLines,
 	zoomTransition,

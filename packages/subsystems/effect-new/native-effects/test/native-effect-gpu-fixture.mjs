@@ -11,10 +11,10 @@ export function near(actual, expected, reason, tolerance = 0.002) {
 	check(Math.abs(actual - expected) <= tolerance, reason + ': ' + actual + ' != ' + expected);
 }
 
-export async function withGpu(run, measure = false) {
+export async function withGpu(run, measure = false, requiredFeatures = []) {
 	const adapter = await navigator.gpu.requestAdapter();
-	const requiredFeatures = measure && adapter.features.has('timestamp-query') ? ['timestamp-query'] : [];
-	const device = await adapter.requestDevice({ requiredFeatures });
+	const features = measure && adapter.features.has('timestamp-query') ? [...requiredFeatures, 'timestamp-query'] : requiredFeatures;
+	const device = await adapter.requestDevice({ requiredFeatures: features });
 	device.pushErrorScope('validation');
 	try {
 		const gpu = { device, defaultVertexShaderModule: device.createShaderModule({ code: vertex }), enable32bitDataTextures: false };

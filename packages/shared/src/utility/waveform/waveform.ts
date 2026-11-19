@@ -8,7 +8,7 @@ import { getImageAnalysisChunkCount } from '../image-analysis-accumulation.ts';
 import shader from './waveform.wgsl?raw';
 import type { ImageValueRange, ImageValueScale } from '../image-value-scale.ts';
 import type { ImageAnalysisMode } from '../image-analysis.ts';
-import type { ShaderInput } from '../../gpu/shader-input.ts';
+import type { FixedShaderInput, ShaderInput } from '../../gpu/shader-input.ts';
 import type { GpuImageSampleTransform } from '../../gpu/image-sample-transform.ts';
 
 // エフェクトのパラメータ定義やCanvasに依存しない共通設定。
@@ -41,6 +41,8 @@ export function createWaveform(options: {
 	format: GPUTextureFormat;
 	/** 色の用途は呼び出し側が所有し、集計器は任意のRGBA変換だけを受け取る。 */
 	sampleTransform?: GpuImageSampleTransform;
+	/** 入力・Fit領域が固定で、全域を等倍または間引いて集計する配置用。 */
+	fixedInput?: { input: FixedShaderInput; fitSize: { width: number; height: number } };
 }) {
 	const { device } = options;
 	const computeLayout = device.createBindGroupLayout({
@@ -84,6 +86,54 @@ export function createWaveform(options: {
 	let outputGroup: GPUBindGroup | null = null;
 	let drawable = false;
 
+	function getPipelines(input: ShaderInput, usePartialSums: boolean, usePositionRange: boolean, useValueWindow: boolean) {
+		let variant = variants.get(input.kind);
+		if (variant == null) {
+			variant = createVariant(input);
+			variants.set(input.kind, variant);
+		}
+		// 直接/分割・位置の切り出し・値の切り出しをそれぞれpipeline定数で特殊化する。
+		// 全体表示の通常経路に、ズーム用の除算や分岐を残さない。
+		const pipelineVariant = Number(usePartialSums) | (Number(usePositionRange) << 1) | (Number(useValueWindow) << 2);
+		let compute = variant.pipelines.get(pipelineVariant) ?? null;
+		if (compute == null) {
+			compute = device.createComputePipeline({
+				layout: device.createPipelineLayout({ bindGroupLayouts: [computeLayout, variant.bindings.layout, ...(options.sampleTransform == null ? [] : [options.sampleTransform.bindGroupLayout])] }),
+				compute: { module: variant.module, entryPoint: 'accumulate', constants: {
+					usePartialSums: Number(usePartialSums), usePositionRange: Number(usePositionRange), useValueWindow: Number(useValueWindow),
+				} },
+			});
+			variant.pipelines.set(pipelineVariant, compute);
+		}
+		if (usePartialSums) {
+			reduceLayout ??= device.createBindGroupLayout({ entries: [
+				{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+				{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+				{ binding: 4, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+			] });
+			reducePipeline ??= device.createComputePipeline({
+				layout: device.createPipelineLayout({ bindGroupLayouts: [reduceLayout] }), compute: { module: variant.module, entryPoint: 'reduceCounts' },
+			});
+		}
+		// 描画は集計結果だけを読むため、最初のmoduleから作ったpipelineを両構成で共有する。
+		let render = renderPipelines.get(usePartialSums) ?? null;
+		if (render == null) {
+			render = device.createRenderPipeline({
+				layout: 'auto', vertex: { module: options.vertexShaderModule },
+				fragment: { module: variant.module, entryPoint: 'fs', constants: { usePartialSums: Number(usePartialSums) }, targets: [{ format: options.format }] },
+				primitive: { topology: 'triangle-list' },
+			});
+			renderPipelines.set(usePartialSums, render);
+		}
+		return { compute, render, bindings: variant.bindings };
+	}
+
+	const fixed = options.fixedInput;
+	const fixedDirect = fixed == null ? null : getPipelines(fixed.input, false, false, false);
+	const fixedPartial = fixed != null && getImageAnalysisChunkCount(Math.max(fixed.fitSize.width, fixed.fitSize.height)) > 1
+		? getPipelines(fixed.input, true, false, false) : null;
+	const fixedGroup = fixed != null && fixedDirect != null ? fixedDirect.bindings.bindFixedInputs({ input: fixed.input }, fixed.fitSize) : null;
+
 	return {
 		// computeとrenderのパスは呼び出し側が作成し、計測や描画先の管理を維持する。
 		prepare(input: ShaderInput, p: WaveformSettings, encoder: GPUCommandEncoder): boolean {
@@ -113,45 +163,12 @@ export function createWaveform(options: {
 				|| partialByteLength > Math.min(device.limits.maxStorageBufferBindingSize, device.limits.maxBufferSize)
 				|| Math.ceil(samples.width / 16) > device.limits.maxComputeWorkgroupsPerDimension
 				|| Math.ceil(samples.height / 16) > device.limits.maxComputeWorkgroupsPerDimension) return false;
-			let variant = variants.get(input.kind);
-			if (variant == null) {
-				variant = createVariant(input);
-				variants.set(input.kind, variant);
-			}
-			// 直接/分割・位置の切り出し・値の切り出しをそれぞれpipeline定数で特殊化する。
-			// 全体表示の通常経路に、ズーム用の除算や分岐を残さない。
-			const pipelineVariant = Number(usePartialSums) | (Number(usePositionRange) << 1) | (Number(useValueWindow) << 2);
-			activePipeline = variant.pipelines.get(pipelineVariant) ?? null;
-			if (activePipeline == null) {
-				activePipeline = device.createComputePipeline({
-					layout: device.createPipelineLayout({ bindGroupLayouts: [computeLayout, variant.bindings.layout, ...(options.sampleTransform == null ? [] : [options.sampleTransform.bindGroupLayout])] }),
-					compute: { module: variant.module, entryPoint: 'accumulate', constants: {
-						usePartialSums: Number(usePartialSums), usePositionRange: Number(usePositionRange), useValueWindow: Number(useValueWindow),
-					} },
-				});
-				variant.pipelines.set(pipelineVariant, activePipeline);
-			}
-			if (usePartialSums) {
-				reduceLayout ??= device.createBindGroupLayout({ entries: [
-					{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
-					{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
-					{ binding: 4, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
-				] });
-				reducePipeline ??= device.createComputePipeline({
-					layout: device.createPipelineLayout({ bindGroupLayouts: [reduceLayout] }), compute: { module: variant.module, entryPoint: 'reduceCounts' },
-				});
-			}
-			inputGroup = variant.bindings.update({ input }, p.fitSize);
-			// 描画は集計結果だけを読むため、最初のmoduleから作ったpipelineを両構成で共有する。
-			renderPipeline = renderPipelines.get(usePartialSums) ?? null;
-			if (renderPipeline == null) {
-				renderPipeline = device.createRenderPipeline({
-					layout: 'auto', vertex: { module: options.vertexShaderModule },
-					fragment: { module: variant.module, entryPoint: 'fs', constants: { usePartialSums: Number(usePartialSums) }, targets: [{ format: options.format }] },
-					primitive: { topology: 'triangle-list' },
-				});
-				renderPipelines.set(usePartialSums, renderPipeline);
-			}
+			const stage = fixedDirect != null && !usePartialSums && !usePositionRange && !useValueWindow ? fixedDirect
+				: fixedPartial != null && usePartialSums && !usePositionRange && !useValueWindow ? fixedPartial
+				: getPipelines(input, usePartialSums, usePositionRange, useValueWindow);
+			activePipeline = stage.compute;
+			renderPipeline = stage.render;
+			inputGroup = fixedGroup == null ? stage.bindings.update({ input }, p.fitSize) : fixedGroup();
 			if (capacity !== byteLength || partialCapacity !== partialByteLength) {
 				counts?.destroy();
 				waveformValues?.destroy();

@@ -127,6 +127,7 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 			historyResets.push(() => {
 				pending.clear(); cache?.reset(); gpuExecution.reset();
 				historyResetPending = usesHistory;
+				operation.invalidateRenderCache?.();
 				operation.resetRenderHistory?.();
 			});
 		}
