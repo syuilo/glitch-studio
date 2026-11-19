@@ -9,16 +9,17 @@ export function validateColorRampParameterInputSource(definition: Pick<Parameter
 }
 
 /** 定義の初期状態には加工式を保存しない。加工は各利用箇所のBindingで設定する。 */
-export function validateParameterDefaultValues(definition: ParameterDefinition): void {
+export function validateParameterDefaultValues(definition: ParameterDefinition, literalOnly = false): void {
 	if (!['scalar', 'bool', 'string', 'color', 'colorRamp', 'vector', 'blendMode', 'fitMode', 'sizeReference', 'wrapMode', 'enum', 'audioSource', 'any', 'array', 'struct'].includes(definition.dataType.kind)) throw new Error('Unsupported parameter data type');
 	inspectStaticParameter(definition, definition.defaultValue, (_definition, binding) => {
 		if (binding.expressionModifier != null) throw new Error('Expression modifier is not allowed on parameter default values');
+		if (literalOnly && binding.inputSource !== 'literal') throw new Error('Effect parameter defaults must be literal');
 	});
 	// 配列全体が空でも、新しい要素・フィールドの初期値には独立した既定値がある。
 	if (definition.dataType.kind === 'array') {
-		validateParameterDefaultValues(getArrayElementDefinition(definition));
+		validateParameterDefaultValues(getArrayElementDefinition(definition), literalOnly);
 	} else if (definition.dataType.kind === 'struct') {
-		for (const field of Object.values(getStructFieldDefinitions(definition))) validateParameterDefaultValues(field);
+		for (const field of Object.values(getStructFieldDefinitions(definition))) validateParameterDefaultValues(field, literalOnly);
 	}
 }
 
