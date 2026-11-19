@@ -55,6 +55,13 @@ export type ShaderInputType = 'scalar' | 'vector' | 'color' | 'any';
 export type ShaderInputSchema = Readonly<Record<string, ShaderInputType | { array: ShaderInputType }>>;
 /** 入力ごとに異なる座標領域でfitする場合の基準寸法。配列入力は共通寸法または要素別の寸法を受け取る。 */
 export type ShaderInputReferenceResolutions = Readonly<Partial<Record<string, Resolution | readonly Resolution[]>>>;
+// 固定入力でも、受け取り側が描画する領域の寸法や画像端の処理はアニメーションできる。
+// 寸法オブジェクトは初期化時に束縛し、各フレームではそのwidth/heightだけを書き換える。
+export type FixedShaderInputSamplingOverrides = {
+	readonly referenceResolutions?: ShaderInputReferenceResolutions;
+	readonly wrapModes?: Readonly<Record<string, () => InputWrapMode>>;
+};
+
 type ShaderInputValue<T extends ShaderInputSchema[string]> = T extends ShaderInputType ? ShaderInput : readonly ShaderInput[];
 export type ShaderInputValues<Schema extends ShaderInputSchema = ShaderInputSchema> = {
 	readonly [Key in keyof Schema]: ShaderInputValue<Schema[Key]>;
@@ -210,12 +217,12 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 	let bindGroup: GPUBindGroup;
 	let resourcesChanged = true;
 
-	function getSampler(input: ShaderInputSampling): GPUSampler {
-		const key = `${input.wrapMode}:${input.filterMode}`;
+	function getSampler(wrapMode: InputWrapMode, filterMode: InputFilterMode): GPUSampler {
+		const addressMode = wrapMode === 'repeatMirrored' ? 'mirror-repeat' : wrapMode === 'repeat' ? 'repeat' : 'clamp-to-edge';
+		const key = `${addressMode}:${filterMode}`;
 		let sampler = samplers.get(key);
 		if (sampler == null) {
-			const addressMode = input.wrapMode === 'repeatMirrored' ? 'mirror-repeat' : input.wrapMode === 'repeat' ? 'repeat' : 'clamp-to-edge';
-			sampler = device.createSampler({ minFilter: input.filterMode, magFilter: input.filterMode, addressModeU: addressMode, addressModeV: addressMode });
+			sampler = device.createSampler({ minFilter: filterMode, magFilter: filterMode, addressModeU: addressMode, addressModeV: addressMode });
 			samplers.set(key, sampler);
 		}
 		return sampler;
@@ -245,11 +252,16 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 		return bindGroup;
 	}
 
-	function setMapping(slot: Slot, input: ShaderInputSampling, size: Resolution, reference: Resolution): void {
+	function setFitScale(slot: Slot, input: ShaderInputSampling, size: Resolution, reference: Resolution): void {
 		const scale = inputUvScale(size, reference, input.fitMode);
 		const offset = slot.index * 8 + 4;
 		values[offset] = scale[0];
 		values[offset + 1] = scale[1];
+	}
+
+	function setMapping(slot: Slot, input: ShaderInputSampling, size: Resolution, reference: Resolution): void {
+		setFitScale(slot, input, size, reference);
+		const offset = slot.index * 8 + 4;
 		values[offset + 2] = Number(input.filterMode === 'nearest');
 		values[offset + 3] = Number(input.wrapMode === 'transparent');
 	}
@@ -257,9 +269,11 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 	return {
 		layout,
 		/** 入力の構造・寸法・サンプリングが固定の配置用。実テクスチャは初回描画まで要求しない。 */
-		bindFixedInputs(inputs: Readonly<Record<string, FixedShaderInput | readonly FixedShaderInput[]>>, output: Resolution) {
+		bindFixedInputs(inputs: Readonly<Record<string, FixedShaderInput | readonly FixedShaderInput[]>>, output: Resolution, overrides?: FixedShaderInputSamplingOverrides) {
 			const uniforms: { input: UniformValue; offset: number }[] = [];
 			const textures: { input: TextureValue; slot: Slot; sampler: GPUSampler }[] = [];
+			const updateSampling: (() => boolean)[] = [];
+			const dynamicSamplerSlots: { sampler: GPUSampler }[] = [];
 			for (const slot of generated.slots) {
 				const value = inputs[slot.sourceName];
 				const input = 'kind' in value ? value : value[slot.elementIndex!];
@@ -267,16 +281,47 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 					uniforms.push({ input, offset: slot.index * 8 });
 				} else {
 					setMapping(slot, input, input.resolution, output);
-					textures.push({ input, slot, sampler: getSampler(input) });
+					const textureSlot = { input, slot, sampler: getSampler(input.wrapMode, input.filterMode) };
+					textures.push(textureSlot);
+					const references = overrides?.referenceResolutions?.[slot.sourceName];
+					const reference = references == null || 'width' in references ? references : references[slot.elementIndex!];
+					if (reference != null && input.fitMode !== 'stretch') {
+						let width = output.width;
+						let height = output.height;
+						updateSampling.push(() => {
+							if (width === reference.width && height === reference.height) return false;
+							width = reference.width;
+							height = reference.height;
+							setFitScale(slot, input, input.resolution, reference);
+							return true;
+						});
+					}
+					const wrapMode = overrides?.wrapModes?.[slot.sourceName];
+					if (wrapMode != null) {
+						dynamicSamplerSlots.push(textureSlot);
+						const samplerFor = (wrapMode: InputWrapMode) => getSampler(wrapMode, input.filterMode);
+						const samplersByWrap = { repeat: samplerFor('repeat'), repeatMirrored: samplerFor('repeatMirrored'),
+							clamp: samplerFor('clamp'), transparent: samplerFor('transparent') };
+						let previousWrap = input.wrapMode;
+						updateSampling.push(() => {
+							const wrap = wrapMode();
+							if (wrap === previousWrap) return false;
+							previousWrap = wrap;
+							textureSlot.sampler = samplersByWrap[wrap];
+							values[slot.index * 8 + 7] = Number(wrap === 'transparent');
+							return true;
+						});
+					}
 				}
 			}
 			if (uniforms.length === 0) device.queue.writeBuffer(buffer, 0, values);
 			const uniformGroup = textures.length === 0 ? getBindGroup() : null;
 			// 履歴出力は2枚を交互に公開する。入力側でも両方の組合せを保持し、毎フレームのbind group生成を省く。
 			// 外部入力は任意のtextureに差し替えられるため、保持する組合せは2件までにする。
-			const textureGroups: { textures: GPUTexture[]; group: GPUBindGroup }[] = [];
+			const textureGroups: { textures: GPUTexture[]; samplers: GPUSampler[] | null; group: GPUBindGroup }[] = [];
 			const frameTextures: GPUTexture[] = [];
 			const matchesFrame = (texture: GPUTexture, index: number) => texture === frameTextures[index];
+			const matchesSampler = (sampler: GPUSampler, index: number) => sampler === dynamicSamplerSlots[index].sampler;
 			return (): GPUBindGroup => {
 				for (const { input, offset } of uniforms) {
 					const components = input.value;
@@ -286,11 +331,15 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 					values[offset + 2] = components[2] ?? 0;
 					values[offset + 3] = components[3] ?? 1;
 				}
-				if (uniforms.length > 0) device.queue.writeBuffer(buffer, 0, values);
+				let writeUniforms = uniforms.length > 0;
+				for (const update of updateSampling) {
+					if (update()) writeUniforms = true;
+				}
+				if (writeUniforms) device.queue.writeBuffer(buffer, 0, values);
 				if (uniformGroup != null) return uniformGroup;
 				for (let index = 0; index < textures.length; index++) frameTextures[index] = textures[index].input.texture;
 				for (const cached of textureGroups) {
-					if (cached.textures.every(matchesFrame)) return cached.group;
+					if (cached.textures.every(matchesFrame) && (cached.samplers == null || cached.samplers.every(matchesSampler))) return cached.group;
 				}
 				for (let index = 0; index < textures.length; index++) {
 					const { slot, sampler } = textures[index];
@@ -298,7 +347,8 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 				}
 				const group = getBindGroup();
 				if (textureGroups.length === 2) textureGroups.shift();
-				textureGroups.push({ textures: frameTextures.slice(), group });
+				const samplers = dynamicSamplerSlots.length > 0 ? dynamicSamplerSlots.map(slot => slot.sampler) : null;
+				textureGroups.push({ textures: frameTextures.slice(), samplers, group });
 				return group;
 			};
 		},
@@ -316,7 +366,7 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 				const references = inputReferenceResolutions[slot.sourceName];
 				const reference = references == null ? output : 'width' in references ? references : references[slot.elementIndex ?? 0] ?? output;
 				setMapping(slot, input, input.texture, reference);
-				setTexture(slot, resourceIndex, input.texture, getSampler(input));
+				setTexture(slot, resourceIndex, input.texture, getSampler(input.wrapMode, input.filterMode));
 				resourceIndex += 2;
 			}
 			device.queue.writeBuffer(buffer, 0, values);

@@ -8,6 +8,8 @@ import blockShiftGlitch from './fx/blockShiftGlitch/_def_.ts';
 import blockShuffle from './fx/blockShuffle/_def_.ts';
 import blur from './fx/blur/_def_.ts';
 import burnTransition from './fx/burnTransition/_def_.ts';
+import cellRepeater from './fx/cellRepeater/_def_.ts';
+import cellTransform from './fx/cellTransform/_def_.ts';
 import channelShift from './fx/channelShift/_def_.ts';
 import checker from './fx/checker/_def_.ts';
 import chromaticAberration from './fx/chromaticAberration/_def_.ts';
@@ -16,6 +18,7 @@ import colorBlocks from './fx/colorBlocks/_def_.ts';
 import colorClamp from './fx/colorClamp/_def_.ts';
 import colorMix from './fx/colorMix/_def_.ts';
 import colorRamp from './fx/colorRamp/_def_.ts';
+import colorSelector from './fx/colorSelector/_def_.ts';
 import composeColor from './fx/composeColor/_def_.ts';
 import composeColorHsl from './fx/composeColorHsl/_def_.ts';
 import composeVector from './fx/composeVector/_def_.ts';
@@ -47,6 +50,8 @@ import heightLighting from './fx/heightLighting/_def_.ts';
 import hexGrid from './fx/hexGrid/_def_.ts';
 import histogram from './fx/histogram/_def_.ts';
 import image from './fx/image/_def_.ts';
+import imageStack from './fx/imageStack/_def_.ts';
+import imageTrap from './fx/imageTrap/_def_.ts';
 import invert from './fx/invert/_def_.ts';
 import irisWipe from './fx/irisWipe/_def_.ts';
 import kaleidoscope from './fx/kaleidoscope/_def_.ts';
@@ -73,6 +78,7 @@ import polkadot from './fx/polkadot/_def_.ts';
 import position from './fx/position/_def_.ts';
 import pushTransition from './fx/pushTransition/_def_.ts';
 import quadtreeFilter from './fx/quadtreeFilter/_def_.ts';
+import radialSplit from './fx/radialSplit/_def_.ts';
 import radialWipe from './fx/radialWipe/_def_.ts';
 import rainDropsOnWindow1 from './fx/rainDropsOnWindow1/_def_.ts';
 import rainDropsOnWindow2 from './fx/rainDropsOnWindow2/_def_.ts';
@@ -84,6 +90,7 @@ import sampleImage from './fx/sampleImage/_def_.ts';
 import scalarGradient from './fx/scalarGradient/_def_.ts';
 import scalarMath from './fx/scalarMath/_def_.ts';
 import scalarRangeLimit from './fx/scalarRangeLimit/_def_.ts';
+import scalarSelector from './fx/scalarSelector/_def_.ts';
 import scanlineReplace from './fx/scanlineReplace/_def_.ts';
 import sdfBoolean from './fx/sdfBoolean/_def_.ts';
 import sdfToMask from './fx/sdfToMask/_def_.ts';
@@ -91,6 +98,8 @@ import shapeSdf from './fx/shapeSdf/_def_.ts';
 import sineWaveWarp from './fx/sineWaveWarp/_def_.ts';
 import slideTransition from './fx/slideTransition/_def_.ts';
 import softClamp from './fx/softClamp/_def_.ts';
+import splitLayout from './fx/splitLayout/_def_.ts';
+import splitTransition from './fx/splitTransition/_def_.ts';
 import stripe from './fx/stripe/_def_.ts';
 import tearings from './fx/tearings/_def_.ts';
 import test from './fx/test/_def_.ts';
@@ -105,6 +114,7 @@ import vectorDotProduct from './fx/vectorDotProduct/_def_.ts';
 import vectorFieldVisualization from './fx/vectorFieldVisualization/_def_.ts';
 import vectorLength from './fx/vectorLength/_def_.ts';
 import vectorMath from './fx/vectorMath/_def_.ts';
+import vectorSelector from './fx/vectorSelector/_def_.ts';
 import video from './fx/video/_def_.ts';
 import vignette from './fx/vignette/_def_.ts';
 import water from './fx/water/_def_.ts';
@@ -123,6 +133,8 @@ export const nativeEffectDefinitions = {
 	blockShuffle,
 	blur,
 	burnTransition,
+	cellRepeater,
+	cellTransform,
 	channelShift,
 	checker,
 	chromaticAberration,
@@ -131,6 +143,7 @@ export const nativeEffectDefinitions = {
 	colorClamp,
 	colorMix,
 	colorRamp,
+	colorSelector,
 	composeColor,
 	composeColorHsl,
 	composeVector,
@@ -162,6 +175,8 @@ export const nativeEffectDefinitions = {
 	hexGrid,
 	histogram,
 	image,
+	imageStack,
+	imageTrap,
 	invert,
 	irisWipe,
 	kaleidoscope,
@@ -188,6 +203,7 @@ export const nativeEffectDefinitions = {
 	position,
 	pushTransition,
 	quadtreeFilter,
+	radialSplit,
 	radialWipe,
 	rainDropsOnWindow1,
 	rainDropsOnWindow2,
@@ -199,6 +215,7 @@ export const nativeEffectDefinitions = {
 	scalarGradient,
 	scalarMath,
 	scalarRangeLimit,
+	scalarSelector,
 	scanlineReplace,
 	sdfBoolean,
 	sdfToMask,
@@ -206,6 +223,8 @@ export const nativeEffectDefinitions = {
 	sineWaveWarp,
 	slideTransition,
 	softClamp,
+	splitLayout,
+	splitTransition,
 	stripe,
 	tearings,
 	test,
@@ -220,6 +239,7 @@ export const nativeEffectDefinitions = {
 	vectorFieldVisualization,
 	vectorLength,
 	vectorMath,
+	vectorSelector,
 	video,
 	vignette,
 	water,

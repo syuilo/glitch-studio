@@ -1,4 +1,4 @@
-import type { ShaderInputSchema } from '@gs/shared/gpu/shader-input.ts';
+import type { ShaderInputSchema, FixedShaderInputSamplingOverrides } from '@gs/shared/gpu/shader-input.ts';
 import type { EffectInitContext, EffectRenderOperation } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
 import { createNativeEffectInputBindings, type NativeShaderInput } from './shader-input.ts';
 
@@ -12,6 +12,7 @@ export async function createFullscreenEffect<Schema extends ShaderInputSchema>(c
 	constants?: Record<string, number>;
 	sampling?: 'implicit' | 'level0';
 	scalarGradients?: boolean;
+	samplingOverrides?: FixedShaderInputSamplingOverrides;
 	internalLayouts?: readonly GPUBindGroupLayout[];
 	bindResources?: (pass: GPURenderPassEncoder) => void;
 	disposeResources?: () => void;
@@ -27,7 +28,7 @@ export async function createFullscreenEffect<Schema extends ShaderInputSchema>(c
 
 	try {
 		const inputs = createNativeEffectInputBindings<Extract<keyof Schema, string>>({ device, resolution, schema: options.schema, inputs: options.inputs,
-			group: layouts.length, sampling: options.sampling, scalarGradients: options.scalarGradients });
+			group: layouts.length, sampling: options.sampling, samplingOverrides: options.samplingOverrides, scalarGradients: options.scalarGradients });
 		bindings = inputs;
 		const targets = (options.outputPorts ?? ['output']).map(id => outputTextures.get(id));
 		const descriptor: GPURenderPassDescriptor = {
@@ -42,12 +43,12 @@ export async function createFullscreenEffect<Schema extends ShaderInputSchema>(c
 		return {
 			cacheKey: 0,
 			render({ commandEncoder }) {
-				const group = inputs.getBindGroup();
 				const pass = commandEncoder.beginRenderPass(descriptor);
 				try {
 					pass.setPipeline(pipeline);
 					options.bindResources?.(pass);
-					pass.setBindGroup(layouts.length, group);
+					// 領域ごとのFitは、エフェクトがこのフレームの寸法を確定してから反映する。
+					pass.setBindGroup(layouts.length, inputs.getBindGroup());
 					pass.draw(3);
 				} finally { pass.end(); }
 			},
