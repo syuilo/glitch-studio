@@ -1,14 +1,14 @@
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { findTimelineLayer, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
-import type { ProjectCustomShaderEffect, ProjectCustomNodeGraphEffect } from './types.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectNode, CustomNodeGraphEffectNodeChange } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { ProjectCustomShaderEffect, ProjectCustomNodeGraphEffect, ProjectEffectRegistrations } from './types.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectNode } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import type { ParameterChangeKind } from '@gs/shared/parameter/parameter-definition.ts';
 import type { TimelineClipLayer, TimelineContainerLayer, TimelineLayer, TimelineLayerChange, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { CustomNodeGraphEffectTarget } from './custom-node-graph-effect-target.ts';
 
-export type RendererProjectState = {
+export type RendererProjectState = ProjectEffectRegistrations & {
 	automationGraphs: AutomationGraph[];
-	customNodeGraphEffects: ProjectCustomNodeGraphEffect[];
 	timelineScenes: TimelineScene[];
 };
 
@@ -23,13 +23,17 @@ export function getRendererLayerState(layer: TimelineLayer): RendererLayerState 
 	return settings;
 }
 
+export type CustomNodeGraphEffectNodeChange =
+	| { type: 'parameter'; kind: ParameterChangeKind }
+	| { type: 'effectSource' | 'bypass' | 'resolution' | 'staticSetting' };
+
+// 定義と利用側の補正を同じ差分列で適用する。インライン編集は定義を所有するノード・Graphまたはレイヤーの置換で伝える。
 export type RendererProjectChange =
-	// 入出力の編集で補正した配置も同時に交換し、新旧の定義・Bindingを混在させない。
-	| { type: 'customShaderEffects'; customShaderEffects: ProjectCustomShaderEffect[]; project: RendererProjectState }
 	| { type: 'automationGraphs'; automationGraphs: AutomationGraph[] }
-	| { type: 'node'; target: CustomNodeGraphEffectTarget; node: CustomNodeGraphEffectNode; changes: CustomNodeGraphEffectNodeChange[] }
-	| { type: 'customNodeGraphEffect'; target: CustomNodeGraphEffectTarget; customNodeGraphEffect: CustomNodeGraphEffect; customParameterValuesOnly?: boolean }
+	| { type: 'node'; customNodeGraphEffectId: string; node: CustomNodeGraphEffectNode; changes: CustomNodeGraphEffectNodeChange[] }
+	| { type: 'customNodeGraphEffect'; customNodeGraphEffectId: string; customNodeGraphEffect: CustomNodeGraphEffect; customParameterValuesOnly?: boolean }
 	| { type: 'customNodeGraphEffectRegistration'; customNodeGraphEffectId: string; customNodeGraphEffect: ProjectCustomNodeGraphEffect | null }
+	| { type: 'customShaderEffectRegistration'; customShaderEffectId: string; customShaderEffect: ProjectCustomShaderEffect | null }
 	| { type: 'layer'; sceneId: string; layerId: string; layer: RendererLayerState | null; changes: TimelineLayerChange[] }
 	// 階層の最終状態を一度だけ送る。同時に編集した設定・ノードの変更種別は別の差分に残す。
 	| { type: 'layerTree'; sceneId: string; layers: TimelineLayer[] }
@@ -37,9 +41,16 @@ export type RendererProjectChange =
 	| { type: 'scene'; sceneId: string; scene: TimelineScene | null };
 
 export function findRendererCustomNodeGraphEffect(state: RendererProjectState, target: CustomNodeGraphEffectTarget): CustomNodeGraphEffect | null {
-	if ('customNodeGraphEffectId' in target) return state.customNodeGraphEffects.find(customNodeGraphEffect => customNodeGraphEffect.id === target.customNodeGraphEffectId) ?? null;
-	const layer = findTimelineLayer(state.timelineScenes.find(scene => scene.id === target.sceneId)?.layers ?? [], target.inlineCustomNodeGraphEffectLayerId);
-	return layer?.layerType === 'inlineCustomNodeGraphEffect' ? layer.customNodeGraphEffect : null;
+	if ('customNodeGraphEffectId' in target) return state.customNodeGraphEffects.find(customNodeGraphEffect => customNodeGraphEffect.id === target.customNodeGraphEffectId)?.definition ?? null;
+	const layer = findTimelineLayer(state.timelineScenes.find(scene => scene.id === target.sceneId)?.layers ?? [], target.layerId);
+	return layer?.layerType === 'effect' && layer.effectSource.type === 'inlineCustomNodeGraphEffect' ? layer.effectSource.customNodeGraphEffect : null;
+}
+
+function updateRegistration<T extends { id: string }>(entries: T[], id: string, entry: T | null): T[] {
+	if (entry == null) return entries.filter(previous => previous.id !== id);
+	if (entry.id !== id) throw new Error('Effect registration ID does not match: ' + id);
+	const index = entries.findIndex(previous => previous.id === id);
+	return index < 0 ? [...entries, entry] : entries.with(index, entry);
 }
 
 /**
@@ -50,6 +61,7 @@ export function findRendererCustomNodeGraphEffect(state: RendererProjectState, t
 export function applyRendererProjectChanges(state: RendererProjectState, changes: readonly RendererProjectChange[]): RendererProjectState {
 	let automationGraphs = state.automationGraphs;
 	let customNodeGraphEffects = state.customNodeGraphEffects;
+	let customShaderEffects = state.customShaderEffects;
 	let timelineScenes = state.timelineScenes;
 	const updateScene = (id: string, update: (scene: TimelineScene) => TimelineScene) => {
 		const index = timelineScenes.findIndex(scene => scene.id === id);
@@ -59,45 +71,28 @@ export function applyRendererProjectChanges(state: RendererProjectState, changes
 	};
 	for (const change of changes) {
 		switch (change.type) {
-			case 'customShaderEffects': {
-				({ automationGraphs, customNodeGraphEffects, timelineScenes } = change.project);
-				break;
-			}
 			case 'automationGraphs': automationGraphs = change.automationGraphs; break;
-			case 'customNodeGraphEffectRegistration': {
-				if (change.customNodeGraphEffect == null) customNodeGraphEffects = customNodeGraphEffects.filter(customNodeGraphEffect => customNodeGraphEffect.id !== change.customNodeGraphEffectId);
-				else {
-					if (change.customNodeGraphEffect.id !== change.customNodeGraphEffectId) throw new Error('Custom Node Graph Effect ID does not match');
-					const index = customNodeGraphEffects.findIndex(customNodeGraphEffect => customNodeGraphEffect.id === change.customNodeGraphEffectId);
-					customNodeGraphEffects = index < 0 ? [...customNodeGraphEffects, change.customNodeGraphEffect] : customNodeGraphEffects.with(index, change.customNodeGraphEffect);
-				}
+			case 'customShaderEffectRegistration':
+				customShaderEffects = updateRegistration(customShaderEffects, change.customShaderEffectId, change.customShaderEffect);
 				break;
-			}
+			case 'customNodeGraphEffectRegistration':
+				customNodeGraphEffects = updateRegistration(customNodeGraphEffects, change.customNodeGraphEffectId, change.customNodeGraphEffect);
+				break;
 			case 'node':
 			case 'customNodeGraphEffect': {
-				const update = (customNodeGraphEffect: CustomNodeGraphEffect): CustomNodeGraphEffect => {
-					if (change.type === 'customNodeGraphEffect') return change.customNodeGraphEffect;
-					const index = customNodeGraphEffect.nodes.findIndex(node => node.id === change.node.id);
-					if (index < 0) throw new Error('Node not found: ' + change.node.id);
-					const previous = customNodeGraphEffect.nodes[index];
-					if (previous.type !== change.node.type || (previous.type === 'effect' && change.node.type === 'effect' && previous.effectId !== change.node.effectId)) {
-						throw new Error('Node type cannot change');
-					}
-					return { ...customNodeGraphEffect, nodes: customNodeGraphEffect.nodes.with(index, change.node) };
-				};
-				const target = change.target;
-				if ('customNodeGraphEffectId' in target) {
-					const index = customNodeGraphEffects.findIndex(customNodeGraphEffect => customNodeGraphEffect.id === target.customNodeGraphEffectId);
-					if (index < 0) throw new Error('Custom Node Graph Effect not found: ' + target.customNodeGraphEffectId);
-					const previous = customNodeGraphEffects[index];
-					customNodeGraphEffects = customNodeGraphEffects.with(index, { ...update(previous), id: previous.id, name: previous.name });
+				const index = customNodeGraphEffects.findIndex(entry => entry.id === change.customNodeGraphEffectId);
+				if (index < 0) throw new Error('Custom Node Graph Effect not found: ' + change.customNodeGraphEffectId);
+				const previous = customNodeGraphEffects[index];
+				let definition: CustomNodeGraphEffect;
+				if (change.type === 'node') {
+					const nodes = previous.definition.nodes;
+					const nodeIndex = nodes.findIndex(node => node.id === change.node.id);
+					if (nodeIndex < 0) throw new Error('Node not found: ' + change.node.id);
+					definition = { ...previous.definition, nodes: nodes.with(nodeIndex, change.node) };
 				} else {
-					updateScene(target.sceneId, scene => {
-						const layer = findTimelineLayer(scene.layers, target.inlineCustomNodeGraphEffectLayerId);
-						if (layer?.layerType !== 'inlineCustomNodeGraphEffect') throw new Error('Inline Custom Node Graph Effect not found');
-						return { ...scene, layers: updateTimelineLayer(scene.layers, layer.id, () => ({ ...layer, customNodeGraphEffect: update(layer.customNodeGraphEffect) })) };
-					});
+					definition = change.customNodeGraphEffect;
 				}
+				customNodeGraphEffects = customNodeGraphEffects.with(index, { ...previous, definition });
 				break;
 			}
 			case 'layer':
@@ -106,7 +101,7 @@ export function applyRendererProjectChanges(state: RendererProjectState, changes
 					if (change.layer == null) return { ...scene, layers: updateTimelineLayer(scene.layers, change.layerId, () => null) };
 					if (change.layer.id !== change.layerId) throw new Error('Layer ID does not match');
 					const layer: TimelineLayer = isTimelineContainerLayer(change.layer)
-						? { ...change.layer, layers: previous && isTimelineContainerLayer(previous) ? previous.layers : [] } : change.layer;
+						? { ...change.layer, layers: previous != null && isTimelineContainerLayer(previous) ? previous.layers : [] } : change.layer;
 					return { ...scene, layers: previous == null ? [...scene.layers, layer] : updateTimelineLayer(scene.layers, change.layerId, () => layer) };
 				});
 				break;
@@ -133,5 +128,5 @@ export function applyRendererProjectChanges(state: RendererProjectState, changes
 			}
 		}
 	}
-	return { automationGraphs, customNodeGraphEffects, timelineScenes };
+	return { automationGraphs, customShaderEffects, customNodeGraphEffects, timelineScenes };
 }

@@ -1,14 +1,30 @@
-import type { CustomNodeGraphEffect } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
-import type { CustomShaderEffectDefinition } from '@gs/subsystems_effect_shared/custom-shader-effect-definition.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import type { CustomShaderEffect } from '@gs/subsystems_effect-new_shared/custom-shader-effect.ts';
 
-// 登録時の識別子・表示名はプロジェクトが所有し、Custom Node Graph Effectの定義には含めない。
-export type ProjectCustomNodeGraphEffect = CustomNodeGraphEffect & {
-	id: string;
-	name: string;
+/** キーは各Custom Node Graph Effect内のノードID。インラインの子も配置先で編集情報を所有する。 */
+export type CustomNodeGraphEffectEditorMetadata = {
+	nodeMetadata?: Record<string, {
+		displayName?: string;
+		position?: { x: number; y: number };
+		inlineCustomNodeGraphEffect?: CustomNodeGraphEffectEditorMetadata;
+	}>;
 };
 
-export type ProjectCustomShaderEffect = CustomShaderEffectDefinition & {
+/** 登録情報はプロジェクトが所有する。配線・実行にはdefinitionだけを渡す。 */
+export type ProjectCustomNodeGraphEffect = CustomNodeGraphEffectEditorMetadata & {
+	id: string;
+	name: string;
+	definition: CustomNodeGraphEffect;
+};
+
+export type ProjectCustomShaderEffect = {
 	id: string;
 	name: string;
 	summary: string;
+	definition: CustomShaderEffect;
+};
+
+export type ProjectEffectRegistrations = {
+	customShaderEffects: ProjectCustomShaderEffect[];
+	customNodeGraphEffects: ProjectCustomNodeGraphEffect[];
 };
