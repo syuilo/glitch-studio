@@ -56,7 +56,7 @@ function fixture(t, fileData = new Blob(['asset'])) {
 		name: 'Custom Node Graph Effect', gsVersion: 'test', customShaderEffects: [], aspectRatio: 2,
 		settings: { ...DEFAULT_PORTABLE_CUSTOM_NODE_GRAPH_EFFECT_SETTINGS }, initialParameters: {},
 		diagnostics: { players: [], resolutionNodes: [] },
-		runtimeRequirements: { effectIds: [], requiresExpressions: false, requiresParameterDefaultExpressions: false, requiresCustomShaderEffects: false },
+		runtimeRequirements: { effectIds: [], requiresExpressions: false, requiresCustomShaderEffects: false },
 		assets: [{ id: 'asset', name: 'Asset', width: 1, height: 1, fileDataType: 'image/png', fileData }],
 		customNodeGraphEffect: { nodes: [], paramDefs: [{ id: 'speed', nameForReference: 'speed', dataType: { kind: 'scalar' }, canNode: false,
 			ui: { label: 'Speed', control: {} }, defaultValue: { inputSource: 'literal', value: 1 } }],

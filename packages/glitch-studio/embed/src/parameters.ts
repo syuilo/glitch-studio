@@ -1,13 +1,9 @@
-import type { ExpressionEngine } from '@gs/shared/expression/expression-engine.ts';
 import { colorBlendModes } from '@gs/shared/color-blend.ts';
 import { validateColorRamp } from '@gs/shared/color-ramp.ts';
 import { SIZE_REFERENCES } from '@gs/shared/size-reference.ts';
 import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
-import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
-import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
-import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
+import type { ParameterDefaultValue, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { CustomNodeGraphEffectParamDef } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -60,15 +56,12 @@ export function validatePortableParameters(definitions: readonly CustomNodeGraph
 	return structuredClone(values);
 }
 
-export function getPortableParameterDefaults(definitions: readonly CustomNodeGraphEffectParamDef[], expressionEvaluator: ExpressionEngine | null): Record<string, unknown> {
-	const evaluator = new ParameterBindingEvaluator(expressionEvaluator);
+export function getPortableParameterDefaults(definitions: readonly CustomNodeGraphEffectParamDef[]): Record<string, unknown> {
 	return Object.fromEntries(definitions.map(definition => [definition.nameForReference,
-		mapParameterTree<ValueParameterBinding>(definition, definition.defaultValue, [], (leaf, binding) => {
+		mapParameterTree<ParameterDefaultValue>(definition, definition.defaultValue, [], (leaf, binding) => {
 			if (leaf.dataType.kind === 'audioSource') return null;
-			// 公開APIは値だけを扱う。既定値の子Bindingは開始時刻で評価し、編集用IDを公開しない。
-			const value = evaluator.evaluate(binding, { variables: { TIME: 0, TIME_MS: 0 }, automationGraphs: [], time: 0, endTime: Infinity }, genEmptyValue(leaf), leaf);
-			validatePortableParameterValue(leaf, value);
-			return value;
+			validatePortableParameterValue(leaf, binding.value);
+			return binding.value;
 		}),
 	]));
 }

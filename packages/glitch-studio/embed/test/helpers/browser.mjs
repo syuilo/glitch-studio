@@ -113,7 +113,7 @@ try {
 		const { element: optimized } = await mount(name);
 		const optimizedColor = await pixel(optimized);
 		check(Math.abs(optimizedColor[0] - 137) <= 2 && optimizedColor[3] === 255, name + ' optimized runtime preserves pixels: ' + optimizedColor);
-		if (name === 'defaults') check(optimized.getParameter('values')[0] === 3, 'nested public defaults retain startup expression evaluation');
+		if (name === 'defaults') check(optimized.getParameter('values')[0] === 3, 'nested public defaults expose their literal values');
 		optimized.remove();
 	}
 	const { element: pointer } = await mount('pointer');

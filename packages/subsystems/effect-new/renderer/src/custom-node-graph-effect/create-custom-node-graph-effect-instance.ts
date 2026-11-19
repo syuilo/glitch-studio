@@ -5,17 +5,16 @@ import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import { resolveEffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
 import { resolveEffectNodeResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
 import { createCustomNodeGraphEffectParameterEvaluator } from '../custom-node-graph-effect-parameters.ts';
-import { createLiteralBindingInput, createLiteralEffectInput } from '../effect-input.ts';
+import { createDefaultEffectInput, createLiteralBindingInput, createLiteralEffectInput } from '../effect-input.ts';
 import { canReadPublicParameterInExpression } from './public-parameter.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { CustomNodeGraphEffect, CustomNodeGraphEffectEffectNode, CustomNodeGraphEffectNode, CustomNodeGraphEffectOutputConnection, CustomNodeGraphEffectParameterBinding } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect/types.ts';
 import type { ResolvedEffect } from '@gs/subsystems_effect-new_shared/effect-source.ts';
-import type { EffectEnvironment, EffectInstance, EffectInstanceOptions, EffectOutput, EffectParameterInput } from '../effect-instance.ts';
+import type { EffectEnvironment, EffectInstance, EffectInstanceOptions, EffectOutput, EffectParameterInput, EffectTextureOutput } from '../effect-instance.ts';
 
-type CreateLeafInstance = (effect: Exclude<ResolvedEffect, { type: 'customNodeGraphEffect' }>, options: EffectInstanceOptions) => Promise<EffectInstance>;
-type InitializeLeaf = () => Promise<EffectInstance>;
+type CreateLeafInstance = (effect: Exclude<ResolvedEffect, { type: 'customNodeGraphEffect' }>, options: EffectInstanceOptions) => Promise<EffectInstance<EffectTextureOutput>>;
 type InputPlan = () => EffectParameterInput;
 type OutputPlan = () => EffectOutput | null;
 type TraceOutput = (id: string) => OutputPlan;
@@ -92,7 +91,7 @@ function largestInputResolution(input: EffectParameterInput, largest: Resolution
 export async function createCustomNodeGraphEffectInstance(customNodeGraphEffect: CustomNodeGraphEffect, options: EffectInstanceOptions,
 	environment: EffectEnvironment, createLeafInstance: CreateLeafInstance,
 	getRootInput: (id: string) => EffectParameterInput = id => options.inputs[id]): Promise<EffectInstance> {
-	const initializers: InitializeLeaf[] = [];
+	const initializers: (() => Promise<EffectInstance>)[] = [];
 	const expressionInputsByScope: Map<string, InputPlan>[] = [];
 
 	function planGraph(graph: CustomNodeGraphEffect, publicInput: (id: string) => InputPlan, contextResolution: () => Resolution): TraceOutput {
@@ -192,7 +191,10 @@ export async function createCustomNodeGraphEffectInstance(customNodeGraphEffect:
 				let plan = inputPlans.get(id);
 				if (plan == null) {
 					const definition = effect.definition.paramDefs[id];
-					plan = once(planParameter(definition, node.params[id] ?? definition.defaultValue, placementVariables));
+					const binding = node.params[id];
+					plan = once(binding == null
+						? () => createDefaultEffectInput(definition, environment.resolveAudioSource)
+						: planParameter(definition, binding, placementVariables));
 					inputPlans.set(id, plan);
 				}
 				return plan;
@@ -207,7 +209,7 @@ export async function createCustomNodeGraphEffectInstance(customNodeGraphEffect:
 			}
 			const inputs = Object.keys(effect.definition.paramDefs).map(id => [id, traceInput(id)] as const);
 			const usedOutputPorts = new Set<string>();
-			let instance: EffectInstance;
+			let instance: EffectInstance<EffectTextureOutput>;
 			// 上流の初期化処理はtraceInputで先に登録済み。後続からの各出力要求は同じSetへ集約する。
 			initializers.push(async () => {
 				instance = await createLeafInstance(effect, { gpu: options.gpu, resolution: getResolution(), usedOutputPorts,

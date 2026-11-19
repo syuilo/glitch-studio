@@ -485,16 +485,15 @@ test('validates modifier shapes and rejects unsupported input kinds without pars
 	assert.notDeepEqual(staticParameterShape(scalarDefinition, first), staticParameterShape(scalarDefinition, { ...first, expressionModifier: { enabled: 1, code: 'VALUE' } }));
 });
 
-// 【既定値にはコンテナ内部や要素追加用の設定にも加工式を持たせない】
-// 既定値をそのまま読む利用箇所でも意味が変わらないように、定義側で加工式を拒否する。
-// 通常の基準式は子のBindingとして引き続き許可し、有効・無効にかかわらず加工設定を拒否する。
-test('rejects modifiers throughout parameter defaults while allowing nested base expressions', () => {
+// 【定義の既定値はコンテナの中も要素追加時もリテラルに限る】
+// 配置・時刻によらず同じ初期値を得るため、基準入力の参照や無効化中の加工式も定義側で拒否する。
+test('requires unmodified literals throughout parameter defaults and element templates', () => {
 	const scalar = { ...scalarDefinition, defaultValue: literal(1) };
 	const array = {
 		dataType: { kind: 'array', elementType: scalar.dataType },
 		ui: { label: 'Values', control: { element: {} } },
 		element: { defaultValue: literal(1) },
-		defaultValue: literal([{ id: 'first', binding: expression('TIME') }]),
+		defaultValue: literal([{ id: 'first', binding: literal(2) }]),
 	};
 	const struct = {
 		dataType: { kind: 'struct', fields: { values: array.dataType } },
@@ -503,6 +502,14 @@ test('rejects modifiers throughout parameter defaults while allowing nested base
 		defaultValue: literal({ values: array.defaultValue }),
 	};
 	assert.doesNotThrow(() => validateParameterDefaultValues(struct));
+	for (const binding of [expression('TIME'), { inputSource: 'envVariable', variable: 'TIME' },
+		{ inputSource: 'keyframesTimelineInline' }, { inputSource: 'automationGraphReference' }, { inputSource: 'node' }]) {
+		for (const definition of [
+			{ ...scalar, defaultValue: binding },
+			{ ...struct, defaultValue: literal({ values: literal([{ id: 'first', binding }]) }) },
+			{ ...array, defaultValue: literal([]), element: { defaultValue: binding } },
+		]) assert.throws(() => validateParameterDefaultValues(definition), /must be literal/);
+	}
 	for (const enabled of [true, false]) {
 		const cases = [
 			{ ...scalar, defaultValue: modified(scalar.defaultValue, 'VALUE', enabled) },

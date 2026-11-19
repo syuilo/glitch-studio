@@ -12,12 +12,13 @@ const { analyzePortableCustomNodeGraphEffectRuntime, fill } = implementation;
 
 // 【基準式・有効な加工式・コンテナの子・カスタム値を漏らさず解析する】
 // 公開値の変更やCUSTOMの動的参照で後から通る処理もあるため、現在値だけで式を削らない。
-// Elementの起動時既定値とWorkerの毎フレーム評価は別々に判定し、二重同梱を避ける。
-test('detects expression capabilities in nested defaults modifiers and custom parameters', () => {
+test('detects expressions in node inputs, modifiers and custom parameters', () => {
 	const { customNodeGraphEffect } = fixture();
-	const analyze = () => analyzePortableCustomNodeGraphEffectRuntime(customNodeGraphEffect, { fill });
+	const nested = { ...parameter('array', [], 'values'), dataType: { kind: 'array', elementType: { kind: 'scalar' } },
+		element: { defaultValue: literal(0) }, ui: { label: 'Values', control: { element: {} } } };
+	const analyze = () => analyzePortableCustomNodeGraphEffectRuntime(customNodeGraphEffect, { fill: { ...fill, paramDefs: { ...fill.paramDefs, values: nested } } });
+	customNodeGraphEffect.nodes[0].params.values = literal([]);
 	assert.equal(analyze().requiresExpressions, true);
-	assert.equal(analyze().requiresParameterDefaultExpressions, false);
 	customNodeGraphEffect.nodes[0].params.color = literal([1, 0, 0, 1]);
 	assert.equal(analyze().requiresExpressions, false);
 	customNodeGraphEffect.nodes[0].params.color.expressionModifier = { enabled: false, code: 'VALUE' };
@@ -26,11 +27,9 @@ test('detects expression capabilities in nested defaults modifiers and custom pa
 	assert.equal(analyze().requiresExpressions, true);
 	customNodeGraphEffect.nodes[0].params.color = { inputSource: 'envVariable', variable: 'POINTER_POSITION' };
 	assert.equal(analyze().requiresExpressions, false);
-	const nested = { ...parameter('array', [], 'values'), dataType: { kind: 'array', elementType: { kind: 'scalar' } },
-		element: { defaultValue: literal(0) }, ui: { label: 'Values', control: { element: {} } } };
-	nested.defaultValue = literal([{ id: 'child', binding: { inputSource: 'expression', expression: '1 + 2' } }]);
-	customNodeGraphEffect.paramDefs.push(nested);
-	assert.equal(analyze().requiresParameterDefaultExpressions, true);
+	customNodeGraphEffect.nodes[0].params.values = literal([{ id: 'child', binding: { inputSource: 'expression', expression: '1 + 2' } }]);
+	assert.equal(analyze().requiresExpressions, true);
+	customNodeGraphEffect.nodes[0].params.values = literal([]);
 	assert.equal(analyze().requiresExpressions, false);
 	const custom = parameter('scalar', 0, 'custom');
 	customNodeGraphEffect.customParameterDefs.push(custom);
@@ -55,7 +54,7 @@ test('bundles only selected runtime capabilities from a self-contained catalog',
 	// 【どのエフェクトにも実行時のWGSL解析器を混入させない】
 	// 一部の関数だけのimportでも解析器の初期化が残るため、全カタログの依存から確認する。
 	assert.ok(Object.keys(catalog.inputs).every(file => !/webgpu-utils|wgsl_reflect/.test(file)));
-	const requirements = { effectIds: ['fill'], requiresExpressions: false, requiresParameterDefaultExpressions: false, requiresCustomShaderEffects: false };
+	const requirements = { effectIds: ['fill'], requiresExpressions: false, requiresCustomShaderEffects: false };
 	const metadata = [];
 	const plain = await buildPortableCustomNodeGraphEffectRuntime(directory, requirements, (_name, result) => metadata.push(result));
 	assert.doesNotMatch(plain.elementSource + plain.workerSource, /AiScript|VideoSampleSink|Expression is empty/);
@@ -66,9 +65,6 @@ test('bundles only selected runtime capabilities from a self-contained catalog',
 	const expressions = await buildPortableCustomNodeGraphEffectRuntime(directory, { ...requirements, requiresExpressions: true });
 	assert.match(expressions.workerSource, /Expression is empty/);
 	assert.equal(expressions.elementSource, plain.elementSource);
-	const defaults = await buildPortableCustomNodeGraphEffectRuntime(directory, { ...requirements, requiresParameterDefaultExpressions: true });
-	assert.match(defaults.elementSource, /Expression is empty/);
-	assert.equal(defaults.workerSource, plain.workerSource);
 	assert.ok(expressions.workerSource.length > plain.workerSource.length + 50000);
 	// 【内蔵画像は必要なエフェクトと一緒に同梱する】
 	// 公開値から選べる全セットを持ちつつ、Symbolsを使わない作品へ画像を混入させない。

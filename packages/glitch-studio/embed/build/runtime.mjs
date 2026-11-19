@@ -6,11 +6,11 @@ import path from 'node:path';
 export function validatePortableCustomNodeGraphEffectRuntimeRequirements(requirements, effectIds) {
 	if (requirements == null || !Array.isArray(requirements.effectIds)
 		|| requirements.effectIds.some(id => typeof id !== 'string' || !effectIds.includes(id))
-		|| ['requiresExpressions', 'requiresParameterDefaultExpressions', 'requiresCustomShaderEffects'].some(key => typeof requirements[key] !== 'boolean')) {
+		|| typeof requirements.requiresExpressions !== 'boolean' || typeof requirements.requiresCustomShaderEffects !== 'boolean') {
 		throw new Error('Invalid portable Custom Node Graph Effect runtime requirements');
 	}
 	return { effectIds: [...new Set(requirements.effectIds)].sort(), requiresExpressions: requirements.requiresExpressions,
-		requiresParameterDefaultExpressions: requirements.requiresParameterDefaultExpressions, requiresCustomShaderEffects: requirements.requiresCustomShaderEffects };
+		requiresCustomShaderEffects: requirements.requiresCustomShaderEffects };
 }
 
 /** 開発用workspaceやViteを参照せず、配布されたES Modulesだけから成果物を作る。 */
@@ -30,15 +30,7 @@ export async function buildPortableCustomNodeGraphEffectRuntime(catalogDirectory
 		if (result.outputFiles.length !== 1) throw new Error('Portable runtime must be a self-contained JavaScript bundle');
 		return result.outputFiles[0].text;
 	};
-	const expressionImport = required => required ? 'import { ExpressionEvaluator } from "./expression.js";' : '';
-	const expressionInstance = required => required ? 'new ExpressionEvaluator()' : 'null';
-	const elementSource = await bundle(`
-		import { registerCustomNodeGraphEffectElement as register } from './element.js';
-		${expressionImport(requirements.requiresParameterDefaultExpressions)}
-		export function registerCustomNodeGraphEffectElement(tagName, artwork, workerSource) {
-			register(tagName, artwork, workerSource, ${expressionInstance(requirements.requiresParameterDefaultExpressions)});
-		}
-	`, 'GlitchStudioCustomNodeGraphEffectEmbed');
+	const elementSource = await bundle("export { registerCustomNodeGraphEffectElement } from './element.js';", 'GlitchStudioCustomNodeGraphEffectEmbed');
 	const imports = requirements.effectIds.map((id, index) => `
 		import definition${index} from ${JSON.stringify(`./effects/${id}/definition.js`)};
 		import implementation${index} from ${JSON.stringify(`./effects/${id}/implementation.js`)};
@@ -47,12 +39,12 @@ export async function buildPortableCustomNodeGraphEffectRuntime(catalogDirectory
 	const workerSource = await bundle(`
 		import { startPortableCustomNodeGraphEffectWorker } from './worker.js';
 		${imports}
-		${expressionImport(requirements.requiresExpressions)}
+		${requirements.requiresExpressions ? 'import { ExpressionEvaluator } from "./expression.js";' : ''}
 		${requirements.requiresCustomShaderEffects ? 'import { createProjectEffects } from "./custom-shader-effects.js";' : ''}
 		const definitions = ${registry('definition')};
 		const implementations = ${registry('implementation')};
 		startPortableCustomNodeGraphEffectWorker({
-			expressionEvaluator: ${expressionInstance(requirements.requiresExpressions)},
+			expressionEvaluator: ${requirements.requiresExpressions ? 'new ExpressionEvaluator()' : 'null'},
 			createEffects: ${requirements.requiresCustomShaderEffects ? 'artwork => createProjectEffects(artwork.customShaderEffects, definitions, implementations)' : '() => ({ definitions, implementations })'},
 		});
 	`, 'GlitchStudioCustomNodeGraphEffectWorker');

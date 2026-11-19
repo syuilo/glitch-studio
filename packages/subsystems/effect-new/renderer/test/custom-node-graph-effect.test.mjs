@@ -4,10 +4,13 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const bundle = await build({
-	entryPoints: [fileURLToPath(new URL('../src/custom-node-graph-effect/create-custom-node-graph-effect-instance.ts', import.meta.url))],
+	stdin: { resolveDir: fileURLToPath(new URL('../src/', import.meta.url)), contents: `
+		export { createEffectInstance } from './create-effect-instance.ts';
+		export { createCustomNodeGraphEffectInstance } from './custom-node-graph-effect/create-custom-node-graph-effect-instance.ts';
+	` },
 	platform: 'node', format: 'esm', bundle: true, write: false,
 });
-const { createCustomNodeGraphEffectInstance } = await import('data:text/javascript;base64,' + Buffer.from(bundle.outputFiles[0].contents).toString('base64'));
+const { createEffectInstance, createCustomNodeGraphEffectInstance } = await import('data:text/javascript;base64,' + Buffer.from(bundle.outputFiles[0].contents).toString('base64'));
 
 const sampling = { fitMode: 'contain', wrapMode: 'clamp', filterMode: 'nearest' };
 const contextResolution = { width: 480, height: 320 };
@@ -38,6 +41,38 @@ function environment(definitions, graphs = []) {
 	return { catalog: { nativeEffects: new Map(definitions.map(definition => [definition.id, definition])),
 		customNodeGraphEffects: new Map(graphs), customShaderEffects: new Map() }, nativeImplementations: new Map() };
 }
+
+// 描画時にuniformから1画素を生成するテスト用のEffect。グラフ出力の読み取りでは再評価しない。
+function drawUniformToTexture(input, resolution, outputPort) {
+	const texture = { pixel: null };
+	const output = { kind: 'texture', resolution, read: () => ({ kind: 'texture', texture }) };
+	return { outputs: { [outputPort]: output }, render(frame) { texture.pixel = input.read(frame).value; }, dispose() {} };
+}
+
+// 【省略した入力は、配置の初期化時にコンテナ全体の既定値から組み立てる】
+// 要素追加用のテンプレートと配列に保存した初期値が異なる場合も、各フレームで同じuniformを再利用する。
+test('materializes nested literal inputs from the root default once per placement', async () => {
+	const literal = value => ({ inputSource: 'literal', value });
+	const tint = color('tint');
+	const entry = { dataType: { kind: 'struct', fields: { tint: tint.dataType } },
+		ui: { label: 'Entry', control: { fields: { tint: tint.ui } } }, fields: { tint: { defaultValue: tint.defaultValue, canNode: true } },
+		defaultValue: literal({ tint: tint.defaultValue }) };
+	const entries = { dataType: { kind: 'array', elementType: entry.dataType }, ui: { label: 'Entries', control: { element: entry.ui.control } },
+		element: { fields: entry.fields, defaultValue: entry.defaultValue }, defaultValue: literal([{ id: 'first', binding: literal({ tint: literal([1, 0, 0, 0.5]) }) }]) };
+	const env = environment([{ ...definition('paint', [], ['out']), paramDefs: { entries } }]);
+	env.nativeImplementations.set('paint', placement => {
+		const input = placement.inputs.entries.elements[0].fields.tint;
+		assert.equal(input.kind, 'uniform');
+		assert.equal(input.read({ time: 0 }), input.read({ time: 1 }));
+		return drawUniformToTexture(input, placement.resolution, 'out');
+	});
+	const instance = await createEffectInstance(native('paint'), options({}, ['out']), env);
+	const frame = { time: 2 };
+	instance.render(frame);
+	assert.equal(instance.outputs.out.kind, 'texture');
+	assert.deepEqual(instance.outputs.out.read(frame).texture.pixel, [0.5, 0, 0, 0.5]);
+	instance.dispose();
+});
 
 // 【入れ子を跨いで使用出力を集約し、描画列を一度だけ決める】
 // 子の未使用の公開入力が親の枝を描画したり、複数出力のために同じ配置の履歴を二度進めたりしない。
@@ -129,16 +164,18 @@ test('binds a changing public CPU parameter to a fixed shader uniform across gra
 		globalOut({ result: connection('shader', 'out') })], [], ['result']), paramDefs: [gain] };
 	const parent = { ...graph([effectNode('nested', { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: child }, { gain: reference }),
 		globalOut({ result: connection('nested', 'result') })], [], ['result']), paramDefs: [gain] };
-	const sampled = [];
 	const instance = await createCustomNodeGraphEffectInstance(parent, options({ gain: { kind: 'value', read: frame => frame.time * 2 } }, ['result']),
 		environment([]), (effect, placement) => {
 			assert.equal(effect.type, 'customShaderEffect');
 			assert.equal(placement.inputs.factor.kind, 'uniform');
 			assert.deepEqual(placement.resolution, contextResolution);
-			return { outputs: { out: placement.inputs.factor }, render(frame) { sampled.push(placement.inputs.factor.read(frame).value[0]); }, dispose() {} };
+			return drawUniformToTexture(placement.inputs.factor, placement.resolution, 'out');
 		});
-	for (const time of [1, 3, 5]) instance.render({ time });
-	assert.deepEqual(sampled, [2, 6, 10]);
+	for (const time of [1, 3, 5]) {
+		const frame = { time };
+		instance.render(frame);
+		assert.deepEqual(instance.outputs.result.read(frame).texture.pixel, [time * 2]);
+	}
 	instance.dispose();
 });
 
@@ -160,12 +197,12 @@ test('reads a CPU container from expressions without tracing a public container 
 	effectEnvironment.expressionEngine = { evaluate: (code, { functions }) => functions.PUBLIC(code)[0] };
 	const instance = await createCustomNodeGraphEffectInstance(parent, options({}, ['result']), effectEnvironment, (effect, placement) => {
 		assert.equal(effect.definition.id, 'read');
-		return { outputs: { out: placement.inputs.factor }, render() {}, dispose() {} };
+		return drawUniformToTexture(placement.inputs.factor, placement.resolution, 'out');
 	});
 	for (const time of [1, 2]) {
 		const frame = { time, endTime: 10, isExport: false };
 		instance.render(frame);
-		assert.deepEqual(instance.outputs.result.read(frame).value, [time]);
+		assert.deepEqual(instance.outputs.result.read(frame).texture.pixel, [time]);
 	}
 	instance.dispose();
 });
@@ -187,13 +224,13 @@ test('resolves automatic dimensions before evaluating an input expression', asyn
 	const image = { kind: 'texture', resolution: { width: 32, height: 48 }, sampling, read: () => { throw new Error('Unexpected texture read'); } };
 	const instance = await createCustomNodeGraphEffectInstance(effectGraph, options({ image }, ['result']), env, (_effect, placement) => {
 		assert.deepEqual(placement.resolution, image.resolution);
-		return { outputs: { value: placement.inputs.tint }, render() {}, dispose() {} };
+		return drawUniformToTexture(placement.inputs.tint, placement.resolution, 'value');
 	});
 	assert.equal(evaluations, 0);
 	for (const time of [1, 2]) {
 		const frame = { time, endTime: 10, isExport: false };
 		instance.render(frame);
-		assert.deepEqual(instance.outputs.result.read(frame).value, [32, 48, time, 1]);
+		assert.deepEqual(instance.outputs.result.read(frame).texture.pixel, [32, 48, time, 1]);
 	}
 	assert.equal(evaluations, 2);
 	instance.dispose();
@@ -206,7 +243,7 @@ test('releases the initialized prefix when a later leaf fails', async () => {
 	const pipeline = graph([globalIn, effectNode('a', native('stage'), { source: wire('in', 'source') }),
 		effectNode('b', native('stage'), { source: wire('a', 'out') }), effectNode('c', native('stage'), { source: wire('b', 'out') }),
 		globalOut({ final: connection('c', 'out') })], ['source'], ['final']);
-	const input = { kind: 'uniform', read: () => ({ kind: 'uniform', value: [0] }), sampling };
+	const input = { kind: 'texture', resolution: contextResolution, read: () => ({ kind: 'texture', texture: {} }), sampling };
 	let created = 0;
 	const disposed = [];
 	await assert.rejects(createCustomNodeGraphEffectInstance(pipeline, options({ source: input }, ['final']), environment([definitionA]), async () => {

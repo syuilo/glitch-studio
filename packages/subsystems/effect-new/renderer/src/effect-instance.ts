@@ -19,10 +19,13 @@ export type EffectFrame = {
 	readonly pointerPosition?: { x: number; y: number };
 };
 
-/** 種類・テクスチャ寸法は配置の寿命中固定。読み出した値とテクスチャは借用する。 */
+/** Native EffectとCustom Shader Effectの出力。寸法は配置の寿命中固定し、テクスチャは借用する。 */
+export type EffectTextureOutput = { readonly kind: 'texture'; readonly resolution: Resolution; readonly read: (frame: EffectFrame) => TextureValue };
+
+/** Custom Node Graph Effectは、公開入力を転送する経路でuniformも返す。 */
 export type EffectOutput =
 	| { readonly kind: 'uniform'; readonly read: (frame: EffectFrame) => UniformValue }
-	| { readonly kind: 'texture'; readonly resolution: Resolution; readonly read: (frame: EffectFrame) => TextureValue };
+	| EffectTextureOutput;
 
 export type EffectImageInput = EffectOutput & { readonly sampling: ShaderInputSampling };
 export type EffectParameterInput = EffectImageInput
@@ -38,14 +41,14 @@ export type EffectInstanceOptions = {
 	readonly staticSettings: StaticSettingValues;
 };
 
-export type EffectInstance = {
+export type EffectInstance<Output extends EffectOutput = EffectOutput> = {
 	/** 使用するポートだけを公開する。配線されていないグラフ出力には値がない。 */
-	readonly outputs: Readonly<Partial<Record<string, EffectOutput>>>;
+	readonly outputs: Readonly<Partial<Record<string, Output>>>;
 	render(frame: EffectFrame): void;
 	dispose(): void;
 };
 
-export type NativeEffectImplementation = (options: EffectInstanceOptions) => EffectInstance | Promise<EffectInstance>;
+export type NativeEffectImplementation = (options: EffectInstanceOptions) => EffectInstance<EffectTextureOutput> | Promise<EffectInstance<EffectTextureOutput>>;
 
 export type EffectEnvironment = {
 	readonly catalog: EffectCatalog;

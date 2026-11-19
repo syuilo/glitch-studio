@@ -4,7 +4,6 @@ import { convertTimelineContainerLayer } from '@gs/subsystems_timeline_shared/co
 import { isTimelineContainerLayer, isTimelineVisualLayer, isTimelineEffectOrCustomNodeGraphEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation, getTimelineClipLayers, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { validateVoicevoxLayer } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
-import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
 import { validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import { canReferenceScene, validateTimelineLayer } from '@gs/subsystems_timeline_shared/scenes.ts';
@@ -16,7 +15,7 @@ import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-re
 import { validateTimelineMask, validateTimelineLayerMask, isTimelineLayerTransformTarget } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { getTimelineLayerMaskSources } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import { getEffectDefinitions } from '../utility/project-effects.ts';
-import { getScene, getLayerParameterTargets, getLayerParameterDefinitions, resolveLayerParameter } from '../utility/timeline-scene.ts';
+import { getScene, getLayerParameterTargets, resolveLayerParameter } from '../utility/timeline-scene.ts';
 import { prepareTimelineContainerMove } from '../utility/timeline-container.ts';
 import { setTimelineLayerParameterRoot } from '../utility/timeline-parameter-edit.ts';
 import { defineTimelineCommand } from './timeline-preparation.ts';
@@ -33,7 +32,6 @@ import type { TimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.t
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { VoicevoxSettings, VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import type { AppStateChange, ProjectState } from '../Project.ts';
-import type { EditableTimelineParameterBinding } from '../types/parameter-edit.ts';
 import type { TimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineContainerLayerType } from '@gs/subsystems_timeline_shared/container-layer.ts';
 import type { TimelineKeyframeSelection, TimelineKeyframePosition } from '@/utility/timeline-selection.ts';
@@ -929,15 +927,12 @@ export const removeTimelineKeyframesCommandDef = defineTimelineCommand<{ sceneId
 				if (layer.layerType !== 'voicevox' || (point.paramPath.length !== 1 || point.paramPath[0] !== 'utterances') || !layer.utterances.some(utterance => utterance.id === point.keyframeId)) throw new Error('Utterance not found');
 				layer.utterances = layer.utterances.filter(utterance => utterance.id !== point.keyframeId);
 			} else {
-				// 未設定の引数は既定値のコピーを返すため、ルートから独立した編集案を作る。
-				// 入れ子のIDパスもこの案で解決し、次の削除には保存済みの案を引き継ぐ。
-				// レイヤー全体を確定する前の変更なので、後続の失敗時も元の未設定状態を保つ。
-				const rootKey = point.paramPath[0];
-				const draft = { [rootKey]: deepClone(resolveLayerParameter(state, layer, point.target, [rootKey]).value) };
-				const binding = resolveParameter<EditableTimelineParameterBinding>(getLayerParameterDefinitions(state, layer, point.target), draft, point.paramPath).value;
-				if (binding.inputSource !== 'keyframesTimelineInline' || !binding.keyframesTimeline.keyframes.some(keyframe => keyframe.id === point.keyframeId)) throw new Error('Timeline keyframe not found');
-				binding.keyframesTimeline.keyframes.splice(binding.keyframesTimeline.keyframes.findIndex(keyframe => keyframe.id === point.keyframeId), 1);
-				setTimelineLayerParameterRoot(layer, point.target, rootKey, draft[rootKey]);
+				// キーは配置側にだけ存在し、ここで操作するレイヤーはすでに複製済み。
+				const binding = resolveLayerParameter(state, layer, point.target, point.paramPath).value;
+				if (binding.inputSource !== 'keyframesTimelineInline') throw new Error('Timeline keyframe not found');
+				const index = binding.keyframesTimeline.keyframes.findIndex(keyframe => keyframe.id === point.keyframeId);
+				if (index < 0) throw new Error('Timeline keyframe not found');
+				binding.keyframesTimeline.keyframes.splice(index, 1);
 			}
 		}
 		for (const layer of proposed) scene.layers = updateTimelineLayer(scene.layers, layer.id, () => layer);

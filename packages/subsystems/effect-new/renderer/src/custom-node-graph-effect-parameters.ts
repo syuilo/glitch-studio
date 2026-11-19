@@ -1,8 +1,10 @@
 import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
+import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
+import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { prepareExpressionParameterValue } from '@gs/shared/parameter/expression-parameter-value.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { canReadPublicParameterInExpression } from './custom-node-graph-effect/public-parameter.ts';
-import { createEvaluatedEffectInput, createLiteralBindingInput, createValueBindingReader, frameParameterScope } from './effect-input.ts';
+import { createEvaluatedEffectInput, createLiteralBindingInput } from './effect-input.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParameterEvaluationScope } from '@gs/shared/parameter/parameter-evaluation-scope.ts';
 import type { CustomNodeGraphEffect, CustomNodeGraphEffectValueParameterBinding } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect/types.ts';
@@ -81,7 +83,9 @@ export function createCustomNodeGraphEffectParameterEvaluator(
 	}
 
 	const graphScope = oncePerFrame((frame): ParameterEvaluationScope => ({
-		...frameParameterScope(frame, graph.automationGraphs),
+		time: frame.time * 1000, endTime: frame.endTime * 1000, automationGraphs: graph.automationGraphs,
+		variables: { TIME: frame.time, TIME_MS: frame.time * 1000, END_TIME: frame.endTime, END_TIME_MS: frame.endTime * 1000,
+			PROGRESS: frame.progress ?? (frame.endTime > 0 ? frame.time / frame.endTime : 0), IS_EXPORT: frame.isExport },
 		functions: {
 			PUBLIC: (...args) => namedValue(name => {
 				const read = publicValuesByName.get(name);
@@ -112,8 +116,14 @@ export function createCustomNodeGraphEffectParameterEvaluator(
 			if (input.kind === 'value') return input.read;
 			return () => { throw new Error('Public parameter does not supply a CPU value: ' + binding.parameterId); };
 		}
+		if (binding.inputSource === 'literal' && binding.expressionModifier?.enabled !== true) return () => binding.value;
 		if (binding.inputSource === 'expression' || binding.expressionModifier?.enabled === true) prepareExpressionInputs();
-		return createValueBindingReader(def, binding, evaluator, graphScope, placementVariables);
+		return frame => {
+			const base = graphScope(frame);
+			const scope = placementVariables == null ? base : { ...base, variables: { ...base.variables, ...placementVariables,
+				POINTER_POSITION: [frame.pointerPosition?.x ?? -99999, frame.pointerPosition?.y ?? -99999] } };
+			return coerceParameterValue(def, validateEnumParameterValue(def, evaluator.evaluate(binding, scope, def.defaultValue.value, def)));
+		};
 	}
 
 	return (def: ParameterDefinition, binding: CustomNodeGraphEffectValueParameterBinding, placementVariables: ParameterEvaluationScope['variables']): EffectParameterInput => {

@@ -1,4 +1,3 @@
-import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
 import { analyzePortableCustomNodeGraphEffectRuntime } from './runtime-requirements.ts';
 import { readFileSource } from '@gs/shared/file-source.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
@@ -44,7 +43,7 @@ export function preparePortableCustomNodeGraphEffect(input: PortableCustomNodeGr
 	if (output == null || output.dataType.kind !== 'color') throw new Error('Web export requires a primary color output. Convert scalar or vector fields to color before exporting.');
 	validatePortableCustomNodeGraphEffectSettings(input.settings);
 	if (!Number.isFinite(input.aspectRatio) || input.aspectRatio <= 0) throw new Error('Aspect ratio must be positive and finite');
-	getPortableParameterDefaults(customNodeGraphEffect.paramDefs, new ExpressionEvaluator());
+	getPortableParameterDefaults(customNodeGraphEffect.paramDefs);
 	const usedEffects = new Set(customNodeGraphEffect.nodes.flatMap(node => node.type === 'effect' ? [node.effectId] : []));
 	return {
 		name: input.name, gsVersion: input.gsVersion, customNodeGraphEffect,

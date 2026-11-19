@@ -4,7 +4,6 @@ import type { DataTypeUiDefinition } from '../data-type/data-type-ui.ts';
 import type { BlendMode } from '../color-blend.ts';
 import type { FitMode, WrapMode } from '../types.ts';
 import type { ParameterArrayElement } from './parameter-binding.ts';
-import type { ValueParameterSource } from './value-parameter-binding.ts';
 import type { ColorRamp } from '../color-ramp.ts';
 import type { SizeReference } from '../size-reference.ts';
 import type { LinearSrgbColor } from '../color-space.ts';
@@ -32,26 +31,20 @@ type ParameterDefaultValueMap = {
 
 // コンテナ内部は素の値ではなく子ごとのBindingを保持する。
 // キーフレームのリテラル値や、レンダラーが評価済みの値とは別の構造。
-// 既定値は加工前の初期状態を表す。通常のBindingを代入した場合も加工設定を持ち込ませない。
-export type ParameterDefaultValue<T extends DataType> = {
+// 既定値は利用場所から独立したリテラルで、コンテナの末端まで式や参照を持たない。
+export type ParameterDefaultValue<T extends DataType = DataType> = {
 	inputSource: 'literal';
 	expressionModifier?: never;
 	value: T extends { kind: 'array'; elementType: infer E extends DataType }
-		? ParameterArrayElement<ParameterDefaultBinding<E>>[]
+		? ParameterArrayElement<ParameterDefaultValue<E>>[]
 		: T extends { kind: 'struct'; fields: infer F extends Record<string, DataType> }
-			? { [K in keyof F]: ParameterDefaultBinding<F[K]> }
+			? { [K in keyof F]: ParameterDefaultValue<F[K]> }
 			: T extends { kind: 'enum'; options: readonly string[] }
 				? T['options'][number]
 				: T extends { kind: keyof ParameterDefaultValueMap }
 					? ParameterDefaultValueMap[T['kind']]
 					: never;
 };
-
-// コンテナ自体の式は扱わず、末端でのみ共通の非literalのBindingを許可する。
-// 定義の既定値は利用場所から独立させ、ノード接続やレイヤー入力は各ドメインで設定する。
-type ParameterDefaultBinding<T extends DataType> = T extends { kind: 'array' | 'struct' }
-	? ParameterDefaultValue<T>
-	: ParameterDefaultValue<T> | (Exclude<ValueParameterSource, { inputSource: 'literal' }> & { expressionModifier?: never });
 
 // 型とUIは別のツリーにあるため、ここでは子の接続可否・初期値だけを定義する。
 // element.defaultValueは要素追加時の初期値、外側のdefaultValueは配列全体の初期値。

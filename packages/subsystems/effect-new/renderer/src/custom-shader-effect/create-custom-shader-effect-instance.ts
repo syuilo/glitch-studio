@@ -4,7 +4,7 @@ import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { ShaderInputType } from '@gs/shared/gpu/shader-input.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { CustomShaderEffect } from '@gs/subsystems_effect-new_shared/custom-shader-effect/types.ts';
-import type { EffectFrame, EffectImageInput, EffectInstance, EffectInstanceOptions, EffectOutput } from '../effect-instance.ts';
+import type { EffectFrame, EffectImageInput, EffectInstance, EffectInstanceOptions, EffectTextureOutput } from '../effect-instance.ts';
 
 function shaderValueType(dataType: TextureDataType): string {
 	return dataType.kind === 'scalar' ? 'f32' : dataType.kind === 'vector' ? 'vec2f' : 'vec4f';
@@ -41,7 +41,7 @@ ${usedOutputs.map((output, index) => `\t@location(${index}) gs_output${index}: $
 ${inputCode}`;
 }
 
-export async function createCustomShaderEffectInstance(definition: CustomShaderEffect, options: EffectInstanceOptions): Promise<EffectInstance> {
+export async function createCustomShaderEffectInstance(definition: CustomShaderEffect, options: EffectInstanceOptions): Promise<EffectInstance<EffectTextureOutput>> {
 	const usedOutputs = definition.outputDefs.filter(output => options.usedOutputPorts.has(output.id));
 	if (usedOutputs.length === 0) return { outputs: {}, render() {}, dispose() {} };
 	const { gpu: { device, defaultVertexShaderModule, enable32bitDataTextures }, resolution } = options;
@@ -85,7 +85,7 @@ export async function createCustomShaderEffectInstance(definition: CustomShaderE
 			fragment: { module, entryPoint: 'gs_fragment', targets },
 			primitive: { topology: 'triangle-list' },
 		});
-		const outputs: Record<string, EffectOutput> = Object.create(null);
+		const outputs: Record<string, EffectTextureOutput> = Object.create(null);
 		const colorAttachments: GPURenderPassColorAttachment[] = [];
 		for (const [index, output] of usedOutputs.entries()) {
 			const texture = device.createTexture({

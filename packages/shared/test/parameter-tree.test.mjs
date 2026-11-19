@@ -20,7 +20,7 @@ const items = {
 	dataType: { kind: 'array', elementType: item.dataType },
 	ui: { label: 'Items', control: { element: item.ui.control } },
 	element: { fields: item.fields, defaultValue: item.defaultValue },
-	defaultValue: literal([{ id: 'first', binding: literal({ amount: { inputSource: 'expression', expression: 'TIME' } }) }]),
+	defaultValue: literal([{ id: 'first', binding: literal({ amount: literal(3) }) }]),
 };
 const group = {
 	dataType: { kind: 'struct', fields: { items: items.dataType } },
@@ -91,11 +91,11 @@ test('replaces nested leaf bindings without changing their containers or IDs', (
 	assert.throws(() => resolveParameter({ group }, values, ['group', 'items', 'missing', 'amount']), /Unknown array element/);
 });
 
-// 【未設定のコンテナは、既定値に含まれる非literalの末端も走査する】
-// Bindingの型を明示する変更で、既定値の補完や式の検出を失わないようにする。
-test('walks expression defaults when a root parameter is missing', () => {
+// 【未設定のコンテナは、既定値の末端を要素IDのパスで取得できる】
+// フィールド定義の初期値と異なる場合も、コンテナ全体に設定した既定値を使う。
+test('walks literal defaults when a root parameter is missing', () => {
 	const leaves = [...walkParameters({ group }, {})];
 	assert.deepEqual(leaves.map(({ path, value }) => [path, value]), [
-		[['group', 'items', 'first', 'amount'], { inputSource: 'expression', expression: 'TIME' }],
+		[['group', 'items', 'first', 'amount'], literal(3)],
 	]);
 });

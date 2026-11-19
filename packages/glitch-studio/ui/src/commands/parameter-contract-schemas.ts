@@ -94,14 +94,14 @@ const scalarControlSchema = z.union([
 	z.object({ controlType: z.literal('seed') }),
 ]);
 const vectorControlSchema = z.object({ controlType: z.enum(['vector', 'xy', 'dimension']), min: z.number().optional(), max: z.number().optional(), step: z.number().optional(), logarithmic: z.boolean().optional() });
-const parameterDefaultSchema = z.object({ inputSource: z.literal('literal'), value: literalParameterValueSchema });
+const parameterDefaultSchema = z.object({ inputSource: z.literal('literal'), value: z.json().describe('Literal default matching the dataType. All nested child bindings must also be literal.') });
 // コンテナの外側の形はdataTypeによらず固定されている。末端値は型定義から解決するが、
 // 配列のIDと子Binding、構造体のフィールドBindingは資料にも明示する。
 const arrayParameterDefaultSchema = z.object({
 	inputSource: z.literal('literal'),
-	value: z.array(z.object({ id: z.string(), binding: valueParameterSourceSchema })),
+	value: z.array(z.object({ id: z.string(), binding: parameterDefaultSchema })),
 });
-const structParameterDefaultSchema = z.object({ inputSource: z.literal('literal'), value: z.record(z.string(), valueParameterSourceSchema) });
+const structParameterDefaultSchema = z.object({ inputSource: z.literal('literal'), value: z.record(z.string(), parameterDefaultSchema) });
 type ParameterSettingsData = { defaultValue: { inputSource: 'literal'; value: z.infer<ReturnType<typeof z.json>> }; canNode?: boolean; maxElements?: number; element?: ParameterSettingsData; fields?: Record<string, ParameterSettingsData> };
 const parameterSettingsSchema: z.ZodType<ParameterSettingsData> = z.lazy(() => z.object({
 	defaultValue: parameterDefaultSchema, canNode: z.boolean().optional(), maxElements: z.number().optional(),

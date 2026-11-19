@@ -8,7 +8,6 @@ import type { CustomNodeGraphEffect, CustomNodeGraphEffectParameterBinding } fro
 export type PortableCustomNodeGraphEffectRuntimeRequirements = {
 	effectIds: string[];
 	requiresExpressions: boolean;
-	requiresParameterDefaultExpressions: boolean;
 	requiresCustomShaderEffects: boolean;
 };
 
@@ -33,8 +32,8 @@ export function analyzePortableCustomNodeGraphEffectRuntime(customNodeGraphEffec
 		requiresExpressions ||= usesExpressions(definitions[node.effectId].paramDefs, node.params);
 	}
 	for (const definition of customNodeGraphEffect.customParameterDefs) {
-		requiresExpressions ||= usesExpressions({ value: definition }, { value: customNodeGraphEffect.customParameterValues[definition.id] ?? definition.defaultValue });
+		const binding = customNodeGraphEffect.customParameterValues[definition.id];
+		if (binding != null) requiresExpressions ||= usesExpressions({ value: definition }, { value: binding });
 	}
-	const requiresParameterDefaultExpressions = customNodeGraphEffect.paramDefs.some(definition => usesExpressions({ value: definition }, { value: definition.defaultValue }));
-	return { effectIds: [...effectIds].sort(), requiresExpressions, requiresParameterDefaultExpressions, requiresCustomShaderEffects };
+	return { effectIds: [...effectIds].sort(), requiresExpressions, requiresCustomShaderEffects };
 }

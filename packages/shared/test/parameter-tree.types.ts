@@ -7,13 +7,12 @@ import type { ValueParameterBinding } from '../src/parameter/value-parameter-bin
 // 【加工設定は利用箇所のBindingにだけ保持する】
 // 広いBinding型を経由した代入でも、既定値とコンテナの子へ加工式を持ち込ませない。
 declare const modifiedLiteral: Extract<ValueParameterBinding, { inputSource: 'literal' }>;
-declare const modifiedExpression: Extract<ValueParameterBinding, { inputSource: 'expression' }>;
 // @ts-expect-error 通常のBindingは加工設定を持ち得るため既定値として代入しない
 const scalarDefault: ParameterDefaultValue<{ kind: 'scalar' }> = modifiedLiteral;
 const arrayDefault: ParameterDefaultValue<{ kind: 'array'; elementType: { kind: 'scalar' } }> = {
 	inputSource: 'literal',
-	// @ts-expect-error 子が非literalでも既定値では加工設定を禁止する
-	value: [{ id: 'first', binding: modifiedExpression }],
+	// @ts-expect-error 加工設定がない基準式も、既定値の子にはできない
+	value: [{ id: 'first', binding: { inputSource: 'expression', expression: 'TIME' } }],
 };
 
 // 【評価には必ずパラメータの型を渡す】
@@ -43,7 +42,7 @@ resolveParameter(definitions, literalParents, ['array', 'first']);
 // @ts-expect-error 既定値を補完する走査でもドメインのBinding型を明示する
 walkParameters(definitions, literalParents);
 
-// 共通方式だけのツリーでも、literalの初期値から式の末端を取り出せる。
+// 配置の走査結果は渡したBindingの型に従い、式の末端も表現できる。
 mapParameterTree<ValueParameterBinding>(arrayDefinition, arrayDefinition.defaultValue, [], (_def, binding) => {
 	// @ts-expect-error literalの親でも末端のvalueを無条件に読むことはできない
 	binding.value;
@@ -96,9 +95,7 @@ const common = resolveParameter<ValueParameterBinding>(definitions, literalParen
 // @ts-expect-error 共通方式だけのツリーには固有方式を書き込めない
 common.setValue({ inputSource: 'testReference', referenceId: 'source' });
 
-// 保存値が未設定なら、指定した方式に加えて定義側の共通方式も走査される。
+// 未設定なら定義のリテラルを補う。配置で許可していない入力方式は走査結果にも含まれない。
 for (const { value } of walkParameters<ReferenceBinding>(definitions, {})) {
-	if (value.inputSource === 'expression') {
-		const expression: string = value.expression;
-	}
+	const source: 'testReference' | 'literal' = value.inputSource;
 }

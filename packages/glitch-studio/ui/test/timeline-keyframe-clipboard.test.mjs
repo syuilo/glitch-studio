@@ -174,21 +174,21 @@ test('requires the original scene and compatible surviving lanes without requiri
 	assert.equal(prepareTimelineKeyframePaste(f.state, f.scene, clipboard, 1000), null);
 });
 
-// 【未設定のCustom Node Graph Effect引数では既定Bindingを変更せず、Undoで未設定へ戻す】
-// 既定値のキーを共有定義に直接追加すると、別の配置にもキーが増えてしまう。
+// 【Custom Node Graph Effectのキーは配置した引数にだけ貼り付ける】
+// リテラルの既定値にはキーのレーンがなく、貼り付け先には配置側のキー入力が必要になる。
 // enumの候補が更新された場合も、追加する値を現在の選択肢で検証する。
-test('materializes default Custom Node Graph Effect arguments independently and validates enum options at paste time', t => {
+test('pastes only into placed keyframes and validates enum options at paste time', t => {
 	const f = fixture(t);
 	const dataType = { kind: 'enum', options: ['one', 'two'] };
 	const def = { id: 'choice', dataType, ui: { label: 'Choice', control: { labels: {} } }, canNode: false,
 		defaultValue: { inputSource: 'literal', value: 'one' } };
-	def.defaultValue = createInlineKeyframesTimeline(def);
-	def.defaultValue.keyframesTimeline.keyframes[0].id = 'default-key';
+	const keys = createInlineKeyframesTimeline(def);
+	keys.keyframesTimeline.keyframes[0].id = 'first';
 	const customNodeGraphEffect = { id: 'customNodeGraphEffect', paramDefs: [def] };
 	f.state.customNodeGraphEffects.value.push(customNodeGraphEffect);
-	f.scene.layers.push({ id: 'custom-node-graph-effect-layer', layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect', customNodeGraphEffectParamValues: {}, clips: [], compositingParamValues: {} });
+	f.scene.layers.push({ id: 'custom-node-graph-effect-layer', layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect', customNodeGraphEffectParamValues: { choice: keys }, clips: [], compositingParamValues: {} });
 	f.selection.length = 0;
-	f.selection.push({ layerId: 'custom-node-graph-effect-layer', target: 'customNodeGraphEffect', paramPath: ['choice'], keyframeId: 'default-key' });
+	f.selection.push({ layerId: 'custom-node-graph-effect-layer', target: 'customNodeGraphEffect', paramPath: ['choice'], keyframeId: 'first' });
 	const clipboard = f.clipboard;
 	const originalDefault = structuredClone(def.defaultValue);
 	const keyframes = prepareTimelineKeyframePaste(f.state, f.scene, clipboard, 1000);
@@ -196,18 +196,20 @@ test('materializes default Custom Node Graph Effect arguments independently and 
 	assert.deepEqual(def.defaultValue, originalDefault);
 	assert.deepEqual(f.read(f.selection[0]).keyframesTimeline.keyframes.map(point => point.x), [0, 1000]);
 	f.history.undo();
-	assert.deepEqual(f.scene.layers.at(-1).customNodeGraphEffectParamValues, {});
+	assert.deepEqual(f.scene.layers.at(-1).customNodeGraphEffectParamValues.choice, keys);
 	def.dataType.options = ['two'];
 	assert.equal(prepareTimelineKeyframePaste(f.state, f.scene, clipboard, 1000), null);
+	def.dataType.options = ['one', 'two'];
 	const malformed = structuredClone(keyframes);
 	malformed[0].keyframe.interpolation = { type: 'linear' };
 	assert.equal(getTimelineKeyframePasteUpdates(f.state, f.scene, malformed), null);
+	delete f.scene.layers.at(-1).customNodeGraphEffectParamValues.choice;
+	assert.equal(getTimelineKeyframePasteUpdates(f.state, f.scene, keyframes), null);
 });
 
-// 【既定値から表示したキーをレイヤー側で削除し、Undoで未設定に戻す】
-// 未設定ルートの既定Bindingはコピーなので直接変更しても保存されない。配列・構造体は
-// 先にルートを用意し、同じルートの別レーンを一括削除しても互いの変更を残す必要がある。
-test('removes default keys from independent root drafts and restores unset arguments on undo', t => {
+// 【配置のキーをまとめて削除し、Undoで同じ配置へ戻す】
+// 配列・構造体の別レーンを一括削除したときも、共有定義や他の配置を変更しない。
+test('removes placed keys atomically and restores their nested bindings on undo', t => {
 	for (const nested of [false, true]) {
 		const f = fixture(t);
 		const scalar = { id: 'value', dataType: { kind: 'scalar' }, ui: { label: 'Value', control: {} }, defaultValue: { inputSource: 'literal', value: 0 } };
@@ -217,14 +219,15 @@ test('removes default keys from independent root drafts and restores unset argum
 			{ id: 'keep', x: 200, value: 1, interpolation: { type: 'linear' } },
 		];
 		const def = nested ? { ...structuredClone(arrayDefinition.paramDefs.buzzs), id: 'value' } : scalar;
+		const placed = nested ? structuredClone(def.defaultValue) : keys;
 		if (nested) {
-			def.defaultValue.value[0].binding.value.x = structuredClone(keys);
-			def.defaultValue.value[0].binding.value.y = structuredClone(keys);
-		} else def.defaultValue = keys;
+			placed.value[0].binding.value.x = structuredClone(keys);
+			placed.value[0].binding.value.y = structuredClone(keys);
+		}
 		const customNodeGraphEffect = { id: 'customNodeGraphEffect', paramDefs: [def] };
 		f.state.customNodeGraphEffects.value.push(customNodeGraphEffect);
 		for (const id of ['edited', 'untouched']) f.scene.layers.push({ id, layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect',
-			customNodeGraphEffectParamValues: {}, clips: [], compositingParamValues: {} });
+			customNodeGraphEffectParamValues: id === 'edited' ? { value: placed } : {}, clips: [], compositingParamValues: {} });
 		const paths = nested ? [['value', 'first', 'x'], ['value', 'first', 'y']] : [['value']];
 		const selection = paths.map(paramPath => ({ layerId: 'edited', target: 'customNodeGraphEffect', paramPath, keyframeId: 'remove' }));
 		const before = structuredClone(f.scene);

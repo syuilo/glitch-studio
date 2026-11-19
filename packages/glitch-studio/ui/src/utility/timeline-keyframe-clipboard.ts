@@ -38,10 +38,9 @@ type ParameterUpdate = {
 	layerId: string;
 	target: TimelineParameterTarget;
 	paramId: string;
-	before: EditableTimelineParameterBinding | null;
 	after: EditableTimelineParameterBinding;
 };
-type UtteranceUpdate = { layerId: string; target: 'utterance'; before: VoicevoxUtterance[]; after: VoicevoxUtterance[] };
+type UtteranceUpdate = { layerId: string; target: 'utterance'; after: VoicevoxUtterance[] };
 
 type ParameterState = Pick<ProjectState, 'customNodeGraphEffects'>;
 
@@ -93,7 +92,6 @@ export function getTimelineKeyframePasteUpdates(state: ParameterState, scene: Ti
 			const update = speechUpdates.get(layer.id) ?? {
 				layerId: layer.id,
 				target: 'utterance',
-				before: deepClone(layer.utterances),
 				after: deepClone(layer.utterances),
 			};
 			update.after.push(deepClone(entry.utterance));
@@ -119,13 +117,13 @@ export function getTimelineKeyframePasteUpdates(state: ParameterState, scene: Ti
 			const key = JSON.stringify([entry.layerId, entry.target, paramId]);
 			let update = updates.get(key);
 			if (!update) {
-				const before = getLayerParameterValues(layer, entry.target)[paramId] ?? null;
+				const binding = getLayerParameterValues(layer, entry.target)[paramId];
+				if (binding == null) return null;
 				update = {
 					layerId: layer.id,
 					target: entry.target,
 					paramId,
-					before: deepClone(before),
-					after: deepClone(resolveLayerParameter(state, layer, entry.target, [paramId]).value),
+					after: deepClone(binding),
 				};
 				updates.set(key, update);
 			}

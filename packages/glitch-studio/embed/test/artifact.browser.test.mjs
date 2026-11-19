@@ -42,7 +42,7 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	const defaults = fixture();
 	defaults.customNodeGraphEffect.paramDefs = [{ ...parameter('array', [], 'values'), dataType: { kind: 'array', elementType: { kind: 'scalar' } },
 		element: { defaultValue: { inputSource: 'literal', value: 0 } }, ui: { label: 'Values', control: { element: {} } },
-		defaultValue: { inputSource: 'literal', value: [{ id: 'child', binding: { inputSource: 'expression', expression: '1 + 2' } }] } }];
+		defaultValue: { inputSource: 'literal', value: [{ id: 'child', binding: { inputSource: 'literal', value: 3 } }] } }];
 	defaults.customNodeGraphEffect.nodes[0].params.color = { inputSource: 'literal', value: [0.25, 0, 0, 1] };
 	await add('defaults', defaults);
 	const pointer = fixture();

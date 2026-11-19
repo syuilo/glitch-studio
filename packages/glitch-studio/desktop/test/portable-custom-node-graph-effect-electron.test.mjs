@@ -36,7 +36,7 @@ test('builds portable runtimes in a real Electron utility process', { skip: proc
 			registerPortableCustomNodeGraphEffectIpc({ handle: (name, handler) => handlers.set(name, handler) }, utilityProcess,
 				${JSON.stringify(workerPath)}, ${JSON.stringify(catalog)}, () => {}, ${JSON.stringify(binary)});
 			const build = (id, requirements) => handlers.get('desktop:build-portable-custom-node-graph-effect')(event, id, requirements);
-			const requirements = { effectIds: ['fill'], requiresExpressions: false, requiresParameterDefaultExpressions: false, requiresCustomShaderEffects: false };
+			const requirements = { effectIds: ['fill'], requiresExpressions: false, requiresCustomShaderEffects: false };
 			const canceled = build('canceled', requirements);
 			handlers.get('desktop:cancel-portable-custom-node-graph-effect')(event, 'canceled');
 			await assert.rejects(canceled, /canceled/);

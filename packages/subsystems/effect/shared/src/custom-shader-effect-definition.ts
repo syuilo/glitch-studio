@@ -54,7 +54,8 @@ export function validateCustomShaderEffectDefinition(definition: CustomShaderEff
 	validateNames(definition.outputDefs, 'duplicateOutput');
 	for (const parameter of definition.paramDefs) {
 		const kind = parameter.dataType.kind;
-		if (!['scalar', 'vector', 'color', 'any'].includes(kind) || parameter.canNode !== true || parameter.defaultValue.inputSource !== 'literal') {
+		if (!['scalar', 'vector', 'color', 'any'].includes(kind) || parameter.canNode !== true
+			|| parameter.defaultValue.inputSource !== 'literal' || parameter.defaultValue.expressionModifier != null) {
 			throw new CustomShaderEffectDefinitionError('invalidParameter', parameter.nameForReference);
 		}
 		const value = parameter.defaultValue.value;

@@ -1,4 +1,3 @@
-import type { ExpressionEngine } from '@gs/shared/expression/expression-engine.ts';
 import { validatePortableCustomNodeGraphEffectSettings } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
 import { getPortableParameterDefaults, validatePortableParameters } from './parameters.ts';
 import { getPortableRenderResolution } from './protocol.ts';
@@ -6,10 +5,10 @@ import { PortableCustomNodeGraphEffectFrameRateLimiter } from './frame-rate-limi
 import type { PortableCustomNodeGraphEffect, PortableCustomNodeGraphEffectSettings } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
 import type { PortableCustomNodeGraphEffectRequest, PortableCustomNodeGraphEffectResponse } from './protocol.ts';
 
-export function registerCustomNodeGraphEffectElement(tagName: string, artwork: PortableCustomNodeGraphEffect, workerSource: string, expressionEvaluator: ExpressionEngine | null) {
+export function registerCustomNodeGraphEffectElement(tagName: string, artwork: PortableCustomNodeGraphEffect, workerSource: string) {
 	// 同じ成果物を複数回読み込んでも登録済みのクラスを使う。タグは書き出しごとに一意にする。
 	if (customElements.get(tagName) != null) return;
-	const defaults = getPortableParameterDefaults(artwork.customNodeGraphEffect.paramDefs, expressionEvaluator);
+	const defaults = getPortableParameterDefaults(artwork.customNodeGraphEffect.paramDefs);
 	const initial = validatePortableParameters(artwork.customNodeGraphEffect.paramDefs, artwork.initialParameters);
 	validatePortableCustomNodeGraphEffectSettings(artwork.settings);
 

@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url';
 const directory = fileURLToPath(new URL('../../', import.meta.url));
 const result = await build({
 	absWorkingDir: directory, stdin: { resolveDir: directory, loader: 'ts', contents: `
-		export { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
 		export * from './src/runtime-requirements.ts';
 		export * from './src/export.ts'; export * from './src/parameters.ts';
 		export * from './src/protocol.ts'; export * from './src/archive.ts';
