@@ -12,7 +12,7 @@
 	<div :class="$style.header">
 		<div :class="$style.headerLeft">
 			<slot></slot>
-			<GsButton style="margin-left: 15px;" :primary="previewPlayback.state.value.mode === 'timeline'" @click="previewPlayback.showTimeline()">{{ i18n.ts.Preview }}</GsButton>
+			<GsButton style="margin-left: 15px;" :primary="previewPlayback.state.value.mode === 'timeline'" @click="previewPlayback.showTimeline()">Pv.</GsButton>
 			<span :class="$style.headerMajorDivider"></span>
 		</div>
 		<div :class="$style.headerCenter" style="gap: 20px;">

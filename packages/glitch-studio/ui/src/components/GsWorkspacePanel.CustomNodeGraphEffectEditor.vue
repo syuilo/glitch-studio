@@ -3,7 +3,7 @@
 	<div :class="$style.header">
 		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> {{ customNodeGraphEffect?.name ?? '' }} [{{ prettyId(customNodeGraphEffect?.id ?? '') }}]</button>
 		<GsButton v-if="customNodeGraphEffect != null" style="margin-left: auto;" :primary="previewParamsShowing" icon="ti ti-adjustments-horizontal" @click="previewParamsShowing = !previewParamsShowing">{{ i18n.ts._CustomNodeGraphEffect.PreviewParameters }}</GsButton>
-		<GsButton v-if="customNodeGraphEffect != null" style="margin-left: 0;" :primary="previewPlayback.livePreviewCustomNodeGraphEffectId.value === customNodeGraphEffect.id" :icon="previewPlayback.livePreviewCustomNodeGraphEffectId.value === customNodeGraphEffect.id ? 'ti ti-player-pause' : 'ti ti-player-play'" @click="previewCustomNodeGraphEffectLivePreview">{{ i18n.ts.Preview }}</GsButton>
+		<GsButton v-if="customNodeGraphEffect != null" style="margin-left: 0;" :primary="previewPlayback.livePreviewCustomNodeGraphEffectId.value === customNodeGraphEffect.id" @click="previewCustomNodeGraphEffectLivePreview">Pv.</GsButton>
 		<span v-if="previewPlayback.livePreviewCustomNodeGraphEffectId.value === customNodeGraphEffect?.id && projectSession.effectLivePreviewManagerController.preparationStatus.value?.type === 'loading'">{{ i18n.ts.Loading }}</span>
 	</div>
 
@@ -43,7 +43,6 @@
 
 <script lang="ts" setup>
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
-import { getCustomNodeGraphEffectView } from '@/utility/custom-node-graph-effect-view.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { computed, ref, watch, onBeforeUnmount, inject, provide } from 'vue';
@@ -52,6 +51,7 @@ import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { preserveParameterExpressionModifier, validateParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
 import { prettyId } from '@gs/shared/utility/id.ts';
 import { EFFECT_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shared/effect-live-preview-expression.ts';
+import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
 import GsCustomNodeGraphEffectEditor from './GsCustomNodeGraphEffectEditor.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
@@ -61,6 +61,8 @@ import type { CustomNodeGraphEffectParamDef, CustomNodeGraphEffectArgumentBindin
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { CustomNodeGraphEffectEdit } from '@/types/custom-node-graph-effect-editor.ts';
 import type { WorkspacePanel } from '@/workspace.ts';
+import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
+import { getCustomNodeGraphEffectView } from '@/utility/custom-node-graph-effect-view.ts';
 import { i18n } from '@/i18n.ts';
 import { useProjectSession } from '@/project-session.ts';
 import * as ui from '@/ui.ts';
@@ -74,8 +76,6 @@ import { exportCustomNodeGraphEffectFile, importCustomNodeGraphEffectFile } from
 import { createCustomNodeGraphEffectDropActions } from '@/utility/custom-node-graph-effect-drop-actions.ts';
 import { preferences } from '@/preferences.ts';
 import { previewParameterContextKey } from '@/utility/preview-parameter-editing.ts';
-import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
-import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import { workspaceControllerKey } from '@/WorkspaceController.ts';
 
 const projectSession = useProjectSession();
@@ -332,8 +332,8 @@ function showAddEffectNodeMenu() {
 		chosen: effect => {
 			if (projectSession.projectContext.getCustomNodeGraphEffectById(entry.id) == null) return;
 			stateManager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect: { customNodeGraphEffectId: entry.id }, effectSource: effect.effectSource,
-				connectionMode: preferences.s.customNodeGraphEffectAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none',
-				connectionTypePolicy: preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch' });
+																																																																		connectionMode: preferences.s.customNodeGraphEffectAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none',
+																																																																		connectionTypePolicy: preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch' });
 		},
 		closed: () => {
 			dispose();

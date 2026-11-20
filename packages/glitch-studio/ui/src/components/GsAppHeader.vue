@@ -201,7 +201,7 @@ function openHeaderFileMenu(ev: PointerEvent) {
 	}, {
 		type: 'parent',
 		text: i18n.ts.Import,
-		icon: 'ti ti-upload',
+		icon: 'ti ti-download',
 		children: [{
 			disabled: projectSession == null,
 			text: i18n.ts._App.ImportCustomNodeGraphEffect,
