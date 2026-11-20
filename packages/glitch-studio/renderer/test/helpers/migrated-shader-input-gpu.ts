@@ -1,35 +1,52 @@
-import blockShuffle from '@gs/subsystems_effect_shared/fx/blockShuffle/_impl_.ts';
-import blockShuffleDefinition from '@gs/subsystems_effect_shared/fx/blockShuffle/_def_.ts';
-import dataMix from '@gs/subsystems_effect_shared/fx/dataMix/_impl_.ts';
-import dataMixDefinition from '@gs/subsystems_effect_shared/fx/dataMix/_def_.ts';
-import colorBlend from '@gs/subsystems_effect_shared/fx/colorBlend/_impl_.ts';
-import colorBlendDefinition from '@gs/subsystems_effect_shared/fx/colorBlend/_def_.ts';
-import dataBlend from '@gs/subsystems_effect_shared/fx/dataBlend/_impl_.ts';
-import dataBlendDefinition from '@gs/subsystems_effect_shared/fx/dataBlend/_def_.ts';
-import composeVector from '@gs/subsystems_effect_shared/fx/composeVector/_impl_.ts';
-import composeVectorDefinition from '@gs/subsystems_effect_shared/fx/composeVector/_def_.ts';
-import remap from '@gs/subsystems_effect_shared/fx/remap/_impl_.ts';
-import remapDefinition from '@gs/subsystems_effect_shared/fx/remap/_def_.ts';
-import multiply from '@gs/subsystems_effect_shared/fx/multiply/_impl_.ts';
-import multiplyDefinition from '@gs/subsystems_effect_shared/fx/multiply/_def_.ts';
-import rgbTo from '@gs/subsystems_effect_shared/fx/rgbTo/_impl_.ts';
-import rgbToDefinition from '@gs/subsystems_effect_shared/fx/rgbTo/_def_.ts';
-import channelShift from '@gs/subsystems_effect_shared/fx/channelShift/_impl_.ts';
-import channelShiftDefinition from '@gs/subsystems_effect_shared/fx/channelShift/_def_.ts';
-import chromaticAberration from '@gs/subsystems_effect_shared/fx/chromaticAberration/_impl_.ts';
-import chromaticAberrationDefinition from '@gs/subsystems_effect_shared/fx/chromaticAberration/_def_.ts';
-import colorBlocks from '@gs/subsystems_effect_shared/fx/colorBlocks/_impl_.ts';
-import colorBlocksDefinition from '@gs/subsystems_effect_shared/fx/colorBlocks/_def_.ts';
-import lcd from '@gs/subsystems_effect_shared/fx/lcd/_impl_.ts';
-import lcdDefinition from '@gs/subsystems_effect_shared/fx/lcd/_def_.ts';
-import rainDropsOnWindow1 from '@gs/subsystems_effect_shared/fx/rainDropsOnWindow1/_impl_.ts';
-import rainDropsOnWindow1Definition from '@gs/subsystems_effect_shared/fx/rainDropsOnWindow1/_def_.ts';
-import rainDropsOnWindow2 from '@gs/subsystems_effect_shared/fx/rainDropsOnWindow2/_impl_.ts';
-import rainDropsOnWindow2Definition from '@gs/subsystems_effect_shared/fx/rainDropsOnWindow2/_def_.ts';
-import vectorDisplacement from '@gs/subsystems_effect_shared/fx/vectorDisplacement/_impl_.ts';
-import vectorDisplacementDefinition from '@gs/subsystems_effect_shared/fx/vectorDisplacement/_def_.ts';
+import { nativeEffectProbe } from '@gs/subsystems_effect-new_native-effects/test/native-effect-probe.ts';
+import blockShuffleNative from '@gs/subsystems_effect-new_native-effects/fx/blockShuffle/_impl_.ts';
+import blockShuffleDefinition from '@gs/subsystems_effect-new_native-effects/fx/blockShuffle/_def_.ts';
+import dataMixNative from '@gs/subsystems_effect-new_native-effects/fx/dataMix/_impl_.ts';
+import dataMixDefinition from '@gs/subsystems_effect-new_native-effects/fx/dataMix/_def_.ts';
+import colorBlendNative from '@gs/subsystems_effect-new_native-effects/fx/colorBlend/_impl_.ts';
+import colorBlendDefinition from '@gs/subsystems_effect-new_native-effects/fx/colorBlend/_def_.ts';
+import dataBlendNative from '@gs/subsystems_effect-new_native-effects/fx/dataBlend/_impl_.ts';
+import dataBlendDefinition from '@gs/subsystems_effect-new_native-effects/fx/dataBlend/_def_.ts';
+import composeVectorNative from '@gs/subsystems_effect-new_native-effects/fx/composeVector/_impl_.ts';
+import composeVectorDefinition from '@gs/subsystems_effect-new_native-effects/fx/composeVector/_def_.ts';
+import remapNative from '@gs/subsystems_effect-new_native-effects/fx/remap/_impl_.ts';
+import remapDefinition from '@gs/subsystems_effect-new_native-effects/fx/remap/_def_.ts';
+import multiplyNative from '@gs/subsystems_effect-new_native-effects/fx/multiply/_impl_.ts';
+import multiplyDefinition from '@gs/subsystems_effect-new_native-effects/fx/multiply/_def_.ts';
+import rgbToNative from '@gs/subsystems_effect-new_native-effects/fx/rgbTo/_impl_.ts';
+import rgbToDefinition from '@gs/subsystems_effect-new_native-effects/fx/rgbTo/_def_.ts';
+import channelShiftNative from '@gs/subsystems_effect-new_native-effects/fx/channelShift/_impl_.ts';
+import channelShiftDefinition from '@gs/subsystems_effect-new_native-effects/fx/channelShift/_def_.ts';
+import chromaticAberrationNative from '@gs/subsystems_effect-new_native-effects/fx/chromaticAberration/_impl_.ts';
+import chromaticAberrationDefinition from '@gs/subsystems_effect-new_native-effects/fx/chromaticAberration/_def_.ts';
+import colorBlocksNative from '@gs/subsystems_effect-new_native-effects/fx/colorBlocks/_impl_.ts';
+import colorBlocksDefinition from '@gs/subsystems_effect-new_native-effects/fx/colorBlocks/_def_.ts';
+import lcdNative from '@gs/subsystems_effect-new_native-effects/fx/lcd/_impl_.ts';
+import lcdDefinition from '@gs/subsystems_effect-new_native-effects/fx/lcd/_def_.ts';
+import rainDropsOnWindow1Native from '@gs/subsystems_effect-new_native-effects/fx/rainDropsOnWindow1/_impl_.ts';
+import rainDropsOnWindow1Definition from '@gs/subsystems_effect-new_native-effects/fx/rainDropsOnWindow1/_def_.ts';
+import rainDropsOnWindow2Native from '@gs/subsystems_effect-new_native-effects/fx/rainDropsOnWindow2/_impl_.ts';
+import rainDropsOnWindow2Definition from '@gs/subsystems_effect-new_native-effects/fx/rainDropsOnWindow2/_def_.ts';
+import vectorDisplacementNative from '@gs/subsystems_effect-new_native-effects/fx/vectorDisplacement/_impl_.ts';
+import vectorDisplacementDefinition from '@gs/subsystems_effect-new_native-effects/fx/vectorDisplacement/_def_.ts';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { float32ToFloat16Bits } from '@gs/shared/utility/float32ToFloat16Bits.ts';
+
+const blockShuffle = nativeEffectProbe(blockShuffleDefinition, blockShuffleNative);
+const dataMix = nativeEffectProbe(dataMixDefinition, dataMixNative);
+const colorBlend = nativeEffectProbe(colorBlendDefinition, colorBlendNative);
+const dataBlend = nativeEffectProbe(dataBlendDefinition, dataBlendNative);
+const composeVector = nativeEffectProbe(composeVectorDefinition, composeVectorNative);
+const remap = nativeEffectProbe(remapDefinition, remapNative);
+const multiply = nativeEffectProbe(multiplyDefinition, multiplyNative);
+const rgbTo = nativeEffectProbe(rgbToDefinition, rgbToNative);
+const channelShift = nativeEffectProbe(channelShiftDefinition, channelShiftNative);
+const chromaticAberration = nativeEffectProbe(chromaticAberrationDefinition, chromaticAberrationNative);
+const colorBlocks = nativeEffectProbe(colorBlocksDefinition, colorBlocksNative);
+const lcd = nativeEffectProbe(lcdDefinition, lcdNative);
+const rainDropsOnWindow1 = nativeEffectProbe(rainDropsOnWindow1Definition, rainDropsOnWindow1Native);
+const rainDropsOnWindow2 = nativeEffectProbe(rainDropsOnWindow2Definition, rainDropsOnWindow2Native);
+const vectorDisplacement = nativeEffectProbe(vectorDisplacementDefinition, vectorDisplacementNative);
 
 // 同じ値のuniformとtextureを全組合せで切り替える。
 // WGSLの型だけでなく、binding位置・チャンネル・premultiplyの違いも検出する。
@@ -47,7 +64,7 @@ export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderM
 				enable32bitDataTextures,
 			};
 			const context = { wgpu, resolution: { width: 8, height: 4 } } as any;
-			const instance = implementation.init(context);
+			const instance = implementation.place(context.wgpu, context.resolution);
 			try {
 				const params: Record<string, any> = {};
 				const inputs: { name: string; uniform: any; texture: any }[] = [];
@@ -68,7 +85,7 @@ export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderM
 					device.queue.writeTexture({ texture }, bytes, {}, [1, 1]);
 					inputs.push({ name, uniform, texture: textureShaderInput(texture, { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }) });
 				}
-				const output = implementation.outputTextureFactories.output!(context);
+				const output = implementation.createTexture('output', context);
 				textures.push(output);
 				let baseline: number[] | null = null;
 				// 最後にuniform構成へ戻し、キャッシュ退避後の再生成も検証する。
@@ -76,22 +93,21 @@ export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderM
 					const mask = iteration % (2 ** inputs.length);
 					inputs.forEach((input, i) => { params[input.name] = mask & (1 << i) ? input.texture : input.uniform; });
 					const encoder = device.createCommandEncoder();
-					instance.render({
+					await instance.draw({
 						params,
 						commandEncoder: encoder,
-						outputDataMap: { output: { texture: output, textureView: output.createView() } },
-						createPassEncoderFor: (_: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+						outputs: { output: output },
 					} as any);
 					device.queue.submit([encoder.finish()]);
 					const pixels = await readOutput(output);
 					baseline ??= pixels;
-					if (pixels.some((value, index) => Math.abs(value - baseline![index]) > 1)) throw new Error(definition.id + ': uniform/texture mismatch for variant ' + mask);
+					if (pixels.some((value, index) => Math.abs(value - baseline![index]) > 1)) throw new Error(definition.displayName + ': uniform/texture mismatch for variant ' + mask);
 				}
 				const error = await device.popErrorScope();
-				if (error) throw new Error(definition.id + ': ' + error.message);
-				completed.push(definition.id + (enable32bitDataTextures ? ' 32bit' : ' 16bit'));
+				if (error) throw new Error(definition.displayName + ': ' + error.message);
+				completed.push(definition.displayName + (enable32bitDataTextures ? ' 32bit' : ' 16bit'));
 			} catch (error) {
-				throw new Error(definition.id + ': ' + String(error), { cause: error });
+				throw new Error(definition.displayName + ': ' + String(error), { cause: error });
 			} finally {
 				instance.dispose();
 				for (const texture of textures) texture.destroy();
@@ -102,7 +118,7 @@ export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderM
 	// LCDの中央原点化で、入力の上下やセル内のRGB順が反転しないことを確認する。
 	const lcdSource = device.createTexture({ size: [3, 3], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 	const lcdOutput = device.createTexture({ size: [18, 18], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
-	const lcdInstance = lcd.init({ resolution: { width: 18, height: 18 }, wgpu: { device, defaultVertexShaderModule: vertex } } as any);
+	const lcdInstance = lcd.place({ device, defaultVertexShaderModule: vertex }, { width: 18, height: 18 });
 	try {
 		const colors = [[200, 100, 50, 255], [60, 180, 240, 255], [80, 160, 40, 255], [220, 120, 180, 255],
 			[120, 200, 60, 255], [40, 80, 160, 255], [180, 60, 120, 255], [100, 220, 80, 255], [240, 40, 200, 255]];
@@ -110,11 +126,10 @@ export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderM
 		const encoder = device.createCommandEncoder();
 		// 中央原点の格子では奇数のセル数を使うと端に半端なセルが生じない。
 		// 現行のDensityで3×3に分割し、各6pxセルのRGB順と入力の上下を独立に確認する。
-		lcdInstance.render({
+		await lcdInstance.draw({
 			params: { input: textureShaderInput(lcdSource, { wrapMode: 'repeatMirrored', fitMode: 'stretch', filterMode: 'nearest' }), density: 3, border: 0, sizeReference: 'shortSide' },
 			commandEncoder: encoder,
-			outputDataMap: { output: { texture: lcdOutput, textureView: lcdOutput.createView() } },
-			createPassEncoderFor: (_: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+			outputs: { output: lcdOutput },
 		} as any);
 		device.queue.submit([encoder.finish()]);
 		const pixels = await readOutput(lcdOutput);
@@ -141,8 +156,8 @@ async function checkChannelBlends(device: GPUDevice, vertex: GPUShaderModule, re
 			enable32bitDataTextures: false,
 		},
 	} as any;
-	const shift = channelShift.init(context);
-	const blend = colorBlend.init(context);
+	const shift = channelShift.place(context.wgpu, context.resolution);
+	const blend = colorBlend.place(context.wgpu, context.resolution);
 	const output = device.createTexture({ size: [1, 1], format: 'rgba16float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
 	const input = constantShaderInput('color', [1, 0.5, 0.25, 0.5]);
 	const params = {
@@ -155,11 +170,10 @@ async function checkChannelBlends(device: GPUDevice, vertex: GPUShaderModule, re
 	};
 	async function check(name: string, instance: typeof shift | typeof blend, values: object, expected: number[]) {
 		const encoder = device.createCommandEncoder();
-		instance.render({
+		await instance.draw({
 			params: values,
 			commandEncoder: encoder,
-			outputDataMap: { output: { texture: output, textureView: output.createView() } },
-			createPassEncoderFor: (_: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+			outputs: { output: output },
 		} as any);
 		device.queue.submit([encoder.finish()]);
 		const actual = await readOutput(output);
@@ -201,7 +215,7 @@ async function checkChannelBlends(device: GPUDevice, vertex: GPUShaderModule, re
 // 定数画像では検出できないStart・Normalize・Vectorの方向依存を実画素で検証する。
 async function checkChromaticAspectRatio(device: GPUDevice, vertex: GPUShaderModule, readOutput: (output: GPUTexture) => Promise<number[]>) {
 	const completed: string[] = [];
-	const instance = chromaticAberration.init({ wgpu: { device, defaultVertexShaderModule: vertex } } as any);
+	const instance = chromaticAberration.place({ device, defaultVertexShaderModule: vertex }, null);
 	async function draw(width: number, height: number, scale: number, sizeReference: string, normalize: boolean, start = 0.2) {
 		const source = device.createTexture({ size: [width, height], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 		const output = device.createTexture({ size: [width, height], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
@@ -227,11 +241,10 @@ async function checkChromaticAspectRatio(device: GPUDevice, vertex: GPUShaderMod
 				vector: [0.1 * scale / Math.max(width, height), -0.075 * scale / Math.max(width, height)],
 			};
 			const encoder = device.createCommandEncoder();
-			instance.render({
+			await instance.draw({
 				params,
 				commandEncoder: encoder,
-				outputDataMap: { output: { texture: output, textureView: output.createView() } },
-				createPassEncoderFor: (_: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+				outputs: { output: output },
 			} as any);
 			device.queue.submit([encoder.finish()]);
 			return await readOutput(output);

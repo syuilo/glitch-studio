@@ -1,234 +1,142 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
-import { loadShaderSource } from './helpers/load-shader-source.mjs';
-
-globalThis.GPUQueue = class { submit() {} };
-
-const { ExpressionEvaluator } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/shared/expression/expression-evaluator.ts')));
-
-const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
-const { CustomNodeGraphEffectRenderer } = await load('@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-renderer.ts');
-const { getNodeOutputs } = await load('@gs/subsystems_custom-node-graph-effect_shared/node-outputs.ts');
+import { createEffectInstance } from '@gs/subsystems_effect-new_renderer/create-effect-instance.ts';
+import { validateEffectSource } from '@gs/subsystems_effect-new_shared/validate-effect-source.ts';
 
 const reference = (nodeId, outputPort = 'output') => ({ nodeId, outputPort });
-const literal = value => ({ inputSource: 'literal', value });
-const relay = (id, input = reference('in', 'input'), kind = 'color') => ({ id, type: 'relay', dataType: { kind }, input });
-const connection = (nodeId, settings = {}) => ({ inputSource: 'node', ...reference(nodeId), fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', ...settings });
-const effectNode = (id, params = {}, isBypass = false) => ({ id, type: 'effect', resolution: { mode: 'context', scale: 1 }, effectId: 'probe', params, isBypass });
-const context = (output = { kind: 'uniform', value: [0.25, 0, 0, 0.5] }) => ({
-	time: 0, timeDelta: 0, endTime: Infinity, isExport: false,
-	pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 },
-	evaluatedParamValues: new Map(), paramInputs: new Map([['input', output]]),
-});
-
-function fixture(t, nodes, { kind = 'color', paramDefs = {}, lazy = false, disableCache = false } = {}) {
-	const calls = { textures: [], renders: [], prepares: [], disposed: 0 };
-	const definition = {
-		paramDefs, primaryInputParameter: Object.keys(paramDefs)[0] ?? null, primaryOutput: 'output',
-		outputDefs: Object.fromEntries(['output', 'extra'].map(port => [port, { dataType: { kind }, canLazyAllocation: lazy }])),
-	};
-	const implementation = {
-		disableCache,
-		outputTextureFactories: Object.fromEntries(['output', 'extra'].map(port => [port, () => {
-			const texture = { port, width: 16, height: 16, destroyed: 0, createView() { return { texture }; }, destroy() { this.destroyed++; } };
-			calls.textures.push(texture);
-			return texture;
-		}])),
-		init: () => ({
-			prepare(params) { calls.prepares.push(params); },
-			render(args) { calls.renders.push(args); },
-			dispose() { calls.disposed++; },
-		}),
-	};
-	const module = {
-		customParameterDefs: [],
-		customParameterValues: {},
-		id: 'customNodeGraphEffect', name: 'customNodeGraphEffect', automationGraphs: [],
-		paramDefs: [{ id: 'input', nameForReference: 'input', dataType: { kind }, canNode: true }],
-		primaryInputId: 'input',
-		outputDefs: [{ id: 'out', dataType: { kind } }], primaryOutputId: 'out',
-		nodes: [{ id: 'in', type: 'globalIn' }, ...nodes, { id: 'out', type: 'globalOut', inputs: { out: reference(nodes.at(-1).id) } }],
-	};
-	const renderer = new CustomNodeGraphEffectRenderer({ expressionEvaluator: new ExpressionEvaluator(),
-		gpuDevice: { limits: { maxTextureDimension2D: 8192 }, createShaderModule: () => ({}) }, fallbackTexture: {}, timingHelper: null,
-		resolution: { width: 16, height: 16 }, enableStats: false, enable32bitDataTextures: false,
-		videoFrameVersions: new Map(), assets: [], assetTextures: new Map(),
-		effectDefinitions: { probe: definition }, effectImplementations: { probe: implementation }, customNodeGraphEffect: module,
-	});
-	t.after(() => renderer.destroy());
-	return { renderer, module, calls, render: (ctx = context()) => renderer.render(ctx, {}) };
+const publicInput = { parameterId: 'input' };
+const relay = (id, input = publicInput, kind = 'color') => ({ id, type: 'relay', dataType: { kind }, input });
+const sampling = { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
+const connection = (nodeId, outputPort = 'output', options = sampling) => ({ inputSource: 'node', source: reference(nodeId, outputPort), sampling: options });
+const node = (id, params = {}, isBypass = false) => ({ id, effectSource: { type: 'nativeEffect', id: 'probe' }, params, isBypass });
+const parameter = kind => ({ dataType: { kind }, ui: { label: 'Input', control: {} }, canNode: true,
+	defaultValue: { inputSource: 'literal', value: kind === 'color' ? [0, 0, 0, 0] : kind === 'vector' ? [0, 0] : 0 } });
+const size = { width: 16, height: 16 };
+const ports = { output: { dataType: { kind: 'color' } }, extra: { dataType: { kind: 'color' } } };
+function setup(nodes, output = reference(nodes.at(-1).id), kind = 'color') {
+	const graph = { nodes, paramDefs: { input: parameter(kind) }, outputDefs: { result: { dataType: { kind } } },
+		outputSources: { result: output }, primaryInputParameter: 'input', primaryOutput: 'result', resolutionInputParameters: [] };
+	const source = { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph };
+	const definition = { paramDefs: { a: parameter('color'), b: parameter('color') }, primaryInputParameter: 'a', primaryOutput: 'output',
+		outputDefs: ports, resolutionInputParameters: [] };
+	const definitions = { getNativeEffect: () => definition };
+	const textures = [], renders = [], preparations = [];
+	async function place(input) {
+		return createEffectInstance({ effectSource: source, definitions, resolution: size, usedOutputPorts: new Set(['result']), inputs: { input } }, {}, () => ({
+			createOutputTexture(port) {
+				const texture = { ...size, port, destroyed: 0, destroy() { this.destroyed++; } };
+				textures.push(texture); return texture;
+			},
+			init({ inputs, outputTextures }) { return { cacheKey: 0, prepare() { preparations.push(inputs); },
+				render() { renders.push({ inputs, outputTextures }); }, dispose() {} }; },
+		}));
+	}
+	return { graph, validate: () => validateEffectSource(source, definitions), place, textures, renders, preparations };
 }
+const frame = () => ({ time: 0, timeDelta: 0 });
+const color = { kind: 'uniform', value: [0.25, 0, 0, 0.5] };
 
-const colorInput = { dataType: { kind: 'color' }, canNode: true };
-
-// 未接続でも固定型の出力ポートを公開する
-// 上流を交換する途中でも後段の接続契約を維持し、ポートが消えることを防ぐ。
-test('declares a fixed output type even when disconnected', () => {
-	const node = relay('relay', { nodeId: null, outputPort: null }, 'vector');
-	assert.deepEqual(getNodeOutputs(node, [], {}), { output: { dataType: { kind: 'vector' } } });
+// 【未接続の中継でも宣言型を検証できる】
+// まだGPU出力を持たない編集中の配線が有効か、宣言だけで判断する。
+test('declares a fixed output type even when disconnected', async t => {
+	const f = setup([relay('split', null, 'vector')], reference('split'), 'vector');
+	f.validate();
+	const instance = await f.place({ kind: 'uniform', value: [0, 0] }); t.after(() => instance.dispose());
+	assert.equal(instance.outputs.has('result'), false);
 });
 
-for (const [kind, value] of [['scalar', [0.123456789]], ['vector', [-2, 3]], ['color', [0.25, 0, 0, 0.5]]]) {
-	// 中継を連ねても定数の精度・成分・乗算済みアルファを維持する
-	// 中継の追加でテクスチャ化や色の再乗算が起きると、画質と性能が配線の整理だけで変わってしまう。
-	test(`preserves ${kind} uniforms through relay chains without GPU allocation`, async t => {
-		const f = fixture(t, [relay('first', undefined, kind), relay('second', reference('first'), kind)], { kind });
-		const output = { kind: 'uniform', value };
-		const ctx = context(output);
-		await f.renderer.prepare(ctx, new AbortController().signal);
-		assert.equal(f.render(ctx), output);
-		assert.equal(f.calls.textures.length, 0);
-		assert.equal(f.calls.renders.length, 0);
+for (const [kind, value] of [['scalar', [0.125]], ['vector', [-2, 3]], ['color', color.value]]) {
+	// 【中継を連ねてもuniformをテクスチャ化しない】
+	// 任意の成分数と負値・乗算済みアルファを維持し、GPU資源を一つも確保しない。
+	test('preserves ' + kind + ' uniforms through relay chains without allocation', async t => {
+		const f = setup([relay('first', publicInput, kind), relay('last', reference('first'), kind)], reference('last'), kind);
+		const input = { kind: 'uniform', value };
+		const instance = await f.place(input); t.after(() => instance.dispose());
+		instance.render(frame(), {});
+		assert.equal(instance.outputs.get('result'), input);
+		assert.equal(f.textures.length, 0);
 	});
 }
 
-// 借用テクスチャの形式と所有権を変えない
-// relayは画像処理もリソース所有も行わず、破棄時に入力元のテクスチャを壊してはいけない。
-test('passes borrowed textures through unchanged without destroying them', t => {
-	const f = fixture(t, [relay('relay')]);
-	let destroyed = false;
-	const output = { kind: 'texture', texture: { destroy() { destroyed = true; } } };
-	assert.equal(f.render(context(output)), output);
-	f.renderer.destroy();
-	assert.equal(destroyed, false);
-	assert.equal(f.calls.textures.length, 0);
+// 【借用画像の寿命を中継が引き取らない】
+// 配置の破棄時に、上流の所有者が使うテクスチャを破棄してはいけない。
+test('passes borrowed textures through unchanged without destroying them', async () => {
+	const input = { kind: 'texture', resolution: size, texture: { destroy: () => assert.fail('borrowed texture') } };
+	const f = setup([relay('last')]), instance = await f.place(input);
+	assert.equal(instance.outputs.get('result').texture, input.texture);
+	instance.dispose(); assert.equal(f.textures.length, 0);
 });
 
-// 分岐先ごとのサンプリング設定を維持し、同一フレームで上流を一度だけ描画する
-// 中継点でサンプリングすると接続先ごとの見た目が変わり、重複描画すると履歴系エフェクトの時間が余分に進む。
+// 【複数の消費側で上流の描画を一度だけ共有する】
+// 同じポートでもサンプリングは各接続に属し、片方の設定がもう片方へ漏れてはいけない。
 test('preserves consumer sampling and renders a shared upstream effect once', async t => {
-	const settings = { fitMode: 'contain', wrapMode: 'clampToEdge', filterMode: 'nearest' };
-	const f = fixture(t, [effectNode('source', { a: literal([1, 0, 0, 1]), b: literal([0, 0, 0, 0]) }), relay('relay', reference('source', 'extra')), effectNode('consumer', {
-		a: connection('relay', settings), b: connection('relay'),
-	})], { paramDefs: { a: colorInput, b: colorInput }, disableCache: true });
-	const ctx = context();
-	await f.renderer.prepare(ctx, new AbortController().signal);
-	f.render(ctx);
-	assert.equal(f.calls.prepares.length, 2);
-	assert.equal(f.calls.renders.length, 2);
-	const params = f.calls.renders.at(-1).params;
-	assert.equal(params.a.texture, f.calls.renders[0].outputDataMap.extra.texture);
-	assert.equal(params.a.texture, params.b.texture);
-	assert.equal(params.a.fitMode, settings.fitMode);
-	assert.equal(params.a.wrapMode, settings.wrapMode);
-	assert.equal(params.a.filterMode, settings.filterMode);
-	assert.equal(params.b.filterMode, 'linear');
+	const nearest = { fitMode: 'contain', wrapMode: 'clamp', filterMode: 'nearest' };
+	const f = setup([node('source'), relay('split', reference('source', 'extra')),
+		node('consumer', { a: connection('split', 'output', nearest), b: connection('split') })]);
+	const instance = await f.place(color); t.after(() => instance.dispose());
+	const current = frame(); await instance.prepare(current); instance.render(current, {});
+	assert.equal(f.preparations.length, 2); assert.equal(f.renders.length, 2);
+	const { a, b } = f.renders[1].inputs;
+	assert.equal(a.texture, f.renders[0].outputTextures.get('extra'));
+	assert.equal(a.texture, b.texture); assert.deepEqual(a.sampling, nearest); assert.deepEqual(b.sampling, sampling);
 });
 
-// 中継経由でも必要な出力だけ遅延確保し、上流のポート交換を反映する
-// relayを通常の出力として数えると実際の生成元の出力が確保されず、交換後に古い画像が残ってしまう。
-test('tracks lazy output usage through relay chains and upstream port changes', t => {
-	const node = relay('relay', reference('source', 'extra'));
-	const f = fixture(t, [effectNode('source'), node], { lazy: true });
-	const first = f.render();
-	assert.equal(first.texture.port, 'extra');
-	assert.equal(f.calls.textures.length, 1);
-	node.input = reference('source');
-	f.renderer.updateNodes(f.module.nodes);
-	assert.equal(f.render().texture.port, 'output');
-	assert.equal(first.texture.destroyed, 1);
-	assert.equal(f.calls.renders.length, 2);
+// 【中継先のポートを変えた配置は、新しい出力だけを確保する】
+// 一つの配置の寿命中はポート固定なので、再配線時の確保と解放を別配置の境界で確認する。
+test('tracks requested outputs through relay chains and port changes', async () => {
+	const f = setup([node('source'), relay('last', reference('source', 'extra'))]);
+	for (const port of ['extra', 'output']) {
+		f.graph.nodes[1].input = reference('source', port);
+		const instance = await f.place(color);
+		assert.equal(instance.outputs.get('result').texture.port, port);
+		instance.render(frame(), {}); instance.dispose();
+	}
+	assert.deepEqual(f.textures.map(texture => [texture.port, texture.destroyed]), [['extra', 1], ['output', 1]]);
 });
 
-// 上流の値の変化と接続先交換を後段のキャッシュへ伝える
-// 中継自身に描画処理がなくても、依存を無視すると後段が古い結果を使い続ける。
-test('invalidates downstream caches for uniform changes and relay rewiring', t => {
-	const node = relay('relay');
-	const f = fixture(t, [
-		effectNode('source', { input: literal([1, 0, 0, 1]) }),
-		effectNode('replacement', { input: literal([1, 0, 0, 1]) }),
-		node, effectNode('consumer', { input: connection('relay') }),
-	], { paramDefs: { input: colorInput } });
-	f.render();
-	f.render();
-	assert.equal(f.calls.renders.length, 1);
-	f.render(context({ kind: 'uniform', value: [0, 0.5, 0, 0.5] }));
-	assert.equal(f.calls.renders.length, 2);
-	node.input = reference('source');
-	f.renderer.updateNodes(f.module.nodes);
-	f.render();
-	assert.equal(f.calls.renders.length, 4);
-	assert.equal(f.calls.renders.at(-1).params.input.texture, f.calls.renders.at(-2).outputDataMap.output.texture);
-	const previousTexture = f.calls.renders.at(-1).params.input.texture;
-	// パラメータが同一でも生成元が違えば別のテクスチャなので、後段のbindingを更新する。
-	node.input = reference('replacement');
-	f.renderer.updateNodes(f.module.nodes);
-	f.render();
-	assert.equal(f.calls.renders.length, 6);
-	assert.notEqual(f.calls.renders.at(-1).params.input.texture, previousTexture);
-	// 接続解除でも再評価し、以前の入力を残さず後段の空の入力へ戻す。
-	node.input = { nodeId: null, outputPort: null };
-	f.renderer.updateNodes(f.module.nodes);
-	f.render();
-	assert.equal(f.calls.renders.length, 7);
-	assert.deepEqual(f.calls.renders.at(-1).params.input, { kind: 'uniform', value: [0, 0, 0, 0] });
+// 【中継経由のuniform値が変わると後段だけを再描画する】
+// 同じ値の再描画はキャッシュできる一方、変更された値をキャッシュで隠さない。
+test('invalidates consumer caches on uniform changes through a relay', async t => {
+	let value = color.value;
+	const f = setup([relay('split'), node('consumer', { a: connection('split') })]);
+	const instance = await f.place({ kind: 'uniform', get value() { return value; } }); t.after(() => instance.dispose());
+	instance.render(frame(), {}); instance.render(frame(), {});
+	assert.equal(f.renders.length, 1);
+	value = [1, 0, 0, 1]; instance.render(frame(), {});
+	assert.equal(f.renders.length, 2);
 });
 
-// 同じ借用テクスチャでも毎フレーム更新を後段へ伝える
-// 動画などはテクスチャの同一性を保ったまま内容が変わるため、relayでキャッシュを固定すると映像が止まる。
-test('keeps consumers live when a borrowed texture retains its identity', t => {
-	const f = fixture(t, [relay('relay'), effectNode('consumer', { input: connection('relay') })], { paramDefs: { input: colorInput } });
-	const output = { kind: 'texture', texture: {} };
-	f.render(context(output));
-	f.render(context(output));
-	assert.equal(f.calls.renders.length, 2);
+// 【世代のない借用画像は同じオブジェクトでも再描画する】
+// WebGPUテクスチャは参照を変えずに画素を更新できるため、静止画とみなさない。
+test('keeps consumers live when a borrowed texture retains its identity', async t => {
+	const f = setup([relay('split'), node('consumer', { a: connection('split') })]);
+	const instance = await f.place({ kind: 'texture', resolution: size, texture: {} }); t.after(() => instance.dispose());
+	instance.render(frame(), {}); instance.render(frame(), {}); assert.equal(f.renders.length, 2);
 });
 
-// バイパスと中継を混在させても定数をそのまま通す
-// エフェクトの有効・無効の切り替えで、中継を含む接続の意味が変わってはいけない。
-test('resolves relays on both sides of a bypassed effect', t => {
-	const f = fixture(t, [relay('first'), effectNode('bypass', { input: connection('first') }, true), relay('last', reference('bypass'))], { paramDefs: { input: colorInput } });
-	const output = { kind: 'uniform', value: [0.25, 0, 0, 0.5] };
-	assert.equal(f.render(context(output)), output);
-	assert.equal(f.calls.renders.length, 0);
+// 【バイパスの前後にある中継は主入力を直結する】
+// 無効化したノードが画像を再生成したり、その履歴を進めたりしない。
+test('resolves relays on both sides of a bypassed effect', async t => {
+	const f = setup([relay('first'), node('bypass', { a: connection('first') }, true), relay('last', reference('bypass'))]);
+	const instance = await f.place(color); t.after(() => instance.dispose());
+	instance.render(frame(), {});
+	assert.equal(instance.outputs.get('result').value, color.value); assert.deepEqual(f.renders, []);
 });
 
-// 【公開入力の評価値からバイパスの接続を動的に作らない】
-// 静的検証したBindingにない自己参照を、値のobjectから作ると循環検査の前提が崩れる。
-test('does not interpret evaluated parameter objects as bypass connections', t => {
-	const f = fixture(t, [effectNode('bypass', { input: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'input' } }, true)], { paramDefs: { input: colorInput } });
-	f.module.paramDefs[0].canNode = false;
-	const ctx = { ...context(), evaluatedParamValues: new Map([['input', { nodeId: 'bypass', outputPort: 'output' }]]) };
-	assert.equal(f.render(ctx), null);
-	assert.equal(f.calls.renders.length, 0);
-});
-
-for (const input of [{ nodeId: null, outputPort: null }, reference('missing'), reference('in', 'missing')]) {
-	// 未接続・欠落した参照は出力なしとして扱う
-	// 前段の削除や交換の途中に古い出力を公開せず、Outノードの未接続と同じように扱う。
-	test(`returns no output for unavailable relay input ${JSON.stringify(input)}`, async t => {
-		const f = fixture(t, [relay('relay', input)]);
-		await f.renderer.prepare(context(), new AbortController().signal);
-		assert.equal(f.render(), null);
+for (const [label, source] of [['missing node', reference('removed')], ['missing public input', { parameterId: 'removed' }], ['unknown relay port', reference('first', 'removed')]]) {
+	// 【参照できない中継先を編集境界で拒否する】
+	// 不正な参照を既定の接続へ読み替えず、GPUを確保する前に修正できる。
+	test('rejects ' + label + ' at the graph editing boundary', () => {
+		const f = setup([relay('first'), relay('last', source)]);
+		assert.throws(f.validate);
 	});
 }
 
-// 存在しない中継出力名を暗黙に主出力へ置き換えない
-// 誤ったポート参照を成功扱いにすると、保存データの接続ミスが別の画像として表示されてしまう。
-test('does not resolve an unknown relay output port', t => {
-	const f = fixture(t, [relay('relay')]);
-	f.module.nodes.at(-1).inputs.out.outputPort = 'missing';
-	assert.equal(f.render(), null);
-});
-
-for (const output of [{ kind: 'uniform', value: [0.25, 0, 0, 0.5] }, { kind: 'texture', texture: {} }]) {
-	// 宣言型が異なっても定数・テクスチャを変換せず通す
-	// Glitch Studioでは意図的な異種型接続を許容する。中継を挟んだだけで描画が失敗したり、
-	// 成分数やアルファが変わったりしないよう、準備と描画の両方で型の強制がないことを確認する。
-	test(`passes ${output.kind} outputs through mismatched relay declarations in prepare and render`, async t => {
-		const f = fixture(t, [relay('first', undefined, 'scalar'), relay('second', reference('first'), 'vector')]);
-		const ctx = context(output);
-		await f.renderer.prepare(ctx, new AbortController().signal);
-		assert.equal(f.render(ctx), output);
-		assert.equal(f.calls.textures.length, 0);
-	});
-}
-
-// anyの接続互換性は既存のノード接続規約に従う
-// 固定型の導入を理由にanyだけを拒否したり、通過するデータへ暗黙の変換を加えたりしない。
-test('honors any compatibility without converting the output', t => {
-	const f = fixture(t, [relay('first', undefined, 'any'), relay('second', reference('first'), 'color')], { kind: 'scalar' });
-	const output = { kind: 'uniform', value: [0.125] };
-	assert.equal(f.render(context(output)), output);
+// 【any型の中継を挟んでも値を変換しない】
+// 互換性があるポートを経由するとき、スカラーの値と成分数を維持する。
+test('honors any compatibility without converting the output', async t => {
+	const f = setup([relay('first', publicInput, 'any'), relay('last', reference('first'), 'scalar')], reference('last'), 'scalar');
+	f.validate();
+	const input = { kind: 'uniform', value: [0.125] }, instance = await f.place(input); t.after(() => instance.dispose());
+	assert.equal(instance.outputs.get('result'), input);
 });

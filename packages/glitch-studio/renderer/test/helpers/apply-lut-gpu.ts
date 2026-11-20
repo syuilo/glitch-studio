@@ -1,8 +1,9 @@
-import { EffectRenderer } from '@gs/subsystems_effect_renderer/effect-renderer.ts';
-import definition from '@gs/subsystems_effect_shared/fx/applyLut/_def_.ts';
-import implementation from '@gs/subsystems_effect_shared/fx/applyLut/_impl_.ts';
-import { createLutLayout, createLutResources } from '@gs/subsystems_effect_shared/fx/applyLut/lut-resources.ts';
-import { parseCubeLut } from '@gs/subsystems_effect_shared/fx/applyLut/cube.ts';
+import { createEffectInstance } from '@gs/subsystems_effect-new_renderer/create-effect-instance.ts';
+import { createTestInputs } from '@gs/subsystems_effect-new_native-effects/test/native-effect-probe.ts';
+import definition from '@gs/subsystems_effect-new_native-effects/fx/applyLut/_def_.ts';
+import implementation from '@gs/subsystems_effect-new_native-effects/fx/applyLut/_impl_.ts';
+import { createLutLayout, createLutResources } from '@gs/subsystems_effect-new_native-effects/fx/applyLut/lut-resources.ts';
+import { parseCubeLut } from '@gs/subsystems_effect-new_native-effects/fx/applyLut/cube.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { linearSrgbToSrgb, srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
@@ -15,7 +16,6 @@ export async function run() {
 	device.pushErrorScope('validation');
 	const completed: string[] = [];
 	const vertex = device.createShaderModule({ code: vertexCode });
-	const fallbackTexture = device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING });
 	// float出力の負値や1超も検証する。検査用コピーは補間せず、同じ画素を厳密に読む。
 	const copy = device.createRenderPipeline({
 		layout: 'auto',
@@ -57,23 +57,11 @@ export async function run() {
 	const identity = 'LUT_3D_SIZE 3\n' + rows3d(3, (r, g, b) => [r, g, b]);
 	try {
 		for (const use32bit of supports32 ? [false, true] : [false]) {
-			const createRenderer = (lut: Blob | null) => new EffectRenderer({
-				definition,
-				implementation,
-				staticResources: { lut },
-				resolution: { width: 1, height: 1 },
-				fallbackTexture,
-				wgpu: {
-					device,
-					defaultVertexShaderModule: vertex,
-					enable32bitDataTextures: use32bit,
-				},
-			});
-			let renderer = createRenderer(null);
-			const replaceRenderer = (lut: Blob | null) => {
-				renderer.dispose();
-				renderer = createRenderer(lut);
-			};
+			const place = (lut: Blob | null, params: Record<string, unknown>) => createEffectInstance({
+				effectSource: { type: 'nativeEffect', id: 'applyLut' }, definitions: { getNativeEffect: () => definition }, resolution: { width: 1, height: 1 },
+				inputs: createTestInputs(definition.paramDefs, () => params), usedOutputPorts: new Set(['output']), staticSettings: { lut: lut == null ? null : 'table' },
+				resources: { assets: lut == null ? [] : [{ id: 'table', name: 'table.cube', fileData: lut, fileDataType: 'application/x-cube-lut', width: 0, height: 0 }], assetTextures: new Map() },
+			}, { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: use32bit }, () => implementation);
 			let inputTexture: GPUTexture | null = null;
 			const draw = async (name: string, text: string | null, rgba: number[], expected: number[], input?: ShaderInput,
 				colorSpaces: Partial<Record<'inputColorSpace' | 'outputColorSpace', 'linearSrgb' | 'srgb'>> = {}) => {
@@ -83,57 +71,37 @@ export async function run() {
 					outputColorSpace: 'linearSrgb' as const,
 					...colorSpaces,
 				};
-				replaceRenderer(text == null ? null : new Blob([text]));
-				renderer.prepare(params);
-				if (!await renderer.waitUntilReady(new AbortController().signal)) throw new Error('LUT preparation cancelled');
-				const encoder = device.createCommandEncoder();
-				renderer.render({
-					params,
-					commandEncoder: encoder,
-					time: 0,
-					timeDelta: 0,
-					pointerPosition: { x: 0, y: 0 },
-					pointerVector: { x: 0, y: 0 },
-				});
-				device.queue.submit([encoder.finish()]);
-				const actual = await read(renderer.getOutputTexture('output')!);
-				if (actual.some((value, index) => !Number.isFinite(value) || Math.abs(value - expected[index]) > 0.004)) throw new Error(`${name}: ${actual} != ${expected}`);
+				const instance = await place(text == null ? null : new Blob([text]), params);
+				try {
+					const encoder = device.createCommandEncoder();
+					instance.render({ time: 0, timeDelta: 0 }, encoder);
+					device.queue.submit([encoder.finish()]);
+					const output = instance.outputs.get('output');
+					if (output?.kind !== 'texture') throw new Error('Missing LUT output');
+					const actual = await read(output.texture);
+					if (actual.some((value, index) => !Number.isFinite(value) || Math.abs(value - expected[index]) > 0.004)) throw new Error(name + ': ' + actual);
+				} finally { instance.dispose(); }
 				completed.push(`${name} (${use32bit ? 32 : 16} bit)`);
 			};
 			try {
-				// 【Custom Node Graph Effect Live Previewの描画は準備を待たずに開始でき、読み込み完了後に更新される】
-				// 書き出しと違いCustom Node Graph Effect Live Previewはprepare/waitUntilReadyを呼ばない。
-				// 初回と差し替えの両方で、読み込み中の描画が例外にならず古い画素も残さないことを確認する。
-				for (const name of ['initial Custom Node Graph Effect Live Preview load', 'Custom Node Graph Effect Live Preview replacement']) {
-					let finishRead!: (text: string) => void;
-					const pendingText = new Promise<string>(resolve => { finishRead = resolve; });
-					class DelayedBlob extends Blob {
-						override text() { return pendingText; }
-					}
-					replaceRenderer(new DelayedBlob(['pending']));
-					const params = { input: { kind: 'uniform' as const, value: [0.2, 0.6, 0.4, 1] } };
-					const renderCustomNodeGraphEffectLivePreview = () => {
-						const encoder = device.createCommandEncoder();
-						renderer.render({
-							params,
-							commandEncoder: encoder,
-							time: 0,
-							timeDelta: 0,
-							pointerPosition: { x: 0, y: 0 },
-							pointerVector: { x: 0, y: 0 },
-						});
+				// 【素材の読み込みが完了した配置だけが描画結果を公開できる】
+				// 初回・差し替えのどちらも遅延読み込み後の正しい画素を確認する。
+				for (const name of ['initial LUT load', 'LUT replacement']) {
+					const pending = Promise.withResolvers<string>();
+					class DelayedBlob extends Blob { override text() { return pending.promise; } }
+					const args = { input: { kind: 'uniform', value: [0.2, 0.6, 0.4, 1] }, inputColorSpace: 'linearSrgb', outputColorSpace: 'linearSrgb' };
+					const placement = place(new DelayedBlob(['pending']), args);
+					pending.resolve('LUT_1D_SIZE 2\n0 1 0\n1 0 2');
+					const instance = await placement;
+					try {
+						const encoder = device.createCommandEncoder(); instance.render({ time: 0, timeDelta: 0 }, encoder);
 						device.queue.submit([encoder.finish()]);
-					};
-					renderCustomNodeGraphEffectLivePreview();
-					const pendingVersion = renderer.cacheVersion;
-					if ((await read(renderer.getOutputTexture('output')!)).some(value => value !== 0)) throw new Error(`${name}: expected transparent output while loading`);
-					finishRead('LUT_1D_SIZE 2\n0 1 0\n1 0 2');
-					if (!await renderer.waitUntilReady(new AbortController().signal)) throw new Error(`${name}: cancelled`);
-					if (renderer.cacheVersion === pendingVersion) throw new Error(`${name}: loading output remained cached`);
-					renderCustomNodeGraphEffectLivePreview();
-					const actual = await read(renderer.getOutputTexture('output')!);
-					if (actual.some((value, index) => Math.abs(value - [0.2, 0.4, 0.8, 1][index]) > 0.004)) throw new Error(`${name}: ${actual}`);
-					completed.push(`${name} (${use32bit ? 32 : 16} bit)`);
+						const output = instance.outputs.get('output');
+						if (output?.kind !== 'texture') throw new Error('Missing LUT output');
+						const actual = await read(output.texture);
+						if (actual.some((value, index) => Math.abs(value - [0.2, 0.4, 0.8, 1][index]) > 0.004)) throw new Error(name + ': ' + actual);
+						completed.push(name);
+					} finally { instance.dispose(); }
 				}
 				// 【恒等変換と半透明を実画素で確認する】
 				// テクセル中心のずれやpremultiplyの二重適用は、格子の間にある半透明色で検出する。
@@ -173,7 +141,7 @@ export async function run() {
 					wrapMode: 'clamp',
 					filterMode: 'linear',
 				});
-			} finally { renderer.dispose(); inputTexture?.destroy(); }
+			} finally { inputTexture?.destroy(); }
 		}
 		// 【GPU制限と16bitの範囲外を明示的なエラーにする】
 		// Infinityへ変換して不正な画像を生成するより、精度設定の変更を案内する。
@@ -186,5 +154,5 @@ export async function run() {
 		const error = await device.popErrorScope();
 		if (error != null) throw new Error(error.message);
 		return completed;
-	} finally { fallbackTexture.destroy(); device.destroy(); }
+	} finally { device.destroy(); }
 }

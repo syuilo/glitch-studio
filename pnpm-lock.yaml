@@ -336,18 +336,6 @@ importers:
         specifier: 5.0.4
         version: 5.0.4
     devDependencies:
-      '@gs/subsystems_custom-node-graph-effect_renderer':
-        specifier: workspace:*
-        version: link:../../subsystems/custom-node-graph-effect/renderer
-      '@gs/subsystems_custom-node-graph-effect_shared':
-        specifier: workspace:*
-        version: link:../../subsystems/custom-node-graph-effect/shared
-      '@gs/subsystems_effect_renderer':
-        specifier: workspace:*
-        version: link:../../subsystems/effect/renderer
-      '@gs/subsystems_effect_shared':
-        specifier: workspace:*
-        version: link:../../subsystems/effect/shared
       '@types/web':
         specifier: 0.0.359
         version: 0.0.359
@@ -629,9 +617,15 @@ importers:
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
+      jsqr:
+        specifier: 1.4.0
+        version: 1.4.0
       vite:
         specifier: 8.3.5
         version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.107.1)
+      webgpu-utils:
+        specifier: 2.1.1
+        version: 2.1.1
 
   packages/subsystems/effect-new/renderer:
     dependencies:

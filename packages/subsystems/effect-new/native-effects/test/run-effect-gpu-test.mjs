@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 
-export async function runEffectGpuTest(entry, functionName, timeout = 45000) {
+export async function runEffectGpuTest(entry, functionName, timeout = 45000, args = []) {
 	const bundle = await build({ entryPoints: [fileURLToPath(entry)],
 		plugins: [wgslShaderEsbuildPlugin()], platform: 'browser', format: 'esm', bundle: true, write: false, loader: { '.wgsl': 'text', '.png': 'dataurl' } });
 	const result = Promise.withResolvers();
@@ -24,7 +24,7 @@ export async function runEffectGpuTest(entry, functionName, timeout = 45000) {
 			res.end(bundle.outputFiles[0].text);
 		} else if (req.url === '/start.js') {
 			res.setHeader('Content-Type', 'text/javascript');
-			res.end(`try { const module = await import('/worker.js'); const value = await module[${JSON.stringify(functionName)}](); await fetch('/result', {method: 'POST', body: JSON.stringify({value})}); }
+			res.end(`try { const module = await import('/worker.js'); const value = await module[${JSON.stringify(functionName)}](...${JSON.stringify(args)}); await fetch('/result', {method: 'POST', body: JSON.stringify({value})}); }
 catch (error) { await fetch('/result', {method: 'POST', body: JSON.stringify({error: error.stack})}); }`);
 		} else {
 			res.end('<script>new Worker("/start.js",{type:"module"})</script>');

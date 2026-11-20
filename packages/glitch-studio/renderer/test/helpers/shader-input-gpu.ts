@@ -1,13 +1,21 @@
+import { nativeEffectProbe } from '@gs/subsystems_effect-new_native-effects/test/native-effect-probe.ts';
+import colorMixDefinition from '@gs/subsystems_effect-new_native-effects/fx/colorMix/_def_.ts';
+import imageDefinition from '@gs/subsystems_effect-new_native-effects/fx/image/_def_.ts';
+import blockShuffleDefinition from '@gs/subsystems_effect-new_native-effects/fx/blockShuffle/_def_.ts';
 import { checkMigratedEffects } from './migrated-shader-input-gpu.ts';
 import { checkGradientInputs } from './gradient-shader-input-gpu.ts';
 import { checkTimelineCompositor } from './timeline-compositor-gpu.ts';
-import effect from '@gs/subsystems_effect_shared/fx/colorMix/_impl_.ts';
-import imageEffect from '@gs/subsystems_effect_shared/fx/image/_impl_.ts';
-import blockShuffle from '@gs/subsystems_effect_shared/fx/blockShuffle/_impl_.ts';
+import effectNative from '@gs/subsystems_effect-new_native-effects/fx/colorMix/_impl_.ts';
+import imageEffectNative from '@gs/subsystems_effect-new_native-effects/fx/image/_impl_.ts';
+import blockShuffleNative from '@gs/subsystems_effect-new_native-effects/fx/blockShuffle/_impl_.ts';
 import { constantShaderInput, textureShaderInput, generateShaderInputs, createShaderInputBindings } from '@gs/shared/gpu/shader-input.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { AssetTextures } from '../../src/asset-textures.ts';
+
+const effect = nativeEffectProbe(colorMixDefinition, effectNative);
+const imageEffect = nativeEffectProbe(imageDefinition, imageEffectNative);
+const blockShuffle = nativeEffectProbe(blockShuffleDefinition, blockShuffleNative);
 
 // 実際のGPU出力を読む。モックでは検出できないWGSL・layout・補間の不整合を確認する。
 export async function run() {
@@ -17,7 +25,7 @@ export async function run() {
 	device.pushErrorScope('validation');
 	const textures: GPUTexture[] = [];
 	const vertex = device.createShaderModule({ code: vertexCode });
-	const instance = effect.init({ wgpu: { device, defaultVertexShaderModule: vertex } } as any);
+	const instance = effect.place({ device, defaultVertexShaderModule: vertex }, null);
 	const completed: string[] = [];
 	function check(name: string, actual: readonly number[], expected: readonly number[], tolerance = 2) {
 		if (actual.some((v, i) => Math.abs(v - expected[i]) > tolerance)) throw new Error(`${name}: ${actual} != ${expected}`);
@@ -65,11 +73,10 @@ export async function run() {
 	async function mix(params: any, width = 1, height = 1) {
 		const output = texture(width, height, null, 'rgba16float');
 		const encoder = device.createCommandEncoder();
-		instance.render({
+		await instance.draw({
 			params,
 			commandEncoder: encoder,
-			outputDataMap: { output: { texture: output, textureView: output.createView() } },
-			createPassEncoderFor: (_, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+			outputs: { output: output },
 		} as any);
 		return read(output, encoder);
 	}
@@ -153,14 +160,12 @@ export async function run() {
 		}
 		const rawSource = await loadImageAsset(2, 2, [255, 0, 0, 128, 0, 255, 0, 255, 0, 0, 255, 64, 255, 255, 255, 0]);
 		const rawOutput = texture(2, 2, null, 'rgba16float');
-		let raw = imageEffect.init({ resources: { image: rawSource }, wgpu: { device, defaultVertexShaderModule: vertex } } as any);
+		let raw = imageEffect.place({ device, defaultVertexShaderModule: vertex }, null, { image: rawSource });
 		const rawEncoder = device.createCommandEncoder();
-		raw.render({
+		await raw.draw({
 			params: { fit: 'stretch' },
 			commandEncoder: rawEncoder,
-			outputDataMap: { output: { texture: rawOutput, textureView: rawOutput.createView() } },
-			createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
-			createPassEncoder: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
+			outputs: { output: rawOutput },
 		} as any);
 		const rawPixels = await read(rawOutput, rawEncoder);
 		check('original image top row and half alpha', rawPixels[0], [128, 0, 0, 128, 0, 255, 0, 255]);
@@ -169,13 +174,12 @@ export async function run() {
 		const edgeSource = await loadImageAsset(2, 1, [255, 0, 0, 255, 0, 0, 0, 0]);
 		const edgeOutput = texture(1, 1, null, 'rgba16float');
 		raw.dispose();
-		raw = imageEffect.init({ resources: { image: edgeSource }, wgpu: { device, defaultVertexShaderModule: vertex } } as any);
+		raw = imageEffect.place({ device, defaultVertexShaderModule: vertex }, null, { image: edgeSource });
 		const edgeEncoder = device.createCommandEncoder();
-		raw.render({
+		await raw.draw({
 			params: { fit: 'stretch' },
 			commandEncoder: edgeEncoder,
-			outputDataMap: { output: { texture: edgeOutput, textureView: edgeOutput.createView() } },
-			createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+			outputs: { output: edgeOutput },
 		} as any);
 		check('image interpolation preserves premultiplied transparent edges', (await read(edgeOutput, edgeEncoder))[0], [128, 0, 0, 128]);
 		// 【sRGBの中間調を原寸でlinear化してから補間する】
@@ -183,22 +187,19 @@ export async function run() {
 		// 平均し、alphaの二重乗算とencoded RGBのままの補間も合わせて検出する。
 		const graySource = await loadImageAsset(2, 1, [128, 128, 128, 255, 128, 128, 128, 128]);
 		raw.dispose();
-		raw = imageEffect.init({ resources: { image: graySource }, wgpu: { device, defaultVertexShaderModule: vertex } } as any);
+		raw = imageEffect.place({ device, defaultVertexShaderModule: vertex }, null, { image: graySource });
 		const grayEncoder = device.createCommandEncoder();
-		raw.render({ params: { fit: 'stretch' }, commandEncoder: grayEncoder,
-			outputDataMap: { output: { texture: edgeOutput, textureView: edgeOutput.createView() } },
-			createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+		await raw.draw({ params: { fit: 'stretch' }, commandEncoder: grayEncoder,
+			outputs: { output: edgeOutput },
 		} as any);
 		check('image midtones are linear before interpolation', (await read(edgeOutput, grayEncoder))[0], [41, 41, 41, 192]);
 		raw.dispose();
-		raw = imageEffect.init({ resources: { image: null }, wgpu: { device, defaultVertexShaderModule: vertex } } as any);
+		raw = imageEffect.place({ device, defaultVertexShaderModule: vertex }, null, { image: null });
 		const emptyEncoder = device.createCommandEncoder();
-		raw.render({
+		await raw.draw({
 			params: { fit: 'stretch' },
 			commandEncoder: emptyEncoder,
-			outputDataMap: { output: { texture: rawOutput, textureView: rawOutput.createView() } },
-			createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
-			createPassEncoder: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
+			outputs: { output: rawOutput },
 		} as any);
 		check('original image without asset is transparent', (await read(rawOutput, emptyEncoder))[0], Array(8).fill(0));
 		raw.dispose();
@@ -242,7 +243,7 @@ export async function run() {
 		const striped = texture(4, 2, Array.from({ length: 8 }, (_, i) => i < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]).flat());
 		// Block Shuffleの選択／非選択タイルのどちらでも、接続のfit/wrapを適用する。
 		// 変形を無効にしてColor Mixの入力参照と比較し、上下反転も検出する。
-		const blocks = blockShuffle.init({ wgpu: { device, defaultVertexShaderModule: vertex }, resolution: { width: 4, height: 4 } } as any);
+		const blocks = blockShuffle.place({ device, defaultVertexShaderModule: vertex }, { width: 4, height: 4 });
 		try {
 			for (const fitMode of ['stretch', 'cover', 'contain'] as const) {
 				for (const wrapMode of ['clamp', 'repeat', 'repeatMirrored', 'transparent'] as const) {
@@ -251,7 +252,7 @@ export async function run() {
 					for (const selection of [0, 1]) {
 						const output = texture(4, 4, null, 'rgba16float');
 						const encoder = device.createCommandEncoder();
-						blocks.render({
+						await blocks.draw({
 							params: {
 								input,
 								density: constantShaderInput('vector', [2, 4 / 3]),
@@ -264,8 +265,7 @@ export async function run() {
 								randomFlipY: false,
 							},
 							commandEncoder: encoder,
-							outputDataMap: { output: { texture: output, textureView: output.createView() } },
-							createPassEncoderFor: (_: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+							outputs: { output: output },
 						} as any);
 						check(`blockShuffle ${fitMode} ${wrapMode} selection ${selection}`, (await read(output, encoder)).flat(), expected);
 					}

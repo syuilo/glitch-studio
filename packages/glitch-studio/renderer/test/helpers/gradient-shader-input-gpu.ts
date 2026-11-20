@@ -1,7 +1,10 @@
-import gradient from '@gs/subsystems_effect_shared/fx/gradient/_impl_.ts';
-import definition from '@gs/subsystems_effect_shared/fx/gradient/_def_.ts';
+import { nativeEffectProbe } from '@gs/subsystems_effect-new_native-effects/test/native-effect-probe.ts';
+import gradientNative from '@gs/subsystems_effect-new_native-effects/fx/gradient/_impl_.ts';
+import definition from '@gs/subsystems_effect-new_native-effects/fx/gradient/_def_.ts';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { float32ToFloat16Bits } from '@gs/shared/utility/float32ToFloat16Bits.ts';
+
+const gradient = nativeEffectProbe(definition, gradientNative);
 
 function fromHalf(bits: number) {
 	const exponent = (bits >> 10) & 31;
@@ -20,7 +23,7 @@ export async function checkGradientInputs(device: GPUDevice, vertex: GPUShaderMo
 		device.pushErrorScope('validation');
 		const textures: GPUTexture[] = [];
 		const context = { wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures }, resolution: { width: 4, height: 4 } } as any;
-		const instance = gradient.init(context);
+		const instance = gradient.place(context.wgpu, context.resolution);
 		function texture(width: number, height: number, channels: number, values?: number[]) {
 			const format = (channels === 1 ? 'r' : 'rg') + (enable32bitDataTextures ? '32float' : '16float') as GPUTextureFormat;
 			const output = device.createTexture({ size: [width, height], format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST });
@@ -36,15 +39,13 @@ export async function checkGradientInputs(device: GPUDevice, vertex: GPUShaderMo
 		const buffer = device.createBuffer({ size: 2048, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
 		async function render(params: any, needsVector: boolean) {
 			const encoder = device.createCommandEncoder();
-			const outputDataMap: any = { scalar: { texture: scalar, textureView: scalar.createView() } };
-			if (needsVector) outputDataMap.vector = { texture: vector, textureView: vector.createView() };
-			instance.render({
+			const outputs: any = { scalar: scalar };
+			if (needsVector) outputs.vector = vector;
+			await instance.draw({
 				params,
 				commandEncoder: encoder,
-				outputDataMap,
+				outputs,
 				usedOutputPorts: new Set(needsVector ? ['scalar', 'vector'] : ['scalar']),
-				createPassEncoder: (e: GPUCommandEncoder, descriptor: GPURenderPassDescriptor) => e.beginRenderPass(descriptor),
-				createPassEncoderFor: (e: GPUCommandEncoder, view: GPUTextureView) => e.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
 			} as any);
 			encoder.copyTextureToBuffer({ texture: scalar }, { buffer, bytesPerRow: 256 }, [4, 4]);
 			if (needsVector) encoder.copyTextureToBuffer({ texture: vector }, { buffer, offset: 1024, bytesPerRow: 256 }, [4, 4]);

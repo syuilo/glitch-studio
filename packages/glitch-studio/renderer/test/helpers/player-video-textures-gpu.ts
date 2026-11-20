@@ -1,7 +1,11 @@
+import { nativeEffectProbe } from '@gs/subsystems_effect-new_native-effects/test/native-effect-probe.ts';
+import videoDefinition from '@gs/subsystems_effect-new_native-effects/fx/video/_def_.ts';
 import { PlayerVideoTextures } from '../../src/player-video-textures.ts';
-import videoImplementation from '@gs/subsystems_effect_shared/fx/video/_impl_.ts';
+import videoImplementationNative from '@gs/subsystems_effect-new_native-effects/fx/video/_impl_.ts';
 import type { FitMode } from '@gs/shared/types.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
+
+const videoImplementation = nativeEffectProbe(videoDefinition, videoImplementationNative);
 
 export async function run() {
 	const adapter = await navigator.gpu.requestAdapter();
@@ -14,9 +18,8 @@ export async function run() {
 	const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false };
 	const resolution = { width: 2, height: 1 };
 	const effects = Array.from({ length: 2 }, () => {
-		const texture = videoImplementation.outputTextureFactories.output({ wgpu, resolution });
-		const instance = videoImplementation.init({ wgpu, resolution, params: { fit: 'stretch' }, reportStatus() {}, fallbackTexture: texture,
-			resources: { player: { getVideoTexture: () => owner.getTexture('player') } } });
+		const texture = videoImplementation.createTexture('output', { wgpu, resolution });
+		const instance = videoImplementation.place(wgpu, resolution, { player: { getVideoTexture: () => owner.getTexture('player') } });
 		return { texture, instance };
 	});
 	const reader = device.createRenderPipeline({ layout: 'auto', vertex: { module: vertex }, fragment: {
@@ -33,15 +36,12 @@ export async function run() {
 		format: 'RGBA', codedWidth: 2, codedHeight: 1, timestamp: 0,
 		colorSpace: { primaries: 'bt709', transfer: 'iec61966-2-1', matrix: 'rgb', fullRange: true },
 	});
-	function render(index: number, fit: FitMode = 'stretch') {
+	async function render(index: number, fit: FitMode = 'stretch') {
 		const { texture, instance } = effects[index];
 		const encoder = device.createCommandEncoder();
-		instance.render({ params: { fit }, commandEncoder: encoder, time: 0, timeDelta: 0,
+		await instance.draw({ params: { fit }, commandEncoder: encoder, time: 0, timeDelta: 0,
 			pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
-			outputDataMap: { output: { texture, textureView: texture.createView(), previousFrameTexture: null, previousFrameTextureView: null } },
-			createPassEncoder: (commandEncoder, descriptor) => commandEncoder.beginRenderPass(descriptor),
-			createComputePassEncoder: commandEncoder => commandEncoder.beginComputePass(),
-			createPassEncoderFor: (commandEncoder, view) => commandEncoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+			outputs: { output: texture },
 		});
 		device.queue.submit([encoder.finish()]);
 	}
@@ -62,29 +62,29 @@ export async function run() {
 		// 【同じPlayerを使う実Videoノードは、原寸のコピーとlinear化を一度だけ行う】
 		// 転送回数だけでなく、両方の出力が正しいlinear値・alphaを持つことを確認する。
 		owner.updateFrame('player', frame(128));
-		render(0); render(1);
+		await render(0); await render(1);
 		if (copies !== 1) throw new Error('Video nodes normalized the same player separately');
 		await checkPixels(0, 0.1083535, 128 / 255);
 		await checkPixels(1, 0.1083535, 128 / 255);
 		checks.push('shared normalization', 'first node pixels', 'second node pixels');
-		render(1, 'contain');
+		await render(1, 'contain');
 		if (copies !== 1) throw new Error('Fit changes normalized the source again');
 		checks.push('fit reuses normalized source');
 		effects[0].instance.dispose();
-		render(1);
+		await render(1);
 		await checkPixels(1, 0.1083535, 128 / 255);
 		checks.push('node disposal preserves borrowed source');
 		owner.updateFrame('player', frame(64));
-		render(1);
+		await render(1);
 		if (copies !== 2) throw new Error('Player update did not normalize exactly once');
 		await checkPixels(1, 0.0257353, 128 / 255);
 		checks.push('new player frame updates pixels');
 		owner.updateFrame('player', null);
-		render(1);
+		await render(1);
 		await checkPixels(1, 0, 0);
 		checks.push('removed player clears output');
 		owner.updateFrame('player', frame(128));
-		render(1);
+		await render(1);
 		await checkPixels(1, 0.1083535, 128 / 255);
 		checks.push('recovered player refreshes borrowed binding');
 		await device.queue.onSubmittedWorkDone();

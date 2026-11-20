@@ -3,11 +3,12 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
-const { resolveEffectNodeResolution } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_effect_shared/effect-node-resolution.ts')));
+const { resolveEffectNodeResolution } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_effect-new_shared/effect-node-resolution.ts')));
 const { scaleResolution } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/shared/resolution.ts')));
-const { validateEffectResolution } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_effect_shared/resolution.ts')));
+const { validateEffectResolution } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_effect-new_shared/resolution.ts')));
 const resolve = options => resolveEffectNodeResolution({
-	setting: { mode: 'auto', scale: 1 }, contextResolution: { width: 960, height: 540 }, resolutionScale: 0.5, maxDimension: 8192, ...options,
+	setting: { mode: 'auto', scale: 1 }, resolutionScale: 0.5, maxDimension: 8192, ...options,
+	contextResolution: () => options.contextResolution ?? { width: 960, height: 540 },
 });
 
 // 【原寸の枝にプレビュー倍率を一度だけ適用する】

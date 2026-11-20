@@ -1,17 +1,13 @@
-import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
+import { createEffectInstance } from '@gs/subsystems_effect-new_renderer/create-effect-instance.ts';
+import type { EffectInstance } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
 import { checkEffectRenderTiles } from './effect-render-tiles-gpu.ts';
-import { EffectRenderer } from '@gs/subsystems_effect_renderer/effect-renderer.ts';
-import { CustomNodeGraphEffectRenderer } from '@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-renderer.ts';
-import gradientDefinition from '@gs/subsystems_effect_shared/fx/gradient/_def_.ts';
-import gradient from '@gs/subsystems_effect_shared/fx/gradient/_impl_.ts';
-import feedbackDefinition from '@gs/subsystems_effect_shared/fx/feedback/_def_.ts';
-import feedback from '@gs/subsystems_effect_shared/fx/feedback/_impl_.ts';
-import colorMixDefinition from '@gs/subsystems_effect_shared/fx/colorMix/_def_.ts';
-import colorMix from '@gs/subsystems_effect_shared/fx/colorMix/_impl_.ts';
-import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
-import type { RuntimeEffectParameters } from '@gs/subsystems_effect_shared/effect-implementation.ts';
+import gradientDefinition from '@gs/subsystems_effect-new_native-effects/fx/gradient/_def_.ts';
+import gradient from '@gs/subsystems_effect-new_native-effects/fx/gradient/_impl_.ts';
+import feedbackDefinition from '@gs/subsystems_effect-new_native-effects/fx/feedback/_def_.ts';
+import feedback from '@gs/subsystems_effect-new_native-effects/fx/feedback/_impl_.ts';
+import colorMixDefinition from '@gs/subsystems_effect-new_native-effects/fx/colorMix/_def_.ts';
+import colorMix from '@gs/subsystems_effect-new_native-effects/fx/colorMix/_impl_.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectEffectNode } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { checkEffectTimelineLayers, checkBlurRegionTimelineLayer } from './effect-timeline-layer-gpu.ts';
 import { checkTimelineCompositor } from './timeline-compositor-gpu.ts';
@@ -104,135 +100,54 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		}
 		completed.push(name);
 	}
-	const fallbackTexture = device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING });
-	const createGradientRenderer = (resolution: Resolution) => new EffectRenderer({
-		definition: gradientDefinition,
-		implementation: gradient,
-		resolution,
-		staticResources: {},
-		fallbackTexture,
-		wgpu: {
-			device,
-			defaultVertexShaderModule: vertex,
-			enable32bitDataTextures: false,
-		},
-	});
-	let single = createGradientRenderer({ width: 4, height: 4 });
-	const params = Object.fromEntries(Object.entries(gradientDefinition.paramDefs).map(([key, def]) => [
-		key, 'canNode' in def && def.canNode ? constantShaderInput(def.dataType.kind, def.defaultValue.value) : def.defaultValue.value,
-	])) as unknown as RuntimeEffectParameters<typeof gradientDefinition.paramDefs>;
-	const history: CustomNodeGraphEffectEffectNode = {
-		id: 'history',
-		type: 'effect',
-		effectId: 'feedback',
-		staticSettings: {},
-		displayName: '',
-		isBypass: false,
-		resolution: { mode: 'context', scale: 1 },
-		params: {
-			...Object.fromEntries(Object.entries(feedbackDefinition.paramDefs).map(([key, definition]) => [key, structuredClone(definition.defaultValue)])),
-			input: {
-				inputSource: 'node',
-				nodeId: 'source',
-				outputPort: 'output',
-				fitMode: 'cover',
-				wrapMode: 'repeatMirrored',
-				filterMode: 'linear',
-			},
-			strength: { inputSource: 'literal', value: 1 },
-			// 加算と履歴保持を確認するため、観測区間より十分長い半減期にする。
-			halfLife: { inputSource: 'literal', value: 1e9 },
-			reset: { inputSource: 'literal', value: false },
-		},
-	};
-	const customNodeGraphEffect: CustomNodeGraphEffect = {
-		customParameterDefs: [],
-		customParameterValues: {},
-		automationGraphs: [],
-		paramDefs: [],
-		primaryInputId: null,
-		outputDefs: [{
-			id: 'out',
-			name: 'out',
-			label: 'Out',
-			dataType: { kind: 'any' },
-		}],
-		primaryOutputId: 'out',
-		nodes: [{
-			id: 'source',
-			type: 'effect',
-			effectId: 'colorMix',
-			staticSettings: {},
-			displayName: '',
-			isBypass: false,
-			resolution: { mode: 'context', scale: 1 },
-			params: { inputA: { inputSource: 'literal', value: [1, 0, 0, 1] }, inputB: { inputSource: 'literal', value: [0, 0, 0, 0] }, amount: { inputSource: 'literal', value: 0 } },
-		}, history, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'history', outputPort: 'output' } } }],
-	};
-	const renderer = new CustomNodeGraphEffectRenderer({ expressionEvaluator: new ExpressionEvaluator(),
-		gpuDevice: device,
-		fallbackTexture,
-		resolution: { width: 4, height: 4 },
-		enableStats: false,
-		timingHelper: null,
-		enable32bitDataTextures: false,
-		assets: [],
-		assetTextures: new Map(),
-		videoFrameVersions: new Map(),
-		effectDefinitions: { colorMix: { ...colorMixDefinition }, feedback: { ...feedbackDefinition } },
-		effectImplementations: { colorMix, feedback },
-		customNodeGraphEffect,
-	});
-	const frame = () => ({
-		time: 1000,
-		timeDelta: 250,
-		endTime: Infinity,
-		isExport: false,
-		pointerPosition: { x: 0, y: 0 },
-		pointerPositionPrev: { x: 0, y: 0 },
-		evaluatedParamValues: new Map(),
-	});
+	const gpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false };
+	let single: EffectInstance | null = null;
+	async function drawGradient(ports: ReadonlySet<string>, resolution: Resolution = { width: 4, height: 4 }) {
+		single?.dispose();
+		single = await createEffectInstance({ effectSource: { type: 'nativeEffect', id: 'gradient' }, definitions: { getNativeEffect: () => gradientDefinition },
+			resolution, usedOutputPorts: ports }, gpu, () => gradient);
+		const encoder = device.createCommandEncoder();
+		single.render({ time: 1, timeDelta: 250 }, encoder); device.queue.submit([encoder.finish()]);
+		return single.outputs;
+	}
+	const history = { id: 'history', effectSource: { type: 'nativeEffect' as const, id: 'feedback' }, isBypass: false,
+		params: { input: { inputSource: 'node' as const, source: { nodeId: 'source', outputPort: 'output' }, sampling: {
+			fitMode: 'cover' as const, wrapMode: 'repeatMirrored' as const, filterMode: 'linear' as const } },
+			strength: { inputSource: 'literal' as const, value: 1 }, halfLife: { inputSource: 'literal' as const, value: 1e9 } } };
+	const graph = { kind: 'generate' as const, paramDefs: {}, primaryInputParameter: null, resolutionInputParameters: [], primaryOutput: 'out', outputDefs: { out: { dataType: { kind: 'color' as const } } },
+		nodes: [{ id: 'source', effectSource: { type: 'nativeEffect' as const, id: 'colorMix' }, params: {
+			inputA: { inputSource: 'literal' as const, value: [1, 0, 0, 1] }, inputB: { inputSource: 'literal' as const, value: [0, 0, 0, 0] }, amount: { inputSource: 'literal' as const, value: 0 } } }, history],
+		outputSources: { out: { nodeId: 'history', outputPort: 'output' } } };
+	const createGraph = (size = 4) => createEffectInstance({ effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph },
+		definitions: { getNativeEffect: id => id === 'feedback' ? feedbackDefinition : colorMixDefinition }, usedOutputPorts: new Set(['out']),
+		resolution: { width: size, height: size } }, gpu, id => id === 'feedback' ? feedback : colorMix);
+	let renderer = await createGraph();
+	const frame = () => ({ time: 1, timeDelta: 250 });
 	async function drawCustomNodeGraphEffect() {
 		const ctx = frame();
 		await renderer.prepare(ctx, new AbortController().signal);
 		const encoder = device.createCommandEncoder();
-		const output = renderer.render(ctx, encoder);
+		renderer.render(ctx, encoder);
+		const output = renderer.outputs.get('out');
 		device.queue.submit([encoder.finish()]);
 		if (output?.kind !== 'texture') throw new Error('Expected texture from effect');
 		return read(output.texture);
 	}
-	function drawGradient(ports: ReadonlySet<'scalar' | 'vector'>) {
-		single.setUsedOutputPorts(ports);
-		single.prepare(params);
-		const encoder = device.createCommandEncoder();
-		single.render({
-			params,
-			commandEncoder: encoder,
-			usedOutputPorts: ports,
-			time: 1,
-			timeDelta: 250,
-			pointerPosition: { x: 0, y: 0 },
-			pointerVector: { x: 0, y: 0 },
-		});
-		device.queue.submit([encoder.finish()]);
-	}
 	try {
-		// 【単体エフェクトの複数出力と遅延確保を実画素で確認する】
-		// 実際のGradientのMRTを通し、出力の解放・再確保後にも値と微分が同時に書き込まれることを確認する。
+		// 【Native Effectの要求ポートごとの画素を確認する】
+		// 要求ポートを変えてGradientを配置し直しても、MRTで値と微分を同時に書き込める。
 		const scalarOnly = new Set<'scalar' | 'vector'>(['scalar']);
 		const both = new Set<'scalar' | 'vector'>(['scalar', 'vector']);
-		drawGradient(scalarOnly);
-		check('EffectRenderer scalar output', await read(single.getOutputTexture('scalar')!), [223, 159, 96, 32].flatMap(value => Array(4).fill([value, 0, 0, 255]).flat()));
+		let ports = await drawGradient(scalarOnly);
+		check('Gradient scalar output', await read((ports.get('scalar') as { texture: GPUTexture }).texture), [223, 159, 96, 32].flatMap(value => Array(4).fill([value, 0, 0, 255]).flat()));
 		for (let i = 0; i < 2; i++) {
-			drawGradient(both);
-			check(`EffectRenderer lazy MRT ${i}`, await read(single.getOutputTexture('vector')!), Array(16).fill([0, 255, 0, 255]).flat());
-			single.setUsedOutputPorts(scalarOnly);
-			if (single.getOutputTexture('vector') != null) throw new Error('Unused lazy output was retained');
+			ports = await drawGradient(both);
+			check(`Gradient MRT ${i}`, await read((ports.get('vector') as { texture: GPUTexture }).texture), Array(16).fill([0, 255, 0, 255]).flat());
+			ports = await drawGradient(scalarOnly);
+			if (ports.has('vector')) throw new Error('Unused output was allocated');
 		}
-		single.dispose();
-		single = createGradientRenderer({ width: 2, height: 2 });
-		drawGradient(both);
-		check('EffectRenderer recreated output', await read(single.getOutputTexture('scalar')!), [191, 64].flatMap(value => Array(2).fill([value, 0, 0, 255]).flat()));
+		ports = await drawGradient(both, { width: 2, height: 2 });
+		check('EffectRenderer recreated output', await read((ports.get('scalar') as { texture: GPUTexture }).texture), [191, 64].flatMap(value => Array(2).fill([value, 0, 0, 255]).flat()));
 
 		// 【Custom Node Graph Effect経由の履歴とバイパス・リサイズを実画素で確認する】
 		// prepareだけで加算が進まず、バイパス解除・リサイズのどちらでも履歴を新しく始める。
@@ -240,17 +155,16 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		await renderer.prepare(frame(), new AbortController().signal);
 		await renderer.prepare(frame(), new AbortController().signal);
 		history.isBypass = true;
-		renderer.updateNodes(customNodeGraphEffect.nodes);
+		renderer.dispose(); renderer = await createGraph();
 		check('Custom Node Graph Effect bypasses history', await drawCustomNodeGraphEffect(), Array(16).fill([255, 0, 0, 255]).flat());
 		history.isBypass = false;
-		renderer.updateNodes(customNodeGraphEffect.nodes);
+		renderer.dispose(); renderer = await createGraph();
 		check('Custom Node Graph Effect resets history after bypass', await drawCustomNodeGraphEffect(), Array(16).fill([64, 0, 0, 64]).flat());
-		renderer.resize({ width: 2, height: 2 });
+		renderer.dispose(); renderer = await createGraph(2);
 		check('Custom Node Graph Effect resets resized history', await drawCustomNodeGraphEffect(), Array(4).fill([64, 0, 0, 64]).flat());
 		return completed;
 	} finally {
-		single.dispose();
-		renderer.destroy();
-		fallbackTexture.destroy();
+		single?.dispose();
+		renderer.dispose();
 	}
 }

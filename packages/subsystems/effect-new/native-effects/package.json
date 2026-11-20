@@ -9,6 +9,7 @@
 		"test": "node --test test/*.test.mjs"
 	},
 	"exports": {
+		"./test/native-effect-probe.ts": "./test/helpers/native-effect-probe.ts",
 		"./*": "./src/*"
 	},
 	"dependencies": {
@@ -26,6 +27,8 @@
 		"@types/web": "0.0.359",
 		"@typescript-eslint/parser": "8.72.1",
 		"@webgpu/types": "0.1.74",
+		"jsqr": "1.4.0",
+		"webgpu-utils": "2.1.1",
 		"vite": "8.3.5",
 		"esbuild": "0.28.2"
 	}
