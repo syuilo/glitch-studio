@@ -5,12 +5,14 @@ import { preserveParameterExpressionModifier, supportsParameterExpressionModifie
 import { validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
 import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
 import { getArrayElementDefinition, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
+import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter-path.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import type { Cloneable } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { customNodeGraphEffectTargetKey } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
+import { resolveEffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
 import { validateCustomNodeGraphEffectCustomParameterDefinition, validateCustomNodeGraphEffectCustomParameterBinding } from '@/utility/custom-node-graph-effect-view-parameters.ts';
 import { getNodeOutputs } from '@/utility/custom-node-graph-effect-node-outputs.ts';
 import { updateStructParameterFields } from '../utility/struct-parameter-edit.ts';
@@ -37,6 +39,12 @@ import type { ParameterChangeKind } from '@gs/shared/parameter/parameter-definit
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { CustomNodeGraphEffectCustomParameterDefinition, CustomNodeGraphEffectValueParameterBinding, CustomNodeGraphEffectParameterBinding, CustomNodeGraphEffectEffectNode, CustomNodeGraphEffect, CustomNodeGraphEffectParamDef, CustomNodeGraphEffectOutputDef } from '@/types/custom-node-graph-effect-view.ts';
 import type { CustomNodeGraphEffectTarget } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
+import type {
+	CustomNodeGraphEffectOutputSource,
+	CustomNodeGraphEffectEffectNode as StoredCustomNodeGraphEffectEffectNode,
+	CustomNodeGraphEffectParameterBinding as StoredCustomNodeGraphEffectParameterBinding,
+	NodeOutputReference,
+} from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
 import type { CustomNodeGraphEffectNodeReference } from './custom-node-graph-effect-change.ts';
 
 import type { ProjectState, AppStateChange } from '../Project.ts';
@@ -484,6 +492,60 @@ const replaceCustomNodeGraphEffectOutputDefinition = defineCommand<{ target: Cus
 		if (customNodeGraphEffect.primaryOutputId === definition.id && definition.dataType.kind !== 'color') customNodeGraphEffect.primaryOutputId = null;
 	}),
 });
+
+function prepareRegisteredCustomNodeGraphEffectOutputDisconnections(state: ProjectState, customNodeGraphEffectId: string, outputId: string) {
+	const definitions = getEffectDefinitions(state);
+	return prepareProjectEffectPlacementChanges(state, {
+		customNodeGraphEffect(customNodeGraphEffect) {
+			const sourceNodeIds = new Set(customNodeGraphEffect.nodes.flatMap(node => node.type !== 'relay'
+				&& node.effectSource.type === 'customNodeGraphEffectReference' && node.effectSource.id === customNodeGraphEffectId ? [node.id] : []));
+			if (sourceNodeIds.size === 0) return null;
+			// ノードIDはグラフ内だけで有効。残る出力やRelayの出力自体への配線は切断しない。
+			const usesRemovedOutput = (source: CustomNodeGraphEffectOutputSource | null | undefined): source is NodeOutputReference =>
+				source != null && 'nodeId' in source && source.outputPort === outputId && sourceNodeIds.has(source.nodeId);
+			const outputConnections = Object.entries(customNodeGraphEffect.outputSources).flatMap(([id, source]) => usesRemovedOutput(source) ? [[id, { ...source }] as const] : []);
+			const relayInputs = new Map<string, NodeOutputReference>();
+			const parameterEdits = new Map<string, (params: StoredCustomNodeGraphEffectEffectNode['params'], restore: boolean) => void>();
+			for (const node of customNodeGraphEffect.nodes) {
+				if (node.type === 'relay') {
+					if (usesRemovedOutput(node.input)) relayInputs.set(node.id, { ...node.input });
+					continue;
+				}
+				if (Object.keys(node.params).length === 0) continue;
+				const { paramDefs } = resolveEffectSource(node.effectSource, definitions).definition;
+				const parameterConnections: { path: ParamPath; binding: Extract<StoredCustomNodeGraphEffectParameterBinding, { inputSource: 'node' }> }[] = [];
+				for (const { path, value } of walkParameters<StoredCustomNodeGraphEffectParameterBinding>(paramDefs, node.params)) {
+					if (value.inputSource === 'node' && usesRemovedOutput(value.source)) parameterConnections.push({ path, binding: deepClone(value) });
+				}
+				if (parameterConnections.length === 0) continue;
+				parameterEdits.set(node.id, (params, restore) => {
+					for (const { path, binding } of parameterConnections) {
+						resolveParameter<StoredCustomNodeGraphEffectParameterBinding>(paramDefs, params, path).setValue(deepClone(restore ? binding : { ...binding, source: null }));
+					}
+				});
+			}
+			if (outputConnections.length === 0 && relayInputs.size === 0 && parameterEdits.size === 0) return null;
+			return (current, restore) => {
+				if (outputConnections.length > 0) {
+					const outputSources = new Map(Object.entries(current.outputSources));
+					for (const [id, source] of outputConnections) {
+						if (restore) outputSources.set(id, { ...source });
+						else outputSources.delete(id);
+					}
+					Object.assign(current, { outputSources: Object.fromEntries(outputSources) });
+				}
+				for (const node of current.nodes) {
+					if (node.type !== 'relay') parameterEdits.get(node.id)?.(node.params, restore);
+					else {
+						const input = relayInputs.get(node.id);
+						if (input != null) Object.assign(node, { input: restore ? { ...input } : null });
+					}
+				}
+			};
+		},
+	});
+}
+
 const removeCustomNodeGraphEffectOutput = defineCommand<{ target: CustomNodeGraphEffectOutputReference }>({
 	label: 'Remove Custom Node Graph Effect output',
 	prepare(state, { target }) {
@@ -494,14 +556,23 @@ const removeCustomNodeGraphEffectOutput = defineCommand<{ target: CustomNodeGrap
 		const after = { outputDefs: graph.outputDefs.filter(output => output.id !== target.outputId),
 			primaryOutputId: graph.primaryOutputId === target.outputId ? null : graph.primaryOutputId, source: null };
 		// 削除した出力の配線だけを定義と一緒に履歴へ残し、Undoで同じポートに戻す。
-		return prepareCustomNodeGraphEffectValue(before, after, (currentState, value) => {
+		const prepared = prepareCustomNodeGraphEffectValue(before, after, (currentState, value) => {
 			const current = getCustomNodeGraphEffect(currentState, target.customNodeGraphEffect);
 			current.outputDefs = value.outputDefs;
 			current.primaryOutputId = value.primaryOutputId;
-			const inputs = current.nodes.find(node => node.type === 'globalOut')!.inputs;
-			if (value.source == null) delete inputs[target.outputId];
-			else inputs[target.outputId] = value.source;
+			const outputNode = current.nodes.find(node => node.type === 'globalOut')!;
+			if (value.source == null) delete outputNode.inputs[target.outputId];
+			else outputNode.inputs = { ...outputNode.inputs, [target.outputId]: value.source };
 		}, [{ type: 'customNodeGraphEffect', target: target.customNodeGraphEffect }]);
+		const { change } = prepared;
+		if (change == null || !('customNodeGraphEffectId' in target.customNodeGraphEffect)) return prepared;
+		const disconnections = prepareRegisteredCustomNodeGraphEffectOutputDisconnections(state, target.customNodeGraphEffect.customNodeGraphEffectId, target.outputId);
+		return { result: prepared.result, change: {
+			changes: [...disconnections.changes, ...change.changes],
+			// 削除時は配線から先に外し、Undo時はポートが存在する状態へ戻してから配線し直す。
+			apply(current) { disconnections.apply(current); change.apply(current); },
+			revert(current) { change.revert(current); disconnections.revert(current); },
+		} };
 	},
 });
 

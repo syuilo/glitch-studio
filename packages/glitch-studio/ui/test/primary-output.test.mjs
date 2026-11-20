@@ -39,7 +39,7 @@ function fixture() {
 		b: { nameForReference: 'b', label: 'B', dataType: { kind: 'color' } },
 		scalar: { nameForReference: 'scalar', label: 'Scalar', dataType: { kind: 'scalar' } },
 	}, primaryOutput: 'a' });
-	const state = { customNodeGraphEffects: { value: [{ id: 'customNodeGraphEffect', definition: customNodeGraphEffect }] } };
+	const state = { customNodeGraphEffects: { value: [{ id: 'customNodeGraphEffect', definition: customNodeGraphEffect }] }, timelineScenes: { value: [] } };
 	const command = (name, payload) => prepareTestCommand(COMMAND_DEFS[name], { target: { customNodeGraphEffectId: 'customNodeGraphEffect' }, ...payload });
 	return { customNodeGraphEffect, state, command };
 }

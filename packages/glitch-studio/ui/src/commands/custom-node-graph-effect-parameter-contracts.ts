@@ -164,7 +164,7 @@ export const CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS = {
 		inputSchema: z.object({ target: customNodeGraphEffectOutputReferenceSchema, definition: customNodeGraphEffectOutputInputSchema }), resultSchema: z.null(),
 	},
 	removeCustomNodeGraphEffectOutput: {
-		description: 'Remove an output definition and clear its primary designation if necessary. The Out node connection is retained so Undo restores the original wiring.',
+		description: 'Remove an output definition, clear its primary designation if necessary, and disconnect wires to that port in all graph placements of the registered definition. Undo restores the output and its original wiring.',
 		examples: [outputSetup + 'Command:removeCustomNodeGraphEffectOutput({ target: output })'],
 		inputSchema: z.object({ target: customNodeGraphEffectOutputReferenceSchema }), resultSchema: z.null(),
 	},

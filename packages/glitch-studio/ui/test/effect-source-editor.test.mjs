@@ -74,6 +74,83 @@ test('edits and restores public-input relay wiring using the stored Effect defin
 	assert.deepEqual(read().outputSources[outputId], { nodeId: relay.nodeId, outputPort: 'output' });
 });
 
+// 【登録グラフの出力削除を利用側の切断とともにUndo/Redoする】
+// 親グラフの公開出力・Relay・配列やstructの入力に削除済みのポート参照が残ると描画検証が失敗する。
+// インラインの入れ子も含めて同じ差分でWorkerに同期し、別の出力と同じポートIDの別定義は保持する。
+test('disconnects consumers of a removed registered graph output and restores their wiring', async t => {
+	const color = { dataType: { kind: 'color' } };
+	const literal = value => ({ inputSource: 'literal', value });
+	const reference = id => ({ type: 'customNodeGraphEffectReference', id });
+	const output = (nodeId, outputPort) => ({ nodeId, outputPort });
+	const sampling = { fitMode: 'contain', wrapMode: 'clamp', filterMode: 'nearest' };
+	const connected = source => ({ inputSource: 'node', source, sampling });
+	const sourceDefinition = testGraph({
+		primaryOutput: 'removed', outputDefs: { removed: color, kept: color },
+		nodes: [{ id: 'fill', effectSource: { type: 'nativeEffect', id: 'fill' }, params: {} }],
+		outputSources: { removed: output('fill', 'output'), kept: output('fill', 'output') },
+	});
+	const consumerGraph = () => testGraph({
+		outputDefs: { output: color, viaRelay: color, otherGraph: color, otherPort: color },
+		nodes: [
+			{ id: 'source', effectSource: reference('child'), params: {} },
+			{ id: 'secondUse', effectSource: reference('child'), params: {} },
+			{ id: 'other', effectSource: reference('other'), params: {} },
+			{ id: 'relay', type: 'relay', dataType: color.dataType, input: output('source', 'removed') },
+			{ id: 'consumer', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, params: {
+				foo: literal({ node: connected(output('secondUse', 'removed')) }),
+				buzzs: literal([
+					{ id: 'removed', binding: literal({ image: connected(output('source', 'removed')), x: literal(0.5), y: literal(0) }) },
+					{ id: 'kept', binding: literal({ image: connected(output('source', 'kept')), x: literal(0), y: literal(0) }) },
+				]),
+			} },
+		],
+		outputSources: { output: output('source', 'removed'), viaRelay: output('relay', 'output'), otherGraph: output('other', 'removed'), otherPort: output('source', 'kept') },
+	});
+	const nestedGraph = () => ({ id: 'nested', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: consumerGraph() }, params: {} });
+	const parentDefinition = consumerGraph();
+	parentDefinition.nodes.push(nestedGraph());
+	const manager = new ProjectContext(createTestProject({
+		timelineScenes: [scene()], customNodeGraphEffects: [
+			{ id: 'child', name: 'Child', definition: sourceDefinition },
+			{ id: 'other', name: 'Other', definition: structuredClone(sourceDefinition) },
+			{ id: 'parent', name: 'Parent', definition: parentDefinition },
+		],
+	})).stateManager;
+	const { layerId } = manager.commit('createTimelineLayer', { sceneId: 'scene', layer: { layerType: 'effect', effectSource: inlineGraph([nestedGraph()]) }, clips: [] });
+	const [child, other, parent] = manager.state.customNodeGraphEffects.value;
+	const readLayerGraph = () => manager.state.timelineScenes.value[0].layers.find(layer => layer.id === layerId).effectSource.customNodeGraphEffect;
+	const snapshot = () => deepClone([child.definition, other.definition, parent.definition, readLayerGraph()]);
+	const before = snapshot();
+	const checkRenderer = observeRendererState(manager, t);
+	await checkRenderer();
+
+	const historyLength = manager.undoStack.value.length;
+	manager.commit('removeCustomNodeGraphEffectOutput', { target: { customNodeGraphEffect: { customNodeGraphEffectId: child.id }, outputId: 'removed' } });
+	assert.equal(manager.undoStack.value.length, historyLength + 1);
+	assert.equal(child.definition.primaryOutput, null);
+	assert.equal(Object.hasOwn(child.definition.outputDefs, 'removed'), false);
+	assert.deepEqual(child.definition.outputSources, { kept: output('fill', 'output') });
+	assert.deepEqual(other.definition, before[1]);
+	const readNestedGraph = graph => graph.nodes.find(node => node.id === 'nested').effectSource.customNodeGraphEffect;
+	for (const graph of [parent.definition, readNestedGraph(parent.definition), readNestedGraph(readLayerGraph())]) {
+		assert.ok(Object.hasOwn(graph.outputDefs, 'output'));
+		assert.deepEqual(graph.outputSources, { viaRelay: output('relay', 'output'), otherGraph: output('other', 'removed'), otherPort: output('source', 'kept') });
+		assert.equal(graph.nodes.find(node => node.id === 'relay').input, null);
+		const { foo, buzzs } = graph.nodes.find(node => node.id === 'consumer').params;
+		assert.deepEqual(foo.value.node, connected(null));
+		assert.deepEqual(buzzs.value[0].binding.value, { image: connected(null), x: literal(0.5), y: literal(0) });
+		assert.deepEqual(buzzs.value[1].binding.value.image, connected(output('source', 'kept')));
+	}
+	const after = snapshot();
+	await checkRenderer();
+	manager.undo();
+	assert.deepEqual(snapshot(), before);
+	await checkRenderer();
+	manager.redo();
+	assert.deepEqual(snapshot(), after);
+	await checkRenderer();
+});
+
 // 【公開入力の削除をUndoすると自動解像度の参照も復元する】
 // ポートIDだけを復元すると、Undo後に同じ画像へつなぎ直しても描画寸法が変わってしまう。
 test('restores the resolution input when undoing removal of the primary public input', () => {
