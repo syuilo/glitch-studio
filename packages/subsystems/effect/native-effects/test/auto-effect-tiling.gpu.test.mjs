@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 // 【実際のCustom Node Graph Effectで、初回・静止画キャッシュ・視点変更・解像度変更を確認する】
-// EffectRendererへ同じ内容を強制再描画するだけでは、初回の過分割や解像度変更による
+// 同じEffectInstanceで再描画するだけでは、初回の過分割や解像度変更による
 // 学習の破棄を見落とす。実GPUの画像を分割なしと比較し、試し描きの残留も検出する。
 test('adapts automatic tiling through cached previews and resolution changes on WebGPU', {
 	skip: process.env.CHROME_PATH == null, timeout: 240000,

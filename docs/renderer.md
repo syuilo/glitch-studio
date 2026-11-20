@@ -31,7 +31,7 @@
 
 ## エフェクト入力の参照とCustom Node Graph Effectの出力
 
-全エフェクトの `canNode: true` パラメータは、構造体・配列内も含めて `ShaderInput` として受け取ります。通常の入力参照は、JS側で生成するWGSL関数 `read_<入力名>(position)` を使います。エフェクトのシェーダーは、定数かテクスチャかによる分岐や、入力ごとのアスペクト比補正を実装する必要がありません。
+Native Effectの `canNode: true` パラメータは、構造体・配列内も含めて `EffectImageInput` として受け取ります。通常の入力参照は、JS側で生成するWGSL関数 `read_<入力名>(position)` を使います。この関数が定数とテクスチャを処理し、テクスチャ入力のアスペクト比を補正します。
 
 ### シェーダー側の読み取り
 
@@ -41,7 +41,7 @@ let amount = read_amount(position);
 ```
 
 - 入力名と型はエフェクト側のschemaで指定します。`position` は `vec2f` で、中央が `[0, 0]`、左下が `[-1, -1]`、右上が `[1, 1]` の内部画像参照座標です。公開する位置・変位・距離は長辺全体=1の共通単位で、実装境界で換算します。`readGradient_*`の偏微分もこの内部座標に対する値なので、公開する勾配は各軸の共通単位の半幅で割ります。戻り値はscalarなら `f32`、vectorなら `vec2f`、color/anyなら `vec4f` です。
-- テクスチャ入力では、参照関数が入力自身と出力先のサイズに基づくfit補正と、接続のwrap/filterを適用します。`NodeOutputReference` の必須設定を使い、通常の接続作成時の初期値は `cover` / `repeatMirrored` / `linear` です。containの余白もwrapに従い、自動で透明にはしません。定数入力は位置によらず同じ値を返し、fit/wrap/filterの影響を受けません。
+- テクスチャ入力では、参照関数が入力自身と出力先のサイズに基づくfit補正と、接続のwrap/filterを適用します。設定は接続Bindingの `sampling` が持ち、通常の接続作成時の初期値は `cover` / `repeatMirrored` / `linear` です。containの余白もwrapに従います。定数入力は位置によらず同じ値を返します。
 - 共通化するのは入力の参照座標とサンプリングです。エフェクト固有の変形や、ベクトル値の成分変換まで自動で行うものではありません。
 - 通常のfragmentではimplicit samplingを使います。computeや画素ごとに異なる分岐から参照する場合は、生成時に `sampling: 'level0'` を指定します。これはLODの指定であり、nearestの指定ではありません。
 - 配列schema（例: `{ images: { array: 'color' } }`）では `read_images(index, position)` と `count_images` を生成します。要素ごとに定数・テクスチャを混在でき、空配列・範囲外のindexは0を返します。配列要素の参照はLOD 0を使い、テクスチャ要素ごとに個別bindingを割り当てるため、GPUのテクスチャ・サンプラー数の上限を考慮してください。
@@ -51,8 +51,8 @@ let amount = read_amount(position);
 - `kind: 'uniform'` はリテラル、式、Automation Graphなどから得られる空間的に一定の値です。生成関数はuniform bufferからf32で読みます。
 - `kind: 'texture'` は元の `GPUTexture` と、受け取り側のfit/wrap/filter設定です。接続時にテクスチャの保存形式を暗黙に変換しません。「接続されているなら必ずtexture」と仮定しないでください。
 - 色の定数は入力・出力値へ変換する境界で一度だけpremultiplyします。既に乗算済みの値や画像入力に再乗算してはいけません。データ用のスカラー・ベクトルには乗算しません。
-- `generateShaderInputs()` がWGSLの宣言・参照関数・binding配置を生成し、`createShaderInputBindings()` が値とGPUリソースを更新します。通常のrender pipelineでは、構成の生成・再利用をまとめた `createShaderInputPipeline()` を使用できます。bindingの更新には、fitの基準となる実際の出力サイズを渡してください。
-- 定数/テクスチャの種別、配列長や各要素の種別が変わるとpipelineの構成が変わります。値・接続先・fit/wrap/filterだけの変更ではpipelineを再生成せず、uniformやbindingを更新します。エフェクト破棄時はヘルパーの `dispose()` も呼びます。
+- 入力で結果が決まる全画面の1パス描画には `createFullscreenEffect()` を使えます。独自のパスでは `createNativeEffectInputBindings()` や `createFixedInputBindings()` に実際の出力寸法を渡し、描画時に `getBindGroup()` で最新の入力を反映します。エフェクト破棄時はヘルパーの `dispose()` も呼びます。
+- 配線、定数とテクスチャの区別、配列長、入力寸法、fit/wrap/filterは配置の生成時に確定します。これらを編集すると `EffectInstance` を作り直します。フレームごとの値や同じ寸法の借用テクスチャはgetterから取得します。生成関数・配列入力・サンプリングの詳細は[生成するシェーダー入力](../packages/subsystems/effect/native-effects/SHADER_INPUTS.md)を参照してください。
 - 厳密な整数画素アクセスや履歴処理などでは、必要に応じて元のテクスチャを直接扱えます。その場合もuniform入力を扱い、生成関数を使わない理由を明確にしてください。画像素材・動画・音声など、`canNode` ではないパラメータはそれぞれの型で受け取ります。
 
 ### Effectの出力

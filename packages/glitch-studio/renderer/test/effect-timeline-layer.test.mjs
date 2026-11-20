@@ -4,7 +4,7 @@ import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
-// GPUだけを置き換える。Scene・クリップの解決、EffectRenderer、パラメータ評価、合成は実コードを通す。
+// GPUだけを置き換える。Scene・クリップの解決、EffectInstance、パラメータ評価、合成は実コードを通す。
 const globals = ['GPUQueue', 'GPUTextureUsage', 'GPUBufferUsage', 'GPUShaderStage'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
 const gpu = Object.getOwnPropertyDescriptor(navigator, 'gpu');
 globalThis.GPUQueue = class { submit() {} };
@@ -37,7 +37,7 @@ const definition = {
 	staticSettingDefs: { source: { dataType: { kind: 'assetReference', assetType: 'video' }, ui: { label: 'Source' }, defaultValue: null } }, intrinsicResolutionSetting: 'source',
 	paramDefs: { input: color, amount: scalar, forbidden: scalar, exported: scalar, ...nested.paramDefs },
 	primaryInputParameter: 'input', resolutionInputParameters: ['input'], primaryOutput: 'output',
-	outputDefs: { output: { dataType: { kind: 'color' } }, unused: { dataType: { kind: 'color' }, canLazyAllocation: true } },
+	outputDefs: { output: { dataType: { kind: 'color' } }, unused: { dataType: { kind: 'color' } } },
 };
 const compositing = () => ({ ...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])), blendMode: literal('replace') });
 const clip = (id, startMs, durationMs, contentOffsetMs = 0) => ({ id, startMs, durationMs, contentOffsetMs });

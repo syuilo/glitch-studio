@@ -125,7 +125,6 @@ async function timelineFixture(t, { enableStats = false, timelineMotionBlur = { 
 		nativeEffectDefinitions: { pass: { paramDefs: { input }, primaryInputParameter: 'input', resolutionInputParameters: ['input'],
 			primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } } } },
 		nativeEffectImplementations: { pass: {
-			outputTextureFactories: { output: ({ resolution }) => texture({ size: resolution }) },
 			init: ({ outputTextures }) => ({ render: () => calls.renders.push(outputTextures.get('output')), dispose() {} }),
 		} },
 	}, { enableStats, timelineFps: 60, timelineMotionBlur, enable32bitDataTextures: false, }, { assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }] });

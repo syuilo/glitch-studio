@@ -267,7 +267,7 @@ for (const outsideTime of [99, 200]) {
 		const renderer = new TimelineRenderer({
 			fallbackOutput: { kind: 'texture', texture: { width: 1, height: 1, createView: () => ({}) } },
 			createLayer(entry) {
-				// GPUを使わず、CustomNodeGraphEffectRendererとの境界で破棄回数を記録する。
+				// GPUを使わず、EffectInstanceとの境界で破棄回数を記録する。
 				const instance = { destroyCount: 0 };
 				instances.push(instance);
 				return createTimelineEffectProbe({ dispose: () => instance.destroyCount++ });

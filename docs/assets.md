@@ -78,7 +78,7 @@ App.vueの全体受付でも、ファイルのホバー中は「Drop here」を�
 
 `{ kind: 'assetReference', assetType: 'lut' }`はAsset IDまたはnullを保存し、LUTだけを選択候補に表示します。Asset差し替え、Custom Node Graph Effect内の参照解除とUndo/Redo、`.gsproj`の原本保存、`.gscnge`の参照収集とID再割り当てに対応します。未選択は入力を通し、不正なファイルは描画エラーになります。その他のAsset参照と同様に、タイムラインの静的設定などに残った参照切れは描画前の検証で通知します。
 
-LUTの解析・GPU処理はEffect subsystemのApply LUTで完結します。[Apply LUTの実装](../packages/subsystems/effect/native-effects/src/fx/applyLut/_impl_.ts)を参照してください。
+LUTの解析・GPU処理はEffect subsystemのApply LUTで完結します。対応形式と制約は[Apply LUTの仕様](../packages/subsystems/effect/native-effects/src/fx/applyLut/README.md)を参照してください。
 
 ## 動画サムネイル
 

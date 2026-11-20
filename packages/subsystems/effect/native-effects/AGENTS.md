@@ -21,7 +21,7 @@
 - `canNode: true`のパラメータは、定数でも接続でも`EffectImageInput`として受け取る。配列・構造体の内部も同じ。`uniform`と`texture`の両方を扱い、定数を不要な1×1テクスチャへ変換しない。
 - `init()`の`inputs`で配列は`elements`、構造体は`fields`からたどる。接続に対応しない末端の値は`value`から読む。入力種別・構造・寸法・サンプリングは配置中固定され、描画時にgetterから現在の値や借用テクスチャを読む。配列・構造体を展開して扱う場合は[`bindParameterValues()`](src/multipass.ts)でgetterを保持できる。
 - 入力で結果が決まる1パスの全画面描画には[`createFullscreenEffect()`](src/fullscreen-effect.ts)を使える。独自のパスでは[`createNativeEffectInputBindings()`](src/shader-input.ts)や[`createFixedInputPipeline()`](src/multipass.ts)を使い、初期化時にそのパスの実際の出力寸法を渡す。bind groupは描画時に`getBindGroup()`で取得する。WGSLの`read_<入力名>(position)`は中央原点・+Yが上の各軸`[-1, +1]`を受け取り、接続ごとのFit / Wrap / Filterを適用する。
-- computeや画素ごとに異なる分岐から入力を読む場合は`sampling: 'level0'`を指定する。厳密な整数画素参照などの専用処理は必要に応じて直接実装する。配列入力や低レベルAPIの詳細は[共通のShader Input実装](../../../shared/src/gpu/shader-input.ts)を参照する。
+- computeや画素ごとに異なる分岐から入力を読む場合は`sampling: 'level0'`を指定する。厳密な整数画素参照などの専用処理は必要に応じて直接実装する。配列入力や低レベルAPIの詳細は[生成するシェーダー入力](SHADER_INPUTS.md)を参照する。
 - バッファ配置が必要なWGSLは`?shader`で読み、生成された配置情報と`createShaderBuffer()`を使う。配置を手書きしたり実行時に解析したりしない。文字列だけなら`?raw`を使える。
 - 複数のWGSL・定数を組み立てる場合は`*.shader.ts`から完成した文字列をexportし、`?shader`で読み込む。ビルド時にNodeで実行されるため、DOM・GPU・実行時パラメータへ依存させない。詳細は[WGSLの事前解析](../../../shared/build/README.md)を参照する。
 

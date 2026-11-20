@@ -6,9 +6,9 @@
 
 - 正となるプロジェクト状態はUIの `ProjectContext` が `ProjectState` として所有します。Commandは状態の変更とUndo/Redoを担当し、変更後に対象IDと編集内容を `AppStateChange` として通知します。レンダラーでCommandを再実行したり、ID発行・配線修復・時刻の丸めを再度行ったりしません。
 - Commandと汎用の `UndoRedo` は同期先を知りません。`ProjectContext.stateManager.onChange()` の購読側が必要な通知を選びます。通常実行・Undo・Redo・履歴へのマージを伴う連続編集は、同じ通知経路を通します。
-- 通知は「値・入力種別・接続・配列要素・リセット」「バイパス・解像度」「レイヤー定義・クリップ」など、ドメイン上の変更を表します。Commandや通信型に `preserveCache` / `preserveCustomNodeGraphEffectInstance` のようなレンダラーの保持方針を含めません。
-- `RendererProjectSynchronizer` は通知の集約と、確定済み状態から送信データを取り出す役割を持ちます。キャッシュ・インスタンスの保持判断は、レンダラー内の [project-change-policy.ts](../packages/glitch-studio/renderer/src/project-change-policy.ts) に集約します。各Managerが対象の特定や変更世代の管理を行い、`CustomNodeGraphEffectRenderer` はCustom Node Graph Effect内部の評価とキャッシュを扱います。汎用の `TimelineRenderer` には実行インスタンスの更新判定に必要な世代を渡し、Commandの種類を解釈させません。
-- 型も同じ責務に分けます。`ParameterChangeKind` はparameter、`CustomNodeGraphEffectNodeChange` はcustom-node-graph-effect、`TimelineLayerChange` はtimelineが所有します。登録Moduleとinline Moduleの所在を表す `CustomNodeGraphEffectTarget` はproject、UIの通知契約 `AppStateChange` はuiが所有します。子ドメインから同期クラスやプロジェクト内の配置へ依存させません。
+- 通知は「値・入力種別・接続・配列要素・リセット」「バイパス・解像度」「レイヤー定義・クリップ」など、ドメイン上の変更を表します。Commandと通信型は変更内容を伝えます。
+- `RendererProjectSynchronizer` は通知の集約と、確定済み状態から送信データを取り出す役割を持ちます。キャッシュ・インスタンスの保持判断は、レンダラー内の [project-change-policy.ts](../packages/glitch-studio/renderer/src/project-change-policy.ts) に集約します。各Managerが対象の特定や変更世代の管理を行い、`EffectInstance` は配置内のパラメータ評価と描画キャッシュを扱います。汎用の `TimelineRenderer` には実行インスタンスの更新判定に必要な世代を渡し、Commandの種類を解釈させません。
+- 型も同じ責務に分けます。`ParameterChangeKind` はparameter、`TimelineLayerChange` はtimelineが所有します。ノードの変更を表す `CustomNodeGraphEffectNodeChange` と、登録またはインラインのCustom Node Graph Effectの所在を表す `CustomNodeGraphEffectTarget` はGlitch Studioのproject、UIの通知契約 `AppStateChange` はuiが所有します。子ドメインから同期クラスやプロジェクト内の配置へ依存させません。
 
 ## Commandの呼び出しと履歴
 
@@ -57,14 +57,14 @@ Command定義の `prepare(state, input)` は状態を変更せず、検証・ID�
 | Module内ノードの通常のパラメータ値 | 既存の出力キャッシュキーとインスタンスを保持し、再評価後のキーが変化したノードと、その出力に依存する後段だけ再描画する |
 | Module内ノードの静的設定・入力種別・接続・配列要素の追加削除・リセット・バイパス・解像度 | 対象Moduleの全エフェクトを破棄・再作成し、未編集ノードの履歴と描画キャッシュもリセットする |
 | ノードの追加削除・順序変更、Moduleの公開パラメータ・入出力など | 対象Moduleの全エフェクトを破棄・再作成する。同じID・種類の既存ノードも保持しない |
-| タイムラインのModule引数の通常の値 | 配置のインスタンスと出力キャッシュキーを保持し、内部ノードの評価結果から再描画を判定する |
-| エフェクトレイヤーのパラメータ、合成設定、クリップ、レイヤー解像度、Module引数の入力種別・配列構造・リセットなど | 対象レイヤーの実行インスタンスを再作成し、履歴をリセットする。他のレイヤーは保持する。Scene配置を再作成する場合は、その配下の再作成を許容する |
+| TimelineのEffectレイヤーの通常のパラメータ値 | 配置のインスタンスを保持し、Native Effect・Custom Shader Effectの入力やCustom Node Graph Effect内部ノードの評価結果から再描画を判定する |
+| Effectレイヤーの入力種別・配列構造・リセット・合成設定・クリップ・レイヤー解像度など | 対象レイヤーの実行インスタンスを再作成し、履歴をリセットする。他のレイヤーは保持する。Scene配置を再作成する場合は、その配下の再作成を許容する |
 | レイヤー順序 | インスタンスを保持し、新しい順序・下層入力で評価と合成を行う |
 | Scene定義の置換・解像度変更 | そのSceneの各配置と配下のインスタンスを再作成する。Scene内部のノード・レイヤー編集は、それぞれの更新単位で扱う |
 
 - 通常の値編集には、リテラル値・式の本文・パラメータ内のキーやinline automationの内容・配列やstruct内の末端の値を含めます。Bindingの入力種別切り替え、接続先やサンプリング設定の変更、配列構造変更、リセットとは区別します。
-- 静的な `A → B → C` でBの値だけを変えた場合、Aの描画結果を再利用し、BとCを再描画します。無関係な枝も保持します。式を編集しても評価結果が同じなら、再描画は不要です。判定には評価済みパラメータ、上流の出力キー、解像度、エフェクトの `cacheVersion`・リソース世代などを使います。
-- Inノードのuniform入力は参照した出力ポートと値で比較します。外部から借用したテクスチャは同じ `GPUTexture` の内容が変わり得るため、それに依存する枝は保守的に再描画します。時間・動画・音声・履歴処理や `disableCache` に由来する再描画も、値編集による無効化とは別に扱います。
+- キャッシュ可能な `A → B → C` でBの評価済みの値だけが変わる場合、Aの描画結果を再利用し、BとCを再描画します。判定には評価済みの入力、入力テクスチャとその `version`、実装の `cacheKey` を使います。出力の `version` は実際に描画したときに進みます。
+- 外部から借用したテクスチャは同じ `GPUTexture` の内容が変わり得るため、内容を更新する側が `version` を進めます。世代がない入力テクスチャに依存する枝、履歴を持つ配置、`cacheKey` を省略したNative Effectは毎回描画します。時刻・ポインター・再生中のPlayerなど入力以外で結果が変わる場合は、その変化を `cacheKey` に含める方法もあります。
 - 子Scene内部の編集だけで、親のScene配置や無関係な子レイヤーを作り直しません。各配置は最新の定義を参照し、必要な対象だけを更新します。定義の変更世代と描画・GPUリソースの世代は分離し、未反映の構造変更の後に値編集が来ても、必要なキャッシュ無効化を失わないようにします。
 - Module内のパラメータの再評価やキャッシュキーの再計算、タイムライン全体の再合成は許容します。これらを、全ノードのGPU再描画やタイムライン全インスタンスの再作成と混同しないでください。通常のパラメータ調整を理由に全タイムラインを破棄しません。
 
