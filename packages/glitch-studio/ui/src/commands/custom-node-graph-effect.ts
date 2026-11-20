@@ -5,7 +5,7 @@ import { genId } from '@gs/shared/utility/id.ts';
 import { getNodeOutputs } from '@/utility/custom-node-graph-effect-node-outputs.ts';
 import { canConnectNodeDataTypes, getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import { z } from 'zod';
-import { getEffectDefinitions } from '../utility/project-effects.ts';
+import { createEffectNodeCycleCheck, getEffectDefinitions } from '../utility/project-effects.ts';
 import { createProjectCustomNodeGraphEffect } from '../utility/project-custom-node-graph-effect.ts';
 import { getCustomNodeGraphEffect } from '../utility/custom-node-graph-effect-target.ts';
 import { resolveNodeParam, walkNodeParams } from '../utility/node-params.ts';
@@ -119,7 +119,7 @@ const setCustomNodeGraphEffectName = definePublicCommand({
 
 const createCustomNodeGraphEffectEffectNode = definePublicCommand({
 	label: 'Create an effect node in a Custom Node Graph Effect',
-	description: 'Create an effect node using the current effect definition and defaults. parameters supplies complete bindings by parameter name; staticSettings contains plain static values. appendToPrimaryOutput connects compatible primary inputs/outputs to the existing chain. Omitted connectionMode is none. connectionTypePolicy defaults to strict.',
+	description: 'Create an Effect node using an effectSource and its defaults. A nested Custom Node Graph Effect cannot reference the containing graph directly or indirectly. parameters supplies complete bindings by parameter name. staticSettings contains plain static values. appendToPrimaryOutput connects compatible primary ports to the existing chain. Omitted connectionMode is none. connectionTypePolicy defaults to strict.',
 	examples: ['let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\nlet node = Command:createCustomNodeGraphEffectEffectNode({ customNodeGraphEffect: customNodeGraphEffect, effectSource: { type: "nativeEffect", id: "fill" }, connectionMode: "appendToPrimaryOutput" })\n<: Query:getNode(node)'],
 	inputSchema: z.object({
 		customNodeGraphEffect: customNodeGraphEffectTargetSchema, effectSource: effectSourceSchema, staticSettings: staticSettingValuesSchema.optional(),
@@ -130,7 +130,10 @@ const createCustomNodeGraphEffectEffectNode = definePublicCommand({
 	prepare(state, input) {
 		const definitions = getEffectDefinitions(state);
 		const definition = definitions.describe(input.effectSource);
-		if (definition == null) throw new Error('Effect not found');
+		if ('customNodeGraphEffectId' in input.customNodeGraphEffect && (input.effectSource.type === 'customNodeGraphEffectReference' || input.effectSource.type === 'inlineCustomNodeGraphEffect')) {
+			const wouldCreateCycle = createEffectNodeCycleCheck(state.customNodeGraphEffects.value, input.customNodeGraphEffect.customNodeGraphEffectId);
+			if (wouldCreateCycle(input.effectSource)) throw new Error('Cyclic Custom Node Graph Effect reference');
+		}
 		if (input.connectionMode != null && !['none', 'appendToPrimaryOutput'].includes(input.connectionMode)) throw new Error('Invalid connection mode');
 
 		const connectionTypePolicy = input.connectionTypePolicy ?? 'strict';

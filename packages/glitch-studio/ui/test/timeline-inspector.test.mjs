@@ -26,6 +26,7 @@ const result = await build({
 		export { createInlineCustomNodeGraphEffectLayer } from './src/utility/inline-custom-node-graph-effect-layer.ts';
 		export { videoHoldTest } from '@/utility/timeline-video-hold.ts';
 		export { dropUiTest } from '@/ui.ts';
+		export { pickerTest } from '@/ui.ts';
 		export { startDragSession, finishDragSession } from './src/utility/drag-and-drop.ts';
 	`, resolveDir: directory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
@@ -52,7 +53,8 @@ const result = await build({
 				model: key => ref(key === 'timelineTickMode' ? 'binary' : false) };`,
 			ui: `export const dropUiTest = { dialogs: 0 };
 				export function progress() { dropUiTest.dialogs++; return { setProgress() {}, setSubProgress() {}, setText() {}, done() {} }; }
-				export function popupMenu() {} export function contextMenu() {} export function popup() {} export function alert() {} export function select() {} export function selectAsset() {} export function confirm() {}`,
+				export const pickerTest = { open() { return { dispose() {} }; } };
+				export function popupMenu() {} export function contextMenu() {} export function popup(...args) { return pickerTest.open(...args); } export function alert() {} export function select() {} export function selectAsset() {} export function confirm() {}`,
 			media: 'export async function inspectTimelineClipMedia() { return { durationMs: 5000, audioAvailable: true, audioError: null }; } export const getTimelineClipMedia = inspectTimelineClipMedia; export async function exportCustomNodeGraphEffectFile() {}',
 			'video-hold': `export const videoHoldTest = { calls: [], read: null };
 				export async function readTimelineVideoHoldFrame(blob, sourceTimeMs, reverse) {
@@ -80,7 +82,7 @@ const bundled = { exports: {} };
 const testWindow = { document: { getSelection: () => null } };
 new Function('require', 'module', 'exports', 'window', result.outputFiles[0].text)(createRequire(import.meta.url), bundled, bundled.exports,
 	testWindow);
-const { Timeline, Inspector, PreviewTransform, projectSession, COMMAND_DEFS, UndoRedo, getTimelineEditorState, createInlineCustomNodeGraphEffectLayer, videoHoldTest, dropUiTest } = bundled.exports;
+const { Timeline, Inspector, PreviewTransform, projectSession, COMMAND_DEFS, UndoRedo, getTimelineEditorState, createInlineCustomNodeGraphEffectLayer, videoHoldTest, dropUiTest, pickerTest } = bundled.exports;
 const { startDragSession, finishDragSession } = bundled.exports;
 let dragWindow = null;
 
@@ -873,6 +875,28 @@ test('edits layer parameters through commands and identifies the inline Custom N
 	await nextTick();
 	f.control('GsCustomNodeGraphEffectEditor').props.onRequestAddEffectNode();
 	assert.deepEqual(f.events, [['addEffect', layer.id]]);
+});
+
+// 【Timeline のインライングラフには主出力のない登録グラフもノードとして追加できる】
+// 同じピッカーをレイヤー追加と共有しても、グラフ内部に挿入するデータ処理まで色出力で絞らない。
+test('opens the unrestricted node picker for inline Timeline graphs and inserts the selected reference', async t => {
+	const f = await fixture(t, Timeline);
+	const layer = createInlineCustomNodeGraphEffectLayer(0);
+	f.scene.layers.push(layer);
+	const graph = { id: 'data', name: 'Data', definition: { ...layer.effectSource.customNodeGraphEffect, primaryOutput: null } };
+	f.history.state.customNodeGraphEffects.value.push(graph);
+	const inspector = markRaw(element());
+	f.props.inspectorPanelTarget = inspector;
+	getTimelineEditorState(f.scene).selection = { kind: 'layers', ids: [layer.id] };
+	await nextTick();
+	const popup = t.mock.method(pickerTest, 'open');
+	descendants(inspector).find(node => Object.hasOwn(node.props, 'data-test-inline-custom-node-graph-effect-editor')).props.onRequestAddEffectNode();
+	const [, props, events] = popup.mock.calls[0].arguments;
+	assert.notEqual(props.requirePrimaryColorOutput, true);
+	assert.equal(props.selectedOutputType ?? null, null);
+	const effectSource = { type: 'customNodeGraphEffectReference', id: graph.id };
+	events.chosen({ effectSource });
+	assert.deepEqual(layer.effectSource.customNodeGraphEffect.nodes.at(-1).effectSource, effectSource);
 });
 
 // 【Inspectorの値入力と加工式設定を別々にUndoできる】

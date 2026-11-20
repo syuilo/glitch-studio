@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { createTestProject } from './helpers/project.mjs';
+import { testGraph } from './helpers/effect-graph.mjs';
 
 const directory = fileURLToPath(new URL('../', import.meta.url));
 const bundle = await build({
@@ -68,6 +69,26 @@ test('restores the resolution input when undoing removal of the primary public i
 	assert.deepEqual(definition.resolutionInputParameters, [parameterId]);
 	manager.redo();
 	assert.deepEqual(definition.resolutionInputParameters, []);
+});
+
+// 【ノード追加 Command は登録グラフへの直接・間接の循環を履歴に残さない】
+// ピッカーを経由しないスクリプトや選択待ちの間の編集でも、インライン定義を介した循環を作れないようにする。
+test('rejects direct and nested graph reference cycles before recording a node edit', () => {
+	const manager = new ProjectContext(createTestProject()).stateManager;
+	const parent = manager.commit('createCustomNodeGraphEffect', {});
+	const child = manager.commit('createCustomNodeGraphEffect', {});
+	const reference = target => ({ type: 'customNodeGraphEffectReference', id: target.customNodeGraphEffectId });
+	const add = (customNodeGraphEffect, effectSource) => manager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect, effectSource });
+	const wrap = effectSource => ({ type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: testGraph({ nodes: [{ id: 'nested', effectSource, params: {} }] }) });
+	add(parent, wrap(reference(child)));
+	const historyLength = manager.undoStack.value.length;
+	for (const candidate of [reference(child), reference(parent), wrap(reference(parent))]) {
+		assert.throws(() => add(child, candidate), /Cyclic Custom Node Graph Effect reference/);
+	}
+	assert.equal(manager.undoStack.value.length, historyLength);
+	manager.undo();
+	add(child, reference(parent));
+	assert.deepEqual(manager.state.customNodeGraphEffects.value[1].definition.nodes[0].effectSource, reference(parent));
 });
 
 // 【Native・参照・インラインの配置を同じTimeline Commandで作成する】

@@ -3,6 +3,7 @@ import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.t
 import { createTimelineClipTiming, getTimelineClipInsertionDuration } from '@gs/subsystems_timeline_shared/timing.ts';
 import { createTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { canReferenceScene } from '@gs/subsystems_timeline_shared/scenes.ts';
+import { findTimelineEffectOutput } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import { shapeDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import type { TimelineLayerRecipe } from '../commands/timeline-creation.ts';
@@ -193,7 +194,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 
 	async function addReferencedCustomNodeGraphEffectLayer() {
 		const initialLayers = sceneLayers.value;
-		const { canceled, result: id } = await ui.select({ title: i18n.ts._Timeline.SelectCustomNodeGraphEffect, items: stateManager.state.customNodeGraphEffects.value.filter(({ definition }) => definition.primaryOutput != null && definition.outputDefs[definition.primaryOutput]?.dataType.kind === 'color').map(customNodeGraphEffect => ({ label: customNodeGraphEffect.name, value: customNodeGraphEffect.id })) });
+		const { canceled, result: id } = await ui.select({ title: i18n.ts._Timeline.SelectCustomNodeGraphEffect, items: stateManager.state.customNodeGraphEffects.value.filter(({ definition }) => findTimelineEffectOutput(definition) != null).map(customNodeGraphEffect => ({ label: customNodeGraphEffect.name, value: customNodeGraphEffect.id })) });
 		const customNodeGraphEffect = stateManager.state.customNodeGraphEffects.value.find(customNodeGraphEffect => customNodeGraphEffect.id === id);
 		if (canceled || customNodeGraphEffect == null || !isActive() || sceneLayers.value !== initialLayers) return;
 		addLayer({ layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: customNodeGraphEffect.id } });

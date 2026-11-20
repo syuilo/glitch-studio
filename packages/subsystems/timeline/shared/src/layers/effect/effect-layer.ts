@@ -8,9 +8,14 @@ import type { TimelineEffectParameterBinding, TimelineEffectLayer } from '../../
 import type { EffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
 export { createLowerLayerOutputBinding } from '../../parameter-binding.ts';
 
-export function getTimelineEffectOutput(definition: EffectDefinition): string {
+export function findTimelineEffectOutput(definition: EffectDefinition): string | null {
 	const port = definition.primaryOutput;
-	if (port == null || definition.outputDefs[port]?.dataType.kind !== 'color') throw new Error('Timeline Effect requires a primary color output');
+	return port != null && definition.outputDefs[port]?.dataType.kind === 'color' ? port : null;
+}
+
+export function getTimelineEffectOutput(definition: EffectDefinition): string {
+	const port = findTimelineEffectOutput(definition);
+	if (port == null) throw new Error('Timeline Effect requires a primary color output');
 	return port;
 }
 

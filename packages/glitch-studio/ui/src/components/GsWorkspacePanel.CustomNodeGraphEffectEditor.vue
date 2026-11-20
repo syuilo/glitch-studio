@@ -326,7 +326,7 @@ function showAddEffectNodeMenu() {
 	const entry = registration.value;
 	if (entry == null) return;
 	disposeEffectPicker?.();
-	const { dispose } = ui.popup(GsEffectPicker, {}, {
+	const { dispose } = ui.popup(GsEffectPicker, { parentCustomNodeGraphEffectId: entry.id }, {
 		chosen: effect => {
 			if (projectSession.projectContext.getCustomNodeGraphEffectById(entry.id) == null) return;
 			stateManager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect: { customNodeGraphEffectId: entry.id }, effectSource: effect.effectSource,

@@ -8,6 +8,7 @@ import { build } from 'esbuild';
 import { compileScript, parse } from 'vue/compiler-sfc';
 import { createRenderer, h, nextTick } from 'vue';
 import { i18nPlugin } from './helpers/i18n.mjs';
+import { testGraph } from './helpers/effect-graph.mjs';
 
 // 検索入力・フィルター・Enter選択を実際のテンプレート経由で操作する。
 // アプリの初期化と子コントロールだけを置き換え、名前検索と入出力ポートの判定は実装を使用する。
@@ -16,17 +17,18 @@ const bundle = await build({
 	absWorkingDir: directory,
 	stdin: { contents: `
 		export { default as EffectPicker } from './src/components/GsEffectPicker.vue';
-		export { fixtureDefinitions } from './src/utility/project-effects.ts';
+		export { nativeEffectDefinitions as fixtureDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
+		export { state } from '@/project-session.ts';
 	`, resolveDir: directory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	plugins: [i18nPlugin, { name: 'effect-picker-controls', setup(build) {
 		build.onResolve({ filter: /^@\/(?:app|project-session)\.ts$/ }, () => ({ path: 'app', namespace: 'fixture' }));
-		build.onResolve({ filter: /project-effects\.ts$/ }, () => ({ path: 'effects', namespace: 'fixture' }));
+		build.onResolve({ filter: /native-effects\/definitions\.ts$/ }, () => ({ path: 'effects', namespace: 'fixture' }));
 		build.onLoad({ filter: /.*/, namespace: 'fixture' }, ({ path }) => ({ contents: path === 'app'
-			? 'export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: { state: {} } } };'
-			: `import { reactive } from 'vue';
-				export const fixtureDefinitions = reactive({});
-				export function listSelectableEffects() { return Object.entries(fixtureDefinitions).map(([id, definition]) => ({ ...definition, effectSource: { type: 'nativeEffect', id } })); }` }));
+			? `import { ref } from 'vue';
+				export const state = { customShaderEffects: ref([]), customNodeGraphEffects: ref([]) };
+				export function useProjectSession() { return { projectContext: { stateManager: { state } } }; }`
+			: "import { reactive } from 'vue'; export const nativeEffectDefinitions = reactive({});" }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => path.endsWith('GsEffectPicker.vue')
 			? null : { path: basename(path, '.vue'), namespace: 'control' });
 		build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ contents: `
@@ -45,7 +47,7 @@ const bundle = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { EffectPicker, fixtureDefinitions } = module.exports;
+const { EffectPicker, fixtureDefinitions, state } = module.exports;
 
 function effect(displayName, { inputType = 'color', outputType = 'color', primaryInput = true, primaryOutput = true, tags = ['noise'] } = {}) {
 	return {
@@ -57,8 +59,8 @@ function effect(displayName, { inputType = 'color', outputType = 'color', primar
 	};
 }
 
-function fixture(t, definitions) {
-	const storage = new Map();
+function fixture(t, definitions, { props = {}, graphs = [], shaders = [], recent = [] } = {}) {
+	const storage = new Map([['glitch-studio:recent-effects', JSON.stringify(recent.map(source => JSON.stringify(source)))]]);
 	const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
 	Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {
 		getItem: key => storage.get(key) ?? null,
@@ -70,6 +72,8 @@ function fixture(t, definitions) {
 	});
 	for (const key of Object.keys(fixtureDefinitions)) delete fixtureDefinitions[key];
 	Object.assign(fixtureDefinitions, definitions);
+	state.customNodeGraphEffects.value = graphs;
+	state.customShaderEffects.value = shaders;
 	const element = () => ({ children: [], parent: null, props: {} });
 	const renderer = createRenderer({
 		createElement: element, createText: element, createComment: element, setText() {}, setElementText() {},
@@ -85,7 +89,7 @@ function fixture(t, definitions) {
 	});
 	const root = element();
 	const chosen = [];
-	const app = renderer.createApp({ render: () => h(EffectPicker, { onChosen: effect => chosen.push(effect) }) });
+	const app = renderer.createApp({ render: () => h(EffectPicker, { ...props, onChosen: effect => chosen.push(effect) }) });
 	app.mount(root);
 	t.after(() => app.unmount());
 	const allElements = (element = root) => [element, ...element.children.flatMap(child => allElements(child))];
@@ -151,4 +155,55 @@ test('applies strict filters and uses primary ports only to break equal name mat
 	assert.deepEqual(f.results(), ['noise', 'primary', 'secondary', 'fuzzy']);
 	await f.search('');
 	assert.deepEqual(f.results(), ['primary', 'fuzzy', 'secondary', 'noise']);
+});
+
+// 【グラフへの追加は自分自身と自分を含む候補だけを初期一覧・履歴・検索から除く】
+// 登録種別が異なれば同じ ID を使える。未接続のインライングラフ経由の循環も除き、主出力のない子は選べる。
+test('filters graph cycles across sections, recents and search while keeping independent Effect sources', async t => {
+	const reference = id => ({ type: 'customNodeGraphEffectReference', id });
+	const node = effectSource => ({ id: 'node', effectSource, params: {}, isBypass: true });
+	const parent = reference('shared');
+	const child = reference('child');
+	const ancestor = reference('ancestor');
+	const native = { type: 'nativeEffect', id: 'shared' };
+	const shader = { type: 'customShaderEffectReference', id: 'shared' };
+	const f = fixture(t, { shared: effect('Native') }, {
+		props: { parentCustomNodeGraphEffectId: parent.id }, recent: [ancestor, child, parent],
+		shaders: [{ id: 'shared', name: 'Shader', summary: '', definition: testGraph() }],
+		graphs: [
+			{ id: parent.id, name: 'Parent', definition: testGraph() },
+			{ id: child.id, name: 'Child Graph', definition: testGraph({ primaryOutput: null }) },
+			{ id: 'middle', name: 'Middle', definition: testGraph({ nodes: [node(parent)] }) },
+			{ id: ancestor.id, name: 'Ancestor Graph', definition: testGraph({ nodes: [node({ type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: testGraph({ nodes: [node(reference('middle'))] }) })] }) },
+		],
+	});
+	const row = source => f.find('data-test-effect-picker-effect', JSON.stringify(source));
+	assert.ok(row(native));
+	assert.ok(row(shader));
+	assert.ok(row(child));
+	for (const source of [parent, ancestor, reference('middle')]) assert.equal(row(source), null);
+	assert.equal(f.find('data-test-recent-effect', JSON.stringify(ancestor)), null);
+	assert.ok(f.find('data-test-recent-effect', JSON.stringify(child)));
+	await f.search('Graph');
+	assert.deepEqual(f.results(), [child.id]);
+	row(child).props.onClick();
+	assert.deepEqual(f.chosen[0].effectSource, child);
+	state.customNodeGraphEffects.value.find(entry => entry.id === 'middle').definition.nodes = [];
+	await nextTick();
+	assert.ok(row(ancestor));
+});
+
+// 【Timeline のレイヤーには主出力が color の登録グラフだけを表示する】
+// 副出力に color があってもレイヤーはそれを自動選択しない。型フィルターを解除しても配置条件を維持する。
+test('offers registered graphs with a primary color output for timeline layers', async t => {
+	const outputDefs = { color: { dataType: { kind: 'color' } }, scalar: { dataType: { kind: 'scalar' } } };
+	const f = fixture(t, {}, {
+		props: { selectedOutputType: 'color', requirePrimaryColorOutput: true },
+		graphs: ['color', 'scalar', null].map(primaryOutput => ({
+			id: primaryOutput ?? 'none', name: 'Graph', definition: testGraph({ primaryOutput, outputDefs }),
+		})),
+	});
+	assert.deepEqual(f.results(), ['color']);
+	await f.filter('data-test-effect-picker-output-type', 'all');
+	assert.deepEqual(f.results(), ['color']);
 });

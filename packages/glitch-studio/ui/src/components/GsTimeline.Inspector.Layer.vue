@@ -79,6 +79,7 @@
 			<div>
 				<GsCustomNodeGraphEffectEditor
 					:key="layer.id"
+					data-test-inline-custom-node-graph-effect-editor
 					:class="$style.inlineCustomNodeGraphEffectEditor"
 					:customNodeGraphEffect="getCustomNodeGraphEffectView(layer.effectSource, stateManager.state)"
 					:customNodeGraphEffectName="layer.name"

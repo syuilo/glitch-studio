@@ -715,7 +715,7 @@ const { addClip, changeClipSource, showAddLayerMenu, readLayerMediaDurations } =
 	isActive: isTimelineActive,
 	inspectMedia: inspectTimelineClipMedia,
 	ui: { ...ui, selectAsset: options => ui.selectAsset(projectSession, options) },
-	pickEffect: showEffectPicker,
+	pickEffect: chosen => showEffectPicker('timelineLayer', chosen),
 	desktopAvailable: () => !!window.desktop,
 	selectLayer,
 	selectClip,
@@ -786,12 +786,9 @@ onBeforeUnmount(() => {
 	disposeEffectPicker?.();
 });
 
-function showEffectPicker(chosen: (definition: EffectChoice) => void) {
+function showEffectPicker(placement: 'timelineLayer' | 'graphNode', chosen: (definition: EffectChoice) => void) {
 	disposeEffectPicker?.();
-	const { dispose } = ui.popup(GsEffectPicker, {
-		selectedOutputType: 'color',
-		requirePrimaryColorOutput: true,
-	}, {
+	const { dispose } = ui.popup(GsEffectPicker, placement === 'timelineLayer' ? { selectedOutputType: 'color', requirePrimaryColorOutput: true } : {}, {
 		chosen,
 		closed: () => {
 			dispose();
@@ -804,7 +801,7 @@ function showEffectPicker(chosen: (definition: EffectChoice) => void) {
 function showAddInlineEffectNodeMenu(layerId: string) {
 	const layer = sceneLayers.value.find(layer => layer.id === layerId);
 	if (layer?.layerType !== 'effect' || layer.effectSource.type !== 'inlineCustomNodeGraphEffect') return;
-	showEffectPicker(effect => {
+	showEffectPicker('graphNode', effect => {
 		// 選択変更やレイヤー削除を挟んでも、ピッカーを開いた対象にだけ追加する。
 		if (!isTimelineActive() || !sceneLayers.value.some(layer => layer.id === layerId && layer.layerType === 'effect' && layer.effectSource.type === 'inlineCustomNodeGraphEffect')) return;
 		stateManager.commit('createCustomNodeGraphEffectEffectNode', {

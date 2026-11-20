@@ -213,7 +213,7 @@ export const PROJECT_SCRIPT_QUERY_DEFINITIONS = {
 	}),
 	'Query:listEffects': defineQuery({
 		argumentCount: 0, inputSchema: z.null(), resultSchema: z.array(effectSummarySchema),
-		description: 'List built-in Effects and the current Project custom Effects with display names, Japanese/English summaries, kinds and tags. Use an effectSource with Query:getEffect before constructing parameter bindings.',
+		description: 'List Native Effects, registered Custom Shader Effects and registered Custom Node Graph Effects with their display names, summaries, kinds and tags. Pass a returned target to Query:getEffect to inspect its ports before choosing a placement.',
 		examples: ['<: Query:listEffects()'],
 		execute: state => snapshot(listSelectableEffects(state).map(effect => ({
 			target: { effectSource: effect.effectSource }, effectSource: effect.effectSource, displayName: effect.displayName, summary: effect.summary, kind: effect.kind, tags: effect.tags,

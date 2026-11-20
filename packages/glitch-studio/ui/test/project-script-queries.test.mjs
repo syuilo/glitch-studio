@@ -127,6 +127,22 @@ test('returns asset metadata without binary data and detached effect definitions
 	assert.equal(state.resolution.value.width, 1920);
 });
 
+// 【3 種類の登録済み Effect を同じ ID でも個別に列挙し、返された target で定義を取得できる】
+// 配置先を持たない一覧では、主出力のないグラフもスクリプトから発見できる必要がある。
+test('lists all three registered Effect sources and resolves each returned target', () => {
+	const { state, query } = fixture();
+	state.customShaderEffects.value.push({ id: 'fill', name: 'My Shader', summary: 'Shader',
+		definition: { kind: 'generate', primaryOutput: 'color', primaryInputParameter: null, resolutionInputParameters: [],
+			paramDefs: {}, outputDefs: { color: { nameForReference: 'color', dataType: { kind: 'color' } } }, shaderApiVersion: 1, code: '' } });
+	state.customNodeGraphEffects.value.push({ id: 'fill', name: 'My Graph', definition: testGraph({ primaryOutput: null }) });
+	const effects = query['Query:listEffects']();
+	assert.deepEqual(effects.map(effect => effect.effectSource), [
+		{ type: 'nativeEffect', id: 'fill' }, { type: 'customShaderEffectReference', id: 'fill' }, { type: 'customNodeGraphEffectReference', id: 'fill' },
+	]);
+	assert.deepEqual(effects.map(effect => query['Query:getEffect'](effect.target).displayName), ['Fill', 'My Shader', 'My Graph']);
+	assert.equal(query['Query:getEffect'](effects[2].target).primaryOutput, null);
+});
+
 // 【不正・削除済みの対象は明示的に失敗し、偶然一致する別の対象へ読み替えない】
 // スクリプトでは対象の取り違えを後続の編集前に発見する必要がある。Effectの予約的な
 // プロパティ名も定義として受け入れず、prototype由来の値を返さない。

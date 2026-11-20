@@ -90,7 +90,7 @@ Command:setCustomNodeGraphEffectNodeParameterSource({
 <: Query:getCustomNodeGraphEffect(customNodeGraphEffect)
 ```
 
-`Query:listEffects()`はNative Effectと登録済みのCustom Shader Effectを返します。各項目の`target`を`Query:getEffect`に渡すとパラメータと出力ポートの定義を取得でき、`effectSource`はノードやタイムラインのEffectレイヤーを作成するときに使えます。
+`Query:listEffects()`はNative Effect、登録済みのCustom Shader Effect、登録済みのCustom Node Graph Effectを返します。各項目の`target`を`Query:getEffect`に渡すとパラメータと出力ポートの定義を取得できます。`effectSource`を使ってノードを追加するときは、親グラフへの直接・間接の循環参照を避けてください。TimelineのEffectレイヤーには主出力が`color`のEffectを指定します。
 登録済みのCustom Node Graph Effectを配置するときは、`Query:listCustomNodeGraphEffects()`の各項目のうち、`target.customNodeGraphEffectId`を持つものを選び、`{ type: "customNodeGraphEffectReference", id: entry.target.customNodeGraphEffectId }`を`effectSource`として渡します。
 
 MCPで渡したスクリプトはScriptingパネルの本文・出力を書き換えません。出力、正常終了したCommandの件数、エラーの有無をツールの結果へ返します。出力量には上限があり、切り詰めた場合は結果に示します。

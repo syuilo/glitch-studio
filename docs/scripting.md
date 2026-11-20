@@ -22,7 +22,7 @@ AiScript自体は非同期で実行します。Commandの準備やダイアロ�
 let customNodeGraphEffect = Command:createCustomNodeGraphEffect({ name: "Generated" })
 let fillNode = Command:createCustomNodeGraphEffectEffectNode({
 	customNodeGraphEffect: customNodeGraphEffect
-	effectId: "fill"
+	effectSource: { type: "nativeEffect", id: "fill" }
 	connectionMode: "appendToPrimaryOutput"
 })
 
@@ -96,7 +96,7 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 <: Script:queries() // 利用可能なQueryの名前
 <: Query:listCustomNodeGraphEffects()
 <: Query:listEffects()
-<: Query:getEffect({ effectId: "fill" })
+<: Query:getEffect({ effectSource: { type: "nativeEffect", id: "fill" } })
 ```
 
 一覧の各項目が持つ`target`を、そのまま対応する取得関数へ渡せます。作成Commandはこの参照自体を返します。
@@ -117,7 +117,7 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 | `Query:getTimelineClip(target)` | Clip参照 | Clipの保存内容 |
 | `Query:listAssets()` / `Query:getAsset(target)` | 一覧は引数なし／Asset参照 | 素材の名前・寸法・ファイル種別などのメタデータ。バイナリ・サムネイルは含まない |
 | `Query:listPlayers()` / `Query:getPlayer(target)` | 一覧は引数なし／Player参照 | Playerの保存内容 |
-| `Query:listEffects()` / `Query:getEffect(target)` | 一覧は引数なし／Effect参照 | どちらも日英の概要を `summary` で返す。取得ではパラメータ・静的設定・出力も返す |
+| `Query:listEffects()` / `Query:getEffect(target)` | 一覧は引数なし／Effect参照 | Native Effect と登録済みの Custom Shader Effect・Custom Node Graph Effect を列挙する。各項目の `target` からパラメータ・静的設定・出力を取得できる |
 | `Query:listProjectAutomationGraphs()` / `Query:getProjectAutomationGraph(target)` | 一覧は引数なし／Automation Graph参照 | ProjectのAutomation Graph |
 | `Query:listCustomShaderEffects()` / `Query:getCustomShaderEffect(target)` | 一覧は引数なし／Custom Shader Effect参照 | どちらも入力された概要を文字列の `summary` で返す。取得では保存された定義全体を返す |
 
@@ -131,7 +131,7 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 | Scene | `{ sceneId: "..." }` |
 | Layer | `{ sceneId: "...", layerId: "..." }` |
 | Clip | `{ sceneId: "...", layerId: "...", clipId: "..." }` |
-| Asset / Player / Effect | `{ assetId: "..." }` / `{ playerId: "..." }` / `{ effectId: "..." }` |
+| Asset / Player / Effect | `{ assetId: "..." }` / `{ playerId: "..." }` / `{ effectSource: { type: "nativeEffect", id: "fill" } }` など |
 | ProjectのAutomation Graph | `{ automationGraphId: "..." }` |
 | Custom Shader Effect | `{ customShaderEffectId: "..." }` |
 
