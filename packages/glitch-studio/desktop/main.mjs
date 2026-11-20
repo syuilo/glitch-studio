@@ -29,6 +29,9 @@ import { McpServerController } from './mcp-server-controller.mjs';
 // GPUプロセスの起動前に設定し、timestamp-queryの生の分解能で計測する。
 app.commandLine.appendSwitch('enable-webgpu-developer-features');
 
+// macOSでは設定済みのネイティブメニューがnullで消えないため、Electronが既定メニューを作る前に無効化する。
+Menu.setApplicationMenu(null);
+
 // 開発版が配布版の設定や起動要求を受け取らないよう、Session生成より前に分離する。
 if (!app.isPackaged) {
 	const developmentProfile = process.env.GLITCH_DESKTOP_TEST_PROFILE ?? path.join(app.getPath('appData'), 'Glitch Studio Development');
@@ -280,7 +283,6 @@ app.whenReady().then(async () => {
 	registerClipboardIpc(ipcMain, clipboard, getTrustedMainWindow);
 	registerMcpIpc(ipcMain, { controller: mcpServerController, bridge: mcpEditorBridge, editorWindows });
 	await mcpServerController.initialize();
-	Menu.setApplicationMenu(null);
 	if (process.platform === 'win32') app.setAppUserModelId(windowsAppUserModelId);
 	if (process.platform === 'darwin') app.dock.setIcon(iconPath);
 	// window.openで作られる切り離しプレビューにも、メインウィンドウと同じアイコンを設定する。
