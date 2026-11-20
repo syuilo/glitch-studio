@@ -1,6 +1,7 @@
 import { getEffectDefinitions } from './project-effects.ts';
 import { getNodeOutputs } from '@/utility/custom-node-graph-effect-node-outputs.ts';
-import { areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
+import { preferences } from '@/preferences.ts';
+import { areNodeDataTypesCompatible, canConnectNodeDataTypes as canConnectWithPolicy } from '@gs/shared/data-type/node-compatibility.ts';
 import { prettyId } from '@gs/shared/utility/id.js';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { CustomNodeGraphEffectNode, NodeOutputReference, CustomNodeGraphEffect } from '@/types/custom-node-graph-effect-view.ts';
@@ -13,8 +14,7 @@ export function getNodeDataTypeColor(dataType: TextureDataType | null | undefine
 
 // 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
 export function canConnectNodeDataTypes(output: TextureDataType | null | undefined, input: TextureDataType | null): boolean {
-	if (output == null || input == null) return false;
-	return areNodeDataTypesCompatible(output, input);
+	return canConnectWithPolicy(output, input, preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch');
 }
 
 // GsSelectはプリミティブ値を比較するため、選択キーだけを文字列化する。保存する値は接続情報のまま。
@@ -44,7 +44,7 @@ export function getNodeOutputItems(nodes: CustomNodeGraphEffectNode[], excludedN
 		const name = node.type === 'effect' ? getEffectNodeName(node, definitions)
 			: node.type === 'relay' ? node.label || 'Relay'
 			: 'In';
-		// 型の変更後も配線は残るため、型安全設定で絞り込む場合も現在の接続元を表示する。
+		// 設定を有効にした後も、既存の不一致を確認・解除できるよう現在の接続元を表示する。
 		const outputs = Object.entries(getNodeOutputs(node, paramDefs, definitions)).filter(([outputPort, output]) =>
 			(currentConnection?.nodeId === node.id && currentConnection.outputPort === outputPort)
 			|| inputDataType === undefined || canConnectNodeDataTypes(output.dataType, inputDataType));

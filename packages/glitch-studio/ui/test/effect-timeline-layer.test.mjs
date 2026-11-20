@@ -18,6 +18,7 @@ const bundled = await build({
 		export { resolveLayerParameter, getLayerKeyframeParameters } from './src/utility/timeline-scene.ts';
 		export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts';
 		export { canConnectNodeDataTypes } from './src/utility/node-outputs.ts';
+		export { commitTimelineParameterEdit } from './src/utility/timeline-parameter-command-actions.ts';
 		export { areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
 		export { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
 		export { preferences } from './src/preferences.ts';
@@ -395,7 +396,7 @@ test('edits nested scene-time keyframes and preserves identity through array ope
 });
 
 // 【非主入力の配列要素にも下層入力を設定し、利用スコープと型互換性を分ける】
-// 画像出力は互換性のある型の入力だけに接続し、
+// 画像出力の型不一致を許可しても、入力できる場所の制約は維持する。
 // canNodeでない末端・コンテナ・合成設定・Custom Node Graph Effect内部には下層入力を流さない。
 test('supports secondary lowerLayerOutput bindings and enforces their scope and type compatibility', () => {
 	const f = fixture();
@@ -407,7 +408,24 @@ test('supports secondary lowerLayerOutput bindings and enforces their scope and 
 	for (const inputSource of ['node', 'customNodeGraphEffectPublicParameterReference']) assert.throws(() => f.edit(path, { kind: 'inputSource', inputSource }));
 	const input = { kind: 'scalar' };
 	assert.equal(areNodeDataTypesCompatible({ kind: 'color' }, input), false);
-	assert.equal(canConnectNodeDataTypes({ kind: 'color' }, input), false);
+	assert.equal(canConnectNodeDataTypes({ kind: 'color' }, input), true);
+	preferences.s.forceTypeSafety = true;
+	try {
+		assert.equal(canConnectNodeDataTypes({ kind: 'color' }, input), false);
+		const layer = fixture('colorMix');
+		const manager = { state: layer.state, commit(name, input) { return prepareTestCommand(COMMAND_DEFS[name], input).execute(layer.state); } };
+		const edit = edit => module.exports.commitTimelineParameterEdit(manager, { ...layer.target, target: 'effect', paramPath: ['amount'], edit });
+		const connect = () => edit({ kind: 'inputSource', inputSource: 'lowerLayerOutput' });
+		assert.throws(connect, /Timeline image output type does not match/);
+		preferences.s.forceTypeSafety = false;
+		connect();
+		assert.equal(layer.read(['amount']).inputSource, 'lowerLayerOutput');
+		preferences.s.forceTypeSafety = true;
+		edit({ kind: 'lowerLayerOutput', value: { inputSource: 'lowerLayerOutput', sampling: { fitMode: 'contain', wrapMode: 'clamp', filterMode: 'nearest' } } });
+		assert.equal(layer.read(['amount']).sampling.filterMode, 'nearest');
+	} finally {
+		preferences.s.forceTypeSafety = false;
+	}
 	for (const kind of ['color', 'any']) assert.equal(canConnectNodeDataTypes({ kind: 'color' }, { kind }), true);
 });
 

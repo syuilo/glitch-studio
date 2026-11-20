@@ -1,3 +1,4 @@
+import { preferences } from '@/preferences.ts';
 import { findCustomNodeGraphEffectOwner } from './custom-node-graph-effect-target.ts';
 import { getCustomNodeGraphEffectView } from './custom-node-graph-effect-view.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
@@ -48,7 +49,8 @@ export async function handleProjectParameterClipboard(
 		const currentOwner = current.context.kind === 'timeline' ? current.context.layer : findOwner();
 		if (currentOwner !== originalOwner || !areDataTypesEqual(originalType, current.def.dataType)) return;
 	} catch { return; }
-	const update = prepareProjectParameterPaste(state, projectSessionId, target, data);
+	const connectionTypePolicy = preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch';
+	const update = prepareProjectParameterPaste(state, projectSessionId, target, data, connectionTypePolicy);
 	if (update == null) return;
 	// クリップボードの形式・セッション由来の参照はUI境界で解決する。
 	// Commandへは編集対象と完成したBindingだけを渡し、他の呼び出し元と同じ検証を通す。
@@ -56,7 +58,7 @@ export async function handleProjectParameterClipboard(
 	if (target.kind === 'node') {
 		context.stateManager.commit('replaceCustomNodeGraphEffectNodeParameterBinding', {
 			target: { customNodeGraphEffect: target.customNodeGraphEffectTarget, nodeId: target.nodeId }, parameterPath,
-			binding: update.after as CustomNodeGraphEffectParameterBinding,
+			binding: update.after as CustomNodeGraphEffectParameterBinding, connectionTypePolicy,
 		});
 	} else if (target.kind === 'customParameter') {
 		context.stateManager.commit('replaceCustomNodeGraphEffectCustomParameterBinding', {
@@ -67,7 +69,7 @@ export async function handleProjectParameterClipboard(
 		context.stateManager.commit('replaceTimelineLayerParameterBinding', {
 			sceneId: target.sceneId, layerId: target.layerId,
 			parameterGroup: target.parameterTarget,
-			parameterPath, binding: update.after as EditableTimelineParameterBinding,
+			parameterPath, binding: update.after as EditableTimelineParameterBinding, connectionTypePolicy,
 		});
 	}
 }

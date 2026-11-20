@@ -8,7 +8,7 @@ import { build } from 'esbuild';
 
 const bundled = await build({
 	stdin: {
-		contents: "export { COMMAND_DEFS } from './commands.ts'; export { getCustomNodeGraphEffect } from './utility/custom-node-graph-effect-target.ts'; export { getNodeOutputItems } from './utility/node-outputs.ts';",
+		contents: "export { COMMAND_DEFS } from './commands.ts'; export { getCustomNodeGraphEffect } from './utility/custom-node-graph-effect-target.ts'; export { getNodeOutputItems } from './utility/node-outputs.ts'; export { commitCustomNodeGraphEffectEdit } from './utility/custom-node-graph-effect-edit.ts';",
 		resolveDir: fileURLToPath(new URL('../src/', import.meta.url)), loader: 'ts',
 	},
 	bundle: true, platform: 'node', format: 'cjs', write: false,
@@ -42,7 +42,7 @@ function fixture(enabled = false, inline = false) {
 		timelineScenes: { value: [{ id: 'scene', layers: inline ? [{ id: 'inline', layerType: 'effect', effectSource: owner }] : [] }] } };
 	const target = inline ? { sceneId: 'scene', layerId: 'inline' } : { customNodeGraphEffectId: 'custom-node-graph-effect' };
 	const command = (payload = {}) => prepareTestCommand(module.exports.COMMAND_DEFS.createCustomNodeGraphEffectEffectNode, { customNodeGraphEffect: target, effectSource: { type: 'nativeEffect', id: 'filter' }, connectionMode: enabled ? 'appendToPrimaryOutput' : 'none', ...payload });
-	return { view: () => module.exports.getCustomNodeGraphEffect(state, target), owner, preferences, customNodeGraphEffect, state, command, disconnected, target, definitions: module.exports.COMMAND_DEFS, getNodeOutputItems: module.exports.getNodeOutputItems };
+	return { view: () => module.exports.getCustomNodeGraphEffect(state, target), owner, preferences, customNodeGraphEffect, state, command, disconnected, target, definitions: module.exports.COMMAND_DEFS, getNodeOutputItems: module.exports.getNodeOutputItems, commitEdit: module.exports.commitCustomNodeGraphEffectEdit };
 }
 
 // 【自動接続を無効にした追加では既存の配線と入力の既定値を維持する】
@@ -116,6 +116,38 @@ test('respects incompatible data types and explicitly supplied parameters', () =
 	const explicit = fixture(true);
 	explicit.command({ parameters: { image: explicit.disconnected } }).execute(explicit.state);
 	assert.deepEqual(explicit.customNodeGraphEffect.nodes[1].params.image, explicit.disconnected);
+});
+
+// 【型が異なる接続は警告付きで作成し、設定を有効にすると新規接続を拒否する】
+// 追加時の自動接続、ノード入力の再接続と公開出力の選択が同じ方針に従う。
+// 既存の不一致を選択欄から消すと接続先の確認や解除ができなくなる。
+test('allows mismatched connections with warnings and blocks new mismatches in strict mode', () => {
+	const f = fixture(true);
+	f.preferences.s.forceTypeSafety = false;
+	const added = f.command({ effectSource: { type: 'nativeEffect', id: 'scalar' }, connectionTypePolicy: 'allowMismatch' }).execute(f.state);
+	const graph = f.customNodeGraphEffect;
+	const node = () => graph.nodes.find(node => node.id === added.nodeId);
+	assert.deepEqual(node().params.value.source, { nodeId: 'previous', outputPort: 'secondary' });
+	assert.deepEqual(graph.outputSources.primary, { nodeId: added.nodeId, outputPort: 'result' });
+	const sampling = { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
+	const manager = { state: f.state, commit(name, input) { return prepareTestCommand(f.definitions[name], input).execute(f.state); } };
+	const edit = outputPort => f.commitEdit(manager, f.target, { kind: 'editNodeParam', nodeId: added.nodeId,
+		edit: { kind: 'node', paramPath: ['value'], value: { nodeId: 'previous', outputPort, ...sampling } } });
+	edit('main');
+	assert.equal(node().params.value.source.outputPort, 'main');
+	const choices = () => f.getNodeOutputItems(f.view().nodes, added.nodeId, { kind: 'scalar' }, [], undefined, { nodeId: 'previous', outputPort: 'main' });
+	assert.deepEqual(choices().map(item => [item.connection.outputPort, item.typeCompatible, item.icon]),
+		[['main', false, 'ti ti-alert-triangle'], ['secondary', false, 'ti ti-alert-triangle']]);
+	f.preferences.s.forceTypeSafety = true;
+	assert.throws(() => edit('secondary'), /Node output type does not match/);
+	assert.equal(node().params.value.source.outputPort, 'main');
+	assert.deepEqual(choices().map(item => item.connection.outputPort), ['main']);
+	const connectOutput = () => f.commitEdit(manager, f.target, { kind: 'setOutputConnection', outputId: 'other',
+		value: { nodeId: added.nodeId, outputPort: 'result' } });
+	assert.throws(connectOutput, /Node output type does not match/);
+	f.preferences.s.forceTypeSafety = false;
+	connectOutput();
+	assert.equal(graph.outputSources.other.nodeId, added.nodeId);
 });
 
 // 【Commandは環境設定を参照せず、明示した接続方針だけを適用する】
@@ -206,6 +238,9 @@ test('validates relay source ports and rejects incompatible connections', () => 
 	assert.throws(() => command.prepare(f.state, { target, source: { ...source, outputPort: 'missing' } }), /Node output not found/);
 	assert.throws(() => command.prepare(f.state, { target, source: { nodeId: relay.id, outputPort: 'output' } }), /cannot connect to itself/);
 	assert.equal(relay.input, null);
+	const connect = prepareTestCommand(command, { target, source, connectionTypePolicy: 'allowMismatch' });
+	connect.execute(f.state);
+	assert.deepEqual(f.customNodeGraphEffect.nodes.find(node => node.id === target.nodeId).input, source);
 });
 
 // 【中継ノードの名前を消すと既定表示へ戻り、Undoで名前と未設定状態を復元できる】

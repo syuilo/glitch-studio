@@ -1,3 +1,4 @@
+import { preferences } from '@/preferences.ts';
 import type { ProjectState, AppStateChange } from '../Project.ts';
 import type { COMMAND_DEFS } from '../commands.ts';
 import type { UndoRedo } from './undo-redo.ts';
@@ -15,6 +16,7 @@ type ProjectCommands = Pick<UndoRedo<ProjectState, AppStateChange, typeof COMMAN
 export function commitCustomNodeGraphEffectEdit(manager: ProjectCommands, target: CustomNodeGraphEffectTarget, event: CustomNodeGraphEffectEdit) {
 	const customNodeGraphEffect = findCustomNodeGraphEffect(manager.state, target);
 	if (customNodeGraphEffect == null) return;
+	const connectionTypePolicy = preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch';
 
 	switch (event.kind) {
 		case 'customParameterClipboard': return; // 非同期のクリップボード操作は所有者が処理する。
@@ -48,11 +50,11 @@ export function commitCustomNodeGraphEffectEdit(manager: ProjectCommands, target
 		case 'addRelayNode':
 			manager.commit('createCustomNodeGraphEffectRelayNode', { customNodeGraphEffect: target }); break;
 		case 'setRelayInput':
-			manager.commit('setCustomNodeGraphEffectRelayInput', { target: { customNodeGraphEffect: target, nodeId: event.nodeId }, source: event.value }); break;
+			manager.commit('setCustomNodeGraphEffectRelayInput', { target: { customNodeGraphEffect: target, nodeId: event.nodeId }, source: event.value, connectionTypePolicy }); break;
 		case 'setRelayDataType':
 			manager.commit('setCustomNodeGraphEffectRelayDataType', { target: { customNodeGraphEffect: target, nodeId: event.nodeId }, dataType: event.dataType }); break;
 		case 'removeNode':
-			manager.commit('removeCustomNodeGraphEffectNode', { target: { customNodeGraphEffect: target, nodeId: event.nodeId }, reconnection: 'primaryInput' }); break;
+			manager.commit('removeCustomNodeGraphEffectNode', { target: { customNodeGraphEffect: target, nodeId: event.nodeId }, reconnection: 'primaryInput', connectionTypePolicy }); break;
 		case 'setNodeBypass':
 			manager.commit('setCustomNodeGraphEffectNodeBypass', { target: { customNodeGraphEffect: target, nodeId: event.nodeId }, bypass: event.bypass }); break;
 		case 'editNodeStaticSetting':
@@ -69,7 +71,7 @@ export function commitCustomNodeGraphEffectEdit(manager: ProjectCommands, target
 			break;
 		}
 		case 'setOutputConnection':
-			manager.commit('setCustomNodeGraphEffectOutputConnection', { target: { customNodeGraphEffect: target, outputId: event.outputId }, source: event.value }); break;
+			manager.commit('setCustomNodeGraphEffectOutputConnection', { target: { customNodeGraphEffect: target, outputId: event.outputId }, source: event.value, connectionTypePolicy }); break;
 		case 'addParamDef':
 			manager.commit('createCustomNodeGraphEffectPublicParameter', { customNodeGraphEffect: target, definition: event.def }); break;
 		case 'updateParamDef': {
@@ -122,7 +124,7 @@ function onNodeParameterEdit(manager: ProjectCommands, customNodeGraphEffect: Cu
 				...(current.inputSource === 'automationGraphReference' ? current : {}), automationGraphId: event.value, ...event.options } }); break;
 		}
 		case 'node': manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...input, source: event.value == null ? { inputSource: 'node', nodeId: null, outputPort: null } : { inputSource: 'node', ...event.value },
-			preserveNodeSampling: event.preserveSampling }); break;
+			preserveNodeSampling: event.preserveSampling, connectionTypePolicy: preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch' }); break;
 		case 'customNodeGraphEffectPublicParameterReference': manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...input, source: { inputSource: event.kind, parameterId: event.value } }); break;
 		case 'customNodeGraphEffectCustomParameterValueReference': manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...input, source: { inputSource: event.kind, parameterId: event.value } }); break;
 		case 'inputSource':

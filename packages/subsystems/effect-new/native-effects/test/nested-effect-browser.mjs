@@ -25,15 +25,21 @@ const parent = { ...base, nodes: [
 		code: 'fn main(p: vec2f) -> Output { return Output(read_a(p) + read_b(p)); }' } }, params: { a: wire('child', 'main'), b: wire('child', 'aux') } },
 ], outputSources: { main: { nodeId: 'combine', outputPort: 'main' } } };
 
-export async function run() {
+export async function run(mismatchedPorts = false) {
 	const adapter = await navigator.gpu.requestAdapter();
 	const device = await adapter.requestDevice();
-	const definitions = { getNativeEffect: id => nativeEffectDefinitions[id], getCustomShaderEffect: () => shader, getCustomNodeGraphEffect: () => child };
-	const effectSource = { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: parent };
+	const scalarImage = { ...color('image'), dataType: { kind: 'scalar' }, defaultValue: { inputSource: 'literal', value: 0 } };
+	const scalarOutput = { ...output('aux'), dataType: { kind: 'scalar' } };
+	const splitShader = mismatchedPorts ? { ...shader, outputDefs: { ...shader.outputDefs, aux: scalarOutput },
+		code: 'fn main(p: vec2f) -> Output { let gain = read_gain(p); return Output(vec4f(0), read_image(p) + vec4f(0, gain.gba), gain.r); }' } : shader;
+	const childGraph = mismatchedPorts ? { ...child, paramDefs: { image: scalarImage }, outputDefs: { ...child.outputDefs, aux: scalarOutput } } : child;
+	const parentGraph = mismatchedPorts ? { ...parent, paramDefs: { image: scalarImage } } : parent;
+	const definitions = { getNativeEffect: id => nativeEffectDefinitions[id], getCustomShaderEffect: () => splitShader, getCustomNodeGraphEffect: () => childGraph };
+	const effectSource = { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: parentGraph };
 	validateEffectSource(effectSource, definitions);
 	let gain = 0.5;
 	const instance = await createEffectInstance({ effectSource, definitions, resolution: size, usedOutputPorts: new Set(['main']),
-		inputs: { image: { kind: 'uniform', get value() { return [gain, gain, gain, gain]; } } } },
+		inputs: { image: { kind: 'uniform', get value() { return mismatchedPorts ? [gain] : [gain, gain, gain, gain]; } } } },
 	{ device, defaultVertexShaderModule: device.createShaderModule({ code: vertex }), enable32bitDataTextures: false }, id => nativeEffectImplementations[id]);
 	const pixel = device.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
 	const staging = device.createBuffer({ size: 16, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });

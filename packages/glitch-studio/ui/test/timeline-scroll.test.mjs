@@ -21,6 +21,7 @@ const result = await build({
 		build.onResolve({ filter: /^test:metrics$/ }, () => ({ path: 'metrics', namespace: 'test' }));
 		build.onResolve({ filter: /^@\/(?:app|project-session)\.ts$/ }, () => ({ path: 'app', namespace: 'test' }));
 		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
+		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 		build.onResolve({ filter: /Gs(CondensedLine|Button)\.vue$/ }, () => ({ path: 'label', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', contents: {
 			metrics: 'export const updates = new Map(); export const mounts = new Map();',
@@ -29,6 +30,7 @@ const result = await build({
 				commit: (...args) => commits.push(args),
 			} } };`,
 			effects: 'export const nativeEffectDefinitions = {};',
+			preferences: 'export const preferences = { s: { forceTypeSafety: false } };',
 			label: "import { h } from 'vue'; export default { setup: (_, { slots }) => () => h('span', slots.default?.()) };",
 		}[path] }));
 		build.onLoad({ filter: /\.vue$/ }, async ({ path }) => {

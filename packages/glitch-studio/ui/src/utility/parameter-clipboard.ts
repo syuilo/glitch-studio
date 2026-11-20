@@ -1,6 +1,6 @@
 import { getEffectDefinitions } from './project-effects.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
-import { areNodeDataTypesCompatible, getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
+import { canConnectNodeDataTypes, getNodeInputDataType, type ConnectionTypePolicy } from '@gs/shared/data-type/node-compatibility.ts';
 import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
@@ -60,7 +60,7 @@ export type ProjectParameterClipboardTarget = { paramPath: ParamPath } & (
 	| { kind: 'timeline'; sceneId: string; layerId: string; parameterTarget: TimelineParameterTarget }
 );
 
-export type ParameterPasteContext = { state: ProjectState; source: ParameterClipboardSource } & (
+export type ParameterPasteContext = { state: ProjectState; source: ParameterClipboardSource; connectionTypePolicy?: ConnectionTypePolicy } & (
 	| { kind: 'node'; customNodeGraphEffect: CustomNodeGraphEffect; nodeId: string }
 	| { kind: 'customParameter'; customNodeGraphEffect: CustomNodeGraphEffect }
 	| { kind: 'preview'; customNodeGraphEffect: CustomNodeGraphEffect }
@@ -281,7 +281,7 @@ function validateLeafDestination(definition: ParameterDefinition, binding: Edita
 			requireValid(sameOwner(source, context.source) && binding.nodeId !== context.nodeId);
 			const node = context.customNodeGraphEffect.nodes.find(candidate => candidate.id === binding.nodeId);
 			const output = node == null ? null : getNodeOutputs(node, context.customNodeGraphEffect.paramDefs, getEffectDefinitions(context.state))[binding.outputPort];
-			requireValid(output != null && areNodeDataTypesCompatible(output.dataType, getNodeInputDataType(definition)));
+			requireValid(canConnectNodeDataTypes(output?.dataType, getNodeInputDataType(definition), context.connectionTypePolicy ?? 'strict'));
 			break;
 		}
 		case 'customNodeGraphEffectPublicParameterReference': {
@@ -308,7 +308,7 @@ function validateLeafDestination(definition: ParameterDefinition, binding: Edita
 		}
 		case 'anotherLayerOutput':
 		case 'lowerLayerOutput': {
-			requireValid(context.kind === 'timeline' && definition.canNode === true && areNodeDataTypesCompatible({ kind: 'color' }, getNodeInputDataType(definition)));
+			requireValid(context.kind === 'timeline' && definition.canNode === true && canConnectNodeDataTypes({ kind: 'color' }, getNodeInputDataType(definition), context.connectionTypePolicy ?? 'strict'));
 			// 公開入力とEffectではサンプリング設定の所有者が違う。設定を暗黙に捨てたり補わない。
 			requireValid(context.parameterTarget === 'effect' ? 'fitMode' in binding : !('fitMode' in binding));
 			if (binding.inputSource === 'anotherLayerOutput' && binding.layerId != null) {
@@ -389,10 +389,10 @@ export function resolveProjectClipboardTarget(state: ProjectState, projectSessio
 }
 
 /** CommandとUIの事前確認で同じ検査を使う。未設定のルートはUndo用にnullのまま保持する。 */
-export function prepareProjectParameterPaste(state: ProjectState, projectSessionId: string, target: ProjectParameterClipboardTarget, clipboard: ParameterClipboardData) {
+export function prepareProjectParameterPaste(state: ProjectState, projectSessionId: string, target: ProjectParameterClipboardTarget, clipboard: ParameterClipboardData, connectionTypePolicy?: ConnectionTypePolicy) {
 	try {
 		const resolved = resolveProjectClipboardTarget(state, projectSessionId, target);
-		const binding = prepareParameterBindingPaste(resolved.def, clipboard, resolved.context);
+		const binding = prepareParameterBindingPaste(resolved.def, clipboard, { ...resolved.context, connectionTypePolicy });
 		if (binding == null) return null;
 		resolved.setValue(binding);
 		return { before: resolved.before, after: resolved.draft[target.paramPath[0]] };

@@ -534,6 +534,8 @@
 		"ConfirmReset": "すべての環境設定を初期設定にリセットしますか？言語設定とワークスペースのレイアウトもリセットされます。",
 		"ResetComplete": "環境設定を初期設定にリセットしました。変更を完全に反映するには、アプリケーションを再起動してください。",
 		"Language": "言語",
+		"ForceTypeSafety": "接続時にデータ型の一致を求める",
+		"ForceTypeSafetyHint": "有効にすると、互換性のないポートを新しく接続できません。無効時は警告付きで接続できます。",
 		"CustomNodeGraphEffectAutoConnectOnNodeAdd": "追加したノードを自動接続する",
 		"CustomNodeGraphEffectWireStyle": "ケーブルの形状",
 		"CustomNodeGraphEffectWireStyleStraight": "直線",

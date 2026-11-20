@@ -330,7 +330,8 @@ function showAddEffectNodeMenu() {
 		chosen: effect => {
 			if (projectSession.projectContext.getCustomNodeGraphEffectById(entry.id) == null) return;
 			stateManager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect: { customNodeGraphEffectId: entry.id }, effectSource: effect.effectSource,
-				connectionMode: preferences.s.customNodeGraphEffectAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none' });
+				connectionMode: preferences.s.customNodeGraphEffectAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none',
+				connectionTypePolicy: preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch' });
 		},
 		closed: () => {
 			dispose();

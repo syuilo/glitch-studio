@@ -534,6 +534,8 @@
 		"ConfirmReset": "Reset all preferences to their defaults? This also resets the language and workspace layout.",
 		"ResetComplete": "Preferences have been reset to their defaults. Restart the application to fully apply the changes.",
 		"Language": "Language",
+		"ForceTypeSafety": "Require compatible data types for connections",
+		"ForceTypeSafetyHint": "When enabled, new connections between incompatible ports are blocked. When disabled, they are allowed with a warning.",
 		"CustomNodeGraphEffectAutoConnectOnNodeAdd": "Automatically connect added nodes",
 		"CustomNodeGraphEffectWireStyle": "Cable shape",
 		"CustomNodeGraphEffectWireStyleStraight": "Straight",

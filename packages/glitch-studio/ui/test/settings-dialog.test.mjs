@@ -254,6 +254,16 @@ test('saves settings individually', async t => {
 	assert.equal(preferences.s.timelineFrameCacheMaxGiB, 1);
 	assert.equal(preferences.s.projectBackupAutoIntervalMinutes, 10);
 	assert.equal(preferences.s.customNodeGraphEffectAutoConnectOnNodeAdd, true);
+	// 【型安全設定の既定値は無効で、切り替えを即時保存する】
+	// 新規環境では警告付き接続を利用できる。両方向の変更を従来の保存キーへ反映する。
+	const forceTypeSafety = find('data-test-force-type-safety');
+	assert.equal(forceTypeSafety.props.modelValue, false);
+	for (const enabled of [true, false]) {
+		forceTypeSafety.props['onUpdate:modelValue'](enabled);
+		await nextTick();
+		assert.equal(preferences.s.forceTypeSafety, enabled);
+		assert.equal(storage.get('preferences:forceTypeSafety'), JSON.stringify(enabled));
+	}
 	assert.equal(find('data-test-settings-apply'), null);
 	// 【言語は選択した時点で保存する】
 	// ダイアログ全体の適用操作を不要にし、初期表示だけでは保存しない。

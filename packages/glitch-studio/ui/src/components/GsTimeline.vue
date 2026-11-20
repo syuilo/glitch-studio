@@ -811,6 +811,7 @@ function showAddInlineEffectNodeMenu(layerId: string) {
 			customNodeGraphEffect: { sceneId: props.sceneId, layerId: layerId },
 			effectSource: effect.effectSource,
 			connectionMode: preferences.s.customNodeGraphEffectAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none',
+			connectionTypePolicy: preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch',
 
 		});
 	});

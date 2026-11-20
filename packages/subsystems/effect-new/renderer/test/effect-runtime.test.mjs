@@ -71,6 +71,48 @@ test('passes both uniform and texture public inputs through a relay', async () =
 	}
 });
 
+// 【保存した型不一致の配線でも入力種別と値を維持する】
+// scalarの公開入力からvectorのRelayとcolorの入力・公開出力につないでも、
+// 配置が選んだuniform・textureの束縛でそのまま描画する。Relayや型の違いで書き換えや再確保が起きると失敗する。
+test('loads mismatched ports and draws with the original fixed shader inputs', async () => {
+	const color = { ...scalar, canNode: true, dataType: { kind: 'color' }, defaultValue: literal([0, 0, 0, 0]) };
+	const consumer = { ...definition, paramDefs: { wired: color, direct: color } };
+	const graph = inline({ ...definition, paramDefs: { gain: { ...scalar, canNode: true } },
+		nodes: [
+			{ id: 'wire', type: 'relay', dataType: { kind: 'vector' }, input: { parameterId: 'gain' } },
+			{ id: 'draw', effectSource: native, params: {
+				wired: { inputSource: 'node', source: { nodeId: 'wire', outputPort: 'output' }, sampling: { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' } },
+				direct: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'gain' },
+			} },
+		], outputDefs: { ...definition.outputDefs, relay: { dataType: { kind: 'color' } } },
+		outputSources: { image: output, relay: { nodeId: 'wire', outputPort: 'output' } },
+	});
+	validateEffectSource(graph, { getNativeEffect: () => consumer });
+	const value = [0.5];
+	const texture = {};
+	for (const input of [{ kind: 'uniform', value }, { kind: 'texture', texture, resolution: size }]) {
+		let draws = 0;
+		const instance = await create(graph, consumer, ({ inputs }) => {
+			for (const binding of [inputs.wired, inputs.direct]) assert.equal(binding.kind, input.kind);
+			return { render() {
+				for (const binding of [inputs.wired, inputs.direct]) {
+					if (input.kind === 'texture') assert.equal(binding.texture, texture);
+					else assert.equal(binding.value, value);
+				}
+				draws++;
+			}, dispose() {} };
+		}, { inputs: { gain: input }, usedOutputPorts: new Set(['image', 'relay']) });
+		try {
+			instance.render(frame(1));
+			instance.render(frame(2));
+			assert.equal(instance.outputs.get('relay').kind, input.kind);
+			assert.equal(draws, 2);
+		} finally {
+			instance.dispose();
+		}
+	}
+});
+
 // 【原寸と倍率を一度だけ適用し、画像・ファイル・Playerを借用し、音声をフレーム単位で解決する】
 // 素材や音声を所有する呼び出し側が同じGPU画像の内容を更新しても、配置の再生成は不要。
 test('resolves borrowed resources, audio and scaled intrinsic dimensions', async () => {

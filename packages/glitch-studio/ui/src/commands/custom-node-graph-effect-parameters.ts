@@ -1,4 +1,4 @@
-import { areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
+import { canConnectNodeDataTypes, type ConnectionTypePolicy } from '@gs/shared/data-type/node-compatibility.ts';
 import { AiSON } from '@syuilo/aiscript';
 import { validateStaticSettingValue } from '@gs/shared/static-setting.ts';
 import { preserveParameterExpressionModifier, supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
@@ -50,7 +50,7 @@ function parameterChanges(input: CustomNodeGraphEffectNodeParameterReference, ki
 	return [{ type: 'node', target: input.target.customNodeGraphEffect, nodeId: input.target.nodeId, changes: [{ type: 'parameter', kind }] }];
 }
 
-function defineNodeParameterCommand<Input extends CustomNodeGraphEffectNodeParameterReference>(
+function defineNodeParameterCommand<Input extends CustomNodeGraphEffectNodeParameterReference & { connectionTypePolicy?: ConnectionTypePolicy | null }>(
 	label: string,
 	update: (parameter: ReturnType<typeof resolveNodeParam>, input: Input) => CustomNodeGraphEffectParameterBinding,
 	options: { kind?: ParameterChangeKind; preserveModifier?: boolean; autoMerge?: boolean } = {},
@@ -69,7 +69,7 @@ function defineNodeParameterCommand<Input extends CustomNodeGraphEffectNodeParam
 			const updated = update(draftParameter, input);
 			const after = options.preserveModifier === true ? preserveParameterExpressionModifier(parameter.value, updated) : updated;
 
-			validateCustomNodeGraphEffectNodeParameterBinding(state, getCustomNodeGraphEffect(state, input.target.customNodeGraphEffect), parameter.def, after, parameter.value);
+			validateCustomNodeGraphEffectNodeParameterBinding(state, getCustomNodeGraphEffect(state, input.target.customNodeGraphEffect), parameter.def, after, parameter.value, input.connectionTypePolicy ?? 'strict');
 			return prepareCustomNodeGraphEffectValue(parameter.value, after, (currentState, value) => {
 				resolveNodeParam(getCustomNodeGraphEffectEffectNode(currentState, input.target), input.parameterPath, getEffectDefinitions(currentState)).setValue(value);
 			}, parameterChanges(input, options.kind ?? getParameterBindingChangeKind(parameter.def, parameter.value, after)));
@@ -82,7 +82,7 @@ function assertLeafParameter(parameter: ReturnType<typeof resolveNodeParam>) {
 }
 
 const setCustomNodeGraphEffectNodeParameterSource = defineNodeParameterCommand<CustomNodeGraphEffectNodeParameterReference & {
-	source: CustomNodeGraphEffectParameterSource; preserveNodeSampling?: boolean;
+	source: CustomNodeGraphEffectParameterSource; preserveNodeSampling?: boolean; connectionTypePolicy?: ConnectionTypePolicy | null;
 }>(
 	'Set Custom Node Graph Effect node parameter source',
 	(parameter, input) => {
@@ -124,7 +124,7 @@ const setCustomNodeGraphEffectNodeParameterExpressionModifier = defineNodeParame
 		return { ...parameter.value, expressionModifier: deepClone(input.expressionModifier) };
 	},
 );
-const replaceCustomNodeGraphEffectNodeParameterBinding = defineNodeParameterCommand<CustomNodeGraphEffectNodeParameterReference & { binding: CustomNodeGraphEffectParameterBinding }>(
+const replaceCustomNodeGraphEffectNodeParameterBinding = defineNodeParameterCommand<CustomNodeGraphEffectNodeParameterReference & { binding: CustomNodeGraphEffectParameterBinding; connectionTypePolicy?: ConnectionTypePolicy | null }>(
 	'Replace Custom Node Graph Effect node parameter binding', (_parameter, input) => deepClone(input.binding),
 );
 const resetCustomNodeGraphEffectNodeParameter = defineNodeParameterCommand<CustomNodeGraphEffectNodeParameterReference>(
@@ -212,7 +212,7 @@ const setCustomNodeGraphEffectNodeResolution = defineCommand<{ target: CustomNod
 			[{ type: 'node', target: input.target.customNodeGraphEffect, nodeId: input.target.nodeId, changes: [{ type: 'resolution' }] }]);
 	},
 });
-const setCustomNodeGraphEffectOutputConnection = defineCommand<{ target: CustomNodeGraphEffectOutputReference; source: { nodeId: string; outputPort: string } | null }>({
+const setCustomNodeGraphEffectOutputConnection = defineCommand<{ target: CustomNodeGraphEffectOutputReference; source: { nodeId: string; outputPort: string } | null; connectionTypePolicy?: ConnectionTypePolicy | null }>({
 	label: 'Set Custom Node Graph Effect output connection',
 	prepare(state, input) {
 		const customNodeGraphEffect = getCustomNodeGraphEffect(state, input.target.customNodeGraphEffect);
@@ -227,7 +227,7 @@ const setCustomNodeGraphEffectOutputConnection = defineCommand<{ target: CustomN
 			const source = customNodeGraphEffect.nodes.find(candidate => candidate.id === input.source!.nodeId);
 			const output = getNodeOutputs(source, customNodeGraphEffect.paramDefs, getEffectDefinitions(state))[input.source.outputPort];
 			if (output == null) throw new Error('Node output not found in this Custom Node Graph Effect');
-			if (!areNodeDataTypesCompatible(output.dataType, outputDefinition.dataType)) throw new Error('Node output type does not match the Custom Node Graph Effect output');
+			if (!canConnectNodeDataTypes(output.dataType, outputDefinition.dataType, input.connectionTypePolicy ?? 'strict')) throw new Error('Node output type does not match the Custom Node Graph Effect output');
 		}
 		const before = getOutputNode(state).inputs[input.target.outputId] ?? null;
 		const after = input.source ?? (before?.nodeId == null ? before : { nodeId: null, outputPort: null });

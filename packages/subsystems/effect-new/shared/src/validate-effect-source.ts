@@ -6,7 +6,7 @@ import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.
 import { validateCustomShaderEffectDefinition } from './custom-shader-effect.ts';
 import { validateEffectResolution } from './resolution.ts';
 import { validateEffectParameterLayout } from './effect-parameter-layout.ts';
-import { areNodeDataTypesCompatible, getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
+import { canConnectNodeDataTypes, getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { resolveEffectSource } from './effect-source.ts';
 import type { EffectDefinitions, EffectSource } from './effect-source.ts';
@@ -67,13 +67,15 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 				return def == null ? null : getNodeInputDataType(def);
 			}
 
+			// 型安全設定は新しい配線を作るときに使う。保存済みの配線は、両端が画像ポートなら
+			// 設定の切り替え後や別の環境で開いた場合も、同じデータを描画できる。
 			function checkNode(id: string): void {
 				if (complete.has(id)) return;
 				if (path.has(id)) throw new Error('Cyclic node connection: ' + [...path, id].join(' → '));
 				path.add(id);
 				const node = nodes.get(id)!;
 				if (node.type === 'relay') {
-					if (node.input != null && !areNodeDataTypesCompatible(sourceType(node.input), node.dataType)) throw new Error('Incompatible relay: ' + id);
+					if (node.input != null && !canConnectNodeDataTypes(sourceType(node.input), node.dataType, 'allowMismatch')) throw new Error('Incompatible relay: ' + id);
 				} else {
 					const definition = nodeDefinitions.get(id)!;
 					validateStaticSettings(definition.staticSettingDefs ?? {}, node.staticSettings ?? {});
@@ -98,14 +100,14 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 					}
 					if (def.dataType.kind === 'audioSource' && leaf.inputSource !== 'customNodeGraphEffectPublicParameterReference') validateLiteralAudioSourceBinding(leaf);
 					if (leaf.inputSource === 'node' && leaf.source != null) {
-						if (!areNodeDataTypesCompatible(checkOutput(leaf.source), getNodeInputDataType(def))) throw new Error('Incompatible node connection: ' + key);
+						if (!canConnectNodeDataTypes(checkOutput(leaf.source), getNodeInputDataType(def), 'allowMismatch')) throw new Error('Incompatible node connection: ' + key);
 					}
 					if (leaf.inputSource === 'customNodeGraphEffectPublicParameterReference') {
 						const parameter = graph.paramDefs[leaf.parameterId];
 						if (parameter == null) throw new Error('Unknown public parameter: ' + leaf.parameterId);
 						if (id == null && parameter.canNode === true) throw new Error('Custom parameters require CPU values: ' + key);
 						const compatible = parameter.canNode === true
-							? areNodeDataTypesCompatible(getNodeInputDataType(parameter), getNodeInputDataType(def))
+							? canConnectNodeDataTypes(getNodeInputDataType(parameter), getNodeInputDataType(def), 'allowMismatch')
 							: areDataTypesEqual(parameter.dataType, def.dataType);
 						if (!compatible) throw new Error('Incompatible public parameter: ' + key);
 					}
@@ -147,7 +149,7 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 			if (graph.resolutionInputParameters.some(key => !acceptsResolutionInput(graph.paramDefs[key]))) throw new Error('Invalid resolution input');
 			for (const [id, output] of Object.entries(graph.outputSources)) {
 				if (output == null) continue;
-				if (!areNodeDataTypesCompatible(sourceType(output), graph.outputDefs[id]?.dataType ?? null)) throw new Error('Incompatible public output: ' + id);
+				if (!canConnectNodeDataTypes(sourceType(output), graph.outputDefs[id]?.dataType, 'allowMismatch')) throw new Error('Incompatible public output: ' + id);
 			}
 			ancestors.delete(graph);
 			if (registeredId != null) ancestorIds.delete(registeredId);

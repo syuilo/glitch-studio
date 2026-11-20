@@ -24,6 +24,7 @@ export const PREF_DEF = definePreferences({
 	menuStyle: { default: () => 'auto' },
 	animatedBgInPreview: { default: () => false },
 	previewVolume: { default: () => 0.5 },
+	forceTypeSafety: { default: () => false },
 	customNodeGraphEffectAutoConnectOnNodeAdd: { default: () => false },
 	customNodeGraphEffectWireStyle: { default: (): CustomNodeGraphEffectWireStyle => 'straight' },
 	showTimecodeInPreview: { default: () => true },

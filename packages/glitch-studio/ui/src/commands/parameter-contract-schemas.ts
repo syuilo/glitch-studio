@@ -10,6 +10,8 @@ import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 
 // Project APIの境界で使う保存形式の説明。対象の存在、型同士の対応、利用可能な入力方式は
 // 各ドメインの検証に任せる。特にUIのmin/maxを数値そのものの制限に読み替えない。
+export const connectionTypePolicySchema = z.enum(['strict', 'allowMismatch']).describe('strict rejects incompatible port data types. allowMismatch permits the connection without converting the data.');
+
 export const identifierSchema = z.string().min(1).describe('Existing or newly returned identifier. Names and array indexes are not identifiers.');
 export const parameterPathSchema: z.ZodType<ParamPath> = z.tuple([z.string()], z.string()).describe('Nonempty parameter path. Array entries are addressed by element IDs, not numeric indexes.');
 export const vectorValueSchema = z.tuple([z.number(), z.number()]);
