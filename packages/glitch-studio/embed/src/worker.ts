@@ -60,6 +60,7 @@ export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffe
 		const port = customNodeGraphEffect.primaryOutput!;
 		const effectDefinitions = createProjectEffectDefinitions(data, definitions);
 		const gpu = { device, defaultVertexShaderModule: device.createShaderModule({ code: vertexCode }), enable32bitDataTextures: false };
+		// Web書き出しではPlayerの権限取得や再生管理を避けるため、Playerと音声入力は未接続として扱う。
 		const resources = { assets, assetTextures: assetTextures.textures };
 		presenter = new PortableCanvasRenderer(device, canvas);
 		let inputs: ReturnType<typeof createPortableEffectInputs> | null = null;
@@ -87,6 +88,7 @@ export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffe
 				previousTime = frame.time;
 			}
 			const output = effect.outputs.get(port);
+			// リサイズ直後も、今回の出力寸法でポインターの座標を変換する。
 			const outputResolution = output?.resolution ?? resolution;
 			const position = getPortablePointerPosition(frame.pointerElementPosition, resolution, outputResolution);
 			const context: EffectFrameContext = {
@@ -94,6 +96,7 @@ export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffe
 				pointerPosition: position ?? [-99999, -99999], pointerVector: position == null || previousPointer == null
 					? [0, 0] : [position[0] - previousPointer[0], position[1] - previousPointer[1]],
 			};
+			// 動画などの準備と描画に同じContextを使い、準備中に再生時刻が進んでも対象フレームを保つ。
 			await effect.prepare(context, controller.signal);
 			controller.signal.throwIfAborted();
 			const encoder = createdDevice.createCommandEncoder();
@@ -114,6 +117,7 @@ export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffe
 		const message = event.data;
 		if (message.type === 'initialize') void initialize(message.canvas, message.artwork).catch(fail);
 		else if (message.type === 'frame') {
+			// GPU完了まで一つのフレームを処理し、重い作品でGPUキューと入力遅延が積み上がるのを防ぐ。
 			if (renderFrame == null || processingFrame) return;
 			processingFrame = true;
 			void renderFrame(message.frame).catch(fail).finally(() => { processingFrame = false; });

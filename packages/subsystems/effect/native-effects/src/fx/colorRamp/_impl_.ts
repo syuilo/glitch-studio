@@ -23,6 +23,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			inputs,
 			internalLayouts: [colorRamp.layout, repetitionLayout],
 			bindResources(pass) {
+				// Input Range ModeとRepeat Modeはuniformで更新する。切り替えに伴うpipelineの作り直しを省き、Rampの対応表も共有する。
 				repetitionValues.set({ mode: { clamp: 0, wrap: 1, pingPong: 2 }[inputs.mode.value], repeatMode: inputs.repeatMode.value === 'wrap' ? 0 : 1 });
 				device.queue.writeBuffer(repetitionBuffer, 0, repetitionValues.arrayBuffer);
 				pass.setBindGroup(0, colorRamp.update(inputs.ramp.value));

@@ -5,6 +5,7 @@ let nextFontId = 0;
 /** 配置に固定したフォントを一度だけWorkerのFontFaceSetに登録する。 */
 export async function loadTextFont(source: FileSource | null, signal?: AbortSignal) {
 	if (source == null) return { family: 'sans-serif', dispose() {} };
+	// 同じWorkerで別のフォントを使う複数の配置があっても、登録名が衝突しないようにする。
 	const family = 'GlitchNativeEffectTextFont' + ++nextFontId;
 	const data = await (await readFileSource(source)).arrayBuffer();
 	signal?.throwIfAborted();

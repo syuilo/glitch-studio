@@ -21,6 +21,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			schema: { input: 'color', translation: 'vector', scale: 'vector', rotation: 'scalar' },
 			inputs,
 			internalLayouts: [layout],
+			// Scaleがほぼ0の画素を先に返した後も入力を読むため、LODを明示する。
 			sampling: 'level0',
 			bindResources(pass) {
 				pass.setBindGroup(0, bindGroup);

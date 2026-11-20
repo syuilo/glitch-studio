@@ -19,6 +19,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			code,
 			schema: { input: 'color', coordinateOffset: 'vector' },
 			inputs,
+			// 画素ごとに軌道・終了反復・素材を読む回数が異なるため、LODを明示する。
 			sampling: 'level0',
 			internalLayouts: [layout],
 			samplingOverrides: { referenceResolutions: { input: referenceSize } },
@@ -44,6 +45,8 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 					antialiasing: inputs.antialiasing.value ? 1 : 0,
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
+				// 出力の縦横比を変えても同じTrap Sizeなら同じ形で素材を取り込めるよう、
+				// Fitは出力画面でなくトラップの矩形を基準にする。
 				referenceSize.width = trapSize[0];
 				referenceSize.height = trapSize[1];
 				pass.setBindGroup(0, bindGroup);

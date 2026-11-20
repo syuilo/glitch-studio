@@ -100,6 +100,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 					antiAlias: Number(params.antiAlias),
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
+				// 中央画像のFitは描画先の矩形を基準にする。出力全体が長方形でも中央画像の比率を保つ。
 				centerImageSize.width = Math.max(1, centerImage.imageHalfSize[0] * 2 * cellPixels);
 				centerImageSize.height = Math.max(1, centerImage.imageHalfSize[1] * 2 * cellPixels);
 				const pass = beginOutputPass(ctx.commandEncoder, outputView);

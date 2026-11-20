@@ -3,7 +3,10 @@ import { getTimelineClipLayers } from './layer-tree.ts';
 import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
 import type { TimelineScene } from './types.ts';
 
-/** 配置されたEffectをたどる。同じCustom Node Graph Effectを複数箇所で参照しても検査は一度でよい。 */
+/**
+ * Timelineで描画履歴に依存するNative Effectを検出するため、クリップのあるEffectレイヤーからたどる。
+ * 同じCustom Node Graph Effectを複数箇所で参照しても検査は一度でよい。
+ */
 export function findTimelineHistoryEffects(scenes: readonly TimelineScene[], definitions: EffectDefinitions): string[] {
 	const result = new Set<string>();
 	const visited = new Set<CustomNodeGraphEffect>();

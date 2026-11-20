@@ -63,6 +63,7 @@ export type { TimelineParameterBinding, TimelineEffectParameterBinding } from '.
 
 export type TimelineEffectLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
 	layerType: 'effect';
+	/** 未指定は画像を変形する。入力接続とは独立した静的な設定。 */
 	transformTarget?: TimelineLayerTransformTarget;
 	effectSource: EffectSource;
 	effectParamValues: Record<string, TimelineEffectParameterBinding>;

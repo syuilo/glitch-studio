@@ -18,6 +18,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			schema: { input: 'color' },
 			inputs,
 			internalLayouts: [layout],
+			// 中心と折り目では角度の微分が不安定になるため、LOD 0で入力を読む。
 			sampling: 'level0',
 			bindResources(pass) {
 				const referenceLength = getSizeReferenceLength(inputs.sizeReference.value, resolution);

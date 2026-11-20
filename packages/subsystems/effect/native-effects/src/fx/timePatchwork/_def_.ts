@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Displays different moments in each block, with motion-driven delays and temporary freezes in moving regions.',
 	},
 	kind: 'modify',
+	// 入力が静止していても、履歴の経過時間と各セルの停止状態を更新する。
 	dependsOnRenderHistory: true,
 	tags: ['glitch', 'temporal'],
 	paramDefs: {

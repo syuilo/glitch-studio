@@ -1,5 +1,6 @@
 @fragment
 fn fs(@location(0) position: vec2f) -> @location(0) vec2f {
+	// 演算の番号はoperations.tsのshaderOperationIdに対応する。
 	let operationId = u32(read_operationId(position));
 	let a = read_inputA(position);
 	let b = read_inputB(position);

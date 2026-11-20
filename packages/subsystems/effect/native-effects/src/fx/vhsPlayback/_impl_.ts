@@ -139,6 +139,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			disposeBuffers();
 			throw error;
 		}
+		// 元の映像とテープ表面のデータで必要な入力が異なるため、pipelineとGPU bindingを分ける。
 		const imageInputs = { input: params.input };
 		const surfaceInputs = { tapeDamage: params.tapeDamage, headSeparation: params.headSeparation, tapeDisplacement: params.tapeDisplacement };
 		const imageVariant = createImageVariant(imageInputs);

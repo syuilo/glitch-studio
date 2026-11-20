@@ -33,6 +33,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 				perCellRotation: 'scalar',
 			},
 			inputs,
+			// セル境界・素材の選択・切り取りで参照先が不連続になるため、LODを明示する。
 			sampling: 'level0',
 			internalLayouts: [layout],
 			samplingOverrides: { referenceResolutions: { inputs: referenceSize } },
@@ -60,6 +61,8 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 					translationUsesCellUnits: Number(translationUnit === 'cell'),
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
+				// 素材のFitは変形前のセルを基準とし、制御用の場は出力画面を基準とする。
+				// Adaptiveの四分割は縦横を同率で縮めるため、分割後のセルでも基本セルと同じFitを使える。
 				referenceSize.width = cellWidth;
 				referenceSize.height = cellHeight;
 				pass.setBindGroup(0, bindGroup);

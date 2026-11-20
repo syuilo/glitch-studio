@@ -17,6 +17,7 @@ function canPreserveNodeStaticState(changes: readonly CustomNodeGraphEffectNodeC
 	return changes.length > 0 && changes.every(change => change.type === 'parameter' && change.kind === 'value');
 }
 
+/** Effectや公開パラメータの値だけを編集した場合はFeedbackなどの描画履歴を維持する。Soloは評価時の参加判定だけを変更する。 */
 export function canPreserveTimelineLayerInstance(changes: readonly TimelineLayerChange[]): boolean {
 	return changes.length > 0 && changes.every(change => change.type === 'solo' || (change.type === 'parameter'
 		&& (change.target === 'effect' || change.target === 'publicParameter') && change.kind === 'value'));

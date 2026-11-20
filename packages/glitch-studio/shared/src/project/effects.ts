@@ -13,7 +13,10 @@ function indexDefinitions<T>(entries: readonly { id: string; definition: T }[], 
 	};
 }
 
-/** 一つのスナップショットから索引を作る。同じ文字列IDでもEffectの種類ごとに独立して解決する。 */
+/**
+ * プロジェクトごとに登録定義の索引を持ち、Native Effectの定義一覧は読み取り専用で共有する。
+ * 同じ文字列IDでもEffectの種類ごとに独立して解決する。
+ */
 export function createProjectEffectDefinitions(project: ProjectEffectRegistrations, nativeDefinitions: NativeEffectDefinitions): EffectDefinitions {
 	return {
 		getNativeEffect(id) {

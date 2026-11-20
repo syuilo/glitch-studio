@@ -28,7 +28,7 @@ export type CustomNodeGraphEffectNodeChange =
 	| { type: 'effectSource' | 'bypass' | 'resolution' | 'staticSetting' };
 
 // 登録とインライン配置のどちらでも、ノードの値編集はそのノードだけを送る。
-// 定義と利用側の補正は同じ差分列で適用する。
+// 描画時に定義とBindingの世代が揃うよう、定義と利用側の補正は同じ差分列で適用する。
 export type RendererProjectChange =
 	| { type: 'automationGraphs'; automationGraphs: AutomationGraph[] }
 	| (CustomNodeGraphEffectTarget & { type: 'node'; node: CustomNodeGraphEffectNode; changes: CustomNodeGraphEffectNodeChange[] })

@@ -26,6 +26,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs, 'r
 		const spatialHalfExtent = getSpatialHalfExtent(resolution);
 		const wrapAngle = (angle: number) => ((angle + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
 
+		// 未使用のattachmentを省いてもWGSLのlocation順を保つ。各出力は同じ積分結果を共有する。
 		const outputs = outputPorts.map(port => outputTextures.get(port));
 		const descriptor: GPURenderPassDescriptor = { colorAttachments: outputs.map(texture => texture == null ? null
 			: { view: texture.createView(), loadOp: 'clear', storeOp: 'store' }) };

@@ -17,6 +17,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			schema: { input: 'color', direction: 'scalar', phase: 'scalar', frequency: 'scalar', amplitude: 'scalar', chromaticAberrationStrength: 'scalar' },
 			inputs,
 			internalLayouts: [uniformBindGroupLayout],
+			// 色収差が0の画素を先に返し、残りの画素はループ内で入力を読むためLODを明示する。
 			sampling: 'level0',
 			bindResources(pass) {
 				const chromaticAberrationSamples = inputs.chromaticAberrationSamples.value;

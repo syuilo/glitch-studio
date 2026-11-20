@@ -99,6 +99,7 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 						const source = graph.customParameterDefs?.[leaf.parameterId];
 						if (source == null || !areDataTypesEqual(source.dataType, def.dataType)) throw new Error('Incompatible custom parameter: ' + key);
 					}
+					// 音声の取得元は固定値または同じ型の公開パラメータ参照で指定する。式とは独立に解決する。
 					if (def.dataType.kind === 'audioSource' && leaf.inputSource !== 'customNodeGraphEffectPublicParameterReference') validateLiteralAudioSourceBinding(leaf);
 					if (leaf.inputSource === 'node' && leaf.source != null) {
 						if (!canConnectNodeDataTypes(checkOutput(leaf.source), getNodeInputDataType(def), 'allowMismatch')) throw new Error('Incompatible node connection: ' + key);

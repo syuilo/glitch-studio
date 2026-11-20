@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Delays blocks, bands, or RGB channels to combine different moments in one image.',
 	},
 	kind: 'modify',
+	// 入力が静止していても、実時刻に対する履歴の古さと保存位置を更新する。
 	dependsOnRenderHistory: true,
 	tags: ['glitch', 'temporal', 'color'],
 	paramDefs: {

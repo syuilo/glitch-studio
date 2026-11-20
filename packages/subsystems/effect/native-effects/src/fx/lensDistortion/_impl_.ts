@@ -19,6 +19,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			schema: { input: 'color' },
 			inputs,
 			internalLayouts: [layout],
+			// 歪めた座標で複数回入力を読むため、導関数に依存しないLOD 0を使う。
 			sampling: 'level0',
 			bindResources(pass) {
 				uniformValues.set({

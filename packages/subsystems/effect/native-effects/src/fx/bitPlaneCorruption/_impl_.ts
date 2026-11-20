@@ -42,6 +42,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			schema: { input: 'color', probability: 'scalar', density: 'vector' },
 			inputs,
 			internalLayouts: [layout],
+			// 透明画素や無加工の領域を返した後でDensityを読む経路があるため、LODを明示する。
 			sampling: 'level0',
 			bindResources(pass) {
 				const bitDepth = clampInteger(inputs.bitDepth.value, 1, 16);

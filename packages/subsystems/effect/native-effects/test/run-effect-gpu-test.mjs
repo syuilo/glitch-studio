@@ -53,6 +53,7 @@ catch (error) { await fetch('/result', {method: 'POST', body: JSON.stringify({er
 		}
 		server.closeAllConnections();
 		await new Promise(resolve => server.close(resolve));
+		// テストで作成した専用プロファイルだけを削除する。再帰削除の前に一時ディレクトリ直下であることを確認する。
 		assert.equal(dirname(resolve(profile)), temporaryRoot);
 		await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 	}

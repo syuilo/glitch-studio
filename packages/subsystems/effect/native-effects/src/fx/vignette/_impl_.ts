@@ -46,6 +46,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs, 'i
 			return {
 				cacheKey: 0,
 				render({ commandEncoder }) {
+					// Centerは共通座標のまま使い、Size Referenceは楕円とFeatherの寸法だけに適用する。
 					const scale = getSizeReferenceLength(inputs.sizeReference.value, resolution) / longSide;
 					const size = inputs.size.value;
 					halfSize[0] = size[0] * 0.5 * scale;

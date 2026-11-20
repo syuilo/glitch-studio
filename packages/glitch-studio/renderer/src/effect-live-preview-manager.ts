@@ -432,6 +432,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 
 	public startEffectLivePreview(placement: EffectLivePreviewPlacement, statusInstanceId = genId()) {
 		this.stopRenderLoop();
+		// 初期設定の通知が購読開始より早い場合や、同じ寸法の配置へ切り替えた場合にも、最初の描画で寸法を通知する。
 		this.displayedResolution = null;
 		this.placement = placement;
 		this.effectLivePreviewStatusInstanceId = statusInstanceId;
@@ -452,6 +453,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 	}
 
 	private initializePlacement() {
+		// 配置の再初期化ではWorkerの素材・Player・GPUDeviceと状態通知のIDを引き継ぐ。
 		this.releasePlacement();
 		const placement = this.placement;
 		if (placement == null) return;
@@ -519,6 +521,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		this.previewTiledFrameController = controller;
 		const signal = AbortSignal.any([active.lifetime.signal, controller.signal]);
 		const generation = ++this.previewRenderGeneration;
+		// 次の描画より遅れたGPU計測も有効なので、履歴リセットと配置の寿命で結果の有効性を判定する。
 		const historyGeneration = this.historyGeneration;
 		const pointer = this.pointerPosition;
 		const resolution = scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale);
@@ -528,6 +531,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 			pointerVector: this.pointerPositionPrev.x === -99999 ? [0, 0] : normalizedToSpatialCoordinates([pointer.x - this.pointerPositionPrev.x, pointer.y - this.pointerPositionPrev.y], resolution),
 		};
 		const realTimeDelta = this.skippedFrameRealTimeDelta;
+		// 見送った描画の時間差は今回のContextへ渡し、準備中に進んだ分は次の描画へ回す。
 		this.skippedFrameTimeDelta = this.skippedFrameRealTimeDelta = 0;
 		this.previewRenderDelayMonitor.beginFrame(frame);
 		try {
@@ -566,6 +570,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 					});
 				}
 			}
+			// CPU表示ではUIへの画像送信まで遅延を監視しつつ、描画ループは次のフレームへ進める。
 			const complete = cpuFrame?.complete() ?? this.gpuDevice.queue.onSubmittedWorkDone();
 			void complete.catch(error => {
 				cpuFrame?.cancel();

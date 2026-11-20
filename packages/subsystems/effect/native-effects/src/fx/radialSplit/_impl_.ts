@@ -20,6 +20,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 		const { width, height } = resolution;
 		const longSide = Math.max(width, height);
 		const inputCount = inputs.inputs.elements.length;
+		// 入力が空でもstorage bufferを有効なサイズで束縛できるよう、1領域分は確保する。
 		const regionData = new Uint8Array(Math.max(1, inputCount) * regionStride);
 		const regionBytes = new Uint8Array(regionValues.arrayBuffer);
 		const regionBuffer = device.createBuffer({ size: regionData.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });

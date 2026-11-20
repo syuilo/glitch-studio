@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Detaches moving regions as frozen image blocks and lets them slide independently.',
 	},
 	kind: 'modify',
+	// 入力が静止していても、発生済みの断片の位置・寿命・減衰を更新する。
 	dependsOnRenderHistory: true,
 	tags: ['glitch', 'temporal', 'distortion'],
 	paramDefs: {

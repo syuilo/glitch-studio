@@ -46,6 +46,8 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 					regionOffsetB: vertical ? [0, offsetB] : [offsetB, 0],
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
+				// 各入力は割り当て先の領域にFitさせる。空の領域はシェーダーで描画しないため、
+				// Fitの計算だけ正の寸法を渡す。実在する領域は1px未満でも寸法を丸めない。
 				referenceSizes.inputA.width = regionSizeA.width > 0 ? regionSizeA.width : 1;
 				referenceSizes.inputA.height = regionSizeA.height > 0 ? regionSizeA.height : 1;
 				referenceSizes.inputB.width = regionSizeB.width > 0 ? regionSizeB.width : 1;

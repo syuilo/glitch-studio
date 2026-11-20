@@ -14,6 +14,7 @@ export function createRenderCache(inputs: Readonly<Record<string, EffectParamete
 			changed.push(() => {
 				const next = input.texture;
 				const nextVersion = input.version;
+				// 外部から借りたテクスチャは同じオブジェクトでも内容が変わり得る。変更世代がなければ毎回描画する。
 				const dirty = nextVersion == null || next !== texture || nextVersion !== version;
 				texture = next;
 				version = nextVersion;

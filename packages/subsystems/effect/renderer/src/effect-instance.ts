@@ -35,13 +35,17 @@ export type EffectParameterInput =
 	| { readonly kind: 'struct'; readonly fields: Readonly<Record<string, EffectParameterInput>> };
 
 export interface EffectFrameContext {
+	/** 呼び出し側が選んだ内容時刻（秒）。 */
 	readonly time: number;
+	/** 前回描画からの経過時間（ミリ秒）。 */
 	readonly timeDelta: number;
 	readonly endTime?: number;
 	readonly isExport?: boolean;
+	/** 内容時刻と独立した表示区間の進行率。Timelineでは呼び出し側で計算する。 */
 	readonly progress?: number;
-	/** 配置の描画領域の長辺を1とする共通座標。内部ノードには各ノードの寸法へ換算して渡す。 */
+	/** 中央原点・上が+Y・配置の描画領域の長辺を1とする共通座標。各ノードの寸法へ換算する。両軸が-999以下なら未入力。 */
 	readonly pointerPosition?: readonly [number, number];
+	/** pointerPositionと同じ共通単位で測った移動量。 */
 	readonly pointerVector?: readonly [number, number];
 }
 
@@ -54,6 +58,7 @@ export interface EffectRenderOperation {
 	prepare?(frame: EffectFrameContext, signal: AbortSignal): void | Promise<void>;
 	/** 入力以外の状態を含む変更世代。省略したNative Effectは毎回描画する。 */
 	readonly cacheKey?: string | number;
+	/** 自動タイル制御の対象で呼ぶ。評価済みの値から負荷を見積もる。描画と履歴の更新はrenderで行う。 */
 	getRenderWorkloadHint?(): EffectRenderWorkloadHint | null;
 	render(context: EffectRenderContext): void;
 	/** 記録したパスが中断・破棄された場合、再生成できる中間結果を次の描画で計算し直す。 */
@@ -70,8 +75,10 @@ export type CustomNodeGraphEffectValueUpdate =
 
 export interface EffectInstance {
 	readonly preparationStatus: EffectPreparationStatus;
+	/** 同期描画用。準備中はfalseを返し、失敗時は準備処理の診断をそのまま送出する。 */
 	tryPrepare(frame: EffectFrameContext): boolean;
 	prepare(frame: EffectFrameContext, signal?: AbortSignal): Promise<void>;
+	/** 通常描画は呼び出し側のencoderへ記録する。出力を読むコマンドも次の描画・破棄の前に呼び出し側でsubmitする。 */
 	render(frame: EffectRenderContext): void;
 	render(frame: EffectFrameContext, commandEncoder: GPUCommandEncoder): void;
 	renderTiled(frame: EffectFrameContext, signal?: AbortSignal, onProgress?: EffectRenderTilingProgressObserver): Promise<void>;
@@ -86,10 +93,12 @@ export interface EffectInstance {
 
 export interface EffectGpuContext {
 	readonly device: GPUDevice;
+	/** triangle-listとdraw(3)で全画面を覆い、location(0)に各軸[-1, +1]の画像参照座標を渡す。 */
 	readonly defaultVertexShaderModule: GPUShaderModule;
 	readonly enable32bitDataTextures: boolean;
 }
 
+// データの構造とパラメータの定義を並行してたどり、子の設定にも同じcanNodeの規約を適用する。
 type NativeEffectInput<D extends DataType, Settings> = Settings extends { canNode: true } ? EffectImageInput
 	: D extends { kind: 'array'; elementType: infer Element extends DataType } ? {
 		readonly kind: 'array';
@@ -109,9 +118,11 @@ export type EffectStaticResources<D extends { readonly staticSettingDefs?: Stati
 
 export interface EffectInitContext<Inputs = Readonly<Record<string, EffectParameterInput>>, Settings extends StaticSettingDefinitions = StaticSettingDefinitions> extends EffectGpuContext {
 	readonly signal?: AbortSignal;
+	/** 出力の確保前に静的に決めた計算用解像度。プレビュー・書き出しの倍率を含む。 */
 	readonly resolution: Resolution;
 	readonly inputs: Inputs;
 	readonly staticSettings: StaticSettingValues;
+	/** 静的設定の実行時の値。Assetの参照IDは借用リソースに解決する。Playerの選択は配置中固定し、フレームはgetterで取得する。 */
 	readonly resources: EffectStaticResources<{ staticSettingDefs: Settings }>;
 	/** 使用する出力だけを初期化時に確保する。テクスチャの寿命はレンダラーが管理する。 */
 	readonly outputTextures: ReadonlyMap<string, GPUTexture>;

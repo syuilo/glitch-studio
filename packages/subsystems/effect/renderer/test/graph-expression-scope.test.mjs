@@ -107,6 +107,7 @@ test('isolates graph references and GRAPH functions without inheriting graphs', 
 
 // 【式から参照できる公開引数と値の所有権】
 // 定数のノード入力もPUBLICでは参照不可。入力種別で式の可否を変えない。
+// 公開引数の配列は評価結果と分離し、結果への書き込みで次回も参照する元の値が壊れないようにする。
 test('rejects input parameters and does not mutate external arrays', () => {
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const value = [1, 2];

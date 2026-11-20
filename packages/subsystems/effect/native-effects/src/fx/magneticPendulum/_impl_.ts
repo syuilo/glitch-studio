@@ -15,6 +15,7 @@ const SIMULATION_UNITS_PER_SPATIAL_UNIT = 4;
 const implementation: NativeEffectImplementation<typeof definition.paramDefs, 'unconvergedColor' | 'settlingShading'> = {
 	async init(context) {
 		const { device, resolution, inputs, outputTextures } = context;
+		// 未使用の出力があってもWGSLのlocation順を保つ。複数の出力で一度の積分結果を共有する。
 		const outputPorts = ['output', 'basinValue', 'settlingTime', 'convergedMask', 'travelDistance'];
 		const usedPorts = outputPorts.filter(port => outputTextures.has(port));
 		const uniformValues = createShaderBuffer(codeUniforms.uniforms);
@@ -49,8 +50,10 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs, 'u
 			outputPorts,
 			schema: rendersColor ? { ...physicsInputs, magnetColors: { array: 'color' }, unconvergedColor: 'color' } : physicsInputs,
 			inputs: shaderInputs,
+			// Travel Distanceを使わない場合は、積分ステップごとの距離計算をpipeline定数で省く。
 			constants: { MAGNET_COUNT: inputs.magnets.elements.length, CALCULATE_SCALARS: Number(usedPorts.some(port => port !== 'output')),
 				CALCULATE_TRAVEL_DISTANCE: Number(outputTextures.has('travelDistance')) },
+			// 収束先や終了ステップは画素ごとに異なるため、配色用の入力もLODを明示して読む。
 			sampling: 'level0', internalLayouts: [layout],
 			bindResources(pass) {
 				for (const [index, magnet] of inputs.magnets.elements.entries()) {

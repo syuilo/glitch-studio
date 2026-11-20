@@ -16,6 +16,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			schema: { input: 'color' },
 			inputs,
 			internalLayouts: [layout],
+			// 切断位置をまたぐ微分で離れた領域を混ぜないよう、LOD 0で入力を読む。
 			sampling: 'level0',
 			bindResources(pass) {
 				uniformValues.set({

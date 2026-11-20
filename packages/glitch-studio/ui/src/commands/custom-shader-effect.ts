@@ -75,6 +75,7 @@ const replaceCustomShaderEffectDefinition = definePublicCommand({
 		const afterDefinition = { ...definition, id: customShaderEffectId };
 		validateProjectCustomShaderEffect(afterDefinition);
 		const { graphs, layers } = reconcileCustomShaderEffectUsages(state, beforeDefinition, afterDefinition);
+		// Undoで元に戻す範囲を、実際に補正したCustom Node Graph Effectとレイヤーに絞る。
 		return prepareProjectValueChange({
 			before: { definition: beforeDefinition, customNodeGraphEffects: graphs.map(({ before }) => before), layers: layers.map(({ sceneId, before }) => ({ sceneId, layer: before })) },
 			after: { definition: afterDefinition, customNodeGraphEffects: graphs.map(({ after }) => after), layers: layers.map(({ sceneId, after }) => ({ sceneId, layer: after })) },

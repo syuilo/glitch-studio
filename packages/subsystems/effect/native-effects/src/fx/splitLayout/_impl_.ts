@@ -48,6 +48,8 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 					halfSizeB: regionB?.halfSize ?? [0, 0],
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
+				// 各入力のFitは割り当て先の矩形を基準とする。実在する領域は1px未満でも寸法を丸めず、
+				// 空の領域だけ0除算を避けるために1を代入する。
 				referenceSizes.inputA.width = regionA == null ? 1 : regionA.halfSize[0] * 2 * longSide;
 				referenceSizes.inputA.height = regionA == null ? 1 : regionA.halfSize[1] * 2 * longSide;
 				referenceSizes.inputB.width = regionB == null ? 1 : regionB.halfSize[0] * 2 * longSide;

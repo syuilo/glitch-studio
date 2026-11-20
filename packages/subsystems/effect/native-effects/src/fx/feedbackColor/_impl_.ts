@@ -27,6 +27,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 				layout: device.createPipelineLayout({ bindGroupLayouts: [layout, bindings.layout] }),
 				vertex: { module: defaultVertexShaderModule },
 				fragment: { module: device.createShaderModule({ code: bindings.code + '\n' + code }),
+					// 画像出力はrgba16floatなので、履歴側の精度にかかわらずhalfの有限な値域に収める。
 					constants: { MAX_VALUE: enable32bitDataTextures ? 3.402823466e38 : 65504, MAX_OUTPUT_VALUE: 65504 },
 					targets: [{ format: output.format }, { format: historyFormat }] },
 			});
@@ -51,6 +52,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 					values[2] = Math.max(0, inputs.halfLife.value) / 1000;
 					values[3] = state === 'ready' && !inputs.reset.value ? 1 : 0;
 					values[4] = inputs.mode.value === 'interpolate' ? 1 : 0;
+					// 入力の色で係数が画素ごとに変わるため、積分と減衰の計算はシェーダーで行う。
 					device.queue.writeBuffer(uniforms, 0, values);
 					const group = bindings.getBindGroup();
 					const pass = commandEncoder.beginRenderPass(targets[next].descriptor);

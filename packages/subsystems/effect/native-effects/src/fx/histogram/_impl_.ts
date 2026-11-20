@@ -20,6 +20,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			pipelines = await Promise.all([
 				device.createComputePipelineAsync({ layout: device.createPipelineLayout({ bindGroupLayouts: [accumulateLayout, bindings.layout] }),
 					compute: { module, entryPoint: 'accumulate' } }),
+				// 最大値の探索と描画は集計結果だけを読むため、入力の種類に応じたbindingを使わない。
 				device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint: 'findMax' } }),
 				device.createRenderPipelineAsync({ layout: 'auto', vertex: { module: defaultVertexShaderModule },
 					fragment: { module, entryPoint: 'fs', targets: [{ format: texture.format }] } }),

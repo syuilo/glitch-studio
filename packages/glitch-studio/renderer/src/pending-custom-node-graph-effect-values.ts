@@ -16,6 +16,7 @@ export class PendingCustomNodeGraphEffectValues {
 
 	public enqueue(change: CustomNodeGraphEffectValueChange) {
 		if ('sceneId' in change && (this.inlineOwner?.sceneId !== change.sceneId || this.inlineOwner.layerId !== change.layerId)) return;
+		// 値の変更は対象ごとのスナップショットなので、描画中に重なった編集は最新の値にまとめる。
 		this.changes.set(customNodeGraphEffectValueChangeKey(change), change);
 	}
 

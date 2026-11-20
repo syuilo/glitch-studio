@@ -37,6 +37,7 @@ export function createEffectGpuExecution(device: GPUDevice, operation: EffectRen
 			const timer = device.features.has('timestamp-query') ? freeTimers.pop() ?? new TimingHelper(device) : null;
 			if (timer != null) timers.add(timer);
 			try {
+				// 定期計測と統計で同じQueryを使い、同じパスの時間を重ねて計測するのを避ける。
 				recorder.replayUntiled(commandEncoder, timer, report == null && observe == null ? undefined : (index, pipelines, width, height, duration) => {
 					observe?.(index, pipelines, width, height, duration);
 					report?.(index, duration);
@@ -47,12 +48,14 @@ export function createEffectGpuExecution(device: GPUDevice, operation: EffectRen
 					}));
 				}
 			} finally {
+				// submit後にreadbackを進め、描画ループを止めずに結果が返ったタイマーだけを再利用する。
 				timer?.observeResult(() => { if (!disposed) freeTimers.push(timer); });
 				timer?.readResultAfterSubmission();
 			}
 		},
 		async renderTiled(frame: EffectFrameContext, signal: AbortSignal, onProgress?: EffectRenderTilingProgressObserver, collectGpuTime?: CollectGpuTime) {
 			const recorder = new EffectGpuCommandRecorder();
+			// CPU側のカウンターや履歴がタイル数に応じて進まないよう、renderは一度だけ呼び、記録したコマンドを分割して再生する。
 			operation.render({ ...frame, commandEncoder: recorder.encoder });
 			let milliseconds: number | null = 0;
 			const onPassTime = collectGpuTime == null ? report : (index: number, duration: number | null) => {

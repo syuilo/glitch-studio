@@ -1,5 +1,6 @@
 @fragment
 fn fs(@location(0) position: vec2f) -> @location(0) f32 {
+	// _impl_.tsが指定するMode。0はClamp、1はWrap、2はPing-pong。
 	let operationId = u32(read_operationId(position));
 	let value = read_input(position);
 	let firstBound = read_min(position);

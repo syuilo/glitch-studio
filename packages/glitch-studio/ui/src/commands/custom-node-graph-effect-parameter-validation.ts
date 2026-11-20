@@ -18,6 +18,7 @@ export function validateCustomNodeGraphEffectNodeParameterBinding(state: Project
 		if (parameterDefinition.dataType.kind === 'audioSource' && parameterBinding.inputSource === 'literal') validatePlayerAudioSourceSelection(parameterBinding.value);
 	});
 	const definitions = { parameter: definition };
+	// 配列要素を並べ替えたり削除したりしても同じBindingを見つけられるよう、完全なIDパスで照合する。
 	const previous = new Map(previousBinding == null ? [] : [...walkParameters<CustomNodeGraphEffectParameterBinding>(definitions, { parameter: previousBinding })]
 		.map(parameter => [paramPathKey(parameter.path), parameter.value]));
 	for (const { path, def, value } of walkParameters<CustomNodeGraphEffectParameterBinding>(definitions, { parameter: binding })) {
@@ -35,7 +36,8 @@ export function validateCustomNodeGraphEffectNodeParameterBinding(state: Project
 		if (value.nodeId == null) {
 			if (value.outputPort != null) throw new Error('A disconnected node input cannot reference an output port');
 		} else {
-			// 公開入力が削除されても、同じ要素の既存配線はUndoで復元できる。新しい配線は必ず検査する。
+			// 同じ要素の既存配線は、許可済みの型不一致やUndoで復元できる未解決の参照も保持する。
+			// 接続先や要素が変われば新しい配線として検査する。
 			if (retained?.inputSource === 'node' && retained.nodeId === value.nodeId && retained.outputPort === value.outputPort) continue;
 			const source = customNodeGraphEffect.nodes.find(candidate => candidate.id === value.nodeId);
 			const output = getNodeOutputs(source, customNodeGraphEffect.paramDefs, getEffectDefinitions(state))[value.outputPort];

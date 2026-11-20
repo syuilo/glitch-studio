@@ -31,7 +31,9 @@ export interface EffectPlacement {
 	readonly resolution: Resolution;
 	readonly resolutionScale?: number;
 	readonly resolutionSetting?: EffectResolution;
+	/** 素材一覧と準備済みテクスチャは呼び出し側から借用し、配置の寿命中固定する。 */
 	readonly resources?: EffectStaticResourceContext;
+	/** 保存した音声指定は呼び出し側が解釈する。取得元の未指定・未提供は未接続として扱う。 */
 	readonly resolveAudioSource?: (source: unknown, frame: EffectFrameContext) => AudioInput | null;
 	readonly tiling?: EffectRenderTiling;
 	/** 配置ID列とGPU時間（ms）。timestamp-query非対応時はnull。 */
@@ -158,6 +160,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 			return withSampling(source, binding.sampling);
 		}
 		if (binding.inputSource === 'node') {
+			// 配線は値評価に先立ち、保存されたBindingから解決する。入力のない場合は定義の初期値を使う。
 			const source = binding.source == null ? null : nodeOutput(binding.source);
 			if (source != null) return withSampling(source, binding.sampling);
 			binding = definition.defaultValue;
@@ -292,6 +295,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 		const settings = createStaticSettingValues(effect.definition.staticSettingDefs ?? {}, staticSettings);
 		let resolution: Resolution | null = null;
 
+		// 描画や値評価を始める前に、静的設定の参照先と配線から実際の出力寸法を確定する。
 		function getResolution(): Resolution {
 			if (resolution != null) return resolution;
 			const selected = setting == null ? { mode: 'auto', scale: 1 } as const
@@ -353,6 +357,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 				if (resolve == null) {
 					const node = nodes.get(reference.nodeId)!;
 					if (node.type === 'relay') {
+						// Relayは入力を借用して中継する。描画とテクスチャの所有権は配線元に残る。
 						const input = node.input == null ? null : 'parameterId' in node.input ? parameter(node.input.parameterId) : nodeOutput(node.input);
 						placements.set(node.id, () => input);
 						return input;

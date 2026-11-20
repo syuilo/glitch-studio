@@ -17,6 +17,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			schema: { input: 'color' },
 			inputs,
 			internalLayouts: [layout],
+			// 画素ごとに終了条件を判定するループの内外で入力を読むため、LODを明示する。
 			sampling: 'level0',
 			bindResources(pass) {
 				const referenceLength = getSizeReferenceLength(inputs.sizeReference.value, resolution);

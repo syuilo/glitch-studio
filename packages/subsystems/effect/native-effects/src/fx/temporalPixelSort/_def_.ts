@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Sorts current and historical pixels by brightness or other properties to rearrange colors across time.',
 	},
 	kind: 'modify',
+	// 同じ入力が続いても、時刻に応じて比較対象にする履歴の範囲が更新される。
 	dependsOnRenderHistory: true,
 	tags: ['glitch', 'temporal', 'color'],
 	paramDefs: {

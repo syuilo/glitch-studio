@@ -22,7 +22,7 @@ export function nodeOutputKey(connection: { nodeId: string; outputPort: string }
 	return connection == null ? null : JSON.stringify([connection.nodeId, connection.outputPort]);
 }
 
-// 定義の変更で互換性を失った接続もエディタに表示する。
+// 接続済みの警告はforceTypeSafetyに関わらず、ポートの型の互換性で判定する。
 export function hasNodeInputTypeMismatch(nodes: CustomNodeGraphEffectNode[], connection: { nodeId: string; outputPort: string } | null, inputDataType: TextureDataType | null, paramDefs: CustomNodeGraphEffect['paramDefs'] = [], definitions = getEffectDefinitions({})): boolean {
 	if (connection == null || inputDataType == null) return false;
 	return nodes.some(node => {

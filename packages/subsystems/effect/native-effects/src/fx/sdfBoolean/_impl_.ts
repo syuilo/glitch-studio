@@ -27,6 +27,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			schema: { inputA: 'scalar', inputB: 'scalar' },
 			constants: { MAX_OUTPUT_DISTANCE: context.enable32bitDataTextures ? 3.4028234663852886e38 : 65504 },
 			bindResources(pass) {
+				// 入力の距離は共通単位のまま使い、合成時に指定する寸法だけを同じ単位へ換算する。
 				const referenceScale = getSizeReferenceLength(inputs.sizeReference.value, resolution) / Math.max(resolution.width, resolution.height);
 				uniformValues.set({
 					inputScaleA: inputA.transparent ? inputA.scale : [1, 1],

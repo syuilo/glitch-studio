@@ -65,6 +65,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			const urls = getSymbolTextureUrls(iconset);
 			const texture = await createSymbolTexture(device, urls);
 			try {
+				// 別のアイコンセットへの切り替えや配置の破棄で中断した要求は、完了しても結果を適用しない。
 				request.signal.throwIfAborted();
 				bindGroup = device.createBindGroup({ layout: symbolLayout, entries: [
 					{ binding: 1, resource: { buffer: uniformBuffer } }, { binding: 2, resource: sampler },

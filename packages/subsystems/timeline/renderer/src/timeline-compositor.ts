@@ -131,6 +131,7 @@ export function createTimelineCompositor(options: {
 			if (!transformsRegion && settings.clipToFrame) foregroundBounds = foregroundBounds && placement && clipInverse ? intersectTimelineBounds(foregroundBounds, transformTimelineBounds(TIMELINE_FRAME, placement)) : null;
 			// 範囲が潰れた場合はReplaceや通常マスクでも下層を保持する。
 			if (transformsRegion && foregroundBounds == null) return background;
+			// 背景は配置済みの範囲でサンプリングする。合成範囲に合わせてFitし直すと、前景を動かすだけで背景もクロップされる。
 			const backgroundBounds = timelineImageBounds(background);
 			// マスクは下層の被覆率だけを変える。素材の領域を合成範囲へ足すと、
 			// 大きなマスクを動かすだけで親Groupのfit・originや画素密度まで変わってしまう。

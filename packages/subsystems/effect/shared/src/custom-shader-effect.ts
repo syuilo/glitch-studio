@@ -3,10 +3,13 @@ import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definit
 import type { EffectDefinition } from './effect-definition.ts';
 
 export interface CustomShaderEffect extends EffectDefinition {
+	/** 単一のRender Passが長時間実行になる可能性がある場合に、自動タイル制御の対象にする。 */
 	readonly canHaveLongRunningRenderPass?: boolean;
 	readonly shaderApiVersion: 1;
 	readonly code: string;
+	/** WGSLから参照する名前は配線・保存用の固定IDと分け、入力関数read_<名前>に使う。 */
 	readonly paramDefs: Readonly<Record<string, ParameterDefinition<TextureDataType> & { canNode: true; nameForReference: string }>>;
+	/** WGSLから参照する名前は配線・保存用の固定IDと分け、戻り値のOutputのメンバー名に使う。 */
 	readonly outputDefs: Readonly<Record<string, { dataType: TextureDataType; nameForReference: string; label?: string }>>;
 }
 

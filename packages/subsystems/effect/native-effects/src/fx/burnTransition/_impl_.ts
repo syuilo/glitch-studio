@@ -12,6 +12,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs, 'i
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
 		const bindGroup = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
+		// Mask・Edgeだけの配置では、色の合成用シェーダーを追加せずInput A・Input B・Edge Colorの参照も省く。
 		const color = context.outputTextures.has('output');
 		const maskInputs = { progress: 'scalar', map: 'scalar' } as const;
 		const schema = color ? { ...maskInputs, inputA: 'color', inputB: 'color', edgeColor: 'color' } as const : maskInputs;
@@ -22,6 +23,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs, 'i
 			code: color ? code + '\n' + colorCode : code,
 			schema,
 			entryPoint: color ? 'fsColor' : 'fsMaskEdge',
+			// WGSLのlocation順を保ち、使わない出力のattachmentだけを空にする。
 			outputPorts: ['output', 'mask', 'edge'],
 			bindResources(pass) {
 				uniformValues.set({

@@ -35,6 +35,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs, ne
 		let pending: Promise<void> | null = null;
 
 		async function decode(position: number, signal: AbortSignal) {
+			// 素材は配置に固定し、デコーダーは読み取りの失敗で破棄した場合だけ次の要求で開き直す。
 			source ??= openVideoFrameSource(resources.asset!);
 			const sample = await source.getSample(position).catch(error => {
 				source?.dispose();
@@ -43,6 +44,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs, ne
 			});
 			try {
 				signal.throwIfAborted();
+				// GPUへ同期的にコピーし、デコード済みサンプルは保持せずfinallyで解放する。
 				const texture = sample == null ? null : videoTexture.upload(sample);
 				if (texture !== sourceTexture) {
 					bindGroup = texture == null ? null : device.createBindGroup({

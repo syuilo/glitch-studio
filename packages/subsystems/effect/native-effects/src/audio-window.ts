@@ -13,6 +13,7 @@ export function createAudioWindowReader() {
 			if (nextKey === cacheKey && duration === windowDuration) return;
 			const result = input?.readWindow(duration, signal) ?? null;
 			const accept = (value: AudioWindow | null) => {
+				// シークや配置の破棄で中断された読み取りが、次の描画の窓を上書きしないようにする。
 				signal.throwIfAborted();
 				window = value;
 				cacheKey = nextKey;

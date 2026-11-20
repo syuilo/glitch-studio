@@ -23,6 +23,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			schema: { input: 'color', density: 'vector' },
 			inputs,
 			internalLayouts: [layout],
+			// ブロックごとの移動有無による分岐の中でも入力を読むため、LODを明示する。
 			sampling: 'level0',
 			bindResources(pass) {
 				seedValue[0] = inputs.seed.value;

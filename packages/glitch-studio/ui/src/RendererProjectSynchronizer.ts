@@ -73,6 +73,7 @@ export class RendererProjectSynchronizer {
 				if ('customNodeGraphEffectId' in customNodeGraphEffectTarget && registeredCustomNodeGraphEffectIds.has(customNodeGraphEffectTarget.customNodeGraphEffectId)) continue;
 				if ('sceneId' in customNodeGraphEffectTarget && (scenes.has(customNodeGraphEffectTarget.sceneId) || replacedLayers.has(customNodeGraphEffectTargetKey(customNodeGraphEffectTarget)))) continue;
 				if (target.type === 'node' && updatedCustomNodeGraphEffectTargetKeys.has(customNodeGraphEffectTargetKey(customNodeGraphEffectTarget))) continue;
+				// 階層の編集で消えた子の差分を省き、残った子は描画履歴の扱いを判断できるよう変更種別を残す。
 				const owner = findCustomNodeGraphEffectOwner(this.manager.state, customNodeGraphEffectTarget);
 				if (owner == null) {
 					if ('sceneId' in customNodeGraphEffectTarget && layerTrees.has(customNodeGraphEffectTarget.sceneId)) continue;

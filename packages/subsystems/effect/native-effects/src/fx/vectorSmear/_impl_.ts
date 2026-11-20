@@ -43,6 +43,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 					throw new Error('Vector Smear requires finite offset, jitter and seed.');
 				}
 				if (encode != null && displayView != null) {
+					// 補間後にsRGBへ変換すると白黒の境界が明るくなるため、
 					// 補間前に各texelを表示色へ変換する。
 					const pass = beginOutputPass(commandEncoder, displayView);
 					pass.setPipeline(encode.pipeline);

@@ -35,7 +35,10 @@ function copyEffectData<T>(value: T): T {
 	return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, copyEffectData(child)])) as T;
 }
 
-/** .gscngeとWeb書き出しで使うスナップショット。取り込み時は種類ごとに新しいIDを割り当てる。 */
+/**
+ * .gscngeとWeb書き出しで使うスナップショット。素材を非同期で読み出す間に参照先が変わらないよう、先に定義と参照を確定する。
+ * 取り込み時は種類ごとに新しいIDを割り当てる。
+ */
 export function collectCustomNodeGraphEffectResources(input: CustomNodeGraphEffectResources, nativeDefinitions: NativeEffectDefinitions,
 	assignId: (kind: ResourceKind, id: string) => string = (_kind, id) => id): CustomNodeGraphEffectResources {
 	const definitions = createProjectEffectDefinitions(input, nativeDefinitions);
@@ -88,6 +91,7 @@ export function collectCustomNodeGraphEffectResources(input: CustomNodeGraphEffe
 		const player = availablePlayers.get(id);
 		if (player == null) throw new Error('Missing Player: ' + id);
 		const newId = assignId('player', id);
+		// デバイス識別子はPC固有なので、Playerへの参照と入力種別だけを持ち出す。Assetを使う場合は素材も同梱する。
 		const { name, sourceType } = player;
 		players.set(id, {
 			id: newId, name, sourceType,

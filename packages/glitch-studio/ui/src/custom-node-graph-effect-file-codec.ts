@@ -23,6 +23,7 @@ export type CustomNodeGraphEffectImport = ProjectEffectRegistrations & {
 	unassignedPlayerNames: string[];
 };
 
+/** 定義とノードの編集情報を持ち出す。登録IDやレイヤーの設定は所属プロジェクトに残す。 */
 export function collectCustomNodeGraphEffectFile(input: CustomNodeGraphEffectResources & { name: string; gsVersion: string }, definitions: NativeEffectDefinitions): CustomNodeGraphEffectFile {
 	return {
 		kind: 'glitch-studio-custom-node-graph-effect',
@@ -82,6 +83,7 @@ export function prepareCustomNodeGraphEffectImport(file: CustomNodeGraphEffectFi
 	const players: Player[] = collected.players.map(player => {
 		if (player.sourceType === 'asset') return player;
 		if (player.sourceType != null) unassignedPlayerNames.push(player.name);
+		// 新しいPlayer IDへの配線は維持し、マイクやカメラは取り込み先で選び直せるようにする。
 		return { id: player.id, name: player.name, sourceType: null };
 	});
 	return {

@@ -11,6 +11,7 @@ function diagnosticValue(input: EffectParameterInput): unknown {
 }
 
 const implementation: NativeEffectImplementation<typeof definition.paramDefs> = {
+	// 配列・構造体がNative Effectへどう渡るかを確認する診断用のEffect。描画先を持たないため、GPUリソースは作らない。
 	init({ inputs }) {
 		return {
 			render() { console.log(Object.fromEntries(Object.entries(inputs).map(([key, input]) => [key, diagnosticValue(input)]))); },

@@ -20,6 +20,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			schema: { input: 'color', radius: 'vector', rotation: 'scalar' },
 			inputs,
 			internalLayouts: [layout],
+			// 縦横の半径がともに0の画素は先に返すため、残りの画素で入力を読むときもLODを明示する。
 			sampling: 'level0',
 			bindResources(pass) {
 				uniformValues.set({

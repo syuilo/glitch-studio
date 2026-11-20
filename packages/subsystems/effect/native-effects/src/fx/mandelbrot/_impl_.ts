@@ -38,6 +38,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs,
 		// 数値だけを使う配置から彩色用の上流ノード・Ramp・GPU bindingをまとめて省く。
 		const colorRamp = outputs[0] == null ? null : createColorRampBindings(device, 1);
 		const inputGroup = colorRamp == null ? 1 : 2;
+		// 反復の終了や未発散の判定が画素ごとに異なるので、その分岐での参照もLODを明示する。
 		const bindings = colorRamp == null
 			? createFixedInputBindings(device, { coordinateOffset: 'vector' }, params, resolution, inputGroup, 'level0')
 			: createFixedInputBindings(device, { coordinateOffset: 'vector', unescapedColor: 'color' },
@@ -46,6 +47,8 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs,
 		const module = device.createShaderModule({ code: [bindings.code, colorRamp?.shaderCode, shaderCode, coloring].join('\n') });
 		const layouts = colorRamp == null ? [layout, bindings.layout] : [layout, colorRamp.layout, bindings.layout];
 		const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: layouts });
+		// 摂動用の多倍長演算を通常描画から除外するため、演算方式をpipeline定数にする。
+		// 各反復のTriangle Inequality Averageは、対応する出力か彩色方式で使うときだけ計算する。
 		const pipelines = [false, true].map(perturbation => device.createRenderPipeline({
 			layout: pipelineLayout, vertex: { module: defaultVertexShaderModule },
 			fragment: { module, targets, constants: { USE_PERTURBATION: Number(perturbation), RENDER_COLOR: Number(outputs[0] != null),
@@ -62,9 +65,11 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs,
 		return {
 			cacheKey: 0,
 			getRenderWorkloadHint() {
+				// テクスチャによる座標の更新をここでは識別できないため、以前の描画の計測値を流用しない。
 				if (params.coordinateOffset.kind !== 'uniform') return null;
 				return {
 					workPerPixel: getMandelbrotIterationCount(params.maximumIterations) * (params.antialiasing ? 4 : 1),
+					// 深ズームではnumberで同じ値に丸められる中心でも反復数が変わるため、基準中心は十進文字列のまま比較する。
 					key: JSON.stringify([params.referenceCenter, params.view, params.coordinateOffset.value, params.bailoutRadius,
 						params.coloringMethod, params.unescapedColor?.kind, params.ramp?.stops.length,
 						params.ramp?.interpolation, params.ramp?.colorSpace, activePorts]),
@@ -76,6 +81,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs,
 					centerOffset: params.view.center, precisionBits: settings.precisionBits, maximumIterations: settings.maximumIterations,
 					bailoutRadius: settings.bailoutRadius, usePerturbation: settings.usePerturbation };
 				const key = JSON.stringify(request);
+				// 直前の表示範囲へシークで戻った場合も、同じ入力・精度で計算した軌道だけを再利用する。
 				const cached = references.get(key);
 				if (cached != null) {
 					if (reference !== cached) {

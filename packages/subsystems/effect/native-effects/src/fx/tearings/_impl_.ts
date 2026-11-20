@@ -22,6 +22,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			schema: { input: 'color' },
 			inputs,
 			internalLayouts: [layout],
+			// 画素ごとに異なる帯を判定した後で入力を読むため、LODを明示する。
 			sampling: 'level0',
 			bindResources(pass) {
 				const amount = Math.min(maxTearings, Math.max(0, Math.trunc(inputs.amount.value)));

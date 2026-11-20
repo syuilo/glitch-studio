@@ -8,6 +8,7 @@ import type { TimelineEffectParameterBinding, TimelineEffectLayer } from '../../
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 export { createLowerLayerOutputBinding } from '../../parameter-binding.ts';
 
+/** Timelineの合成には色の主出力を使う。どの出力を使うかはEffectの定義で明示する。 */
 export function findTimelineEffectOutput(definition: EffectDefinition): string | null {
 	const port = definition.primaryOutput;
 	return port != null && definition.outputDefs[port]?.dataType.kind === 'color' ? port : null;

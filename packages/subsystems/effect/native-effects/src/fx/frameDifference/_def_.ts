@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Extracts changes by comparing the current input with the previous frame.',
 	},
 	kind: 'modify',
+	// 差分を次のフレームで0に戻すため、入力が変わらないフレームも比較と履歴の更新が必要。
 	dependsOnRenderHistory: true,
 	tags: ['temporal', 'analysis', 'utility'],
 	paramDefs: {

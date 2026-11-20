@@ -40,6 +40,8 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 				const cellHeight = vertical ? cellLength : innerHeight;
 				uniformValues.set({ cellSize: [cellWidth, cellHeight], padding, gap, vertical: Number(vertical) });
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
+				// Fitには各画像を収めるセルの縦横比を使う。シェーダーには空のセルを判定できるよう実寸を渡し、
+				// Fitの計算だけは0除算を避けるため空の寸法を1に置き換える。
 				referenceSize.width = cellWidth > 0 ? cellWidth : 1;
 				referenceSize.height = cellHeight > 0 ? cellHeight : 1;
 				pass.setBindGroup(0, bindGroup);

@@ -28,6 +28,7 @@ type EffectTimelineLayerOptions = Pick<EffectPlacement, 'definitions' | 'resourc
 	onCompositing?: TimelineCompositingObserver | null;
 };
 
+/** レイヤーの評価スコープ・入力・合成を所有し、Effectの実行はEffectInstanceへ委ねる。 */
 export function createEffectTimelineLayer(layer: TimelineEffectLayer, options: EffectTimelineLayerOptions): TimelineLayerRenderer<TimelineImage> {
 	const { device, defaultVertexShaderModule: vertex } = options.wgpu;
 	const { definition } = resolveEffectSource(layer.effectSource, options.definitions);
@@ -80,11 +81,13 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, options: E
 		signal.throwIfAborted();
 		options.applyPendingEffectValues?.(effect);
 		const output = effect.outputs.get(port);
+		// 出力が未接続のときは下層の画像を維持するため、Replaceでも合成をスキップする。
 		if (output == null) return { gpuTime: 0 };
 		const scope = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, publicParameters: context.publicParameters, automationGraphs: layer.automationGraphs });
 		Object.assign(scope.variables, variables);
 		await inputs.update(context, scope, signal);
 		signal.throwIfAborted();
+		// キー・式はScene時刻で評価し、Effect固有のアニメーションにはクリップの内容時刻（秒）を渡す。
 		const frame: EffectFrameContext = {
 			time: context.contentTimeMs / 1000, endTime: context.contentEndTimeMs / 1000, timeDelta: context.timeDelta,
 			progress: context.clipElapsedTimeMs / context.clipDurationMs, isExport: context.isExport,

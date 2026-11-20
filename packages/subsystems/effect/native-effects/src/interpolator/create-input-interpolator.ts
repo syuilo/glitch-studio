@@ -10,6 +10,8 @@ type InterpolatorInputs = {
 export function createInputInterpolator(context: EffectInitContext<InterpolatorInputs>, type: 'color' | 'scalar' | 'vector') {
 	const zeroInput = { kind: 'uniform', value: [0, 0, 0, 0] } as const;
 	const { inputs, index } = context.inputs;
+	// 描画ごとに隣接する最大2入力を束縛するため、候補数はGPUのテクスチャ数上限に依存せず、
+	// 各接続のFit・Wrap Mode・Filterも維持できる。
 	const candidates = inputs.elements.map(toFixedShaderInput);
 	const lastIndex = Math.max(0, candidates.length - 1);
 	const blendWeight = { kind: 'uniform' as const, value: [0] };

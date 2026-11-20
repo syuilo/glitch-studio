@@ -12,6 +12,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			schema: { input: 'color' },
 			inputs,
 			sampling: 'level0',
+			// 同じ画素で入力を一度だけ読み、HSLとアルファを同じパスで分けて出力する。
 			outputPorts: ['hue', 'saturation', 'lightness', 'alpha'],
 		});
 	},

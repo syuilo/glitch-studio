@@ -13,6 +13,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
 			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' } },
 		] });
+		// シェーダーでは入力を加える分岐の中で入力を読むため、LODを明示する。
 		const inputBindings = createNativeEffectInputBindings({ device, resolution, schema: { input: 'any' }, inputs, group: 1, sampling: 'level0' });
 		let buffer: GPUBuffer | null = null;
 		let alternate: GPUTexture | null = null;
@@ -52,16 +53,20 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 					// 履歴リセット前の経過時間を新しい蓄積に数えない。通常の初回描画には呼び出し側の時間を使う。
 					const seconds = history !== 'reset' && Number.isFinite(timeDelta) ? Math.max(0, timeDelta) / 1000 : 0;
 					const halfLife = Math.max(0, inputs.halfLife.value) / 1000;
+					// 半減期0では履歴を即時に減衰させ、加算による蓄積は0、補間は現在の入力に追従する。
 					let decay = 0;
 					let interpolation = 1;
 					let integration = 0;
 					if (halfLife > 0) {
+						// 加算は dA/dt = strength * input - rate * A、補間は dA/dt = rate * (strength * input - A)。
+						// それぞれをフレーム間の経過時間で積分する。
 						const exponent = Math.LN2 * seconds / halfLife;
 						decay = Math.exp(-exponent);
 						// 短いフレーム間隔でも桁落ちさせず、区間を分割しても同じ量の入力を積分する。
 						interpolation = -Math.expm1(-exponent);
 						integration = exponent > 0 ? interpolation * halfLife / Math.LN2 : seconds;
 					}
+					// 補間の開始時には比較する履歴がないため、Strength適用後の現在の入力から始める。
 					const weight = inputs.mode.value === 'interpolate' ? (history === 'ready' ? interpolation : 1) : integration;
 					const reset = inputs.reset.value;
 					values.set({ decay: history === 'ready' && !reset ? decay : 0, inputWeight: reset ? 0 : weight * Math.max(0, inputs.strength.value) });

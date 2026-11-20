@@ -22,7 +22,10 @@ function usesExpressions(definitions: Readonly<Record<string, ParameterDefinitio
 	return false;
 }
 
-/** スナップショットに含む全配置を調べる。同じ登録グラフの内部は一度で十分だが、各配置の入力は個別に調べる。 */
+/**
+ * 式から動的に参照されるCUSTOMの値も扱えるよう、スナップショットに含む全配置を調べる。
+ * 同じ登録のCustom Node Graph Effectの内部は一度で十分だが、各配置の入力は個別に調べる。
+ */
 export function analyzePortableCustomNodeGraphEffectRuntime(resources: CustomNodeGraphEffectResources, nativeDefinitions: Readonly<Record<string, NativeEffectDefinition>>) {
 	const shaders = new Map(resources.customShaderEffects.map(entry => [entry.id, entry]));
 	const graphs = new Map(resources.customNodeGraphEffects.map(entry => [entry.id, entry]));

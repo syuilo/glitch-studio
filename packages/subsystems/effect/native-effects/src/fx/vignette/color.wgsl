@@ -1,6 +1,7 @@
 fn attenuate(position: vec2f, mask: f32) -> vec4f {
 	let input = read_input(position);
-	// 入力はpremultiplied alpha。RGBだけを減衰し、半透明の輪郭を維持する。
+	// 乗算済みのRGBだけを減衰する。黒をsource-over合成すると被覆率が増えるため、
+	// 元のalphaを返して半透明の輪郭と完全に透明な余白を保つ。
 	return vec4f(input.rgb * (1.0 - uniforms.strength * mask), input.a);
 }
 

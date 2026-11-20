@@ -1,6 +1,7 @@
 struct ColorRampEffectRepetition { mode: u32, repeatMode: u32 };
 @group(1) @binding(0) var<uniform> effectRepetition: ColorRampEffectRepetition;
 
+// _impl_.tsが指定するInput Range Mode。0はClamp、1はWrap、2はPing-pong。
 fn colorRampInputPosition(value: f32) -> f32 {
 	if (effectRepetition.mode == 1u) {
 		// fractは負値も[0, 1)へ揃える。1ちょうどは0へ戻す。

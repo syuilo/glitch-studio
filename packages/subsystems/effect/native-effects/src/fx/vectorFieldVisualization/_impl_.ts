@@ -19,6 +19,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			schema: { vector: 'vector' },
 			inputs,
 			internalLayouts: [layout, colorRamp.layout],
+			// セル中心へ量子化した座標で入力を読むため、セル境界をまたぐ微分に依存しないLOD 0を使う。
 			sampling: 'level0',
 			bindResources(pass) {
 				const shortDimension = Math.min(resolution.width, resolution.height);

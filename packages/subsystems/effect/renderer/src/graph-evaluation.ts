@@ -23,6 +23,7 @@ export function createEffectFrameMapper(root: Resolution, node: Resolution): (fr
 	const x = node.width / root.width * ratio;
 	const y = node.height / root.height * ratio;
 	const convert = (value: readonly [number, number]): [number, number] => [value[0] * x, value[1] * y];
+	// 未入力の予約値を維持し、式とNative Effectのポインター処理で同じ座標を使う。
 	return frame => ({ ...frame, pointerPosition: frame.pointerPosition == null || (frame.pointerPosition[0] <= -999 && frame.pointerPosition[1] <= -999)
 		? frame.pointerPosition : convert(frame.pointerPosition), pointerVector: frame.pointerVector == null ? frame.pointerVector : convert(frame.pointerVector) });
 }
@@ -41,6 +42,7 @@ export function createGraphEvaluation(graph: Pick<CustomNodeGraphEffect, 'paramD
 	let previousCustomParameterValues: CustomNodeGraphEffect['customParameterValues'];
 	const visiting = new Set<string>();
 	let currentFrame: EffectFrameContext | null = null;
+	// PUBLICで読めるのは音声以外のCPU値に限る。canNodeがtrueの入力は定数でもテクスチャと同じようにInノードを経由する。
 	for (const [id, def] of Object.entries(graph.paramDefs)) {
 		if (def.canNode !== true && def.dataType.kind !== 'audioSource') publicIds.set(def.nameForReference ?? id, id);
 	}
@@ -81,6 +83,7 @@ export function createGraphEvaluation(graph: Pick<CustomNodeGraphEffect, 'paramD
 	}
 
 	function readCustom(id: string, frame: EffectFrameContext): unknown {
+		// 共有値は同じフレーム内だけで再利用し、評価した値を複製して各参照先からの変更を隔離する。
 		if (currentFrame !== frame) { currentFrame = frame; customValues.clear(); }
 		if (customValues.has(id)) return structuredClone(customValues.get(id));
 		const def = graph.customParameterDefs?.[id];
@@ -94,6 +97,7 @@ export function createGraphEvaluation(graph: Pick<CustomNodeGraphEffect, 'paramD
 		} finally { visiting.delete(id); }
 	}
 
+	// 共有値がどのノードから参照されても同じ意味になるよう、寸法・ポインターはノードの式のスコープにだけ渡す。
 	function scope(frame: EffectFrameContext, dimensions?: ReturnType<typeof createResolutionExpressionVariables>, nodeFrame = frame): ParameterEvaluationScope {
 		const time = frame.time * 1000;
 		const endTime = (frame.endTime ?? Infinity) * 1000;

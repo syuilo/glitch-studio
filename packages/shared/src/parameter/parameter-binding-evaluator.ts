@@ -43,6 +43,7 @@ export class ParameterBindingEvaluator {
 		if (modifier?.enabled !== true) return read;
 		return scope => {
 			const base = read(scope);
+			// VALUEへ渡す基準値の型変換で失敗した場合も、加工対象のパラメータをエラーに含める。
 			try {
 				return this.evaluateExpression(modifier.code, scope, 'modifier', definition, prepareExpressionParameterValue(definition, base));
 			} catch (error) {

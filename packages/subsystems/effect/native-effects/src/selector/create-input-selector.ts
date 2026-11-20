@@ -10,6 +10,8 @@ type SelectorInputs = {
 export function createInputSelector(context: EffectInitContext<SelectorInputs>, type: 'color' | 'scalar' | 'vector') {
 	const zeroInput = { kind: 'uniform', value: [0, 0, 0, 0] } as const;
 	const { inputs, index } = context.inputs;
+	// 描画ごとに選択中の入力だけを束縛する。候補数をGPUのテクスチャ数上限から切り離し、
+	// 各接続のFit・Wrap Mode・Filterをそのまま使う。
 	const candidates = inputs.elements.map(input => ({ source: toFixedShaderInput(input) }));
 	const empty = { source: zeroInput };
 	const lastIndex = Math.max(0, candidates.length - 1);

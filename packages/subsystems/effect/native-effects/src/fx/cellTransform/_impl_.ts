@@ -34,8 +34,12 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 				perCellRotation: 'scalar',
 			},
 			inputs,
+			// セルごとの変形と切り取りで参照先が不連続になるため、LODを明示する。
 			sampling: 'level0',
 			internalLayouts: [layout],
+			// Wrap ReferenceがImageの場合は、セルの切り出し範囲を越えて画像全体を読む。
+			// 借用した入力の設定を変えずに素材のWrap Modeだけを上書きし、Fit・Filterと制御用の場の設定を保つ。
+			// 素材は出力全体を基準にFitさせたまま切り出す。セルごとにFitし直すと画像全体の複製になってしまう。
 			samplingOverrides: { wrapModes: { input: () => inputs.wrapReference.value === 'image' ? inputs.cellWrapMode.value : inputWrapMode } },
 			bindResources(pass) {
 				const translationUnit = inputs.translationUnit.value;

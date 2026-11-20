@@ -21,6 +21,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			sampling: 'level0',
 			schema: { input: 'scalar' },
 			bindResources(pass) {
+				// 入力の距離は共通単位のまま使い、Size Referenceの影響を受ける幅とオフセットだけを換算する。
 				const referenceScale = getSizeReferenceLength(inputs.sizeReference.value, resolution) / Math.max(resolution.width, resolution.height);
 				uniformValues.set({
 					inputScale: input.transparent ? input.scale : [1, 1],

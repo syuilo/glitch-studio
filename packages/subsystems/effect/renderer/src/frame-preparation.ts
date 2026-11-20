@@ -2,7 +2,7 @@ import type { EffectFrameContext, EffectPreparationStatus } from './effect-insta
 
 export type PrepareFrame = (frame: EffectFrameContext, signal: AbortSignal) => void | Promise<void>;
 
-/** 同じフレームのプレビュー再試行と書き出しの待機で、評価値・音声入力を共有する。 */
+/** 同じEffectFrameContextを渡したプレビュー再試行と書き出しの待機で、評価値・音声入力を共有する。 */
 export function createFramePreparation(steps: readonly PrepareFrame[], notify?: (status: EffectPreparationStatus) => void) {
 	type Request = {
 		source: EffectFrameContext;
@@ -16,6 +16,7 @@ export function createFramePreparation(steps: readonly PrepareFrame[], notify?: 
 
 	function invalidate() {
 		const previous = current;
+		// abortで同期的に通知されても、古い要求から現在の準備状態を上書きできないようにする。
 		current = null;
 		previous?.controller.abort();
 	}
@@ -48,6 +49,7 @@ export function createFramePreparation(steps: readonly PrepareFrame[], notify?: 
 		} catch (error) { fail(error); }
 		if (tasks.length === 0 && current === request && request.status.type === 'ready') notify?.(request.status);
 		if (tasks.length > 0) {
+			// 失敗はすぐに通知する。リソースの解放は、それを使う準備処理がすべて終わってから行う。
 			const drained = Promise.allSettled(tasks).then(() => {});
 			running.add(drained);
 			void drained.then(() => running.delete(drained));
@@ -92,6 +94,7 @@ export function createFramePreparation(steps: readonly PrepareFrame[], notify?: 
 				if (request.controller.signal.aborted && current === request && request.status.type !== 'error') invalidate();
 			}
 		},
+		// 準備時と同じフレームを使い、描画時に式や入力を評価し直さずに済むようにする。
 		take(frame: EffectFrameContext) {
 			if (steps.length === 0 && current == null && notify == null) return frame;
 			const request = start(frame);

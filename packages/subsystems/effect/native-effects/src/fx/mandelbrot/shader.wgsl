@@ -195,6 +195,7 @@ fn fs(@builtin(position) fragmentPosition: vec4f) -> MandelbrotOutputs {
 	let centeredPixel = vec2f(fragmentPosition.x - uniforms.resolution.x * 0.5, uniforms.resolution.y * 0.5 - fragmentPosition.y);
 	let position = centeredPixel * uniforms.pixelStep;
 	// 高精度の反復を1つの呼び出しにまとめ、AAの標本数だけ大きなシェーダーが複製されるのを防ぐ。
+	// AAの標本位置は画素内の4点に固定し、乱数・時間・描画履歴から独立させる。
 	let offsets = array<vec2f, 4>(vec2f(-0.25, -0.25), vec2f(0.25, -0.25), vec2f(-0.25, 0.25), vec2f(0.25, 0.25));
 	let sampleCount = select(1u, 4u, uniforms.antialiasing != 0u);
 	var result: MandelbrotOutputs;
@@ -207,7 +208,8 @@ fn fs(@builtin(position) fragmentPosition: vec4f) -> MandelbrotOutputs {
 		result.escapedMask += sample.orbit.escapedMask;
 		result.triangleInequalityAverage += sample.orbit.triangleInequalityAverage;
 	}
-	// 色とMaskは全標本で平均し、反復値とTIAは発散した標本だけで平均する。
+	// 色は乗算済みRGBAのまま全標本で平均し、Maskには発散した標本の割合を返す。
+	// 反復値とTIAは発散した標本だけで平均し、未発散の0が値を引き下げるのを避ける。
 	let count = f32(sampleCount);
 	let validCount = max(1.0, result.escapedMask);
 	return MandelbrotOutputs(result.color / count, result.escapeIterations / validCount,

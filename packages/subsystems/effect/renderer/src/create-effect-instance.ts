@@ -54,6 +54,7 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 	}
 
 	function reset() {
+		// 描画の中断後に途中まで更新した結果を再利用しないよう、履歴に加えて準備状態とキャッシュも破棄する。
 		preparation.invalidate();
 		for (const reset of historyResets) reset();
 	}
@@ -141,6 +142,7 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 			const map = createEffectFrameMapper(contextResolution, resolution);
 			const nodeFrame = (frame: EffectFrameContext) => {
 				const mapped = map(frame);
+				// リセットをまたぐ時間・移動量の積算を防ぐ。内容時刻と現在の位置は保持する。
 				return historyResetPending ? { ...mapped, timeDelta: 0, pointerVector: [0, 0] as const } : mapped;
 			};
 			if (operation.prepare != null) prepareSources.push((frame, signal) => operation.prepare!(nodeFrame(frame), signal));
@@ -212,6 +214,7 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 							encoder ??= device.createCommandEncoder();
 							step.record(frame, encoder, gpuTime?.collect);
 						} else {
+							// 軽い処理はまとめて記録し、タイル描画が上流の出力を読む直前にsubmitする。
 							flush();
 							await step.renderTiled(frame, active, progress, gpuTime?.collect);
 							active.throwIfAborted();
@@ -233,6 +236,7 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 			dispose,
 		};
 	} catch (error) {
+		// 途中で初期化に失敗したら、まだ公開していない配置が確保済みのリソースを解放する。
 		dispose();
 		throw error;
 	}

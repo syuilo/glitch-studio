@@ -26,6 +26,8 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 		};
 		const { input } = params;
 		// 入力の原寸でぼかし、Fitは最終的な勾配を読むときに適用する。
+		// 先に出力へ切り取ると表示範囲外の色がぼかしに届かず、CoverやRepeatの画面端の勾配が変わる。
+		// 一定値の入力は空間的に一様で境界もないため、中間テクスチャを作らない。
 		const textures = input.kind === 'texture' ? Array.from({ length: 2 }, () => device.createTexture({
 			size: input.resolution, format: scalarFormat, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		})) : [];

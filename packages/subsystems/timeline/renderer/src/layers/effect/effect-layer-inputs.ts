@@ -44,6 +44,7 @@ export function createEffectLayerInputs(layer: TimelineEffectLayer, definition: 
 				[key, bind(field, () => (read() as LiteralBinding).value[key])])) };
 		}
 		if (isTimelineImageInputBinding(binding)) {
+			// 異なる参照先はScene枠への変換先も分ける。同じ変換先を使うと後から解決した画像が先の入力を上書きする。
 			const key = binding.inputSource === 'lowerLayerOutput' ? 'lower' : JSON.stringify([binding.layerId, binding.outputStage]);
 			let reference = references.get(key);
 			if (reference == null) {
@@ -61,8 +62,10 @@ export function createEffectLayerInputs(layer: TimelineEffectLayer, definition: 
 			updates.push((_, audio) => { value = audio(binding); });
 			return { kind: 'value', get value() { return value; } };
 		}
+		// 空のenumキーフレームには定義の既定値を使う。保存済みの無効な値は評価時にエラーとして報告する。
 		const fallback = binding.inputSource === 'automationGraphReference' || (def.dataType.kind === 'enum' && binding.inputSource === 'keyframesTimelineInline')
 			? def.defaultValue.value : def.dataType.kind === 'enum' ? null : genEmptyValue(def);
+		// 評価結果を切り離し、非同期の入力解決や準備の途中で編集されても今回のサンプルの値を保つ。
 		const convert = (value: Cloneable) => coerceParameterValue(def, deepClone(validateEnumParameterValue(def, value)));
 		const evaluate = (scope: TimelineLayerEvaluationScope) => {
 			const current = read() as TimelineParameterBinding;
@@ -90,6 +93,7 @@ export function createEffectLayerInputs(layer: TimelineEffectLayer, definition: 
 		async update(context: Context, scope: TimelineLayerEvaluationScope, signal: AbortSignal) {
 			const audio = createTimelineAudioInputResolver(getAudioInput, context.sceneTimeMs, context.isExport);
 			for (const update of updates) update(scope, audio);
+			// 同じ参照先は一度だけ確定する。テクスチャの内容は変わり得るので、サンプルごとに取り直す。
 			for (const reference of references.values()) {
 				const image = await reference.fetch(context);
 				signal.throwIfAborted();

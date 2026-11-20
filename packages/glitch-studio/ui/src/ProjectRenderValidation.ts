@@ -80,6 +80,7 @@ export class ProjectRenderValidation {
 				this.recheckDependents('customNodeGraphEffect:' + change.customNodeGraphEffectId);
 				this.checkRegistrations();
 			} else if (change.type === 'customNodeGraphEffect' || change.type === 'node') {
+				// Inlineでは公開定義の型やcanNodeが変わると、同じBindingでも許可条件が変わるため、所有レイヤーを再検証する。
 				if ('customNodeGraphEffectId' in change.target) {
 					const id = change.target.customNodeGraphEffectId;
 					const graph = this.state.customNodeGraphEffects.value.find(entry => entry.id === id)?.definition;

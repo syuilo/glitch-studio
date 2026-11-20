@@ -36,6 +36,7 @@ export default defineNativeEffect({
 		},
 	},
 	primaryInputParameter: null,
+	// アルファだけがテクスチャの場合もその解像度を使えるよう、各成分を同等に扱う。
 	resolutionInputParameters: ['hue', 'saturation', 'lightness', 'alpha'],
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },

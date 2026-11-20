@@ -49,10 +49,11 @@ fn sort_history(@location(0) position: vec2f) -> @location(0) vec4f {
 	let amount = clamp(read_amount(position), 0.0, 1.0);
 	if (uniforms.historyCount == 0u || amount <= 0.0) { return current; }
 
-	// 配列は最大履歴に合わせ、比較範囲だけを実際の候補数に合わせる。
+	// 配列の上限SORT_CAPACITYは_impl_.tsで最大履歴枚数に合わせる。
 	// 色全体を各画素のローカル配列へ複製せず、キーと元の候補番号だけを並べ替える。
 	var sortedKeys: array<f32, SORT_CAPACITY>;
 	var sampleOrder: array<u32, SORT_CAPACITY>;
+	// 比較範囲は現在の画素と保存済みの候補を収める最小の2の累乗とする。
 	let capacity = 1u << firstLeadingBit(max(1u, uniforms.historyCount) * 2u);
 	for (var slot = 0u; slot < capacity; slot++) {
 		sortedKeys[slot] = 0.0;
@@ -73,7 +74,7 @@ fn sort_history(@location(0) position: vec2f) -> @location(0) vec4f {
 	}
 
 	// Bitonic sort。各画素の時間方向だけを並べ替え、空間上の画素位置は変えない。
-	// 保存枚数に応じたサイズへ特殊化し、少ない履歴で64枚分の比較を繰り返さないようにする。
+	// 比較範囲を各描画の候補数から決め、短い履歴で最大枚数分の比較を繰り返すのを避ける。
 	for (var sequenceSize = 2u; sequenceSize <= capacity; sequenceSize *= 2u) {
 		for (var stride = sequenceSize / 2u; stride > 0u; stride /= 2u) {
 			for (var leftIndex = 0u; leftIndex < capacity; leftIndex++) {

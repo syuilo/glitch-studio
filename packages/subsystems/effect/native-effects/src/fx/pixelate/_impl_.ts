@@ -20,6 +20,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			schema: { input: 'color', density: 'vector', rotation: 'scalar' },
 			inputs,
 			internalLayouts: [layout],
+			// ブロック境界や空間的に変化するパラメータで参照座標が不連続になるため、LODを固定する。
 			sampling: 'level0',
 			bindResources(pass) {
 				// 式からの小数・範囲外の値も、有限の正のサンプル数に揃える。

@@ -50,6 +50,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 		const maximumPasses = Math.ceil(Math.log2(Math.max(resolution.width, resolution.height)));
 		const intermediates = Array.from({ length: params.input.kind === 'texture' ? Math.min(2, Math.max(0, maximumPasses - 1)) : 0 }, () => {
 			const texture = device.createTexture({ size: resolution, format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
+			// 出力画素に揃った最大値・最小値を次の段へ渡す。nearestで離散的な結果を保ち、補間で新しい値を作らない。
 			return { texture, view: texture.createView(), stage: createStage(intermediateTextureInput(texture, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' })) };
 		});
 		return {

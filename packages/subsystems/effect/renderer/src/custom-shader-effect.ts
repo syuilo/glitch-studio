@@ -6,6 +6,7 @@ import type { EffectImageInput, EffectInitContext, EffectRenderOperation } from 
 
 const wgslTypes = { scalar: 'f32', vector: 'vec2f', color: 'vec4f', any: 'vec4f' } as const;
 
+/** 配置ごとの寸法・接続に合わせて独立したpipelineと入力バッファを持ち、必要な出力を1パスで描く。 */
 export async function initCustomShaderEffect(definition: CustomShaderEffect, context: EffectInitContext): Promise<EffectRenderOperation> {
 	const { device, resolution } = context;
 	const schema: Record<string, ShaderInputType> = Object.create(null);
@@ -16,6 +17,7 @@ export async function initCustomShaderEffect(definition: CustomShaderEffect, con
 		const key = 'gs_input' + readers.length;
 		schema[key] = parameter.dataType.kind;
 		inputs[key] = toFixedShaderInput(context.inputs[id] as EffectImageInput);
+		// 共通の等方座標を、fit/wrap/filterが受け取る各軸[-1, +1]の画像参照座標に戻す。
 		readers.push(`fn read_${parameter.nameForReference}(position: vec2f) -> ${wgslTypes[parameter.dataType.kind]} {
 	return read_${key}(position * ${longSide * 2}.0 / gs_resolution);
 }`);
@@ -40,6 +42,7 @@ ${outputs.map(({ definition: output }, i) => `	@location(${i}) gs_output${i}: ${
 }
 ${generated.code}`;
 	// 本文を先頭に置き、未完成のWGSLの診断を編集画面と同じ行・列で返す。
+	// 編集途中の構文エラーをGPUDevice全体の未捕捉エラーに流さないよう、検証をここで捕捉する。
 	device.pushErrorScope('validation');
 	const module = device.createShaderModule({ code });
 	const [error, compilation] = await Promise.all([device.popErrorScope(), module.getCompilationInfo()]);

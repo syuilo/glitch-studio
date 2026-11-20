@@ -38,6 +38,8 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 		});
 		const reduceModule = device.createShaderModule({ code: commonCode + '\n' + reduceCode });
 		const reduceLayout = device.createPipelineLayout({ bindGroupLayouts: [computeLayout] });
+		// 階層ごとの指定をpipeline定数へ固定し、同じcommand encoderに記録したdispatchが
+		// 最後に書いたuniformの値を共有してしまうことを避ける。
 		const reducers = Array.from({ length: maxSubdivisionLevels }, (_, level) => device.createComputePipeline({
 			layout: reduceLayout,
 			compute: { module: reduceModule, entryPoint: 'reduce', constants: { reductionLevel: level } },

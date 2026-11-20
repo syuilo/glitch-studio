@@ -10,6 +10,7 @@ import type { EffectDefinition } from './effect-definition.ts';
 import type { EffectSource } from './effect-source.ts';
 
 export type NodeOutputReference = { nodeId: string; outputPort: string };
+/** 共通の値Bindingに、Custom Node Graph Effect内部で解決する参照を加える。 */
 export type CustomNodeGraphEffectValueBinding = ValueParameterBinding
 	| { inputSource: 'customNodeGraphEffectCustomParameterValueReference'; parameterId: string }
 	| { inputSource: 'customNodeGraphEffectPublicParameterReference'; parameterId: string; sampling?: ShaderInputSampling };
@@ -34,6 +35,7 @@ export interface CustomNodeGraphEffectEffectNode {
 }
 
 export type CustomNodeGraphEffectNode = CustomNodeGraphEffectEffectNode | {
+	// dataTypeは接続時の互換性判定に使う宣言型。描画時には入力をそのまま中継する。
 	readonly type: 'relay'; readonly id: string; readonly dataType: TextureDataType; readonly input: CustomNodeGraphEffectOutputSource | null;
 };
 
@@ -44,10 +46,11 @@ type CustomParameterType = Extract<DataType, { kind: 'scalar' | 'bool' | 'string
 export interface CustomNodeGraphEffect extends EffectDefinition {
 	readonly outputDefs: Readonly<Record<string, EffectDefinition['outputDefs'][string] & { readonly nameForReference?: string }>>;
 	readonly paramDefs: Readonly<Record<string, ParameterDefinition & { readonly nameForReference?: string }>>;
+	/** グラフ内の複数のノードで共有するCPU値の定義。Custom Node Graph Effectの公開入力とは独立する。 */
 	readonly customParameterDefs?: Readonly<Record<string, ParameterDefinition<CustomParameterType> & { readonly nameForReference: string; readonly canNode?: false }>>;
 	readonly customParameterValues?: Readonly<Record<string, CustomNodeGraphEffectValueBinding>>;
 	readonly automationGraphs?: readonly AutomationGraph[];
 	readonly nodes: readonly CustomNodeGraphEffectNode[];
-	/** 公開入力からの直結はテクスチャのある配置で出力する。未接続の公開出力にはエントリを持たない。 */
+	/** outputDefsのポートIDをキーにする。公開入力からの直結はテクスチャのある配置で出力する。未接続の公開出力にはエントリを持たない。 */
 	readonly outputSources: Readonly<Partial<Record<string, CustomNodeGraphEffectOutputSource>>>;
 }
