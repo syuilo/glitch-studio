@@ -150,7 +150,7 @@ export const PROJECT_SCRIPT_QUERY_DEFINITIONS = {
 	}),
 	'Query:getTimelineLayerParameters': defineQuery({
 		argumentCount: 1, inputSchema: timelineLayerReferenceSchema, resultSchema: timelineLayerParametersSchema,
-		description: 'Get available parameter groups, their definitions and stored bindings for a Timeline Layer. The public group name is customNodeGraphEffect. Missing stored bindings may use definition defaults; values are not evaluated at a playback time.',
+		description: 'Get available parameter groups, their definitions and stored bindings for a Timeline Layer. The effect group contains the parameters of the placed Effect. The publicParameter group contains parameters declared by the Layer. Missing bindings may use definition defaults.',
 		examples: ['let scene = Command:createTimelineScene({})\nlet layer = Command:createTimelineLayer({ sceneId: scene.sceneId, layer: { layerType: "text" } })\n<: Query:getTimelineLayerParameters(layer)'],
 		execute(state, input) {
 			const { layer } = layerReference(state, input);

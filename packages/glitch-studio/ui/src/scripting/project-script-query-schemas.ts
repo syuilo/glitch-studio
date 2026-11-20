@@ -4,6 +4,7 @@ import { parameterDefinitionSchema, textureDataTypeSchema, staticSettingDefiniti
 import { customNodeGraphEffectTargetSchema, customNodeGraphEffectNodeReferenceSchema, customNodeGraphEffectNodeSchema, customNodeGraphEffectSchema } from '../commands/custom-node-graph-effect-contract-schemas.ts';
 import { timelineLayerSchema, timelineClipSchema, timelineSceneResolutionSchema, timelineSceneReferenceSchema, timelineLayerReferenceSchema, timelineClipReferenceSchema, timelineEditableParameterBindingSchema } from '../commands/timeline-contract-schemas.ts';
 import { playerSchema, automationGraphSchema, projectCustomShaderEffectSchema, projectResolutionSchema, timelineMotionBlurSettingsSchema } from '../commands/project-contract-schemas.ts';
+import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 
 const identifierSchema = z.string().min(1).describe('An existing identifier returned by a Query or creation Command.');
 export const assetReferenceSchema = z.looseObject({ assetId: identifierSchema });
@@ -66,7 +67,8 @@ export const timelineLayerSummarySchema = z.looseObject({
 	target: timelineLayerReferenceSchema,
 	parentLayerId: z.string().nullable().describe('Parent layer ID, or null for a Scene root layer.'),
 	name: z.string(),
-	layerType: z.enum(['customNodeGraphEffect', 'inlineCustomNodeGraphEffect', 'effect', 'shape', 'text', 'audio', 'camera', 'voicevox', 'image', 'video', 'scene', 'group', 'transform', 'folder', 'parameterContainer']),
+	layerType: z.enum(['effect', 'shape', 'text', 'audio', 'camera', 'voicevox', 'image', 'video', 'scene', 'group', 'transform', 'folder', 'parameterContainer'] satisfies TimelineLayer['layerType'][])
+		.describe('All Effect Layers use "effect". Query:getTimelineLayer returns the effectSource for a specific Layer.'),
 	isDisabled: z.boolean(),
 	isSolo: z.boolean(),
 });
@@ -75,7 +77,7 @@ export const timelineClipResultSchema = z.intersection(timelineClipSchema, z.loo
 export const timelineLayerParametersSchema = z.record(z.string(), z.looseObject({
 	definitions: z.record(z.string(), parameterDefinitionSchema),
 	values: z.record(z.string(), timelineEditableParameterBindingSchema),
-})).describe('Available parameter groups keyed by publicParameter, customNodeGraphEffect, effect, shape, text, voicevoxSubtitle, camera, transform, compositing or audio. Values are stored bindings, not evaluated values.');
+})).describe('Available groups use the same keys as parameterGroup in Timeline Commands. Values are stored bindings.');
 
 export const assetMetadataSchema = z.looseObject({
 	target: assetReferenceSchema,
@@ -109,7 +111,12 @@ export const effectDefinitionResultSchema = effectSummarySchema.extend({
 	// Effect定義はreadonly配列を公開する。検証が作った配列だけがreadonlyとなり、
 	// 呼び出し元にはQueryが先に切り離した変更可能なデータを返す。
 	resolutionInputParameters: z.array(z.string()).readonly(),
-	outputDefs: z.record(z.string(), z.looseObject({ dataType: textureDataTypeSchema, label: z.string().optional(), canLazyAllocation: z.boolean().optional() })),
+	outputDefs: z.record(z.string(), z.looseObject({
+		dataType: textureDataTypeSchema,
+		label: z.string().optional(),
+		nameForReference: z.string().optional(),
+		inputParameters: z.array(z.string()).readonly().optional().describe('Native Effect parameter IDs used to render this output. When omitted, all inputs are used.'),
+	})),
 	primaryOutput: z.string().nullable(),
 });
 

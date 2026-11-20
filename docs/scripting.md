@@ -106,12 +106,12 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 | `Query:getProject()` | なし | 名前・説明・作者・解像度・Timelineの描画設定・書き出し設定 |
 | `Query:listCustomNodeGraphEffects()` | なし | 登録済みとScene内のインラインCustom Node Graph Effectの`target`・名前 |
 | `Query:getCustomNodeGraphEffect(target)` | Custom Node Graph Effect参照 | ノード・パラメータ・出力定義などの保存内容 |
-| `Query:listNodes(target)` | Custom Node Graph Effect参照 | ノードの参照・種別・Effect ID・表示名 |
+| `Query:listNodes(target)` | Custom Node Graph Effect参照 | ノードの参照・種別・`effectSource`・表示名 |
 | `Query:getNode(target)` | Node参照 | ノードの保存内容 |
 | `Query:listTimelineScenes()` | なし | Scene参照・名前・解像度 |
 | `Query:getTimelineScene(target)` | Scene参照 | Scene全体の保存内容 |
-| `Query:listTimelineLayers(target)` | Scene参照 | 子孫を表示順に並べたLayer一覧。`parentLayerId`で親を表す |
-| `Query:getTimelineLayer(target)` | Layer参照 | Layerの保存内容 |
+| `Query:listTimelineLayers(target)` | Scene参照 | 子孫を表示順に並べたLayer一覧。`parentLayerId`で親を表す。Effectを配置したLayerはすべて`layerType: "effect"` |
+| `Query:getTimelineLayer(target)` | Layer参照 | Layerの保存内容。Effect Layerの`effectSource`からEffectの種類と参照先またはインライン定義を取得できる |
 | `Query:getTimelineLayerParameters(target)` | Layer参照 | パラメータグループごとの`definitions`・`values` |
 | `Query:listTimelineClips(target)` | Layer参照 | Clip一覧。コンテナLayerの場合は空配列 |
 | `Query:getTimelineClip(target)` | Clip参照 | Clipの保存内容 |
@@ -126,7 +126,7 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 | 対象 | 参照 |
 |---|---|
 | 登録済みCustom Node Graph Effect | `{ customNodeGraphEffectId: "..." }` |
-| Scene内のインラインCustom Node Graph Effect | `{ sceneId: "...", inlineCustomNodeGraphEffectLayerId: "..." }` |
+| Scene内のEffect Layerが所有するインラインCustom Node Graph Effect | `{ sceneId: "...", layerId: "..." }` |
 | Node | `{ customNodeGraphEffect: customNodeGraphEffectTarget, nodeId: "..." }` |
 | Scene | `{ sceneId: "..." }` |
 | Layer | `{ sceneId: "...", layerId: "..." }` |
@@ -135,7 +135,7 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 | ProjectのAutomation Graph | `{ automationGraphId: "..." }` |
 | Custom Shader Effect | `{ customShaderEffectId: "..." }` |
 
-Timelineのパラメータグループは`Query:getTimelineLayerParameters`のキーで確認できます。Custom Node Graph Effectの引数グループは`customNodeGraphEffect`です。Commandの`parameterGroup`にも同じ名前を指定します。
+Timelineのパラメータグループは`Query:getTimelineLayerParameters`のキーで確認できます。配置したEffectの引数は3種類とも`effect`、Layer自身に宣言した公開パラメータは`publicParameter`です。Commandの`parameterGroup`にも同じ名前を指定します。
 
 ## Dialogと正常終了
 

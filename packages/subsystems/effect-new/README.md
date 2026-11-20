@@ -27,7 +27,8 @@ instance.render(frame, commandEncoder);
 - 配線、使用出力、各Bindingの `inputSource`、配列の構造、入力種別・寸法・サンプリング、静的設定は生成時に確定する。これらを編集したら配置を再生成する。値や同じ寸法の借用テクスチャの差し替えには入力のgetterを使える。時間は秒、`timeDelta` はミリ秒で渡す。
 - Custom Node Graph Effect は各ノードの `effectSource` と公開出力の `outputSources` を持つ。公開入力からの直結はuniformまたはtextureをそのまま転送し、画像を読む接続がFit／Wrap／Filterを指定する。未接続の公開出力は `outputs` に含まれない。出力の寸法は接続元で決まり、uniformは固有寸法を持たない。
 - 既定値と配列要素追加用の値はすべてliteralで、初期化時に展開する。`params` は配置側のBinding、`inputs` は解決済みの入力で、同じIDでは `inputs` が優先される。式・環境変数・キー・Automation Graph・加工式は標準評価器が処理する。ホスト固有の処理は `bindParameterValue` で差し替えられる。
-- Native Effect と Custom Shader Effect は使用する出力にのみtextureを確保する。Custom Shader Effect は全入力の種別に合わせて配置ごとに一度だけpipelineを生成する。コンパイルが失敗した場合は `createEffectInstance()` が失敗する。
+- 旧実装の `canLazyAllocation` は廃止した。`createEffectInstance()` は `usedOutputPorts` に指定された公開出力から配線を逆にたどり、描画に必要な Native Effect・Custom Shader Effect の出力ポートだけにテクスチャを確保する。各実装は初期化時に `outputTextures` でそのポートとテクスチャを受け取る。使用する出力が変わったらインスタンスを作り直す。
+- Custom Shader Effect は全入力の種別と使用する出力に合わせて、配置ごとに一度だけpipelineを生成する。ユーザーのWGSL関数は定義された全出力を持つ `Output` を返し、生成したfragmentエントリポイントが使用する出力だけを描画先へ書き込む。コンパイルが失敗した場合は `createEffectInstance()` が失敗する。
 - Native Effect の出力ごとに `inputParameters` で描画に使う入力を指定できる。省略時は全入力を使う。たとえば Vignette の Mask だけを使う配置では、入力画像の寸法から解像度を決め、マスクを1パスで描く。色とマスクを両方使う配置でも Vignette 自体の描画は1パスで済む。
 - Feedback は配置ごとに2枚のtextureを交互に使う。出力ポートは保持できるが、最新のtextureは各フレームの `render()` 後にそのポートの `.texture` から取得する。シークなどで `instance.resetRenderHistory()` を呼ぶと、入れ子を含む各配置は次の描画から新しい履歴を開始する。Feedback は、その最初の描画ではリセット前の経過時間を加算しない。
 - 同じ配置の複数ポートは1回の `render()` で更新する。GPUコマンドを送信した後、配置の利用終了時に `instance.dispose()` を呼ぶ。外部入力のテクスチャは呼び出し側が所有する。

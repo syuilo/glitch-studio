@@ -177,6 +177,25 @@ test('describes every Query with serializable schemas and the actual argument co
 	}
 });
 
+// 【公開資料は統合されたEffect Layerと現在の出力ポート属性を案内する】
+// 実際のQueryが正しい値を返しても、資料だけに旧仕様が残ると、利用者は配置できないLayerや
+// 効果のない出力設定を選んでしまう。ScriptingとMCPへ渡すJSON Schemaそのものを検査する。
+test('documents the current Effect Layer type and output port fields', () => {
+	function resultSchema(name) {
+		const definition = PROJECT_SCRIPT_QUERY_DEFINITIONS[name];
+		return describeProjectApi(name, 'query', definition.argumentCount, definition).resultSchema;
+	}
+	const layerTypes = resultSchema('Query:listTimelineLayers').items.properties.layerType.enum;
+	assert.ok(layerTypes.includes('effect'));
+	assert.ok(!layerTypes.includes('customNodeGraphEffect'));
+	assert.ok(!layerTypes.includes('inlineCustomNodeGraphEffect'));
+
+	const output = resultSchema('Query:getEffect').properties.outputDefs.additionalProperties.properties;
+	assert.equal(output.inputParameters.items.type, 'string');
+	assert.equal(output.nameForReference.type, 'string');
+	assert.ok(!Object.hasOwn(output, 'canLazyAllocation'));
+});
+
 // 【資料のAiScript例を実際の公開APIで実行できる】
 // 型と説明だけでは参照の渡し方やAiScript構文の誤りを検出できない。例ごとに独立した
 // Projectを用意し、既存素材等を参照する例も空配列による未実行で成功しないようにする。
