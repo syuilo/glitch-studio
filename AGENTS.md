@@ -57,16 +57,17 @@
 	- [**`shared/src/gpu`**](./packages/shared/src/gpu) ... 各ドメインから独立したGPUデータ表現・処理・共通WGSLを置きます。`shader-buffer.ts`は事前解析した配置情報からバッファを作り、値を書き込む実行時の処理を担当します。
 - [**`subsystems`**](./packages/subsystems) ... 個々の独立した機能が入る層。これらのパッケージは一機能にすぎず、「プロジェクト」の状態などの上位概念を知っていてはならない。Glitch Studioとは関係ないライブラリとして提供できるレベルで、Glitch Studioのコンテキストから分離されているのが理想。もちろんglitch-studio層へは依存しないが、他のsubsystemへの一方向への依存や、トップレベルのsharedへの依存はあってもいい。
 	- [**`subsystems/audio`**](./packages/subsystems/audio) ... 取得元に依存しないPCM・キャプチャメッセージ・読み取り専用ビューの型をsharedに、音声履歴・FFT解析・音声ファイルのデコード・リサンプリング・PCMキャッシュをrendererに置きます。Asset・Player・Scene・レイヤーの定義や再生状態を知りません。Asset IDからファイルを解決する処理はGlitch Studio層が注入します。
-	- [**`subsystems/effect`**](./packages/subsystems/effect) ... 各種エフェクトのパラメータ定義・実装、エフェクトレンダラー実装などが含まれます。
-		- [**`subsystems/effect/shared`**](./packages/subsystems/effect/shared) ... 各種エフェクトのパラメータ定義・実装。定義はレンダラーからもUIからも参照される情報なのでここに置かれています。1つのエフェクトに1つのディレクトリを割り当てます。定義と実装(シェーダーコードの登録、uniformsやバッファなどの準備処理)は、それぞれ `_def_.ts` / `_impl_.ts` として分離します。シェーダーコード自体も通常wgslファイルとして分離します。(最低限`_def_.ts`と`_impl_.ts`があればよく、その他のファイルを置くことは自由です)
-			- 複数のWGSLや定数を組み合わせて事前解析する場合は、各エフェクト内の`*.shader.ts`で文字列を合成し、`?shader`で読み込みます。配置情報の生成は共通ローダーに任せ、エフェクトごとに手書きしません。内蔵画像などのアセットも各エフェクトのディレクトリで所有し、静的importで同梱します。
-	- [**`subsystems/custom-node-graph-effect`**](./packages/subsystems/custom-node-graph-effect) ... エフェクトをノードグラフで組み合わせられるCustom Node Graph Effectのレンダラー実装などが含まれます。
-	- [**`subsystems/timeline`**](./packages/subsystems/timeline) ... 複数のレイヤー・クリップを作成して動画を作成できるタイムライン機能のレンダラー実装などが含まれる。エフェクトやCustom Node Graph Effectなどもレイヤーとして使用可能。
+	- [**`subsystems/effect-new`**](./packages/subsystems/effect-new) ... Native Effect、Custom Shader Effect、Custom Node Graph Effectを共通のEffectとして扱います。
+		- [**`subsystems/effect-new/shared`**](./packages/subsystems/effect-new/shared) ... Effectの公開定義、保存形式、検証を担当します。
+		- [**`subsystems/effect-new/renderer`**](./packages/subsystems/effect-new/renderer) ... Effectの配置ごとに実行状態を生成し、描画を行います。
+		- [**`subsystems/effect-new/native-effects`**](./packages/subsystems/effect-new/native-effects) ... Native Effectごとにディレクトリを設け、定義と実装をそれぞれ`_def_.ts`と`_impl_.ts`に分けます。シェーダーコードは通常WGSLファイルとして分離します。
+			- 複数のWGSLや定数を組み合わせて事前解析する場合は、各Native Effect内の`*.shader.ts`で文字列を合成し、`?shader`で読み込みます。配置情報の生成は共通ローダーに任せます。内蔵画像などのアセットは各Native Effectのディレクトリで所有し、静的importで同梱します。
+	- [**`subsystems/timeline`**](./packages/subsystems/timeline) ... 複数のレイヤー・クリップを作成して動画を作成できるタイムライン機能のレンダラー実装などが含まれる。Effectもレイヤーとして使用可能。
 		- [**`subsystems/timeline/audio-renderer`**](./packages/subsystems/timeline/audio-renderer) ... timeline/sharedで作成した音声計画を受け取り、所属Sceneの時刻での音量・式・キー評価を行い、音声をミックスします。素材PCMの読み出しは呼び出し側から受け取り、素材長の検証・DOM・GPU・デコーダー・再生状態を所有しません。
 
 各パッケージの責務については、各ディレクトリのREADME.mdも必要に応じて参照してください。
 
-サブシステム間の依存は一方向で、TimelineはCustom Node Graph EffectやEffectに依存し、Custom Node Graph EffectはEffectに依存します。その逆の依存を作ってはならない。
+サブシステム間の依存は一方向で、TimelineはEffectに依存します。
 
 各エフェクト実装は独立させ、他のエフェクトを参照したりしない。
 
@@ -104,7 +105,7 @@
 - 実装に取り掛かる前、または実装作業中に不明点・懸念点が出た場合や、判断が必要と思われる重要な設計上の事項などが発生した場合は、独断で作業を継続せず、作業を中断し判断を仰ぐようにすること。
 - /docs-siteは編集しないこと。
 - コンポーネントの実装など、UIに関する編集を行う際はuiパッケージのAGENTS.mdも一読してルールに従う。
-- エフェクトの実装を行う際はpackages/subsystems/effect/sharedパッケージのAGENTS.mdも一読する。
+- Effectの実装を行う際は[Effect subsystemのREADME](./packages/subsystems/effect-new/README.md)も一読する。
 
 ### Coding
 
