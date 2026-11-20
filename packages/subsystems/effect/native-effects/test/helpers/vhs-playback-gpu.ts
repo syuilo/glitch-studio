@@ -2,7 +2,7 @@ import { nativeEffectProbe } from './native-effect-probe.ts';
 import definition from '../../src/fx/vhsPlayback/_def_.ts';
 import implementationNative from '../../src/fx/vhsPlayback/_impl_.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
-import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import { constantShaderInput, textureShaderInput, type ShaderInputSampling } from '@gs/shared/gpu/shader-input.ts';
 import type { NativeParameterValues } from '../../src/multipass.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { VHS_TAPE } from '../../src/fx/vhsPlayback/signal.ts';
@@ -38,13 +38,13 @@ export async function run() {
 			targets: [{ format: 'rgba32float' }],
 		},
 	});
-	function field(width: number, height: number, componentCount: 1 | 2 | 4, value: (x: number, y: number) => number[]) {
+	function field(width: number, height: number, componentCount: 1 | 2 | 4, value: (x: number, y: number) => number[], sampling: Partial<ShaderInputSampling> = {}) {
 		const texture = device.createTexture({ size: [width, height], format: componentCount === 1 ? 'r16float' : componentCount === 2 ? 'rg16float' : 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 		const pixels = new Float16Array(width * height * componentCount);
 		for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) pixels.set(value(x, y), (y * width + x) * componentCount);
 		device.queue.writeTexture({ texture }, pixels, { bytesPerRow: width * componentCount * 2 }, [width, height]);
 		disposables.push(() => texture.destroy());
-		return textureShaderInput(texture, { fitMode: 'stretch', filterMode: 'nearest', wrapMode: 'clamp' });
+		return textureShaderInput(texture, { fitMode: 'stretch', filterMode: 'nearest', wrapMode: 'clamp', ...sampling });
 	}
 	function createEffect(width: number, height: number) {
 		const resolution = { width, height };
@@ -229,7 +229,7 @@ export async function run() {
 
 		// 【テープ上の長手方向の境界を斜めに横切ると、走査の途中から信号が失われる】
 		// 画面の右半分へ傷画像を重ねる処理では、上部全体を保って下部だけを壊せない。
-		const stepDamage = { ...field(64, 16, 1, x => [x >= 32 ? 1 : 0]), wrapMode: 'transparent' } as const;
+		const stepDamage = field(64, 16, 1, x => [x >= 32 ? 1 : 0], { wrapMode: 'transparent' });
 		const surfaceSettings = { ...clean, input: grayInput, rfNoiseFloor: -36, tapeDamage: stepDamage };
 		const surfaceReference = await render({ ...surfaceSettings, tapeDamage: scalar(0) });
 		const surfaceDamaged = await render(surfaceSettings);
@@ -270,7 +270,7 @@ export async function run() {
 
 		// 【傷マップのFitはテープ範囲を基準にし、映像出力の縦横比から独立する】
 		// 出力の幅・高さを傷入力のFitに使うと、同じ媒体なのに傷の範囲が変わってしまう。
-		const fittedDamage = { ...stepDamage, fitMode: 'cover' } as const;
+		const fittedDamage = { ...stepDamage, sampling: { ...stepDamage.sampling, fitMode: 'cover' } } as const;
 		const squareEffect = createEffect(48, 48);
 		const fittedSettings = { ...surfaceSettings, tapeDamage: fittedDamage };
 		const wideDamage = await render(fittedSettings);
@@ -338,11 +338,11 @@ export async function run() {
 		// 【場所ごとに異なる伸びは実際のFM周波数を変える】
 		// 小さな一様伸長を前方変形として入力し、逆写像と信号の再サンプリングを通す。
 		const stretch = 0.02;
-		const stretchField = { ...field(128, 64, 2, (x, y) => {
+		const stretchField = field(128, 64, 2, (x, y) => {
 			const position = [((x + 0.5) / 128 - 0.5) * surfaceWidth, (0.5 - (y + 0.5) / 64) * VHS_TAPE.recordedWidthMeters];
 			const along = position[0] * VHS_TAPE.trackTangent[0] + position[1] * VHS_TAPE.trackTangent[1];
 			return VHS_TAPE.trackTangent.map(component => component * along * stretch / surfaceWidth);
-		}), filterMode: 'linear' } as const;
+		}, { filterMode: 'linear' });
 		const stretchedGray = await render({ ...clean, input: grayInput, tapeDisplacement: stretchField });
 		let stretchedMean = 0;
 		for (let x = 8; x < 56; x++) stretchedMean += stretchedGray[(22 * 64 + x) * 4] / 48;
@@ -390,8 +390,8 @@ export async function run() {
 		};
 		const previewInput = field(previewWidth, previewHeight, 4, previewColorAt);
 		const previewEffect = createEffect(previewWidth, previewHeight);
-		const previewSeparation = { ...field(128, 64, 1, (_x, y) => [0.35 * Math.exp(-(((y / 63 - 0.5) / 0.09) ** 2))]), filterMode: 'linear' } as const;
-		const previewDisplacement = { ...field(128, 64, 2, (_x, y) => VHS_TAPE.trackTangent.map(component => component * 0.00004 * Math.sin(y / 63 * 6 * Math.PI))), filterMode: 'linear' } as const;
+		const previewSeparation = field(128, 64, 1, (_x, y) => [0.35 * Math.exp(-(((y / 63 - 0.5) / 0.09) ** 2))], { filterMode: 'linear' });
+		const previewDisplacement = field(128, 64, 2, (_x, y) => VHS_TAPE.trackTangent.map(component => component * 0.00004 * Math.sin(y / 63 * 6 * Math.PI)), { filterMode: 'linear' });
 		const canvas = new OffscreenCanvas(previewWidth * 4, previewHeight);
 		const context = canvas.getContext('2d')!;
 		const original = new ImageData(previewWidth, previewHeight);

@@ -20,7 +20,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 		const shortDimension = Math.min(width, height);
 		const aspect = [width / shortDimension, height / shortDimension] as const;
 		const canvasUnitScale = Math.max(width, height) / shortDimension;
-		const inputWrapMode = inputs.input.kind === 'texture' ? inputs.input.sampling?.wrapMode ?? 'repeatMirrored' : 'clamp';
+		const inputWrapMode = inputs.input.kind === 'texture' ? inputs.input.sampling.wrapMode : 'clamp';
 		uniformValues.set({ aspect, halfExtent: getSpatialHalfExtent(resolution), imageInputIsConstant: Number(inputs.input.kind === 'uniform') });
 		return createFullscreenEffect(context, {
 			code,

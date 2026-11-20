@@ -1,6 +1,6 @@
 import { createEffectInstance } from '@gs/subsystems_effect_renderer/create-effect-instance.ts';
 import { createTestInputs } from '@gs/subsystems_effect_native-effects/test/native-effect-probe.ts';
-import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import gradientDefinition from '@gs/subsystems_effect_native-effects/fx/gradient/_def_.ts';
 import gradient from '@gs/subsystems_effect_native-effects/fx/gradient/_impl_.ts';
 import pixelSortDefinition from '@gs/subsystems_effect_native-effects/fx/pixelSort/_def_.ts';
@@ -22,7 +22,7 @@ export async function checkEffectRenderTiles(device: GPUDevice, vertex: GPUShade
 		const input = device.createTexture({ size: resolution, format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 		const pixels = Uint8Array.from({ length: width * height * 4 }, (_, index) => index % 4 === 3 ? 128 + index % 128 : (index * 37) % 256);
 		device.queue.writeTexture({ texture: input }, pixels, { bytesPerRow: width * 4 }, resolution);
-		const shaderInput = { kind: 'texture' as const, texture: input, fitMode: 'cover' as const, wrapMode: 'clamp' as const, filterMode: 'linear' as const };
+		const shaderInput = textureShaderInput(input, { fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' });
 		async function compare(definition: NativeEffectDefinition, implementation: NativeEffectImplementation, overrides: Record<string, unknown> = {}, frames = 1) {
 			const inputs = createTestInputs(definition.paramDefs, () => overrides);
 			const settings: EffectRenderTiling[] = [1, 2, 4].map(level => ({ mode: 'manual', tileSize: Math.max(1, Math.ceil(Math.max(width, height) / (2 ** level))) }));

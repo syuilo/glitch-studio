@@ -249,11 +249,13 @@ export async function run() {
 		assert(alphaAt(wideReflection, 384, 192, -Math.SQRT2 * 0.005, 0.15) > 0.1, 'aspect ratio or data precision');
 		const fullShape = field(4, 4, () => -0.1);
 		assert(fullShape.kind === 'texture', 'test requires texture SDF');
-		const transparentShape = { ...fullShape, fitMode: 'contain', wrapMode: 'transparent' } as ShaderInput;
+		const transparentShape = { ...fullShape, sampling: { ...fullShape.sampling, fitMode: 'contain', wrapMode: 'transparent' } } as const;
 		const clippedShape = await wide.render({ sources: [source()], objects: [object(transparentShape, { material: 'absorber' })] });
 		assert(alphaAt(clippedShape, 384, 192, -0.3, 0) > 0.1 && alphaAt(clippedShape, 384, 192, 0, 0) === 0, 'transparent SDF fit creates a false surface or loses rectangle');
 		const emptyShape = field(4, 4, () => 65504);
-		const emptyShapeOutput = await wide.render({ sources: [source()], objects: [object({ ...emptyShape, fitMode: 'contain', wrapMode: 'transparent' } as ShaderInput)] });
+		const emptyShapeOutput = await wide.render({ sources: [source()], objects: [object({
+			...emptyShape, sampling: { ...emptyShape.sampling, fitMode: 'contain', wrapMode: 'transparent' },
+		})] });
 		assert(alphaAt(emptyShapeOutput, 384, 192, 0.3, 0) > 0.1, 'empty SDF becomes input rectangle');
 		const large = effect(384, 384);
 		const largeBeam = await large.render({ sources: [whiteBeam], raySamples: 128, wavelengthSamples: 9 });

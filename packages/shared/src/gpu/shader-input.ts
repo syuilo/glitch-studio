@@ -9,20 +9,16 @@ type InputFilterMode = 'nearest' | 'linear';
 
 export type ShaderInputSampling = { fitMode: InputFitMode; wrapMode: InputWrapMode; filterMode: InputFilterMode };
 
-export type ShaderInput =
-	| UniformValue
-	| (TextureValue & ShaderInputSampling);
+export type TextureShaderInput = Readonly<TextureValue> & {
+	/** 配置時の束縛では、GPUTextureが利用可能になる前から入力の寸法を参照する。 */
+	readonly resolution: Readonly<Resolution>;
+	readonly sampling: Readonly<ShaderInputSampling>;
+};
 
-export type FixedShaderInput = UniformValue | (TextureValue & ShaderInputSampling & { readonly resolution: Resolution });
+export type ShaderInput = Readonly<UniformValue> | TextureShaderInput;
 
-export function textureShaderInput(texture: GPUTexture, sampling: ShaderInputSampling): ShaderInput {
-	return {
-		kind: 'texture',
-		texture,
-		fitMode: sampling.fitMode,
-		wrapMode: sampling.wrapMode,
-		filterMode: sampling.filterMode,
-	};
+export function textureShaderInput(texture: GPUTexture, sampling: ShaderInputSampling): TextureShaderInput {
+	return { kind: 'texture', texture, resolution: texture, sampling: { ...sampling } };
 }
 
 /** 受け取り側の読み取り設定を付ける。定数をテクスチャ化せず、色の再乗算も行わない。 */
@@ -57,7 +53,7 @@ export type ShaderInputSchema = Readonly<Record<string, ShaderInputType | { arra
 export type ShaderInputReferenceResolutions = Readonly<Partial<Record<string, Resolution | readonly Resolution[]>>>;
 // 固定入力でも、受け取り側が描画する領域の寸法や画像端の処理はアニメーションできる。
 // 寸法オブジェクトは初期化時に束縛し、各フレームではそのwidth/heightだけを書き換える。
-export type FixedShaderInputSamplingOverrides = {
+export type ShaderInputSamplingOverrides = {
 	readonly referenceResolutions?: ShaderInputReferenceResolutions;
 	readonly wrapModes?: Readonly<Record<string, () => InputWrapMode>>;
 };
@@ -252,24 +248,24 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 		return bindGroup;
 	}
 
-	function setFitScale(slot: Slot, input: ShaderInputSampling, size: Resolution, reference: Resolution): void {
-		const scale = inputUvScale(size, reference, input.fitMode);
+	function setFitScale(slot: Slot, sampling: ShaderInputSampling, size: Resolution, reference: Resolution): void {
+		const scale = inputUvScale(size, reference, sampling.fitMode);
 		const offset = slot.index * 8 + 4;
 		values[offset] = scale[0];
 		values[offset + 1] = scale[1];
 	}
 
-	function setMapping(slot: Slot, input: ShaderInputSampling, size: Resolution, reference: Resolution): void {
-		setFitScale(slot, input, size, reference);
+	function setMapping(slot: Slot, sampling: ShaderInputSampling, size: Resolution, reference: Resolution): void {
+		setFitScale(slot, sampling, size, reference);
 		const offset = slot.index * 8 + 4;
-		values[offset + 2] = Number(input.filterMode === 'nearest');
-		values[offset + 3] = Number(input.wrapMode === 'transparent');
+		values[offset + 2] = Number(sampling.filterMode === 'nearest');
+		values[offset + 3] = Number(sampling.wrapMode === 'transparent');
 	}
 
 	return {
 		layout,
 		/** 入力の構造・寸法・サンプリングが固定の配置用。実テクスチャは初回描画まで要求しない。 */
-		bindFixedInputs(inputs: Readonly<Record<string, FixedShaderInput | readonly FixedShaderInput[]>>, output: Resolution, overrides?: FixedShaderInputSamplingOverrides) {
+		bindFixedInputs(inputs: ShaderInputValues, output: Resolution, overrides?: ShaderInputSamplingOverrides) {
 			const uniforms: { input: UniformValue; offset: number }[] = [];
 			const textures: { input: TextureValue; slot: Slot; sampler: GPUSampler }[] = [];
 			const updateSampling: (() => boolean)[] = [];
@@ -280,29 +276,30 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 				if (input.kind === 'uniform') {
 					uniforms.push({ input, offset: slot.index * 8 });
 				} else {
-					setMapping(slot, input, input.resolution, output);
-					const textureSlot = { input, slot, sampler: getSampler(input.wrapMode, input.filterMode) };
+					const { resolution, sampling } = input;
+					setMapping(slot, sampling, resolution, output);
+					const textureSlot = { input, slot, sampler: getSampler(sampling.wrapMode, sampling.filterMode) };
 					textures.push(textureSlot);
 					const references = overrides?.referenceResolutions?.[slot.sourceName];
 					const reference = references == null || 'width' in references ? references : references[slot.elementIndex!];
-					if (reference != null && input.fitMode !== 'stretch') {
+					if (reference != null && sampling.fitMode !== 'stretch') {
 						let width = output.width;
 						let height = output.height;
 						updateSampling.push(() => {
 							if (width === reference.width && height === reference.height) return false;
 							width = reference.width;
 							height = reference.height;
-							setFitScale(slot, input, input.resolution, reference);
+							setFitScale(slot, sampling, resolution, reference);
 							return true;
 						});
 					}
 					const wrapMode = overrides?.wrapModes?.[slot.sourceName];
 					if (wrapMode != null) {
 						dynamicSamplerSlots.push(textureSlot);
-						const samplerFor = (wrapMode: InputWrapMode) => getSampler(wrapMode, input.filterMode);
+						const samplerFor = (wrapMode: InputWrapMode) => getSampler(wrapMode, sampling.filterMode);
 						const samplersByWrap = { repeat: samplerFor('repeat'), repeatMirrored: samplerFor('repeatMirrored'),
 							clamp: samplerFor('clamp'), transparent: samplerFor('transparent') };
-						let previousWrap = input.wrapMode;
+						let previousWrap = sampling.wrapMode;
 						updateSampling.push(() => {
 							const wrap = wrapMode();
 							if (wrap === previousWrap) return false;
@@ -365,8 +362,9 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 				}
 				const references = inputReferenceResolutions[slot.sourceName];
 				const reference = references == null ? output : 'width' in references ? references : references[slot.elementIndex ?? 0] ?? output;
-				setMapping(slot, input, input.texture, reference);
-				setTexture(slot, resourceIndex, input.texture, getSampler(input.wrapMode, input.filterMode));
+				const { sampling } = input;
+				setMapping(slot, sampling, input.resolution, reference);
+				setTexture(slot, resourceIndex, input.texture, getSampler(sampling.wrapMode, sampling.filterMode));
 				resourceIndex += 2;
 			}
 			device.queue.writeBuffer(buffer, 0, values);

@@ -84,7 +84,7 @@ VHSの映像信号にはalphaがないため、用途に応じた2つのモー�
 - **Preserve Coverage**：coverageを別経路で保持するGlitch Studio向けの拡張。色のフィルタをcoverageで正規化し、完全透明な画素へ雑音色を生成しない。読取時刻と同期回復に対応する位置へalphaも移動する。画像とブランキングの境界ではcoverageの混合を分け、半透明にしただけで録画色が変わらないようにする。
 - **Composite on Background**：背景色へ合成し、不透明な映像として録画する。背景色自身のalphaは黒の上へ合成して扱う。信号欠落やブランキングも不透明な出力になる。
 
-`EffectImageInput`として定数・テクスチャを受け取り、入力のFit／Wrap／Filterを使用する。面積サンプリングと走査線の補間はpremultiplied alphaで行い、色の演算が必要な境界だけunpremultiplyする。
+`ShaderInput`として定数・テクスチャを受け取り、入力のFit／Wrap／Filterを使用する。面積サンプリングと走査線の補間はpremultiplied alphaで行い、色の演算が必要な境界だけunpremultiplyする。
 
 ## 処理と責務
 

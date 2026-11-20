@@ -1,7 +1,8 @@
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
-import { beginOutputPass, bindParameterValues, createFixedInputPipeline, intermediateTextureInput } from '../../multipass.ts';
+import { textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import { beginOutputPass, bindParameterValues, createFixedInputPipeline } from '../../multipass.ts';
 import code, { uniforms as codeUniforms } from './shader.shader.ts?shader';
 import encodeCode from './encode.shader.ts?shader';
 import type { NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
@@ -24,12 +25,12 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 		const displayView = displayTexture?.createView();
 		const encode = input.kind === 'texture' ? createFixedInputPipeline({ input: {
 			kind: 'texture', resolution: input.resolution, get texture() { return input.texture; },
-			fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest',
+			sampling: { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' },
 		} }, input.resolution, {
 			device, vertex: defaultVertexShaderModule, code: encodeCode,
 			schema: { input: 'color' }, targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }], sampling: 'level0',
 		}) : null;
-		const displayInput = input.kind === 'texture' ? intermediateTextureInput(displayTexture!, input) : input;
+		const displayInput = input.kind === 'texture' ? textureShaderInput(displayTexture!, input.sampling) : input;
 		const smear = createFixedInputPipeline({ input, displayInput, vector: params.vector, intensity: params.intensity, amount: params.amount }, context.resolution, {
 			device, vertex: defaultVertexShaderModule, code,
 			schema: { input: 'color', displayInput: 'color', vector: 'vector', intensity: 'scalar', amount: 'scalar' },

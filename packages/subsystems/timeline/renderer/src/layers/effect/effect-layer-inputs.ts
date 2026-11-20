@@ -8,7 +8,7 @@ import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_share
 import { isTimelineAudioInputBinding, isTimelineImageInputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { createTimelineAudioInputResolver, type TimelineAudioInputProvider } from '../../timeline-audio-input-resolver.ts';
 import { createSceneOutput } from '../../scene-output.ts';
-import type { EffectParameterInput } from '@gs/subsystems_effect_renderer/effect-instance.ts';
+import type { EffectPlacementInput } from '@gs/subsystems_effect_renderer/create-effect-instance.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { TimelineEffectParameterBinding, TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
@@ -24,7 +24,7 @@ type ValueUpdate = (scope: TimelineLayerEvaluationScope, audio: ReturnType<typeo
 /** 計画が要求した公開入力だけを束縛する。各Scene画像の確定先は参照段階ごとに分け、サンプル間で再利用する。 */
 export function createEffectLayerInputs(layer: TimelineEffectLayer, definition: EffectDefinition,
 	options: Parameters<typeof createSceneOutput>[0], getAudioInput?: TimelineAudioInputProvider) {
-	const inputs: Record<string, EffectParameterInput> = Object.create(null);
+	const inputs: Record<string, EffectPlacementInput> = Object.create(null);
 	const evaluator = new TimelineParameterBindingEvaluator();
 	const updates: ValueUpdate[] = [];
 	const references = new Map<string, {
@@ -33,7 +33,7 @@ export function createEffectLayerInputs(layer: TimelineEffectLayer, definition: 
 		image: TimelineImage | null;
 	}>();
 
-	function bind(def: ParameterDefinition, read: () => TimelineEffectParameterBinding): EffectParameterInput {
+	function bind(def: ParameterDefinition, read: () => TimelineEffectParameterBinding): EffectPlacementInput {
 		const binding = read();
 		if (binding.inputSource === 'literal' && def.dataType.kind === 'array') {
 			const element = getArrayElementDefinition(def);

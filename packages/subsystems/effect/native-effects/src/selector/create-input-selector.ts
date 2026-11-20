@@ -1,9 +1,10 @@
-import { toFixedShaderInput, type EffectImageInput, type EffectInitContext } from '@gs/subsystems_effect_renderer/effect-instance.ts';
+import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import type { EffectInitContext } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import { createFullscreenEffectWithInputVariants } from '../fullscreen-input-variants.ts';
 import shader from './selector.wgsl?raw';
 
 type SelectorInputs = {
-	inputs: { readonly kind: 'array'; readonly elements: readonly EffectImageInput[] };
+	inputs: { readonly kind: 'array'; readonly elements: readonly ShaderInput[] };
 	index: { readonly value: number };
 };
 
@@ -12,7 +13,7 @@ export function createInputSelector(context: EffectInitContext<SelectorInputs>, 
 	const { inputs, index } = context.inputs;
 	// 描画ごとに選択中の入力だけを束縛する。候補数をGPUのテクスチャ数上限から切り離し、
 	// 各接続のFit・Wrap Mode・Filterをそのまま使う。
-	const candidates = inputs.elements.map(input => ({ source: toFixedShaderInput(input) }));
+	const candidates = inputs.elements.map(input => ({ source: input }));
 	const empty = { source: zeroInput };
 	const lastIndex = Math.max(0, candidates.length - 1);
 	const resultType = { color: 'vec4f', scalar: 'f32', vector: 'vec2f' }[type];

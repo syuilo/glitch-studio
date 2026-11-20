@@ -87,16 +87,16 @@ export function bindOpticalObjects(objects: GeometricOpticsParameters['objects']
 	const data = new Float32Array(Math.max(1, objects.length) * OPTICAL_RECORD_BYTES / 4);
 	const longDimension = Math.max(resolution.width, resolution.height);
 	const sdfs = objects.map(({ sdf }, index) => {
-		const scale = sdf.kind === 'texture' ? inputUvScale(sdf.resolution, resolution, sdf.fitMode) : [1, 1];
-		const transparent = sdf.kind === 'texture' && sdf.wrapMode === 'transparent';
+		const scale = sdf.kind === 'texture' ? inputUvScale(sdf.resolution, resolution, sdf.sampling.fitMode) : [1, 1];
+		const transparent = sdf.kind === 'texture' && sdf.sampling.wrapMode === 'transparent';
 		const gradientStep = sdf.kind === 'texture'
 			? Math.max(1 / longDimension, resolution.width / (longDimension * sdf.resolution.width * scale[0]), resolution.height / (longDimension * sdf.resolution.height * scale[1]))
 			: 1 / longDimension;
 		data.set([gradientStep, ...scale, Number(transparent)], index * 12 + 7);
 		// 透明領域を距離0として補間しないように、値はclampで延長し、WGSL側で入力矩形との共通部分を取る。
 		if (sdf.kind !== 'texture' || !transparent) return sdf;
-		return { kind: 'texture' as const, resolution: sdf.resolution, fitMode: sdf.fitMode, filterMode: sdf.filterMode,
-			wrapMode: 'clamp' as const, get texture() { return sdf.texture; } };
+		return { kind: 'texture' as const, resolution: sdf.resolution, sampling: { ...sdf.sampling, wrapMode: 'clamp' as const },
+			get texture() { return sdf.texture; } };
 	});
 	return {
 		sdfs, data,

@@ -25,6 +25,11 @@ import type { EffectSource, EffectDefinitions, ResolvedEffect } from '@gs/subsys
 import { isUnselectedGraphParameterReference, type CustomNodeGraphEffect, type CustomNodeGraphEffectEffectNode, type CustomNodeGraphEffectParameterBinding, type NodeOutputReference } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
 import type { CustomNodeGraphEffectValueUpdate, EffectParameterInput, EffectTextureOutput, EffectFrameContext, EffectPreparationStatus } from './effect-instance.ts';
 
+/** テクスチャを借用して転送する経路では、サンプリングを省略できる。 */
+export type EffectPlacementInput = EffectParameterInput<EffectTextureOutput & { readonly sampling?: Readonly<ShaderInputSampling> }>;
+
+const defaultEffectInputSampling = { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' } as const satisfies ShaderInputSampling;
+
 export interface EffectPlacement {
 	readonly effectSource: EffectSource;
 	readonly definitions: EffectDefinitions;
@@ -44,13 +49,13 @@ export interface EffectPlacement {
 	readonly usedOutputPorts: ReadonlySet<string>;
 	readonly params?: Readonly<Record<string, ValueParameterBinding>>;
 	readonly automationGraphs?: readonly AutomationGraph[];
-	readonly inputs?: Readonly<Record<string, EffectParameterInput>>;
+	readonly inputs?: Readonly<Record<string, EffectPlacementInput>>;
 	readonly staticSettings?: StaticSettingValues;
 	/** 式・キー等の評価器はBindingごとに一度選ぶ。スコープは配置を識別するノードID列で区別する。 */
 	readonly bindParameterValue?: (binding: ValueParameterBinding, definition: ParameterDefinition, nodePath: readonly string[]) => (frame: EffectFrameContext) => unknown;
 }
 
-interface PlannedInput<Input extends EffectParameterInput = EffectParameterInput> {
+interface PlannedInput<Input extends EffectPlacementInput = EffectPlacementInput> {
 	readonly input: Input;
 	/** 寸法だけを問い合わせた依存は描画しない。実際に値を読む経路に限って順序へ追加する。 */
 	readonly prepareRead?: () => ReadFrameValue;
@@ -98,14 +103,33 @@ function valueInput(definition: ParameterDefinition, read: () => unknown): Effec
 function withSampling(source: PlannedInput, sampling?: ShaderInputSampling): PlannedInput {
 	const input = source.input;
 	if (input.kind !== 'texture' || sampling === input.sampling) return source;
-	return { use: source.use, input: { kind: 'texture', sampling, resolution: input.resolution, get texture() { return input.texture; }, get version() { return input.version; } } };
+	return { use: source.use, input: textureInputWithSampling(input, sampling) };
+}
+
+function textureInputWithSampling<Sampling extends Readonly<ShaderInputSampling> | undefined>(input: EffectTextureOutput, sampling: Sampling) {
+	return {
+		kind: input.kind, resolution: input.resolution, sampling,
+		get texture() { return input.texture; },
+		get version() { return input.version; },
+	};
+}
+
+// 公開ポートやBypassでは借用元の出力を転送する。描画するEffectに渡す段階でだけ
+// 配列・構造体内の接続も含めてサンプリングを確定し、描画時に最新のテクスチャと世代を読めるようにする。
+function resolveInputSampling(input: EffectPlacementInput): EffectParameterInput {
+	switch (input.kind) {
+		case 'texture': return textureInputWithSampling(input, { ...(input.sampling ?? defaultEffectInputSampling) });
+		case 'array': return { kind: 'array', elements: input.elements.map(resolveInputSampling) };
+		case 'struct': return { kind: 'struct', fields: Object.fromEntries(Object.entries(input.fields).map(([key, field]) => [key, resolveInputSampling(field)])) };
+		default: return input;
+	}
 }
 
 function textureOutput(source: PlannedInput | null): PlannedInput<EffectTextureOutput> | null {
 	return source?.input.kind === 'texture' ? { input: source.input, use: source.use } : null;
 }
 
-function largestInputResolution(input: EffectParameterInput, largest: Resolution | null): Resolution | null {
+function largestInputResolution(input: EffectPlacementInput, largest: Resolution | null): Resolution | null {
 	if (input.kind === 'texture') {
 		const size = input.resolution;
 		if (largest == null || size.width * size.height > largest.width * largest.height) return size;
@@ -416,7 +440,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 							throw new Error('Custom Shader Effect input requires a fixed uniform or texture source: ' + key);
 						}
 						source.use?.(renderer.dependencies);
-						renderer.inputs[key] = source.input;
+						renderer.inputs[key] = resolveInputSampling(source.input);
 					}
 					renderer.bindOutputTextures.set(id, allocated => { texture = allocated; });
 				},

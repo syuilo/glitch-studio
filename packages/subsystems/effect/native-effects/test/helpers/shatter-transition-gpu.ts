@@ -263,7 +263,7 @@ export async function run(includePreview = false) {
 		}
 		assert(textureA.kind === 'texture', 'texture kind');
 		if (textureA.kind === 'texture') {
-			const contained = { ...textureA, fitMode: 'contain' as const, wrapMode: 'transparent' as const, filterMode: 'nearest' as const };
+			const contained = { ...textureA, sampling: { ...textureA.sampling, fitMode: 'contain' as const, wrapMode: 'transparent' as const, filterMode: 'nearest' as const } };
 			const parameters = { inputA: contained, inputB: patternB, spread: 0, depth: 0, rotation: 0, gravity: 0, shading: 0 };
 			const assembled = await textureRender(parameters);
 			equal(assembled.pixels, (await textureRender({ ...parameters, progress: scalar(0) })).pixels, 'material honors contain transparent and nearest');

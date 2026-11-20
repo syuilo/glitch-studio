@@ -1,11 +1,11 @@
-import { toFixedShaderInput, type EffectImageInput, type EffectParameterInput, type NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
+import type { EffectParameterInput, NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import { createFixedInputBindings, type FixedInputs } from './shader-input.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
-import type { FixedShaderInputSamplingOverrides, ShaderInputSampling, ShaderInputSchema, FixedShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import type { ShaderInput, ShaderInputSamplingOverrides, ShaderInputSchema } from '@gs/shared/gpu/shader-input.ts';
 
 type ParameterValues<Inputs> = { readonly [Key in keyof Inputs]: ParameterValue<Inputs[Key]> };
-type ParameterValue<Input> = Input extends EffectImageInput ? FixedShaderInput
+type ParameterValue<Input> = Input extends ShaderInput ? Input
 	: Input extends { kind: 'value'; value: infer Value } ? Value
 	: Input extends { kind: 'array'; elements: readonly (infer Element)[] } ? readonly ParameterValue<Element>[]
 	: Input extends { kind: 'struct'; fields: infer Fields } ? ParameterValues<Fields> : never;
@@ -30,7 +30,7 @@ export function bindParameterValues<Inputs extends Readonly<Record<string, Effec
 				Object.defineProperty(target, key, { enumerable: true, value: bindParameterValues(input.fields) });
 				break;
 			default:
-				Object.defineProperty(target, key, { enumerable: true, value: toFixedShaderInput(input) });
+				Object.defineProperty(target, key, { enumerable: true, value: input });
 		}
 	}
 
@@ -52,7 +52,7 @@ export function createFixedInputPipeline<Key extends string>(inputs: FixedInputs
 	internalLayouts?: readonly GPUBindGroupLayout[];
 	sampling?: 'implicit' | 'level0';
 	scalarGradients?: boolean;
-	samplingOverrides?: FixedShaderInputSamplingOverrides;
+	samplingOverrides?: ShaderInputSamplingOverrides;
 	entryPoint?: string;
 	constants?: Record<string, number>;
 }) {
@@ -72,9 +72,4 @@ export function createFixedInputPipeline<Key extends string>(inputs: FixedInputs
 		bindings.dispose();
 		throw error;
 	}
-}
-
-/** 中間パスのtextureを固定の寸法・サンプリングで次のパスへ渡す。 */
-export function intermediateTextureInput(texture: GPUTexture, sampling: ShaderInputSampling): FixedShaderInput {
-	return { kind: 'texture', texture, resolution: texture, fitMode: sampling.fitMode, wrapMode: sampling.wrapMode, filterMode: sampling.filterMode };
 }

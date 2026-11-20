@@ -8,7 +8,7 @@ import { getImageAnalysisChunkCount } from '../image-analysis-accumulation.ts';
 import shader from './waveform.wgsl?raw';
 import type { ImageValueRange, ImageValueScale } from '../image-value-scale.ts';
 import type { ImageAnalysisMode } from '../image-analysis.ts';
-import type { FixedShaderInput, ShaderInput } from '../../gpu/shader-input.ts';
+import type { ShaderInput } from '../../gpu/shader-input.ts';
 import type { GpuImageSampleTransform } from '../../gpu/image-sample-transform.ts';
 
 // エフェクトのパラメータ定義やCanvasに依存しない共通設定。
@@ -42,7 +42,7 @@ export function createWaveform(options: {
 	/** 色の用途は呼び出し側が所有し、集計器は任意のRGBA変換だけを受け取る。 */
 	sampleTransform?: GpuImageSampleTransform;
 	/** 入力・Fit領域が固定で、全域を等倍または間引いて集計する配置用。 */
-	fixedInput?: { input: FixedShaderInput; fitSize: { width: number; height: number } };
+	fixedInput?: { input: ShaderInput; fitSize: { width: number; height: number } };
 }) {
 	const { device } = options;
 	const computeLayout = device.createBindGroupLayout({

@@ -249,7 +249,7 @@ export async function run() {
 		assert(metrics(await effect.render({ text: 'FF', translation: translationInput, rotation: rotationInput }), 256).area > 30, 'translation and rotation nodes');
 		checks.push('color node', 'translation and rotation nodes');
 		const outside = { text: 'F', position: [2, 0] as const, translation: vector([-2, 0]) };
-		assert(metrics(await effect.render({ ...outside, opacity: leftOnly.kind === 'texture' ? { ...leftOnly, wrapMode: 'transparent' } : leftOnly }), 256).area === 0, 'transparent sampling outside frame');
+		assert(metrics(await effect.render({ ...outside, opacity: leftOnly.kind === 'texture' ? { ...leftOnly, sampling: { ...leftOnly.sampling, wrapMode: 'transparent' } } : leftOnly }), 256).area === 0, 'transparent sampling outside frame');
 		assert(metrics(await effect.render({ ...outside, opacity: rightOnly }), 256).area > 30, 'offscreen base glyph translated into frame');
 		checks.push('offscreen glyphs and wrap');
 		const overlap = await effect.render({ text: 'F\nF', lineHeight: 0, opacity: scalar(0.5) });

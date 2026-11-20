@@ -89,7 +89,7 @@ const numericFftSize: Spectrum['fftSize'] = 2048;
 // @ts-expect-error 選択肢にないサイズは受け入れない。
 const unsupportedFftSize: Spectrum['fftSize'] = '123';
 const item: Nested['buzzs'][number] = { image: { kind: 'uniform', value: [1, 0, 0, 1] }, x: 0, y: 1 };
-// @ts-expect-error 構造体内でもcanNodeの色はEffectImageInput。
+// @ts-expect-error 構造体内でもcanNodeの色はShaderInput。
 const rawImage: Nested['buzzs'][number]['image'] = [1, 0, 0, 1];
 const color: Nested['bars'][number] = [1, 0, 0, 1];
 // @ts-expect-error canNodeでない色の要素は数値単体ではない。

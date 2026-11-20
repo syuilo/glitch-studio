@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { createTestInputs } from './helpers/native-inputs.ts';
 import { loadNativePreparation, preparationGpu } from './helpers/native-preparation.mjs';
 
@@ -26,8 +27,9 @@ test('provides comparable Mandelbrot workload hints and invalidates changed regi
 	assert.equal(heavier.workPerPixel, 256);
 	assert.equal(heavier.key, initial.key);
 	assert.notEqual(getHint({ ...params, view: { ...params.view, zoom: 10 } }).key, initial.key);
-	assert.notEqual(getHint({ ...params, unescapedColor: { kind: 'texture', texture: { width: 64, height: 64, createView: () => ({}) }, fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' } }).key, initial.key);
-	assert.equal(getHint({ ...params, coordinateOffset: { kind: 'texture', texture: { width: 64, height: 64, createView: () => ({}) }, fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' } }), null);
+	const textureInput = textureShaderInput({ width: 64, height: 64, createView: () => ({}) }, { fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' });
+	assert.notEqual(getHint({ ...params, unescapedColor: textureInput }).key, initial.key);
+	assert.equal(getHint({ ...params, coordinateOffset: textureInput }), null);
 });
 
 // 【高反復数のヒントを描画と同じ上限・丸めで計算する】

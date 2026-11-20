@@ -163,7 +163,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 				// 入力の1画素を出力の[-1, 1]座標へ逆変換し、抽出時のサンプル間隔にも同じfitを反映する。
 				let prefilterOffset = [0, 0];
 				if (input.kind === 'texture') {
-					const scale = inputUvScale(input.resolution, outputSize, input.fitMode);
+					const scale = inputUvScale(input.resolution, outputSize, input.sampling.fitMode);
 					prefilterOffset = [
 						Math.max(0, 1 / levels[0].texture.width - 1 / (input.resolution.width * scale[0])),
 						Math.max(0, 1 / levels[0].texture.height - 1 / (input.resolution.height * scale[1])),

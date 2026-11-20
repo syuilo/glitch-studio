@@ -1,8 +1,8 @@
 import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
-import { inputUvScale } from '@gs/shared/gpu/shader-input.ts';
+import { inputUvScale, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
-import { beginOutputPass, bindParameterValues, createFixedInputPipeline, intermediateTextureInput } from '../../multipass.ts';
+import { beginOutputPass, bindParameterValues, createFixedInputPipeline } from '../../multipass.ts';
 import commonCode, { uniforms as commonUniforms } from './common.wgsl?shader';
 import prepareCode from './prepare.wgsl?raw';
 import smoothCode from './smooth.wgsl?raw';
@@ -34,18 +34,18 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 		const views = textures.map(texture => texture.createView());
 		const prepare = input.kind === 'texture' ? createFixedInputPipeline({ input: {
 			kind: 'texture', resolution: input.resolution, get texture() { return input.texture; },
-			fitMode: 'stretch', wrapMode: input.wrapMode, filterMode: input.filterMode,
+			sampling: { ...input.sampling, fitMode: 'stretch' },
 		} }, input.resolution, {
 			...pipelineOptions, code: commonCode + '\n' + prepareCode,
 			schema: { input: 'color' }, targets: [{ format: scalarFormat }],
 		}) : null;
 		const smooth = input.kind === 'texture' ? textures.map((texture, axis) => createFixedInputPipeline({
-			luminance: intermediateTextureInput(texture, { fitMode: 'stretch', wrapMode: input.wrapMode, filterMode: input.filterMode }),
+			luminance: textureShaderInput(texture, { ...input.sampling, fitMode: 'stretch' }),
 		}, input.resolution, {
 			...pipelineOptions, code: commonCode + '\n' + smoothCode, schema: { luminance: 'scalar' },
 			targets: [{ format: scalarFormat }], constants: { HORIZONTAL: Number(axis === 0) },
 		})) : [];
-		const gradient = createFixedInputPipeline({ luminance: input.kind === 'texture' ? intermediateTextureInput(textures[0], input) : { kind: 'uniform', value: [0] } }, resolution, {
+		const gradient = createFixedInputPipeline({ luminance: input.kind === 'texture' ? textureShaderInput(textures[0], input.sampling) : { kind: 'uniform', value: [0] } }, resolution, {
 			...pipelineOptions, code: commonCode + '\n' + gradientCode, schema: { luminance: 'scalar' }, scalarGradients: true,
 			targets: [{ format: enable32bitDataTextures ? 'rg32float' : 'rg16float' }],
 		});
@@ -62,7 +62,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 				};
 				const { blurRadius, sizeReference, strength, normalize, alphaMode } = params;
 				const sigmaPixels = Math.max(0, blurRadius) * getSizeReferenceLength(sizeReference, resolution);
-				const fitScale = input.kind === 'texture' ? inputUvScale(input.resolution, resolution, input.fitMode) : [1, 1];
+				const fitScale = input.kind === 'texture' ? inputUvScale(input.resolution, resolution, input.sampling.fitMode) : [1, 1];
 				const blurSigma = [2 * sigmaPixels / resolution.width * fitScale[0], 2 * sigmaPixels / resolution.height * fitScale[1]];
 				const source = input.kind === 'texture' ? input.resolution : resolution;
 				uniformValues.set({

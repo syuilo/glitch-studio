@@ -188,19 +188,19 @@ export async function run() {
 		// 配置枠の寸法を出力全体の寸法として扱う誤りや、角度反転での鏡像化を検出する。
 		const sourcePixel = (x: number, y: number): Color => [x / 4, y / 2, 2, 0.5];
 		const source = texture(4, 2, image(4, 2, sourcePixel));
-		const cover = { ...source, fitMode: 'cover' as const };
-		const contain = { ...source, fitMode: 'contain' as const, wrapMode: 'transparent' as const };
+		const cover = { ...source, sampling: { ...source.sampling, fitMode: 'cover' as const } };
+		const contain = { ...source, sampling: { ...source.sampling, fitMode: 'contain' as const, wrapMode: 'transparent' as const } };
 		const renderFit = createEffect(8, 4);
 		compare(await renderFit({ inputA: source, inputB: cover }), image(8, 4, (x, y) => sourcePixel(x < 4 ? x : Math.floor((x - 4) / 2) + 1, Math.floor(y / 2))), 'independent stretch and cover');
 		compare(await renderFit({ inputA: source, inputB: source, angle: 0.75 }), image(8, 4, (x, y) => sourcePixel(x % 4, Math.floor(y / 2))), 'reversed direction keeps images upright');
 		compare(await renderFit({ inputA: contain, inputB: inputs.inputB }), image(8, 4, (x, y) => x >= 4 ? colorB : y === 0 || y === 3 ? transparent : sourcePixel(x, y - 1)), 'contain with transparent wrap');
 		compare(await renderFit({ inputA: inputs.inputA, inputB: source }), image(8, 4, (x, y) => x < 4 ? colorA : sourcePixel(x - 4, Math.floor(y / 2))), 'uniform and texture');
-		compare(await renderFit({ inputA: { ...contain, wrapMode: 'repeat' }, inputB: cover }), image(8, 4, (x, y) => x < 4 ? sourcePixel(x, (y + 1) % 2) : sourcePixel(Math.floor((x - 4) / 2) + 1, Math.floor(y / 2))), 'repeat inside region');
+		compare(await renderFit({ inputA: { ...contain, sampling: { ...contain.sampling, wrapMode: 'repeat' } }, inputB: cover }), image(8, 4, (x, y) => x < 4 ? sourcePixel(x, (y + 1) % 2) : sourcePixel(Math.floor((x - 4) / 2) + 1, Math.floor(y / 2))), 'repeat inside region');
 		checks.push('per-input fitting and sampling variants');
 
 		// 【1px未満の領域は、実際に覆った部分の中心から読み出す】
 		// 画素中心をそのまま使うと細い配置枠の外へ飛び、Repeatで別の色を拾ってしまう。
-		compare(await renderFit({ inputA: { ...source, wrapMode: 'repeat' }, inputB: inputs.inputB, offset: -0.46875 }), image(8, 4, (x, y) => {
+		compare(await renderFit({ inputA: { ...source, sampling: { ...source.sampling, wrapMode: 'repeat' } }, inputB: inputs.inputB, offset: -0.46875 }), image(8, 4, (x, y) => {
 			if (x > 0) return colorB;
 			return sourcePixel(2, Math.floor(y / 2)).map((value, channel) => value * 0.25 + colorB[channel] * 0.75) as Color;
 		}), 'covered sample center of subpixel region');

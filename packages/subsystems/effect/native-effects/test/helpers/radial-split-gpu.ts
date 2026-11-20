@@ -198,15 +198,15 @@ export async function run() {
 		const wide = texture(4, 2, image(4, 2, widePixel));
 		if (wide.kind !== 'texture') throw new Error('Test source must be a texture');
 		const renderFit = createEffect(12, 8);
-		const cover = { ...wide, fitMode: 'cover' as const };
-		const contain = { ...wide, fitMode: 'contain' as const, wrapMode: 'transparent' as const };
+		const cover = { ...wide, sampling: { ...wide.sampling, fitMode: 'cover' as const } };
+		const contain = { ...wide, sampling: { ...wide.sampling, fitMode: 'contain' as const, wrapMode: 'transparent' as const } };
 		const center: [number, number] = [1 / 6, 0];
 		compare(await renderFit({ inputs: [cover, cover, cover, cover], center }), image(12, 8, (x, y) => widePixel(x >= 8 ? 1 + Math.floor((x - 8) / 2) : Math.floor(x / 2), Math.floor((y % 4) / 2))), 'cover fits each independent sector rectangle');
 		compare(await renderFit({ inputs: [contain, contain, cover, cover], center }), image(12, 8, (x, y) => {
 			if (x < 8) return widePixel(Math.floor(x / 2), Math.floor((y % 4) / 2));
 			return y % 4 === 0 || y % 4 === 3 ? transparent : widePixel(x - 8, y % 4 - 1);
 		}), 'contain clips only its own square regions');
-		const repeat = { ...contain, wrapMode: 'repeat' as const };
+		const repeat = { ...contain, sampling: { ...contain.sampling, wrapMode: 'repeat' as const } };
 		compare(await renderFit({ inputs: [repeat, repeat, cover, cover], center }), image(12, 8, (x, y) =>
 			x >= 8 ? widePixel(x - 8, (y + 1) % 2) : widePixel(Math.floor(x / 2), Math.floor((y % 4) / 2))), 'wrap remains local to each fitted image');
 
@@ -242,7 +242,7 @@ export async function run() {
 		const edge = texture(2, 1, [transparent, hdr]);
 		const renderFilter = createEffect(4, 1);
 		compare(await renderFilter({ inputs: [edge] }), [transparent, transparent, hdr, hdr], 'nearest preserves HDR source pixels');
-		compare(await renderFilter({ inputs: [{ ...edge, filterMode: 'linear' }] }), [transparent, [0.5, -0.25, 0.125, 0.125], [1.5, -0.75, 0.375, 0.375], hdr], 'linear samples premultiplied HDR');
+		compare(await renderFilter({ inputs: [{ ...edge, sampling: { ...edge.sampling, filterMode: 'linear' } }] }), [transparent, [0.5, -0.25, 0.125, 0.125], [1.5, -0.75, 0.375, 0.375], hdr], 'linear samples premultiplied HDR');
 		compare(await renderFilter({ inputs: [edge] }, 10), [transparent, transparent, hdr, hdr], 'output is independent of time and previous frames');
 
 		const error = await device.popErrorScope();

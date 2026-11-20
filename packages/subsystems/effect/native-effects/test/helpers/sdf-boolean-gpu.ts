@@ -185,8 +185,8 @@ export async function run() {
 				near(cutout[y * 32 + x], -expected, 'difference with clipped B');
 			}
 			if (clipped.kind !== 'texture') throw new Error('Expected texture fixture');
-			assert((await bounded({ inputA: { ...clipped, wrapMode: 'clamp' } })).every(value => value === -2), 'clamp must extend distances');
-			const cover = await bounded({ inputA: { ...clipped, fitMode: 'cover' } });
+			assert((await bounded({ inputA: { ...clipped, sampling: { ...clipped.sampling, wrapMode: 'clamp' } } })).every(value => value === -2), 'clamp must extend distances');
+			const cover = await bounded({ inputA: { ...clipped, sampling: { ...clipped.sampling, fitMode: 'cover' } } });
 			near(cover[8 * 32 + 16], -0.484375, 'cover clipping in common units');
 			const positive = inputTexture(4, 4, Array(16).fill(0.125), { fitMode: 'contain', wrapMode: 'transparent' });
 			assert((await bounded({ inputA: positive })).every(value => value >= 0.125), 'transparent must not create a zero contour');

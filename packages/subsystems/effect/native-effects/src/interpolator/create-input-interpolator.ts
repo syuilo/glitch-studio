@@ -1,9 +1,10 @@
-import { toFixedShaderInput, type EffectImageInput, type EffectInitContext } from '@gs/subsystems_effect_renderer/effect-instance.ts';
+import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import type { EffectInitContext } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import { createFullscreenEffectWithInputVariants } from '../fullscreen-input-variants.ts';
 import shader from './interpolator.wgsl?raw';
 
 type InterpolatorInputs = {
-	inputs: { readonly kind: 'array'; readonly elements: readonly EffectImageInput[] };
+	inputs: { readonly kind: 'array'; readonly elements: readonly ShaderInput[] };
 	index: { readonly value: number };
 };
 
@@ -12,7 +13,7 @@ export function createInputInterpolator(context: EffectInitContext<InterpolatorI
 	const { inputs, index } = context.inputs;
 	// 描画ごとに隣接する最大2入力を束縛するため、候補数はGPUのテクスチャ数上限に依存せず、
 	// 各接続のFit・Wrap Mode・Filterも維持できる。
-	const candidates = inputs.elements.map(toFixedShaderInput);
+	const candidates = inputs.elements;
 	const lastIndex = Math.max(0, candidates.length - 1);
 	const blendWeight = { kind: 'uniform' as const, value: [0] };
 	const resultType = { color: 'vec4f', scalar: 'f32', vector: 'vec2f' }[type];

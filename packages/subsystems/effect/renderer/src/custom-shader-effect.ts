@@ -1,8 +1,7 @@
 import { createShaderInputBindings, generateShaderInputs } from '@gs/shared/gpu/shader-input.ts';
-import { toFixedShaderInput } from './effect-instance.ts';
-import type { FixedShaderInput, ShaderInputType } from '@gs/shared/gpu/shader-input.ts';
+import type { ShaderInput, ShaderInputType } from '@gs/shared/gpu/shader-input.ts';
 import type { CustomShaderEffect } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
-import type { EffectImageInput, EffectInitContext, EffectRenderOperation } from './effect-instance.ts';
+import type { EffectInitContext, EffectRenderOperation } from './effect-instance.ts';
 
 const wgslTypes = { scalar: 'f32', vector: 'vec2f', color: 'vec4f', any: 'vec4f' } as const;
 
@@ -10,13 +9,13 @@ const wgslTypes = { scalar: 'f32', vector: 'vec2f', color: 'vec4f', any: 'vec4f'
 export async function initCustomShaderEffect(definition: CustomShaderEffect, context: EffectInitContext): Promise<EffectRenderOperation> {
 	const { device, resolution } = context;
 	const schema: Record<string, ShaderInputType> = Object.create(null);
-	const inputs: Record<string, FixedShaderInput> = Object.create(null);
+	const inputs: Record<string, ShaderInput> = Object.create(null);
 	const readers: string[] = [];
 	const longSide = Math.max(resolution.width, resolution.height);
 	for (const [id, parameter] of Object.entries(definition.paramDefs)) {
 		const key = 'gs_input' + readers.length;
 		schema[key] = parameter.dataType.kind;
-		inputs[key] = toFixedShaderInput(context.inputs[id] as EffectImageInput);
+		inputs[key] = context.inputs[id] as ShaderInput;
 		// 共通の等方座標を、fit/wrap/filterが受け取る各軸[-1, +1]の画像参照座標に戻す。
 		readers.push(`fn read_${parameter.nameForReference}(position: vec2f) -> ${wgslTypes[parameter.dataType.kind]} {
 	return read_${key}(position * ${longSide * 2}.0 / gs_resolution);

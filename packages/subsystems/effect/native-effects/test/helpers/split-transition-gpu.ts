@@ -189,8 +189,8 @@ export async function run() {
 		const sourcePixel = (x: number, y: number): Color => [x / 4, y / 2, 2, 0.5];
 		const source = texture(4, 2, image(4, 2, sourcePixel));
 		if (source.kind !== 'texture') throw new Error('Test source must be a texture');
-		const cover = { ...source, fitMode: 'cover' as const };
-		const contain = { ...source, fitMode: 'contain' as const, wrapMode: 'transparent' as const };
+		const cover = { ...source, sampling: { ...source.sampling, fitMode: 'cover' as const } };
+		const contain = { ...source, sampling: { ...source.sampling, fitMode: 'contain' as const, wrapMode: 'transparent' as const } };
 		const renderFit = createEffect(8, 4);
 		compare(await renderFit({ inputA: source, inputB: cover, progress: 0.5 }), image(8, 4, (x, y) => sourcePixel(x < 4 ? x : Math.floor((x - 4) / 2) + 1, Math.floor(y / 2))), 'stretch and cover fit each square region');
 		compare(await renderFit({ inputA: source, inputB: cover, progress: 0.25 }), image(8, 4, (x, y) => sourcePixel(x < 6 ? Math.floor((x + 0.5) * 4 / 6) : x - 5, Math.floor(y / 2))), 'unequal regions have independent fitting');
@@ -205,7 +205,7 @@ export async function run() {
 		compare(await renderFit({ inputA: inputs.inputA, inputB: source, progress: 0.5 }), image(8, 4, (x, y) => x < 4 ? colorA : sourcePixel(x - 4, Math.floor(y / 2))), 'uniform and texture input variant');
 		const tall = texture(2, 4, image(2, 4, () => colorB), { fitMode: 'contain', wrapMode: 'transparent' });
 		compare(await renderFit({ inputA: contain, inputB: tall, progress: 0.5 }), image(8, 4, (x, y) => x < 4 ? y === 0 || y === 3 ? transparent : sourcePixel(x, y - 1) : x === 4 || x === 7 ? transparent : colorB), 'different source aspect ratios');
-		compare(await renderFit({ inputA: { ...contain, wrapMode: 'repeat' }, inputB: cover, progress: 0.5 }), image(8, 4, (x, y) => x < 4 ? sourcePixel(x, (y + 1) % 2) : sourcePixel(Math.floor((x - 4) / 2) + 1, Math.floor(y / 2))), 'wrap applies inside each region');
+		compare(await renderFit({ inputA: { ...contain, sampling: { ...contain.sampling, wrapMode: 'repeat' } }, inputB: cover, progress: 0.5 }), image(8, 4, (x, y) => x < 4 ? sourcePixel(x, (y + 1) % 2) : sourcePixel(Math.floor((x - 4) / 2) + 1, Math.floor(y / 2))), 'wrap applies inside each region');
 		checks.push('per-region fitting and unmapped image orientation');
 
 		// 【入力のFilterを切り替えてもHDRと乗算済みRGBAをそのまま補間する】
@@ -213,7 +213,7 @@ export async function run() {
 		const edge = texture(2, 1, [transparent, colorA]);
 		const renderFilter = createEffect(4, 1);
 		compare(await renderFilter({ inputA: edge }), [transparent, transparent, colorA, colorA], 'nearest preserves source pixels');
-		const linearEdge = { ...edge, filterMode: 'linear' as const };
+		const linearEdge = { ...edge, sampling: { ...edge.sampling, filterMode: 'linear' as const } };
 		compare(await renderFilter({ inputA: linearEdge }), [transparent, weightedColor(0.25, 0), weightedColor(0.75, 0), colorA], 'linear interpolates premultiplied HDR pixels');
 		compare(await renderFilter({ inputB: linearEdge, progress: 1, reverse: true }), [transparent, weightedColor(0.25, 0), weightedColor(0.75, 0), colorA], 'B endpoint follows sampling settings');
 		checks.push('input filters and endpoint sampling');
@@ -221,7 +221,7 @@ export async function run() {
 		// 【端点に近づいた画像は連続的に全面へ戻り、時刻や過去の描画に依存しない】
 		// Gapを端点だけ無効化する実装では、直前との間で画像の配置が飛ぶ。
 		const renderContinuity = createEffect(16, 8);
-		const smooth = { ...cover, filterMode: 'linear' as const };
+		const smooth = { ...cover, sampling: { ...cover.sampling, filterMode: 'linear' as const } };
 		for (const direction of ['horizontal', 'vertical'] as const) {
 			for (const reverse of [false, true]) {
 				for (const progress of [0, 1]) {

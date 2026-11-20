@@ -47,11 +47,11 @@ export function createTimelineCompositor(options: {
 		let layerMaskTexture: GPUTexture;
 		// 画像の配置と範囲は合成設定で計算済み。ここでは各画像の範囲内をstretchで読み、
 		// テクスチャや描画先の物理寸法が変わってもサンプリング情報を作り直さない。
-		const sampling = { kind: 'texture', fitMode: 'stretch', wrapMode: 'transparent', filterMode: 'linear', resolution } as const;
+		const textureInput = { kind: 'texture', resolution, sampling: { fitMode: 'stretch', wrapMode: 'transparent', filterMode: 'linear' } } as const;
 		const inputs = {
-			background: { ...sampling, get texture() { return backgroundTexture; } },
-			source: { ...sampling, get texture() { return sourceTexture; } },
-			layerMask: { ...sampling, get texture() { return layerMaskTexture; } },
+			background: { ...textureInput, get texture() { return backgroundTexture; } },
+			source: { ...textureInput, get texture() { return sourceTexture; } },
+			layerMask: { ...textureInput, get texture() { return layerMaskTexture; } },
 		};
 		const generated = generateShaderInputs({ background: 'color', source: 'color', layerMask: 'color' }, inputs, textureInputGroup, 'level0');
 		const bindings = createShaderInputBindings(device, generated);

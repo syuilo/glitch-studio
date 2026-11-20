@@ -1,4 +1,5 @@
 import { scaleResolution } from '@gs/shared/resolution.ts';
+import { textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { createTimelineCompositor } from '../../timeline-compositor.ts';
 import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
@@ -54,13 +55,7 @@ export function createImageTimelineLayer(layer: TimelineImageLayer, sourceTextur
 					});
 					// Asset側で既にpremultiply済みなので、RGBAをそのまま補間する。
 					const variant = scalingPipeline.update({
-						source: {
-							kind: 'texture',
-							texture: sourceTexture,
-							fitMode: 'stretch',
-							wrapMode: 'clamp',
-							filterMode: 'linear',
-						},
+						source: textureShaderInput(sourceTexture, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' }),
 					}, sourceResolution);
 					const pass = encoder.beginRenderPass({
 						colorAttachments: [{

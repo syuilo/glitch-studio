@@ -9,7 +9,7 @@ import commonCode, { uniforms as commonCodeUniforms } from './common.wgsl?shader
 import transplantCode from './transplant.wgsl?raw';
 import outputCode from './output.wgsl?raw';
 import type { NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
-import type { FixedShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type definition from './_def_.ts';
 
 const inputSchema = { input: 'color', donor: 'color' } as const;
@@ -99,10 +99,10 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 				throw error;
 			}
 		};
-		const getSamplingGrid = (input: FixedShaderInput, virtualSize: readonly number[]) => {
+		const getSamplingGrid = (input: ShaderInput, virtualSize: readonly number[]) => {
 			if (input.kind === 'uniform') return [1, 1];
 			// 各入力のfitを考慮して縮小範囲を分割する。異なる原寸の画像を混ぜても同じ仮想座標へ合わせる。
-			const scale = inputUvScale(input.resolution, resolution, input.fitMode);
+			const scale = inputUvScale(input.resolution, resolution, input.sampling.fitMode);
 			return [
 				clamp(Math.ceil(input.resolution.width * scale[0] / virtualSize[0]), 1, 16),
 				clamp(Math.ceil(input.resolution.height * scale[1] / virtualSize[1]), 1, 16),

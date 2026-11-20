@@ -150,7 +150,7 @@ export async function run() {
 		const stripe = image(2, 1, [0, 1]);
 		compareColors(await render({ input: stripe, iterations: 1 }), rows([1, 1, 0, 0], 4), 'nearest sampling');
 		const weights = [0.625, 0.875, 1, 1, 0.625, 0.875, 1, 1, 0, 0, 0.125, 0.375, 0, 0, 0.125, 0.375];
-		compare(await render({ input: { ...stripe, filterMode: 'linear' }, iterations: 1 }), weights.flatMap(weight => colors[1].map(value => value * weight)), 'linear sampling');
+		compare(await render({ input: { ...stripe, sampling: { ...stripe.sampling, filterMode: 'linear' } }, iterations: 1 }), weights.flatMap(weight => colors[1].map(value => value * weight)), 'linear sampling');
 		checks.push('nearest and linear filters apply once at the transformed position');
 
 		// 【Fit後の余白にも接続のWrapを適用する】縦長入力をContainすると、変換後の参照点が
@@ -159,7 +159,7 @@ export async function run() {
 		for (const wrapMode of ['clamp', 'repeatMirrored', 'repeat', 'transparent'] as const) {
 			const top = wrapMode === 'transparent' ? [2, 2, 2, 2, 0, 0, 0, 0] : wrapMode === 'repeat' ? [2, 2, 2, 2, 1, 1, 1, 1] : Array<number>(8).fill(2);
 			const bottom = wrapMode === 'transparent' ? [0, 0, 0, 0, 1, 1, 1, 1] : wrapMode === 'repeat' ? top : Array<number>(8).fill(1);
-			compareColors(await larger({ input: { ...tall, wrapMode }, iterations: 1 }), [...columns(top, 4), ...columns(bottom, 4)], `contain and ${wrapMode}`);
+			compareColors(await larger({ input: { ...tall, sampling: { ...tall.sampling, wrapMode } }, iterations: 1 }), [...columns(top, 4), ...columns(bottom, 4)], `contain and ${wrapMode}`);
 		}
 		checks.push('contain fit preserves transparent repeat clamp and mirrored wrapping');
 		return { checks };

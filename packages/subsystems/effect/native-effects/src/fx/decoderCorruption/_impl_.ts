@@ -191,7 +191,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 				}
 				let samplingGrid = [1, 1];
 				if (params.input.kind === 'texture') {
-					const scale = inputUvScale(params.input.resolution, resolution, params.input.fitMode);
+					const scale = inputUvScale(params.input.resolution, resolution, params.input.sampling.fitMode);
 					samplingGrid = [
 						clamp(Math.ceil(params.input.resolution.width * scale[0] / geometry.virtualSize[0]), 1, 8),
 						clamp(Math.ceil(params.input.resolution.height * scale[1] / geometry.virtualSize[1]), 1, 8),

@@ -1,9 +1,9 @@
 # 生成するシェーダー入力
 
-Native Effectの `canNode: true` パラメータは `init()` の `inputs` から `EffectImageInput` として受け取る。構造体・配列内の末端にも同じ規約を適用する。配列は `elements`、構造体は `fields` を持つ。 [Effectの入力型](../renderer/src/effect-instance.ts)
+Native Effectの `canNode: true` パラメータは `init()` の `inputs` から `ShaderInput` として受け取る。構造体・配列内の末端にも同じ規約を適用する。配列は `elements`、構造体は `fields` を持つ。 [Effectの入力型](../renderer/src/effect-instance.ts)
 
 - `uniform` は画面全体で同じ値。リテラルだけでなく式やAutomation Graphの評価値も含む。f32のuniformへ書き込み、1×1テクスチャを作らない。`enable32bitDataTextures` はテクスチャの保存精度を指定する。
-- `texture` は接続元の出力とその寸法を借用する。Fit／Wrap／Filterは受け取り側のBindingが指定し、既定の組み合わせは `cover` / `repeatMirrored` / `linear`。入力テクスチャの保存形式は維持する。
+- `texture` は接続元の出力とその `resolution` を借用する。Fit／Wrap／Filterは受け取り側のBindingから `sampling` へ渡し、配置計画で `cover` / `repeatMirrored` / `linear` の既定値を補う。入力テクスチャの保存形式は維持する。
 - 色の定数はレンダラーで一度だけpremultiplyする。画像テクスチャも乗算済みの色として読む。スカラー・ベクトル・汎用データは成分をそのまま読む。未接続の入力はパラメータの既定値を使う。
 
 `generateShaderInputs()` は宣言、`read_<入力名>(position)` 関数、binding配置を同時に生成する。引数は中央原点、+Yが上の[-1, 1]座標。スカラーはf32、ベクトルはvec2f、色・汎用データはvec4fを返す。入力名はWGSLの識別子として有効な固定名を使う。 [共通の入力生成](../../../shared/src/gpu/shader-input.ts)
@@ -18,7 +18,7 @@ Native Effectの `canNode: true` パラメータは `init()` の `inputs` から
 
 ## 配列入力
 
-schemaに `{ images: { array: 'color' } }` と指定すると、`EffectImageInput` を要素に持つ配列を渡せる。scalar/vector/color/anyの配列と固定入力を混在できる。構造体配列は `elements` から各要素の `fields` をたどって必要なフィールドを取り出す。
+schemaに `{ images: { array: 'color' } }` と指定すると、`ShaderInput` を要素に持つ配列を渡せる。scalar/vector/color/anyの配列と単一入力を混在できる。構造体配列は `elements` から各要素の `fields` をたどって必要なフィールドを取り出す。
 
 次の例では `images` の各要素と `selector` に `canNode: true` を指定する。
 

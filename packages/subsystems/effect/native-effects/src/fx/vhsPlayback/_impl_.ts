@@ -10,8 +10,7 @@ import surfaceCode from './tape-surface.wgsl?raw';
 import playbackCode from './playback.wgsl?raw';
 import outputCode from './output.wgsl?raw';
 import type { NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
-import type { FixedShaderInput } from '@gs/shared/gpu/shader-input.ts';
-import type { ShaderInputValues } from '@gs/shared/gpu/shader-input.ts';
+import type { ShaderInput, ShaderInputValues } from '@gs/shared/gpu/shader-input.ts';
 import type definition from './_def_.ts';
 
 const imageSchema = { input: 'color' } as const;
@@ -156,7 +155,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 					|| !params.backgroundColor.every(Number.isFinite)) throw new Error('VHS Playback: parameters must be finite.');
 				let samplingGrid = [1, 1];
 				if (params.input.kind === 'texture') {
-					const scale = inputUvScale(params.input.resolution, resolution, params.input.fitMode);
+					const scale = inputUvScale(params.input.resolution, resolution, params.input.sampling.fitMode);
 					samplingGrid = [
 						clamp(Math.ceil(params.input.resolution.width * scale[0] / (VHS_SIGNAL.basebandSamples * VHS_SIGNAL.activeDuration / VHS_SIGNAL.linePeriod)), 1, 8),
 						clamp(Math.ceil(params.input.resolution.height * scale[1] / VHS_SIGNAL.activeLineCount), 1, 8),
@@ -170,9 +169,10 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 				});
 				const surfaceLength = clamp(params.tapeSurfaceLength, 0.05, 60);
 				surfaceReference.width = VHS_TAPE.speedMetersPerSecond * surfaceLength;
-				const mappingFor = (input: FixedShaderInput) => {
-					const scaleX = input.kind === 'texture' ? inputUvScale(input.resolution, surfaceReference, input.fitMode)[0] : 1;
-					const wrapPeriod = input.kind === 'uniform' || input.wrapMode === 'repeat' ? 1 : input.wrapMode === 'repeatMirrored' ? 2 : null;
+				const mappingFor = (input: ShaderInput) => {
+					const scaleX = input.kind === 'texture' ? inputUvScale(input.resolution, surfaceReference, input.sampling.fitMode)[0] : 1;
+					const wrapMode = input.kind === 'texture' ? input.sampling.wrapMode : 'repeat';
+					const wrapPeriod = wrapMode === 'repeat' ? 1 : wrapMode === 'repeatMirrored' ? 2 : null;
 					return createVhsTapeSurfaceMapping({ fieldTime: transport.fieldTime, lengthSeconds: surfaceLength, offsetSeconds: params.tapeSurfaceOffset, horizontalInputScale: scaleX, wrapPeriod });
 				};
 				device.queue.writeBuffer(buffers.get(10)!, 0, transport.lineStates);

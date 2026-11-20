@@ -1,7 +1,7 @@
-import { createShaderInputBindings, generateShaderInputs, shaderInputVariantKey, type FixedShaderInput, type ShaderInputType } from '@gs/shared/gpu/shader-input.ts';
+import { createShaderInputBindings, generateShaderInputs, shaderInputVariantKey, type ShaderInput, type ShaderInputType } from '@gs/shared/gpu/shader-input.ts';
 import type { EffectInitContext, EffectRenderOperation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 
-type FullscreenInputs<Key extends string> = Readonly<Record<Key, FixedShaderInput>>;
+type FullscreenInputs<Key extends string> = Readonly<Record<Key, ShaderInput>>;
 
 /** 描画対象の入力がフレームごとに変わる全画面パス。入力種別ごとのpipelineを初期化時に生成する。 */
 export async function createFullscreenEffectWithInputVariants<Key extends string>(context: EffectInitContext<unknown>, options: {

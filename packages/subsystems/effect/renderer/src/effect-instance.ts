@@ -1,4 +1,5 @@
-import type { FixedShaderInput, ShaderInputSampling } from '@gs/shared/gpu/shader-input.ts';
+import type { ShaderInput, TextureShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import type { UniformValue } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { StaticSettingDataType, StaticSettingDefinitions, StaticSettingValue, StaticSettingValues } from '@gs/shared/static-setting.ts';
 import type { FileSource } from '@gs/shared/file-source.ts';
@@ -17,22 +18,15 @@ export type EffectTextureOutput = {
 	readonly version?: number;
 };
 
+type EffectTextureInput = TextureShaderInput & Pick<EffectTextureOutput, 'version'>;
+
 /** 種別と寸法は配置の寿命中固定する。値・借用テクスチャはgetterでフレームごとの内容を渡せる。 */
-export type EffectImageInput =
-	| { readonly kind: 'uniform'; readonly value: readonly number[] }
-	| (EffectTextureOutput & { readonly sampling?: ShaderInputSampling });
-
-export function toFixedShaderInput(input: EffectImageInput): FixedShaderInput {
-	if (input.kind === 'uniform') return input;
-	const sampling = input.sampling ?? { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
-	return { kind: 'texture', ...sampling, resolution: input.resolution, get texture() { return input.texture; } };
-}
-
-export type EffectParameterInput =
-	| EffectImageInput
+export type EffectParameterInput<TextureInput extends EffectTextureOutput = EffectTextureInput> =
+	| Readonly<UniformValue>
+	| TextureInput
 	| { readonly kind: 'value'; readonly value: unknown }
-	| { readonly kind: 'array'; readonly elements: readonly EffectParameterInput[] }
-	| { readonly kind: 'struct'; readonly fields: Readonly<Record<string, EffectParameterInput>> };
+	| { readonly kind: 'array'; readonly elements: readonly EffectParameterInput<TextureInput>[] }
+	| { readonly kind: 'struct'; readonly fields: Readonly<Record<string, EffectParameterInput<TextureInput>>> };
 
 export interface EffectFrameContext {
 	/** 呼び出し側が選んだ内容時刻（秒）。 */
@@ -99,7 +93,7 @@ export interface EffectGpuContext {
 }
 
 // データの構造とパラメータの定義を並行してたどり、子の設定にも同じcanNodeの規約を適用する。
-type NativeEffectInput<D extends DataType, Settings> = Settings extends { canNode: true } ? EffectImageInput
+type NativeEffectInput<D extends DataType, Settings> = Settings extends { canNode: true } ? ShaderInput
 	: D extends { kind: 'array'; elementType: infer Element extends DataType } ? {
 		readonly kind: 'array';
 		readonly elements: readonly NativeEffectInput<Element, Settings extends { element: infer S } ? S : never>[];

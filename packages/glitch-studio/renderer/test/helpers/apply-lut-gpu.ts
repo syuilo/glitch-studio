@@ -4,7 +4,7 @@ import definition from '@gs/subsystems_effect_native-effects/fx/applyLut/_def_.t
 import implementation from '@gs/subsystems_effect_native-effects/fx/applyLut/_impl_.ts';
 import { createLutLayout, createLutResources } from '@gs/subsystems_effect_native-effects/fx/applyLut/lut-resources.ts';
 import { parseCubeLut } from '@gs/subsystems_effect_native-effects/fx/applyLut/cube.ts';
-import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import { textureShaderInput, type ShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { linearSrgbToSrgb, srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 
@@ -134,13 +134,8 @@ export async function run() {
 				if (boundary < size) await draw('1D row boundary', `LUT_1D_SIZE ${size}\n${longRows.join('\n')}`, [value, value, value, 1], [0.5, 0.5, 0.5, 1]);
 				inputTexture = device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 				device.queue.writeTexture({ texture: inputTexture }, new Uint8Array([64, 32, 16, 128]), {}, [1, 1]);
-				await draw('texture input', identity, [], [64 / 255, 32 / 255, 16 / 255, 128 / 255], {
-					kind: 'texture',
-					texture: inputTexture,
-					fitMode: 'cover',
-					wrapMode: 'clamp',
-					filterMode: 'linear',
-				});
+				await draw('texture input', identity, [], [64 / 255, 32 / 255, 16 / 255, 128 / 255],
+					textureShaderInput(inputTexture, { fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' }));
 			} finally { inputTexture?.destroy(); }
 		}
 		// 【GPU制限と16bitの範囲外を明示的なエラーにする】

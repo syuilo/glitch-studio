@@ -208,7 +208,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 					const captureSize = resources.levels[0].texture;
 					captureStep = [2 / captureSize.width, 2 / captureSize.height];
 					if (params.input.kind === 'texture') {
-						const scale = inputUvScale(params.input.resolution, resolution, params.input.fitMode);
+						const scale = inputUvScale(params.input.resolution, resolution, params.input.sampling.fitMode);
 						captureGrid = [
 							Math.min(16, Math.max(1, Math.ceil(params.input.resolution.width * scale[0] / captureSize.width))),
 							Math.min(16, Math.max(1, Math.ceil(params.input.resolution.height * scale[1] / captureSize.height))),

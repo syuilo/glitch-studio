@@ -1,7 +1,7 @@
 import type { DataType } from '@gs/shared/data-type/data-type.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { EffectParameterInput } from '@gs/subsystems_effect_renderer/effect-instance.ts';
-import { constantShaderInputComponents, type ShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import { constantShaderInputComponents, type ShaderInput, type TextureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 
 type Values = Record<string, unknown>;
 type InputSettings = { canNode?: boolean; element?: InputSettings; fields?: Readonly<Record<string, InputSettings>> };
@@ -30,9 +30,8 @@ function testInput(type: DataType, settings: InputSettings, read: () => unknown)
 		} };
 	}
 	if (input?.kind === 'texture') {
-		return { kind: 'texture', resolution: { width: input.texture.width, height: input.texture.height },
-			sampling: { fitMode: input.fitMode, filterMode: input.filterMode, wrapMode: input.wrapMode },
-			get texture() { return (read() as Extract<ShaderInput, { kind: 'texture' }>).texture; } };
+		return { kind: 'texture', resolution: input.resolution, sampling: input.sampling,
+			get texture() { return (read() as TextureShaderInput).texture; } };
 	}
 	if (settings.canNode === true) {
 		return { kind: 'uniform', get value() { return constantShaderInputComponents(type.kind, read()); } };

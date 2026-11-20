@@ -18,7 +18,7 @@
 
 ## 入力とWGSL
 
-- `canNode: true`のパラメータは、定数でも接続でも`EffectImageInput`として受け取る。配列・構造体の内部も同じ。`uniform`と`texture`の両方を扱い、定数を不要な1×1テクスチャへ変換しない。
+- `canNode: true`のパラメータは、定数でも接続でも`ShaderInput`として受け取る。配列・構造体の内部も同じ。`uniform`と`texture`の両方を扱い、定数を不要な1×1テクスチャへ変換しない。
 - `init()`の`inputs`で配列は`elements`、構造体は`fields`からたどる。接続に対応しない末端の値は`value`から読む。入力種別・構造・寸法・サンプリングは配置中固定され、描画時にgetterから現在の値や借用テクスチャを読む。配列・構造体を展開して扱う場合は[`bindParameterValues()`](src/multipass.ts)でgetterを保持できる。
 - 入力で結果が決まる1パスの全画面描画には[`createFullscreenEffect()`](src/fullscreen-effect.ts)を使える。独自のパスでは[`createNativeEffectInputBindings()`](src/shader-input.ts)や[`createFixedInputPipeline()`](src/multipass.ts)を使い、初期化時にそのパスの実際の出力寸法を渡す。bind groupは描画時に`getBindGroup()`で取得する。WGSLの`read_<入力名>(position)`は中央原点・+Yが上の各軸`[-1, +1]`を受け取り、接続ごとのFit / Wrap / Filterを適用する。
 - computeや画素ごとに異なる分岐から入力を読む場合は`sampling: 'level0'`を指定する。厳密な整数画素参照などの専用処理は必要に応じて直接実装する。配列入力や低レベルAPIの詳細は[生成するシェーダー入力](SHADER_INPUTS.md)を参照する。
@@ -31,7 +31,7 @@
 - 公開する位置・移動ベクトル・距離・SDFは「長辺全体=1」、中央`[0, 0]`、右が+X、上が+Y。正方形の端は±0.5。画像参照用の内部座標との境界で`@gs/shared/spatial-coordinate.ts`を使って換算する。SDFは内側が負、外側が正。詳細は[空間座標](../../../../docs/spatial-coordinate.md)を参照する。
 - 見た目の寸法の換算には専用型`sizeReference`と`getSizeReferenceLength()`を使い、既定値は`longSide`とする。位置・ベクトル・SDFの単位は変えない。詳細は[Size Reference](../../../../docs/size-reference.md)を参照する。
 - 角度は1を1周とするturn単位。`ctx.time`は秒、`ctx.timeDelta`はミリ秒なので混同しない。ポインターの位置・移動量も長辺全体=1の共通単位。
-- 画像の入出力はpremultiplied alphaのlinear sRGB、形式は`INTERMEDIATE_TEXTURE_FORMAT`（`rgba16float`）。保存色・通常の色パラメータは未乗算linear sRGBだが、色の`EffectImageInput`は既に乗算済みなので再乗算しない。色を生成する境界では一度だけpremultiplyする。
+- 画像の入出力はpremultiplied alphaのlinear sRGB、形式は`INTERMEDIATE_TEXTURE_FORMAT`（`rgba16float`）。保存色・通常の色パラメータは未乗算linear sRGBだが、色の`ShaderInput`は既に乗算済みなので再乗算しない。色を生成する境界では一度だけpremultiplyする。
 - HDR・負のRGBを保持し、仕様上必要な場合以外は0〜1へclampしない。透明・半透明も正しく扱う。知覚色空間や映像信号で計算する場合も出力をlinearへ戻す。詳細は[色空間](../../../../docs/color-management.md)を参照する。
 - `scalar` / `vector` / `any`は色ではなく、色変換・alpha乗算を行わない。出力はそれぞれ`r` / `rg` / `rgba`のfloat形式で、`enable32bitDataTextures`に応じて16bit / 32bitを選ぶ。画像の形式にはこの設定を適用しない。
 

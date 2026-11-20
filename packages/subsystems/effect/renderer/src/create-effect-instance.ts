@@ -10,7 +10,7 @@ import { planEffect, type EffectPlacement, type EvaluateStep } from './plan-effe
 import type { EffectRenderTilingProgressObserver } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { EffectGpuContext, EffectInitContext, EffectInstance, EffectFrameContext, EffectRenderContext, NativeEffectImplementation } from './effect-instance.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-export type { EffectPlacement } from './plan-effect.ts';
+export type { EffectPlacement, EffectPlacementInput } from './plan-effect.ts';
 export type { EffectStaticResourceContext } from './effect-static-settings.ts';
 
 function outputFormat(type: TextureDataType, enable32bitDataTextures: boolean): GPUTextureFormat {

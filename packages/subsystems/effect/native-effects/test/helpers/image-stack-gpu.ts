@@ -154,11 +154,11 @@ export async function run() {
 		const source = texture(4, 2, image(4, 2, sourcePixel));
 		if (source.kind !== 'texture') throw new Error('Test source must be a texture');
 		const renderFit = createEffect(8, 4);
-		const cover = { ...source, fitMode: 'cover' as const };
-		const contain = { ...source, fitMode: 'contain' as const, wrapMode: 'transparent' as const };
+		const cover = { ...source, sampling: { ...source.sampling, fitMode: 'cover' as const } };
+		const contain = { ...source, sampling: { ...source.sampling, fitMode: 'contain' as const, wrapMode: 'transparent' as const } };
 		compare(await renderFit({ inputs: [source, cover] }), image(8, 4, (x, y) => sourcePixel(x < 4 ? x : Math.floor((x - 4) / 2) + 1, Math.floor(y / 2))), 'stretch and cover fit each square cell');
 		compare(await renderFit({ inputs: [contain, inputs[0]] }), image(8, 4, (x, y) => x >= 4 ? red : y === 0 || y === 3 ? transparent : sourcePixel(x, y - 1)), 'contain has transparent margins in its own region');
-		compare(await renderFit({ inputs: [{ ...contain, wrapMode: 'repeat' }, cover] }), image(8, 4, (x, y) =>
+		compare(await renderFit({ inputs: [{ ...contain, sampling: { ...contain.sampling, wrapMode: 'repeat' } }, cover] }), image(8, 4, (x, y) =>
 			x < 4 ? sourcePixel(x, (y + 1) % 2) : sourcePixel(Math.floor((x - 4) / 2) + 1, Math.floor(y / 2))), 'wrap applies inside each region');
 		compare(await renderFit({ inputs: [source, source], direction: 'vertical' }), image(8, 4, (x, y) => sourcePixel(Math.floor(x / 2), y % 2)), 'vertical textures keep their orientation');
 
@@ -173,7 +173,7 @@ export async function run() {
 		const edge = texture(2, 1, [transparent, hdr]);
 		const renderFilter = createEffect(4, 1);
 		compare(await renderFilter({ inputs: [edge] }), [transparent, transparent, hdr, hdr], 'nearest preserves source pixels');
-		compare(await renderFilter({ inputs: [{ ...edge, filterMode: 'linear' }] }), [transparent, [0.5, -0.25, 0.125, 0.125], [1.5, -0.75, 0.375, 0.375], hdr], 'linear interpolates premultiplied HDR pixels');
+		compare(await renderFilter({ inputs: [{ ...edge, sampling: { ...edge.sampling, filterMode: 'linear' } }] }), [transparent, [0.5, -0.25, 0.125, 0.125], [1.5, -0.75, 0.375, 0.375], hdr], 'linear interpolates premultiplied HDR pixels');
 		compare(await renderFilter({ inputs: [edge] }, 10), [transparent, transparent, hdr, hdr], 'rendering is independent of time and prior frames');
 
 		const error = await device.popErrorScope();

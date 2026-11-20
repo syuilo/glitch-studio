@@ -1,8 +1,8 @@
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
-import { beginOutputPass, bindParameterValues, createFixedInputPipeline, intermediateTextureInput } from '../../multipass.ts';
+import { beginOutputPass, bindParameterValues, createFixedInputPipeline } from '../../multipass.ts';
 import code from './shader.wgsl?raw';
 import type { NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
-import type { FixedShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import { textureShaderInput, type ShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import type definition from './_def_.ts';
 
 const implementation: NativeEffectImplementation<typeof definition.paramDefs> = {
@@ -33,7 +33,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			layout: uniformLayout,
 			entries: [{ binding: 0, resource: { buffer: uniformBuffer, size: uniformByteLength } }],
 		});
-		const createStage = (input: FixedShaderInput) => createFixedInputPipeline({ input }, resolution, {
+		const createStage = (input: ShaderInput) => createFixedInputPipeline({ input }, resolution, {
 			device,
 			vertex: context.defaultVertexShaderModule,
 			code,
@@ -51,7 +51,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 		const intermediates = Array.from({ length: params.input.kind === 'texture' ? Math.min(2, Math.max(0, maximumPasses - 1)) : 0 }, () => {
 			const texture = device.createTexture({ size: resolution, format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
 			// 出力画素に揃った最大値・最小値を次の段へ渡す。nearestで離散的な結果を保ち、補間で新しい値を作らない。
-			return { texture, view: texture.createView(), stage: createStage(intermediateTextureInput(texture, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' })) };
+			return { texture, view: texture.createView(), stage: createStage(textureShaderInput(texture, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' })) };
 		});
 		return {
 			cacheKey: 0,

@@ -174,11 +174,11 @@ export async function run() {
 			const invertedBounds = await bounded({ ...boundedParameters, invert: true });
 			for (let index = 0; index < nearest.length; index++) near(invertedBounds[index], 1 - nearest[index], 'invert after transparent coverage');
 			if (transparentZero.kind !== 'texture') throw new Error('Expected texture fixture');
-			const linearBounds = await bounded({ ...boundedParameters, input: { ...transparentZero, filterMode: 'linear' } });
+			const linearBounds = await bounded({ ...boundedParameters, input: { ...transparentZero, sampling: { ...transparentZero.sampling, filterMode: 'linear' } } });
 			for (const [x, expected] of [[0, 0], [3, 0.25], [4, 0.75], [7, 1], [11, 0.75], [12, 0.25], [15, 0]]) near(linearBounds[4 * 16 + x], expected, 'transparent linear coverage');
 			const positive = inputTexture(4, 4, Array(16).fill(0.125), { fitMode: 'contain', wrapMode: 'transparent' });
 			assert((await bounded({ input: positive, feather: 0.25 })).every(value => value === 0), 'transparent SDF must not gain a feather halo');
-			assert((await bounded({ ...boundedParameters, input: { ...transparentZero, wrapMode: 'clamp' } })).every(value => value === 1), 'clamp extends SDF');
+			assert((await bounded({ ...boundedParameters, input: { ...transparentZero, sampling: { ...transparentZero.sampling, wrapMode: 'clamp' } } })).every(value => value === 1), 'clamp extends SDF');
 			checks.push(`${label}: transparent nearest linear feather and inversion order`);
 
 			// 【repeatとmirror-repeat】透明余白の専用処理が通常のwrapを上書きせず、

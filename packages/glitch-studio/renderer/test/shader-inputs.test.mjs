@@ -492,22 +492,27 @@ test('publishes direct graph outputs in placements with a texture input', async 
 // 【ID付き配列から接続と定数を評価し、エフェクトへは通常の配列を渡す】
 // 構造体配列内の接続・定数を解決し、要素の変更でレンダラーのキャッシュも更新する。
 // 保存用のラッパーをGPU入力へ渡したり、接続設定の走査を落としたりしないことを確認する。
+// 公開入力の転送元に別の設定があっても、実際に読む接続が設定と既定値を決める。
 test('resolves nested array inputs and invalidates sampling changes', async t => {
 	const { device, encoder } = gpuFixture(), texture = device.createTexture({ size: [4, 2] });
 	const candidate = definition.paramDefs.inputA;
 	const array = { dataType: { kind: 'array', elementType: candidate.dataType }, ui: { label: 'Items', control: { element: {} } },
 		element: { canNode: true, defaultValue: candidate.defaultValue }, defaultValue: literal([]) };
-	for (const filterMode of ['linear', 'nearest']) {
-		const sampling = { fitMode: 'contain', wrapMode: 'transparent', filterMode };
+	const defaultSampling = { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
+	const upstreamSampling = { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' };
+	for (const sampling of [undefined, { fitMode: 'contain', wrapMode: 'transparent', filterMode: 'linear' },
+		{ fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' }]) {
 		const graph = { ...publicGraph, nodes: [{ id: 'probe', effectSource: native('probe'), params: { items: literal([{ id: 'item',
 			binding: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'a', sampling } }]) } }],
 			outputSources: { a: { nodeId: 'probe', outputPort: 'output' } } };
 		let captured;
-		const renderer = await place(device, inline(graph), { inputs: { a: { kind: 'texture', texture, resolution: texture } }, usedOutputPorts: new Set(['a']) },
+		const renderer = await place(device, inline(graph), {
+			inputs: { a: { kind: 'texture', texture, resolution: texture, sampling: upstreamSampling } }, usedOutputPorts: new Set(['a']),
+		},
 			{ probe: [{ ...definition, paramDefs: { items: array }, primaryInputParameter: null, resolutionInputParameters: [] },
 				{ init: ({ inputs }) => ({ render() { captured = inputs.items.elements[0]; }, dispose() {} }) }] });
 		renderer.render(shaderFrame(), encoder); renderer.dispose();
-		assert.equal(captured.texture, texture); assert.deepEqual(captured.sampling, sampling);
+		assert.equal(captured.texture, texture); assert.deepEqual(captured.sampling, sampling ?? defaultSampling);
 	}
 });
 
@@ -531,7 +536,9 @@ test('normalizes constants and preserves explicit connection sampling settings',
 	assert.deepEqual(constantShaderInput('vector', [-2, 3]).value, [-2, 3]);
 	assert.deepEqual(constantShaderInput('scalar', 0.123456789).value, [0.123456789]);
 	assert.deepEqual(toShaderInput({ kind: 'uniform', value: [1] }, { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }).value, [1, 0, 0, 1]);
-	assert.deepEqual(textureShaderInput('texture', { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }), { kind: 'texture', texture: 'texture', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
+	const texture = { width: 4, height: 2 };
+	const sampling = { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
+	assert.deepEqual(textureShaderInput(texture, sampling), { kind: 'texture', texture, resolution: texture, sampling });
 });
 
 // 【縦横比の異なる入力の座標変換】

@@ -246,7 +246,7 @@ export async function run(includePreview = false) {
 		// 縮小画像を作る都合で接続設定を無視しない。端点と同じ画像を回転中にも用いる。
 		assert(solidTextureA.kind === 'texture', 'test texture kind');
 		if (solidTextureA.kind === 'texture') {
-			const contained = { ...solidTextureA, fitMode: 'contain' as const, wrapMode: 'transparent' as const, filterMode: 'nearest' as const };
+			const contained = { ...solidTextureA, sampling: { ...solidTextureA.sampling, fitMode: 'contain' as const, wrapMode: 'transparent' as const, filterMode: 'nearest' as const } };
 			const pixels = await local({ inputA: contained, perspective: 0, shading: 0 });
 			colorNear(pixelAt(pixels, 65, 32, 16), colorA, 'contained texture center');
 			colorNear(pixelAt(pixels, 65, 18, 16), [0, 0, 0, 0], 'contained transparent margin');

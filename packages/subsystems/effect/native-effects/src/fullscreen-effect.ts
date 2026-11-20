@@ -1,4 +1,4 @@
-import type { ShaderInputSchema, FixedShaderInputSamplingOverrides } from '@gs/shared/gpu/shader-input.ts';
+import type { ShaderInputSchema, ShaderInputSamplingOverrides } from '@gs/shared/gpu/shader-input.ts';
 import type { EffectInitContext, EffectRenderOperation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import { createNativeEffectInputBindings, type NativeShaderInput } from './shader-input.ts';
 
@@ -12,7 +12,7 @@ export async function createFullscreenEffect<Schema extends ShaderInputSchema>(c
 	constants?: Record<string, number>;
 	sampling?: 'implicit' | 'level0';
 	scalarGradients?: boolean;
-	samplingOverrides?: FixedShaderInputSamplingOverrides;
+	samplingOverrides?: ShaderInputSamplingOverrides;
 	internalLayouts?: readonly GPUBindGroupLayout[];
 	bindResources?: (pass: GPURenderPassEncoder) => void;
 	disposeResources?: () => void;

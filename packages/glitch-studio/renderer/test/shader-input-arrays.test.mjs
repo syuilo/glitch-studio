@@ -29,6 +29,29 @@ function fixture() {
 	return { device, calls };
 }
 
+// 【入力寸法だけで束縛を準備し、描画時に差し替わるテクスチャを読む】
+// 上流の出力が未確保でもFitを計算でき、履歴出力が2枚を交互に返しても同じbind groupを再利用できることを確認する。
+test('binds from the declared resolution and reads textures only during drawing', () => {
+	const { device, calls } = fixture();
+	let frameTexture = null;
+	const inputs = { source: {
+		kind: 'texture', resolution: { width: 200, height: 100 },
+		sampling: { fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' },
+		get texture() { assert.notEqual(frameTexture, null); return frameTexture; },
+	} };
+	const bindings = createShaderInputBindings(device, generateShaderInputs({ source: 'color' }, inputs));
+	const getBindGroup = bindings.bindFixedInputs(inputs, output);
+	assert.deepEqual(calls.writes.at(-1).slice(4, 6), [0.5, 1]);
+
+	frameTexture = texture;
+	const first = getBindGroup();
+	frameTexture = { ...texture };
+	assert.notEqual(getBindGroup(), first);
+	frameTexture = texture;
+	assert.equal(getBindGroup(), first);
+	bindings.dispose();
+});
+
 // 【配列要素ごとに配置先の寸法を指定しても、同じFit処理とパイプラインを使う】
 // 扇形の配置先は要素ごとに縦横比が異なる。定数要素でインデックスを詰めたり、
 // 配列全体の寸法を流用したりすると別の画像へFitが適用されるため、固定入力との混在でも確認する。

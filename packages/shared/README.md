@@ -42,7 +42,7 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 
 - `shader-buffer.ts`: ビルド時に確定した配置情報からuniform/storage用バッファと値の書き込み処理を生成する。WGSLの解析器は実行時に含めない。ソースの読み込み方は[WGSLローダー](build/README.md)を参照。
 - `uniform-or-texture.ts`: 空間的に一定の値、またはテクスチャを表す`UniformOrTexture`。生成元や接続先の情報、サンプリング設定は持たない。
-- `shader-input.ts`: `UniformOrTexture`と受け取り側のサンプリング設定から`ShaderInput`を作る`toShaderInput()`、およびWGSLの読み取り関数とbindingの生成。
+- `shader-input.ts` はテクスチャの寸法と受け取り側のサンプリング設定を持つ `ShaderInput` を定義し、WGSLの読み取り関数とbindingを生成します。同じ入力型を `bindFixedInputs()` で配置時に束縛したり、`update()` で描画ごとに渡したりできます。`toShaderInput()` は `UniformOrTexture` からこの入力を作ります。
 - `shader-input-pipeline.ts`: シェーダー入力の構成に応じたpipelineとbindingの管理。
 - `vertex.wgsl`: 全画面パス用の頂点シェーダー。`triangle-list`と`draw(3)`で大きな三角形を描き、対角線上の余分なfragment実行を避ける。`@location(0) uv`は描画領域内で各軸`[-1,+1]`の内部画像参照座標を渡す。文字・線・棒などの個別形状の描画には専用の頂点シェーダーを使う。
 - `oklab.wgsl`: 未乗算linear sRGBとOklabの相互変換。CPUの`color-space.ts`と同じ係数と符号付き立方根を使い、HDR・負値を制限しない。OKLCH Adjust・Palette Match・Color Rampから共有する。
