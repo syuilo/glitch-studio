@@ -2,6 +2,7 @@ import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-
 import { colorBlendModes } from '@gs/shared/color-blend.ts';
 import { validateColorRamp } from '@gs/shared/color-ramp.ts';
 import { SIZE_REFERENCES } from '@gs/shared/size-reference.ts';
+import { mapParameterAudioSourceValues } from '@gs/shared/parameter/audio-source.ts';
 import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 
@@ -62,7 +63,9 @@ export function validatePortableParameters(definitions: ReadonlyMap<string, Para
 
 export function getPortableParameterDefaults(definitions: ReadonlyMap<string, ParameterDefinition>): Record<string, unknown> {
 	return Object.fromEntries(Array.from(definitions, ([name, definition]) => {
-		validatePortableParameterValue(definition, definition.defaultValue);
-		return [name, structuredClone(definition.defaultValue)];
+		// 配布先ではPlayerを解決しないため、公開引数の音声は入れ子でも未選択で公開する。
+		const value = mapParameterAudioSourceValues(definition.dataType, definition.defaultValue, () => null);
+		validatePortableParameterValue(definition, value);
+		return [name, structuredClone(value)];
 	}));
 }

@@ -36,7 +36,7 @@ InからOutへつないだ入力は、中継ノードを経由する場合も、
 
 - `.gscnge`はMessagePackで、種別・形式バージョン・Glitch Studioバージョン・表示名・`CustomNodeGraphEffect`本体・依存するAsset原本・Player定義を保存する。プロジェクト内のCustom Node Graph Effect IDやAssetの元ファイルパス、Custom Node Graph Effect Live Previewの引数、配置先レイヤーの設定・実行時の再生状態は含めない。
 - `glitch-studio/shared/src/custom-node-graph-effect-resources.ts`が依存収集を、`glitch-studio/ui/src/custom-node-graph-effect-file-codec.ts`がエンコード／デコード・取り込み準備を担当する。Glitch Studioが所属プロジェクトからAsset／Playerを収集し、Effect subsystemに必要なリソースを渡す。
-- 依存収集はエフェクトの`staticSettingDefs`に従って`staticSettings`のAsset・Player IDを調べる。通常パラメータと公開パラメータでは、配列・構造体の内部も含め、保存したBindingから音声ルーティングのPlayer参照を収集する。`audioSource`の定義の既定値は未選択の`null`。素材参照をBindingや加工式に含めることはできない。素材の原本は`Blob`から`Uint8Array`へ変換して保存する。
+- 依存収集はエフェクトの`staticSettingDefs`に従って`staticSettings`のAsset・Player IDを調べる。通常パラメータと公開パラメータでは、配列・構造体の内部も含め、保存したBindingや既定値に含まれる音声ルーティングのPlayer参照を収集する。公開Commandで単体の`audioSource`を定義するときの既定値は未選択の`null`。配列・構造体の中では、初期値や要素追加時の値に`{ type: 'player', playerId }`も指定できる。素材参照をBindingや加工式に含めることはできない。素材の原本は`Blob`から`Uint8Array`へ変換して保存する。
 - 取り込み時はCustom Node Graph Effect・Asset・Playerに新しいプロジェクト内IDを生成し、素材・Playerの参照を書き換える。内部のノード・公開パラメータ・出力・Automation GraphのIDは、そのCustom Node Graph Effect内のスコープなので維持する。
 - ファイル由来のPlayerは素材IDを付け替える。カメラ・マイク・ライブストリーム由来のPlayerは参照を保ったまま入力未指定に戻し、再指定が必要な名前をUIへ返す。現在のPlayer UIが再指定できる外部入力はWebcamだけ。
 - `importCustomNodeGraphEffect` Commandが準備済みのCustom Node Graph Effect・Asset・Playerを一括追加する。Undo/Redoの通知で`customNodeGraphEffectRegistration`の追加・削除をCustom Node Graph Effect Live PreviewとTimelineの両レンダラーへ同期する。Custom Node Graph Effect Live Preview中のCustom Node Graph EffectをUndoで除去した場合はTimeline表示へ戻す。

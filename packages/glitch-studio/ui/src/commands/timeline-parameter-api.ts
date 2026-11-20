@@ -5,12 +5,11 @@ import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter
 import { getArrayElementDefinition, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { preserveParameterExpressionModifier, supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
 import { findTimelineLayer, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
-import { isTimelineImageInputBinding, validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import { createTimelineParameterDefaultBinding, isTimelineImageInputBinding, validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { resolveTimelineImageLayerReference } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import { resolveTimelineAnotherLayerAudioReference } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { getTimelineLayerPublicParameterContext, resolveTimelineLayerPublicParameterReference, areTimelinePublicParameterTypesCompatible } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import { getScene, getLayerParameterDefinitions, resolveLayerParameter } from '../utility/timeline-scene.ts';
-import { createResetParameterBinding } from '../utility/parameter-default.ts';
 import { prepareTimelineEdit } from './timeline-preparation.ts';
 import { withCommandContract } from './definition.ts';
 import { TIMELINE_COMMAND_CONTRACTS } from './timeline-command-contracts.ts';
@@ -160,7 +159,10 @@ export const insertTimelineLayerParameterArrayElementCommandDef: CommandDef<Time
 		const elements = parameter.value.value as ParameterArrayElement<EditableTimelineParameterBinding>[];
 		if (parameter.def.maxElements != null && elements.length >= parameter.def.maxElements) throw new Error('Array parameter element limit reached');
 		const elementId = genId();
-		const prepared = withParameterChangeKind(replaceTimelineLayerParameterBindingCommandDef.prepare(state, { ...input, binding: { inputSource: 'literal', value: [...elements, { id: elementId, binding: createResetParameterBinding(getArrayElementDefinition(parameter.def)) }] } }), 'arrayElements');
+		const binding = createTimelineParameterDefaultBinding(getArrayElementDefinition(parameter.def), genId);
+		const prepared = withParameterChangeKind(replaceTimelineLayerParameterBindingCommandDef.prepare(state, {
+			...input, binding: { inputSource: 'literal', value: [...elements, { id: elementId, binding }] },
+		}), 'arrayElements');
 		if (prepared instanceof Promise) throw new Error('Parameter preparation must be synchronous');
 		return { ...prepared, result: { ...input, parameterPath: [...input.parameterPath, elementId], elementId } };
 	},

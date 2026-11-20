@@ -6,6 +6,7 @@ import type { FitMode, WrapMode } from '../types.ts';
 import type { ColorRamp } from '../color-ramp.ts';
 import type { SizeReference } from '../size-reference.ts';
 import type { LinearSrgbColor } from '../color-space.ts';
+import type { Cloneable } from '../utility/deep-clone.ts';
 
 // 値には式・キー・automationの内容を含む。入力方式の切替、接続先の変更、
 // 配列要素の追加削除、既定値へのリセットとは分けて、行った編集を表す。
@@ -24,7 +25,8 @@ type ParameterDefaultValueMap = {
 	fitMode: FitMode;
 	sizeReference: SizeReference;
 	wrapMode: WrapMode;
-	audioSource: null;
+	// 選択した取得元の形式と参照の解決は利用ドメインが所有する。
+	audioSource: Record<string, Cloneable> | null;
 	any: [number, number, number, number] | null;
 };
 

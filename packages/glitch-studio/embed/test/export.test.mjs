@@ -8,6 +8,26 @@ const { preparePortableCustomNodeGraphEffect, encodePortableCustomNodeGraphEffec
 	getPortableParameterDefinitions, validatePortableParameters, getPortableParameterDefaults, getPortableRenderResolution, fill, image, video } = implementation;
 const definitions = { fill, image, video };
 
+// 【入れ子のPlayer既定値はWeb Componentの公開値では未選択になる】
+// 書き出し時には参照を報告する。配布先ではPlayerを解決できないため、配列と構造体を保ったまま音声入力をnullにする。
+test('exports nested audio defaults as unselected public values', () => {
+	const input = fixture();
+	const audioSource = parameter('audioSource', null, 'Audio');
+	const selectedPlayer = { type: 'player', playerId: 'mic' };
+	input.players = [{ id: 'mic', name: 'Microphone', sourceType: 'microphone', deviceId: 'private-device' }];
+	input.customNodeGraphEffect.paramDefs.tracksId = {
+		...parameter('array', [{ audio: selectedPlayer }], 'tracks'),
+		dataType: { kind: 'array', elementType: { kind: 'struct', fields: { audio: audioSource.dataType } } },
+		ui: { label: 'Tracks', control: { element: { fields: { audio: audioSource.ui } } } },
+		element: { defaultValue: { audio: null }, fields: { audio: { defaultValue: null } } },
+	};
+	const prepared = preparePortableCustomNodeGraphEffect(input, definitions);
+	assert.deepEqual(prepared.diagnostics.players, ['Microphone']);
+	const parameterDefinitions = getPortableParameterDefinitions(prepared.customNodeGraphEffect);
+	assert.deepEqual(getPortableParameterDefaults(parameterDefinitions).tracks, [{ audio: null }]);
+	assert.throws(() => validatePortableParameters(parameterDefinitions, { tracks: [{ audio: selectedPlayer }] }), /Invalid audioSource/);
+});
+
 // 【配布物は参照素材と使用するシェーダーだけを開始時点の状態で同梱する】
 // 外部ファイルのパスやデバイス識別子を配布せず、素材読み込み中の編集で作品が変わるのを防ぐ。
 test('collects immutable resources and custom shaders without local paths or devices', async () => {

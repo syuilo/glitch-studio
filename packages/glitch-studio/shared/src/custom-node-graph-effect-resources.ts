@@ -1,7 +1,9 @@
+import { mapParameterAudioSourceValues } from '@gs/shared/parameter/audio-source.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { walkParameterLeaves } from '@gs/shared/parameter/parameter-tree.ts';
 import { resolveEffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
 import { validateEffectSource } from '@gs/subsystems_effect_shared/validate-effect-source.ts';
-import { validatePlayerAudioSourceSelection } from './player-audio-source.ts';
+import { validatePlayerAudioSourceSelection, type PlayerAudioSourceSelection } from './player-audio-source.ts';
 import { createProjectEffectDefinitions } from './project/effects.ts';
 import type { Asset, Player } from '@gs/shared/types.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
@@ -105,12 +107,31 @@ export function collectCustomNodeGraphEffectResources(input: CustomNodeGraphEffe
 		return id;
 	}
 
+	function mapPlayerAudioSource(value: unknown): PlayerAudioSourceSelection {
+		validatePlayerAudioSourceSelection(value);
+		return value == null ? null : { type: 'player', playerId: collectPlayer(value.playerId) };
+	}
+
 	function mapAudioBinding(definition: ParameterDefinition, binding: CustomNodeGraphEffectParameterBinding): void {
 		for (const { def, param } of walkParameterLeaves<CustomNodeGraphEffectParameterBinding>({ value: definition }, { value: binding })) {
 			if (def.dataType.kind !== 'audioSource' || param.inputSource === 'customNodeGraphEffectPublicParameterReference') continue;
 			if (param.inputSource !== 'literal') throw new Error('Audio sources must use a static input');
-			validatePlayerAudioSourceSelection(param.value);
-			if (param.value != null) param.value = { type: 'player', playerId: collectPlayer(param.value.playerId) };
+			param.value = mapPlayerAudioSource(param.value);
+		}
+	}
+
+	function mapParameterDefaults(definition: ParameterDefinition): void {
+		definition.defaultValue = mapParameterAudioSourceValues(definition.dataType, definition.defaultValue, mapPlayerAudioSource);
+		// 配列が空でも追加用の既定値に Player が含まれ得る。子の設定へ変換結果を書き戻す。
+		if (isParameterType(definition, 'array')) {
+			const element = getArrayElementDefinition(definition);
+			mapParameterDefaults(element);
+			definition.element.defaultValue = element.defaultValue;
+		} else if (isParameterType(definition, 'struct')) {
+			for (const [key, field] of Object.entries(getStructFieldDefinitions(definition))) {
+				mapParameterDefaults(field);
+				definition.fields[key].defaultValue = field.defaultValue;
+			}
 		}
 	}
 
@@ -118,6 +139,7 @@ export function collectCustomNodeGraphEffectResources(input: CustomNodeGraphEffe
 		for (const setting of Object.values(definition.staticSettingDefs ?? {})) {
 			if (typeof setting.defaultValue === 'string') setting.defaultValue = mapSetting(setting, setting.defaultValue);
 		}
+		for (const parameter of Object.values(definition.paramDefs)) mapParameterDefaults(parameter);
 	}
 
 	function mapSource(source: EffectSource): EffectSource {

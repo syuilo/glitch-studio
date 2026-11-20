@@ -238,6 +238,60 @@ test('edits primary audio parameters and timeline arguments with independent und
 	assert.throws(() => command('replaceCustomNodeGraphEffectPublicParameterDefinition', { target: { customNodeGraphEffect: { customNodeGraphEffectId: customNodeGraphEffect.id }, parameterId: 'sound' }, definition: { ...audio, canNode: true } }).execute(f.state));
 });
 
+// 【Timelineで入れ子の音声入力を初期化するときは未選択にする】
+// Custom Node Graph EffectのPlayer参照とTimelineの音声接続は取得元が異なる。
+// 配置、要素追加、リセット、定義更新のどの経路でも、Timelineに有効なBindingを生成する。
+test('uses unselected audio bindings for nested Player defaults in effect layers', () => {
+	const { state } = fixture('audioWaveform');
+	const audio = effectDefinitions.audioWaveform.paramDefs.audio;
+	const player = { type: 'player', playerId: 'player' };
+	const tracks = {
+		nameForReference: 'tracks', canNode: false,
+		dataType: { kind: 'array', elementType: { kind: 'struct', fields: { audio: audio.dataType } } },
+		ui: { label: 'Tracks', control: { element: { fields: { audio: audio.ui } } } },
+		defaultValue: [{ audio: player }],
+		element: { defaultValue: { audio: player }, fields: { audio: { defaultValue: player } } },
+	};
+	const definition = testGraph({ paramDefs: { tracks } });
+	const effectSource = { type: 'customNodeGraphEffectReference', id: 'audio-graph' };
+	const registered = { id: effectSource.id, definition };
+	state.customNodeGraphEffects.value.push(registered);
+	const layer = createEffectTimelineLayer({ ...definition, displayName: 'Audio graph', effectSource }, 0);
+	state.timelineScenes.value[0].layers = [layer];
+	const validateLayer = () => validateTimelineEffectLayer(layer, { getCustomNodeGraphEffect: () => registered.definition });
+	validateLayer();
+	const firstElementId = layer.effectParamValues.tracks.value[0].id;
+	const read = path => resolveLayerParameter(state, layer, 'effect', path).value;
+	assert.deepEqual(read(['tracks', firstElementId, 'audio']), literal(null));
+	delete layer.effectParamValues.tracks;
+	assert.deepEqual(read(['tracks', firstElementId, 'audio']), literal(null));
+
+	const target = { sceneId: 'scene', layerId: layer.id, parameterGroup: 'effect' };
+	const insert = prepareTestCommand(COMMAND_DEFS.insertTimelineLayerParameterArrayElement, { ...target, parameterPath: ['tracks'] });
+	insert.execute(state);
+	const addedElementId = layer.effectParamValues.tracks.value[1].id;
+	const addedAudio = { ...target, parameterPath: ['tracks', addedElementId, 'audio'] };
+	assert.deepEqual(read(addedAudio.parameterPath), literal(null));
+	prepareTestCommand(COMMAND_DEFS.setTimelineLayerParameterSource, { ...addedAudio, source: { inputSource: 'lowerLayerAudio' } }).execute(state);
+	prepareTestCommand(COMMAND_DEFS.resetTimelineLayerParameter, addedAudio).execute(state);
+	assert.deepEqual(read(addedAudio.parameterPath), literal(null));
+
+	prepareTestCommand(COMMAND_DEFS.replaceCustomNodeGraphEffectPublicParameterDefinition, {
+		target: { customNodeGraphEffect: { customNodeGraphEffectId: effectSource.id }, parameterId: 'tracks' },
+		definition: {
+			...tracks,
+			dataType: { kind: 'array', elementType: { kind: 'struct', fields: { audio: audio.dataType, secondary: audio.dataType } } },
+			ui: { label: 'Tracks', control: { element: { fields: { audio: audio.ui, secondary: audio.ui } } } },
+			defaultValue: [{ audio: player, secondary: player }],
+			element: { defaultValue: { audio: player, secondary: player },
+				fields: { audio: { defaultValue: player }, secondary: { defaultValue: player } } },
+		},
+	}).execute(state);
+	assert.deepEqual(read(['tracks', addedElementId, 'secondary']), literal(null));
+	assert.deepEqual(registered.definition.paramDefs.tracks.defaultValue, [{ audio: player, secondary: player }]);
+	validateLayer();
+});
+
 // 【すべてのエフェクトを既定値のままレイヤーとして作成できる】
 // タイムライン向けの候補制限は設けないため、配列・構造体の既定値もレイヤーのBinding制約に従う必要がある。
 test('creates every bundled effect without illegal binding defaults', () => {

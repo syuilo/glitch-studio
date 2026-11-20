@@ -1,4 +1,3 @@
-import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
@@ -34,9 +33,9 @@ function nodes(evaluator, params, scope = customNodeGraphEffectScope, external =
 function externalValues(evaluator, defs, params, scope) {
 	return new Map(defs.map(def => {
 		const value = params[def.id];
-		return [def.id, value == null ? createDefaultParameterBinding(def) : evaluator.evaluate(value,
+		return [def.id, value == null ? structuredClone(def.defaultValue) : evaluator.evaluate(value,
 			scope,
-			value.inputSource === 'automationGraphReference' ? createDefaultParameterBinding(def) : genEmptyValue(def), def)];
+			value.inputSource === 'automationGraphReference' ? structuredClone(def.defaultValue) : genEmptyValue(def), def)];
 	}));
 }
 
@@ -79,6 +78,21 @@ test('passes evaluated values across the boundary without reinterpreting them', 
 	const defs = [def('amount'), def('text', '', 'string')];
 	const values = externalValues(evaluator, defs, { amount: expression('TEST_SAME_NAME'), text: literal('TEST_SAME_NAME') }, layerScope);
 	assert.deepEqual(nodes(evaluator, { amount: expression('PUBLIC("amount")'), local: expression('TEST_SAME_NAME'), text: expression('PUBLIC("text")'), direct: expression('PUBLIC("amount")') }, customNodeGraphEffectScope, values, defs), { amount: 2, local: 1, text: 'TEST_SAME_NAME', direct: 2 });
+});
+
+// 【未設定の公開引数を式から評価済みの値として読む】
+// 引数の省略とAutomation Graphの未選択は、どちらも型に合った既定値へ戻る。
+// Bindingをそのまま渡すと、PUBLICで数値やvectorとして利用できなくなる。
+test('passes plain default values through PUBLIC for omitted arguments and unselected graphs', () => {
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
+	const definitions = [def('position', [1, 2], 'vector'), def('amount', 7)];
+	const params = { amount: { inputSource: 'automationGraphReference', automationGraphId: null, trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' } };
+	const values = externalValues(evaluator, definitions, params, layerScope);
+	assert.deepEqual(nodes(evaluator, {
+		array: expression('PUBLIC("position")'),
+		amount: expression('PUBLIC("amount")'),
+	}, customNodeGraphEffectScope, values, definitions), { array: [1, 2], amount: 7 });
+	assert.notEqual(values.get('position'), definitions[0].defaultValue);
 });
 
 // 【式のローカル宣言を持ち越さない】

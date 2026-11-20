@@ -65,6 +65,12 @@ const connected = { inputSource: 'node', nodeId: 'upstream', outputPort: 'output
 const storedConnection = { inputSource: 'node', source: { nodeId: 'upstream', outputPort: 'output' }, sampling };
 const playback = { trimmedDurationMs: null, offsetMode: 'start', wrapMode: 'clamp' };
 const scalarDefinition = { dataType: { kind: 'scalar' }, ui: { label: 'Scalar', control: { controlType: 'number' } }, defaultValue: 0 };
+const publicArrayDefinition = {
+	nameForReference: 'items', canNode: false,
+	dataType: { kind: 'array', elementType: scalarDefinition.dataType },
+	ui: { label: 'Items', control: { element: scalarDefinition.ui.control } },
+	defaultValue: [10, 20], element: { defaultValue: 0 },
+};
 
 // 【保存ファイル内のIDが一致する別セッションへノード参照を貼り付けない】
 // 同じプロジェクトのコピーを同時に開くと、プロジェクト・Custom Node Graph Effect・ノードのIDが
@@ -123,9 +129,9 @@ test('scopes live preview player references to their source session', async () =
 	}
 	let text = '';
 	const clipboard = { writeText: async value => { text = value; }, readText: async () => text };
-	await handlePreviewParameterClipboard(from.context, from.projectSessionId, from.customNodeGraphEffect.id, ['arg'], 'copy', () => ({ arg: binding }), () => true, () => {}, clipboard);
+	await handlePreviewParameterClipboard(from.context, from.projectSessionId, from.customNodeGraphEffect.id, ['arg'], 'copy', () => ({ binding, followsDefault: false }), () => true, () => {}, clipboard);
 	let applied = null;
-	const paste = f => handlePreviewParameterClipboard(f.context, f.projectSessionId, f.customNodeGraphEffect.id, ['arg'], 'paste', () => ({}), () => true, (_id, value) => { applied = value; }, clipboard);
+	const paste = f => handlePreviewParameterClipboard(f.context, f.projectSessionId, f.customNodeGraphEffect.id, ['arg'], 'paste', () => ({ binding: null, followsDefault: true }), () => true, (_id, value) => { applied = value; }, clipboard);
 	await paste(to);
 	assert.equal(applied, null);
 	from.context.id = 'saved-as';
@@ -390,6 +396,38 @@ test('ignores stale asynchronous reads and incompatible content without changing
 	assert.equal(f.history.redoStack.value.length, 1);
 });
 
+// 【未保存のTimeline引数への貼り付けは、既定配列の更新で失効する】
+// クリップボードの読み取り中に先頭へ要素を追加すると、同じ位置のIDを別の要素が持つ。
+// 遅れて届いた値が別の要素やUndo履歴に入り込むことを防ぎ、改めて選んだ要素には貼り付けられるようにする。
+test('discards a pending paste when an unset timeline array default changes', async t => {
+	t.mock.method(console, 'log', () => {});
+	const f = fixture();
+	f.customNodeGraphEffect.definition.paramDefs = { items: clone(publicArrayDefinition) };
+	f.layer.effectSource = { type: 'customNodeGraphEffectReference', id: f.customNodeGraphEffect.id };
+	const arrayTarget = { ...f.timelineTarget, paramPath: ['items'] };
+	const initialBinding = f.resolve(arrayTarget).value;
+	const originalTarget = { ...arrayTarget, paramPath: ['items', initialBinding.value[1].id] };
+	const text = JSON.stringify(f.copy({ inputSource: 'literal', value: 99 }, originalTarget));
+	const reading = Promise.withResolvers();
+	const pending = handleProjectParameterClipboard(f.context, f.projectSessionId, originalTarget, 'paste', () => true,
+		{ readText: () => reading.promise });
+	f.history.commit('replaceCustomNodeGraphEffectPublicParameterDefinition', {
+		target: { customNodeGraphEffect: { customNodeGraphEffectId: f.customNodeGraphEffect.id }, parameterId: 'items' },
+		definition: { ...publicArrayDefinition, defaultValue: [5, 10, 20] },
+	});
+	reading.resolve(text);
+	await pending;
+	assert.equal(f.resolve(originalTarget).value.value, 10);
+	assert.equal(Object.hasOwn(f.layer.effectParamValues, 'items'), false);
+	assert.equal(f.history.undoStack.value.length, 1);
+
+	const currentBinding = f.resolve(arrayTarget).value;
+	const currentTarget = { ...arrayTarget, paramPath: ['items', currentBinding.value[2].id] };
+	await handleProjectParameterClipboard(f.context, f.projectSessionId, currentTarget, 'paste', () => true, { readText: async () => text });
+	assert.deepEqual(f.layer.effectParamValues.items.value.map(element => element.binding.value), [5, 10, 99]);
+	assert.equal(f.history.undoStack.value.length, 2);
+});
+
 // 【Live Previewへの貼り付けも、読み取り中の終了・対象削除後には適用しない】
 // プロジェクト履歴を使わないプレビュー引数でも、遅れて返ったOSのクリップボード結果を失効させる。
 test('ignores delayed preview parameter pastes after disposal or target changes', async () => {
@@ -402,7 +440,7 @@ test('ignores delayed preview parameter pastes after disposal or target changes'
 		const clipboard = createParameterClipboard(scalarDefinition, { inputSource: 'literal', value: 12 }, source);
 		const reading = Promise.withResolvers();
 		let applied = false;
-		const pending = handlePreviewParameterClipboard(f.context, f.projectSessionId, f.customNodeGraphEffect.id, ['arg'], 'paste', () => values, () => true,
+		const pending = handlePreviewParameterClipboard(f.context, f.projectSessionId, f.customNodeGraphEffect.id, ['arg'], 'paste', id => ({ binding: values[id], followsDefault: false }), () => true,
 			() => { applied = true; }, { readText: () => reading.promise });
 		invalidate(f);
 		reading.resolve(JSON.stringify(clipboard));
@@ -410,6 +448,47 @@ test('ignores delayed preview parameter pastes after disposal or target changes'
 		assert.equal(applied, false);
 		assert.equal(values.arg.value, 5);
 	}
+});
+
+// 【Live Previewの表示用の既定配列が変わった場合も、貼り付けを失効させる】
+// 未編集の値は表示用Bindingに展開される。定義の更新で再展開されても、古い位置のIDへ遅延適用しない。
+test('discards a pending preview paste when a displayed default array changes', async t => {
+	t.mock.method(console, 'log', () => {});
+	const f = fixture();
+	f.customNodeGraphEffect.definition.paramDefs = { items: clone(publicArrayDefinition) };
+	const values = { items: createDefaultParameterBinding(publicArrayDefinition) };
+	const path = ['items', values.items.value[1].id];
+	const clipboard = createParameterClipboard(scalarDefinition, { inputSource: 'literal', value: 99 }, f.resolve().context.source);
+	const reading = Promise.withResolvers();
+	const pending = handlePreviewParameterClipboard(f.context, f.projectSessionId, f.customNodeGraphEffect.id, path, 'paste',
+		id => ({ binding: values[id], followsDefault: true }), () => true, () => assert.fail('paste should be stale'), { readText: () => reading.promise });
+	const updatedDefinition = { ...publicArrayDefinition, defaultValue: [5, 10, 20] };
+	f.history.commit('replaceCustomNodeGraphEffectPublicParameterDefinition', {
+		target: { customNodeGraphEffect: { customNodeGraphEffectId: f.customNodeGraphEffect.id }, parameterId: 'items' },
+		definition: updatedDefinition,
+	});
+	values.items = createDefaultParameterBinding(updatedDefinition);
+	reading.resolve(JSON.stringify(clipboard));
+	await pending;
+	assert.deepEqual(values.items.value.map(element => element.binding.value), [5, 10, 20]);
+});
+
+// 【編集済みのプレビュー配列では、並び順が変わっても同じ要素へ貼り付ける】
+// 値が既定値と一致していても、自分で編集した引数は要素IDを持つ。選択した要素を位置から読み替えない。
+test('pastes into an edited preview array element after it moves', async () => {
+	const f = fixture();
+	f.customNodeGraphEffect.definition.paramDefs = { items: clone(publicArrayDefinition) };
+	const values = { items: createDefaultParameterBinding(publicArrayDefinition) };
+	const elementId = values.items.value[1].id;
+	const clipboard = createParameterClipboard(scalarDefinition, { inputSource: 'literal', value: 99 }, f.resolve().context.source);
+	const reading = Promise.withResolvers();
+	const pending = handlePreviewParameterClipboard(f.context, f.projectSessionId, f.customNodeGraphEffect.id, ['items', elementId], 'paste',
+		id => ({ binding: values[id], followsDefault: false }), () => true, (id, binding) => { values[id] = binding; }, { readText: () => reading.promise });
+	values.items.value.reverse();
+	reading.resolve(JSON.stringify(clipboard));
+	await pending;
+	assert.equal(values.items.value[0].id, elementId);
+	assert.deepEqual(values.items.value.map(element => element.binding.value), [99, 10]);
 });
 
 // 【別ウィンドウのコピーをテキストだけで受け渡し、Live Previewでも同じ検証を使う】
@@ -429,7 +508,8 @@ test('copies across independent window contexts and supports live preview withou
 	const values = { arg: { inputSource: 'literal', value: 5 } };
 	const source = from.resolve().context.source;
 	text = JSON.stringify(createParameterClipboard(scalarDefinition, { inputSource: 'expression', expression: 'TIME' }, source));
-	await handlePreviewParameterClipboard(to.context, to.projectSessionId, to.customNodeGraphEffect.id, ['arg'], 'paste', () => values, () => true, (id, binding) => { values[id] = binding; }, access);
+	await handlePreviewParameterClipboard(to.context, to.projectSessionId, to.customNodeGraphEffect.id, ['arg'], 'paste',
+		id => ({ binding: values[id], followsDefault: false }), () => true, (id, binding) => { values[id] = binding; }, access);
 	assert.deepEqual(values.arg, { inputSource: 'expression', expression: 'TIME' });
 	assert.equal(to.history.undoStack.value.length, 1);
 });

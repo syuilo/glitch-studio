@@ -1,4 +1,4 @@
-import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
+import { createTimelineParameterDefaultBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { getTimelineLayerPublicParameterContext, resolveTimelineLayerPublicParameterReference, areTimelinePublicParameterTypesCompatible } from "@gs/subsystems_timeline_shared/public-parameters.ts";
 import { resolveTimelineImageLayerReference } from "@gs/subsystems_timeline_shared/layer-output.ts";
 import { hasTimelineLayerParameters } from "@gs/subsystems_timeline_shared/types.ts";
@@ -26,7 +26,6 @@ import type { EditableTimelineParameterBinding } from "../types/parameter-edit.t
 import type { TimelineLayerPublicParameterReferenceBinding, TimelineParameterBinding } from "@gs/subsystems_timeline_shared/parameter-binding.ts";
 import type { TimelineEffectParameterBinding, TimelineLowerLayerOutputBinding } from "@gs/subsystems_timeline_shared/parameter-binding.ts";
 import type { ValueParameterEdit } from "@/types/parameter-edit.ts";
-import { createResetParameterBinding } from "@/utility/parameter-default.ts";
 import { createInlineKeyframesTimeline } from "@/utility/keyframes-timeline.ts";
 import { createInlineAutomationGraph } from "@/utility/automation-graph.ts";
 
@@ -80,7 +79,7 @@ export function applyTimelineParameterEdit(state: ProjectState, payload: Timelin
 	if (rootDef == null) throw new Error('Timeline parameter not found');
 
 	const currentRoot = values[rootKey] ?? null;
-	const defaultBinding = target === 'effect' && layer.layerType === 'effect' ? getEffectLayerParameterDefault(getEffectDefinitions(state).describe(layer.effectSource), rootKey) : createDefaultParameterBinding(rootDef);
+	const defaultBinding = target === 'effect' && layer.layerType === 'effect' ? getEffectLayerParameterDefault(getEffectDefinitions(state).describe(layer.effectSource), rootKey) : createTimelineParameterDefaultBinding(rootDef);
 	const draft = { [rootKey]: deepClone(currentRoot ?? defaultBinding) };
 	const resolved = resolveParameter<EditableTimelineParameterBinding>(defs, draft, payload.paramPath);
 	const { def, value: current } = resolved;
@@ -132,10 +131,9 @@ export function applyTimelineParameterEdit(state: ProjectState, payload: Timelin
 			...edit.options,
 		}; break;
 		case 'reset':
-			if (payload.paramPath.length === 1 && (def.dataType.kind === 'audioSource')) { next = deepClone(defaultBinding); break; }
-			next = target === 'effect' && layer.layerType === 'effect' && payload.paramPath.length === 1
-			&& getEffectDefinitions(state).describe(layer.effectSource).kind === 'modify' && getEffectDefinitions(state).describe(layer.effectSource).primaryInputParameter === rootKey
-				? createLowerLayerOutputBinding() : createResetParameterBinding(def); break;
+			next = payload.paramPath.length === 1 && defaultBinding.inputSource !== 'literal'
+				? defaultBinding : createTimelineParameterDefaultBinding(def, genId);
+			break;
 		case 'addElement':
 		case 'removeElement': {
 			if (!isParameterType(def, 'array') || current.inputSource !== 'literal') throw new Error('Expected array parameter');
@@ -145,14 +143,14 @@ export function applyTimelineParameterEdit(state: ProjectState, payload: Timelin
 			next = {
 				inputSource: 'literal',
 				value: edit.kind === 'addElement'
-					? [...elements, { id: genId(), binding: createResetParameterBinding(getArrayElementDefinition(def)) }]
+					? [...elements, { id: genId(), binding: createTimelineParameterDefaultBinding(getArrayElementDefinition(def), genId) }]
 					: elements.filter(element => element.id !== edit.elementId),
 			};
 			break;
 		}
 		case 'inputSource':
 			switch (edit.inputSource) {
-				case 'literal': next = createDefaultParameterBinding(def); break;
+				case 'literal': next = createTimelineParameterDefaultBinding(def); break;
 				case 'envVariable': next = { inputSource: 'envVariable', variable: '' }; break;
 				case 'expression': next = { inputSource: 'expression', expression: AiSON.stringify(current.inputSource === 'literal' ? current.value : def.defaultValue) }; break;
 				case 'automationGraphReference': next = {

@@ -1,9 +1,8 @@
-import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { validateStaticSettings } from '@gs/shared/static-setting.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import { resolveEffectSource, type EffectDefinitions, type EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
 import { validateEffectSource } from '@gs/subsystems_effect_shared/validate-effect-source.ts';
-import { createLowerLayerOutputBinding, validateTimelineParameterTree } from '../../parameter-binding.ts';
+import { createLowerLayerOutputBinding, createTimelineParameterDefaultBinding, validateTimelineParameterTree } from '../../parameter-binding.ts';
 import type { TimelineEffectParameterBinding, TimelineEffectLayer } from '../../types.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 export { createLowerLayerOutputBinding } from '../../parameter-binding.ts';
@@ -24,7 +23,7 @@ export function getTimelineEffectOutput(definition: EffectDefinition): string {
 export function getEffectLayerParameterDefault(definition: EffectDefinition, key: string): TimelineEffectParameterBinding {
 	if (definition.primaryAudioInputParameter === key) return { inputSource: 'lowerLayerAudio' };
 	return definition.kind === 'modify' && definition.primaryInputParameter === key
-		? createLowerLayerOutputBinding() : createDefaultParameterBinding(definition.paramDefs[key]);
+		? createLowerLayerOutputBinding() : createTimelineParameterDefaultBinding(definition.paramDefs[key]);
 }
 
 /** 配置の受け入れ時に、インライン定義と入れ子の参照も含めて検証する。 */

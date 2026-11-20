@@ -1,4 +1,3 @@
-import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -261,7 +260,7 @@ test('resolves independent public audio sources and shares only matching frame i
 // GPUへ渡すmin/maxを実エフェクトで検証し、入力変換後にも正規化せず振幅を保つ。
 // Stereoは左右を平均した1本の波形、L/Rは選択したチャンネルの波形として検証する。
 // ブロック境界の両側にピークを置き、窓を連続配列へコピーせずに読み取れることも確認する。
-// ピクセル描画はブラウザを使わず、既存シェーダーへ渡すデータと色のalphaを確認する。
+// 評価済みの振幅・線幅を渡し、既定値をBindingで包むと実装内のフォールバックに隠れることも検出する。
 test('uploads selected channel peaks and distinguishes silence from no source', () => {
 	globalThis.GPUBufferUsage = { UNIFORM: 1, STORAGE: 2, COPY_DST: 4 };
 	const writes = [];
@@ -277,7 +276,7 @@ test('uploads selected channel peaks and distinguishes silence from no source', 
 			buffer: Float32Array.from([...left.subarray(start, end), ...right.subarray(start, end)]).buffer });
 	}
 	const inputs = new PlayerAudioInputs(new Map([[playerAudioSourceId('player'), history]]));
-	const params = { ...Object.fromEntries(Object.entries(waveformDefinition.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])),
+	const params = { ...Object.fromEntries(Object.entries(waveformDefinition.paramDefs).map(([key, def]) => [key, def.defaultValue])),
 		channel: 'stereo', duration: 0.005, color: [1, 0, 0, 0.5], audio: inputs.resolve({ type: 'player', playerId: 'player' }) };
 	history.reset();
 	const bound = Object.fromEntries(Object.keys(params).map(key => [key, { kind: 'value', get value() { return params[key]; } }]));
@@ -294,8 +293,9 @@ test('uploads selected channel peaks and distinguishes silence from no source', 
 	]) {
 		params.channel = channel;
 		draw();
-		assert.deepEqual(writes.at(-1), peaks, channel);
+		assert.deepEqual(writes.at(-1), peaks.map(peak => peak * params.amplitude), channel);
 		assert.equal(writes.at(-2)[3], 0.5);
+		assert.equal(writes.at(-2)[5], Math.fround(params.lineWidth));
 		assert.equal(writes.at(-2)[7], 1);
 	}
 	params.audio = { cacheKey: 'silence', readWindow: () => window([0, 0]) };

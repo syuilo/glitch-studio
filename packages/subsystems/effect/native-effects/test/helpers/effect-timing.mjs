@@ -1,4 +1,3 @@
-import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { createTestInputs } from './native-inputs.ts';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
@@ -63,10 +62,9 @@ export async function createEffectTimingHarness(effectId, overrides = {}) {
 		createShaderModule: () => ({}), createRenderPipeline: () => ({ getBindGroupLayout: () => ({}) }),
 	};
 	const resolution = { width: 64, height: 64 };
-	const params = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => {
-		const value = createDefaultParameterBinding(parameter);
-		return [name, parameter.canNode === true ? { kind: 'uniform', value } : value];
-	}));
+	const params = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [
+		name, structuredClone(parameter.defaultValue),
+	]));
 	Object.assign(params, overrides);
 	const texture = device.createTexture({ size: resolution });
 	const renderer = await implementation.init({ device, defaultVertexShaderModule: {}, enable32bitDataTextures: false, resolution,

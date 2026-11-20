@@ -9,24 +9,29 @@ export function validateColorRampParameterInputSource(definition: Pick<Parameter
 	if (definition.dataType.kind === 'colorRamp' && ['keyframesTimelineInline', 'automationGraphReference', 'automationGraphInline'].includes(binding.inputSource)) throw new Error('Color Ramp does not support keyframes or Automation Graph input');
 }
 
-/** 保存ファイルやCommandで渡された定義は、コンテナの値と子設定の既定値をそれぞれ検査する。 */
-export function validateParameterDefaultValues(definition: ParameterDefinition): void {
-	validateDefaultValue(definition, definition.defaultValue);
+type ValidateAudioSourceDefault = (value: unknown) => void;
+
+/** コンテナの値と子設定の既定値をそれぞれ検査する。音声の取得元に固有の検査は利用側が渡す。 */
+export function validateParameterDefaultValues(definition: ParameterDefinition, validateAudioSourceDefault: ValidateAudioSourceDefault | null = null): void {
+	validateDefaultValue(definition, definition.defaultValue, validateAudioSourceDefault);
 	// 配列全体が空でも、新しい要素・フィールドの初期値には独立した既定値がある。
 	if (definition.dataType.kind === 'array') {
-		validateParameterDefaultValues(getArrayElementDefinition(definition));
+		validateParameterDefaultValues(getArrayElementDefinition(definition), validateAudioSourceDefault);
 	} else if (definition.dataType.kind === 'struct') {
-		for (const field of Object.values(getStructFieldDefinitions(definition))) validateParameterDefaultValues(field);
+		for (const field of Object.values(getStructFieldDefinitions(definition))) validateParameterDefaultValues(field, validateAudioSourceDefault);
 	}
 }
 
-function validateDefaultValue(definition: ParameterDefinition, value: unknown): void {
+function validateDefaultValue(definition: ParameterDefinition, value: unknown, validateAudioSourceDefault: ValidateAudioSourceDefault | null): void {
 	const kind = definition.dataType.kind;
 	const invalidDefault = () => new Error(`Invalid ${kind} default value for parameter ${JSON.stringify(definition.ui?.label)}`);
 	if (isParameterType(definition, 'array')) {
 		if (!Array.isArray(value)) throw invalidDefault();
+		if (definition.maxElements != null && value.length > definition.maxElements) {
+			throw new Error(`Array default for parameter ${JSON.stringify(definition.ui?.label)} exceeds maxElements (${definition.maxElements})`);
+		}
 		const element = getArrayElementDefinition(definition);
-		for (const elementValue of value) validateDefaultValue(element, elementValue);
+		for (const elementValue of value) validateDefaultValue(element, elementValue, validateAudioSourceDefault);
 		return;
 	}
 	if (isParameterType(definition, 'struct')) {
@@ -36,12 +41,14 @@ function validateDefaultValue(definition: ParameterDefinition, value: unknown): 
 		if (Object.keys(values).length !== Object.keys(fields).length) throw invalidDefault();
 		for (const [key, field] of Object.entries(fields)) {
 			if (!Object.hasOwn(values, key)) throw invalidDefault();
-			validateDefaultValue(field, values[key]);
+			validateDefaultValue(field, values[key], validateAudioSourceDefault);
 		}
 		return;
 	}
 	if (kind === 'audioSource') {
-		if (value !== null) throw invalidDefault();
+		// nullは未選択を表す保存値。undefinedは既定値の欠落として扱う。
+		if (value !== null && (typeof value !== 'object' || Array.isArray(value))) throw invalidDefault();
+		validateAudioSourceDefault?.(value);
 		return;
 	}
 	if (kind === 'any') {

@@ -16,12 +16,14 @@ export function resolveParameter<Binding extends ParameterBindingBase = never>(d
 	let def = defs[path[0]];
 	let value = params[path[0]];
 	let setValue = (next: NoInfer<Binding>) => { params[path[0]] = next; };
+	let hasArrayElementInPath = false;
 	if (def == null || value == null) throw new Error(`Unknown parameter: ${paramPathKey(path)}`);
 	for (const segment of path.slice(1)) {
 		if (def.dataType.kind === 'array' && isLiteralParameterBinding(value) && Array.isArray(value.value)) {
 			const element = (value.value as ParameterArrayElement<Binding>[]).find(element => element.id === segment);
 			// 削除済みのIDを、同じindexにある別要素へ読み替えてはいけない。
 			if (element == null) throw new Error(`Unknown array element: ${paramPathKey(path)}`);
+			hasArrayElementInPath = true;
 			def = getArrayElementDefinition(def);
 			value = element.binding;
 			setValue = next => { element.binding = next; };
@@ -35,7 +37,7 @@ export function resolveParameter<Binding extends ParameterBindingBase = never>(d
 			throw new Error(`Invalid parameter path: ${paramPathKey(path)}`);
 		}
 	}
-	return { def, value, setValue };
+	return { def, value, setValue, hasArrayElementInPath };
 }
 
 // 呼び出し側が渡したBindingを定義順でたどる。

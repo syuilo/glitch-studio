@@ -10,6 +10,14 @@ async function createHistoryHarness(t, effectId, overrides = {}) {
 	return harness;
 }
 
+// 【履歴のテストには評価済みの値を渡す】
+// GPUのスタブはuniformの成分を検証しない。テスト用の入力がBindingに戻ると、同じ履歴テストでも実際とは異なる入力を使ってしまう。
+test('passes scalar and color defaults as values to the timing harness', async t => {
+	const harness = await createHistoryHarness(t, 'timePatchwork');
+	assert.equal(harness.params.delayMap, 1);
+	assert.deepEqual(harness.params.input, [0, 0, 0, 0]);
+});
+
 for (const effectId of historyEffects) {
 	// 【丸められた時刻でも60fpsの保存を欠落させない】
 	// 0.1ms単位の時計ではフレーム時刻が境界の直前になる。浮動小数点の誤差も含め、

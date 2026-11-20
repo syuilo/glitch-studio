@@ -174,7 +174,8 @@ function onPreviewParamEdit(event: ParamEdit) {
 		const currentCustomNodeGraphEffect = customNodeGraphEffect.value;
 		if (currentCustomNodeGraphEffect == null) return;
 		void handlePreviewParameterClipboard(projectSession.projectContext, projectSession.id, currentCustomNodeGraphEffect.id, event.paramPath, event.kind,
-			() => previewParamValues.value, () => !disposed && customNodeGraphEffect.value === currentCustomNodeGraphEffect,
+			id => ({ binding: previewParamValues.value[id] ?? null, followsDefault: !editedPreviewParamIds.has(id) }),
+			() => !disposed && customNodeGraphEffect.value === currentCustomNodeGraphEffect,
 			(id, binding) => {
 				previewParamValues.value[id] = binding;
 				editedPreviewParamIds.add(id);

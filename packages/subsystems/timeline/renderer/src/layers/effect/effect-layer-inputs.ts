@@ -62,6 +62,8 @@ export function createEffectLayerInputs(layer: TimelineEffectLayer, definition: 
 			updates.push((_, audio) => { value = audio(binding); });
 			return { kind: 'value', get value() { return value; } };
 		}
+		// 音声のliteralは未選択。Effectの初期化時にも、Timelineで解決できる音声入力だけを渡す。
+		if (def.dataType.kind === 'audioSource') return { kind: 'value', value: null };
 		// 空のenumキーフレームには定義の既定値を使う。保存済みの無効な値は評価時にエラーとして報告する。
 		const fallback = binding.inputSource === 'automationGraphReference' || (def.dataType.kind === 'enum' && binding.inputSource === 'keyframesTimelineInline')
 			? def.defaultValue : def.dataType.kind === 'enum' ? null : genEmptyValue(def);

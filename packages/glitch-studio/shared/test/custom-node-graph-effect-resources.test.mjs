@@ -96,6 +96,30 @@ test('remaps each resource once by kind while preserving native references and l
 	assert.deepEqual(collectCustomNodeGraphEffectResources(output, nativeDefinitions), output);
 });
 
+// 【入れ子の音声既定値だけから参照されるPlayerを同梱し、取り込み先のIDへ変換する】
+// 配列の初期要素・追加時の要素・構造体フィールドの設定にはそれぞれ独立した既定値がある。
+// どれか一箇所だけに参照がある場合でも、いずれのPlayerも配置先で解決できるようにする。
+test('collects and remaps Players referenced only by nested parameter defaults', () => {
+	const input = resources();
+	const selection = playerId => ({ type: 'player', playerId });
+	input.customNodeGraphEffects[0].definition.paramDefs = {
+		tracks: {
+			...audioList,
+			defaultValue: [{ audio: selection('initial') }],
+			element: { defaultValue: { audio: selection('added') }, fields: { audio: { defaultValue: selection('field') } } },
+		},
+	};
+	for (const id of ['initial', 'added', 'field']) input.players.push({ id, name: id, sourceType: 'asset', assetId: 'shared-id' });
+	const original = structuredClone(input);
+	const output = collectCustomNodeGraphEffectResources(input, nativeDefinitions, (kind, id) => kind + '-' + id);
+	const tracks = output.customNodeGraphEffects[0].definition.paramDefs.tracks;
+	assert.deepEqual(tracks.defaultValue, [{ audio: selection('player-initial') }]);
+	assert.deepEqual(tracks.element.defaultValue, { audio: selection('player-added') });
+	assert.deepEqual(tracks.element.fields.audio.defaultValue, selection('player-field'));
+	assert.deepEqual(output.players.map(player => player.id).sort(), ['player-added', 'player-field', 'player-initial', 'player-shared-id']);
+	assert.deepEqual(input, original);
+});
+
 // 【設定による未選択とPlayer経由でのみ参照されるAssetを区別する】
 // Native Effectの既定素材が配置側で明示的に解除されたときは、その素材を要求しない。
 test('honors null overrides and includes assets reached only through a Player', () => {
