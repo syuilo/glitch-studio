@@ -6,18 +6,14 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const directory = fileURLToPath(new URL('../', import.meta.url));
-const effectDirectory = new URL('../../../subsystems/effect/shared/src/fx/', import.meta.url);
-const effectNames = readdirSync(effectDirectory, { withFileTypes: true })
-	.filter(entry => entry.isDirectory() && existsSync(new URL(`${entry.name}/_def_.ts`, effectDirectory)))
-	.map(entry => entry.name).sort();
 const bundled = await build({
 	absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', write: false,
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
-		${effectNames.map((name, index) => `import definition${index} from '@gs/subsystems_effect_shared/fx/${name}/_def_.ts';`).join('\n')}
-		export const effectDefinitions = [${effectNames.map((_name, index) => `definition${index}`).join(',')}];
+		export { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
 		export { z } from 'zod';
 		export { parameterDefinitionSchema, staticSettingDefinitionSchema } from './src/commands/parameter-contract-schemas.ts';
 		export { customNodeGraphEffectCustomParameterInputSchema, customNodeGraphEffectSchema } from './src/commands/custom-node-graph-effect-contract-schemas.ts';
+		export { storedCustomNodeGraphEffectSchema } from './src/commands/effect-source-schema.ts';
 		export { parseProjectApiValue } from './src/project-api/contract.ts';
 		export { createProjectCustomNodeGraphEffect } from './src/utility/project-custom-node-graph-effect.ts';
 	` },
@@ -31,7 +27,7 @@ const { z, effectDefinitions, parameterDefinitionSchema, staticSettingDefinition
 // Query:getEffectの結果検証が、既存エフェクトの配列・構造体・Viewportや静的設定を
 // 拒否すると資料を取得できなくなる。実際の定義を使い、スキーマとのずれを検出する。
 test('accepts every built-in effect parameter and static setting definition', () => {
-	for (const definition of effectDefinitions) {
+	for (const definition of Object.values(effectDefinitions)) {
 		for (const [key, parameter] of Object.entries(definition.paramDefs)) {
 			assert.doesNotThrow(() => parameterDefinitionSchema.parse(parameter), `${definition.id}.${key}`);
 		}
@@ -45,13 +41,13 @@ test('accepts every built-in effect parameter and static setting definition', ()
 // Queryや公開値定義の受け渡しで設定が欠落すると、UIが意図した初期状態を再現できない。
 // コンテナを空の色コントロールとして受理してしまわず、内部まで検証する必要がある。
 test('preserves and validates default expansion in nested container controls', () => {
-	const definition = structuredClone(effectDefinitions.find(candidate => candidate.id === 'testStructArray').paramDefs.buzzs);
+	const definition = structuredClone(effectDefinitions.testStructArray.paramDefs.buzzs);
 	definition.ui.control.defaultExpanded = false;
 	definition.ui.control.element.defaultExpanded = false;
 	assert.deepEqual(parameterDefinitionSchema.parse(definition).ui.control, definition.ui.control);
 	definition.ui.control.element.defaultExpanded = 'collapsed';
 	assert.equal(parameterDefinitionSchema.safeParse(definition).success, false);
-	const struct = structuredClone(effectDefinitions.find(candidate => candidate.id === 'doublePendulumFractal').paramDefs.view);
+	const struct = structuredClone(effectDefinitions.doublePendulumFractal.paramDefs.view);
 	struct.ui.control.defaultExpanded = false;
 	assert.deepEqual(parameterDefinitionSchema.parse(struct).ui.control, struct.ui.control);
 });
@@ -83,7 +79,7 @@ test('documents array element bindings and custom parameter restrictions', () =>
 	};
 	assert.equal(customNodeGraphEffectCustomParameterInputSchema.safeParse(custom).success, true);
 	assert.equal(customNodeGraphEffectCustomParameterInputSchema.safeParse({ ...custom, canNode: true }).success, false);
-	const arrayDefinition = effectDefinitions.find(definition => definition.id === 'testStructArray').paramDefs.buzzs;
+	const arrayDefinition = effectDefinitions.testStructArray.paramDefs.buzzs;
 	assert.equal(customNodeGraphEffectCustomParameterInputSchema.safeParse({ ...arrayDefinition, nameForReference: 'items', canNode: false }).success, false);
 });
 
@@ -91,24 +87,23 @@ test('documents array element bindings and custom parameter restrictions', () =>
 // 削除した公開入力の参照はUndo用に残り、既存UIの接続にはサンプリングの省略形もある。
 // 構造の検証で参照の実在性まで要求したり、資料にない追加情報を削除してはいけない。
 test('preserves persisted Custom Node Graph Effect bindings and nullable modifiers', () => {
-	const customNodeGraphEffect = createProjectCustomNodeGraphEffect(0);
-	const definition = effectDefinitions.find(candidate => candidate.id === 'testStructArray');
+	const customNodeGraphEffect = createProjectCustomNodeGraphEffect(0).definition;
+	const definition = effectDefinitions.testStructArray;
 	const parameters = Object.fromEntries(Object.entries(definition.paramDefs).map(([key, parameter]) => [key, structuredClone(parameter.defaultValue)]));
-	parameters.buzzs.value[0].binding.value.image = { inputSource: 'node', nodeId: 'removed-node', outputPort: 'removed-output' };
+	parameters.buzzs.value[0].binding.value.image = { inputSource: 'node', source: { nodeId: 'removed-node', outputPort: 'removed-output' }, sampling: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' } };
 	parameters.buzzs.value[0].binding.value.x = { inputSource: 'literal', value: 4.5, expressionModifier: null };
 	customNodeGraphEffect.nodes.push({
-		id: 'effect', type: 'effect', effectId: definition.id, params: parameters, staticSettings: {},
+		id: 'effect', type: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, params: parameters, staticSettings: {},
 		isBypass: false, resolution: { mode: 'auto', scale: 1 }, displayName: '',
 	});
 	customNodeGraphEffect.nodes.push({
-		id: 'fill', type: 'effect', effectId: 'fill', staticSettings: {}, isBypass: false, displayName: '',
+		id: 'fill', type: 'effect', effectSource: { type: 'nativeEffect', id: 'fill' }, staticSettings: {}, isBypass: false, displayName: '',
 		resolution: { mode: 'auto', scale: 1 },
-		params: { color: { inputSource: 'node', nodeId: 'removed-node', outputPort: 'removed-output' } },
+		params: { color: { inputSource: 'node', source: { nodeId: 'removed-node', outputPort: 'removed-output' }, sampling: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' } } },
 	});
-	customNodeGraphEffect.customParameterDefs.push({
-		id: 'custom-color', nameForReference: 'hdr', canNode: false, dataType: { kind: 'color' },
+	customNodeGraphEffect.customParameterDefs['custom-color'] = { nameForReference: 'hdr', canNode: false, dataType: { kind: 'color' },
 		ui: { label: 'HDR', control: {} }, defaultValue: { inputSource: 'literal', value: [-1, 4.5, 0.5, 1] },
-	});
+	};
 	customNodeGraphEffect.customParameterValues['custom-color'] = {
 		inputSource: 'keyframesTimelineInline', expressionModifier: null, trimmedDurationMs: null, offsetMode: 'start', wrapMode: 'repeat',
 		keyframesTimeline: { dataType: { kind: 'color' }, isNormalized: true, keyframes: [
@@ -116,7 +111,7 @@ test('preserves persisted Custom Node Graph Effect bindings and nullable modifie
 		] },
 	};
 	const original = structuredClone(customNodeGraphEffect);
-	assert.equal(parseProjectApiValue(customNodeGraphEffectSchema, customNodeGraphEffect, 'Custom Node Graph Effect'), customNodeGraphEffect);
+	assert.equal(parseProjectApiValue(loaded.exports.storedCustomNodeGraphEffectSchema, customNodeGraphEffect, 'Custom Node Graph Effect'), customNodeGraphEffect);
 	assert.deepEqual(customNodeGraphEffect, original);
 	assert.equal(Object.hasOwn(customNodeGraphEffect, 'primaryAudioInputId'), false);
 });

@@ -1,14 +1,12 @@
 import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 import { createTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
-import { customNodeGraphEffectPublicParameterId, customNodeGraphEffectPublicParameterName } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { genId } from '@gs/shared/utility/id.ts';
-import fillEffectDef from '@gs/subsystems_effect_shared/fx/fill/_def_.ts';
-import imageEffectDef from '@gs/subsystems_effect_shared/fx/image/_def_.ts';
-import videoEffectDef from '@gs/subsystems_effect_shared/fx/video/_def_.ts';
-import audioWaveformEffectDef from '@gs/subsystems_effect_shared/fx/audioWaveform/_def_.ts';
+import imageEffectDef from '@gs/subsystems_effect-new_native-effects/fx/image/_def_.ts';
+import videoEffectDef from '@gs/subsystems_effect-new_native-effects/fx/video/_def_.ts';
+import audioWaveformEffectDef from '@gs/subsystems_effect-new_native-effects/fx/audioWaveform/_def_.ts';
 import { DEFAULT_TIMELINE_FPS, DEFAULT_TIMELINE_MOTION_BLUR } from './project-defaults.ts';
 import { DEFAULT_PROJECT_NAME, selectProjectFile } from './gsproj.ts';
 import { recentProjects } from './recent-projects.ts';
@@ -17,7 +15,6 @@ import { inspectTimelineClipMedia } from './utility/timeline-clip-media.ts';
 import { readVideoFrameRate } from './utility/video-frame-rate.ts';
 import type { ProjectAsset } from './Project.ts';
 import type { ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
-import type { EffectNodeOf } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import type { Player } from '@gs/shared/types.ts';
 import type { Project, ProjectFileHandle } from './gsproj.ts';
 import type { OpenedMediaFile } from './api.ts';
@@ -46,55 +43,43 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 
 	async function newProject() {
 		const initialEffectNodeId = genId();
-		const initialInputParamId = customNodeGraphEffectPublicParameterId(genId());
+		const initialInputParamId = genId();
 		const initialOutputId = genId();
 		const initialCustomNodeGraphEffect: ProjectCustomNodeGraphEffect = {
 			id: genId(),
 			name: 'Custom Node Graph Effect 1',
-			customParameterDefs: [],
-			customParameterValues: {},
-			automationGraphs: [],
-			outputDefs: [{
-				id: initialOutputId,
-				label: 'Output',
-				name: 'output',
-				dataType: { kind: 'color' },
-			}],
-			primaryOutputId: initialOutputId,
-			primaryInputId: initialInputParamId,
-			paramDefs: [{
-				id: initialInputParamId,
-				nameForReference: customNodeGraphEffectPublicParameterName('my_input'),
-				dataType: { kind: 'color' },
-				ui: { label: 'My Input', control: {} },
-				defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
-				canNode: true,
-			}],
-			nodes: [{
-				id: genId(),
-				type: 'globalIn',
-			}, {
-				id: initialEffectNodeId,
-				type: 'effect',
-				staticSettings: {},
-				resolution: { mode: 'auto', scale: 1 },
-				effectId: 'fill',
-				displayName: '',
-				params: {
-					color: { inputSource: 'literal', value: [0, 1, 0, 1] },
-				},
-				isBypass: false,
-			} satisfies EffectNodeOf<typeof fillEffectDef>, {
-				id: genId(),
-				type: 'globalOut',
-				inputs: {
-					[initialOutputId]: {
-						nodeId: initialEffectNodeId,
-						outputPort: 'output',
+			definition: {
+				kind: 'modify', resolutionInputParameters: [initialInputParamId],
+				customParameterDefs: {},
+				customParameterValues: {},
+				automationGraphs: [],
+				outputDefs: { [initialOutputId]: {
+					label: 'Output',
+					dataType: { kind: 'color' },
+				} },
+				primaryOutput: initialOutputId,
+				primaryInputParameter: initialInputParamId,
+				paramDefs: { [initialInputParamId]: {
+					nameForReference: 'my_input',
+					dataType: { kind: 'color' },
+					ui: { label: 'My Input', control: {} },
+					defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+					canNode: true,
+				} },
+				nodes: [{
+					id: initialEffectNodeId,
+					type: 'effect',
+					staticSettings: {},
+					resolution: { mode: 'auto', scale: 1 },
+					effectSource: { type: 'nativeEffect', id: 'fill' },
+					params: {
+						color: { inputSource: 'literal', value: [0, 1, 0, 1] },
 					},
-				},
-			}],
-		} satisfies ProjectCustomNodeGraphEffect;
+					isBypass: false,
+				}],
+				outputSources: { [initialOutputId]: { nodeId: initialEffectNodeId, outputPort: 'output' } },
+			},
+		};
 		return projectSessions.open({
 			gsVersion: _VERSION_,
 			name: DEFAULT_PROJECT_NAME,
@@ -111,13 +96,14 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 				resolution: { mode: 'project' },
 				layers: [{
 					id: genId(),
-					layerType: 'customNodeGraphEffect',
+					layerType: 'effect',
 					transformTarget: 'image',
 					isDisabled: false,
 					isSolo: false,
 					color: null,
-					customNodeGraphEffectId: initialCustomNodeGraphEffect.id,
-					customNodeGraphEffectParamValues: {},
+					effectSource: { type: 'customNodeGraphEffectReference', id: initialCustomNodeGraphEffect.id },
+					effectStaticSettings: {}, resolution: { mode: 'context', scale: 1 },
+					effectParamValues: {},
 					forceDisableMotionBlur: false,
 					mask: null,
 					layerMask: null,
@@ -194,93 +180,78 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 		} satisfies Player : null;
 	
 		const initialEffectNodeId = genId();
-		const initialInputParamId = customNodeGraphEffectPublicParameterId(genId());
+		const initialInputParamId = genId();
 		const initialOutputId = genId();
 		const initialCustomNodeGraphEffect: ProjectCustomNodeGraphEffect = {
 			id: genId(),
 			name: 'Custom Node Graph Effect 1',
-			customParameterDefs: [],
-			customParameterValues: {},
-			automationGraphs: [],
-			outputDefs: [{
-				id: initialOutputId,
-				label: 'Output',
-				name: 'output',
-				dataType: { kind: 'color' },
-			}],
-			primaryOutputId: initialOutputId,
-			primaryInputId: initialInputParamId,
-			paramDefs: [{
-				id: initialInputParamId,
-				nameForReference: customNodeGraphEffectPublicParameterName('my_input'),
-				dataType: { kind: 'color' },
-				ui: { label: 'My Input', control: {} },
-				defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
-				canNode: true,
-			}],
-			nodes: [{
-				id: genId(),
-				type: 'globalIn',
-			}, result.type.startsWith('image/') ? {
-				id: initialEffectNodeId,
-				type: 'effect',
-				staticSettings: { image: asset.id },
-				resolution: { mode: 'auto', scale: 1 },
-				effectId: 'image',
-				displayName: '',
-				params: {
-					fit: deepClone(imageEffectDef.paramDefs.fit.defaultValue),
-				},
-				isBypass: false,
-			} satisfies EffectNodeOf<typeof imageEffectDef> : result.type.startsWith('video/') ? {
-				id: initialEffectNodeId,
-				type: 'effect',
-				staticSettings: { player: player!.id },
-				resolution: { mode: 'auto', scale: 1 },
-				effectId: 'video',
-				displayName: '',
-				params: {
-					fit: deepClone(videoEffectDef.paramDefs.fit.defaultValue),
-				},
-				isBypass: false,
-			} satisfies EffectNodeOf<typeof videoEffectDef> : result.type.startsWith('audio/') ? {
-				id: initialEffectNodeId,
-				type: 'effect',
-				staticSettings: {},
-				resolution: { mode: 'auto', scale: 1 },
-				effectId: 'audioWaveform',
-				displayName: '',
-				params: {
-					audio: { inputSource: 'literal', value: { type: 'player', playerId: player!.id } },
-					channel: deepClone(audioWaveformEffectDef.paramDefs.channel.defaultValue),
-					duration: deepClone(audioWaveformEffectDef.paramDefs.duration.defaultValue),
-					amplitude: deepClone(audioWaveformEffectDef.paramDefs.amplitude.defaultValue),
-					lineWidth: deepClone(audioWaveformEffectDef.paramDefs.lineWidth.defaultValue),
-					color: deepClone(audioWaveformEffectDef.paramDefs.color.defaultValue),
-				},
-				isBypass: false,
-			} satisfies EffectNodeOf<typeof audioWaveformEffectDef> : {
-				id: initialEffectNodeId,
-				type: 'effect',
-				staticSettings: {},
-				resolution: { mode: 'auto', scale: 1 },
-				effectId: 'fill',
-				displayName: '',
-				params: {
-					color: { inputSource: 'literal', value: [0, 1, 0, 1] },
-				},
-				isBypass: false,
-			} satisfies EffectNodeOf<typeof fillEffectDef>, {
-				id: genId(),
-				type: 'globalOut',
-				inputs: {
-					[initialOutputId]: {
-						nodeId: initialEffectNodeId,
-						outputPort: 'output',
+			definition: {
+				kind: 'modify', resolutionInputParameters: [initialInputParamId],
+				customParameterDefs: {},
+				customParameterValues: {},
+				automationGraphs: [],
+				outputDefs: { [initialOutputId]: {
+					label: 'Output',
+					dataType: { kind: 'color' },
+				} },
+				primaryOutput: initialOutputId,
+				primaryInputParameter: initialInputParamId,
+				paramDefs: { [initialInputParamId]: {
+					nameForReference: 'my_input',
+					dataType: { kind: 'color' },
+					ui: { label: 'My Input', control: {} },
+					defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+					canNode: true,
+				} },
+				nodes: [result.type.startsWith('image/') ? {
+					id: initialEffectNodeId,
+					type: 'effect',
+					staticSettings: { image: asset.id },
+					resolution: { mode: 'auto', scale: 1 },
+					effectSource: { type: 'nativeEffect', id: 'image' },
+					params: {
+						fit: deepClone(imageEffectDef.paramDefs.fit.defaultValue),
 					},
-				},
-			}],
-		} satisfies ProjectCustomNodeGraphEffect;
+					isBypass: false,
+				} : result.type.startsWith('video/') ? {
+					id: initialEffectNodeId,
+					type: 'effect',
+					staticSettings: { player: player!.id },
+					resolution: { mode: 'auto', scale: 1 },
+					effectSource: { type: 'nativeEffect', id: 'video' },
+					params: {
+						fit: deepClone(videoEffectDef.paramDefs.fit.defaultValue),
+					},
+					isBypass: false,
+				} : result.type.startsWith('audio/') ? {
+					id: initialEffectNodeId,
+					type: 'effect',
+					staticSettings: {},
+					resolution: { mode: 'auto', scale: 1 },
+					effectSource: { type: 'nativeEffect', id: 'audioWaveform' },
+					params: {
+						audio: { inputSource: 'literal', value: { type: 'player', playerId: player!.id } },
+						channel: deepClone(audioWaveformEffectDef.paramDefs.channel.defaultValue),
+						duration: deepClone(audioWaveformEffectDef.paramDefs.duration.defaultValue),
+						amplitude: deepClone(audioWaveformEffectDef.paramDefs.amplitude.defaultValue),
+						lineWidth: deepClone(audioWaveformEffectDef.paramDefs.lineWidth.defaultValue),
+						color: deepClone(audioWaveformEffectDef.paramDefs.color.defaultValue),
+					},
+					isBypass: false,
+				} : {
+					id: initialEffectNodeId,
+					type: 'effect',
+					staticSettings: {},
+					resolution: { mode: 'auto', scale: 1 },
+					effectSource: { type: 'nativeEffect', id: 'fill' },
+					params: {
+						color: { inputSource: 'literal', value: [0, 1, 0, 1] },
+					},
+					isBypass: false,
+				}],
+				outputSources: { [initialOutputId]: { nodeId: initialEffectNodeId, outputPort: 'output' } },
+			},
+		};
 	
 		return {
 			gsVersion: _VERSION_,
@@ -313,11 +284,12 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 						}],
 						audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
 					} : {
-						layerType: 'customNodeGraphEffect' as const,
+						layerType: 'effect' as const,
 						transformTarget: 'image' as const,
 						name: 'Custom Node Graph Effect',
-						customNodeGraphEffectId: initialCustomNodeGraphEffect.id,
-						customNodeGraphEffectParamValues: {},
+					effectSource: { type: 'customNodeGraphEffectReference', id: initialCustomNodeGraphEffect.id },
+					effectStaticSettings: {}, resolution: { mode: 'context', scale: 1 },
+						effectParamValues: {},
 						clips: [{
 							id: genId(),
 							...createTimelineClipTiming(0, 1000 * 10),

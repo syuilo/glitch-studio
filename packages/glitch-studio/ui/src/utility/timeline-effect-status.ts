@@ -1,31 +1,12 @@
 import { shallowReactive } from 'vue';
-import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
+import type { EffectPreparationStatus } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
 import type { TimelineLayerStatusSource } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 
 /** 同じ定義・レイヤーIDでも、配置パスとクリップの実行インスタンスごとに状態を分離する。 */
 export class TimelineEffectStateStore {
-	private nodeStates = shallowReactive(new Map<string, { instanceId: string; states: Map<string, EffectInstanceState> }>());
-	private layerStates = shallowReactive(new Map<string, { instanceId: string; state: EffectInstanceState }>());
+	private layerStates = shallowReactive(new Map<string, { instanceId: string; state: EffectPreparationStatus }>());
 
-	public updateNode(source: TimelineLayerStatusSource, nodeId: string, status: EffectInstanceState | null) {
-		const key = JSON.stringify([source.rootSceneId, ...source.layerPath]);
-		let entry = this.nodeStates.get(key);
-		if (status == null) {
-			// 旧クリップの破棄通知で、同じレイヤーの新しい描画状態を消さない。
-			if (entry?.instanceId === source.instanceId) {
-				entry.states.delete(nodeId);
-				if (entry.states.size === 0) this.nodeStates.delete(key);
-			}
-			return;
-		}
-		if (entry?.instanceId !== source.instanceId) {
-			entry = { instanceId: source.instanceId, states: shallowReactive(new Map()) };
-			this.nodeStates.set(key, entry);
-		}
-		entry.states.set(nodeId, status);
-	}
-
-	public updateLayer(source: TimelineLayerStatusSource, status: EffectInstanceState | null) {
+	public updateLayer(source: TimelineLayerStatusSource, status: EffectPreparationStatus | null) {
 		const key = JSON.stringify([source.rootSceneId, ...source.layerPath]);
 		const entry = this.layerStates.get(key);
 		if (status != null) {
@@ -36,16 +17,11 @@ export class TimelineEffectStateStore {
 		}
 	}
 
-	public getNodes(sceneId: string, layerId: string): ReadonlyMap<string, EffectInstanceState> | null {
-		return this.nodeStates.get(JSON.stringify([sceneId, layerId]))?.states ?? null;
-	}
-
-	public getLayer(sceneId: string, layerId: string): EffectInstanceState | null {
+	public getLayer(sceneId: string, layerId: string): EffectPreparationStatus | null {
 		return this.layerStates.get(JSON.stringify([sceneId, layerId]))?.state ?? null;
 	}
 
 	public clear() {
-		this.nodeStates.clear();
 		this.layerStates.clear();
 	}
 }

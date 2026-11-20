@@ -1,3 +1,4 @@
+import { testGraph } from './helpers/effect-graph.mjs';
 import { i18nPlugin } from './helpers/i18n.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -12,7 +13,7 @@ const bundle = await build({ stdin: { loader: 'ts', resolveDir: fileURLToPath(ne
 	export { COMMAND_DEFS } from './commands.ts'; export { UndoRedo } from './utility/undo-redo.ts';` },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	plugins: [i18nPlugin, { name: 'custom-node-graph-effect-drop-dependencies', setup(build) {
-		build.onResolve({ filter: /\/api\.ts$|ui\.ts$|preferences\.ts$|effect-definitions\.[jt]s$/ }, ({ path }) => ({ path, external: true }));
+		build.onResolve({ filter: /\/api\.ts$|ui\.ts$|preferences\.ts$/ }, ({ path }) => ({ path, external: true }));
 	} }],
 });
 
@@ -34,17 +35,16 @@ function fixture(t, inline = false) {
 	const require = createRequire(import.meta.url);
 	const module = { exports: {} };
 	new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(path => /\/api\.ts$/.test(path) ? api : /ui\.ts$/.test(path) ? ui
-		: /preferences\.ts$/.test(path) ? { preferences: { s: { forceTypeSafety: true } } } : /effect-definitions\.[jt]s$/.test(path) ? { effectDefinitions: {} } : require(path), module, module.exports);
+		: /preferences\.ts$/.test(path) ? { preferences: { s: { forceTypeSafety: true } } } : /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/.test(path) ? { nativeEffectDefinitions: {} } : require(path), module, module.exports);
 	const { createCustomNodeGraphEffectDropActions, createCustomNodeGraphEffectAssetNode, COMMAND_DEFS, UndoRedo } = module.exports;
-	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, id: 'custom-node-graph-effect', name: 'Custom Node Graph Effect', paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null,
-		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'old', type: 'effect', effectId: 'fill', params: {} },
-			{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'old', outputPort: 'output' } } }] };
-	const state = { assets: ref([]), players: ref([]), customNodeGraphEffects: ref(inline ? [] : [customNodeGraphEffect]),
-		timelineScenes: ref([{ id: 'scene', layers: inline ? [{ id: 'inline', layerType: 'inlineCustomNodeGraphEffect', customNodeGraphEffect }] : [] }]) };
+	const customNodeGraphEffect = testGraph({ nodes: [{ id: 'old', type: 'effect', effectSource: { type: 'nativeEffect', id: 'fill' }, params: {} }],
+		outputSources: { output: { nodeId: 'old', outputPort: 'output' } } });
+	const state = { assets: ref([]), players: ref([]), customNodeGraphEffects: ref(inline ? [] : [{ id: 'custom-node-graph-effect', definition: customNodeGraphEffect }]),
+		timelineScenes: ref([{ id: 'scene', layers: inline ? [{ id: 'inline', layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: customNodeGraphEffect } }] : [] }]) };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	history.onChange(changes => events.push(['commit', dialogs, changes]));
-	const target = inline ? { sceneId: 'scene', inlineCustomNodeGraphEffectLayerId: 'inline' } : { customNodeGraphEffectId: 'custom-node-graph-effect' };
-	const currentCustomNodeGraphEffect = inline ? state.timelineScenes.value[0].layers[0].customNodeGraphEffect : state.customNodeGraphEffects.value[0];
+	const target = inline ? { sceneId: 'scene', layerId: 'inline' } : { customNodeGraphEffectId: 'custom-node-graph-effect' };
+	const currentCustomNodeGraphEffect = inline ? state.timelineScenes.value[0].layers[0].effectSource.customNodeGraphEffect : state.customNodeGraphEffects.value[0].definition;
 	const actions = createCustomNodeGraphEffectDropActions({ projectSessionId: 'test-session', context: { stateManager: history }, target, isActive: () => true, revealAssets: () => events.push('revealAssets') });
 	return { state, history, actions, customNodeGraphEffect: currentCustomNodeGraphEffect, target, events, api, createCustomNodeGraphEffectAssetNode };
 }
@@ -58,8 +58,8 @@ test('imports media nodes in order with one undo and preserves existing wiring',
 		new File(['audio'], 'sound.wav', { type: 'audio/wav' }), new File(['font'], 'font.ttf', { type: 'font/ttf' }),
 		new File(['archive'], 'archive.zip', { type: 'application/zip' })];
 	assert.equal(await f.actions.dropFiles(files), true);
-	assert.deepEqual(f.customNodeGraphEffect.nodes.map(node => node.effectId ?? node.type), ['globalIn', 'fill', 'image', 'video', 'audioWaveform', 'globalOut']);
-	const nodes = f.customNodeGraphEffect.nodes.slice(2, 5);
+	assert.deepEqual(f.customNodeGraphEffect.nodes.map(node => node.effectSource.id), ['fill', 'image', 'video', 'audioWaveform']);
+	const nodes = f.customNodeGraphEffect.nodes.slice(1, 4);
 	assert.equal(nodes[0].staticSettings.image, f.state.assets.value[0].id);
 	assert.equal(nodes[0].params.fit.value, 'cover');
 	assert.equal(nodes[1].staticSettings.player, f.state.players.value[0].id);
@@ -71,14 +71,14 @@ test('imports media nodes in order with one undo and preserves existing wiring',
 	assert.ok(f.events.includes('revealAssets'));
 	assert.equal(f.events.filter(event => event === 'progress').length, 1);
 	assert.equal(f.events.find(event => Array.isArray(event) && event[0] === 'commit')[1], 1);
-	assert.deepEqual(f.customNodeGraphEffect.nodes.at(-1).inputs.output, { nodeId: 'old', outputPort: 'output' });
+	assert.deepEqual(f.customNodeGraphEffect.outputSources.output, { nodeId: 'old', outputPort: 'output' });
 	const ids = nodes.map(node => node.id);
 	f.history.undo();
-	assert.deepEqual(f.customNodeGraphEffect.nodes.map(node => node.id), ['in', 'old', 'out']);
+	assert.deepEqual(f.customNodeGraphEffect.nodes.map(node => node.id), ['old']);
 	assert.equal(f.state.assets.value.length, 0);
 	assert.equal(f.state.players.value.length, 0);
 	f.history.redo();
-	assert.deepEqual(f.customNodeGraphEffect.nodes.slice(2, 5).map(node => node.id), ids);
+	assert.deepEqual(f.customNodeGraphEffect.nodes.slice(1, 4).map(node => node.id), ids);
 });
 
 // 【既存素材のPlayerを使い、Playerがない素材ではノードとまとめて作成する】
@@ -90,7 +90,7 @@ test('reuses existing players and creates missing players with an atomic node ad
 		{ id: 'audio', name: 'Sound', fileDataType: 'audio/wav', fileData: new Blob() }, { id: 'font', name: 'Font', fileDataType: 'font/ttf', fileData: new Blob() });
 	f.state.players.value.push({ id: 'existing', name: 'Existing', sourceType: 'asset', assetId: 'video' });
 	assert.equal(await f.actions.dropAsset('video'), true);
-	assert.equal(f.customNodeGraphEffect.nodes[2].staticSettings.player, 'existing');
+	assert.equal(f.customNodeGraphEffect.nodes[1].staticSettings.player, 'existing');
 	assert.equal(f.state.players.value.length, 1);
 	assert.equal(await f.actions.dropAsset('audio'), true);
 	assert.equal(f.state.players.value.length, 2);
@@ -113,11 +113,11 @@ test('adds asset nodes to the selected inline Custom Node Graph Effect', async t
 	f.state.assets.value.push({ id: 'image', name: 'Image', fileDataType: 'image/png', fileData: new Blob() });
 	assert.equal(await f.actions.dropAsset('image'), true);
 	assert.equal(f.state.timelineScenes.value[0].layers.length, 1);
-	assert.equal(f.customNodeGraphEffect.nodes[2].effectId, 'image');
+	assert.equal(f.customNodeGraphEffect.nodes[1].effectSource.id, 'image');
 	assert.equal(f.events.includes('progress'), false);
-	assert.ok(f.events.find(event => Array.isArray(event) && event[0] === 'commit')[2].some(change => change.type === 'customNodeGraphEffect' && change.target.inlineCustomNodeGraphEffectLayerId === 'inline'));
+	assert.ok(f.events.find(event => Array.isArray(event) && event[0] === 'commit')[2].some(change => change.type === 'customNodeGraphEffect' && change.target.layerId === 'inline'));
 	f.history.undo();
-	assert.deepEqual(f.customNodeGraphEffect.nodes.map(node => node.id), ['in', 'old', 'out']);
+	assert.deepEqual(f.customNodeGraphEffect.nodes.map(node => node.id), ['old']);
 });
 
 // 【読み込み中に対象が置き換わった場合、新しいCustom Node Graph Effectに古いドロップを適用しない】
@@ -129,11 +129,11 @@ test('retains imported assets without adding nodes after the target is replaced'
 	const read = f.api.openMediaFile;
 	f.api.openMediaFile = async options => { await gate; return read(options); };
 	const dropped = f.actions.dropFiles([new File([], 'photo.png', { type: 'image/png' })]);
-	f.state.customNodeGraphEffects.value = [{ ...f.customNodeGraphEffect, nodes: [] }];
+	f.state.customNodeGraphEffects.value = [{ id: 'custom-node-graph-effect', definition: testGraph() }];
 	release();
 	assert.equal(await dropped, false);
 	assert.equal(f.state.assets.value.length, 1);
-	assert.equal(f.state.customNodeGraphEffects.value[0].nodes.length, 0);
+	assert.equal(f.state.customNodeGraphEffects.value[0].definition.nodes.length, 0);
 	assert.ok(f.events.includes('revealAssets'));
 });
 
@@ -148,6 +148,6 @@ test('validates all node references before importing any resources', t => {
 	assert.throws(() => f.history.commit('insertImportedAssets', { assets: [image, video], players: [], customNodeGraphEffect: { target: f.target, nodes: [first.node, second.node] } }), /player asset not found/);
 	assert.equal(f.state.assets.value.length, 0);
 	assert.equal(f.state.players.value.length, 0);
-	assert.deepEqual(f.customNodeGraphEffect.nodes.map(node => node.id), ['in', 'old', 'out']);
+	assert.deepEqual(f.customNodeGraphEffect.nodes.map(node => node.id), ['old']);
 	assert.equal(f.history.undoStack.value.length, 0);
 });

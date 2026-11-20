@@ -213,8 +213,6 @@ const layerIcon = computed(() => ({
 	video: 'ti-video',
 	audio: 'ti-music',
 	scene: 'ti-memory',
-	customNodeGraphEffect: 'ti-chart-dots-3',
-	inlineCustomNodeGraphEffect: 'ti-chart-dots-3',
 	effect: 'ti-sparkles',
 	shape: 'ti-shape',
 	text: 'ti-typography',
@@ -291,8 +289,7 @@ function clipLabel(clip: Clip): string {
 	if ('assetId' in clip) return stateManager.state.assets.value.find(asset => asset.id === clip.assetId)?.name ?? i18n.ts._TimelineClip.MissingMedia;
 	if ('sceneId' in clip) return stateManager.state.timelineScenes.value.find(scene => scene.id === clip.sceneId)?.name ?? i18n.ts._TimelineClip.MissingScene;
 	const layer = props.layer;
-	if (layer.layerType === 'customNodeGraphEffect') return stateManager.state.customNodeGraphEffects.value.find(candidateCustomNodeGraphEffect => candidateCustomNodeGraphEffect.id === layer.customNodeGraphEffectId)?.name ?? i18n.ts._TimelineClip.MissingCustomNodeGraphEffect;
-	return layer.layerType === 'inlineCustomNodeGraphEffect' ? i18n.ts._TimelineClip.InlineCustomNodeGraphEffect : layer.layerType === 'effect' ? effectDefinitions.value[layer.effectId].displayName : layer.name;
+	return layer.layerType === 'effect' ? effectDefinitions.value.describe(layer.effectSource).displayName : layer.name;
 }
 
 function sourceDuration(clip: Clip): number | null {

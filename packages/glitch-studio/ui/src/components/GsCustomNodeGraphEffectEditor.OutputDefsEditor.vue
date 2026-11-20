@@ -32,7 +32,7 @@ import GsSelect from './common/GsSelect.vue';
 import GsSwitch from './common/GsSwitch.vue';
 import GsButton from './common/GsButton.vue';
 import GsFolder from './common/GsFolder.vue';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectOutputDef } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectOutputDef } from '@/types/custom-node-graph-effect-view.ts';
 
 type OutputDef = CustomNodeGraphEffectOutputDef;
 const props = defineProps<{ customNodeGraphEffect: CustomNodeGraphEffect }>();

@@ -8,17 +8,16 @@ export function createProjectCustomShaderEffect(definitions: readonly ProjectCus
 	for (let suffix = 1; definitions.some(definition => definition.name === name); suffix++) name = `${baseName} ${suffix}`;
 	if (source != null) {
 		const copy = deepClone(source);
-		const ids = new Map([...copy.paramDefs, ...copy.outputDefs].map(definition => [definition.id, genId()]));
-		return {
-			...copy,
-			id: genId(),
-			name,
-			paramDefs: copy.paramDefs.map(parameter => ({ ...parameter, id: ids.get(parameter.id)! })),
-			outputDefs: copy.outputDefs.map(output => ({ ...output, id: ids.get(output.id)! })),
-			primaryInputId: copy.primaryInputId == null ? null : ids.get(copy.primaryInputId)!,
-			primaryOutputId: copy.primaryOutputId == null ? null : ids.get(copy.primaryOutputId)!,
-			resolutionInputIds: copy.resolutionInputIds.map(id => ids.get(id)!),
-		};
+		const definition = copy.definition;
+		const parameterIds = new Map(Object.keys(definition.paramDefs).map(id => [id, genId()]));
+		const outputIds = new Map(Object.keys(definition.outputDefs).map(id => [id, genId()]));
+		return { ...copy, id: genId(), name, definition: { ...definition,
+			paramDefs: Object.fromEntries(Object.entries(definition.paramDefs).map(([id, def]) => [parameterIds.get(id)!, def])),
+			outputDefs: Object.fromEntries(Object.entries(definition.outputDefs).map(([id, def]) => [outputIds.get(id)!, def])),
+			primaryInputParameter: definition.primaryInputParameter == null ? null : parameterIds.get(definition.primaryInputParameter)!,
+			primaryOutput: definition.primaryOutput == null ? null : outputIds.get(definition.primaryOutput)!,
+			resolutionInputParameters: definition.resolutionInputParameters.map(id => parameterIds.get(id)!),
+		} };
 	}
 	const inputId = genId();
 	const outputId = genId();
@@ -26,12 +25,13 @@ export function createProjectCustomShaderEffect(definitions: readonly ProjectCus
 		id: genId(),
 		name,
 		summary: '',
-		shaderApiVersion: 1,
-		kind: 'modify',
-		codeLanguage: 'wgsl',
-		code: 'fn main(position: vec2f) -> Output {\n\tvar output: Output;\n\toutput.color = read_source(position);\n\treturn output;\n}\n',
-		paramDefs: [{ id: inputId, nameForReference: 'source', canNode: true, dataType: { kind: 'color' }, ui: { label: 'Source', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } }],
-		outputDefs: [{ id: outputId, nameForReference: 'color', label: 'Color', dataType: { kind: 'color' } }],
-		primaryInputId: inputId, primaryOutputId: outputId, resolutionInputIds: [inputId],
+		definition: {
+			shaderApiVersion: 1,
+			kind: 'modify',
+			code: 'fn main(position: vec2f) -> Output {\n\tvar output: Output;\n\toutput.color = read_source(position);\n\treturn output;\n}\n',
+			paramDefs: { [inputId]: { nameForReference: 'source', canNode: true, dataType: { kind: 'color' }, ui: { label: 'Source', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } } },
+			outputDefs: { [outputId]: { nameForReference: 'color', label: 'Color', dataType: { kind: 'color' } } },
+			primaryInputParameter: inputId, primaryOutput: outputId, resolutionInputParameters: [inputId],
+		},
 	};
 }

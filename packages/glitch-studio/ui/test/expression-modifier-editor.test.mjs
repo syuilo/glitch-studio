@@ -18,8 +18,8 @@ const bundle = await build({ absWorkingDir: directory, external: ['vue'], bundle
 																														build.onResolve({ filter: /^@\/(app|project-session|ui)\.ts$/ }, ({ path }) => ({ path, namespace: 'stub' }));
 																														build.onLoad({ filter: /.*/, namespace: 'stub' }, ({ path }) => ({ contents: (path.endsWith('app.ts') || path.endsWith('project-session.ts')) ? 'export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: { state: {} } } };'
 																															: 'export const modifierUiTest = { menu: [] }; export function popupMenu(menu) { modifierUiTest.menu = menu; } export function popup() {} export function contextMenu() {}', loader: 'ts' }));
-																														build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'effects' }));
-																														build.onLoad({ filter: /.*/, namespace: 'effects' }, () => ({ contents: 'export const effectDefinitions = {};', loader: 'ts' }));
+																														build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'effects' }));
+																														build.onLoad({ filter: /.*/, namespace: 'effects' }, () => ({ contents: 'export const nativeEffectDefinitions = {};', loader: 'ts' }));
 																														build.onResolve({ filter: /\.vue$/ }, ({ path }) => path.endsWith('GsVisualParam.vue') ? null : { path: basename(path), namespace: 'control' });
 																														// GsInput/GsTextareaの保存とショートカットはinput-sync.test.mjsで実コードを確認する。
 																														// ここでは未保存のslot値と保存イベントを分け、親が入力途中の本文を適用しないことを確認する。

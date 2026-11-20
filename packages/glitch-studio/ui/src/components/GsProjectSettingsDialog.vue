@@ -75,8 +75,8 @@ const renderSettingsError = computed(() => {
 });
 const exposureMs = computed(() => renderSettingsError.value ? '—' : (1000 / timelineFps.value * timelineMotionBlur.value.shutterAngle / 360).toFixed(2));
 const historyEffects = computed(() => findTimelineHistoryEffects(stateManager.state.timelineScenes.value,
-	id => stateManager.state.customNodeGraphEffects.value.find(customNodeGraphEffect => customNodeGraphEffect.id === id) ?? null, effectDefinitions.value)
-	.map(id => effectDefinitions.value[id].displayName));
+	effectDefinitions.value)
+	.map(id => effectDefinitions.value.describe({ type: 'nativeEffect', id }).displayName));
 const lockedAspectRatio = ref<number | null>(width.value / height.value);
 const isResolutionValid = computed(() => isValidDimension(width.value) && isValidDimension(height.value));
 

@@ -2,9 +2,8 @@ import { ref, shallowReactive, shallowRef } from 'vue';
 import { getFileSourceUrl, getFileSourceError } from '@gs/shared/file-source.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
-import { createCustomNodeGraphEffectRendererManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
+import { createEffectLivePreviewManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
 import { isVideoFrameAvailable } from './utility/video.ts';
-import { CustomNodeGraphEffectLivePreviewEffectStateStore } from './utility/custom-node-graph-effect-live-preview-effect-status.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
@@ -15,18 +14,18 @@ import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/ren
 import type { ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import type { Asset, Player } from '@gs/shared/types.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
-import type { CustomNodeGraphEffectArgumentBindings } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
-import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
-import type { EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
-import type { CustomNodeGraphEffectRendererManager, CustomNodeGraphEffectRendererManagerResources, CustomNodeGraphEffectRendererManagerStaticOptions, CustomNodeGraphEffectRendererManagerDynamicOptions, CustomNodeGraphEffectRendererManagerEvents } from '@gs/glitch-studio_renderer/custom-node-graph-effect-renderer-manager.ts';
+import type { CustomNodeGraphEffectArgumentBindings } from '@/types/custom-node-graph-effect-view.ts';
+import type { EffectPreparationStatus } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
+import type { EffectRenderTilingProgress } from '@gs/subsystems_effect-new_shared/effect-render-tiling.ts';
+import type { EffectLivePreviewManager, EffectLivePreviewManagerResources, EffectLivePreviewManagerStaticOptions, EffectLivePreviewManagerDynamicOptions, EffectLivePreviewManagerEvents } from '@gs/glitch-studio_renderer/effect-live-preview-manager.ts';
 
-export type CustomNodeGraphEffectRendererManagerInitialOptions = {
-	staticOptions: CustomNodeGraphEffectRendererManagerStaticOptions;
-	dynamicOptions: Partial<CustomNodeGraphEffectRendererManagerDynamicOptions>;
-	resources: CustomNodeGraphEffectRendererManagerResources;
+export type EffectLivePreviewManagerInitialOptions = {
+	staticOptions: EffectLivePreviewManagerStaticOptions;
+	dynamicOptions: Partial<EffectLivePreviewManagerDynamicOptions>;
+	resources: EffectLivePreviewManagerResources;
 };
 
-export class CustomNodeGraphEffectRendererManagerController extends RendererManagerControllerBase<CustomNodeGraphEffectRendererManager> {
+export class EffectLivePreviewManagerController extends RendererManagerControllerBase<EffectLivePreviewManager> {
 	public onAssetReadFailure: (() => void) | null = null;
 	public readonly canvasRevision = ref(0);
 	public readonly outputResolution = ref<Resolution | null>(null);
@@ -51,19 +50,14 @@ export class CustomNodeGraphEffectRendererManagerController extends RendererMana
 	public gpuAverageDisplayMedium = ref(0);
 	public gpuAverageDisplaySlow = ref(0);
 	public fpsDisplay = ref(0);
-	public gpuMemoryUsage = ref<Parameters<CustomNodeGraphEffectRendererManagerEvents['gpuMemory']>[0]['usage'] | null>(null);
+	public gpuMemoryUsage = ref<Parameters<EffectLivePreviewManagerEvents['gpuMemory']>[0]['usage'] | null>(null);
 	public errorMessage = ref<string | null>(null);
-	private customNodeGraphEffectLivePreviewEffectStateStore = new CustomNodeGraphEffectLivePreviewEffectStateStore(shallowReactive(new Map<string, EffectInstanceState>()));
-
-	public getCustomNodeGraphEffectLivePreviewEffectState(customNodeGraphEffectId: ProjectCustomNodeGraphEffect['id'], nodeId: string): EffectInstanceState | null {
-		if (this.livePreviewCustomNodeGraphEffectId.value !== customNodeGraphEffectId) return null;
-		return this.customNodeGraphEffectLivePreviewEffectStateStore.get(customNodeGraphEffectId, nodeId) ?? null;
-	}
+	public readonly preparationStatus = shallowRef<EffectPreparationStatus | null>(null);
 
 	constructor(audioOutput: AudioOutput) {
 		super({
 			createWorker: () => {
-				return createCustomNodeGraphEffectRendererManagerWorker();
+				return createEffectLivePreviewManagerWorker();
 			},
 			onError: error => {
 				this.errorMessage.value = error?.message ?? null;
@@ -93,9 +87,9 @@ export class CustomNodeGraphEffectRendererManagerController extends RendererMana
 					this.gpuMemoryUsage.value = ctx.usage;
 				},
 				effectState: (ctx) => {
-					if (ctx.status?.status.type === 'error') { this.reportRenderFailure(new Error(ctx.status.status.message), { source: ctx.source, nodeId: ctx.nodeId }); return; }
-					const { source, nodeId, status } = ctx;
-					this.customNodeGraphEffectLivePreviewEffectStateStore.update(source, nodeId, status);
+					if (ctx.source.instanceId !== this.customNodeGraphEffectLivePreviewStatusInstanceId) return;
+					this.preparationStatus.value = ctx.status;
+					if (ctx.status?.type === 'error') this.reportRenderFailure(new Error(String(ctx.status.error)), { source: ctx.source });
 				},
 				telemetry: (ctx) => {
 					this.fpsDisplay.value = ctx.fpsAverage;
@@ -120,13 +114,13 @@ export class CustomNodeGraphEffectRendererManagerController extends RendererMana
 				this.call('updatePointerPosition', [this.pointerPosition]);
 			},
 			onDisposed: () => {
+				this.preparationStatus.value = null;
 				this.outputResolution.value = null;
 				this.isRenderDelayed.value = false;
 				this.renderTilingProgress.value = null;
 				this.customNodeGraphEffectLivePreviewStatusInstanceId = null;
 				this.releasePlayerMedia();
 				this.livePreviewCustomNodeGraphEffectId.value = null;
-				this.customNodeGraphEffectLivePreviewEffectStateStore.stop();
 				this.gpuMemoryUsage.value = null;
 				this.fpsDisplay.value = 0;
 				this.gpuAverageDisplayFast.value = 0;
@@ -164,7 +158,7 @@ export class CustomNodeGraphEffectRendererManagerController extends RendererMana
 	}
 
 	/** 起動ごとに所有者が取得した最新スナップショットだけを使い、停止中の編集状態を複製しない。 */
-	public async initialize(options: CustomNodeGraphEffectRendererManagerInitialOptions): Promise<void> {
+	public async initialize(options: EffectLivePreviewManagerInitialOptions): Promise<void> {
 		const snapshot = deepClone(options);
 		await this.launchManager(() => {
 			this.updatePlayers(snapshot.resources.players, snapshot.resources.assets);
@@ -227,14 +221,14 @@ export class CustomNodeGraphEffectRendererManagerController extends RendererMana
 	}
 
 	public startCustomNodeGraphEffectLivePreviewRenderLoopFor(customNodeGraphEffectId: ProjectCustomNodeGraphEffect['id'], paramValues: CustomNodeGraphEffectArgumentBindings = {}) {
+		this.preparationStatus.value = null;
 		this.outputResolution.value = null;
 		const statusInstanceId = genId();
 		this.customNodeGraphEffectLivePreviewStatusInstanceId = statusInstanceId;
 		this.isRenderDelayed.value = false;
 		this.renderTilingProgress.value = null;
 		// 再生成中の表示モードはPreviewPlaybackControllerが保持し、両プレビューの準備後に再開する。
-		if (this.isReady.value) this.call('startCustomNodeGraphEffectLivePreviewRenderLoopFor', [customNodeGraphEffectId, deepClone(paramValues), statusInstanceId]);
-		this.customNodeGraphEffectLivePreviewEffectStateStore.start(customNodeGraphEffectId, statusInstanceId);
+		if (this.isReady.value) this.call('startEffectLivePreview', [{ effectSource: { type: 'customNodeGraphEffectReference', id: customNodeGraphEffectId }, params: deepClone(paramValues) }, statusInstanceId]);
 		this.livePreviewCustomNodeGraphEffectId.value = customNodeGraphEffectId;
 	}
 
@@ -244,7 +238,7 @@ export class CustomNodeGraphEffectRendererManagerController extends RendererMana
 			return;
 		}
 		// 同じCustom Node Graph Effectの操作ではインスタンスを維持し、履歴を初期化しない。
-		if (this.isReady.value) this.call('updateCustomNodeGraphEffectLivePreviewParamValues', [deepClone(paramValues)]);
+		if (this.isReady.value) this.call('updateEffectLivePreviewParamValues', [deepClone(paramValues)]);
 	}
 
 	public resetRenderHistory() {
@@ -256,8 +250,8 @@ export class CustomNodeGraphEffectRendererManagerController extends RendererMana
 		this.isRenderDelayed.value = false;
 		this.renderTilingProgress.value = null;
 		if (this.isReady.value) this.call('stopRenderLoop', []);
+		this.preparationStatus.value = null;
 		this.outputResolution.value = null;
-		this.customNodeGraphEffectLivePreviewEffectStateStore.stop();
 		this.livePreviewCustomNodeGraphEffectId.value = null;
 	}
 
@@ -350,7 +344,7 @@ export class CustomNodeGraphEffectRendererManagerController extends RendererMana
 		if (this.isReady.value) this.call('updatePointerPosition', [newPointerPosition]);
 	}
 
-	public async updateDynamicOptions(newDynamicOptions: Partial<CustomNodeGraphEffectRendererManagerDynamicOptions>) {
+	public async updateDynamicOptions(newDynamicOptions: Partial<EffectLivePreviewManagerDynamicOptions>) {
 		const options = deepClone(newDynamicOptions);
 		// Partialのresolution省略は変更なし。指定された場合だけ検証・正規化する。
 		if (Object.hasOwn(options, 'resolution')) {
@@ -381,8 +375,8 @@ export class CustomNodeGraphEffectRendererManagerController extends RendererMana
 
 	public async applyProjectChanges(changes: readonly RendererProjectChange[]) {
 		if (!this.isReady.value) return;
-		const patch = deepClone(changes.filter(change => change.type === 'customShaderEffects' || change.type === 'automationGraphs' || change.type === 'customNodeGraphEffectRegistration'
-			|| (change.type === 'node' || change.type === 'customNodeGraphEffect') && 'customNodeGraphEffectId' in change.target));
+		const patch = deepClone(changes.filter(change => change.type === 'customShaderEffectRegistration' || change.type === 'automationGraphs' || change.type === 'customNodeGraphEffectRegistration'
+			|| change.type === 'node' || change.type === 'customNodeGraphEffect'));
 		if (patch.length > 0) await this.callAndWaitReturn('applyProjectChanges', [patch]);
 	}
 

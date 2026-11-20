@@ -1,8 +1,8 @@
-import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
+import type { EffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { NodeOutputReference, CustomNodeGraphEffectPublicParameterId, CustomNodeGraphEffectOutputDef, CustomNodeGraphEffectParamDef } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { NodeOutputReference, CustomNodeGraphEffectOutputDef, CustomNodeGraphEffectParamDef } from '@/types/custom-node-graph-effect-view.ts';
 import type { ParamEdit } from '@/components/GsVisualParam.vue';
-import type { CustomNodeGraphEffectCustomParameterDefinition, CustomNodeGraphEffectCustomParameterId } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffectCustomParameterDefinition } from '@/types/custom-node-graph-effect-view.ts';
 import type { CustomNodeGraphEffectValueParameterEdit } from './parameter-edit.ts';
 
 export type CustomNodeGraphEffectAssetDropActions = {
@@ -13,10 +13,10 @@ export type CustomNodeGraphEffectAssetDropActions = {
 
 // 編集操作だけを通知し、保存先の特定とUndo/Redo用コマンドへの変換は親が行う。
 export type CustomNodeGraphEffectEdit =
-	| { kind: 'customParameterClipboard'; parameterId: CustomNodeGraphEffectCustomParameterId; operation: 'copy' | 'paste' }
+	| { kind: 'customParameterClipboard'; parameterId: string; operation: 'copy' | 'paste' }
 	| { kind: 'updateCustomParameter'; definition: CustomNodeGraphEffectCustomParameterDefinition; mergeKey?: string | null }
-	| { kind: 'removeCustomParameter'; parameterId: CustomNodeGraphEffectCustomParameterId }
-	| { kind: 'editCustomParameter'; parameterId: CustomNodeGraphEffectCustomParameterId; edit: CustomNodeGraphEffectValueParameterEdit; mergeKey?: string | null }
+	| { kind: 'removeCustomParameter'; parameterId: string }
+	| { kind: 'editCustomParameter'; parameterId: string; edit: CustomNodeGraphEffectValueParameterEdit; mergeKey?: string | null }
 	| { kind: 'addRelayNode' }
 	| { kind: 'setRelayInput'; nodeId: string; value: NodeOutputReference | null }
 	| { kind: 'setRelayDataType'; nodeId: string; dataType: TextureDataType }
@@ -29,11 +29,11 @@ export type CustomNodeGraphEffectEdit =
 	| { kind: 'reorderNodes'; nodeIds: string[] }
 	| { kind: 'setOutputConnection'; nodeId: string; outputId: string; value: NodeOutputReference | null }
 	| { kind: 'addParamDef'; def: CustomNodeGraphEffectParamDef }
-	| { kind: 'updateParamDef'; defId: CustomNodeGraphEffectPublicParameterId; changes: Partial<Omit<CustomNodeGraphEffectParamDef, 'id'>>; mergeKey?: string | null }
-	| { kind: 'removeParamDef'; defId: CustomNodeGraphEffectPublicParameterId }
+	| { kind: 'updateParamDef'; defId: string; changes: Partial<Omit<CustomNodeGraphEffectParamDef, 'id'>>; mergeKey?: string | null }
+	| { kind: 'removeParamDef'; defId: string }
 	| { kind: 'addOutputDef'; def: CustomNodeGraphEffectOutputDef }
 	| { kind: 'updateOutputDef'; defId: string; changes: Partial<Omit<CustomNodeGraphEffectOutputDef, 'id'>> }
 	| { kind: 'removeOutputDef'; defId: string }
 	| { kind: 'setPrimaryOutput'; outputId: string | null }
-	| { kind: 'setPrimaryAudioInput'; inputId: CustomNodeGraphEffectPublicParameterId | null }
-	| { kind: 'setPrimaryInput'; inputId: CustomNodeGraphEffectPublicParameterId | null };
+	| { kind: 'setPrimaryAudioInput'; inputId: string | null }
+	| { kind: 'setPrimaryInput'; inputId: string | null };

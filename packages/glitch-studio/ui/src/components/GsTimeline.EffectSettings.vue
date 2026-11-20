@@ -3,12 +3,11 @@
 	<template #icon><i class="ti ti-sparkles"></i></template>
 	<template #label>{{ i18n.ts._TimelineLayer.Effect }}: {{ definition.displayName }}</template>
 	<template #suffix>
-		<span v-if="effectState?.status.type === 'loading'"><i class="ti ti-loader-2"></i> {{ i18n.ts.Loading }}<GsEllipsis/></span>
-		<span v-else-if="effectState?.status.type === 'error'" :class="$style.error" :title="effectState.status.message"><i class="ti ti-alert-triangle"></i> {{ i18n.ts.Error }}</span>
-		<span v-else-if="outputResolution">{{ outputResolution.width }} × {{ outputResolution.height }}</span>
+		<span v-if="effectState?.type === 'loading'"><i class="ti ti-loader-2"></i> {{ i18n.ts.Loading }}<GsEllipsis/></span>
+		<span v-else-if="effectState?.type === 'error'" v-tooltip="String(effectState.error)" :class="$style.error"><i class="ti ti-alert-triangle"></i> {{ i18n.ts.Error }}</span>
 	</template>
-	<div v-if="effectState?.status.type === 'error'" class="_spacer">
-		<div :class="$style.errorMessage">{{ effectState.status.message }}</div>
+	<div v-if="effectState?.type === 'error'" class="_spacer">
+		<div :class="$style.errorMessage">{{ String(effectState.error) }}</div>
 	</div>
 	<div style="padding: 8px 0;">
 		<GsStaticSettings :definitions="definition.staticSettingDefs ?? {}" :values="layer.effectStaticSettings" @change="emit('staticSetting', $event)"/>
@@ -20,6 +19,7 @@
 		>
 			<template #default="{ parameterKey }">
 				<GsVisualParam
+					:data-test-effect-layer-parameter="parameterKey"
 					previewParameterGroup="effect"
 					keyframesEnabled
 					imageInputEnabled
@@ -72,9 +72,9 @@ import GsStaticSettings from './GsStaticSettings.vue';
 import GsEllipsis from './common/GsEllipsis.vue';
 import type { AnotherLayerAudioOption, ParamEdit } from './GsVisualParam.vue';
 import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
+import type { EffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
-import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
+import type { EffectPreparationStatus } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
 import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 
@@ -82,11 +82,10 @@ const projectSession = useProjectSession();
 
 const effectDefinitions = computed(() => getEffectDefinitions(projectSession.projectContext.stateManager.state));
 
-const props = defineProps<{ layer: TimelineEffectLayer; contextResolution: Resolution; effectState?: EffectInstanceState | null; imageLayerOptions: readonly { value: string; label: string }[]; anotherLayerAudioOptions: readonly AnotherLayerAudioOption[] }>();
+const props = defineProps<{ layer: TimelineEffectLayer; contextResolution: Resolution; effectState?: EffectPreparationStatus | null; imageLayerOptions: readonly { value: string; label: string }[]; anotherLayerAudioOptions: readonly AnotherLayerAudioOption[] }>();
 const emit = defineEmits<{ staticSetting: [edit: { key: string; value: string | number | boolean | null }]; edit: [event: ParamEdit]; resolution: [resolution: EffectResolution] }>();
-const definition = computed(() => effectDefinitions.value[props.layer.effectId]);
+const definition = computed(() => effectDefinitions.value.describe(props.layer.effectSource));
 const parameterDefaults = computed(() => Object.fromEntries(Object.keys(definition.value.paramDefs).map(key => [key, getEffectLayerParameterDefault(definition.value, key)])));
-const outputResolution = computed(() => definition.value.primaryOutput == null ? null : props.effectState?.outputs[definition.value.primaryOutput]);
 const resolutionModes: { value: EffectResolution['mode']; label: string }[] = [
 	{ value: 'auto', label: i18n.ts.Auto }, { value: 'context', label: i18n.ts._Node.ContextResolution }, { value: 'customAbsolute', label: i18n.ts._Node.CustomResolution },
 ];

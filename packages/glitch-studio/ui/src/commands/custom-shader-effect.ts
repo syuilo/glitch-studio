@@ -1,9 +1,9 @@
 import * as z from 'zod';
+import { findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
-import { validateCustomShaderEffectDefinition } from '@gs/subsystems_effect_shared/custom-shader-effect-definition.ts';
+import { validateCustomShaderEffectDefinition } from '@gs/subsystems_effect-new_shared/custom-shader-effect.ts';
 import { createProjectCustomShaderEffect } from '../utility/custom-shader-effect.ts';
-import { isCustomShaderEffectUsed, snapshotCustomShaderEffectUsages, reconcileCustomShaderEffectUsages } from '../utility/custom-shader-effect-usages.ts';
+import { isCustomShaderEffectUsed, reconcileCustomShaderEffectUsages } from '../utility/custom-shader-effect-usages.ts';
 import { defineCommand, definePublicCommand } from './definition.ts';
 import { projectCustomShaderEffectDefinitionSchema } from './project-contract-schemas.ts';
 import { prepareProjectValueChange } from './prepared-value.ts';
@@ -13,12 +13,12 @@ import type { ProjectState } from '../Project.ts';
 function validateProjectCustomShaderEffect(definition: ProjectCustomShaderEffect): void {
 	// UIの型付き入力以外からも呼び出す。作品側の文字列と実行方式を検証してから、
 	// エフェクトドメインが所有する入出力・参照の検証へ渡す。
-	for (const field of ['name', 'summary', 'code'] as const) {
+	for (const field of ['name', 'summary'] as const) {
 		if (typeof definition[field] !== 'string') throw new Error(`Custom Shader Effect ${field} must be a string`);
 	}
-	if (!['wgsl'].includes(definition.codeLanguage)) throw new Error('Unsupported Custom Shader Effect code language');
-	if (!['generate', 'modify'].includes(definition.kind)) throw new Error('Invalid Custom Shader Effect kind');
-	validateCustomShaderEffectDefinition(definition);
+	if (typeof definition.definition.code !== 'string') throw new Error('Custom Shader Effect code must be a string');
+	if (!['generate', 'modify'].includes(definition.definition.kind)) throw new Error('Invalid Custom Shader Effect kind');
+	validateCustomShaderEffectDefinition(definition.definition);
 }
 
 function prepareCustomShaderEffectCreation(state: ProjectState, definition: ProjectCustomShaderEffect) {
@@ -68,25 +68,29 @@ const replaceCustomShaderEffectDefinition = definePublicCommand({
 	label: 'Replace Custom Shader Effect definition',
 	inputSchema: z.object({ customShaderEffectId: z.string().min(1), definition: projectCustomShaderEffectDefinitionSchema }), resultSchema: z.null(),
 	description: 'Replace the full Custom Shader Effect definition while retaining its ID. Reconciles existing Node and Layer uses with changed inputs and outputs. Interface validation runs immediately; WGSL compilation is checked by the renderer.',
-	examples: ['let effect = Command:createCustomShaderEffect({})\nlet definition = Obj:pick(Query:getCustomShaderEffect(effect), ["name", "summary", "shaderApiVersion", "codeLanguage", "code", "kind", "paramDefs", "outputDefs", "primaryInputId", "primaryOutputId", "resolutionInputIds"])\ndefinition.summary = "Updated summary"\nCommand:replaceCustomShaderEffectDefinition({ customShaderEffectId: effect.customShaderEffectId, definition: definition })'],
+	examples: ['let effect = Command:createCustomShaderEffect({})\nlet definition = Obj:pick(Query:getCustomShaderEffect(effect), ["name", "summary", "definition"])\ndefinition.summary = "Updated summary"\nCommand:replaceCustomShaderEffectDefinition({ customShaderEffectId: effect.customShaderEffectId, definition: definition })'],
 	prepare(state, { customShaderEffectId, definition }) {
 		const beforeDefinition = state.customShaderEffects.value.find(candidate => candidate.id === customShaderEffectId);
 		if (beforeDefinition == null) throw new Error('Custom Shader Effect not found');
 		const afterDefinition = { ...definition, id: customShaderEffectId };
 		validateProjectCustomShaderEffect(afterDefinition);
-		const beforeUsages = snapshotCustomShaderEffectUsages(state);
-		const afterUsages = reconcileCustomShaderEffectUsages(state, beforeDefinition, afterDefinition);
-		// 定義変更が実際に影響した作品だけを履歴に保持する。他の作品をUndoで置換しない。
-		const customNodeGraphEffectIds = new Set(afterUsages.customNodeGraphEffects.filter((value, index) => !deepEqual(value, beforeUsages.customNodeGraphEffects[index])).map(value => value.id));
-		const sceneIds = new Set(afterUsages.timelineScenes.filter((value, index) => !deepEqual(value, beforeUsages.timelineScenes[index])).map(value => value.id));
+		const { graphs, layers } = reconcileCustomShaderEffectUsages(state, beforeDefinition, afterDefinition);
 		return prepareProjectValueChange({
-			before: { definition: beforeDefinition, customNodeGraphEffects: beforeUsages.customNodeGraphEffects.filter(value => customNodeGraphEffectIds.has(value.id)), timelineScenes: beforeUsages.timelineScenes.filter(value => sceneIds.has(value.id)) },
-			after: { definition: afterDefinition, customNodeGraphEffects: afterUsages.customNodeGraphEffects.filter(value => customNodeGraphEffectIds.has(value.id)), timelineScenes: afterUsages.timelineScenes.filter(value => sceneIds.has(value.id)) },
-			result: undefined, changes: [{ type: 'customShaderEffect', customShaderEffectId }],
+			before: { definition: beforeDefinition, customNodeGraphEffects: graphs.map(({ before }) => before), layers: layers.map(({ sceneId, before }) => ({ sceneId, layer: before })) },
+			after: { definition: afterDefinition, customNodeGraphEffects: graphs.map(({ after }) => after), layers: layers.map(({ sceneId, after }) => ({ sceneId, layer: after })) },
+			result: undefined, changes: [
+				{ type: 'customShaderEffect', customShaderEffectId },
+				...graphs.map(({ after }) => ({ type: 'customNodeGraphEffect' as const, target: { customNodeGraphEffectId: after.id } })),
+				...layers.map(({ sceneId, after }) => ({ type: 'layer' as const, sceneId, layerId: after.id, changes: [{ type: 'definition' as const }] })),
+			],
 			write(current, next) {
 				current.customShaderEffects.value[current.customShaderEffects.value.findIndex(candidate => candidate.id === customShaderEffectId)] = next.definition;
 				for (const customNodeGraphEffect of next.customNodeGraphEffects) current.customNodeGraphEffects.value[current.customNodeGraphEffects.value.findIndex(candidate => candidate.id === customNodeGraphEffect.id)] = customNodeGraphEffect;
-				for (const scene of next.timelineScenes) current.timelineScenes.value[current.timelineScenes.value.findIndex(candidate => candidate.id === scene.id)] = scene;
+				for (const { sceneId, layer } of next.layers) {
+					const scene = current.timelineScenes.value.find(scene => scene.id === sceneId)!;
+					const location = findTimelineLayerLocation(scene.layers, layer.id)!;
+					location.siblings[location.index] = layer;
+				}
 			},
 		});
 	},

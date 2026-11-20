@@ -11,11 +11,11 @@ import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { resolveEffectSource } from './effect-source.ts';
 import type { EffectDefinitions, EffectSource } from './effect-source.ts';
 import type { EffectDefinition } from './effect-definition.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectParameterBinding, NodeOutputReference } from './custom-node-graph-effect.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectParameterBinding, CustomNodeGraphEffectOutputSource, NodeOutputReference } from './custom-node-graph-effect.ts';
 
 type InputSettings = { canNode?: boolean; element?: InputSettings; fields?: Record<string, InputSettings> };
 
-function acceptsResolutionInput(settings: InputSettings | undefined): boolean {
+export function acceptsResolutionInput(settings: InputSettings | undefined): boolean {
 	if (settings == null) return false;
 	return settings.canNode === true || (settings.element != null && acceptsResolutionInput(settings.element))
 		|| (settings.fields != null && Object.values(settings.fields).some(acceptsResolutionInput));
@@ -61,13 +61,19 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 				return output.dataType;
 			}
 
+			function sourceType(source: CustomNodeGraphEffectOutputSource): TextureDataType | null {
+				if ('nodeId' in source) return checkOutput(source);
+				const def = graph.paramDefs[source.parameterId];
+				return def == null ? null : getNodeInputDataType(def);
+			}
+
 			function checkNode(id: string): void {
 				if (complete.has(id)) return;
 				if (path.has(id)) throw new Error('Cyclic node connection: ' + [...path, id].join(' → '));
 				path.add(id);
 				const node = nodes.get(id)!;
 				if (node.type === 'relay') {
-					if (node.input != null && !areNodeDataTypesCompatible(checkOutput(node.input), node.dataType)) throw new Error('Incompatible relay: ' + id);
+					if (node.input != null && !areNodeDataTypesCompatible(sourceType(node.input), node.dataType)) throw new Error('Incompatible relay: ' + id);
 				} else {
 					const definition = nodeDefinitions.get(id)!;
 					validateStaticSettings(definition.staticSettingDefs ?? {}, node.staticSettings ?? {});
@@ -140,9 +146,7 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 			if (graph.resolutionInputParameters.some(key => !acceptsResolutionInput(graph.paramDefs[key]))) throw new Error('Invalid resolution input');
 			for (const [id, output] of Object.entries(graph.outputSources)) {
 				if (output == null) continue;
-				const parameter = 'parameterId' in output ? graph.paramDefs[output.parameterId] : null;
-				const type = 'nodeId' in output ? checkOutput(output) : parameter == null ? null : getNodeInputDataType(parameter);
-				if (!areNodeDataTypesCompatible(type, graph.outputDefs[id]?.dataType ?? null)) throw new Error('Incompatible public output: ' + id);
+				if (!areNodeDataTypesCompatible(sourceType(output), graph.outputDefs[id]?.dataType ?? null)) throw new Error('Incompatible public output: ' + id);
 			}
 			ancestors.delete(graph);
 			if (registeredId != null) ancestorIds.delete(registeredId);

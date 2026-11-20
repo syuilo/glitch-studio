@@ -26,7 +26,7 @@ async function fixture(t, { enabled = true } = {}) {
 	const statistics = shallowRef(null);
 	const state = shallowRef({ mode: 'timeline', playing: false });
 	const projectSession = { previewPlayback: { state }, timelineRendererManagerController: { previewStatistics: statistics },
-		customNodeGraphEffectRendererManagerController: { gpuAverageDisplayFast: shallowRef(1500), gpuAverageDisplayMedium: shallowRef(2500), gpuAverageDisplaySlow: shallowRef(3500) } };
+		effectLivePreviewManagerController: { gpuAverageDisplayFast: shallowRef(1500), gpuAverageDisplayMedium: shallowRef(2500), gpuAverageDisplaySlow: shallowRef(3500) } };
 	let timestamp = 0;
 	let tick = null;
 	const module = { exports: {} };

@@ -16,7 +16,7 @@ const bundle = await build({
 		build.onResolve({ filter: /\/api\.ts$/ }, () => ({ path: 'test-api', external: true }));
 		build.onResolve({ filter: /ui\.ts$/ }, () => ({ path: 'test-ui', external: true }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'test-preferences', external: true }));
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'test-effects', external: true }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'test-effects', external: true }));
 	} }],
 });
 

@@ -1,7 +1,8 @@
+import { effectSourceSchema } from './effect-source-schema.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
-import { getNodeOutputs } from '@gs/subsystems_custom-node-graph-effect_shared/node-outputs.ts';
+import { getNodeOutputs } from '@/utility/custom-node-graph-effect-node-outputs.ts';
 import { areNodeDataTypesCompatible, getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import { z } from 'zod';
 import { getEffectDefinitions } from '../utility/project-effects.ts';
@@ -11,11 +12,10 @@ import { resolveNodeParam, walkNodeParams } from '../utility/node-params.ts';
 import { validateCustomNodeGraphEffectNodeParameterBinding } from './custom-node-graph-effect-parameter-validation.ts';
 import { defineCommand, definePublicCommand } from './definition.ts';
 import { staticSettingValuesSchema, textureDataTypeSchema } from './parameter-contract-schemas.ts';
-import { connectionTypePolicySchema, registeredCustomNodeGraphEffectTargetSchema, customNodeGraphEffectNodeOutputReferenceSchema, customNodeGraphEffectNodeReferenceSchema, customNodeGraphEffectParameterBindingSchema, customNodeGraphEffectTargetSchema } from './custom-node-graph-effect-contract-schemas.ts';
+import { registeredCustomNodeGraphEffectTargetSchema, customNodeGraphEffectNodeOutputReferenceSchema, customNodeGraphEffectNodeReferenceSchema, customNodeGraphEffectParameterBindingSchema, customNodeGraphEffectTargetSchema } from './custom-node-graph-effect-contract-schemas.ts';
 import { prepareCustomNodeGraphEffectFields, prepareCustomNodeGraphEffectValue } from './custom-node-graph-effect-change.ts';
-import type { CustomNodeGraphEffectEffectNode, CustomNodeGraphEffectNode, CustomNodeGraphEffectRelayNode, NodeOutputReference } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffectEffectNode, CustomNodeGraphEffectNode, CustomNodeGraphEffectRelayNode, NodeOutputReference } from '@/types/custom-node-graph-effect-view.ts';
 import type { CustomNodeGraphEffectNodeReference } from './custom-node-graph-effect-change.ts';
-import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { ProjectState } from '../Project.ts';
 import type { CustomNodeGraphEffectImport } from '../custom-node-graph-effect-file-codec.ts';
 import type { NodeParamTarget as EffectNodeParameterTarget } from '../utility/node-params.ts';
@@ -24,7 +24,6 @@ import type { CustomNodeGraphEffectTarget } from '@gs/glitch-studio_shared/proje
 export type { CustomNodeGraphEffectNodeReference } from './custom-node-graph-effect-change.ts';
 export type NodeTarget = CustomNodeGraphEffectTarget & { nodeId: string };
 export type NodeParamTarget = EffectNodeParameterTarget & CustomNodeGraphEffectTarget;
-export type ConnectionTypePolicy = 'strict' | 'allowMismatch';
 
 // 所在の解決だけを共有する。環境設定やUIの選択はここでは参照しない。
 export const stateUtility = {
@@ -32,11 +31,6 @@ export const stateUtility = {
 	findNode: (state: ProjectState, target: NodeTarget): CustomNodeGraphEffectNode | null =>
 		getCustomNodeGraphEffect(state, target).nodes.find(node => node.id === target.nodeId) ?? null,
 };
-
-export function canConnectCustomNodeGraphEffectTypes(output: TextureDataType | null | undefined, input: TextureDataType | null, policy: ConnectionTypePolicy): boolean {
-	if (output == null || input == null) return false;
-	return policy === 'allowMismatch' || areNodeDataTypesCompatible(output, input);
-}
 
 const createCustomNodeGraphEffect = definePublicCommand({
 	label: 'Create Custom Node Graph Effect',
@@ -66,13 +60,16 @@ const importCustomNodeGraphEffect = defineCommand<CustomNodeGraphEffectImport, {
 	prepare(state, input) {
 		const imported = deepClone(input);
 		if (state.customNodeGraphEffects.value.some(customNodeGraphEffect => customNodeGraphEffect.id === imported.customNodeGraphEffect.id)) throw new Error('Custom Node Graph Effect ID already exists');
-		for (const [existing, added] of [[state.assets.value, imported.assets], [state.players.value, imported.players]]) {
+		for (const [existing, added] of [[state.assets.value, imported.assets], [state.players.value, imported.players], [state.customShaderEffects.value, imported.customShaderEffects], [state.customNodeGraphEffects.value, [...imported.customNodeGraphEffects, imported.customNodeGraphEffect]]]) {
 			const ids = new Set(existing.map(resource => resource.id));
 			for (const resource of added) {
 				if (ids.has(resource.id)) throw new Error('Resource ID already exists');
 				ids.add(resource.id);
 			}
 		}
+		const graphs = [...imported.customNodeGraphEffects, imported.customNodeGraphEffect];
+		const graphIds = new Set(graphs.map(entry => entry.id));
+		const shaderIds = new Set(imported.customShaderEffects.map(entry => entry.id));
 		const assetIds = new Set(imported.assets.map(asset => asset.id));
 		const playerIds = new Set(imported.players.map(player => player.id));
 		return {
@@ -81,15 +78,18 @@ const importCustomNodeGraphEffect = defineCommand<CustomNodeGraphEffectImport, {
 				apply(current) {
 					current.assets.value.push(...deepClone(imported.assets));
 					current.players.value.push(...deepClone(imported.players));
-					current.customNodeGraphEffects.value.push(deepClone(imported.customNodeGraphEffect));
+					current.customNodeGraphEffects.value.push(...deepClone(graphs));
+					current.customShaderEffects.value.push(...deepClone(imported.customShaderEffects));
 				},
 				revert(current) {
-					current.customNodeGraphEffects.value = current.customNodeGraphEffects.value.filter(customNodeGraphEffect => customNodeGraphEffect.id !== imported.customNodeGraphEffect.id);
+					current.customNodeGraphEffects.value = current.customNodeGraphEffects.value.filter(customNodeGraphEffect => !graphIds.has(customNodeGraphEffect.id));
+					current.customShaderEffects.value = current.customShaderEffects.value.filter(entry => !shaderIds.has(entry.id));
 					current.assets.value = current.assets.value.filter(asset => !assetIds.has(asset.id));
 					current.players.value = current.players.value.filter(player => !playerIds.has(player.id));
 				},
 				changes: [
-					{ type: 'customNodeGraphEffectRegistration', customNodeGraphEffectId: imported.customNodeGraphEffect.id },
+					...graphs.map(entry => ({ type: 'customNodeGraphEffectRegistration' as const, customNodeGraphEffectId: entry.id })),
+					...imported.customShaderEffects.map(entry => ({ type: 'customShaderEffect' as const, customShaderEffectId: entry.id })),
 					...imported.assets.map(asset => ({ type: 'asset' as const, assetId: asset.id })),
 					...imported.players.map(player => ({ type: 'player' as const, playerId: player.id })),
 				],
@@ -119,21 +119,20 @@ const setCustomNodeGraphEffectName = definePublicCommand({
 
 const createCustomNodeGraphEffectEffectNode = definePublicCommand({
 	label: 'Create an effect node in a Custom Node Graph Effect',
-	description: 'Create an effect node using the current effect definition and defaults. parameters supplies complete bindings by parameter name; staticSettings contains plain static values. appendToPrimaryOutput connects compatible primary inputs/outputs to the existing chain. Omitted connectionMode is none, and omitted connectionTypePolicy is strict.',
-	examples: ['let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\nlet node = Command:createCustomNodeGraphEffectEffectNode({ customNodeGraphEffect: customNodeGraphEffect, effectId: "fill", connectionMode: "appendToPrimaryOutput" })\n<: Query:getNode(node)'],
+	description: 'Create an effect node using the current effect definition and defaults. parameters supplies complete bindings by parameter name; staticSettings contains plain static values. appendToPrimaryOutput connects compatible primary inputs/outputs to the existing chain. Omitted connectionMode is none.',
+	examples: ['let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\nlet node = Command:createCustomNodeGraphEffectEffectNode({ customNodeGraphEffect: customNodeGraphEffect, effectSource: { type: "nativeEffect", id: "fill" }, connectionMode: "appendToPrimaryOutput" })\n<: Query:getNode(node)'],
 	inputSchema: z.object({
-		customNodeGraphEffect: customNodeGraphEffectTargetSchema, effectId: z.string(), staticSettings: staticSettingValuesSchema.optional(),
+		customNodeGraphEffect: customNodeGraphEffectTargetSchema, effectSource: effectSourceSchema, staticSettings: staticSettingValuesSchema.optional(),
 		parameters: z.record(z.string(), customNodeGraphEffectParameterBindingSchema).nullish(),
-		connectionMode: z.enum(['none', 'appendToPrimaryOutput']).nullish(), connectionTypePolicy: connectionTypePolicySchema.nullish(),
+		connectionMode: z.enum(['none', 'appendToPrimaryOutput']).nullish(),
 	}),
 	resultSchema: customNodeGraphEffectNodeReferenceSchema,
 	prepare(state, input) {
 		const definitions = getEffectDefinitions(state);
-		const definition = definitions[input.effectId];
+		const definition = definitions.describe(input.effectSource);
 		if (definition == null) throw new Error('Effect not found');
 		if (input.connectionMode != null && !['none', 'appendToPrimaryOutput'].includes(input.connectionMode)) throw new Error('Invalid connection mode');
-		const policy = input.connectionTypePolicy ?? 'strict';
-		if (policy !== 'strict' && policy !== 'allowMismatch') throw new Error('Invalid connection type policy');
+
 		const target = { customNodeGraphEffect: deepClone(input.customNodeGraphEffect), nodeId: genId() };
 		return prepareCustomNodeGraphEffectFields(state, input.customNodeGraphEffect, ['nodes'], customNodeGraphEffect => {
 			const globalOut = input.connectionMode === 'appendToPrimaryOutput' ? customNodeGraphEffect.nodes.find(node => node.type === 'globalOut') : null;
@@ -145,7 +144,7 @@ const createCustomNodeGraphEffectEffectNode = definePublicCommand({
 				parameters[key] = deepClone(parameterDefinition.defaultValue);
 				if (key !== definition.primaryInputParameter || previousInput?.nodeId == null) continue;
 				const output = getNodeOutputs(previous, customNodeGraphEffect.paramDefs, definitions)[previousInput.outputPort];
-				if (canConnectCustomNodeGraphEffectTypes(output?.dataType, getNodeInputDataType(parameterDefinition), policy)) {
+				if (areNodeDataTypesCompatible(output?.dataType, getNodeInputDataType(parameterDefinition))) {
 					parameters[key] = { inputSource: 'node', ...deepClone(previousInput), fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
 				}
 			}
@@ -153,19 +152,19 @@ const createCustomNodeGraphEffectEffectNode = definePublicCommand({
 				if (!Object.hasOwn(definition.paramDefs, key)) throw new Error('Unknown effect parameter: ' + key);
 			}
 			const addedNode: CustomNodeGraphEffectEffectNode = {
-				id: target.nodeId, type: 'effect', effectId: input.effectId, displayName: '', isBypass: false,
+				id: target.nodeId, type: 'effect', effectSource: input.effectSource, displayName: '', isBypass: false,
 				resolution: { mode: 'auto', scale: 1 },
 				staticSettings: createStaticSettingValues(definition.staticSettingDefs ?? {}, input.staticSettings),
 				params: { ...parameters, ...deepClone(input.parameters ?? {}) }, pos: { x: 0, y: 0 },
 			};
 			for (const [key, parameterDefinition] of Object.entries(definition.paramDefs)) {
-				validateCustomNodeGraphEffectNodeParameterBinding(state, customNodeGraphEffect, parameterDefinition, addedNode.params[key], policy);
+				validateCustomNodeGraphEffectNodeParameterBinding(state, customNodeGraphEffect, parameterDefinition, addedNode.params[key]);
 			}
 			const outputIndex = customNodeGraphEffect.nodes.findIndex(node => node.type === 'globalOut');
 			customNodeGraphEffect.nodes.splice(outputIndex < 0 ? customNodeGraphEffect.nodes.length : outputIndex, 0, addedNode);
 			const primaryPort = definition.primaryOutput;
 			if (globalOut != null && primaryOutput != null && primaryPort != null
-				&& canConnectCustomNodeGraphEffectTypes(definition.outputDefs[primaryPort]?.dataType, primaryOutput.dataType, policy)) {
+				&& areNodeDataTypesCompatible(definition.outputDefs[primaryPort]?.dataType, primaryOutput.dataType)) {
 				globalOut.inputs[primaryOutput.id] = { nodeId: target.nodeId, outputPort: primaryPort };
 			}
 			return target;
@@ -193,16 +192,15 @@ const createCustomNodeGraphEffectRelayNode = definePublicCommand({
 
 const setCustomNodeGraphEffectRelayInput = definePublicCommand({
 	label: 'Set Custom Node Graph Effect relay input',
-	description: 'Connect a relay node to an output port of another node in the same Custom Node Graph Effect. Pass source: null to disconnect. connectionTypePolicy defaults to strict. The relay passes the source through unchanged.',
-	examples: ['let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\nlet source = Command:createCustomNodeGraphEffectEffectNode({ customNodeGraphEffect: customNodeGraphEffect, effectId: "fill" })\nlet relay = Command:createCustomNodeGraphEffectRelayNode({ customNodeGraphEffect: customNodeGraphEffect })\nCommand:setCustomNodeGraphEffectRelayInput({ target: relay, source: { nodeId: source.nodeId, outputPort: "output" } })'],
+	description: 'Connect a relay node to an output port of another node in the same Custom Node Graph Effect. Pass source: null to disconnect. The relay passes the source through unchanged.',
+	examples: ['let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\nlet source = Command:createCustomNodeGraphEffectEffectNode({ customNodeGraphEffect: customNodeGraphEffect, effectSource: { type: "nativeEffect", id: "fill" } })\nlet relay = Command:createCustomNodeGraphEffectRelayNode({ customNodeGraphEffect: customNodeGraphEffect })\nCommand:setCustomNodeGraphEffectRelayInput({ target: relay, source: { nodeId: source.nodeId, outputPort: "output" } })'],
 	inputSchema: z.object({
 		target: customNodeGraphEffectNodeReferenceSchema,
 		source: customNodeGraphEffectNodeOutputReferenceSchema.nullable(),
-		connectionTypePolicy: connectionTypePolicySchema.nullish(),
+
 	}),
 	resultSchema: z.null(),
 	prepare(state, input) {
-		const policy = input.connectionTypePolicy ?? 'strict';
 		const relayNode = getCustomNodeGraphEffectRelayNode(state, input.target);
 		const source = input.source;
 		if (source != null) {
@@ -211,7 +209,7 @@ const setCustomNodeGraphEffectRelayInput = definePublicCommand({
 			const sourceNode = customNodeGraphEffect.nodes.find(candidate => candidate.id === source.nodeId);
 			const output = getNodeOutputs(sourceNode, customNodeGraphEffect.paramDefs, getEffectDefinitions(state))[source.outputPort];
 			if (output == null) throw new Error('Node output not found in this Custom Node Graph Effect');
-			if (!canConnectCustomNodeGraphEffectTypes(output.dataType, relayNode.dataType, policy)) throw new Error('Node output type does not match the relay input');
+			if (!areNodeDataTypesCompatible(output.dataType, relayNode.dataType)) throw new Error('Node output type does not match the relay input');
 		}
 		// 出力元だけを保存し、サンプリングはRelayを参照する側の接続に任せる。
 		const after: CustomNodeGraphEffectRelayNode['input'] = source == null
@@ -246,7 +244,7 @@ function getCustomNodeGraphEffectRelayNode(state: ProjectState, target: CustomNo
 const moveCustomNodeGraphEffectNode = definePublicCommand({
 	label: 'Move Custom Node Graph Effect node',
 	description: 'Move a node to an absolute zero-based index in the Custom Node Graph Effect node array. The In/Out nodes cannot move, and their reserved end positions cannot be occupied. This changes order, not canvas coordinates.',
-	examples: ['let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\nlet node = Command:createCustomNodeGraphEffectEffectNode({ customNodeGraphEffect: customNodeGraphEffect, effectId: "fill" })\nCommand:moveCustomNodeGraphEffectNode({ target: node, index: 1 })'],
+	examples: ['let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\nlet node = Command:createCustomNodeGraphEffectEffectNode({ customNodeGraphEffect: customNodeGraphEffect, effectSource: { type: "nativeEffect", id: "fill" } })\nCommand:moveCustomNodeGraphEffectNode({ target: node, index: 1 })'],
 	inputSchema: z.object({ target: customNodeGraphEffectNodeReferenceSchema, index: z.number().int() }),
 	resultSchema: z.null(),
 	prepare(state, input) {
@@ -267,19 +265,17 @@ const moveCustomNodeGraphEffectNode = definePublicCommand({
 const removeCustomNodeGraphEffectNode = definePublicCommand({
 	label: 'Remove Custom Node Graph Effect node',
 	description: 'Remove an effect or relay node. In/Out nodes cannot be removed. reconnection defaults to disconnect; primaryInput reconnects consumers to the removed node\'s compatible primary input when possible. Existing expressions are not rewritten.',
-	examples: ['let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\nlet node = Command:createCustomNodeGraphEffectEffectNode({ customNodeGraphEffect: customNodeGraphEffect, effectId: "fill" })\nCommand:removeCustomNodeGraphEffectNode({ target: node, reconnection: "disconnect" })'],
-	inputSchema: z.object({ target: customNodeGraphEffectNodeReferenceSchema, reconnection: z.enum(['disconnect', 'primaryInput']).nullish(), connectionTypePolicy: connectionTypePolicySchema.nullish() }),
+	examples: ['let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\nlet node = Command:createCustomNodeGraphEffectEffectNode({ customNodeGraphEffect: customNodeGraphEffect, effectSource: { type: "nativeEffect", id: "fill" } })\nCommand:removeCustomNodeGraphEffectNode({ target: node, reconnection: "disconnect" })'],
+	inputSchema: z.object({ target: customNodeGraphEffectNodeReferenceSchema, reconnection: z.enum(['disconnect', 'primaryInput']).nullish() }),
 	resultSchema: z.null(),
 	prepare(state, input) {
-		const policy = input.connectionTypePolicy ?? 'strict';
-		if (policy !== 'strict' && policy !== 'allowMismatch') throw new Error('Invalid connection type policy');
 		if (input.reconnection != null && !['disconnect', 'primaryInput'].includes(input.reconnection)) throw new Error('Invalid reconnection mode');
 		const definitions = getEffectDefinitions(state);
 		return prepareCustomNodeGraphEffectFields(state, input.target.customNodeGraphEffect, ['nodes'], customNodeGraphEffect => {
 			const removedNode = customNodeGraphEffect.nodes.find(node => node.id === input.target.nodeId);
 			if (removedNode == null) throw new Error('Node not found');
 			if (removedNode.type === 'globalIn' || removedNode.type === 'globalOut') throw new Error('In/Out nodes cannot be removed');
-			const primary = removedNode.type === 'effect' ? definitions[removedNode.effectId]?.primaryInputParameter : null;
+			const primary = removedNode.type === 'effect' ? definitions.describe(removedNode.effectSource)?.primaryInputParameter : null;
 			const binding = removedNode.type === 'relay' ? { inputSource: 'node' as const, ...removedNode.input } : primary == null ? null : removedNode.params[primary];
 			const replacement: Pick<NodeOutputReference, 'nodeId' | 'outputPort'> | null = input.reconnection === 'primaryInput'
 				&& binding?.inputSource === 'node' && binding.nodeId != null && binding.nodeId !== input.target.nodeId
@@ -291,18 +287,18 @@ const removeCustomNodeGraphEffectNode = definePublicCommand({
 					for (const [id, connection] of Object.entries(node.inputs)) {
 						if (connection.nodeId !== input.target.nodeId) continue;
 						const definition = customNodeGraphEffect.outputDefs.find(output => output.id === id);
-						node.inputs[id] = replacement != null && canConnectCustomNodeGraphEffectTypes(replacementOutput?.dataType, definition?.dataType ?? null, policy)
+						node.inputs[id] = replacement != null && areNodeDataTypesCompatible(replacementOutput?.dataType, definition?.dataType ?? null)
 							? deepClone(replacement) : { nodeId: null, outputPort: null };
 					}
 				} else if (node.type === 'relay') {
 					if (node.input.nodeId === input.target.nodeId) {
-						node.input = replacement != null && canConnectCustomNodeGraphEffectTypes(replacementOutput?.dataType, node.dataType, policy)
+						node.input = replacement != null && areNodeDataTypesCompatible(replacementOutput?.dataType, node.dataType)
 							? deepClone(replacement) : { nodeId: null, outputPort: null };
 					}
 				} else if (node.type === 'effect') {
 					for (const { path, def, value } of walkNodeParams(node, definitions)) {
 						if (!def.canNode || value.inputSource !== 'node' || value.nodeId !== input.target.nodeId) continue;
-						const compatible = replacement != null && canConnectCustomNodeGraphEffectTypes(replacementOutput?.dataType, getNodeInputDataType(def), policy);
+						const compatible = replacement != null && areNodeDataTypesCompatible(replacementOutput?.dataType, getNodeInputDataType(def));
 						resolveNodeParam(node, path, definitions).setValue(compatible
 							? { ...deepClone(value), ...deepClone(replacement) }
 							: { inputSource: 'node', nodeId: null, outputPort: null });

@@ -1,3 +1,4 @@
+import { testGraph } from './helpers/effect-graph.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -15,15 +16,15 @@ const bundled = await build({
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { createShapeTimelineLayer } from './src/utility/shape-timeline-layer.ts';
 		export { createInlineKeyframesTimeline } from './src/utility/keyframes-timeline.ts';
-		export { default as definition } from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
+		export { default as definition } from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts';
 	`, resolveDir: uiDirectory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'parameter-clipboard-test', setup(build) {
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({
 			contents: path === 'effects'
-				? "import definition from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts'; export const effectDefinitions = { [definition.id]: definition };"
+				? "import definition from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };"
 				: 'export const preferences = { s: { forceTypeSafety: true } };', loader: 'ts', resolveDir: uiDirectory,
 		}));
 	} }],
@@ -36,11 +37,11 @@ const { createParameterClipboard, parseParameterClipboard, prepareParameterBindi
 const clone = value => structuredClone(value);
 
 function fixture(projectSessionId = 'session') {
-	const makeNode = id => ({ id, type: 'effect', effectId: definition.id, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, clone(def.defaultValue)])) });
+	const makeNode = id => ({ id, type: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, clone(def.defaultValue)])) });
 	const node = makeNode('destination');
 	const upstream = makeNode('upstream');
-	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, id: 'customNodeGraphEffect', nodes: [node, upstream], automationGraphs: [], paramDefs: [], outputDefs: [] };
-	const layer = { id: 'effect', layerType: 'effect', effectId: definition.id, automationGraphs: [], effectParamValues: {} };
+	const customNodeGraphEffect = { id: 'customNodeGraphEffect', definition: testGraph({ customParameterValues: {}, nodes: [node, upstream], automationGraphs: [] }) };
+	const layer = { id: 'effect', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, automationGraphs: [], effectParamValues: {} };
 	const shape = createShapeTimelineLayer('rectangle', 0);
 	shape.id = 'shape';
 	const scene = { id: 'scene', layers: [layer, shape] };
@@ -59,6 +60,7 @@ function fixture(projectSessionId = 'session') {
 
 const sampling = { fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' };
 const connected = { inputSource: 'node', nodeId: 'upstream', outputPort: 'output', ...sampling };
+const storedConnection = { inputSource: 'node', source: { nodeId: 'upstream', outputPort: 'output' }, sampling };
 const playback = { trimmedDurationMs: null, offsetMode: 'start', wrapMode: 'clamp' };
 const scalarDefinition = { dataType: { kind: 'scalar' }, ui: { label: 'Scalar', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } };
 
@@ -72,7 +74,7 @@ test('separates copied project sessions while allowing reference-free values', a
 	assert.equal(from.context.id, to.context.id);
 	let text = '';
 	const clipboard = { writeText: async value => { text = value; }, readText: async () => text };
-	from.node.params.foo.value.node = clone(connected);
+	from.node.params.foo.value.node = clone(storedConnection);
 	await handleProjectParameterClipboard(from.context, from.projectSessionId, from.target, 'copy', () => true, clipboard);
 	assert.equal(JSON.parse(text).source.projectSessionId, from.projectSessionId);
 	const before = clone(to.node.params);
@@ -101,7 +103,7 @@ test('preserves references in the same session across Save As during a pending p
 	f.context.id = 'saved-as';
 	reading.resolve(text);
 	await pending;
-	assert.deepEqual(f.node.params.foo.value.node, connected);
+	assert.deepEqual(f.node.params.foo.value.node, storedConnection);
 	assert.equal(f.history.undoStack.value.length, 1);
 });
 
@@ -114,7 +116,7 @@ test('scopes live preview player references to their source session', async () =
 	const definition = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: { inputSource: 'literal', value: null } };
 	const binding = { inputSource: 'literal', value: { type: 'player', playerId: 'player' } };
 	for (const f of [from, to]) {
-		f.customNodeGraphEffect.paramDefs = [{ ...definition, id: 'arg', nameForReference: 'arg' }];
+		f.customNodeGraphEffect.definition.paramDefs = { arg: { ...definition, nameForReference: 'arg' } };
 		f.state.players.value.push({ id: 'player' });
 	}
 	let text = '';
@@ -133,19 +135,19 @@ test('scopes live preview player references to their source session', async () =
 // 同じIDの別Custom Node Graph Effectや外部公開引数へ内部参照を持ち込まず、値の貼り付けはUndoできるようにする。
 test('copies custom values with undo and confines custom references to their owning Custom Node Graph Effect', async () => {
 	const f = fixture();
-	f.customNodeGraphEffect.customParameterDefs = ['source', 'destination'].map(id => ({ ...scalarDefinition, id, nameForReference: id, canNode: false }));
-	f.customNodeGraphEffect.customParameterValues = { source: { inputSource: 'expression', expression: 'PUBLIC("speed") * 2', expressionModifier: { enabled: true, code: 'VALUE + TIME' } } };
+	f.customNodeGraphEffect.definition.customParameterDefs = Object.fromEntries(['source', 'destination'].map(id => [id, { ...scalarDefinition, nameForReference: id, canNode: false }]));
+	f.customNodeGraphEffect.definition.customParameterValues = { source: { inputSource: 'expression', expression: 'PUBLIC("speed") * 2', expressionModifier: { enabled: true, code: 'VALUE + TIME' } } };
 	const source = { kind: 'customParameter', customNodeGraphEffectTarget: f.target.customNodeGraphEffectTarget, paramPath: ['source'] };
 	const destination = { ...source, paramPath: ['destination'] };
 	let text = '';
 	const clipboard = { writeText: async value => { text = value; }, readText: async () => text };
 	await handleProjectParameterClipboard(f.context, f.projectSessionId, source, 'copy', () => true, clipboard);
 	await handleProjectParameterClipboard(f.context, f.projectSessionId, destination, 'paste', () => true, clipboard);
-	assert.deepEqual(f.customNodeGraphEffect.customParameterValues.destination, f.customNodeGraphEffect.customParameterValues.source);
+	assert.deepEqual(f.customNodeGraphEffect.definition.customParameterValues.destination, f.customNodeGraphEffect.definition.customParameterValues.source);
 	f.history.undo();
-	assert.equal(f.customNodeGraphEffect.customParameterValues.destination, undefined);
+	assert.equal(f.customNodeGraphEffect.definition.customParameterValues.destination, undefined);
 	f.history.redo();
-	assert.deepEqual(f.customNodeGraphEffect.customParameterValues.destination, f.customNodeGraphEffect.customParameterValues.source);
+	assert.deepEqual(f.customNodeGraphEffect.definition.customParameterValues.destination, f.customNodeGraphEffect.definition.customParameterValues.source);
 	const reference = f.copy({ inputSource: 'customNodeGraphEffectCustomParameterValueReference', parameterId: 'source' }, source);
 	const context = f.resolve(destination).context;
 	assert.ok(prepareParameterBindingPaste(scalarDefinition, reference, context));
@@ -233,7 +235,7 @@ test('preserves connections only in their original available Custom Node Graph E
 // 同じIDが見つかるだけでは別の定義へ接続してしまうため、コピー時の所有先も保持する。
 test('resolves local and project automation graph references in their respective scopes', () => {
 	const f = fixture();
-	f.customNodeGraphEffect.automationGraphs.push({ id: 'local' });
+	f.customNodeGraphEffect.definition.automationGraphs.push({ id: 'local' });
 	f.state.automationGraphs.value.push({ id: 'projectGraph' });
 	const local = f.copy({ inputSource: 'automationGraphReference', automationGraphId: 'local', ...playback });
 	const project = f.copy({ inputSource: 'automationGraphReference', automationGraphId: 'projectGraph', ...playback });
@@ -245,7 +247,7 @@ test('resolves local and project automation graph references in their respective
 	assert.equal(prepareParameterBindingPaste(f.resolve().def, local, previewContext), null);
 	assert.ok(prepareParameterBindingPaste(f.resolve().def, project, previewContext));
 	assert.equal(prepareProjectParameterPaste(f.state, 'other', f.timelineTarget, project), null);
-	f.customNodeGraphEffect.automationGraphs = [];
+	f.customNodeGraphEffect.definition.automationGraphs = [];
 	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, f.target, local), null);
 });
 
@@ -289,13 +291,13 @@ test('rejects a whole container when one nested binding is incompatible', () => 
 test('validates public parameter references against their destination types and visible owners', () => {
 	const f = fixture();
 	const definition = { ...scalarDefinition, id: 'public_parameter', nameForReference: 'public_parameter', canNode: false };
-	f.customNodeGraphEffect.paramDefs.push(definition);
+	f.customNodeGraphEffect.definition.paramDefs[definition.id] = definition;
 	const nodeContext = f.resolve().context;
 	const reference = createParameterClipboard(scalarDefinition, { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'public_parameter' }, nodeContext.source);
 	assert.ok(prepareParameterBindingPaste(scalarDefinition, reference, nodeContext));
 	assert.equal(prepareParameterBindingPaste(f.resolve().def, { ...reference, dataType: f.resolve().def.dataType }, nodeContext), null);
-	f.customNodeGraphEffect.paramDefs = [];
-	assert.equal(prepareParameterBindingPaste(scalarDefinition, reference, nodeContext), null);
+	f.customNodeGraphEffect.definition.paramDefs = {};
+	assert.equal(prepareParameterBindingPaste(scalarDefinition, reference, f.resolve().context), null);
 	f.layer.publicParameterDefs = [definition];
 	const timelineContext = f.resolve(f.timelineTarget).context;
 	const timelineReference = createParameterClipboard(scalarDefinition, { inputSource: 'timelineLayerPublicParameterReference', layerId: f.layer.id, parameterId: 'public_parameter' }, timelineContext.source);
@@ -368,8 +370,8 @@ test('replaces modifiers and restores absent roots and stable IDs through undo a
 // OSの非同期読み取りが完了した時点では、クリック時の対象が失効している場合がある。
 test('ignores stale asynchronous reads and incompatible content without changing undo or redo', async t => {
 	t.mock.method(console, 'log', () => {});
-	for (const invalidate of [f => { f.context.isDisposed = true; }, f => { f.customNodeGraphEffect.nodes = [f.upstream]; },
-		f => { f.customNodeGraphEffect.nodes[0] = clone(f.node); }]) {
+	for (const invalidate of [f => { f.context.isDisposed = true; }, f => { f.customNodeGraphEffect.definition.nodes = [f.upstream]; },
+		f => { f.customNodeGraphEffect.definition.nodes[0] = clone(f.node); }]) {
 		const f = fixture();
 		const text = JSON.stringify(f.copy({ inputSource: 'literal', value: [1, 0, 0, 1] }));
 		let finish;
@@ -392,9 +394,9 @@ test('ignores delayed preview parameter pastes after disposal or target changes'
 	for (const invalidate of [f => { f.context.isDisposed = true; },
 		f => { f.state.customNodeGraphEffects.value = []; }]) {
 		const f = fixture();
-		f.customNodeGraphEffect.paramDefs = [{ ...scalarDefinition, id: 'arg', nameForReference: 'arg' }];
+		f.customNodeGraphEffect.definition.paramDefs = { arg: { ...scalarDefinition, nameForReference: 'arg' } };
 		const values = { arg: { inputSource: 'literal', value: 5 } };
-		const source = createCustomNodeGraphEffectClipboardSource(f.projectSessionId, { customNodeGraphEffectId: f.customNodeGraphEffect.id }, f.customNodeGraphEffect);
+		const source = f.resolve().context.source;
 		const clipboard = createParameterClipboard(scalarDefinition, { inputSource: 'literal', value: 12 }, source);
 		const reading = Promise.withResolvers();
 		let applied = false;
@@ -421,9 +423,9 @@ test('copies across independent window contexts and supports live preview withou
 	from.node.params.foo.value.node.expression = 'null';
 	await handleProjectParameterClipboard(to.context, to.projectSessionId, to.target, 'paste', () => true, access);
 	assert.equal(to.node.params.foo.value.node.expression, '[1, 0, 0, 1]');
-	to.customNodeGraphEffect.paramDefs = [{ ...scalarDefinition, id: 'arg', nameForReference: 'arg' }];
+	to.customNodeGraphEffect.definition.paramDefs = { arg: { ...scalarDefinition, nameForReference: 'arg' } };
 	const values = { arg: { inputSource: 'literal', value: 5 } };
-	const source = createCustomNodeGraphEffectClipboardSource(from.projectSessionId, { customNodeGraphEffectId: from.customNodeGraphEffect.id }, from.customNodeGraphEffect);
+	const source = from.resolve().context.source;
 	text = JSON.stringify(createParameterClipboard(scalarDefinition, { inputSource: 'expression', expression: 'TIME' }, source));
 	await handlePreviewParameterClipboard(to.context, to.projectSessionId, to.customNodeGraphEffect.id, ['arg'], 'paste', () => values, () => true, (id, binding) => { values[id] = binding; }, access);
 	assert.deepEqual(values.arg, { inputSource: 'expression', expression: 'TIME' });

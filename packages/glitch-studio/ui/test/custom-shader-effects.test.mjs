@@ -1,3 +1,4 @@
+import { testGraph } from './helpers/effect-graph.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -19,17 +20,17 @@ const bundle = await build({
 		export { createEffectTimelineLayer } from './src/utility/effect-timeline-layer.ts';
 		export { collectCustomNodeGraphEffectFile } from './src/custom-node-graph-effect-file-codec.ts';
 		export { ProjectRenderValidation } from './src/ProjectRenderValidation.ts';
-		export { customShaderEffectReference } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
+		export const customShaderEffectReference = id => ({ type: 'customShaderEffectReference', id });
 		export { CUSTOM_SHADER_EFFECT_COMMAND_DEFS } from './src/commands/custom-shader-effect.ts';
 		export { createProjectCustomShaderEffect } from './src/utility/custom-shader-effect.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
-		export * from '@gs/subsystems_effect_shared/custom-shader-effect-definition.ts';
+		export * from '@gs/subsystems_effect-new_shared/custom-shader-effect.ts';
 	` },
 	plugins: [i18nPlugin, { name: 'custom-shader-effect-controls', setup(build) {
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'custom-shader-effect-preferences' }));
 		build.onLoad({ filter: /.*/, namespace: 'custom-shader-effect-preferences' }, () => ({ contents: 'export const preferences = { s: { forceTypeSafety: true, customNodeGraphEffectAutoConnectOnNodeAdd: false } };', loader: 'ts' }));
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'custom-shader-effect-builtins' }));
-		build.onLoad({ filter: /.*/, namespace: 'custom-shader-effect-builtins' }, () => ({ contents: 'export const effectDefinitions = {};', loader: 'ts' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'custom-shader-effect-builtins' }));
+		build.onLoad({ filter: /.*/, namespace: 'custom-shader-effect-builtins' }, () => ({ contents: 'export const nativeEffectDefinitions = {};', loader: 'ts' }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => path.endsWith('GsCustomShaderEffectEditor.vue') ? null : { path: basename(path), namespace: 'control' });
 		build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ loader: 'ts', contents: `
 			import { h } from 'vue';
@@ -49,15 +50,15 @@ const { ProjectRenderValidation, COMMAND_DEFS, getEffectDefinitions, createEffec
 function usageFixture() {
 	const definition = createProjectCustomShaderEffect([]);
 	definition.summary = 'Adds a mask output.';
-	definition.paramDefs.push({ id: 'amount', nameForReference: 'amount', canNode: true, dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0.25 } });
-	definition.outputDefs.push({ id: 'mask', nameForReference: 'mask', label: 'Mask', dataType: { kind: 'scalar' } });
-	const customNodeGraphEffect = { id: 'customNodeGraphEffect', name: 'Custom Node Graph Effect', nodes: [], paramDefs: [], outputDefs: [{ id: 'out', name: 'out', label: 'Out', dataType: { kind: 'scalar' } }], primaryInputId: null, primaryOutputId: null, customParameterDefs: [], customParameterValues: {}, automationGraphs: [] };
+	definition.definition.paramDefs.amount = { nameForReference: 'amount', canNode: true, dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0.25 } };
+	definition.definition.outputDefs.mask = { nameForReference: 'mask', label: 'Mask', dataType: { kind: 'scalar' } };
+	const customNodeGraphEffect = { id: 'customNodeGraphEffect', name: 'Custom Node Graph Effect', definition: testGraph({ nodes: [], outputDefs: { "out": { name: 'out', label: 'Out', dataType: { kind: 'scalar' } } }, primaryInputParameter: null, primaryOutput: null, customParameterValues: {}, automationGraphs: [] }) };
 	const state = { customShaderEffects: ref([definition]), customNodeGraphEffects: ref([customNodeGraphEffect]), timelineScenes: ref([{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }]), resolution: ref({ width: 16, height: 8 }), assets: ref([]), players: ref([]), timelineFps: ref(60), timelineMotionBlur: ref({ enabled: false, shutterAngle: 180, samples: 0 }) };
 	const manager = new UndoRedo(state, COMMAND_DEFS);
-	manager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect: { customNodeGraphEffectId: 'customNodeGraphEffect' }, effectId: customShaderEffectReference(definition.id) });
-	const layer = createEffectTimelineLayer(getEffectDefinitions(state)[customShaderEffectReference(definition.id)], 0);
+	manager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect: { customNodeGraphEffectId: 'customNodeGraphEffect' }, effectSource: customShaderEffectReference(definition.id) });
+	const layer = createEffectTimelineLayer(getEffectDefinitions(state).describe(customShaderEffectReference(definition.id)), 0);
 	state.timelineScenes.value[0].layers.push(layer);
-	return { definition, state, manager, customNodeGraphEffect: state.customNodeGraphEffects.value[0], layer: state.timelineScenes.value[0].layers[0] };
+	return { definition, state, manager, customNodeGraphEffect: state.customNodeGraphEffects.value[0].definition, layer: state.timelineScenes.value[0].layers[0] };
 }
 
 // 【スクリプト由来のCustom Shader Effectの基本値を適用前に検証する】
@@ -72,9 +73,9 @@ test('rejects invalid shader metadata and execution modes without mutating proje
 	const before = JSON.stringify(state.customShaderEffects.value);
 	assert.throws(() => manager.commit('createCustomShaderEffect', { name: 42 }), /input: name:/);
 	assert.throws(() => manager.commit('duplicateCustomShaderEffect', { ...original, name: {} }), /input: name:/);
-	for (const changes of [{ name: 42 }, { summary: false }, { code: [] }, { codeLanguage: 'javascript' }, { kind: 'other' }]) {
+	for (const changes of [{ name: 42 }, { summary: false }, { definition: { ...JSON.parse(before)[0].definition, code: [] } }, { definition: { ...JSON.parse(before)[0].definition, kind: 'other' } }]) {
 		const definition = { ...JSON.parse(before)[0], ...changes };
-		assert.throws(() => manager.commit('replaceCustomShaderEffectDefinition', { ...original, definition }), new RegExp(`input: definition\\.${Object.keys(changes)[0]}:`));
+		assert.throws(() => manager.commit('replaceCustomShaderEffectDefinition', { ...original, definition }), /input: definition/);
 		assert.equal(JSON.stringify(state.customShaderEffects.value), before);
 		assert.equal(manager.redoStack.value.length, 1);
 	}
@@ -87,17 +88,17 @@ test('rejects invalid shader metadata and execution modes without mutating proje
 test('creates project shader nodes and layers with stable parameter IDs and independent bindings', () => {
 	const { definition, state, manager, customNodeGraphEffect, layer } = usageFixture();
 	const node = customNodeGraphEffect.nodes[0];
-	assert.equal(node.effectId, customShaderEffectReference(definition.id));
-	assert.deepEqual(getEffectDefinitions(state)[node.effectId].summary, { 'ja-JP': definition.summary, 'en-US': definition.summary });
+	assert.deepEqual(node.effectSource, customShaderEffectReference(definition.id));
+	assert.deepEqual(getEffectDefinitions(state).describe(node.effectSource).summary, { 'ja-JP': definition.summary, 'en-US': definition.summary });
 	assert.deepEqual(node.params.amount, { inputSource: 'literal', value: 0.25 });
-	assert.equal(layer.effectParamValues[definition.primaryInputId].inputSource, 'lowerLayerOutput');
+	assert.equal(layer.effectParamValues[definition.definition.primaryInputParameter].inputSource, 'lowerLayerOutput');
 	assert.equal(layer.transformTarget, 'region');
 	node.params.amount.value = 0.75;
 	assert.equal(layer.effectParamValues.amount.value, 0.25);
-	assert.equal(state.customShaderEffects.value[0].paramDefs[1].defaultValue.value, 0.25);
+	assert.equal(state.customShaderEffects.value[0].definition.paramDefs.amount.defaultValue.value, 0.25);
 	assert.throws(() => manager.commit('removeCustomShaderEffect', { customShaderEffectId: definition.id }), /in use/);
 	manager.undo();
-	assert.equal(state.customNodeGraphEffects.value[0].nodes.length, 0);
+	assert.equal(state.customNodeGraphEffects.value[0].definition.nodes.length, 0);
 });
 
 // 【定義の削除と型変更を全使用箇所へ適用し、配線と値を定義と一緒にUndoする】
@@ -106,43 +107,44 @@ test('preserves compatible values and disconnects removed outputs atomically acr
 	const { definition, state, manager, customNodeGraphEffect, layer } = usageFixture();
 	customNodeGraphEffect.nodes[0].params.amount = { inputSource: 'expression', value: 'TIME' };
 	customNodeGraphEffect.nodes.push({ id: 'relay', type: 'relay', dataType: { kind: 'scalar' }, input: { nodeId: customNodeGraphEffect.nodes[0].id, outputPort: 'mask' } });
-	customNodeGraphEffect.nodes.push({ id: 'out-node', type: 'globalOut', inputs: { out: { nodeId: customNodeGraphEffect.nodes[0].id, outputPort: 'mask' } } });
+	customNodeGraphEffect.outputSources.out = { nodeId: customNodeGraphEffect.nodes[0].id, outputPort: 'mask' };
 	const inline = JSON.parse(JSON.stringify(customNodeGraphEffect));
-	state.timelineScenes.value[0].layers.push({ id: 'inline', layerType: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: inline });
+	state.timelineScenes.value[0].layers.push({ id: 'inline', layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: inline } });
 	layer.effectParamValues.amount = { inputSource: 'literal', value: 0.8 };
 	const updated = structuredClone(definition);
 	updated.name = 'Renamed';
-	updated.paramDefs[1].nameForReference = 'strength';
-	updated.paramDefs[1].defaultValue.value = 0.1;
-	updated.outputDefs = updated.outputDefs.filter(output => output.id !== 'mask');
+	updated.definition.paramDefs.amount.nameForReference = 'strength';
+	updated.definition.paramDefs.amount.defaultValue.value = 0.1;
+	delete updated.definition.outputDefs.mask;
 	manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: (updated).id, definition: updated });
-	for (const current of [state.customNodeGraphEffects.value[0], state.timelineScenes.value[0].layers[1].customNodeGraphEffect]) {
+	for (const current of [state.customNodeGraphEffects.value[0].definition, state.timelineScenes.value[0].layers[1].effectSource.customNodeGraphEffect]) {
 		assert.equal(current.nodes[0].params.amount.value, 'TIME');
-		assert.deepEqual(JSON.parse(JSON.stringify(current.nodes[1].input)), { nodeId: null, outputPort: null });
-		assert.deepEqual(JSON.parse(JSON.stringify(current.nodes[2].inputs.out)), { nodeId: null, outputPort: null });
+		assert.deepEqual(JSON.parse(JSON.stringify(current.nodes[1].input)), null);
+		assert.equal(current.outputSources.out, undefined);
 	}
 	assert.equal(state.timelineScenes.value[0].layers[0].effectParamValues.amount.value, 0.8);
 	manager.undo();
-	assert.equal(state.customNodeGraphEffects.value[0].nodes[1].input.outputPort, 'mask');
-	assert.equal(state.timelineScenes.value[0].layers[1].customNodeGraphEffect.nodes[2].inputs.out.outputPort, 'mask');
+	assert.equal(state.customNodeGraphEffects.value[0].definition.nodes[1].input.outputPort, 'mask');
+	assert.equal(state.timelineScenes.value[0].layers[1].effectSource.customNodeGraphEffect.outputSources.out.outputPort, 'mask');
 	manager.redo();
 	const changedType = structuredClone(updated);
-	changedType.paramDefs[1].dataType = { kind: 'vector' };
-	changedType.paramDefs[1].ui.control = { controlType: 'vector' };
-	changedType.paramDefs[1].defaultValue.value = [0.2, 0.4];
+	changedType.definition.paramDefs.amount.dataType = { kind: 'vector' };
+	changedType.definition.paramDefs.amount.ui.control = { controlType: 'vector' };
+	changedType.definition.paramDefs.amount.defaultValue.value = [0.2, 0.4];
 	manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: (changedType).id, definition: changedType });
-	assert.deepEqual(JSON.parse(JSON.stringify(state.customNodeGraphEffects.value[0].nodes[0].params.amount.value)), [0.2, 0.4]);
+	assert.deepEqual(JSON.parse(JSON.stringify(state.customNodeGraphEffects.value[0].definition.nodes[0].params.amount.value)), [0.2, 0.4]);
 	assert.deepEqual(JSON.parse(JSON.stringify(state.timelineScenes.value[0].layers[0].effectParamValues.amount.value)), [0.2, 0.4]);
 	manager.undo();
-	assert.equal(state.customNodeGraphEffects.value[0].nodes[0].params.amount.value, 'TIME');
+	assert.equal(state.customNodeGraphEffects.value[0].definition.nodes[0].params.amount.value, 'TIME');
 });
 
-// 【未接続・バイパス中のCustom Shader Effect NodeもCustom Node Graph Effect単体exportを拒否する】
-// 描画に使われないNodeでも参照先の定義はファイルに同梱されないため、欠落した成果物を作らない。
-test('rejects standalone Custom Node Graph Effect export even for bypassed disconnected shader nodes', () => {
-	const { state, customNodeGraphEffect } = usageFixture();
+// 【未接続・バイパス状態でも配置が参照するShaderを同梱する】
+// 読み込んだ後に配線やバイパスを変更できるよう、描画経路外の定義も持ち運ぶ。
+test('includes registered shaders in disconnected and bypassed nodes when exporting', () => {
+	const { state, definition, customNodeGraphEffect } = usageFixture();
 	customNodeGraphEffect.nodes[0].isBypass = true;
-	assert.throws(() => collectCustomNodeGraphEffectFile({ name: 'Test', gsVersion: '2.0.0', customNodeGraphEffect, assets: [], players: [] }, getEffectDefinitions(state)), /Custom Shader Effect Node.*export/);
+	const file = collectCustomNodeGraphEffectFile({ name: 'Test', gsVersion: '2.0.0', customNodeGraphEffect, customNodeGraphEffects: [], customShaderEffects: state.customShaderEffects.value, assets: [], players: [] }, {});
+	assert.deepEqual(file.customShaderEffects.map(entry => entry.id), [definition.id]);
 });
 
 // 【Layerで使用中の主出力を解除すると描画を停止し、定義のUndoで検証を復旧する】
@@ -152,7 +154,7 @@ test('revalidates shader layers after primary output changes and undo', () => {
 	const validation = new ProjectRenderValidation(state, {});
 	validation.reset();
 	assert.equal(validation.errorMessage.value, null);
-	manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: ({ ...definition, primaryOutputId: null }).id, definition: { ...definition, primaryOutputId: null } });
+	manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: definition.id, definition: { ...definition, definition: { ...definition.definition, primaryOutput: null } } });
 	validation.update([{ type: 'customShaderEffect', customShaderEffectId: definition.id }]);
 	assert.match(validation.errorMessage.value, /primary color output/);
 	manager.undo();
@@ -190,7 +192,7 @@ function fixture(t) {
 // 【定義変更はコードと入出力をまとめて確定し、Undo/Redoと通知で同じ状態を再現する】
 // 型の異なる出力を追加した後にコードだけ古い状態へ戻ると、後の描画側へ不整合を渡してしまう。
 test('applies definitions atomically through commands and restores registration order', () => {
-	const manager = new UndoRedo({ customShaderEffects: ref([]) }, CUSTOM_SHADER_EFFECT_COMMAND_DEFS);
+	const manager = new UndoRedo({ customShaderEffects: ref([]), timelineScenes: ref([]), customNodeGraphEffects: ref([]) }, CUSTOM_SHADER_EFFECT_COMMAND_DEFS);
 	const changes = [];
 	manager.onChange(value => changes.push(value));
 	const first = createProjectCustomShaderEffect([]);
@@ -198,16 +200,16 @@ test('applies definitions atomically through commands and restores registration 
 	manager.commit('insertCustomShaderEffect', { definition: first });
 	manager.commit('insertCustomShaderEffect', { definition: second });
 	const updated = structuredClone(first);
-	updated.code = 'unfinished WGSL';
-	updated.outputDefs.push({ id: 'mask', nameForReference: 'mask', label: 'Mask', dataType: { kind: 'scalar' } });
+	updated.definition.code = 'unfinished WGSL';
+	updated.definition.outputDefs.mask = { nameForReference: 'mask', label: 'Mask', dataType: { kind: 'scalar' } };
 	manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: (updated).id, definition: updated });
-	updated.outputDefs[1].label = 'Later mutation';
-	assert.equal(manager.state.customShaderEffects.value[0].outputDefs[1].label, 'Mask');
+	updated.definition.outputDefs.mask.label = 'Later mutation';
+	assert.equal(manager.state.customShaderEffects.value[0].definition.outputDefs.mask.label, 'Mask');
 	manager.undo();
 	assert.deepEqual(JSON.parse(JSON.stringify(manager.state.customShaderEffects.value[0])), first);
 	manager.redo();
-	assert.equal(manager.state.customShaderEffects.value[0].code, 'unfinished WGSL');
-	assert.equal(manager.state.customShaderEffects.value[0].outputDefs.length, 2);
+	assert.equal(manager.state.customShaderEffects.value[0].definition.code, 'unfinished WGSL');
+	assert.equal(Object.keys(manager.state.customShaderEffects.value[0].definition.outputDefs).length, 2);
 	manager.commit('removeCustomShaderEffect', { customShaderEffectId: first.id });
 	assert.deepEqual(manager.state.customShaderEffects.value.map(definition => definition.id), [second.id]);
 	manager.undo();
@@ -220,37 +222,39 @@ test('applies definitions atomically through commands and restores registration 
 test('duplicates definitions with independent identities and correctly remapped references', () => {
 	const original = createProjectCustomShaderEffect([]);
 	const copy = createProjectCustomShaderEffect([original], original);
-	validateCustomShaderEffectDefinition(copy);
+	validateCustomShaderEffectDefinition(copy.definition);
 	assert.notEqual(copy.id, original.id);
 	assert.notEqual(copy.name, original.name);
-	assert.notEqual(copy.paramDefs[0].id, original.paramDefs[0].id);
-	assert.notEqual(copy.outputDefs[0].id, original.outputDefs[0].id);
-	assert.equal(copy.primaryInputId, copy.paramDefs[0].id);
-	assert.equal(copy.primaryOutputId, copy.outputDefs[0].id);
-	assert.deepEqual(copy.resolutionInputIds, [copy.paramDefs[0].id]);
-	assert.equal(copy.code, original.code);
-	copy.paramDefs[0].defaultValue.value[0] = 1;
-	assert.equal(original.paramDefs[0].defaultValue.value[0], 0);
+	const input = Object.keys(copy.definition.paramDefs)[0];
+	const output = Object.keys(copy.definition.outputDefs)[0];
+	assert.notEqual(input, original.definition.primaryInputParameter);
+	assert.notEqual(output, original.definition.primaryOutput);
+	assert.equal(copy.definition.primaryInputParameter, input);
+	assert.equal(copy.definition.primaryOutput, output);
+	assert.deepEqual(copy.definition.resolutionInputParameters, [input]);
+	assert.equal(copy.definition.code, original.definition.code);
+	copy.definition.paramDefs[input].defaultValue.value[0] = 1;
+	assert.equal(original.definition.paramDefs[original.definition.primaryInputParameter].defaultValue.value[0], 0);
 });
 
 // 【未完成コードは保存できるが、入出力の重複・不正な値・無効な主出力は適用しない】
 // コードの編集中エラーと、UIが所有する定義構造の破損を分けて扱う。
 test('accepts unfinished WGSL while rejecting invalid interface definitions without adding history', () => {
 	const original = createProjectCustomShaderEffect([]);
-	original.code = 'not valid WGSL';
-	assert.doesNotThrow(() => validateCustomShaderEffectDefinition(original));
-	const manager = new UndoRedo({ customShaderEffects: ref([]) }, CUSTOM_SHADER_EFFECT_COMMAND_DEFS);
+	original.definition.code = 'not valid WGSL';
+	assert.doesNotThrow(() => validateCustomShaderEffectDefinition(original.definition));
+	const manager = new UndoRedo({ customShaderEffects: ref([]), timelineScenes: ref([]), customNodeGraphEffects: ref([]) }, CUSTOM_SHADER_EFFECT_COMMAND_DEFS);
 	for (const [reason, edit] of [
-		['duplicateParameter', definition => definition.paramDefs.push(structuredClone(definition.paramDefs[0]))],
-		['duplicateOutput', definition => definition.outputDefs.push({ ...definition.outputDefs[0], id: 'another' })],
-		['invalidReferenceName', definition => { definition.outputDefs[0].nameForReference = 'gs_internal'; }],
-		['invalidParameter', definition => { definition.paramDefs[0].defaultValue.value = [1, 2]; }],
-		['invalidPrimaryOutput', definition => { definition.outputDefs[0].dataType = { kind: 'scalar' }; }],
-		['invalidResolutionInput', definition => { definition.resolutionInputIds = ['missing']; }],
-		['missingOutput', definition => { definition.outputDefs = []; }],
+		['duplicateParameter', definition => definition.paramDefs.another = structuredClone(definition.paramDefs[definition.primaryInputParameter])],
+		['duplicateOutput', definition => definition.outputDefs.another = { ...definition.outputDefs[definition.primaryOutput] }],
+		['invalidReferenceName', definition => { definition.outputDefs[definition.primaryOutput].nameForReference = 'gs_internal'; }],
+		['invalidParameter', definition => { definition.paramDefs[definition.primaryInputParameter].defaultValue.value = [1, 2]; }],
+		['invalidPrimaryOutput', definition => { definition.primaryOutput = 'missing'; }],
+		['invalidResolutionInput', definition => { definition.resolutionInputParameters = ['missing']; }],
+		['missingOutput', definition => { definition.outputDefs = {}; }],
 	]) {
 		const invalid = structuredClone(original);
-		edit(invalid);
+		edit(invalid.definition);
 		assert.throws(() => manager.commit('insertCustomShaderEffect', { definition: invalid }), error => error.reason === reason);
 		assert.equal(manager.undoStack.value.length, 0);
 		assert.equal(manager.state.customShaderEffects.value.length, 0);
@@ -270,8 +274,8 @@ test('keeps drafts private and applies code and multiple outputs in one event', 
 	assert.equal(f.applied.length, 0);
 	f.find('data-test-apply-custom-shader-effect').props.onClick();
 	assert.equal(f.applied.length, 1);
-	assert.equal(f.applied[0].code, 'unfinished code');
-	assert.equal(f.applied[0].outputDefs.length, 2);
+	assert.equal(f.applied[0].definition.code, 'unfinished code');
+	assert.equal(Object.keys(f.applied[0].definition.outputDefs).length, 2);
 	f.find('data-test-reset-custom-shader-effect').props.onClick();
 	await nextTick();
 	assert.equal(f.find('data-test-custom-shader-effect-unapplied'), null);
@@ -282,19 +286,19 @@ test('keeps drafts private and applies code and multiple outputs in one event', 
 // 定義の削除や型変更を別操作の修正なしに適用でき、残った入出力のIDを維持する。
 test('clears invalidated interface references and reloads drafts on external updates', async t => {
 	const f = fixture(t);
-	const inputId = f.props.customShaderEffect.primaryInputId;
-	const outputId = f.props.customShaderEffect.primaryOutputId;
+	const inputId = f.props.customShaderEffect.definition.primaryInputParameter;
+	const outputId = f.props.customShaderEffect.definition.primaryOutput;
 	await f.tab('outputs');
 	f.find('data-test-custom-shader-effect-output-type', outputId).props['onUpdate:modelValue']('scalar');
 	await f.tab('inputs');
 	f.find('data-test-custom-shader-effect-parameter', inputId).props.onRemove();
 	await nextTick();
 	f.find('data-test-apply-custom-shader-effect').props.onClick();
-	assert.equal(f.applied[0].primaryInputId, null);
-	assert.equal(f.applied[0].primaryOutputId, null);
-	assert.deepEqual(f.applied[0].resolutionInputIds, []);
-	assert.equal(f.applied[0].outputDefs[0].id, outputId);
-	f.props.customShaderEffect = { ...f.props.customShaderEffect, code: 'external code' };
+	assert.equal(f.applied[0].definition.primaryInputParameter, null);
+	assert.equal(f.applied[0].definition.primaryOutput, null);
+	assert.deepEqual(f.applied[0].definition.resolutionInputParameters, []);
+	assert.equal(Object.keys(f.applied[0].definition.outputDefs)[0], outputId);
+	f.props.customShaderEffect = { ...f.props.customShaderEffect, definition: { ...f.props.customShaderEffect.definition, code: 'external code' } };
 	await nextTick();
 	await f.tab('code');
 	assert.equal(f.find('data-test-custom-shader-effect-code').props.modelValue, 'external code');
@@ -305,8 +309,8 @@ test('clears invalidated interface references and reloads drafts on external upd
 // ユーザーが独自にtimeを定義する契約と、複数出力の型付き構造体をエディタで確認できる。
 test('describes typed outputs and reads without adding implicit time', () => {
 	const definition = createProjectCustomShaderEffect([]);
-	definition.outputDefs.push({ id: 'vector', nameForReference: 'direction', label: 'Direction', dataType: { kind: 'vector' } });
-	const text = describeCustomShaderEffectInterface(definition);
+	definition.definition.outputDefs.vector = { nameForReference: 'direction', label: 'Direction', dataType: { kind: 'vector' } };
+	const text = describeCustomShaderEffectInterface(definition.definition);
 	assert.match(text, /color: vec4f/);
 	assert.match(text, /direction: vec2f/);
 	assert.match(text, /read_source\(position: vec2f\) -> vec4f/);

@@ -3,15 +3,15 @@ import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { getTimelinePreviewFrameIndex, getTimelinePreviewFrameTime } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 import type { TimelinePreviewSeekMode } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 import type { ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
-import type { CustomNodeGraphEffectArgumentBindings } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
-import type { CustomNodeGraphEffectRendererManagerController } from './CustomNodeGraphEffectRendererManagerController.ts';
+import type { CustomNodeGraphEffectArgumentBindings } from '@/types/custom-node-graph-effect-view.ts';
+import type { EffectLivePreviewManagerController } from './EffectLivePreviewManagerController.ts';
 import type { TimelineRendererManagerController } from './TimelineRendererManagerController.ts';
 
 export type PreviewPlaybackState =
 	| { mode: 'customNodeGraphEffectLivePreview'; customNodeGraphEffectId: ProjectCustomNodeGraphEffect['id'] }
 	| { mode: 'timeline'; playing: boolean };
 
-type CustomNodeGraphEffectLivePreviewRenderer = Pick<CustomNodeGraphEffectRendererManagerController, 'startCustomNodeGraphEffectLivePreviewRenderLoopFor' | 'updateCustomNodeGraphEffectLivePreviewParamValues' | 'stopRenderLoop' | 'resetRenderHistory'>;
+type CustomNodeGraphEffectLivePreviewRenderer = Pick<EffectLivePreviewManagerController, 'startCustomNodeGraphEffectLivePreviewRenderLoopFor' | 'updateCustomNodeGraphEffectLivePreviewParamValues' | 'stopRenderLoop' | 'resetRenderHistory'>;
 type TimelineAudio = {
 	start(time: number, duration: number): void;
 	stop(): void;
@@ -20,7 +20,7 @@ type TimelineAudio = {
 };
 type TimelineRenderer = Pick<TimelineRendererManagerController, 'renderTimelineAt' | 'renderTimelineAtAndWait' | 'cancelSeek' | 'isReady' | 'errorMessage' | 'isFrameCacheEnabled' | 'frameCacheUsageRatio' | 'resetRenderHistory'>;
 
-/** プレビューの切り替えと時刻更新を所有し、Custom Node Graph Effect Live Previewとタイムラインの同時再生を防ぐ。 */
+/** プレビューの切り替えと時刻更新を所有し、Effect Live Previewとタイムラインの同時再生を防ぐ。 */
 export class PreviewPlaybackController {
 	private disposed = false;
 	private readonly playbackState = shallowRef<PreviewPlaybackState>({ mode: 'timeline', playing: false });
@@ -252,7 +252,7 @@ export class PreviewPlaybackController {
 		this.refresh();
 	}
 
-	/** 編集による再描画では表示モードを切り替えない。Custom Node Graph Effect Live PreviewはWorkerのループが描画する。 */
+	/** 編集による再描画では表示モードを切り替えない。Effect Live PreviewはWorkerのループが描画する。 */
 	public refresh() {
 		if (this.disposed) return;
 		this.cancelTimelineBake();

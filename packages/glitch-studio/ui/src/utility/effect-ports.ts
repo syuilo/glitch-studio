@@ -2,7 +2,7 @@ import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import type { EffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
 
 type EffectPort = {
 	key: string;

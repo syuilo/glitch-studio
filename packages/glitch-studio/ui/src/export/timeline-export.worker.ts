@@ -3,8 +3,8 @@ import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-res
 import { TimelineRendererManager } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import { createSrgbCanvasOutputSettings } from '@gs/glitch-studio_renderer/canvas-output.ts';
 import { getRendererRequiredGpuFeatures } from '@gs/glitch-studio_renderer/renderer-gpu-features.ts';
-import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
-import { effectImplementations } from '@gs/subsystems_effect_shared/effect-implementations.ts';
+import { nativeEffectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
+import { nativeEffectImplementations } from '@gs/subsystems_effect-new_native-effects/implementations.ts';
 import { createMp4Writer } from './mp4-writer.ts';
 import { adjustExportResolution, scaleExportResolution } from './export-settings.ts';
 import { prepareStillWebp } from './still-webp.ts';
@@ -54,7 +54,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest | ExportChunkAcknowled
 	let gpuReleased = false;
 	try {
 		const { settings: requestedSettings, project, resolutionScale, renderer: rendererSettings } = event.data;
-		const { timelineFps, timelineMotionBlur, assets, customShaderEffects, ...dynamicProjectOptions } = project;
+		const { timelineFps, timelineMotionBlur, assets, ...dynamicProjectOptions } = project;
 		// UI以外から呼ばれても、Canvasとエンコーダーに同じ調整済みサイズを使う。
 		const scene = getTimelineScene(project.timelineScenes, project.sceneId);
 		const settings = {
@@ -100,22 +100,19 @@ self.onmessage = async (event: MessageEvent<ExportRequest | ExportChunkAcknowled
 			gpuContext: context,
 			// プレビューの広色域化とは独立して、SDRの書き出しをsRGBへ固定する。
 			canvasOutput: createSrgbCanvasOutputSettings(),
-			effectDefinitions,
-			effectImplementations,
+			nativeEffectDefinitions,
+			nativeEffectImplementations,
 		}, {
 			...rendererSettings,
 			timelineFps,
 			timelineMotionBlur,
 			enableStats: false,
 			enableWaveformAndHistogram: false,
-		}, { assets, customShaderEffects }, controller.signal);
+		}, { assets }, controller.signal);
 		renderer.on('ev', event => {
-			if (event.type !== 'effectState' && event.type !== 'effectLayerState') return;
-			const status = event.ctx.status?.status;
-			if (status?.type === 'error') {
-				const source = event.type === 'effectState' ? `Node ${event.ctx.nodeId}`
-					: `Effect layer ${event.ctx.source.layerId} (clip ${event.ctx.source.clipId})`;
-				fail(`${source}: ${status.message}`);
+			if (event.type === 'renderError') fail(event.ctx.message);
+			if (event.type === 'effectLayerState' && event.ctx.status?.type === 'error') {
+				fail(`Effect layer ${event.ctx.source.layerId} (clip ${event.ctx.source.clipId}): ${String(event.ctx.status.error)}`);
 			}
 		});
 		// 基準サイズを上書きすると、customAbsoluteの子Sceneやノードに書き出し倍率が伝わらない。

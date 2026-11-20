@@ -1,3 +1,4 @@
+import { testGraph } from './helpers/effect-graph.mjs';
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -9,7 +10,7 @@ const literal = value => ({ inputSource: 'literal', value });
 const connection = nodeId => ({ inputSource: 'node', nodeId, outputPort: 'output' });
 const effectDefinitions = {
 	probe: {
-		id: 'probe',
+		kind: 'modify',
 		paramDefs: { input: {
 			dataType: { kind: 'color' }, canNode: true,
 			ui: { label: 'Input', control: {} }, defaultValue: literal([0, 0, 0, 0]),
@@ -28,14 +29,14 @@ const bundled = await build({
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { RendererProjectSynchronizer } from './src/RendererProjectSynchronizer.ts';
-		export { CustomNodeGraphEffectRendererManager } from '@gs/glitch-studio_renderer/custom-node-graph-effect-renderer-manager.ts';
+		export { EffectLivePreviewManager } from '@gs/glitch-studio_renderer/effect-live-preview-manager.ts';
 	` },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	loader: { '.wgsl': 'text' },
 	plugins: [wgslShaderEsbuildPlugin(), { name: 'command-renderer-effects', setup(build) {
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'command-renderer-test' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'command-renderer-test' }));
 		build.onLoad({ filter: /.*/, namespace: 'command-renderer-test' }, () => ({
-			contents: `export const effectDefinitions = ${JSON.stringify(effectDefinitions)};`, loader: 'ts',
+			contents: `export const nativeEffectDefinitions = ${JSON.stringify(effectDefinitions)};`, loader: 'ts',
 		}));
 	} }],
 });
@@ -58,7 +59,7 @@ after(() => {
 });
 const bundledModule = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), bundledModule, bundledModule.exports);
-const { COMMAND_DEFS, UndoRedo, RendererProjectSynchronizer, CustomNodeGraphEffectRendererManager } = bundledModule.exports;
+const { COMMAND_DEFS, UndoRedo, RendererProjectSynchronizer, EffectLivePreviewManager } = bundledModule.exports;
 
 function gpuFixture() {
 	const texture = ({ size = [1, 1], format = 'rgba8unorm' } = {}) => ({
@@ -81,18 +82,16 @@ function gpuFixture() {
 
 async function fixture(t) {
 	const node = (id, resolution, input = literal([0, 0, 0, 0])) => ({
-		id, type: 'effect', effectId: 'probe', displayName: '', isBypass: false,
+		id, type: 'effect', effectSource: { type: 'nativeEffect', id: 'probe' }, displayName: '', isBypass: false,
 		resolution, staticSettings: {}, params: { input }, pos: { x: 0, y: 0 },
 	});
 	const customNodeGraphEffect = {
-		id: 'custom-node-graph-effect', name: 'Resolution test', paramDefs: [], customParameterDefs: [], customParameterValues: {}, automationGraphs: [],
-		outputDefs: [{ id: 'output', name: 'output', label: 'Output', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'output',
+		id: 'custom-node-graph-effect', name: 'Resolution test', definition: testGraph({ outputSources: { output: { nodeId: 'consumer', outputPort: 'output' } },
 		nodes: [
 			node('small-source', { mode: 'customAbsolute', width: 16, height: 16 }),
 			node('large-source', { mode: 'customAbsolute', width: 32, height: 24 }),
-			node('consumer', { mode: 'auto', scale: 1 }, connection('small-source')),
-			{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'consumer', outputPort: 'output' } } },
-		],
+			node('consumer', { mode: 'auto', scale: 1 }, { inputSource: 'node', source: { nodeId: 'small-source', outputPort: 'output' }, sampling: { fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' } }),
+		] }),
 	};
 	const manager = new UndoRedo({ customNodeGraphEffects: { value: [customNodeGraphEffect] }, customShaderEffects: { value: [] } }, COMMAND_DEFS);
 	const { device, texture } = gpuFixture();
@@ -101,13 +100,13 @@ async function fixture(t) {
 	let timestamp = 0;
 	const errors = [];
 	const renderedResolutions = [];
-	const renderer = await CustomNodeGraphEffectRendererManager.create({
+	const renderer = await EffectLivePreviewManager.create({
 		gpuDevice: device,
 		gpuContext: { canvas: { width: 64, height: 48 }, configure() {}, getCurrentTexture: texture },
 		frameScheduler: { now: () => 0, requestFrame: callback => { frames.set(++frameId, callback); return frameId; }, cancelFrame: id => frames.delete(id) },
-		effectDefinitions,
-		effectImplementations: { probe: {
-			outputTextureFactories: { output: ({ resolution }) => texture({ size: resolution }) },
+		nativeEffectDefinitions: effectDefinitions,
+		nativeEffectImplementations: { probe: {
+			createOutputTexture: (_id, resolution) => texture({ size: resolution }),
 			init: () => ({ render() {}, dispose() {} }),
 		} },
 	}, { enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false }, { assets: [], players: [] });
@@ -115,7 +114,7 @@ async function fixture(t) {
 	// 表示処理以外は差し替えず、実際にCanvasへ渡される最終出力の寸法を観測する。
 	renderer.canvasRenderer.renderToCanvas = output => renderedResolutions.push({ width: output.width, height: output.height });
 	renderer.updateDynamicOptions({ resolution: { width: 64, height: 48 }, customNodeGraphEffects: structuredClone([customNodeGraphEffect]) });
-	renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor(customNodeGraphEffect.id);
+	renderer.startEffectLivePreview({ effectSource: { type: 'customNodeGraphEffectReference', id: customNodeGraphEffect.id } });
 	const synchronizer = new RendererProjectSynchronizer(manager, {
 		apply: async changes => renderer.applyProjectChanges(changes),
 		onUpdated() {}, onError: error => errors.push(error),
@@ -130,7 +129,7 @@ async function fixture(t) {
 			const [id, callback] = frames.entries().next().value;
 			frames.delete(id);
 			callback(timestamp += 16);
-			await Promise.resolve();
+			await new Promise(resolve => setImmediate(resolve));
 			assert.deepEqual(errors, []);
 			assert.equal(renderedResolutions.length, count + 1);
 			assert.deepEqual(renderedResolutions.at(-1), expected);

@@ -20,10 +20,10 @@ const bundle = await build({
 	` },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'video-loop-dependencies', setup(build) {
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', contents: path === 'effects'
-			? 'export const effectDefinitions = {};'
+			? 'export const nativeEffectDefinitions = {};'
 			: 'export const preferences = { s: { forceTypeSafety: true } };' }));
 	} }],
 });

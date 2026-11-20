@@ -31,10 +31,9 @@
 <script lang="ts" setup>
 import { reactive } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
-import { customNodeGraphEffectCustomParameterId, customNodeGraphEffectCustomParameterName } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
-import { CUSTOM_NODE_GRAPH_EFFECT_CUSTOM_PARAMETER_VAR_DEFS } from '@gs/subsystems_custom-node-graph-effect_shared/expression.ts';
-import { CUSTOM_NODE_GRAPH_EFFECT_CUSTOM_PARAMETER_TYPES, validateCustomNodeGraphEffectCustomParameterDefinition } from '@gs/subsystems_custom-node-graph-effect_shared/custom-parameters.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectCustomParameterDefinition, CustomNodeGraphEffectCustomParameterId } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import { CUSTOM_NODE_GRAPH_EFFECT_CUSTOM_PARAMETER_VAR_DEFS } from '@/utility/custom-node-graph-effect-expression.ts';
+import { CUSTOM_NODE_GRAPH_EFFECT_CUSTOM_PARAMETER_TYPES, validateCustomNodeGraphEffectCustomParameterDefinition } from '@/utility/custom-node-graph-effect-view-parameters.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectCustomParameterDefinition } from '@/types/custom-node-graph-effect-view.ts';
 import type { CustomNodeGraphEffectEdit } from '@/types/custom-node-graph-effect-editor.ts';
 import type { PublicParameterDefinitionEdit } from '@/types/parameter-edit.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
@@ -47,9 +46,9 @@ import { i18n } from '@/i18n.ts';
 
 const props = defineProps<{ customNodeGraphEffect: CustomNodeGraphEffect }>();
 const emit = defineEmits<{ edit: [event: CustomNodeGraphEffectEdit] }>();
-const definitionErrors = reactive(new Map<CustomNodeGraphEffectCustomParameterId, string>());
+const definitionErrors = reactive(new Map<string, string>());
 
-function keyframesBinding(id: CustomNodeGraphEffectCustomParameterId) {
+function keyframesBinding(id: string) {
 	const binding = props.customNodeGraphEffect.customParameterValues[id];
 	return binding?.inputSource === 'keyframesTimelineInline' ? binding : null;
 }
@@ -58,13 +57,13 @@ function add() {
 	let nameForReference = 'my_param';
 	for (let suffix = 2; props.customNodeGraphEffect.customParameterDefs.some(definition => definition.nameForReference === nameForReference); suffix++) nameForReference = `my_param_${suffix}`;
 	emit('edit', { kind: 'updateCustomParameter', definition: {
-		id: customNodeGraphEffectCustomParameterId(genId()), nameForReference: customNodeGraphEffectCustomParameterName(nameForReference), canNode: false,
+		id: genId(), nameForReference: nameForReference, canNode: false,
 		dataType: { kind: 'scalar' }, ui: { label: nameForReference, control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.5 },
 	} });
 }
 
 function update(definition: CustomNodeGraphEffectCustomParameterDefinition, changes: PublicParameterDefinitionEdit, mergeKey?: string | null) {
-	const next = { ...definition, ...changes, nameForReference: changes.nameForReference == null ? definition.nameForReference : customNodeGraphEffectCustomParameterName(changes.nameForReference), canNode: false } as CustomNodeGraphEffectCustomParameterDefinition;
+	const next = { ...definition, ...changes, nameForReference: changes.nameForReference == null ? definition.nameForReference : changes.nameForReference, canNode: false } as CustomNodeGraphEffectCustomParameterDefinition;
 	try {
 		validateCustomNodeGraphEffectCustomParameterDefinition(next);
 		if (props.customNodeGraphEffect.customParameterDefs.some(candidate => candidate.id !== next.id && candidate.nameForReference === next.nameForReference)) throw new Error(i18n.ts._Parameter.DuplicateCustomParameterName);
@@ -76,7 +75,7 @@ function update(definition: CustomNodeGraphEffectCustomParameterDefinition, chan
 	emit('edit', { kind: 'updateCustomParameter', definition: next, mergeKey });
 }
 
-function editValue(parameterId: CustomNodeGraphEffectCustomParameterId, event: ParamEdit) {
+function editValue(parameterId: string, event: ParamEdit) {
 	switch (event.kind) {
 		case 'copy':
 		case 'paste': emit('edit', { kind: 'customParameterClipboard', parameterId, operation: event.kind }); return;

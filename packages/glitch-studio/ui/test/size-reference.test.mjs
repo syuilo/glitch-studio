@@ -1,3 +1,4 @@
+import { testGraph } from './helpers/effect-graph.mjs';
 import { nodeParameterTarget } from './helpers/command-inputs.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -21,14 +22,14 @@ const commands = evaluate(await build({
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts';
-		export { default as definition } from '@gs/subsystems_effect_shared/fx/checker/_def_.ts';
+		export { default as definition } from '@gs/subsystems_effect-new_native-effects/fx/checker/_def_.ts';
 	` },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 	plugins: [i18nPlugin, { name: 'size-reference-command-platform', setup(build) {
-		build.onResolve({ filter: /effect-definitions\.[jt]s$|preferences\.ts$/ }, args => ({ path: args.path.includes('preferences') ? 'preferences' : 'effects', namespace: 'platform' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$|preferences\.ts$/ }, args => ({ path: args.path.includes('preferences') ? 'preferences' : 'effects', namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', resolveDir: uiDirectory, contents: path === 'preferences'
 			? 'export const preferences = { s: { forceTypeSafety: true } };'
-			: "import definition from '@gs/subsystems_effect_shared/fx/checker/_def_.ts'; export const effectDefinitions = { checker: definition };" }));
+			: "import definition from '@gs/subsystems_effect-new_native-effects/fx/checker/_def_.ts'; export const nativeEffectDefinitions = { checker: definition };" }));
 	} }],
 }));
 
@@ -39,9 +40,9 @@ test('preserves the dedicated size-reference type through edits undo redo and sa
 	assert.deepEqual(definition.paramDefs.sizeReference.dataType, { kind: 'sizeReference' });
 	assert.equal(definition.paramDefs.sizeReference.defaultValue.value, 'longSide');
 	assert.equal('fitMode' in definition.paramDefs, false);
-	const node = { id: 'node', type: 'effect', effectId: 'checker', resolution: { mode: 'auto', scale: 1 }, staticSettings: {}, isBypass: false, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([name, def]) => [name, structuredClone(def.defaultValue)])) };
+	const node = { id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'checker' }, resolution: { mode: 'auto', scale: 1 }, staticSettings: {}, isBypass: false, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([name, def]) => [name, structuredClone(def.defaultValue)])) };
 	const publicParameterDefinition = { id: 'reference', nameForReference: 'size_reference', ...structuredClone(definition.paramDefs.sizeReference) };
-	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, id: 'custom-node-graph-effect', nodes: [node], paramDefs: [publicParameterDefinition] };
+	const customNodeGraphEffect = { id: 'custom-node-graph-effect', definition: testGraph({ customParameterValues: {}, nodes: [node], paramDefs: { [publicParameterDefinition.id]: publicParameterDefinition } }) };
 	const state = { customNodeGraphEffects: { value: [customNodeGraphEffect] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const target = { customNodeGraphEffectId: customNodeGraphEffect.id, nodeId: node.id, paramPath: ['sizeReference'] };
@@ -53,8 +54,8 @@ test('preserves the dedicated size-reference type through edits undo redo and sa
 	assert.equal(node.params.sizeReference.value, 'height');
 	const encoded = await encodeProjectFile({ assets: [], generatedSpeech: [], timelineScenes: [], customNodeGraphEffects: state.customNodeGraphEffects.value, gsVersion: '2.0.0-alpha.31' });
 	const restored = decodeProjectFile(encoded).customNodeGraphEffects[0];
-	assert.deepEqual(restored.paramDefs[0], publicParameterDefinition);
-	assert.deepEqual(restored.nodes[0].params.sizeReference, node.params.sizeReference);
+	assert.deepEqual(restored.definition.paramDefs.reference, publicParameterDefinition);
+	assert.deepEqual(restored.definition.nodes[0].params.sizeReference, node.params.sizeReference);
 });
 
 const componentPath = new URL('../src/components/GsLiteralLeafValueControl.vue', import.meta.url);

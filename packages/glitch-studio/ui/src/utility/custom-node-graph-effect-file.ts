@@ -1,10 +1,11 @@
+import type { CustomNodeGraphEffectEditorMetadata } from '@gs/glitch-studio_shared/project/types.ts';
 import { i18n } from '@/i18n.ts';
-import { getEffectDefinitions } from './project-effects.ts';
+import { nativeEffectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
 import { collectCustomNodeGraphEffectFile, encodeCustomNodeGraphEffectFile, decodeCustomNodeGraphEffectFile, prepareCustomNodeGraphEffectImport } from '../custom-node-graph-effect-file-codec.ts';
 import * as ui from '../ui.ts';
 import { applicationActivity } from '../application-activity.ts';
 import { resolveExternalAssets } from '../external-assets.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
 import type { ProjectContext } from '../Project.ts';
 
 export function pickCustomNodeGraphEffectFile(): Promise<File | null> {
@@ -18,7 +19,7 @@ export function pickCustomNodeGraphEffectFile(): Promise<File | null> {
 	});
 }
 
-export async function exportCustomNodeGraphEffectFile(context: ProjectContext, customNodeGraphEffect: CustomNodeGraphEffect, name: string): Promise<void> {
+export async function exportCustomNodeGraphEffectFile(context: ProjectContext, customNodeGraphEffect: CustomNodeGraphEffect, name: string, nodeMetadata?: CustomNodeGraphEffectEditorMetadata['nodeMetadata']): Promise<void> {
 	const releaseActivity = applicationActivity.acquireExport();
 	try {
 		const state = context.stateManager.state;
@@ -27,9 +28,10 @@ export async function exportCustomNodeGraphEffectFile(context: ProjectContext, c
 			customNodeGraphEffect,
 			name,
 			gsVersion: _VERSION_,
-			assets: state.assets.value,
+			customShaderEffects: state.customShaderEffects.value,
+			nodeMetadata, customNodeGraphEffects: state.customNodeGraphEffects.value, assets: state.assets.value,
 			players: state.players.value,
-		}, getEffectDefinitions(state));
+		}, nativeEffectDefinitions);
 		const data = await encodeCustomNodeGraphEffectFile(file);
 		const url = URL.createObjectURL(new Blob([new Uint8Array(data)], { type: 'application/octet-stream' }));
 		const link = window.document.createElement('a');
@@ -55,7 +57,7 @@ export async function importCustomNodeGraphEffectFile(context: ProjectContext): 
 		const data = await file.arrayBuffer();
 		if (context.isDisposed) return null;
 		const decoded = decodeCustomNodeGraphEffectFile(new Uint8Array(data), _VERSION_);
-		const prepared = prepareCustomNodeGraphEffectImport(decoded, getEffectDefinitions(context.stateManager.state));
+		const prepared = prepareCustomNodeGraphEffectImport(decoded, nativeEffectDefinitions);
 		context.stateManager.commit('importCustomNodeGraphEffect', prepared);
 		if (prepared.unassignedPlayerNames.length > 0) {
 			ui.alert({

@@ -1,3 +1,4 @@
+import { testGraph } from './helpers/effect-graph.mjs';
 import { createDragActionsFixture } from './helpers/timeline-drag-actions.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -21,15 +22,15 @@ const bundled = await build({
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { getTimelineClipMoveBounds, getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
 		export { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
-		export { default as arrayDefinition } from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
+		export { default as arrayDefinition } from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts';
 	` },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'clip-move-dependencies', setup(build) {
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', resolveDir: uiDirectory,
 			contents: path === 'effects'
-				? "import definition from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts'; export const effectDefinitions = { [definition.id]: definition };"
+				? "import definition from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };"
 				: 'export const preferences = { s: { forceTypeSafety: true } };',
 		}));
 	} }],
@@ -171,14 +172,14 @@ test('materializes default arguments and nested lanes without modifying shared d
 	for (const nested of [false, true]) {
 		const f = fixture(t, []);
 		const def = nested ? { ...structuredClone(arrayDefinition.paramDefs.buzzs), id: 'value' }
-			: { id: 'value', dataType: { kind: 'scalar' }, ui: { label: 'Value', control: {} }, defaultValue: keys([100, 200]) };
+			: { id: 'value', dataType: { kind: 'scalar' }, ui: { label: 'Value', control: {} }, defaultValue: { inputSource: 'literal', value: 0 } };
+		const placement = nested ? structuredClone(def.defaultValue) : keys([100, 200]);
 		if (nested) {
-			def.defaultValue.value[0].binding.value.x = keys([100, 200]);
-			def.defaultValue.value[0].binding.value.y = keys([100, 200]);
+			placement.value[0].binding.value.x = keys([100, 200]);
+			placement.value[0].binding.value.y = keys([100, 200]);
 		}
-		f.state.customNodeGraphEffects.value.push({ id: 'customNodeGraphEffect', paramDefs: [def] });
-		for (const id of ['edited', 'untouched']) f.scene.layers.push({ id, layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect',
-			customNodeGraphEffectParamValues: {}, clips: [clip('clip', 100, 200)], compositingParamValues: {} });
+		f.state.customNodeGraphEffects.value.push({ id: 'customNodeGraphEffect', definition: testGraph({ paramDefs: { [def.id]: def } }) });
+		for (const id of ['edited', 'untouched']) f.scene.layers.push({ id, layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' }, effectParamValues: id === 'edited' ? { value: placement } : {}, clips: [clip('clip', 100, 200)], compositingParamValues: {} });
 		const before = structuredClone(f.scene);
 		const defaultBefore = structuredClone(def.defaultValue);
 		const targets = [{ layerId: 'edited', clipId: 'clip' }];
@@ -187,7 +188,7 @@ test('materializes default arguments and nested lanes without modifying shared d
 		for (const deltaMs of [20, 60, 0, 100]) f.history.commit('setTimelinePositions', {
 			sceneId: 'scene', clips: initial.clips.map(clip => ({ ...clip, startMs: clip.startMs + deltaMs })), keyframes: initial.keyframes.map(point => ({ ...point, x: point.x + deltaMs })),
 		}, 'defaults');
-		for (const path of paths) assert.deepEqual(resolveLayerParameter(f.state, f.scene.layers[0], 'customNodeGraphEffect', path).value.keyframesTimeline.keyframes.map(point => point.x), [200, 300]);
+		for (const path of paths) assert.deepEqual(resolveLayerParameter(f.state, f.scene.layers[0], 'effect', path).value.keyframesTimeline.keyframes.map(point => point.x), [200, 300]);
 		assert.deepEqual(def.defaultValue, defaultBefore);
 		assert.deepEqual(f.scene.layers[1], before.layers[1]);
 		const after = structuredClone(f.scene);

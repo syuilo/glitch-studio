@@ -28,7 +28,7 @@ export interface CustomNodeGraphEffectEffectNode {
 }
 
 export type CustomNodeGraphEffectNode = CustomNodeGraphEffectEffectNode | {
-	readonly type: 'relay'; readonly id: string; readonly dataType: TextureDataType; readonly input: NodeOutputReference | null;
+	readonly type: 'relay'; readonly id: string; readonly dataType: TextureDataType; readonly input: CustomNodeGraphEffectOutputSource | null;
 };
 
 export type CustomNodeGraphEffectOutputSource = NodeOutputReference | { parameterId: string };
@@ -36,6 +36,7 @@ export type CustomNodeGraphEffectOutputSource = NodeOutputReference | { paramete
 type CustomParameterType = Extract<DataType, { kind: 'scalar' | 'bool' | 'string' | 'color' | 'vector' | 'enum' | 'colorRamp' | 'sizeReference' }>;
 
 export interface CustomNodeGraphEffect extends EffectDefinition {
+	readonly outputDefs: Readonly<Record<string, EffectDefinition['outputDefs'][string] & { readonly nameForReference?: string }>>;
 	readonly paramDefs: Readonly<Record<string, EffectParameterDefinition & { readonly nameForReference?: string }>>;
 	readonly customParameterDefs?: Readonly<Record<string, EffectParameterDefinition<CustomParameterType> & { readonly nameForReference: string; readonly canNode?: false }>>;
 	readonly customParameterValues?: Readonly<Record<string, CustomNodeGraphEffectValueBinding>>;

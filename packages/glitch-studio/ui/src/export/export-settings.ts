@@ -1,4 +1,4 @@
-import type { EffectRenderTiling } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
+import type { EffectRenderTiling } from '@gs/subsystems_effect-new_shared/effect-render-tiling.ts';
 import { scaleResolution } from '@gs/shared/resolution.ts';
 import type { ExportQuality, TimelineExportSettings } from './timeline-export.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';

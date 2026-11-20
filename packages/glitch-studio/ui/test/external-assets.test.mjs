@@ -1,3 +1,4 @@
+import { testGraph } from './helpers/effect-graph.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -81,7 +82,7 @@ test('embeds external bytes in Custom Node Graph Effect exports without changing
 	t.mock.method(globalThis, 'fetch', async () => new Response(new Uint8Array([1, 2, 3])));
 	const external = asset();
 	external.fileData = { url: 'app://external-assets/current', size: 3, error: null };
-	const file = { kind: 'glitch-studio-custom-node-graph-effect', formatVersion: 1, gsVersion: '1.0.0', name: 'Custom Node Graph Effect', assets: [external], players: [], customNodeGraphEffect: { customParameterDefs: [], customParameterValues: {}, nodes: [], paramDefs: [], outputDefs: [], automationGraphs: [] } };
+	const file = { kind: 'glitch-studio-custom-node-graph-effect', formatVersion: 2, customNodeGraphEffects: [], customShaderEffects: [], gsVersion: '1.0.0', name: 'Custom Node Graph Effect', assets: [external], players: [], customNodeGraphEffect: testGraph() };
 	const encoded = await encodeCustomNodeGraphEffectFile(file);
 	const restored = decodeCustomNodeGraphEffectFile(encoded, '2.0.0');
 	assert.deepEqual(new Uint8Array(await restored.assets[0].fileData.arrayBuffer()), new Uint8Array([1, 2, 3]));

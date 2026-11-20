@@ -37,7 +37,7 @@ export function getTimelineParameterEditBinding(state: ProjectState, input: Time
 	const scene = getScene(state, input.sceneId);
 	const layer = findTimelineLayer(scene.layers, input.layerId);
 	if (layer == null) throw new Error('Timeline layer not found');
-	const target = input.target ?? 'customNodeGraphEffect';
+	const target = input.target ?? 'effect';
 	const clonedLayer = deepClone(layer);
 	const draft = { ...state, timelineScenes: { value: state.timelineScenes.value.map(value => value.id === scene.id ? { ...scene, layers: updateTimelineLayer(scene.layers, layer.id, () => clonedLayer) } : value) } } as ProjectState;
 	applyTimelineParameterEdit(draft, deepClone(input));
@@ -64,7 +64,7 @@ function resolveEditableParameter(state: ProjectState, input: TimelineParameterR
 }
 
 function validateParameterReferences(state: ProjectState, layer: TimelineLayer, target: TimelineParameterTarget, definition: ParameterDefinition, binding: EditableTimelineParameterBinding, sceneId: string, previousBinding: EditableTimelineParameterBinding): void {
-	validateTimelineParameterTree(definition, binding, target === 'effect' || target === 'customNodeGraphEffect', target === 'effect' || target === 'customNodeGraphEffect');
+	validateTimelineParameterTree(definition, binding, target === 'effect', target === 'effect');
 	const previous = new Map([...walkParameters<EditableTimelineParameterBinding>({ value: definition }, { value: previousBinding })].map(entry => [JSON.stringify(entry.path), entry.value]));
 	for (const { path, def, value } of walkParameters<EditableTimelineParameterBinding>({ value: definition }, { value: binding })) {
 		const oldValue = previous.get(JSON.stringify(path));

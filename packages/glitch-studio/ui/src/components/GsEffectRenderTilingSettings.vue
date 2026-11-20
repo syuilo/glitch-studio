@@ -25,7 +25,7 @@ import { computed, ref } from 'vue';
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import { i18n } from '@/i18n.ts';
-import type { EffectRenderTiling } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
+import type { EffectRenderTiling } from '@gs/subsystems_effect-new_shared/effect-render-tiling.ts';
 
 defineProps<{ disabled?: boolean }>();
 const model = defineModel<EffectRenderTiling>({ required: true });

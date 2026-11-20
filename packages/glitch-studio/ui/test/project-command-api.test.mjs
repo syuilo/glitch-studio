@@ -13,8 +13,8 @@ const bundle = await build({
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 	` },
 	plugins: [{ name: 'project-command-effects', setup(build) {
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
-		build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ loader: 'ts', contents: 'export const effectDefinitions = {};' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
+		build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ loader: 'ts', contents: 'export const nativeEffectDefinitions = {};' }));
 	} }],
 });
 const loaded = { exports: {} };

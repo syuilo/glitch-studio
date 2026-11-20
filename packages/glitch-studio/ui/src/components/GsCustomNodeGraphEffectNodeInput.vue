@@ -18,7 +18,7 @@ import { computed, shallowRef, useTemplateRef, watchEffect } from 'vue';
 import GsNodePort from './GsNodePort.vue';
 import GsSelect from './common/GsSelect.vue';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { CustomNodeGraphEffect, NodeOutputReference } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffect, NodeOutputReference } from '@/types/custom-node-graph-effect-view.ts';
 import { useCustomNodeGraphEffectWires } from '@/utility/custom-node-graph-effect-wires.ts';
 import { i18n } from '@/i18n.ts';
 import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey } from '@/utility/node-outputs.ts';

@@ -13,7 +13,7 @@
 <script lang="ts" setup>
 import { ref } from 'vue';
 import GsNodeOutputs from './GsNodeOutputs.vue';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectGlobalInNode } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectGlobalInNode } from '@/types/custom-node-graph-effect-view.ts';
 
 const props = defineProps<{
 	customNodeGraphEffect: CustomNodeGraphEffect,

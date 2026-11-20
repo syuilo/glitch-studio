@@ -4,6 +4,7 @@
 		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> {{ customNodeGraphEffect?.name ?? '' }} [{{ prettyId(customNodeGraphEffect?.id ?? '') }}]</button>
 		<GsButton v-if="customNodeGraphEffect != null" style="margin-left: auto;" :primary="previewParamsShowing" icon="ti ti-adjustments-horizontal" @click="previewParamsShowing = !previewParamsShowing">{{ i18n.ts._CustomNodeGraphEffect.PreviewParameters }}</GsButton>
 		<GsButton v-if="customNodeGraphEffect != null" style="margin-left: 0;" :primary="previewPlayback.livePreviewCustomNodeGraphEffectId.value === customNodeGraphEffect.id" :icon="previewPlayback.livePreviewCustomNodeGraphEffectId.value === customNodeGraphEffect.id ? 'ti ti-player-pause' : 'ti ti-player-play'" @click="previewCustomNodeGraphEffectLivePreview">{{ i18n.ts.Preview }}</GsButton>
+		<span v-if="previewPlayback.livePreviewCustomNodeGraphEffectId.value === customNodeGraphEffect?.id && projectSession.effectLivePreviewManagerController.preparationStatus.value?.type === 'loading'">{{ i18n.ts.Loading }}</span>
 	</div>
 
 	<div v-if="customNodeGraphEffect && previewParamsShowing" :key="customNodeGraphEffect.id" :class="$style.previewParams">
@@ -12,7 +13,7 @@
 			<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}{{ i18n.ts._TimelineLayer.EditingUnsupported }}</div>
 			<GsVisualParam
 				v-else
-				:availableVariables="CUSTOM_NODE_GRAPH_EFFECT_LIVE_PREVIEW_VAR_DEFS"
+				:availableVariables="EFFECT_LIVE_PREVIEW_VAR_DEFS"
 				:paramPath="[paramDef.id]"
 				:automationGraphs="[]"
 				:projectAutomationGraphs="stateManager.state.automationGraphs.value"
@@ -31,7 +32,6 @@
 		:customNodeGraphEffectName="customNodeGraphEffect.name"
 		:previewTarget="{ customNodeGraphEffectId: customNodeGraphEffect.id }"
 		:assetDropActions="assetDropActions"
-		:effectStates="effectStates"
 		:exporting="exporting"
 		@edit="onEdit"
 		@rename="renameCurrentCustomNodeGraphEffect"
@@ -42,6 +42,7 @@
 </template>
 
 <script lang="ts" setup>
+import { getCustomNodeGraphEffectView } from '@/utility/custom-node-graph-effect-view.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { computed, ref, watch, onBeforeUnmount, inject, provide } from 'vue';
@@ -49,15 +50,13 @@ import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { preserveParameterExpressionModifier, validateParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
 import { prettyId } from '@gs/shared/utility/id.ts';
-import { CUSTOM_NODE_GRAPH_EFFECT_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shared/custom-node-graph-effect-live-preview-expression.js';
+import { EFFECT_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shared/effect-live-preview-expression.ts';
 import GsCustomNodeGraphEffectEditor from './GsCustomNodeGraphEffectEditor.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
 import GsButton from './common/GsButton.vue';
-import GsTabs from './common/GsTabs.vue';
 import type { ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
-import type { CustomNodeGraphEffectParamDef, CustomNodeGraphEffectArgumentBindings, CustomNodeGraphEffectPublicParameterId } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
-import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
+import type { CustomNodeGraphEffectParamDef, CustomNodeGraphEffectArgumentBindings } from '@/types/custom-node-graph-effect-view.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { CustomNodeGraphEffectEdit } from '@/types/custom-node-graph-effect-editor.ts';
 import type { WorkspacePanel } from '@/workspace.ts';
@@ -80,7 +79,7 @@ import { workspaceControllerKey } from '@/WorkspaceController.ts';
 
 const projectSession = useProjectSession();
 
-const { previewPlayback, customNodeGraphEffectRendererManagerController } = projectSession;
+const { previewPlayback } = projectSession;
 const { stateManager } = projectSession.projectContext;
 
 const props = defineProps<{ panel: WorkspacePanel }>();
@@ -92,8 +91,12 @@ const previewParamsShowing = ref(false);
 const exporting = ref(false);
 const importing = ref(false);
 const selectedCustomNodeGraphEffectId = ref<ProjectCustomNodeGraphEffect['id'] | null>(null);
-const customNodeGraphEffect = computed(() => stateManager.state.customNodeGraphEffects.value.find(currentCustomNodeGraphEffect => currentCustomNodeGraphEffect.id === selectedCustomNodeGraphEffectId.value)
+const registration = computed(() => stateManager.state.customNodeGraphEffects.value.find(currentCustomNodeGraphEffect => currentCustomNodeGraphEffect.id === selectedCustomNodeGraphEffectId.value)
 	?? stateManager.state.customNodeGraphEffects.value[0] ?? null);
+const customNodeGraphEffect = computed(() => {
+	const entry = registration.value;
+	return entry == null ? null : { ...entry, ...getCustomNodeGraphEffectView(entry, stateManager.state) };
+});
 const assetDropActions = computed(() => {
 	const currentCustomNodeGraphEffect = customNodeGraphEffect.value;
 	return currentCustomNodeGraphEffect == null ? null : createCustomNodeGraphEffectDropActions({
@@ -110,27 +113,15 @@ watch(() => customNodeGraphEffect.value?.id, id => {
 	selectedCustomNodeGraphEffectId.value = id ?? null;
 }, { immediate: true });
 
-const effectStates = computed(() => {
-	const currentCustomNodeGraphEffect = customNodeGraphEffect.value;
-	const states = new Map<string, EffectInstanceState>();
-	if (currentCustomNodeGraphEffect == null) return states;
-	for (const node of currentCustomNodeGraphEffect.nodes) {
-		if (node.type !== 'effect') continue;
-		const state = customNodeGraphEffectRendererManagerController.getCustomNodeGraphEffectLivePreviewEffectState(currentCustomNodeGraphEffect.id, node.id);
-		if (state != null) states.set(node.id, state);
-	}
-	return states;
-});
-
 const previewParamValues = ref<CustomNodeGraphEffectArgumentBindings>({});
-const editedPreviewParamIds = new Set<CustomNodeGraphEffectPublicParameterId>();
+const editedPreviewParamIds = new Set<string>();
 // Preview Paramsは保存データではないため、取消しだけを既存の一時値へ適用する。
 provide(previewParameterContextKey, {
 	scope: computed(() => customNodeGraphEffect.value == null ? null : { kind: 'livePreview' as const, customNodeGraphEffectId: customNodeGraphEffect.value.id }),
 	label: computed(() => customNodeGraphEffect.value?.name ?? ''),
 	beginLivePreviewEdit(path) {
 		const customNodeGraphEffectId = customNodeGraphEffect.value?.id ?? null;
-		const id = path[0] as CustomNodeGraphEffectPublicParameterId;
+		const id = path[0] as string;
 		const before = deepClone(previewParamValues.value[id]);
 		const wasEdited = editedPreviewParamIds.has(id);
 		let active = true;
@@ -170,7 +161,7 @@ watch(customNodeGraphEffect, currentCustomNodeGraphEffect => {
 	}
 	for (const id of editedPreviewParamIds) if (!(id in values)) editedPreviewParamIds.delete(id);
 	previewParamValues.value = values;
-	previewCustomNodeGraphEffectId = currentCustomNodeGraphEffect?.id;
+	previewCustomNodeGraphEffectId = currentCustomNodeGraphEffect?.id ?? null;
 	previewParamTypes = new Map((currentCustomNodeGraphEffect?.paramDefs ?? []).map(def => [def.id, def.dataType]));
 	if (currentCustomNodeGraphEffect != null && previewPlayback.livePreviewCustomNodeGraphEffectId.value === currentCustomNodeGraphEffect.id) {
 		previewPlayback.updateCustomNodeGraphEffectLivePreviewParamValues(currentCustomNodeGraphEffect.id, values);
@@ -199,7 +190,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 	const parameter = resolveParameter<ValueParameterBinding>({ [id]: rootDefinition }, draft, event.paramPath);
 	const { def, value: current } = parameter;
 	let next = current;
-	const reset = (): CustomNodeGraphEffectArgumentBindings[CustomNodeGraphEffectPublicParameterId] => createResetParameterBinding(def);
+	const reset = (): CustomNodeGraphEffectArgumentBindings[string] => createResetParameterBinding(def);
 	switch (event.kind) {
 		case 'literal': next = { inputSource: 'literal', value: deepClone(event.value) }; break;
 		case 'automationGraphInline': next = deepClone(event.value); break;
@@ -321,8 +312,8 @@ async function exportCurrentCustomNodeGraphEffect(format: 'gscnge' | 'web' = 'gs
 	if (currentCustomNodeGraphEffect == null || exporting.value) return;
 	exporting.value = true;
 	try {
-		if (format === 'web') await exportPortableCustomNodeGraphEffectFile(projectSession, currentCustomNodeGraphEffect, currentCustomNodeGraphEffect.name);
-		else await exportCustomNodeGraphEffectFile(projectSession.projectContext, currentCustomNodeGraphEffect, currentCustomNodeGraphEffect.name);
+		if (format === 'web') await exportPortableCustomNodeGraphEffectFile(projectSession, currentCustomNodeGraphEffect.definition, currentCustomNodeGraphEffect.name, currentCustomNodeGraphEffect.nodeMetadata);
+		else await exportCustomNodeGraphEffectFile(projectSession.projectContext, currentCustomNodeGraphEffect.definition, currentCustomNodeGraphEffect.name, currentCustomNodeGraphEffect.nodeMetadata);
 	} finally {
 		exporting.value = false;
 	}
@@ -332,12 +323,14 @@ let disposeEffectPicker: (() => void) | null = null;
 onBeforeUnmount(() => disposeEffectPicker?.());
 
 function showAddEffectNodeMenu() {
+	const entry = registration.value;
+	if (entry == null) return;
 	disposeEffectPicker?.();
 	const { dispose } = ui.popup(GsEffectPicker, {}, {
 		chosen: effect => {
-			if (projectSession.projectContext.getCustomNodeGraphEffectById(customNodeGraphEffect.value.id) == null) return;
-			stateManager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect: { customNodeGraphEffectId: customNodeGraphEffect.value.id }, effectId: effect.id,
-				connectionMode: preferences.s.customNodeGraphEffectAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none', connectionTypePolicy: preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch' });
+			if (projectSession.projectContext.getCustomNodeGraphEffectById(entry.id) == null) return;
+			stateManager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect: { customNodeGraphEffectId: entry.id }, effectSource: effect.effectSource,
+				connectionMode: preferences.s.customNodeGraphEffectAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none' });
 		},
 		closed: () => {
 			dispose();

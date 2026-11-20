@@ -1,5 +1,5 @@
+import { effectSourceSchema } from '../commands/effect-source-schema.ts';
 import * as z from 'zod';
-import { EFFECT_TAGS } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import { parameterDefinitionSchema, textureDataTypeSchema, staticSettingDefinitionSchema } from '../commands/parameter-contract-schemas.ts';
 import { customNodeGraphEffectTargetSchema, customNodeGraphEffectNodeReferenceSchema, customNodeGraphEffectNodeSchema, customNodeGraphEffectSchema } from '../commands/custom-node-graph-effect-contract-schemas.ts';
 import { timelineLayerSchema, timelineClipSchema, timelineSceneResolutionSchema, timelineSceneReferenceSchema, timelineLayerReferenceSchema, timelineClipReferenceSchema, timelineEditableParameterBindingSchema } from '../commands/timeline-contract-schemas.ts';
@@ -8,7 +8,7 @@ import { playerSchema, automationGraphSchema, projectCustomShaderEffectSchema, p
 const identifierSchema = z.string().min(1).describe('An existing identifier returned by a Query or creation Command.');
 export const assetReferenceSchema = z.looseObject({ assetId: identifierSchema });
 export const playerReferenceSchema = z.looseObject({ playerId: identifierSchema });
-export const effectReferenceSchema = z.looseObject({ effectId: identifierSchema });
+export const effectReferenceSchema = z.looseObject({ effectSource: effectSourceSchema });
 export const projectAutomationGraphReferenceSchema = z.looseObject({ automationGraphId: identifierSchema });
 export const customShaderEffectReferenceSchema = z.looseObject({ customShaderEffectId: identifierSchema });
 
@@ -55,7 +55,7 @@ export const customNodeGraphEffectNodeSummarySchema = z.looseObject({
 	target: customNodeGraphEffectNodeReferenceSchema,
 	id: identifierSchema,
 	type: z.enum(['effect', 'globalIn', 'globalOut', 'relay']),
-	effectId: z.string().nullable(),
+	effectSource: effectSourceSchema.nullable(),
 	displayName: z.string(),
 });
 export const customNodeGraphEffectNodeResultSchema = z.intersection(customNodeGraphEffectNodeSchema, z.looseObject({ target: customNodeGraphEffectNodeReferenceSchema }));
@@ -92,14 +92,14 @@ export const playerResultSchema = z.intersection(playerSchema, z.looseObject({ t
 
 export const effectSummarySchema = z.looseObject({
 	target: effectReferenceSchema,
-	id: identifierSchema,
+	effectSource: effectSourceSchema,
 	displayName: z.string(),
 	summary: z.looseObject({ 'ja-JP': z.string(), 'en-US': z.string() }),
 	kind: z.enum(['generate', 'modify']),
-	tags: z.array(z.enum(EFFECT_TAGS)),
+	tags: z.array(z.string()).readonly(),
 });
 export const effectDefinitionResultSchema = effectSummarySchema.extend({
-	dependsOnRenderHistory: z.boolean(),
+	dependsOnRenderHistory: z.boolean().optional(),
 	canHaveLongRunningRenderPass: z.boolean().optional(),
 	paramDefs: z.record(z.string(), parameterDefinitionSchema),
 	staticSettingDefs: z.record(z.string(), staticSettingDefinitionSchema).optional(),

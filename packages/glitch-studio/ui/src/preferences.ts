@@ -10,7 +10,7 @@ import type { CustomNodeGraphEffectWireStyle } from './utility/custom-node-graph
 import type { PreviewDisplayMode } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { TimelinePreviewFrameCachePrecision } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 import type { RgbGamut } from '@gs/shared/rgb-gamut.ts';
-import type { EffectRenderTiling } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
+import type { EffectRenderTiling } from '@gs/subsystems_effect-new_shared/effect-render-tiling.ts';
 
 export const PREF_DEF = definePreferences({
 	importAssetsAsExternalReferences: { default: () => false },
@@ -24,7 +24,6 @@ export const PREF_DEF = definePreferences({
 	menuStyle: { default: () => 'auto' },
 	animatedBgInPreview: { default: () => false },
 	previewVolume: { default: () => 0.5 },
-	forceTypeSafety: { default: () => false },
 	customNodeGraphEffectAutoConnectOnNodeAdd: { default: () => false },
 	customNodeGraphEffectWireStyle: { default: (): CustomNodeGraphEffectWireStyle => 'straight' },
 	showTimecodeInPreview: { default: () => true },

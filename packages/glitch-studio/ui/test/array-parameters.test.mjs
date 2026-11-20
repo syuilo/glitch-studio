@@ -1,3 +1,4 @@
+import { testGraph } from './helpers/effect-graph.mjs';
 import { nodeParameterTarget } from './helpers/command-inputs.mjs';
 import { prepareTestCommand } from './helpers/prepared-command.mjs';
 import assert from 'node:assert/strict';
@@ -17,19 +18,19 @@ const bundled = await build({
 			export { commitCustomNodeGraphEffectEdit } from './src/utility/custom-node-graph-effect-edit.ts';
 			export { resolveNodeParam, walkNodeParams } from './src/utility/node-params.ts';
 			export { createResetParameterBinding } from './src/utility/parameter-default.ts';
-			export { default as definition } from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
+			export { default as definition } from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts';
 		`,
 		resolveDir: uiDirectory, loader: 'ts',
 	},
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'array-parameter-test', setup(build) {
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({
 			loader: 'ts', resolveDir: uiDirectory,
 			contents: path === 'preferences'
 				? 'export const preferences = { s: { forceTypeSafety: false } };'
-				: "import definition from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts'; export const effectDefinitions = { [definition.id]: definition };",
+				: "import definition from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };",
 		}));
 	} }],
 });
@@ -40,20 +41,20 @@ const literal = value => ({ inputSource: 'literal', value });
 
 function fixture() {
 	const node = {
-		id: 'node', type: 'effect', effectId: definition.id,
+		id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' },
 		params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
 	};
-	const state = { customNodeGraphEffects: { value: [{ id: 'customNodeGraphEffect', nodes: [node] }] } };
+	const state = { customNodeGraphEffects: { value: [{ id: 'customNodeGraphEffect', definition: testGraph({ nodes: [node] }) }] } };
 	return { state, node, target: { customNodeGraphEffectId: 'customNodeGraphEffect', nodeId: node.id, paramPath: ['buzzs'] } };
 }
 
 function fixtureWithRemovedPublicInput() {
 	const { state, node, target } = fixture();
 	const customNodeGraphEffect = state.customNodeGraphEffects.value[0];
-	customNodeGraphEffect.paramDefs = [];
-	customNodeGraphEffect.primaryInputId = null;
-	customNodeGraphEffect.primaryAudioInputId = null;
-	customNodeGraphEffect.nodes.push({ id: 'input', type: 'globalIn' });
+	customNodeGraphEffect.definition.paramDefs = {};
+	customNodeGraphEffect.definition.primaryInputParameter = null;
+	customNodeGraphEffect.definition.primaryAudioInputParameter = null;
+
 	node.params.buzzs.value.push({ id: 'second', binding: structuredClone(definition.paramDefs.buzzs.element.defaultValue) });
 	const manager = new UndoRedo(state, COMMAND_DEFS);
 	const publicParameter = manager.commit('createCustomNodeGraphEffectPublicParameter', {
@@ -62,7 +63,7 @@ function fixtureWithRemovedPublicInput() {
 	});
 	const imageParameter = nodeParameterTarget({ ...target, paramPath: ['buzzs', 'first', 'image'] });
 	manager.commit('setCustomNodeGraphEffectNodeParameterSource', {
-		...imageParameter, source: { inputSource: 'node', nodeId: 'input', outputPort: publicParameter.parameterId, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' },
+		...imageParameter, source: { inputSource: 'node', nodeId: 'globalIn', outputPort: publicParameter.parameterId, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' },
 	});
 	manager.commit('removeCustomNodeGraphEffectPublicParameter', { target: publicParameter });
 	return { state, node, target, customNodeGraphEffect, manager, publicParameter, imageParameter };
@@ -74,11 +75,11 @@ function fixtureWithRemovedPublicInput() {
 test('removes sibling array elements while preserving existing mismatched connections', () => {
 	const { state, node } = fixture();
 	node.params.buzzs.value.push({ id: 'second', binding: structuredClone(definition.paramDefs.buzzs.element.defaultValue) });
-	state.customNodeGraphEffects.value[0].nodes.push({ ...structuredClone(node), id: 'scalar-source' });
+	state.customNodeGraphEffects.value[0].definition.nodes.push({ ...structuredClone(node), id: 'scalar-source' });
 	const manager = new UndoRedo(state, COMMAND_DEFS);
 	const customNodeGraphEffect = { customNodeGraphEffectId: 'customNodeGraphEffect' };
 	commitCustomNodeGraphEffectEdit(manager, customNodeGraphEffect, { kind: 'editNodeParam', nodeId: node.id, edit: {
-		kind: 'node', paramPath: ['buzzs', 'first', 'image'], value: { nodeId: 'scalar-source', outputPort: 'output2' }, preserveSampling: false,
+		kind: 'node', paramPath: ['buzzs', 'first', 'image'], value: { nodeId: 'scalar-source', outputPort: 'output' }, preserveSampling: false,
 	} });
 	const connected = structuredClone(node.params.buzzs);
 	commitCustomNodeGraphEffectEdit(manager, customNodeGraphEffect, { kind: 'editNodeParam', nodeId: node.id, edit: {
@@ -96,16 +97,17 @@ test('removes sibling array elements while preserving existing mismatched connec
 // strictのCommandから新規の型不一致まで導入できてしまう。
 test('still rejects new mismatched connections when another connection is retained', () => {
 	const { state, node, target } = fixture();
-	state.customNodeGraphEffects.value[0].nodes.push(...['scalar-source', 'another-source'].map(id => ({ ...structuredClone(node), id })));
+	state.customNodeGraphEffects.value[0].definition.nodes.push(...['scalar-source', 'another-source'].map(id => ({ ...structuredClone(node), id })));
 	const manager = new UndoRedo(state, COMMAND_DEFS);
 	const parameter = nodeParameterTarget({ ...target, paramPath: ['buzzs', 'first', 'image'] });
-	manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...parameter, connectionTypePolicy: 'allowMismatch', source: { inputSource: 'node', nodeId: 'scalar-source', outputPort: 'output2' } });
+	manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...parameter, source: { inputSource: 'node', nodeId: 'scalar-source', outputPort: 'output' } });
 	const before = structuredClone(node.params.buzzs);
 	assert.throws(() => manager.commit('setCustomNodeGraphEffectNodeParameterSource', {
 		...parameter, source: { inputSource: 'node', nodeId: 'another-source', outputPort: 'output2' },
 	}), /Node output type does not match/);
 	const movedToNewId = structuredClone(before);
 	movedToNewId.value[0].id = 'new-element';
+	movedToNewId.value[0].binding.value.image = { inputSource: 'node', nodeId: 'scalar-source', outputPort: 'output2' };
 	assert.throws(() => manager.commit('replaceCustomNodeGraphEffectNodeParameterBinding', {
 		...nodeParameterTarget(target), binding: movedToNewId,
 	}), /Node output type does not match/);
@@ -119,24 +121,25 @@ test('still rejects new mismatched connections when another connection is retain
 test('edits arrays and sampling while preserving connections to removed public inputs', () => {
 	const { node, target, customNodeGraphEffect, manager, publicParameter, imageParameter } = fixtureWithRemovedPublicInput();
 	const before = structuredClone(customNodeGraphEffect);
-	assert.equal(customNodeGraphEffect.paramDefs.length, 0);
+	assert.equal(Object.keys(customNodeGraphEffect.definition.paramDefs).length, 0);
 	commitCustomNodeGraphEffectEdit(manager, { customNodeGraphEffectId: customNodeGraphEffect.id }, { kind: 'editNodeParam', nodeId: node.id, edit: {
 		kind: 'removeElement', paramPath: target.paramPath, elementId: 'second',
 	} });
-	assert.deepEqual(node.params.buzzs.value, [before.nodes[0].params.buzzs.value[0]]);
+	assert.deepEqual(node.params.buzzs.value, [before.definition.nodes[0].params.buzzs.value[0]]);
 	const removed = structuredClone(customNodeGraphEffect);
-	const connection = structuredClone(resolveNodeParam(node, imageParameter.parameterPath).value);
+	const stored = resolveNodeParam(node, imageParameter.parameterPath).value;
+	const connection = { inputSource: 'node', nodeId: 'globalIn', outputPort: stored.parameterId, ...stored.sampling };
 	const sampled = { ...connection, fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' };
 	manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...imageParameter, source: sampled });
-	assert.deepEqual(resolveNodeParam(node, imageParameter.parameterPath).value, sampled);
+	assert.deepEqual(resolveNodeParam(node, imageParameter.parameterPath).value.sampling, { fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' });
 	const after = structuredClone(customNodeGraphEffect);
 	manager.undo();
 	assert.deepEqual(customNodeGraphEffect, removed);
 	manager.undo();
 	assert.deepEqual(customNodeGraphEffect, before);
 	manager.undo();
-	assert.equal(customNodeGraphEffect.paramDefs[0].id, publicParameter.parameterId);
-	assert.deepEqual(resolveNodeParam(node, imageParameter.parameterPath).value, connection);
+	assert.equal(Object.keys(customNodeGraphEffect.definition.paramDefs)[0], publicParameter.parameterId);
+	assert.deepEqual(resolveNodeParam(node, imageParameter.parameterPath).value, stored);
 	manager.redo();
 	assert.deepEqual(customNodeGraphEffect, before);
 	manager.redo();
@@ -152,19 +155,19 @@ test('rejects new missing connections even when an unresolved connection is reta
 	const { node, target, customNodeGraphEffect, manager, imageParameter } = fixtureWithRemovedPublicInput();
 	const before = structuredClone(customNodeGraphEffect);
 	const historySize = manager.undoStack.value.length;
-	const connection = structuredClone(resolveNodeParam(node, imageParameter.parameterPath).value);
-	for (const connectionTypePolicy of ['strict', 'allowMismatch']) {
-		for (const source of [{ ...connection, nodeId: 'missing-node' }, { ...connection, outputPort: 'missing-port' }]) {
-			assert.throws(() => manager.commit('setCustomNodeGraphEffectNodeParameterSource', {
-				...imageParameter, source, connectionTypePolicy,
-			}), /Node output not found/);
-		}
-		const movedToNewId = structuredClone(node.params.buzzs);
-		movedToNewId.value[0].id = 'new-element';
-		assert.throws(() => manager.commit('replaceCustomNodeGraphEffectNodeParameterBinding', {
-			...nodeParameterTarget(target), binding: movedToNewId, connectionTypePolicy,
+	const stored = resolveNodeParam(node, imageParameter.parameterPath).value;
+	const connection = { inputSource: 'node', nodeId: 'globalIn', outputPort: stored.parameterId, ...stored.sampling };
+	for (const source of [{ ...connection, nodeId: 'missing-node' }, { ...connection, outputPort: 'missing-port' }]) {
+		assert.throws(() => manager.commit('setCustomNodeGraphEffectNodeParameterSource', {
+			...imageParameter, source,
 		}), /Node output not found/);
 	}
+	const movedToNewId = structuredClone(node.params.buzzs);
+	movedToNewId.value[0].id = 'new-element';
+	movedToNewId.value[0].binding.value.image = connection;
+	assert.throws(() => manager.commit('replaceCustomNodeGraphEffectNodeParameterBinding', {
+		...nodeParameterTarget(target), binding: movedToNewId,
+	}), /Node output not found/);
 	assert.deepEqual(customNodeGraphEffect, before);
 	assert.equal(manager.undoStack.value.length, historySize);
 });
@@ -211,7 +214,7 @@ test('preserves modifiers through node source edits and independent undo and red
 test('targets element IDs across insertions and reordering', () => {
 	const { state, node, target } = fixture();
 	const otherNode = { ...structuredClone(node), id: 'other' };
-	state.customNodeGraphEffects.value[0].nodes.push(otherNode);
+	state.customNodeGraphEffects.value[0].definition.nodes.push(otherNode);
 	const edit = prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target, paramPath: ['buzzs', 'first', 'x'] }), source: { inputSource: 'literal', value: 0.75 } });
 	const remove = prepareTestCommand(COMMAND_DEFS.removeCustomNodeGraphEffectNodeParameterArrayElements, { ...nodeParameterTarget({ ...target }), elementIds: ['first'] });
 	const inserted = { id: 'inserted', binding: structuredClone(definition.paramDefs.buzzs.element.defaultValue) };

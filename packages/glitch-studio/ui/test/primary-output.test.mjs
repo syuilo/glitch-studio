@@ -1,3 +1,4 @@
+import { testGraph } from './helpers/effect-graph.mjs';
 import { prepareTestCommand } from './helpers/prepared-command.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -17,12 +18,12 @@ const bundled = await build({
 	plugins: [{
 		name: 'primary-output-test-dependencies',
 		setup(build) {
-			build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'primary-output-test' }));
+			build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'primary-output-test' }));
 			build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'primary-output-test' }));
 			build.onLoad({ filter: /.*/, namespace: 'primary-output-test' }, ({ path }) => ({
 				contents: path === 'preferences'
 					? 'export const preferences = { s: { forceTypeSafety: false } };'
-					: 'export const effectDefinitions = {};',
+					: 'export const nativeEffectDefinitions = {};',
 				loader: 'ts',
 			}));
 		},
@@ -33,12 +34,12 @@ new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(create
 const { COMMAND_DEFS } = module.exports;
 
 function fixture() {
-	const customNodeGraphEffect = { id: 'customNodeGraphEffect', outputDefs: [
-		{ id: 'a', name: 'a', label: 'A', dataType: { kind: 'color' } },
-		{ id: 'b', name: 'b', label: 'B', dataType: { kind: 'color' } },
-		{ id: 'scalar', name: 'scalar', label: 'Scalar', dataType: { kind: 'scalar' } },
-	], primaryOutputId: 'a' };
-	const state = { customNodeGraphEffects: { value: [customNodeGraphEffect] } };
+	const customNodeGraphEffect = testGraph({ outputDefs: {
+		a: { nameForReference: 'a', label: 'A', dataType: { kind: 'color' } },
+		b: { nameForReference: 'b', label: 'B', dataType: { kind: 'color' } },
+		scalar: { nameForReference: 'scalar', label: 'Scalar', dataType: { kind: 'scalar' } },
+	}, primaryOutput: 'a' });
+	const state = { customNodeGraphEffects: { value: [{ id: 'customNodeGraphEffect', definition: customNodeGraphEffect }] } };
 	const command = (name, payload) => prepareTestCommand(COMMAND_DEFS[name], { target: { customNodeGraphEffectId: 'customNodeGraphEffect' }, ...payload });
 	return { customNodeGraphEffect, state, command };
 }
@@ -51,16 +52,16 @@ test('switches and clears the primary output with undo and redo', () => {
 		const before = structuredClone(customNodeGraphEffect);
 		const change = command('setCustomNodeGraphEffectPrimaryOutput', { primaryOutputId });
 		change.execute(state);
-		assert.equal(customNodeGraphEffect.primaryOutputId, primaryOutputId);
+		assert.equal(customNodeGraphEffect.primaryOutput, primaryOutputId);
 		assert.deepEqual(customNodeGraphEffect.outputDefs, before.outputDefs);
 		change.undo(state);
 		assert.deepEqual(customNodeGraphEffect, before);
 		change.execute(state);
-		assert.equal(customNodeGraphEffect.primaryOutputId, primaryOutputId);
+		assert.equal(customNodeGraphEffect.primaryOutput, primaryOutputId);
 	}
 	for (const primaryOutputId of ['missing', 'scalar']) {
 		assert.throws(() => command('setCustomNodeGraphEffectPrimaryOutput', { primaryOutputId }).execute(state), /color output/);
-		assert.equal(customNodeGraphEffect.primaryOutputId, null);
+		assert.equal(customNodeGraphEffect.primaryOutput, null);
 	}
 });
 
@@ -75,11 +76,11 @@ test('clears invalidated primary references and restores them on undo', () => {
 		const before = structuredClone(customNodeGraphEffect);
 		const change = command(name, payload);
 		change.execute(state);
-		assert.equal(customNodeGraphEffect.primaryOutputId, null);
+		assert.equal(customNodeGraphEffect.primaryOutput, null);
 		change.undo(state);
 		assert.deepEqual(customNodeGraphEffect, before);
 		change.execute(state);
-		assert.equal(customNodeGraphEffect.primaryOutputId, null);
+		assert.equal(customNodeGraphEffect.primaryOutput, null);
 	}
 });
 
@@ -88,14 +89,14 @@ test('clears invalidated primary references and restores them on undo', () => {
 test('assigns newly added color outputs only when no primary exists', () => {
 	for (const primaryOutputId of ['a', null]) {
 		const { customNodeGraphEffect, state, command } = fixture();
-		customNodeGraphEffect.primaryOutputId = primaryOutputId;
+		customNodeGraphEffect.primaryOutput = primaryOutputId;
 		const before = structuredClone(customNodeGraphEffect);
 		const add = command('createCustomNodeGraphEffectOutput', { customNodeGraphEffect: { customNodeGraphEffectId: 'customNodeGraphEffect' }, definition: { name: 'new', label: 'New', dataType: { kind: 'color' } } });
 		const added = add.execute(state);
-		assert.equal(customNodeGraphEffect.primaryOutputId, primaryOutputId ?? added.outputId);
+		assert.equal(customNodeGraphEffect.primaryOutput, primaryOutputId ?? added.outputId);
 		add.undo(state);
 		assert.deepEqual(customNodeGraphEffect, before);
 		add.execute(state);
-		assert.equal(customNodeGraphEffect.primaryOutputId, primaryOutputId ?? added.outputId);
+		assert.equal(customNodeGraphEffect.primaryOutput, primaryOutputId ?? added.outputId);
 	}
 });

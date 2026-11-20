@@ -1,9 +1,8 @@
 import type { ValueParameterBinding, ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { AutomationGraphPlaybackOptions } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { ExpressionVariableName } from '@gs/shared/expression/expression-environment.ts';
-import type { CustomNodeGraphEffectParameterBinding } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
-import type { CustomNodeGraphEffectCustomParameterId, CustomNodeGraphEffectPublicParameterId } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
-import type { TimelineEffectParameterBinding, TimelineCustomNodeGraphEffectParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import type { CustomNodeGraphEffectParameterBinding } from '@/types/custom-node-graph-effect-view.ts';
+import type { TimelineEffectParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 
 // 型変更は型・UI・初期値をまとめて差し替える。編集差分ではフィールド間の対応を緩め、
@@ -17,7 +16,7 @@ export type PublicParameterDefinitionEdit = Partial<{
 }>;
 
 // 共用エディタだけが複数ドメインの方式を扱う。保存先の型は各ドメインのBindingを使う。
-export type EditableTimelineParameterBinding = TimelineEffectParameterBinding | TimelineCustomNodeGraphEffectParameterBinding;
+export type EditableTimelineParameterBinding = TimelineEffectParameterBinding;
 export type EditableParameterBinding = CustomNodeGraphEffectParameterBinding | EditableTimelineParameterBinding;
 
 // 入力方式ごとのunionにし、UI側で方式を除外した結果をCommandにも渡せるようにする。
@@ -39,6 +38,6 @@ export type ValueParameterEdit =
 	| { kind: 'removeElement'; elementId: string };
 
 export type CustomNodeGraphEffectValueParameterEdit = ValueParameterEdit
-	| { kind: 'customNodeGraphEffectPublicParameterReference'; value: CustomNodeGraphEffectPublicParameterId }
-	| { kind: 'customNodeGraphEffectCustomParameterValueReference'; value: CustomNodeGraphEffectCustomParameterId }
+	| { kind: 'customNodeGraphEffectPublicParameterReference'; value: string }
+	| { kind: 'customNodeGraphEffectCustomParameterValueReference'; value: string }
 	| ParameterInputSourceEdit<'customNodeGraphEffectPublicParameterReference' | 'customNodeGraphEffectCustomParameterValueReference'>;

@@ -1,12 +1,12 @@
 import { validateStaticSettingValue } from '@gs/shared/static-setting.ts';
 import { getTimelineLayerStaticSettings } from '@gs/subsystems_timeline_shared/layer-static-settings.ts';
 import { convertTimelineContainerLayer } from '@gs/subsystems_timeline_shared/container-layer.ts';
-import { isTimelineContainerLayer, isTimelineVisualLayer, isTimelineEffectOrCustomNodeGraphEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { isTimelineContainerLayer, isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation, getTimelineClipLayers, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { validateVoicevoxLayer } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
 import { validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
-import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
+import { validateEffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
 import { canReferenceScene, validateTimelineLayer } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getTimelineClipTrimBounds, getTimelineClipInsertionDuration, validateTimelineClips } from '@gs/subsystems_timeline_shared/timing.ts';
 import { changeTimelineMediaPlaybackRate, createTimelineMediaClipTiming, getTimelineMediaLoopBounds, getTimelineMediaSingleDuration, getTimelineMediaTrimBounds, trimTimelineMediaClip, validateTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
@@ -30,7 +30,7 @@ import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from '@gs/subsystems_timeline_shared/clip.ts';
 import type { TimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import type { TimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
-import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
+import type { EffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
 import type { VoicevoxSettings, VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import type { AppStateChange, ProjectState } from '../Project.ts';
 import type { EditableTimelineParameterBinding } from '../types/parameter-edit.ts';
@@ -68,7 +68,7 @@ export const setTimelineLayerStaticSettingCommandDef = defineTimelineCommand<{ s
 	scope: payload => ({ sceneId: payload.sceneId, layerIds: [payload.layerId] }),
 	edit: (state, payload) => {
 		const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
-		const { definitions, values } = getTimelineLayerStaticSettings(layer, layer.layerType === 'effect' ? getEffectDefinitions(state)[layer.effectId] : null);
+		const { definitions, values } = getTimelineLayerStaticSettings(layer, layer.layerType === 'effect' ? getEffectDefinitions(state).describe(layer.effectSource) : null);
 		const definition = definitions[payload.key];
 		if (definition == null) throw new Error('Static setting not found');
 		validateStaticSettingValue(definition, payload.value);
@@ -151,7 +151,7 @@ export function validateAddedTimelineLayer(state: ProjectState, sceneId: string,
 	}
 	validateTimelineLayer(layer);
 	for (const child of getTimelineClipLayers([layer])) {
-		if (child.layerType === 'effect') validateTimelineEffectLayer(child, getEffectDefinitions(state)[child.effectId]);
+		if (child.layerType === 'effect') validateTimelineEffectLayer(child, getEffectDefinitions(state));
 		if ((child.layerType === 'video' || child.layerType === 'audio') && child.clips.length > 0 && !sourceDurationsMs) throw new Error('Media duration is required');
 		validateLayerClips(state, sceneId, child, child.clips, sourceDurationsMs);
 	}
@@ -316,7 +316,7 @@ export const setTimelineLayerTransformTargetCommandDef = defineTimelineCommand<{
 	edit: (state, payload) => {
 		const getLayer = (state: ProjectState) => {
 			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
-			if (!isTimelineEffectOrCustomNodeGraphEffectLayer(layer)) throw new Error('Transform target requires an effect or Custom Node Graph Effect layer');
+			if (layer.layerType !== 'effect') throw new Error('Transform target requires an effect or Custom Node Graph Effect layer');
 			return layer;
 		};
 		if (!isTimelineLayerTransformTarget(payload.transformTarget)) throw new Error('Invalid timeline layer transform target');

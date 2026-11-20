@@ -39,12 +39,12 @@ const numberBool: KeyframesTimelineData = { dataType: { kind: 'bool' }, isNormal
 const invalidEnumKey: KeyframesTimelineKeyframe<{ kind: 'enum'; options: readonly ['left', 'right'] }> = { id: 'a', x: 0, value: 'center', interpolation: hold };
 // @ts-expect-error Binding経由でもタイムラインの型と値の対応を維持する
 const mismatchedBinding: ValueParameterBinding = { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null, keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [{ id: 'a', x: 0, value: 'Hello', interpolation: hold }] } };
-import { defineEffect, type EffectOutputDefinitions } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import { defineNativeEffect as defineEffect, type NativeEffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+type EffectOutputDefinitions = NativeEffectDefinition['outputDefs'];
 import type { ParameterDefinition, ParameterDefaultValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { colorBlendModes, type BlendMode } from '@gs/shared/color-blend.ts';
-import type { EffectInstance } from '@gs/subsystems_effect_shared/effect-implementation.ts';
-import { customNodeGraphEffectPublicParameterId, customNodeGraphEffectPublicParameterName, type CustomNodeGraphEffect, type CustomNodeGraphEffectArgumentBindings } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
-import type { NodeOutputReference } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { NativeEffectImplementation } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectArgumentBindings, NodeOutputReference } from '../src/types/custom-node-graph-effect-view.ts';
 import type { DataType, TextureDataType } from '@gs/shared/data-type/data-type.ts';
 type CustomNodeGraphEffectParamDef = CustomNodeGraphEffect['paramDefs'][number];
 
@@ -90,7 +90,7 @@ const invalidAssetDefault: ParameterDefinition = { ...videoAsset, defaultValue: 
 const assetNodeInput: ParameterDefinition = { ...fontAsset, canNode: true };
 const videoSetting = { dataType: { kind: 'assetReference', assetType: 'video' }, ui: { label: 'Video' }, defaultValue: null } as const;
 const staticSettingDefs = { video: videoSetting, font: { ...videoSetting, dataType: { kind: 'assetReference', assetType: 'font' } }, lut: { ...videoSetting, dataType: { kind: 'assetReference', assetType: 'lut' } } } as const;
-type ResolvedStaticResources = import('@gs/subsystems_effect_shared/effect-implementation.ts').EffectStaticResources<{ staticSettingDefs: typeof staticSettingDefs }>;
+type ResolvedStaticResources = import('@gs/subsystems_effect-new_renderer/effect-instance.ts').EffectStaticResources<{ staticSettingDefs: typeof staticSettingDefs }>;
 // @ts-expect-error 設定値はBindingではなく素材IDを直接保存する
 const invalidStaticValue: import('@gs/shared/static-setting.ts').StaticSettingValues<typeof staticSettingDefs> = { video: { inputSource: 'literal', value: 'video' }, font: null, lut: null };
 const runtimeVideoFile: ResolvedStaticResources['video'] = new Blob();
@@ -119,15 +119,15 @@ const badNestedBlend: NestedBlendDefault = { inputSource: 'literal', value: [{ i
 const missingElementId: NestedBlendDefault = { inputSource: 'literal', value: [{ binding: nestedBlend.value[0].binding }] };
 // @ts-expect-error 子のBindingを直接配列に保存しない
 const unwrappedElement: NestedBlendDefault = { inputSource: 'literal', value: [nestedBlend.value[0].binding] };
-type BlendValues = Parameters<EffectInstance<{ blend: typeof blend }>['render']>[0]['params'];
-const runtimeBlend: BlendValues['blend'] = 'screen';
+type BlendValues = Parameters<NativeEffectImplementation<{ blend: typeof blend }>['init']>[0]['inputs'];
+const runtimeBlend: BlendValues['blend']['value'] = 'screen';
 // @ts-expect-error 実行時の型も初期値だけに絞らず、全モードのunionにする
-const badRuntimeBlend: BlendValues['blend'] = 'invalid';
+const badRuntimeBlend: BlendValues['blend']['value'] = 'invalid';
 // @ts-expect-error colorではrangeを使用できない
 defineEffect({ id: 'invalid-color', displayName: 'Invalid', summary, kind: 'generate', dependsOnRenderHistory: false, tags: [], paramDefs: { color: { ...color, ui: { control: { controlType: 'range', min: 0, max: 1 }, label: 'Invalid' } } }, primaryInputParameter: null, resolutionInputParameters: [], outputDefs: {}, primaryOutput: null });
 // @ts-expect-error rangeの範囲は必須
 const missingBounds: ParameterDefinition = { ...number, ui: { control: { controlType: 'range' }, label: 'Invalid' } };
-const external = { ...color, id: customNodeGraphEffectPublicParameterId('c'), nameForReference: customNodeGraphEffectPublicParameterName('color'), defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] }, canNode: true } satisfies CustomNodeGraphEffectParamDef;
+const external = { ...color, id: 'c', nameForReference: 'color', defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] }, canNode: true } satisfies CustomNodeGraphEffectParamDef;
 // @ts-expect-error 外部パラメータでも同じ組み合わせ制約を適用する
 const badExternal: CustomNodeGraphEffectParamDef = { ...external, dataType: { kind: 'scalar' }, ui: { control: { controlType: 'range' }, label: 'Invalid' } };
 const schemas = {
@@ -140,16 +140,15 @@ const schemas = {
  group: { dataType: { kind: 'struct', fields: { input: number.dataType } }, ui: { label: 'Group', control: { fields: { input: number.ui } } }, fields: { input: { defaultValue: number.defaultValue, canNode: true } }, defaultValue: { inputSource: 'literal', value: { input: number.defaultValue } } },
  values: { dataType: { kind: 'array', elementType: number.dataType }, ui: { label: 'Values', control: { element: number.ui.control } }, element: { defaultValue: number.defaultValue }, defaultValue: { inputSource: 'literal', value: [] } },
 } as const satisfies Record<string, ParameterDefinition>;
-type Values = Parameters<EffectInstance<typeof schemas>['render']>[0]['params'];
-const values: Values = { amount: 2, seed: 1.25, angle: -0.5, color: [1, 0, 0, 1], mode: 'a', values: [1, 2], input: { kind: 'uniform', value: [2] }, group: { input: { kind: 'uniform', value: [3] } } };
-// @ts-expect-error canNodeなパラメータは定数でもShaderInputで受け取る
+type Values = Parameters<NativeEffectImplementation<typeof schemas>['init']>[0]['inputs'];
+// @ts-expect-error canNodeなパラメータは定数でも画像入力として受け取る
 const rawNodeInput: Values['input'] = 2;
 // @ts-expect-error 構造体内のcanNodeにも同じ規約を適用する
-const rawNestedInput: Values['group']['input'] = 3;
+const rawNestedInput: Values['group']['fields']['input'] = 3;
 // @ts-expect-error enumの候補のunionを維持する
-const badMode: Values['mode'] = 'c';
+const badMode: Values['mode']['value'] = 'c';
 // @ts-expect-error 配列要素も数値として推論する
-const badArray: Values['values'] = ['a'];
+const badArray: Values['values']['elements'][number]['value'] = 'a';
 defineEffect({ id: 'test', displayName: 'Test', summary, kind: 'generate', dependsOnRenderHistory: false, tags: [], paramDefs: { amount: number }, primaryInputParameter: null, resolutionInputParameters: [], outputDefs: {}, primaryOutput: null });
 // @ts-expect-error 主入力を持たない場合もnullを明示する
 defineEffect({ id: 'missing-primary', displayName: 'Missing primary', summary, kind: 'generate', dependsOnRenderHistory: false, tags: [], paramDefs: {}, outputDefs: {}, primaryOutput: null });
@@ -169,10 +168,10 @@ externalValues[external.id] = { inputSource: 'customNodeGraphEffectPublicParamet
 
 // 表示範囲のUIは中心vector・倍率scalarを必須とし、回転scalarは省略できる。
 // 見た目の指定だけで、別の型や不足したフィールドをプレビュー編集へ渡さない。
-import mandelbrot from '@gs/subsystems_effect_shared/fx/mandelbrot/_def_.ts';
-import imageTrap from '@gs/subsystems_effect_shared/fx/imageTrap/_def_.ts';
-import magneticPendulum from '@gs/subsystems_effect_shared/fx/magneticPendulum/_def_.ts';
-import doublePendulumFractal from '@gs/subsystems_effect_shared/fx/doublePendulumFractal/_def_.ts';
+import mandelbrot from '@gs/subsystems_effect-new_native-effects/fx/mandelbrot/_def_.ts';
+import imageTrap from '@gs/subsystems_effect-new_native-effects/fx/imageTrap/_def_.ts';
+import magneticPendulum from '@gs/subsystems_effect-new_native-effects/fx/magneticPendulum/_def_.ts';
+import doublePendulumFractal from '@gs/subsystems_effect-new_native-effects/fx/doublePendulumFractal/_def_.ts';
 defineEffect({ ...outputDefinition, tags: [], paramDefs: { view: mandelbrot.paramDefs.view } });
 defineEffect({ ...outputDefinition, tags: [], paramDefs: { imageTrapView: imageTrap.paramDefs.view, magneticView: magneticPendulum.paramDefs.view, doublePendulumView: doublePendulumFractal.paramDefs.view } });
 const unrelatedStruct = {

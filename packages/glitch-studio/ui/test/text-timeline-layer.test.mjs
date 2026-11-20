@@ -17,10 +17,10 @@ const bundled = await build({
 	`, resolveDir: uiDirectory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'text-layer-test', setup(build) {
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({
-			contents: path === 'effects' ? 'export const effectDefinitions = {};'
+			contents: path === 'effects' ? 'export const nativeEffectDefinitions = {};'
 				: 'export const preferences = { s: { forceTypeSafety: true } };', loader: 'ts',
 		}));
 	} }],

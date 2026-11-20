@@ -11,9 +11,9 @@ import { validateColorRamp } from '@gs/shared/color-ramp.ts';
 import { isKeyframesDataType, supportsKeyframeInterpolation } from '@gs/shared/keyframes/keyframes-timeline.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
-import { getNodeOutputs } from '@gs/subsystems_custom-node-graph-effect_shared/node-outputs.ts';
-import { validateCustomNodeGraphEffectAudioBinding } from '@gs/subsystems_custom-node-graph-effect_shared/audio-parameters.ts';
-import { validateCustomNodeGraphEffectCustomParameterBinding } from '@gs/subsystems_custom-node-graph-effect_shared/custom-parameters.ts';
+import { getNodeOutputs } from '@/utility/custom-node-graph-effect-node-outputs.ts';
+import { validateCustomNodeGraphEffectAudioBinding } from '@/utility/custom-node-graph-effect-audio-parameters.ts';
+import { validateCustomNodeGraphEffectCustomParameterBinding } from '@/utility/custom-node-graph-effect-view-parameters.ts';
 import { validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { resolveTimelineImageLayerReference } from '@gs/subsystems_timeline_shared/layer-output.ts';
@@ -28,7 +28,7 @@ import type { DataType } from '@gs/shared/data-type/data-type.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectValueParameterBinding } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectValueParameterBinding } from '@/types/custom-node-graph-effect-view.ts';
 import type { TimelineScene, TimelineLayer, TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
 import type { CustomNodeGraphEffectTarget } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
 import type { EditableParameterBinding } from '../types/parameter-edit.ts';
@@ -223,7 +223,7 @@ export function parseParameterClipboard(text: string): ParameterClipboardData | 
 		if (owner.kind === 'customNodeGraphEffect') {
 			const target = object(owner.target);
 			requireValid(Object.hasOwn(target, 'customNodeGraphEffectId') ? nonemptyString(target.customNodeGraphEffectId)
-				: nonemptyString(target.sceneId) && nonemptyString(target.inlineCustomNodeGraphEffectLayerId));
+				: nonemptyString(target.sceneId) && nonemptyString(target.layerId));
 		} else requireValid(owner.kind === 'timelineLayer' && nonemptyString(owner.sceneId) && nonemptyString(owner.layerId));
 		return data as unknown as ParameterClipboardData;
 	} catch { return null; }
@@ -251,7 +251,7 @@ function sameScene(a: ParameterClipboardSource, b: ParameterClipboardSource): bo
 function validateLeafDestination(definition: ParameterDefinition, binding: EditableParameterBinding, source: ParameterClipboardSource, context: ParameterPasteContext): void {
 	const sameProjectSession = source.projectSessionId === context.source.projectSessionId;
 	if (context.kind === 'timeline') {
-		const allowInputs = context.parameterTarget === 'effect' || context.parameterTarget === 'customNodeGraphEffect';
+		const allowInputs = context.parameterTarget === 'effect';
 		validateTimelineParameterTree(definition, binding, allowInputs, allowInputs);
 	} else {
 		requireValid(isValueParameterBinding(binding) || binding.inputSource === 'node' || binding.inputSource === 'customNodeGraphEffectPublicParameterReference' || binding.inputSource === 'customNodeGraphEffectCustomParameterValueReference');

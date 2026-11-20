@@ -264,7 +264,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 				if (resolve == null) {
 					const node = nodes.get(reference.nodeId)!;
 					if (node.type === 'relay') {
-						const input = node.input == null ? null : nodeOutput(node.input);
+						const input = node.input == null ? null : 'parameterId' in node.input ? parameter(node.input.parameterId) : nodeOutput(node.input);
 						placements.set(node.id, () => input);
 						return input;
 					}

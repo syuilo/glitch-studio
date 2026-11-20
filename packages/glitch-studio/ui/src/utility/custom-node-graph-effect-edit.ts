@@ -4,19 +4,18 @@ import type { UndoRedo } from './undo-redo.ts';
 import type { CustomNodeGraphEffectEdit } from '../types/custom-node-graph-effect-editor.ts';
 import type { ParamEdit } from '../components/GsVisualParam.vue';
 import type { CustomNodeGraphEffectTarget } from './custom-node-graph-effect-target.ts';
-import type { CustomNodeGraphEffectParamDef, CustomNodeGraphEffectValueParameterBinding } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffectParamDef, CustomNodeGraphEffectValueParameterBinding } from '@/types/custom-node-graph-effect-view.ts';
 import { findCustomNodeGraphEffect } from './custom-node-graph-effect-target.ts';
 import { resolveNodeParam } from './node-params.ts';
 import { getEffectDefinitions } from './project-effects.ts';
 import { editCustomNodeGraphEffectCustomParameterBinding } from './custom-node-graph-effect-custom-parameter-edit.ts';
-import { preferences } from '../preferences.ts';
 
 type ProjectCommands = Pick<UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>, 'state' | 'commit'>;
 
 export function commitCustomNodeGraphEffectEdit(manager: ProjectCommands, target: CustomNodeGraphEffectTarget, event: CustomNodeGraphEffectEdit) {
 	const customNodeGraphEffect = findCustomNodeGraphEffect(manager.state, target);
 	if (customNodeGraphEffect == null) return;
-	const connectionTypePolicy = preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch';
+
 	switch (event.kind) {
 		case 'customParameterClipboard': return; // 非同期のクリップボード操作は所有者が処理する。
 		case 'updateCustomParameter': {
@@ -49,11 +48,11 @@ export function commitCustomNodeGraphEffectEdit(manager: ProjectCommands, target
 		case 'addRelayNode':
 			manager.commit('createCustomNodeGraphEffectRelayNode', { customNodeGraphEffect: target }); break;
 		case 'setRelayInput':
-			manager.commit('setCustomNodeGraphEffectRelayInput', { target: { customNodeGraphEffect: target, nodeId: event.nodeId }, source: event.value, connectionTypePolicy }); break;
+			manager.commit('setCustomNodeGraphEffectRelayInput', { target: { customNodeGraphEffect: target, nodeId: event.nodeId }, source: event.value }); break;
 		case 'setRelayDataType':
 			manager.commit('setCustomNodeGraphEffectRelayDataType', { target: { customNodeGraphEffect: target, nodeId: event.nodeId }, dataType: event.dataType }); break;
 		case 'removeNode':
-			manager.commit('removeCustomNodeGraphEffectNode', { target: { customNodeGraphEffect: target, nodeId: event.nodeId }, reconnection: 'primaryInput', connectionTypePolicy }); break;
+			manager.commit('removeCustomNodeGraphEffectNode', { target: { customNodeGraphEffect: target, nodeId: event.nodeId }, reconnection: 'primaryInput' }); break;
 		case 'setNodeBypass':
 			manager.commit('setCustomNodeGraphEffectNodeBypass', { target: { customNodeGraphEffect: target, nodeId: event.nodeId }, bypass: event.bypass }); break;
 		case 'editNodeStaticSetting':
@@ -70,7 +69,7 @@ export function commitCustomNodeGraphEffectEdit(manager: ProjectCommands, target
 			break;
 		}
 		case 'setOutputConnection':
-			manager.commit('setCustomNodeGraphEffectOutputConnection', { target: { customNodeGraphEffect: target, outputId: event.outputId }, source: event.value, connectionTypePolicy }); break;
+			manager.commit('setCustomNodeGraphEffectOutputConnection', { target: { customNodeGraphEffect: target, outputId: event.outputId }, source: event.value }); break;
 		case 'addParamDef':
 			manager.commit('createCustomNodeGraphEffectPublicParameter', { customNodeGraphEffect: target, definition: event.def }); break;
 		case 'updateParamDef': {
@@ -123,7 +122,7 @@ function onNodeParameterEdit(manager: ProjectCommands, customNodeGraphEffect: Cu
 				...(current.inputSource === 'automationGraphReference' ? current : {}), automationGraphId: event.value, ...event.options } }); break;
 		}
 		case 'node': manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...input, source: event.value == null ? { inputSource: 'node', nodeId: null, outputPort: null } : { inputSource: 'node', ...event.value },
-			preserveNodeSampling: event.preserveSampling, connectionTypePolicy: preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch' }); break;
+			preserveNodeSampling: event.preserveSampling }); break;
 		case 'customNodeGraphEffectPublicParameterReference': manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...input, source: { inputSource: event.kind, parameterId: event.value } }); break;
 		case 'customNodeGraphEffectCustomParameterValueReference': manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...input, source: { inputSource: event.kind, parameterId: event.value } }); break;
 		case 'inputSource':

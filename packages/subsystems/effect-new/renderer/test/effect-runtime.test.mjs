@@ -53,6 +53,24 @@ test('evaluates nested public and custom scopes, modifiers, automation and keyfr
 	cyclic.dispose();
 });
 
+// 【公開入力からRelayを通る配線は、外部入力の種類と値をそのまま渡す】
+// InからOutへ直接つないだ場合と同じく、Relay自身はGPUリソースや描画処理を必要としない。
+test('passes both uniform and texture public inputs through a relay', async () => {
+	const graph = { ...definition, paramDefs: { gain: { ...scalar, canNode: true } },
+		nodes: [{ id: 'wire', type: 'relay', dataType: { kind: 'scalar' }, input: { parameterId: 'gain' } }],
+		outputDefs: { image: { dataType: { kind: 'scalar' } } }, outputSources: { image: { nodeId: 'wire', outputPort: 'output' } } };
+	validateEffectSource(inline(graph), {});
+	for (const input of [{ kind: 'uniform', value: 0.5 }, { kind: 'texture', texture: {}, resolution: size }]) {
+		const instance = await create(inline(graph), definition, () => assert.fail('Unexpected Native Effect'), { inputs: { gain: input } });
+		instance.render(frame());
+		const result = instance.outputs.get('image');
+		assert.equal(result.kind, input.kind);
+		if (input.kind === 'texture') assert.equal(result.texture, input.texture);
+		else assert.equal(result.value, input.value);
+		instance.dispose();
+	}
+});
+
 // 【原寸と倍率を一度だけ適用し、画像・ファイル・Playerを借用し、音声をフレーム単位で解決する】
 // 素材や音声を所有する呼び出し側が同じGPU画像の内容を更新しても、配置の再生成は不要。
 test('resolves borrowed resources, audio and scaled intrinsic dimensions', async () => {

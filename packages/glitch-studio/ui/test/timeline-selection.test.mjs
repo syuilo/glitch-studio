@@ -16,10 +16,10 @@ const bundled = await build({
 		name: 'timeline-selection-dependencies',
 		setup(build) {
 			// Commandと履歴は本物を使い、今回無関係なエフェクト登録・設定ストレージだけを除く。
-			build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
+			build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 			build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 			build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ contents: path === 'effects'
-				? 'export const effectDefinitions = {};'
+				? 'export const nativeEffectDefinitions = {};'
 				: 'export const preferences = { s: { forceTypeSafety: false } };', loader: 'ts' }));
 		},
 	}],
@@ -222,7 +222,7 @@ const geometry = {
 // 画面外の各キーのDOMに依存せず、IDパスとレーンの中心を対応付ける。
 // Shapeなどの種類が境界行でだけ選択できなくなる退行も検出する。
 test('measures all lane kinds and selects unmounted intermediate layers', () => {
-	const targets = ['audio', 'customNodeGraphEffect', 'compositing', 'effect', 'shape'];
+	const targets = ['audio', 'text', 'compositing', 'effect', 'shape'];
 	const paramPath = ['items', 'element-id', 'value'];
 	const element = {
 		getBoundingClientRect: () => ({ top: 100 }),

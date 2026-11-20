@@ -11,7 +11,7 @@ import { computed, watch } from 'vue';
 const result = await build({
 	stdin: {
 		contents: `export { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
-			export { CustomNodeGraphEffectRendererManagerController } from './CustomNodeGraphEffectRendererManagerController.ts';
+			export { EffectLivePreviewManagerController } from './EffectLivePreviewManagerController.ts';
 			export { TimelineRendererManagerController } from './TimelineRendererManagerController.ts';`,
 		resolveDir: fileURLToPath(new URL('../src', import.meta.url)), loader: 'ts',
 	},
@@ -21,7 +21,7 @@ const result = await build({
 		setup(build) {
 			build.onResolve({ filter: /^(?:@gs\/glitch-studio_renderer\/client\.ts|\.\/audio\/audio-inputs\.ts|\.\/utility\/(?:video|webcam)\.ts|@\/ui\.ts)$/ }, args => ({ path: args.path, namespace: 'browser-stub' }));
 			build.onLoad({ filter: /.*/, namespace: 'browser-stub' }, () => ({ contents: `
-				export const createCustomNodeGraphEffectRendererManagerWorker = () => dependencies.createWorker();
+				export const createEffectLivePreviewManagerWorker = () => dependencies.createWorker();
 				export const createTimelineRendererManagerWorker = () => dependencies.createWorker();
 				export class AudioInputs { reconnectRenderer() {} dispose() {} }
 				export const isVideoFrameAvailable = () => false;
@@ -106,7 +106,7 @@ function fixture(t, kind = 'CustomNodeGraphEffect') {
 		window: { document: { createElement: canvas } },
 		dependencies: { createWorker() { const worker = new FakeWorker(); workers.push(worker); return worker; } },
 	});
-	const controller = new module.exports[kind + 'RendererManagerController']({});
+	const controller = new module.exports[kind === 'CustomNodeGraphEffect' ? 'EffectLivePreviewManagerController' : 'TimelineRendererManagerController']({});
 	initialOptions.set(controller, {
 		staticOptions: { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enable32bitDataTextures: false, enableStats: false },
 		dynamicOptions: { fpsLimit: null, resolution: { width: 16, height: 16 }, resolutionScale: 1 },
@@ -131,7 +131,7 @@ for (const kind of ['CustomNodeGraphEffect', 'Timeline']) {
 		let instanceId = null;
 		if (kind === 'CustomNodeGraphEffect') {
 			controller.startCustomNodeGraphEffectLivePreviewRenderLoopFor('custom-node-graph-effect');
-			instanceId = worker.calls('startCustomNodeGraphEffectLivePreviewRenderLoopFor').at(-1).args[2];
+			instanceId = worker.calls('startEffectLivePreview').at(-1).args[1];
 		}
 		const tilingProgress = { completedTiles: 64, totalTiles: 256 };
 		const notify = isDelayed => worker.reply({ type: 'ev', ev: { type: 'renderDelay', ctx: { instanceId, isDelayed, tilingProgress: isDelayed ? tilingProgress : null } } });
@@ -161,7 +161,7 @@ for (const kind of ['CustomNodeGraphEffect', 'Timeline']) {
 		const { controller, workers } = fixture(t, kind);
 		const worker = await initialize(controller, workers);
 		const canvas = controller.canvas;
-		const changes = [{ type: 'customShaderEffects', customShaderEffects: [], project: { automationGraphs: [], customNodeGraphEffects: [], timelineScenes: [] } }];
+		const changes = [{ type: 'customShaderEffectRegistration', customShaderEffectId: 'shader', customShaderEffect: null }];
 		const update = controller.applyProjectChanges(changes);
 		const call = worker.calls('applyProjectChanges').at(-1);
 		assert.deepEqual(call.args[0], changes);
@@ -207,12 +207,12 @@ test('rejects render delay notifications from previous Live Preview instances', 
 	const { controller, workers } = fixture(t);
 	const worker = await initialize(controller, workers);
 	controller.startCustomNodeGraphEffectLivePreviewRenderLoopFor('custom-node-graph-effect');
-	const previousId = worker.calls('startCustomNodeGraphEffectLivePreviewRenderLoopFor').at(-1).args[2];
+	const previousId = worker.calls('startEffectLivePreview').at(-1).args[1];
 	const tilingProgress = { completedTiles: 64, totalTiles: 256 };
 	const notify = (instanceId, isDelayed) => worker.reply({ type: 'ev', ev: { type: 'renderDelay', ctx: { instanceId, isDelayed, tilingProgress: isDelayed ? tilingProgress : null } } });
 	notify(previousId, true);
 	controller.startCustomNodeGraphEffectLivePreviewRenderLoopFor('custom-node-graph-effect');
-	const currentId = worker.calls('startCustomNodeGraphEffectLivePreviewRenderLoopFor').at(-1).args[2];
+	const currentId = worker.calls('startEffectLivePreview').at(-1).args[1];
 	notify(previousId, true);
 	assert.equal(controller.isRenderDelayed.value, false);
 	assert.equal(controller.renderTilingProgress.value, null);
@@ -517,9 +517,9 @@ test('clears seek indicators on cancellation, scene changes, failure and worker 
 });
 
 // 【発生元付きのエラーを所有者へ渡してから実行状態を破棄する】
-// Custom Node Graph Effect Live Previewノード・Timeline内ノード・Effectレイヤーの通知経路は異なる。
+// Effect Live Previewノード・Timeline内ノード・Effectレイヤーの通知経路は異なる。
 // 各経路で場所を落とさず、破棄済みWorkerの遅延通知でも診断を上書きしないことを確認する。
-for (const [kind, event, nodeId] of [['CustomNodeGraphEffect', 'effectState', 'node'], ['Timeline', 'effectState', 'node'], ['Timeline', 'effectLayerState', undefined]]) {
+for (const [kind, event] of [['CustomNodeGraphEffect', 'effectState'], ['Timeline', 'effectLayerState']]) {
 	test(`preserves failure location after disposal for ${kind} ${event}`, async t => {
 		const { controller, workers } = fixture(t, kind);
 		const worker = await initialize(controller, workers);
@@ -528,18 +528,19 @@ for (const [kind, event, nodeId] of [['CustomNodeGraphEffect', 'effectState', 'n
 			diagnostic = { message: error.message, origin };
 			controller.disposeManager(error);
 		};
-		const source = kind === 'CustomNodeGraphEffect' ? { type: 'customNodeGraphEffectLivePreview', instanceId: 'instance', customNodeGraphEffectId: 'customNodeGraphEffect' }
+		if (kind === 'CustomNodeGraphEffect') controller.startCustomNodeGraphEffectLivePreviewRenderLoopFor('graph');
+		const source = kind === 'CustomNodeGraphEffect' ? { type: 'effectLivePreview', instanceId: worker.calls('startEffectLivePreview').at(-1).args[1] }
 			: { type: 'timelineLayer', instanceId: 'instance', rootSceneId: 'root', layerId: 'layer',
 				clipId: 'clip', layerPath: ['sceneLayer', 'placement', 'layer'] };
 		const notify = message => worker.reply({ type: 'ev', ev: { type: event, ctx: {
-			source, nodeId, status: { status: { type: 'error', message }, outputs: {} },
+			source, status: { type: 'error', error: message },
 		} } });
 		notify('decode failed');
 		assert.equal(worker.terminated, true);
 		assert.equal(controller.isReady.value, false);
-		assert.deepEqual(structuredClone(diagnostic), { message: 'decode failed', origin: nodeId == null ? { source } : { source, nodeId } });
-		if (kind === 'Timeline') assert.equal(controller.getLayerEffectStates('root', 'layer'), null);
-		else assert.equal(controller.getCustomNodeGraphEffectLivePreviewEffectState('customNodeGraphEffect', 'node'), null);
+		assert.deepEqual(structuredClone(diagnostic), { message: 'decode failed', origin: { source } });
+		if (kind === 'Timeline') assert.equal(controller.getEffectLayerState('root', 'layer'), null);
+		else assert.equal(controller.preparationStatus.value, null);
 		notify('obsolete failure');
 		assert.equal(diagnostic.message, 'decode failed');
 	});
@@ -592,9 +593,9 @@ test('tracks effect layer states reactively without mixing clip instances or nes
 	const worker = await initialize(controller, workers);
 	const previous = { type: 'timelineLayer', rootSceneId: 'scene', layerId: 'effect', layerPath: ['effect'], clipId: 'first', instanceId: 'first-instance' };
 	const current = { ...previous, clipId: 'second', instanceId: 'second-instance' };
-	const loading = { status: { type: 'loading' }, outputs: { output: null } };
-	const ready = { status: { type: 'ready' }, outputs: { output: { width: 640, height: 360 } } };
-	const failed = { status: { type: 'error', message: 'decode failed' }, outputs: { output: null } };
+	const loading = { type: 'pending' };
+	const ready = { type: 'ready' };
+	const failed = { type: 'error', error: 'decode failed' };
 	const notify = (source, status) => worker.reply({ type: 'ev', ev: { type: 'effectLayerState', ctx: { source, status } } });
 	const displayed = computed(() => controller.getEffectLayerState('scene', 'effect'));
 	assert.equal(displayed.value, null);
@@ -603,7 +604,6 @@ test('tracks effect layer states reactively without mixing clip instances or nes
 	notify(current, ready);
 	notify(previous, null);
 	assert.deepEqual(displayed.value, ready);
-	assert.equal(controller.getLayerEffectStates('scene', 'effect'), null);
 	assert.equal(controller.getEffectLayerState('other-scene', 'effect'), null);
 	notify(current, null);
 	assert.equal(displayed.value, null);
@@ -616,31 +616,23 @@ test('tracks effect layer states reactively without mixing clip instances or nes
 	assert.equal(displayed.value, null);
 });
 
-// 【Custom Node Graph Effect内ノードの状態はレイヤー本体の状態と別に維持する】
-// 状態管理を切り出しても、複数ノードのうち一つが破棄されたときに他のノードを消してはいけない。
-// 新しいクリップで同じノードIDを使う場合も、旧インスタンスの破棄通知を無視する。
-test('preserves per-node timeline states across clip replacement and individual disposal', async t => {
-	const { controller, workers } = fixture(t, 'Timeline');
+// 【以前のLive Preview配置から遅れて届いた準備状態は表示しない】
+// 同じグラフでも開始し直すと配置が変わる。古い失敗通知で新しいWorkerまで破棄されてはいけない。
+test('keeps preparation status scoped to the current live preview instance', async t => {
+	const { controller, workers } = fixture(t, 'CustomNodeGraphEffect');
 	const worker = await initialize(controller, workers);
-	const previous = { type: 'timelineLayer', rootSceneId: 'scene', layerId: 'customNodeGraphEffect', layerPath: ['customNodeGraphEffect'], clipId: 'first', instanceId: 'first-instance' };
-	const current = { ...previous, clipId: 'second', instanceId: 'second-instance' };
-	const ready = { status: { type: 'ready' }, outputs: { output: { width: 640, height: 360 } } };
-	const notify = (source, nodeId, status) => worker.reply({ type: 'ev', ev: { type: 'effectState', ctx: { source, nodeId, status } } });
-	notify(previous, 'node', ready);
-	notify(previous, 'old-node', ready);
-	notify(current, 'node', ready);
-	notify(previous, 'node', null);
-	assert.equal(controller.getLayerEffectStates('scene', 'customNodeGraphEffect').size, 1);
-	assert.deepEqual(controller.getLayerEffectStates('scene', 'customNodeGraphEffect').get('node'), ready);
-	assert.equal(controller.getEffectLayerState('scene', 'customNodeGraphEffect'), null);
-	notify(current, 'another', ready);
-	notify(current, 'node', null);
-	assert.equal(controller.getLayerEffectStates('scene', 'customNodeGraphEffect').has('another'), true);
-	notify(current, 'another', null);
-	assert.equal(controller.getLayerEffectStates('scene', 'customNodeGraphEffect'), null);
-	notify(current, 'node', ready);
+	const start = () => {
+		controller.startCustomNodeGraphEffectLivePreviewRenderLoopFor('graph');
+		return { type: 'effectLivePreview', instanceId: worker.calls('startEffectLivePreview').at(-1).args[1] };
+	};
+	const previous = start(), current = start();
+	const update = (source, status) => worker.reply({ type: 'ev', ev: { type: 'effectState', ctx: { source, status } } });
+	update(current, { type: 'ready' });
+	update(previous, { type: 'error', error: 'obsolete' });
+	assert.equal(controller.preparationStatus.value.type, 'ready');
+	assert.equal(worker.terminated, false);
 	controller.destroy();
-	assert.equal(controller.getLayerEffectStates('scene', 'customNodeGraphEffect'), null);
+	assert.equal(controller.preparationStatus.value, null);
 });
 
 function baseFixture(t, overrides) {

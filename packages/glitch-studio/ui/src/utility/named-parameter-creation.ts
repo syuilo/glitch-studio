@@ -16,7 +16,7 @@ export function createNamedParameterFromLiteral(
 	definition: ParameterDefinition,
 	binding: EditableParameterBinding,
 	existingDefinitions: readonly { nameForReference: string }[],
-): ParameterDefinition<NamedParameterDataType> & { canNode: false; nameForReference: string } {
+): ParameterDefinition<NamedParameterDataType, never> & { canNode: false; nameForReference: string } {
 	if (!canCreateNamedParameterFromBinding(definition, binding) || binding.inputSource !== 'literal') throw new Error('Only literal value parameters without expression modifiers can become named parameters');
 	let baseName = definition.ui.label.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 	if (baseName.length === 0) baseName = 'my_param';
@@ -32,5 +32,5 @@ export function createNamedParameterFromLiteral(
 		defaultValue: { inputSource: 'literal', value: binding.value },
 		canNode: false,
 		nameForReference,
-	}) as ParameterDefinition<NamedParameterDataType> & { canNode: false; nameForReference: string };
+	}) as ParameterDefinition<NamedParameterDataType, never> & { canNode: false; nameForReference: string };
 }

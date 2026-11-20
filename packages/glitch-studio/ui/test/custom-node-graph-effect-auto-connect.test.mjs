@@ -1,3 +1,4 @@
+import { testGraph } from './helpers/effect-graph.mjs';
 import { prepareTestCommand } from './helpers/prepared-command.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -7,44 +8,41 @@ import { build } from 'esbuild';
 
 const bundled = await build({
 	stdin: {
-		contents: "export { COMMAND_DEFS } from './commands.ts'; export { getNodeOutputItems } from './utility/node-outputs.ts';",
+		contents: "export { COMMAND_DEFS } from './commands.ts'; export { getCustomNodeGraphEffect } from './utility/custom-node-graph-effect-target.ts'; export { getNodeOutputItems } from './utility/node-outputs.ts';",
 		resolveDir: fileURLToPath(new URL('../src/', import.meta.url)), loader: 'ts',
 	},
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'auto-connect-dependencies', setup(build) {
-		build.onResolve({ filter: /preferences\.ts$|effect-definitions\.[jt]s$/ }, ({ path }) => ({ path, external: true }));
+		build.onResolve({ filter: /preferences\.ts$|(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, ({ path }) => ({ path, external: true }));
 	} }],
 });
 
 function fixture(enabled = false, inline = false) {
 	const preferences = { s: { customNodeGraphEffectAutoConnectOnNodeAdd: enabled, forceTypeSafety: true } };
-	const disconnected = { inputSource: 'node', nodeId: null, outputPort: null };
+	const disconnected = { inputSource: 'literal', value: [0, 0, 0, 0] };
 	const effectDefinitions = {
 		previous: { paramDefs: {}, outputDefs: { main: { dataType: { kind: 'color' } }, secondary: { dataType: { kind: 'color' } } } },
 		filter: { primaryInputParameter: 'image', primaryOutput: 'result',
 			paramDefs: { image: { canNode: true, dataType: { kind: 'color' }, defaultValue: disconnected } },
 			outputDefs: { result: { dataType: { kind: 'color' } } } },
 		scalar: { primaryInputParameter: 'value', primaryOutput: 'result',
-			paramDefs: { value: { canNode: true, dataType: { kind: 'scalar' }, defaultValue: disconnected } },
+			paramDefs: { value: { canNode: true, dataType: { kind: 'scalar' }, defaultValue: { inputSource: 'literal', value: 0 } } },
 			outputDefs: { result: { dataType: { kind: 'scalar' } } } },
 	};
 	const module = { exports: {} };
 	const require = createRequire(import.meta.url);
 	new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(path => /preferences\.ts$/.test(path)
-		? { preferences } : /effect-definitions\.[jt]s$/.test(path) ? { effectDefinitions } : require(path), module, module.exports);
-	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, id: 'custom-node-graph-effect', paramDefs: [], primaryOutputId: 'primary', outputDefs: [
-		{ id: 'primary', dataType: { kind: 'color' } }, { id: 'other', dataType: { kind: 'color' } },
-	], nodes: [
-		{ id: 'previous', type: 'effect', effectId: 'previous', params: {} },
-		{ id: 'out', type: 'globalOut', inputs: {
-			primary: { nodeId: 'previous', outputPort: 'secondary' }, other: { nodeId: 'previous', outputPort: 'main' },
-		} },
-	] };
-	const state = { customNodeGraphEffects: { value: inline ? [] : [customNodeGraphEffect] },
-		timelineScenes: { value: [{ id: 'scene', layers: [{ id: 'inline', layerType: 'inlineCustomNodeGraphEffect', customNodeGraphEffect }] }] } };
-	const target = inline ? { sceneId: 'scene', inlineCustomNodeGraphEffectLayerId: 'inline' } : { customNodeGraphEffectId: 'custom-node-graph-effect' };
-	const command = (payload = {}) => prepareTestCommand(module.exports.COMMAND_DEFS.createCustomNodeGraphEffectEffectNode, { customNodeGraphEffect: target, effectId: 'filter', connectionMode: enabled ? 'appendToPrimaryOutput' : 'none', ...payload });
-	return { preferences, customNodeGraphEffect, state, command, disconnected, target, definitions: module.exports.COMMAND_DEFS, getNodeOutputItems: module.exports.getNodeOutputItems };
+		? { preferences } : /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/.test(path) ? { nativeEffectDefinitions: effectDefinitions } : require(path), module, module.exports);
+	const customNodeGraphEffect = testGraph({ primaryOutput: 'primary', outputDefs: {
+		primary: { dataType: { kind: 'color' } }, other: { dataType: { kind: 'color' } },
+	}, outputSources: { primary: { nodeId: 'previous', outputPort: 'secondary' }, other: { nodeId: 'previous', outputPort: 'main' } },
+	nodes: [{ id: 'previous', type: 'effect', effectSource: { type: 'nativeEffect', id: 'previous' }, params: {} }] });
+	const owner = inline ? { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect } : { id: 'custom-node-graph-effect', definition: customNodeGraphEffect };
+	const state = { customNodeGraphEffects: { value: inline ? [] : [owner] },
+		timelineScenes: { value: [{ id: 'scene', layers: inline ? [{ id: 'inline', layerType: 'effect', effectSource: owner }] : [] }] } };
+	const target = inline ? { sceneId: 'scene', layerId: 'inline' } : { customNodeGraphEffectId: 'custom-node-graph-effect' };
+	const command = (payload = {}) => prepareTestCommand(module.exports.COMMAND_DEFS.createCustomNodeGraphEffectEffectNode, { customNodeGraphEffect: target, effectSource: { type: 'nativeEffect', id: 'filter' }, connectionMode: enabled ? 'appendToPrimaryOutput' : 'none', ...payload });
+	return { view: () => module.exports.getCustomNodeGraphEffect(state, target), owner, preferences, customNodeGraphEffect, state, command, disconnected, target, definitions: module.exports.COMMAND_DEFS, getNodeOutputItems: module.exports.getNodeOutputItems };
 }
 
 // 【自動接続を無効にした追加では既存の配線と入力の既定値を維持する】
@@ -55,7 +53,7 @@ test('preserves wiring when disabled even after enabling before redo', () => {
 	const command = f.command();
 	const added = command.execute(f.state);
 	assert.deepEqual(f.customNodeGraphEffect.nodes[1].params.image, f.disconnected);
-	assert.deepEqual(f.customNodeGraphEffect.nodes.at(-1).inputs, before.nodes.at(-1).inputs);
+	assert.deepEqual(f.customNodeGraphEffect.outputSources, before.outputSources);
 	const after = structuredClone(f.customNodeGraphEffect);
 	command.undo(f.state);
 	assert.deepEqual(f.customNodeGraphEffect, before);
@@ -72,11 +70,11 @@ test('connects primary ports and preserves secondary source ports through undo a
 		const before = structuredClone(f.customNodeGraphEffect);
 		const command = f.command();
 		const added = command.execute(f.state);
-		assert.deepEqual(f.customNodeGraphEffect.nodes.map(node => node.id), ['previous', added.nodeId, 'out']);
-		assert.deepEqual(f.customNodeGraphEffect.nodes[1].params.image, { inputSource: 'node', nodeId: 'previous', outputPort: 'secondary',
-			fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
-		assert.deepEqual(f.customNodeGraphEffect.nodes.at(-1).inputs.primary, { nodeId: added.nodeId, outputPort: 'result' });
-		assert.deepEqual(f.customNodeGraphEffect.nodes.at(-1).inputs.other, before.nodes.at(-1).inputs.other);
+		assert.deepEqual(f.customNodeGraphEffect.nodes.map(node => node.id), ['previous', added.nodeId]);
+		assert.deepEqual(f.customNodeGraphEffect.nodes[1].params.image, { inputSource: 'node', source: { nodeId: 'previous', outputPort: 'secondary' },
+			sampling: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' } });
+		assert.deepEqual(f.customNodeGraphEffect.outputSources.primary, { nodeId: added.nodeId, outputPort: 'result' });
+		assert.deepEqual(f.customNodeGraphEffect.outputSources.other, before.outputSources.other);
 		const after = structuredClone(f.customNodeGraphEffect);
 		command.undo(f.state);
 		assert.deepEqual(f.customNodeGraphEffect, before);
@@ -89,18 +87,18 @@ test('connects primary ports and preserves secondary source ports through undo a
 // 【未接続・主出力なしでも追加でき、Undoで接続の未設定と明示的な解除を復元する】
 // 初めて出力へ接続する場合や主出力を使わないCustom Node Graph Effectでも、追加前の状態を失わないようにする。
 test('handles missing and disconnected primary outputs without losing their original state', () => {
-	for (const mode of ['missing', 'disconnected', 'noPrimary', 'noGlobalOut']) {
+	for (const mode of ['missing', 'noPrimary']) {
 		const f = fixture(true);
-		if (mode === 'missing') delete f.customNodeGraphEffect.nodes.at(-1).inputs.primary;
-		if (mode === 'disconnected') f.customNodeGraphEffect.nodes.at(-1).inputs.primary = { nodeId: null, outputPort: null };
-		if (mode === 'noPrimary') f.customNodeGraphEffect.primaryOutputId = null;
-		if (mode === 'noGlobalOut') f.customNodeGraphEffect.nodes.pop();
+		if (mode === 'missing') delete f.customNodeGraphEffect.outputSources.primary;
+
+		if (mode === 'noPrimary') f.customNodeGraphEffect.primaryOutput = null;
+
 		const before = structuredClone(f.customNodeGraphEffect);
 		const command = f.command();
 		const added = command.execute(f.state);
 		assert.deepEqual(f.customNodeGraphEffect.nodes.find(node => node.id === added.nodeId).params.image, f.disconnected);
-		if (mode === 'missing' || mode === 'disconnected') {
-			assert.deepEqual(f.customNodeGraphEffect.nodes.at(-1).inputs.primary, { nodeId: added.nodeId, outputPort: 'result' });
+		if (mode === 'missing') {
+			assert.deepEqual(f.customNodeGraphEffect.outputSources.primary, { nodeId: added.nodeId, outputPort: 'result' });
 		}
 		command.undo(f.state);
 		assert.deepEqual(f.customNodeGraphEffect, before);
@@ -111,10 +109,10 @@ test('handles missing and disconnected primary outputs without losing their orig
 // 自動接続で接続不能な入力・出力や、呼び出し側が指定した入力値を上書きしないようにする。
 test('respects incompatible data types and explicitly supplied parameters', () => {
 	const f = fixture(true);
-	const inputs = structuredClone(f.customNodeGraphEffect.nodes.at(-1).inputs);
-	f.command({ effectId: 'scalar' }).execute(f.state);
-	assert.deepEqual(f.customNodeGraphEffect.nodes[1].params.value, f.disconnected);
-	assert.deepEqual(f.customNodeGraphEffect.nodes.at(-1).inputs, inputs);
+	const inputs = structuredClone(f.customNodeGraphEffect.outputSources);
+	f.command({ effectSource: { type: 'nativeEffect', id: 'scalar' } }).execute(f.state);
+	assert.deepEqual(f.customNodeGraphEffect.nodes[1].params.value, { inputSource: 'literal', value: 0 });
+	assert.deepEqual(f.customNodeGraphEffect.outputSources, inputs);
 	const explicit = fixture(true);
 	explicit.command({ parameters: { image: explicit.disconnected } }).execute(explicit.state);
 	assert.deepEqual(explicit.customNodeGraphEffect.nodes[1].params.image, explicit.disconnected);
@@ -126,14 +124,14 @@ test('respects incompatible data types and explicitly supplied parameters', () =
 test('uses explicit connection policy and validates creation before mutating the graph', () => {
 	const f = fixture(true);
 	const before = structuredClone(f.customNodeGraphEffect);
-	const prepared = f.definitions.createCustomNodeGraphEffectEffectNode.prepare(f.state, { customNodeGraphEffect: f.target, effectId: 'filter' });
+	const prepared = f.definitions.createCustomNodeGraphEffectEffectNode.prepare(f.state, { customNodeGraphEffect: f.target, effectSource: { type: 'nativeEffect', id: 'filter' } });
 	assert.deepEqual(f.customNodeGraphEffect, before);
 	prepared.change.apply(f.state);
 	assert.deepEqual(f.customNodeGraphEffect.nodes[1].params.image, f.disconnected);
-	assert.deepEqual(f.customNodeGraphEffect.nodes.at(-1).inputs, before.nodes.at(-1).inputs);
+	assert.deepEqual(f.customNodeGraphEffect.outputSources, before.outputSources);
 	prepared.change.revert(f.state);
 	assert.deepEqual(f.customNodeGraphEffect, before);
-	assert.throws(() => f.definitions.createCustomNodeGraphEffectEffectNode.prepare(f.state, { customNodeGraphEffect: f.target, effectId: 'filter', parameters: {
+	assert.throws(() => f.definitions.createCustomNodeGraphEffectEffectNode.prepare(f.state, { customNodeGraphEffect: f.target, effectSource: { type: 'nativeEffect', id: 'filter' }, parameters: {
 		image: { inputSource: 'node', nodeId: 'missing', outputPort: 'output', fitMode: 'cover', wrapMode: 'repeat', filterMode: 'linear' },
 	} }), /Node output not found/);
 	assert.deepEqual(f.customNodeGraphEffect, before);
@@ -151,7 +149,7 @@ test('reconnects relay inputs on removal and restores the graph on undo', () => 
 		const remove = prepareTestCommand(f.definitions.removeCustomNodeGraphEffectNode, { target: added, reconnection });
 		remove.execute(f.state);
 		assert.deepEqual(f.customNodeGraphEffect.nodes.find(node => node.id === 'relay').input, reconnection === 'disconnect'
-			? { nodeId: null, outputPort: null } : { nodeId: 'previous', outputPort: 'secondary' });
+			? null : { nodeId: 'previous', outputPort: 'secondary' });
 		remove.undo(f.state);
 		assert.deepEqual(f.customNodeGraphEffect, before);
 	}
@@ -166,10 +164,10 @@ test('adds, rewires, and disconnects relay nodes with undo and redo', () => {
 		const create = prepareTestCommand(f.definitions.createCustomNodeGraphEffectRelayNode, { customNodeGraphEffect: f.target });
 		const target = create.execute(f.state);
 		const node = () => f.customNodeGraphEffect.nodes.find(candidate => candidate.id === target.nodeId);
-		const disconnected = { nodeId: null, outputPort: null };
+		const disconnected = null;
 		assert.deepEqual(node(), { id: target.nodeId, type: 'relay', dataType: { kind: 'any' }, input: disconnected });
-		assert.equal(f.customNodeGraphEffect.nodes.at(-2).id, target.nodeId);
-		assert.deepEqual(f.customNodeGraphEffect.nodes.at(-1).inputs, before.nodes.at(-1).inputs);
+		assert.equal(f.customNodeGraphEffect.nodes.at(-1).id, target.nodeId);
+		assert.deepEqual(f.customNodeGraphEffect.outputSources, before.outputSources);
 		const editInput = source => prepareTestCommand(f.definitions.setCustomNodeGraphEffectRelayInput, { target, source });
 		const first = { nodeId: 'previous', outputPort: 'secondary' };
 		const second = { nodeId: 'previous', outputPort: 'main' };
@@ -195,11 +193,11 @@ test('adds, rewires, and disconnects relay nodes with undo and redo', () => {
 	}
 });
 
-// 【固定型の中継ノードでは型安全設定を尊重し、存在しないポートと自己接続を拒否する】
+// 【中継ノードは異なる型・存在しないポート・自己接続を拒否する】
 // インポートされた中継ノードには具体的な型があり、候補選択以外から渡された配線も検査する。
-test('validates relay source ports and honors the connection type policy', () => {
+test('validates relay source ports and rejects incompatible connections', () => {
 	const f = fixture();
-	const relay = { id: 'relay', type: 'relay', dataType: { kind: 'scalar' }, input: { nodeId: null, outputPort: null } };
+	const relay = { id: 'relay', type: 'relay', dataType: { kind: 'scalar' }, input: null };
 	f.customNodeGraphEffect.nodes.splice(1, 0, relay);
 	const target = { customNodeGraphEffect: f.target, nodeId: relay.id };
 	const command = f.definitions.setCustomNodeGraphEffectRelayInput;
@@ -207,9 +205,7 @@ test('validates relay source ports and honors the connection type policy', () =>
 	assert.throws(() => command.prepare(f.state, { target, source }), /type does not match/);
 	assert.throws(() => command.prepare(f.state, { target, source: { ...source, outputPort: 'missing' } }), /Node output not found/);
 	assert.throws(() => command.prepare(f.state, { target, source: { nodeId: relay.id, outputPort: 'output' } }), /cannot connect to itself/);
-	assert.deepEqual(relay.input, { nodeId: null, outputPort: null });
-	command.prepare(f.state, { target, source, connectionTypePolicy: 'allowMismatch' }).change.apply(f.state);
-	assert.deepEqual(relay.input, source);
+	assert.equal(relay.input, null);
 });
 
 // 【中継ノードの名前を消すと既定表示へ戻り、Undoで名前と未設定状態を復元できる】
@@ -221,17 +217,17 @@ test('renames and clears a relay label with undo and redo', () => {
 	const relay = f.customNodeGraphEffect.nodes.find(node => node.id === target.nodeId);
 	const rename = prepareTestCommand(f.definitions.setCustomNodeGraphEffectNodeDisplayName, { target, displayName: 'Shared mask' });
 	const clear = prepareTestCommand(f.definitions.setCustomNodeGraphEffectNodeDisplayName, { target, displayName: '' });
-	assert.equal(Object.hasOwn(relay, 'label'), false);
+	assert.equal(f.owner.nodeMetadata?.[relay.id]?.displayName, undefined);
 	rename.execute(f.state);
-	assert.equal(relay.label, 'Shared mask');
+	assert.equal(f.owner.nodeMetadata[relay.id].displayName, 'Shared mask');
 	clear.execute(f.state);
-	assert.equal(Object.hasOwn(relay, 'label'), false);
+	assert.equal(f.owner.nodeMetadata?.[relay.id]?.displayName, undefined);
 	clear.undo(f.state);
-	assert.equal(relay.label, 'Shared mask');
+	assert.equal(f.owner.nodeMetadata[relay.id].displayName, 'Shared mask');
 	rename.undo(f.state);
-	assert.equal(Object.hasOwn(relay, 'label'), false);
+	assert.equal(f.owner.nodeMetadata?.[relay.id]?.displayName, undefined);
 	rename.execute(f.state);
-	assert.equal(relay.label, 'Shared mask');
+	assert.equal(f.owner.nodeMetadata[relay.id].displayName, 'Shared mask');
 });
 
 // 【中継ノードの型変更は配線を保ち、型安全設定でも既存の接続元を表示する】
@@ -239,27 +235,26 @@ test('renames and clears a relay label with undo and redo', () => {
 test('changes the relay data type without hiding or rewriting existing connections', () => {
 	const f = fixture();
 	const target = prepareTestCommand(f.definitions.createCustomNodeGraphEffectRelayNode, { customNodeGraphEffect: f.target }).execute(f.state);
-	const relay = f.customNodeGraphEffect.nodes.find(node => node.id === target.nodeId);
+	const relay = () => f.customNodeGraphEffect.nodes.find(node => node.id === target.nodeId);
 	const input = { nodeId: 'previous', outputPort: 'secondary' };
-	const output = { nodeId: relay.id, outputPort: 'output' };
+	const output = { nodeId: relay().id, outputPort: 'output' };
 	prepareTestCommand(f.definitions.setCustomNodeGraphEffectRelayInput, { target, source: input }).execute(f.state);
-	const out = f.customNodeGraphEffect.nodes.at(-1);
-	out.inputs.primary = output;
+	f.customNodeGraphEffect.outputSources.primary = output;
 
 	const changeType = prepareTestCommand(f.definitions.setCustomNodeGraphEffectRelayDataType, { target, dataType: { kind: 'scalar' } });
 	changeType.execute(f.state);
-	assert.deepEqual(relay.dataType, { kind: 'scalar' });
-	assert.deepEqual(relay.input, input);
-	assert.deepEqual(out.inputs.primary, output);
-	assert.deepEqual(f.getNodeOutputItems(f.customNodeGraphEffect.nodes, relay.id, relay.dataType, [], undefined, input)
+	assert.deepEqual(relay().dataType, { kind: 'scalar' });
+	assert.deepEqual(relay().input, input);
+	assert.deepEqual(f.customNodeGraphEffect.outputSources.primary, output);
+	assert.deepEqual(f.getNodeOutputItems(f.view().nodes, relay().id, relay().dataType, [], undefined, input)
 		.map(item => [item.connection.outputPort, item.typeCompatible]), [['secondary', false]]);
-	const selectedOutput = f.getNodeOutputItems(f.customNodeGraphEffect.nodes, out.id, { kind: 'color' }, [], undefined, output)
-		.find(item => item.connection.nodeId === relay.id);
+	const selectedOutput = f.getNodeOutputItems(f.view().nodes, 'globalOut', { kind: 'color' }, [], undefined, output)
+		.find(item => item.connection.nodeId === relay().id);
 	assert.equal(selectedOutput.typeCompatible, false);
-	assert.equal(f.getNodeOutputItems(f.customNodeGraphEffect.nodes, out.id, { kind: 'color' }).some(item => item.connection.nodeId === relay.id), false);
+	assert.equal(f.getNodeOutputItems(f.view().nodes, 'globalOut', { kind: 'color' }).some(item => item.connection.nodeId === relay().id), false);
 	changeType.undo(f.state);
-	assert.deepEqual(relay.dataType, { kind: 'any' });
+	assert.deepEqual(relay().dataType, { kind: 'any' });
 	changeType.execute(f.state);
-	assert.deepEqual(relay.dataType, { kind: 'scalar' });
-	assert.deepEqual(out.inputs.primary, output);
+	assert.deepEqual(relay().dataType, { kind: 'scalar' });
+	assert.deepEqual(f.customNodeGraphEffect.outputSources.primary, output);
 });

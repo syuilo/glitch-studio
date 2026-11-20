@@ -19,16 +19,16 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		export { provideCustomNodeGraphEffectWires } from './src/utility/custom-node-graph-effect-wires.ts';
 		export { parameterExpansionScopeKey } from './src/composables/useParameterExpansion.ts';
 		export { projectSession } from './src/project-session.ts';
-		export { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+		export { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
 		export { preferences } from './src/preferences.ts';
 	` },
 	plugins: [i18nPlugin, { name: 'parameter-expansion', setup(build) {
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'platform' }));
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'platform' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'platform' }));
 		build.onResolve({ filter: /(?:^@\/|\/src\/)(app|project-session|ui)\.ts$/ }, ({ path }) => ({ path: path.endsWith('ui.ts') ? 'ui' : 'app', namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', resolveDir: directory, contents: {
 			preferences: "import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false), customNodeGraphEffectWireStyle: ref('straight') } };",
-			effects: "import definition from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts'; export const effectDefinitions = { testStructArray: definition };",
+			effects: "import definition from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };",
 			app: 'export const projectSession = {}; export function useProjectSession() { return projectSession; }',
 			ui: 'export function popupMenu() {} export function popup() {} export function contextMenu() {} export function alert() {} export async function inputText() { return { canceled: true }; }',
 		}[path] }));
@@ -104,7 +104,7 @@ async function fixture(t, { target = 'node', defaultCollapsed = false, elementCo
 	const createOwner = id => {
 		const params = Object.fromEntries(Object.entries(definition.paramDefs).map(([key, parameter]) => [key, structuredClone(parameter.defaultValue)]));
 		if (connected) params.buzzs.value[0].binding.value.image = { inputSource: 'node', nodeId: 'source', outputPort: 'output' };
-		return { id, type: 'effect', layerType: 'effect', effectId: definition.id, resolution: { mode: 'auto', scale: 1 },
+		return { id, type: 'effect', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, resolution: { mode: 'auto', scale: 1 },
 			isBypass: false, automationGraphs: [], params, effectParamValues: params, staticSettings: {}, effectStaticSettings: {} };
 	};
 	const owners = ref([createOwner('first-owner'), createOwner('second-owner')]);

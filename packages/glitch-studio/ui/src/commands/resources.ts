@@ -5,7 +5,7 @@ import { genId } from '@gs/shared/utility/id.ts';
 import { ref } from 'vue';
 import { getEffectDefinitions } from '../utility/project-effects.ts';
 import { getScene } from '../utility/timeline-scene.ts';
-import { getCustomNodeGraphEffect, listCustomNodeGraphEffects } from '../utility/custom-node-graph-effect-target.ts';
+import { getCustomNodeGraphEffect, saveCustomNodeGraphEffect, listCustomNodeGraphEffects } from '../utility/custom-node-graph-effect-target.ts';
 import { defineCommand, definePublicCommand } from './definition.ts';
 import { playerSourceSchema } from './project-contract-schemas.ts';
 import { prepareProjectValueChange } from './prepared-value.ts';
@@ -72,19 +72,20 @@ export function validateCustomNodeGraphEffectAssetPlacement(state: ProjectState,
 	for (const node of placement.nodes) {
 		if (ids.has(node.id)) throw new Error('Duplicate node ID');
 		ids.add(node.id);
-		if (node.effectId === 'image') {
+		if (node.effectSource.type !== 'nativeEffect') throw new Error('Unsupported asset node');
+		if (node.effectSource.id === 'image') {
 			const image = node.staticSettings.image;
 			if (typeof image !== 'string' || !state.assets.value.some(asset => asset.id === image && asset.fileDataType.startsWith('image/'))) throw new Error('Image asset not found');
 			continue;
 		}
 		let playerId: unknown = null;
-		if (node.effectId === 'video') playerId = node.staticSettings.player;
-		else if (node.effectId === 'audioWaveform' && node.params.audio?.inputSource === 'literal') {
+		if (node.effectSource.id === 'video') playerId = node.staticSettings.player;
+		else if (node.effectSource.id === 'audioWaveform' && node.params.audio?.inputSource === 'literal') {
 			const audio = node.params.audio.value;
 			if (audio != null && typeof audio === 'object' && 'type' in audio && audio.type === 'player' && 'playerId' in audio) playerId = audio.playerId;
 		} else throw new Error('Unsupported asset node');
 		const player = state.players.value.find(player => player.id === playerId);
-		const assetType = node.effectId === 'video' ? 'video/' : 'audio/';
+		const assetType = node.effectSource.id === 'video' ? 'video/' : 'audio/';
 		if (player?.sourceType !== 'asset' || !state.assets.value.some(asset => asset.id === player.assetId && asset.fileDataType.startsWith(assetType))) throw new Error('Media player asset not found');
 	}
 }
@@ -93,12 +94,14 @@ export function appendCustomNodeGraphEffectAssetNodes(state: ProjectState, place
 	const customNodeGraphEffect = getCustomNodeGraphEffect(state, placement.target);
 	const outputIndex = customNodeGraphEffect.nodes.findIndex(node => node.type === 'globalOut');
 	customNodeGraphEffect.nodes.splice(outputIndex < 0 ? customNodeGraphEffect.nodes.length : outputIndex, 0, ...deepClone(placement.nodes));
+	saveCustomNodeGraphEffect(state, placement.target, customNodeGraphEffect);
 }
 
 export function removeCustomNodeGraphEffectAssetNodes(state: ProjectState, placement: CustomNodeGraphEffectAssetPlacement) {
 	const ids = new Set(placement.nodes.map(node => node.id));
 	const customNodeGraphEffect = getCustomNodeGraphEffect(state, placement.target);
 	customNodeGraphEffect.nodes = customNodeGraphEffect.nodes.filter(node => !ids.has(node.id));
+	saveCustomNodeGraphEffect(state, placement.target, customNodeGraphEffect);
 }
 
 export const insertCustomNodeGraphEffectAssetNodesCommandDef = defineCommand<{ placement: CustomNodeGraphEffectAssetPlacement; players: Player[] }>({
@@ -138,14 +141,18 @@ export const removeAssetCommandDef = definePublicCommand({
 		const definitions = getEffectDefinitions(state);
 		const references = listCustomNodeGraphEffects(state).flatMap(({ target, customNodeGraphEffect }) => customNodeGraphEffect.nodes.flatMap(node => {
 			if (node.type !== 'effect') return [];
-			return Object.entries(definitions[node.effectId].staticSettingDefs ?? {}).flatMap(([key, definition]) =>
+			return Object.entries(definitions.describe(node.effectSource).staticSettingDefs ?? {}).flatMap(([key, definition]) =>
 				definition.dataType.kind === 'assetReference' && node.staticSettings[key] === assetId ? [{ target, nodeId: node.id, key }] : []);
 		}));
 		const changes: AppStateChange[] = [{ type: 'asset', assetId }, ...references.map(reference => ({ type: 'customNodeGraphEffect' as const, target: reference.target }))];
 		const setReferences = (current: ProjectState, value: string | null) => {
 			for (const reference of references) {
-				const node = getCustomNodeGraphEffect(current, reference.target).nodes.find(candidate => candidate.id === reference.nodeId);
-				if (node?.type === 'effect') node.staticSettings[reference.key] = value;
+				const graph = getCustomNodeGraphEffect(current, reference.target);
+				const node = graph.nodes.find(candidate => candidate.id === reference.nodeId);
+				if (node?.type === 'effect') {
+					node.staticSettings[reference.key] = value;
+					saveCustomNodeGraphEffect(current, reference.target, graph, node.id);
+				}
 			}
 		};
 		return {

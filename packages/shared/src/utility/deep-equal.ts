@@ -1,6 +1,4 @@
-type JsonLike = string | number | boolean | null | undefined | readonly JsonLike[] | { [key: string]: JsonLike } | Map<string, JsonLike>;
-
-export function deepEqual(a: JsonLike, b: JsonLike): boolean {
+export function deepEqual(a: unknown, b: unknown): boolean {
 	if (a === b) return true;
 	if (typeof a !== typeof b) return false;
 
@@ -18,16 +16,17 @@ export function deepEqual(a: JsonLike, b: JsonLike): boolean {
 	} else if (a instanceof Map && b instanceof Map) {
 		if (a.size !== b.size) return false;
 		for (const [k, v] of a) {
-			if (!deepEqual(v, b.get(k))) return false;
+			if (!b.has(k) || !deepEqual(v, b.get(k))) return false;
 		}
 		return true;
 	} else if (((typeof a) === 'object') && ((typeof b) === 'object')) {
+		if (Array.isArray(a) !== Array.isArray(b) || (a instanceof Map) !== (b instanceof Map)) return false;
 		const aks = Object.keys(a);
-		const bks = Object.keys(b as { [key: string]: JsonLike });
+		const bks = Object.keys(b);
 		if (aks.length !== bks.length) return false;
 		for (let i = 0; i < aks.length; i++) {
 			const k = aks[i];
-			if (!deepEqual((a as { [key: string]: JsonLike })[k], (b as { [key: string]: JsonLike })[k])) return false;
+			if (!Object.hasOwn(b, k) || !deepEqual(Reflect.get(a, k), Reflect.get(b, k))) return false;
 		}
 		return true;
 	}

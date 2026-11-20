@@ -85,16 +85,16 @@
 
 <script setup lang="ts">
 import { computed, ref, useTemplateRef } from 'vue';
-import { EFFECT_TAGS } from '@gs/subsystems_effect_shared/effect-definition.ts';
-import { isCustomShaderEffectReference } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
+import { EFFECT_TAGS } from '@/utility/effect-tags.ts';
 import GsEffectPickerEffect from './GsEffectPicker.Effect.vue';
 import GsNodePort from './GsNodePort.vue';
 import GsModal from './common/GsModal.vue';
 import GsInput from './common/GsInput.vue';
 import GsFolder from './common/GsFolder.vue';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { EffectDefinition, EffectTags } from '@gs/subsystems_effect_shared/effect-definition.ts';
-import { getEffectDefinitions } from '@/utility/project-effects.ts';
+import type { EffectChoice } from '@/utility/project-effects.ts';
+import type { EffectTags } from '@/utility/effect-tags.ts';
+import { listSelectableEffects } from '@/utility/project-effects.ts';
 import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import { getEffectInputPorts, getEffectOutputPorts } from '@/utility/effect-ports.ts';
@@ -102,7 +102,7 @@ import { createEffectSearchQuery, matchEffectName, compareEffectNameSearchMatche
 
 const projectSession = useProjectSession();
 
-const effectDefinitions = computed(() => getEffectDefinitions(projectSession.projectContext.stateManager.state));
+const effectDefinitions = computed(() => Object.fromEntries(listSelectableEffects(projectSession.projectContext.stateManager.state).map(choice => [JSON.stringify(choice.effectSource), choice])));
 
 const props = defineProps<{
 	selectedOutputType?: TextureDataType['kind'] | null;
@@ -110,7 +110,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-	(ev: 'chosen', effect: EffectDefinition): void;
+	(ev: 'chosen', effect: EffectChoice): void;
 	(ev: 'closed'): void;
 }>();
 
@@ -176,8 +176,8 @@ const isInitialView = computed(() => effectSearchQuery.value.terms.length === 0 
 	&& selectedInputType.value == null && selectedOutputType.value === (props.selectedOutputType ?? null));
 
 const effectSections = computed(() => [
-	{ id: 'customShaderEffects', label: i18n.ts._CustomShaderEffect.Title, effects: results.value.filter(([key]) => isCustomShaderEffectReference(key)) },
-	{ id: 'builtin', label: i18n.ts._EffectPicker.BuiltinEffects, effects: results.value.filter(([key]) => !isCustomShaderEffectReference(key)) },
+	{ id: 'customShaderEffects', label: i18n.ts._CustomShaderEffect.Title, effects: results.value.filter(([, effect]) => effect.effectSource.type === 'customShaderEffectReference') },
+	{ id: 'builtin', label: i18n.ts._EffectPicker.BuiltinEffects, effects: results.value.filter(([, effect]) => effect.effectSource.type === 'nativeEffect') },
 ].filter(section => section.effects.length > 0));
 
 function toggleTag(tag: EffectTags) {
@@ -208,7 +208,7 @@ function chooseFirstResult(event: KeyboardEvent) {
 	if (firstResult) choose(firstResult[0], firstResult[1]);
 }
 
-function choose(key: string, effect: EffectDefinition) {
+function choose(key: string, effect: EffectChoice) {
 	recentEffectKeys.value = [key, ...recentEffectKeys.value.filter(value => value !== key)].slice(0, maxRecentEffects);
 	try {
 		localStorage.setItem(recentEffectsStorageKey, JSON.stringify(recentEffectKeys.value));

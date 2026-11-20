@@ -27,9 +27,9 @@ function benchmark(count = 100, customNodeGraphEffectId = projectSessions.active
 	for (let i = 0; i < count; i++) {
 		projectSession.projectContext.stateManager.commit('createCustomNodeGraphEffectEffectNode', {
 			customNodeGraphEffect: { customNodeGraphEffectId },
-			effectId: 'blockShuffle',
+			effectSource: { type: 'nativeEffect', id: 'blockShuffle' },
 			connectionMode: preferences.s.customNodeGraphEffectAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none',
-			connectionTypePolicy: preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch',
+
 			parameters: {
 				seed: { inputSource: 'literal', value: Math.random() * 1000 },
 			},

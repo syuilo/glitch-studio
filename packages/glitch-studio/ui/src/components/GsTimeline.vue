@@ -177,7 +177,7 @@ import GsEffectPicker from './GsEffectPicker.vue';
 import type { TimelineContainerLayer, TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineClipSelection, TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
-import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import type { EffectChoice } from '@/utility/project-effects.ts';
 import { i18n } from '@/i18n.ts';
 import { getTimelineKeyframeEditTarget } from '@/utility/timeline-keyframe-edit.ts';
 import { useTimelineInteraction } from '@/composables/useTimelineInteraction.ts';
@@ -786,7 +786,7 @@ onBeforeUnmount(() => {
 	disposeEffectPicker?.();
 });
 
-function showEffectPicker(chosen: (definition: EffectDefinition) => void) {
+function showEffectPicker(chosen: (definition: EffectChoice) => void) {
 	disposeEffectPicker?.();
 	const { dispose } = ui.popup(GsEffectPicker, {
 		selectedOutputType: 'color',
@@ -803,15 +803,15 @@ function showEffectPicker(chosen: (definition: EffectDefinition) => void) {
 
 function showAddInlineEffectNodeMenu(layerId: string) {
 	const layer = sceneLayers.value.find(layer => layer.id === layerId);
-	if (layer?.layerType !== 'inlineCustomNodeGraphEffect') return;
+	if (layer?.layerType !== 'effect' || layer.effectSource.type !== 'inlineCustomNodeGraphEffect') return;
 	showEffectPicker(effect => {
 		// 選択変更やレイヤー削除を挟んでも、ピッカーを開いた対象にだけ追加する。
-		if (!isTimelineActive() || !sceneLayers.value.some(layer => layer.id === layerId && layer.layerType === 'inlineCustomNodeGraphEffect')) return;
+		if (!isTimelineActive() || !sceneLayers.value.some(layer => layer.id === layerId && layer.layerType === 'effect' && layer.effectSource.type === 'inlineCustomNodeGraphEffect')) return;
 		stateManager.commit('createCustomNodeGraphEffectEffectNode', {
-			customNodeGraphEffect: { sceneId: props.sceneId, inlineCustomNodeGraphEffectLayerId: layerId },
-			effectId: effect.id,
+			customNodeGraphEffect: { sceneId: props.sceneId, layerId: layerId },
+			effectSource: effect.effectSource,
 			connectionMode: preferences.s.customNodeGraphEffectAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none',
-			connectionTypePolicy: preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch',
+
 		});
 	});
 }

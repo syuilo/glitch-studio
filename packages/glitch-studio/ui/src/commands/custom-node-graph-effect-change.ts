@@ -1,9 +1,11 @@
+import { acceptsResolutionInput } from '@gs/subsystems_effect-new_shared/validate-effect-source.ts';
+import { editCustomNodeGraphEffectView } from '../utility/custom-node-graph-effect-view.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import type { Cloneable } from '@gs/shared/utility/deep-clone.ts';
 import { prepareProjectValueChange } from './prepared-value.ts';
-import { getCustomNodeGraphEffect } from '../utility/custom-node-graph-effect-target.ts';
+import { getCustomNodeGraphEffect, findCustomNodeGraphEffectOwner } from '../utility/custom-node-graph-effect-target.ts';
 import type { CustomNodeGraphEffectTarget } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectEffectNode } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectEffectNode } from '@/types/custom-node-graph-effect-view.ts';
 import type { AppStateChange, ProjectState } from '../Project.ts';
 import type { PreparedCommand } from '../utility/undo-redo.ts';
 
@@ -26,7 +28,13 @@ export function prepareCustomNodeGraphEffectValue<Value extends Cloneable, Resul
 	changes: AppStateChange[],
 	result: Result = undefined as Result,
 ): PreparedCommand<ProjectState, AppStateChange, Result> {
-	return prepareProjectValueChange({ before, after, write, changes, result });
+	const edit = changes.find(change => change.type === 'customNodeGraphEffect' || change.type === 'node' || change.type === 'nodeName');
+	return prepareProjectValueChange({ before, after, changes, result, write(state, value) {
+		if (edit == null) { write(state, value); return; }
+		const owner = findCustomNodeGraphEffectOwner(state, edit.target);
+		if (owner == null) throw new Error('Custom Node Graph Effect not found');
+		editCustomNodeGraphEffectView(owner, state, () => write(state, value), edit.type === 'customNodeGraphEffect' ? undefined : edit.nodeId, edit.type === 'nodeName');
+	} });
 }
 
 /** 複数の定義・接続を同時に変更する操作は、影響するフィールドだけを作業用に複製する。 */
@@ -41,6 +49,12 @@ export function prepareCustomNodeGraphEffectFields<Key extends keyof CustomNodeG
 	const before = Object.fromEntries(keys.map(key => [key, deepClone(customNodeGraphEffect[key])])) as Pick<CustomNodeGraphEffect, Key>;
 	const draft = { ...customNodeGraphEffect, ...deepClone(before) };
 	const result = edit(draft);
+	if (keys.some(key => key === 'resolutionInputParameters')) {
+		// 公開入力を削除・変更したときの解像度依存も、同じUndoで元の順番に戻す。
+		const parameters = new Map(draft.paramDefs.map(def => [def.id, def]));
+		const inputs = draft.resolutionInputParameters.map(id => id === customNodeGraphEffect.primaryInputId ? draft.primaryInputId : id);
+		draft.resolutionInputParameters = [...new Set(inputs.filter((id): id is string => id != null && acceptsResolutionInput(parameters.get(id))))];
+	}
 	const after = Object.fromEntries(keys.map(key => [key, draft[key]])) as Pick<CustomNodeGraphEffect, Key>;
 	return prepareCustomNodeGraphEffectValue(before, after, (currentState, values) => {
 		const current = getCustomNodeGraphEffect(currentState, target);

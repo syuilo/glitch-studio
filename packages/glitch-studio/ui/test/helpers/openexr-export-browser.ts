@@ -11,7 +11,7 @@ function request(compression: 'none' | 'zip', resolution = { width: 5, height: 2
 			resolution, timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 },
 			assets: [], customNodeGraphEffects: [], customShaderEffects: [], automationGraphs: [], generatedSpeech: [], sceneId: 'scene',
 			timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{
-				id: 'fill', name: 'Fill', color: null, isDisabled: false, isSolo: false, layerType: 'effect', effectId: 'fill', resolution: { mode: 'auto', scale: 1 },
+				id: 'fill', name: 'Fill', color: null, isDisabled: false, isSolo: false, layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'fill' }, resolution: { mode: 'auto', scale: 1 },
 				coordinateSpace: 'screen', mask: null, layerMask: null, isIncludedInComposite: true, forceDisableMotionBlur: false, effectStaticSettings: {},
 				effectParamValues: { color: { inputSource: 'literal', value: [4, -1, 0.5, 0.5] } },
 				compositingParamValues: Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, definition]) => [key, definition.defaultValue])) as TimelineEffectLayer['compositingParamValues'],

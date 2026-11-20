@@ -1,14 +1,12 @@
 import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import type { DeepReadonly } from 'vue';
-import type { CustomNodeGraphEffectLivePreviewEffectStatusSource } from '@gs/glitch-studio_renderer/custom-node-graph-effect-renderer-manager.ts';
+import type { EffectLivePreviewStatusSource } from '@gs/glitch-studio_renderer/effect-live-preview-manager.ts';
 import type { TimelineLayerStatusSource } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
-import type { ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectNode } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 
 export type RenderFailureOrigin =
-	| { source: CustomNodeGraphEffectLivePreviewEffectStatusSource; nodeId: string }
-	| { source: TimelineLayerStatusSource; nodeId?: string };
+	| { source: EffectLivePreviewStatusSource }
+	| { source: TimelineLayerStatusSource };
 
 export type RenderFailureDiagnostic = { message: string; origin?: RenderFailureOrigin };
 
@@ -16,25 +14,14 @@ function label(kind: string, id: string, name?: string | null): string {
 	return name ? `${kind} "${name}" (${id})` : `${kind} "${id}"`;
 }
 
-// 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
-function nodeLabel(customNodeGraphEffect: CustomNodeGraphEffect | null | undefined, nodeId: string): string {
-	const sourceNode: CustomNodeGraphEffectNode | null = customNodeGraphEffect?.nodes.find(node => node.id === nodeId) ?? null;
-	return label('Node', nodeId, sourceNode?.type === 'effect' ? sourceNode.displayName || sourceNode.effectId : sourceNode?.type === 'relay' ? sourceNode.label : null);
-}
-
 /**
  * 実行状態を破棄しても、通知元のIDから修正対象を表示する。
  * 同じ子Sceneの複数配置を区別するため、Scene境界では配置クリップも経路に含める。
  * 編集で参照先が消えた場合も、保持したIDを表示して診断の所在を失わない。
  */
-export function formatRenderFailureOrigin(origin: DeepReadonly<RenderFailureOrigin>, customNodeGraphEffects: readonly ProjectCustomNodeGraphEffect[], scenes: readonly TimelineScene[]): string {
-	const { source, nodeId } = origin;
-	if (source.type === 'customNodeGraphEffectLivePreview') {
-		const sourceCustomNodeGraphEffect = customNodeGraphEffects.find(customNodeGraphEffect => customNodeGraphEffect.id === source.customNodeGraphEffectId);
-		const parts = ['Custom Node Graph Effect Live Preview', label('Custom Node Graph Effect', source.customNodeGraphEffectId, sourceCustomNodeGraphEffect?.name)];
-		if (nodeId != null) parts.push(nodeLabel(sourceCustomNodeGraphEffect, nodeId));
-		return parts.join(' / ');
-	}
+export function formatRenderFailureOrigin(origin: DeepReadonly<RenderFailureOrigin>, scenes: readonly TimelineScene[]): string {
+	const { source } = origin;
+	if (source.type === 'effectLivePreview') return 'Effect Live Preview';
 	let currentScene = scenes.find(scene => scene.id === source.rootSceneId);
 	const parts = [label('Scene', source.rootSceneId, currentScene?.name)];
 	let layer: TimelineLayer | null = null;
@@ -51,11 +38,6 @@ export function formatRenderFailureOrigin(origin: DeepReadonly<RenderFailureOrig
 			const childSceneId = placementClip && 'sceneId' in placementClip ? placementClip.sceneId : null;
 			currentScene = scenes.find(scene => scene.id === childSceneId);
 		}
-	}
-	if (nodeId != null) {
-		const sourceCustomNodeGraphEffect = layer?.layerType === 'inlineCustomNodeGraphEffect' ? layer.customNodeGraphEffect
-			: layer?.layerType === 'customNodeGraphEffect' ? customNodeGraphEffects.find(customNodeGraphEffect => customNodeGraphEffect.id === layer.customNodeGraphEffectId) : null;
-		parts.push(nodeLabel(sourceCustomNodeGraphEffect, nodeId));
 	}
 	return parts.join(' / ');
 }

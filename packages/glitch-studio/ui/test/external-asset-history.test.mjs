@@ -11,10 +11,10 @@ const bundle = await build({
 	absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', write: false,
 	define: { _VERSION_: '"2.0.0-alpha"' },
 	plugins: [{ name: 'asset-history-dependencies', setup(build) {
-		build.onResolve({ filter: /effect-definitions\.[jt]s$|preferences\.ts$/ }, args => ({ path: args.path, namespace: 'test' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$|preferences\.ts$/ }, args => ({ path: args.path, namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts',
 			contents: path.endsWith('preferences.ts') ? 'export const preferences = { s: { forceTypeSafety: false } };'
-				: 'export const effectDefinitions = {};',
+				: 'export const nativeEffectDefinitions = {};',
 		}));
 	} }],
 });

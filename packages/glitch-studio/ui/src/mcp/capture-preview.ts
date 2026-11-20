@@ -65,7 +65,7 @@ export async function captureProjectPreview(session: ProjectSessionContext, maxi
 	const controller = session.activePreviewRenderer.value;
 	const canvasRevision = controller.canvasRevision.value;
 	const captured = await waitFor(playback.mode === 'customNodeGraphEffectLivePreview'
-		? session.customNodeGraphEffectRendererManagerController.capturePreview(maximumSize)
+		? session.effectLivePreviewManagerController.capturePreview(maximumSize)
 		: session.timelineRendererManagerController.capturePreview(maximumSize, session.previewPlayback.currentTimelineTime.value), lifetime);
 	lifetime.throwIfAborted();
 	if (session.isDisposed || controller !== session.activePreviewRenderer.value || canvasRevision !== controller.canvasRevision.value

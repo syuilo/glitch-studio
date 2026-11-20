@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { effectResolutionSchema, parameterExpressionModifierSchema, staticSettingValueSchema, structParameterFieldBindingsSchema } from './parameter-contract-schemas.ts';
-import { connectionTypePolicySchema, customNodeGraphEffectCustomParameterInputSchema, customNodeGraphEffectCustomParameterReferenceSchema, customNodeGraphEffectNodeParameterReferenceSchema, customNodeGraphEffectNodeReferenceSchema, customNodeGraphEffectOutputInputSchema, customNodeGraphEffectOutputReferenceSchema, customNodeGraphEffectParameterBindingSchema, customNodeGraphEffectParameterInputSourceSchema, customNodeGraphEffectParameterSourceSchema, customNodeGraphEffectPublicParameterIdSchema, customNodeGraphEffectPublicParameterInputSchema, customNodeGraphEffectPublicParameterReferenceSchema, customNodeGraphEffectTargetSchema, customNodeGraphEffectValueParameterBindingSchema, customNodeGraphEffectValueParameterInputSourceSchema, customNodeGraphEffectValueParameterSourceSchema } from './custom-node-graph-effect-contract-schemas.ts';
+import { customNodeGraphEffectCustomParameterInputSchema, customNodeGraphEffectCustomParameterReferenceSchema, customNodeGraphEffectNodeParameterReferenceSchema, customNodeGraphEffectNodeReferenceSchema, customNodeGraphEffectOutputInputSchema, customNodeGraphEffectOutputReferenceSchema, customNodeGraphEffectParameterBindingSchema, customNodeGraphEffectParameterInputSourceSchema, customNodeGraphEffectParameterSourceSchema, customNodeGraphEffectPublicParameterIdSchema, customNodeGraphEffectPublicParameterInputSchema, customNodeGraphEffectPublicParameterReferenceSchema, customNodeGraphEffectTargetSchema, customNodeGraphEffectValueParameterBindingSchema, customNodeGraphEffectValueParameterInputSourceSchema, customNodeGraphEffectValueParameterSourceSchema } from './custom-node-graph-effect-contract-schemas.ts';
 
-const nodeSetup = 'let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\nlet node = Command:createCustomNodeGraphEffectEffectNode({ customNodeGraphEffect: customNodeGraphEffect, effectId: "fill" })\n';
+const nodeSetup = 'let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\nlet node = Command:createCustomNodeGraphEffectEffectNode({ customNodeGraphEffect: customNodeGraphEffect, effectSource: { type: "nativeEffect", id: "fill" } })\n';
 const customParameterSetup = nodeSetup + 'let parameter = Command:createCustomNodeGraphEffectCustomParameterFromParameter({ target: node, parameterPath: ["color"] })\n';
 const publicParameterSetup = nodeSetup + 'let parameter = Command:createCustomNodeGraphEffectPublicParameterFromParameter({ target: node, parameterPath: ["color"] })\n';
 const outputSetup = 'let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\nlet output = Command:createCustomNodeGraphEffectOutput({ customNodeGraphEffect: customNodeGraphEffect, definition: { name: "auxiliary", label: "Auxiliary", dataType: { kind: "color" } } })\n';
@@ -12,9 +12,9 @@ const scalarDefinition = '{ nameForReference: "amount", dataType: { kind: "scala
 // 保存形式の形は再利用し、修飾式の保持・入力方式切替など操作固有の意味はここで説明する。
 export const CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS = {
 	setCustomNodeGraphEffectNodeParameterSource: {
-		description: 'Set a leaf parameter input source while preserving its expression modifier. Literal values use the parameter dataType; colors are linear sRGB and positions use the shared spatial units. preserveNodeSampling keeps the existing sampling settings when reconnecting an already connected node. connectionTypePolicy defaults to strict.',
+		description: 'Set a leaf parameter input source while preserving its expression modifier. Literal values use the parameter dataType; colors are linear sRGB and positions use the shared spatial units. preserveNodeSampling keeps the existing sampling settings when reconnecting an already connected node.',
 		examples: [nodeSetup + 'Command:setCustomNodeGraphEffectNodeParameterSource({ target: node, parameterPath: ["color"], source: { inputSource: "literal", value: [1, 0.2, 0.1, 1] } })'],
-		inputSchema: customNodeGraphEffectNodeParameterReferenceSchema.extend({ source: customNodeGraphEffectParameterSourceSchema, preserveNodeSampling: z.boolean().nullish(), connectionTypePolicy: connectionTypePolicySchema.nullish() }), resultSchema: z.null(),
+		inputSchema: customNodeGraphEffectNodeParameterReferenceSchema.extend({ source: customNodeGraphEffectParameterSourceSchema, preserveNodeSampling: z.boolean().nullish() }), resultSchema: z.null(),
 	},
 	switchCustomNodeGraphEffectNodeParameterInputSource: {
 		description: 'Switch a leaf parameter to an input source with initial settings chosen for that parameter. Preserves a compatible expression modifier. This does not set the expression, connection, or reference itself; configure it with setCustomNodeGraphEffectNodeParameterSource afterwards.',
@@ -27,9 +27,9 @@ export const CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS = {
 		inputSchema: customNodeGraphEffectNodeParameterReferenceSchema.extend({ expressionModifier: parameterExpressionModifierSchema.nullable() }), resultSchema: z.null(),
 	},
 	replaceCustomNodeGraphEffectNodeParameterBinding: {
-		description: 'Replace the entire parameter binding, including its expression modifier. An omitted modifier removes the previous one. Container bindings must preserve valid struct fields or array element IDs. connectionTypePolicy defaults to strict.',
+		description: 'Replace the entire parameter binding, including its expression modifier. An omitted modifier removes the previous one. Container bindings must preserve valid struct fields or array element IDs.',
 		examples: [nodeSetup + 'Command:replaceCustomNodeGraphEffectNodeParameterBinding({ target: node, parameterPath: ["color"], binding: { inputSource: "literal", value: [0, 0, 0, 1] } })'],
-		inputSchema: customNodeGraphEffectNodeParameterReferenceSchema.extend({ binding: customNodeGraphEffectParameterBindingSchema, connectionTypePolicy: connectionTypePolicySchema.nullish() }), resultSchema: z.null(),
+		inputSchema: customNodeGraphEffectNodeParameterReferenceSchema.extend({ binding: customNodeGraphEffectParameterBindingSchema }), resultSchema: z.null(),
 	},
 	resetCustomNodeGraphEffectNodeParameter: {
 		description: 'Reset the parameter binding to its definition default, removing input references and expression modifiers. Array defaults receive fresh element IDs.',
@@ -72,9 +72,9 @@ export const CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS = {
 		inputSchema: z.object({ target: customNodeGraphEffectNodeReferenceSchema, resolution: effectResolutionSchema }), resultSchema: z.null(),
 	},
 	setCustomNodeGraphEffectOutputConnection: {
-		description: 'Connect a Custom Node Graph Effect output to an output port on a node in the same Custom Node Graph Effect. source: null disconnects it. Output port identifiers come from the node\'s effect definition. connectionTypePolicy defaults to strict.',
+		description: 'Connect a Custom Node Graph Effect output to an output port on a node in the same Custom Node Graph Effect. source: null disconnects it. Output port identifiers come from the node\'s effect definition.',
 		examples: [nodeSetup + 'let customNodeGraphEffectState = Query:getCustomNodeGraphEffect(customNodeGraphEffect)\nCommand:setCustomNodeGraphEffectOutputConnection({ target: { customNodeGraphEffect: customNodeGraphEffect, outputId: customNodeGraphEffectState.primaryOutputId }, source: { nodeId: node.nodeId, outputPort: "output" } })'],
-		inputSchema: z.object({ target: customNodeGraphEffectOutputReferenceSchema, source: z.object({ nodeId: z.string(), outputPort: z.string() }).nullable(), connectionTypePolicy: connectionTypePolicySchema.nullish() }), resultSchema: z.null(),
+		inputSchema: z.object({ target: customNodeGraphEffectOutputReferenceSchema, source: z.object({ nodeId: z.string(), outputPort: z.string() }).nullable() }), resultSchema: z.null(),
 	},
 	setCustomNodeGraphEffectPrimaryInput: {
 		description: 'Choose the node-capable color public parameter used as the primary image input. null clears the designation. The parameter must belong to this Custom Node Graph Effect.',

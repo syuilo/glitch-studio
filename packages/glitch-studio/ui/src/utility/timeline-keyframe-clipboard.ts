@@ -139,7 +139,7 @@ export function getTimelineKeyframePasteUpdates(state: ParameterState, scene: Ti
 			if (!next) return null;
 			resolved.setValue(next);
 			update.after = draft[paramId];
-			validateTimelineParameterTree(defs[paramId], update.after, entry.target === 'effect' || entry.target === 'customNodeGraphEffect', entry.target === 'effect' || entry.target === 'customNodeGraphEffect');
+			validateTimelineParameterTree(defs[paramId], update.after, entry.target === 'effect', entry.target === 'effect');
 		}
 	} catch { return null; }
 	// 配列・構造体の別レーンも同じルートへまとめ、順番に保存して上書きし合わないようにする。

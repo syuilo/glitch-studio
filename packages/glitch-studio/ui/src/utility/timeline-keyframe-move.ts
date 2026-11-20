@@ -55,7 +55,7 @@ export function prepareTimelineKeyframeMove(state: Pick<ProjectState, 'customNod
 		const point = binding.inputSource === 'keyframesTimelineInline' ? binding.keyframesTimeline.keyframes.find(point => point.id === position.keyframeId) : null;
 		if (!point) throw new Error('Timeline keyframe not found');
 		point.x = position.x;
-		validateTimelineParameterTree(definitions[paramId], update.after, position.target === 'effect' || position.target === 'customNodeGraphEffect', position.target === 'effect' || position.target === 'customNodeGraphEffect');
+		validateTimelineParameterTree(definitions[paramId], update.after, position.target === 'effect', position.target === 'effect');
 		parameters.set(rootKey, update);
 	}
 	for (const update of speeches.values()) {

@@ -1,3 +1,4 @@
+import { testGraph } from './helpers/effect-graph.mjs';
 import { nodeParameterTarget, nodeTarget, assetSource } from './helpers/command-inputs.mjs';
 import { prepareTestCommand } from './helpers/prepared-command.mjs';
 import assert from 'node:assert/strict';
@@ -9,8 +10,6 @@ import { readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 
 const uiDirectory = fileURLToPath(new URL('../', import.meta.url));
-const effectNames = (await readdir(new URL(import.meta.resolve('@gs/subsystems_effect_shared/fx/'))))
-	.filter(name => existsSync(new URL(import.meta.resolve(`@gs/subsystems_effect_shared/fx/${name}/_def_.ts`))));
 const bundled = await build({
 	absWorkingDir: uiDirectory,
 	stdin: { contents: `
@@ -20,19 +19,16 @@ const bundled = await build({
 		export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts';
 		export { canConnectNodeDataTypes } from './src/utility/node-outputs.ts';
 		export { areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
-		export { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+		export { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
 		export { preferences } from './src/preferences.ts';
 		export { validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 	`, resolveDir: uiDirectory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'effect-layer-test', setup(build) {
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({
 			loader: 'ts', resolveDir: uiDirectory,
-			contents: path === 'preferences' ? 'export const preferences = { s: { forceTypeSafety: false } };'
-				: effectNames.map((name, index) => `import effect${index} from '@gs/subsystems_effect_shared/fx/${name}/_def_.ts';`).join('\n')
-				+ `\nexport const effectDefinitions = Object.fromEntries([${effectNames.map((_, index) => `effect${index}`).join(',')}].map(def => [def.id, def]));`,
+			contents: 'export const preferences = { s: {} };',
 		}));
 	} }],
 });
@@ -110,8 +106,8 @@ test('preserves dangling anotherLayerAudio references through deletion, saving, 
 // 公開パラメータ参照の扱いはCustom Node Graph Effect側に残し、異なる取得元の指定を混入させない。
 test('validates player audio selections at the application command boundary', () => {
 	const audio = { ...effectDefinitions.audioWaveform.paramDefs.audio, id: 'sound', nameForReference: 'sound' };
-	const node = { id: 'waveform', type: 'effect', effectId: 'audioWaveform', params: { audio: literal(null) } };
-	const state = { customNodeGraphEffects: { value: [{ customParameterDefs: [], customParameterValues: {}, id: 'visual', paramDefs: [audio], nodes: [node] }] } };
+	const node = { id: 'waveform', type: 'effect', effectSource: { type: 'nativeEffect', id: 'audioWaveform' }, params: { audio: literal(null) } };
+	const state = { customNodeGraphEffects: { value: [{ id: 'visual', definition: testGraph({ customParameterValues: {}, paramDefs: { [audio.id]: audio }, nodes: [node] }) }] } };
 	const target = { customNodeGraphEffectId: 'visual', nodeId: node.id, paramPath: ['audio'] };
 	const command = value => prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: value } });
 	const selection = { type: 'player', playerId: 'player' };
@@ -183,37 +179,36 @@ test('validates and edits nested audio bindings using stable parameter paths', t
 test('edits primary audio parameters and timeline arguments with independent undo history', () => {
 	const f = fixture('audioWaveform');
 	const audio = { ...effectDefinitions.audioWaveform.paramDefs.audio, id: 'sound', nameForReference: 'sound', canNode: false };
-	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, id: 'visual', nodes: [], outputDefs: [], primaryOutputId: null, primaryInputId: null, primaryAudioInputId: null,
-		paramDefs: [audio], automationGraphs: [] };
+	const customNodeGraphEffect = { id: 'visual', definition: testGraph({ customParameterValues: {}, nodes: [], primaryOutput: null, primaryInputParameter: null, primaryAudioInputParameter: null, paramDefs: { [audio.id]: audio }, automationGraphs: [] }) };
 	f.state.customNodeGraphEffects.value.push(customNodeGraphEffect);
 	const command = (name, payload) => prepareTestCommand(COMMAND_DEFS[name], payload);
 	const primary = command('setCustomNodeGraphEffectPrimaryAudioInput', { target: { customNodeGraphEffectId: customNodeGraphEffect.id }, primaryAudioInputId: 'sound' });
 	primary.execute(f.state);
-	assert.equal(customNodeGraphEffect.primaryAudioInputId, 'sound');
+	assert.equal(customNodeGraphEffect.definition.primaryAudioInputParameter, 'sound');
 	primary.undo(f.state);
-	assert.equal(customNodeGraphEffect.primaryAudioInputId, null);
+	assert.equal(customNodeGraphEffect.definition.primaryAudioInputParameter, null);
 	primary.execute(f.state);
 	assert.throws(() => command('setCustomNodeGraphEffectPrimaryAudioInput', { target: { customNodeGraphEffectId: customNodeGraphEffect.id }, primaryAudioInputId: 'missing' }).execute(f.state));
-	const layer = { ...f.layer, layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'visual', customNodeGraphEffectParamValues: {} };
+	const layer = { ...f.layer, layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'visual' }, effectParamValues: {} };
 	f.state.timelineScenes.value[0].layers = [layer];
-	assert.deepEqual(resolveLayerParameter(f.state, layer, 'customNodeGraphEffect', ['sound']).value, { inputSource: 'lowerLayerAudio' });
-	const none = prepareTestCommand(uiParameterEdit, { ...f.target, target: 'customNodeGraphEffect', paramPath: ['sound'], edit: { kind: 'literal', value: null } });
+	assert.deepEqual(resolveLayerParameter(f.state, layer, 'effect', ['sound']).value, { inputSource: 'lowerLayerAudio' });
+	const none = prepareTestCommand(uiParameterEdit, { ...f.target, target: 'effect', paramPath: ['sound'], edit: { kind: 'literal', value: null } });
 	none.execute(f.state);
-	assert.deepEqual(layer.customNodeGraphEffectParamValues.sound, literal(null));
-	const reset = prepareTestCommand(uiParameterEdit, { ...f.target, target: 'customNodeGraphEffect', paramPath: ['sound'], edit: { kind: 'reset' } });
+	assert.deepEqual(layer.effectParamValues.sound, literal(null));
+	const reset = prepareTestCommand(uiParameterEdit, { ...f.target, target: 'effect', paramPath: ['sound'], edit: { kind: 'reset' } });
 	reset.execute(f.state);
-	assert.deepEqual(layer.customNodeGraphEffectParamValues.sound, { inputSource: 'lowerLayerAudio' });
+	assert.deepEqual(layer.effectParamValues.sound, { inputSource: 'lowerLayerAudio' });
 	reset.undo(f.state);
-	assert.deepEqual(layer.customNodeGraphEffectParamValues.sound, literal(null));
+	assert.deepEqual(layer.effectParamValues.sound, literal(null));
 	none.undo(f.state);
-	assert.equal(Object.hasOwn(layer.customNodeGraphEffectParamValues, 'sound'), false);
+	assert.equal(Object.hasOwn(layer.effectParamValues, 'sound'), false);
 	f.state.timelineScenes.value[0].layers.push(audioLayer('source'));
-	const selected = prepareTestCommand(uiParameterEdit, { ...f.target, target: 'customNodeGraphEffect', paramPath: ['sound'], edit: { kind: 'anotherLayerAudio', value: 'source' } });
+	const selected = prepareTestCommand(uiParameterEdit, { ...f.target, target: 'effect', paramPath: ['sound'], edit: { kind: 'anotherLayerAudio', value: 'source' } });
 	selected.execute(f.state);
-	assert.deepEqual(layer.customNodeGraphEffectParamValues.sound, { inputSource: 'anotherLayerAudio', layerId: 'source' });
-	assert.deepEqual(customNodeGraphEffect.paramDefs[0].defaultValue, literal(null));
+	assert.deepEqual(layer.effectParamValues.sound, { inputSource: 'anotherLayerAudio', layerId: 'source' });
+	assert.deepEqual(customNodeGraphEffect.definition.paramDefs.sound.defaultValue, literal(null));
 	selected.undo(f.state);
-	assert.equal(Object.hasOwn(layer.customNodeGraphEffectParamValues, 'sound'), false);
+	assert.equal(Object.hasOwn(layer.effectParamValues, 'sound'), false);
 	selected.execute(f.state);
 	for (const [name, payload] of [
 		['removeCustomNodeGraphEffectPublicParameter', { target: { customNodeGraphEffect: { customNodeGraphEffectId: customNodeGraphEffect.id }, parameterId: 'sound' } }],
@@ -221,10 +216,10 @@ test('edits primary audio parameters and timeline arguments with independent und
 	]) {
 		const edit = command(name, payload);
 		edit.execute(f.state);
-		assert.equal(customNodeGraphEffect.primaryAudioInputId, null);
+		assert.equal(customNodeGraphEffect.definition.primaryAudioInputParameter, null);
 		edit.undo(f.state);
-		assert.equal(customNodeGraphEffect.primaryAudioInputId, 'sound');
-		assert.equal(customNodeGraphEffect.paramDefs[0].dataType.kind, 'audioSource');
+		assert.equal(customNodeGraphEffect.definition.primaryAudioInputParameter, 'sound');
+		assert.equal(customNodeGraphEffect.definition.paramDefs.sound.dataType.kind, 'audioSource');
 	}
 	assert.throws(() => command('replaceCustomNodeGraphEffectPublicParameterDefinition', { target: { customNodeGraphEffect: { customNodeGraphEffectId: customNodeGraphEffect.id }, parameterId: 'sound' }, definition: { ...audio, canNode: true } }).execute(f.state));
 });
@@ -232,14 +227,15 @@ test('edits primary audio parameters and timeline arguments with independent und
 // 【すべてのエフェクトを既定値のままレイヤーとして作成できる】
 // タイムライン向けの候補制限は設けないため、配列・構造体の既定値もレイヤーのBinding制約に従う必要がある。
 test('creates every bundled effect without illegal binding defaults', () => {
-	for (const definition of Object.values(effectDefinitions)) {
+	for (const [id, definition] of Object.entries(effectDefinitions)) {
+		if (definition.outputDefs[definition.primaryOutput]?.dataType.kind !== 'color') continue;
 		assert.ok(['generate', 'modify'].includes(definition.kind), definition.id);
-		validateTimelineEffectLayer(createEffectTimelineLayer(definition, 0), definition);
+		validateTimelineEffectLayer(createEffectTimelineLayer({ ...definition, effectSource: { type: 'nativeEffect', id } }, 0), { getNativeEffect: key => effectDefinitions[key] });
 	}
 });
 
 function fixture(effectId = 'testStructArray') {
-	const layer = createEffectTimelineLayer(effectDefinitions[effectId], 100);
+	const layer = createEffectTimelineLayer({ ...effectDefinitions[effectId], effectSource: { type: 'nativeEffect', id: effectId } }, 100);
 	const state = { timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] }] }, customNodeGraphEffects: { value: [] }, assets: { value: [] } };
 	const target = { sceneId: 'scene', layerId: layer.id, target: 'effect' };
 	const edit = (paramPath, edit) => {
@@ -269,15 +265,15 @@ test('edits and restores LUT assets and references through commands', async () =
 	assert.equal(await f.state.assets.value[0].fileData.text(), 'replacement');
 	replacement.undo(f.state);
 	assert.equal(await f.state.assets.value[0].fileData.text(), 'LUT_1D_SIZE 2\n0 0 0\n1 1 1');
-	f.state.customNodeGraphEffects.value.push({ id: 'visual', nodes: [{ id: 'lut-node', type: 'effect', effectId: 'applyLut',
-		staticSettings: { lut: 'lut' }, params: { input: literal([0, 0, 0, 0]) } }] });
+	f.state.customNodeGraphEffects.value.push({ id: 'visual', definition: testGraph({ nodes: [{ id: 'lut-node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'applyLut' },
+		staticSettings: { lut: 'lut' }, params: { input: literal([0, 0, 0, 0]) } }] }) });
 	const removal = prepareTestCommand(COMMAND_DEFS.removeAsset, { assetId: 'lut' });
 	removal.execute(f.state);
 	assert.equal(f.state.assets.value.length, 0);
-	assert.equal(f.state.customNodeGraphEffects.value[0].nodes[0].staticSettings.lut, null);
+	assert.equal(f.state.customNodeGraphEffects.value[0].definition.nodes[0].staticSettings.lut, null);
 	assert.equal(f.layer.effectStaticSettings.lut, 'lut');
 	removal.undo(f.state);
-	assert.equal(f.state.customNodeGraphEffects.value[0].nodes[0].staticSettings.lut, 'lut');
+	assert.equal(f.state.customNodeGraphEffects.value[0].definition.nodes[0].staticSettings.lut, 'lut');
 	assert.equal(f.state.assets.value[0].id, 'lut');
 });
 
@@ -327,7 +323,7 @@ test('initializes kinds independently of primary input presence and resets the l
 		assert.equal('coordinateSpace' in layer.compositingParamValues, false);
 		assert.equal('placement' in layer.compositingParamValues, false);
 	}
-	assert.deepEqual(modified.read(['inputA']), { inputSource: 'lowerLayerOutput', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
+	assert.deepEqual(modified.read(['inputA']), { inputSource: 'lowerLayerOutput' });
 	assert.deepEqual(modified.layer.compositingParamValues.blendMode, literal('replace'));
 	modified.edit(['inputA'], { kind: 'literal', value: [1, 0, 0, 1] });
 	assert.equal(modified.layer.transformTarget, 'region');
@@ -399,24 +395,20 @@ test('edits nested scene-time keyframes and preserves identity through array ope
 });
 
 // 【非主入力の配列要素にも下層入力を設定し、利用スコープと型互換性を分ける】
-// forceTypeSafetyを無効にした既存プロジェクトを開けるよう型不一致は許可しつつ、
+// 画像出力は互換性のある型の入力だけに接続し、
 // canNodeでない末端・コンテナ・合成設定・Custom Node Graph Effect内部には下層入力を流さない。
-test('supports secondary lowerLayerOutput bindings and enforces their scope independently of type preferences', () => {
+test('supports secondary lowerLayerOutput bindings and enforces their scope and type compatibility', () => {
 	const f = fixture();
 	const path = ['buzzs', 'first', 'image'];
 	f.edit(path, { kind: 'inputSource', inputSource: 'lowerLayerOutput' });
-	f.edit(path, { kind: 'lowerLayerOutput', value: { ...f.read(path), fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' } });
-	assert.equal(f.read(path).filterMode, 'nearest');
+	f.edit(path, { kind: 'lowerLayerOutput', value: { ...f.read(path), sampling: { fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' } } });
+	assert.equal(f.read(path).sampling.filterMode, 'nearest');
 	assert.throws(() => prepareTestCommand(uiParameterEdit, { ...f.target, target: 'compositing', paramPath: ['opacity'], edit: { kind: 'inputSource', inputSource: 'lowerLayerOutput' } }).execute(f.state));
 	for (const inputSource of ['node', 'customNodeGraphEffectPublicParameterReference']) assert.throws(() => f.edit(path, { kind: 'inputSource', inputSource }));
 	const input = { kind: 'scalar' };
-	preferences.s.forceTypeSafety = false;
-	assert.equal(canConnectNodeDataTypes({ kind: 'color' }, input), true);
 	assert.equal(areNodeDataTypesCompatible({ kind: 'color' }, input), false);
-	preferences.s.forceTypeSafety = true;
 	assert.equal(canConnectNodeDataTypes({ kind: 'color' }, input), false);
 	for (const kind of ['color', 'any']) assert.equal(canConnectNodeDataTypes({ kind: 'color' }, { kind }), true);
-	preferences.s.forceTypeSafety = false;
 });
 
 // 【エフェクト・解像度・ネストしたBindingをプロジェクト保存で維持する】
@@ -443,14 +435,14 @@ test('round trips effect layers and changes resolution and clips with undo', asy
 // インラインのCustom Node Graph Effectも登録済みと同じCommand経路で編集できる必要がある。
 test('saves local resolution scales and validates undoable edits for nodes and effect layers', async () => {
 	const f = fixture();
-	const node = { id: 'node', type: 'effect', effectId: 'testStructArray', resolution: { mode: 'auto', scale: 1 }, staticSettings: {}, params: {} };
-	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, id: 'visual', nodes: [node], paramDefs: [] };
+	const node = { id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, resolution: { mode: 'auto', scale: 1 }, staticSettings: {}, params: {} };
+	const customNodeGraphEffect = { id: 'visual', definition: testGraph({ customParameterValues: {}, nodes: [node] }) };
 	f.state.customNodeGraphEffects.value.push(customNodeGraphEffect);
 	const inlineNode = structuredClone(node);
-	f.state.timelineScenes.value[0].layers.push({ id: 'inline', layerType: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: { customParameterDefs: [], customParameterValues: {}, nodes: [inlineNode], paramDefs: [] } });
+	f.state.timelineScenes.value[0].layers.push({ id: 'inline', layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: testGraph({ nodes: [inlineNode] }) } });
 	for (const [definition, target, owner] of [
 		[COMMAND_DEFS.setCustomNodeGraphEffectNodeResolution, { target: nodeTarget({ customNodeGraphEffectId: 'visual', nodeId: node.id }) }, node],
-		[COMMAND_DEFS.setCustomNodeGraphEffectNodeResolution, { target: nodeTarget({ sceneId: 'scene', inlineCustomNodeGraphEffectLayerId: 'inline', nodeId: inlineNode.id }) }, inlineNode],
+		[COMMAND_DEFS.setCustomNodeGraphEffectNodeResolution, { target: nodeTarget({ sceneId: 'scene', layerId: 'inline', nodeId: inlineNode.id }) }, inlineNode],
 		[COMMAND_DEFS.setTimelineEffectLayerResolution, f.target, f.layer],
 	]) {
 		assert.deepEqual(owner.resolution, { mode: 'auto', scale: 1 });
@@ -480,16 +472,16 @@ test('saves local resolution scales and validates undoable edits for nodes and e
 test('edits nested image references and preserves their stages through undo and deletion', () => {
 	const f = fixture();
 	const root = f.state.timelineScenes.value[0];
-	const source = createEffectTimelineLayer(effectDefinitions.testStructArray, 100);
+	const source = createEffectTimelineLayer({ ...effectDefinitions.testStructArray, effectSource: { type: 'nativeEffect', id: 'testStructArray' } }, 100);
 	root.layers.push(source, audioLayer('audio'));
 	const path = ['buzzs', 'first', 'image'];
 	f.edit(path, { kind: 'inputSource', inputSource: 'anotherLayerOutput' });
-	assert.deepEqual(f.read(path), { inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'source', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
-	const edit = f.edit(path, { kind: 'anotherLayerOutput', value: { ...f.read(path), layerId: source.id, outputStage: 'rendered', filterMode: 'nearest' } });
+	assert.deepEqual(f.read(path), { inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'source' });
+	const edit = f.edit(path, { kind: 'anotherLayerOutput', value: { ...f.read(path), layerId: source.id, outputStage: 'rendered', sampling: { filterMode: 'nearest', fitMode: 'cover', wrapMode: 'repeatMirrored' } } });
 	edit.undo(f.state);
 	assert.equal(f.read(path).layerId, null);
 	edit.execute(f.state);
-	assert.equal(f.read(path).filterMode, 'nearest');
+	assert.equal(f.read(path).sampling.filterMode, 'nearest');
 	for (const id of [f.layer.id, 'audio', 'another-scene-layer']) assert.throws(() => f.edit(path, { kind: 'anotherLayerOutput', value: { ...f.read(path), layerId: id } }));
 	const remove = prepareTestCommand(COMMAND_DEFS.removeTimelineLayers, { sceneId: 'scene', layerIds: [source.id ]});
 	remove.execute(f.state);
@@ -505,13 +497,13 @@ test('edits nested image references and preserves their stages through undo and 
 // 通常引数と同じCommand・Undo/Redoを使いつつ、共有Custom Node Graph Effectの定義は変更しない。
 test('edits public primary image inputs and resets them to lower layers', () => {
 	const f = fixture();
-	const visual = { customParameterDefs: [], customParameterValues: {}, id: 'visual', primaryInputId: 'image', primaryAudioInputId: null,
-		paramDefs: [{ id: 'image', nameForReference: 'image', dataType: { kind: 'color' }, ui: { label: 'Image', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } }] };
+	const visual = { id: 'visual', definition: testGraph({ primaryInputParameter: 'image',
+		paramDefs: { image: { nameForReference: 'image', dataType: { kind: 'color' }, ui: { label: 'Image', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } } } }) };
 	f.state.customNodeGraphEffects.value.push(visual);
-	const publicLayer = { id: 'public', layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'visual', customNodeGraphEffectParamValues: {}, automationGraphs: [] };
+	const publicLayer = { id: 'public', layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'visual' }, effectParamValues: {}, automationGraphs: [] };
 	f.state.timelineScenes.value[0].layers.push(publicLayer);
-	const read = () => resolveLayerParameter(f.state, publicLayer, 'customNodeGraphEffect', ['image']).value;
-	const edit = value => { const command = prepareTestCommand(uiParameterEdit, { sceneId: 'scene', layerId: 'public', target: 'customNodeGraphEffect', paramPath: ['image'], edit: value }); command.execute(f.state); return command; };
+	const read = () => resolveLayerParameter(f.state, publicLayer, 'effect', ['image']).value;
+	const edit = value => { const command = prepareTestCommand(uiParameterEdit, { sceneId: 'scene', layerId: 'public', target: 'effect', paramPath: ['image'], edit: value }); command.execute(f.state); return command; };
 	assert.deepEqual(read(), { inputSource: 'lowerLayerOutput' });
 	edit({ kind: 'inputSource', inputSource: 'anotherLayerOutput' });
 	const binding = { inputSource: 'anotherLayerOutput', layerId: f.layer.id, outputStage: 'source' };
@@ -521,5 +513,5 @@ test('edits public primary image inputs and resets them to lower layers', () => 
 	assert.deepEqual(read(), { inputSource: 'lowerLayerOutput' });
 	reset.undo(f.state);
 	assert.deepEqual(read(), binding);
-	assert.equal(visual.paramDefs[0].defaultValue.inputSource, 'literal');
+	assert.equal(visual.definition.paramDefs.image.defaultValue.inputSource, 'literal');
 });

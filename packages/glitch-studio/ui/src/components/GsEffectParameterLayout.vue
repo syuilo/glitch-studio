@@ -43,8 +43,8 @@
 import { computed, inject, shallowRef, watchEffect } from 'vue';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import GsNodePort from './GsNodePort.vue';
-import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
-import type { EffectParameterLayoutItem, EffectParameterSection } from '@gs/subsystems_effect_shared/effect-parameter-layout.ts';
+import type { EffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import type { EffectParameterLayoutItem, EffectParameterSection } from '@gs/subsystems_effect-new_shared/effect-parameter-layout.ts';
 import type { EditableParameterBinding } from '@/types/parameter-edit.ts';
 import { useProjectSession } from '@/project-session.ts';
 import { preferences } from '@/preferences.ts';
@@ -84,7 +84,7 @@ const parameterKeys = computed(() => {
 });
 const hasConnectedParameters = computed(() => parameterKeys.value.some(key => connectedParameterPathKeys?.value.has(paramPathKey([key])) === true));
 const expanded = useParameterExpansionState(projectSession,
-	() => ['effectParameterSection', props.node?.id ?? null, props.previewParameterGroup ?? null, props.definition.id, props.section?.id ?? null],
+	() => ['effectParameterSection', props.node?.id ?? null, props.previewParameterGroup ?? null, props.section?.id ?? null],
 	() => props.section?.defaultExpanded ?? true);
 
 function isVisible(parameterKey: string): boolean {

@@ -20,7 +20,7 @@ const result = await build({
 	plugins: [i18nPlugin, { name: 'timeline-sfc', setup(build) {
 		build.onResolve({ filter: /^test:metrics$/ }, () => ({ path: 'metrics', namespace: 'test' }));
 		build.onResolve({ filter: /^@\/(?:app|project-session)\.ts$/ }, () => ({ path: 'app', namespace: 'test' }));
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onResolve({ filter: /Gs(CondensedLine|Button)\.vue$/ }, () => ({ path: 'label', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', contents: {
 			metrics: 'export const updates = new Map(); export const mounts = new Map();',
@@ -28,7 +28,7 @@ const result = await build({
 				state: { assets: ref([{ id: 'sound', name: 'Sound' }]), timelineScenes: ref([]), customNodeGraphEffects: ref([]), generatedSpeech: ref([]) },
 				commit: (...args) => commits.push(args),
 			} } };`,
-			effects: 'export const effectDefinitions = {};',
+			effects: 'export const nativeEffectDefinitions = {};',
 			label: "import { h } from 'vue'; export default { setup: (_, { slots }) => () => h('span', slots.default?.()) };",
 		}[path] }));
 		build.onLoad({ filter: /\.vue$/ }, async ({ path }) => {

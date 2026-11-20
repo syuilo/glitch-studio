@@ -1,12 +1,11 @@
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { preserveParameterExpressionModifier, supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
-import { customNodeGraphEffectPublicParameterId, customNodeGraphEffectCustomParameterId } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
-import { validateCustomNodeGraphEffectCustomParameterBinding } from '@gs/subsystems_custom-node-graph-effect_shared/custom-parameters.ts';
+import { validateCustomNodeGraphEffectCustomParameterBinding } from '@/utility/custom-node-graph-effect-view-parameters.ts';
 import { createResetParameterBinding } from './parameter-default.ts';
 import { createInlineAutomationGraph } from './automation-graph.ts';
 import { createInlineKeyframesTimeline } from './keyframes-timeline.ts';
-import type { CustomNodeGraphEffectCustomParameterDefinition, CustomNodeGraphEffectValueParameterBinding } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffectCustomParameterDefinition, CustomNodeGraphEffectValueParameterBinding } from '@/types/custom-node-graph-effect-view.ts';
 import type { CustomNodeGraphEffectValueParameterEdit } from '../types/parameter-edit.ts';
 
 export function editCustomNodeGraphEffectCustomParameterBinding(definition: CustomNodeGraphEffectCustomParameterDefinition, current: CustomNodeGraphEffectValueParameterBinding, edit: CustomNodeGraphEffectValueParameterEdit): CustomNodeGraphEffectValueParameterBinding {
@@ -33,8 +32,8 @@ export function editCustomNodeGraphEffectCustomParameterBinding(definition: Cust
 				case 'automationGraphInline': next = createInlineAutomationGraph(); break;
 				case 'automationGraphReference': next = { inputSource: 'automationGraphReference', automationGraphId: null, trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
 				case 'keyframesTimelineInline': next = createInlineKeyframesTimeline(definition, current); break;
-				case 'customNodeGraphEffectPublicParameterReference': next = { inputSource: edit.inputSource, parameterId: customNodeGraphEffectPublicParameterId('') }; break;
-				case 'customNodeGraphEffectCustomParameterValueReference': next = { inputSource: edit.inputSource, parameterId: customNodeGraphEffectCustomParameterId('') }; break;
+				case 'customNodeGraphEffectPublicParameterReference': next = { inputSource: edit.inputSource, parameterId: '' }; break;
+				case 'customNodeGraphEffectCustomParameterValueReference': next = { inputSource: edit.inputSource, parameterId: '' }; break;
 			}
 			break;
 		case 'addElement':

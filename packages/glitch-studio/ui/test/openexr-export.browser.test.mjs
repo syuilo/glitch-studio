@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'node:http';
+import { wgslShaderVitePlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import { build as buildVite } from 'vite';
 import { build } from 'esbuild';
 
@@ -19,7 +20,7 @@ test('exports OpenEXR and reports progress from a real WebGPU worker', { skip: p
 	// 配布時と同じViteビルドを使い、依存関係の事前バンドルや開発時の再読み込みに依存しない。
 	const [main, worker] = await Promise.all([
 		build({ entryPoints: [fileURLToPath(new URL('./helpers/openexr-export-browser.ts', import.meta.url))], bundle: true, format: 'esm', platform: 'browser', write: false }),
-		buildVite({ configFile: false, root: fileURLToPath(new URL('../', import.meta.url)), base: '/', logLevel: 'error',
+		buildVite({ configFile: false, plugins: [wgslShaderVitePlugin()], root: fileURLToPath(new URL('../', import.meta.url)), base: '/', logLevel: 'error',
 			build: { write: false, rolldownOptions: { input: fileURLToPath(new URL('../src/export/timeline-export.worker.ts', import.meta.url)), output: { format: 'es', entryFileNames: 'timeline-export.worker.ts' } } } }),
 	]);
 	const files = new Map(worker.output.map(output => [`/${output.fileName}`, output.type === 'asset' ? output.source : output.code]));

@@ -13,7 +13,7 @@ import type { Asset, Player } from '@gs/shared/types.js';
 import type { AssetThumbnailSequence } from './asset-thumbnail.ts';
 import type { ProjectCustomShaderEffect, ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.js';
-import type { CustomNodeGraphEffectNodeChange } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffectNodeChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { TimelineLayerChange } from '@gs/subsystems_timeline_shared/types.ts';
 import type { CustomNodeGraphEffectTarget } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
 import type { ExportDialogSettings } from './export/export-settings.ts';

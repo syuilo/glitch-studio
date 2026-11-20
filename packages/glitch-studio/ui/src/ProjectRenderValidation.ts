@@ -1,4 +1,4 @@
-import { getProjectEffectDefinitions } from '@gs/glitch-studio_shared/project/effects.ts';
+import { createProjectEffectDefinitions } from '@gs/glitch-studio_shared/project/effects.ts';
 import type { StaticSettingDefinitions, StaticSettingValues } from '@gs/shared/static-setting.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import { getTimelineLayerStaticSettings } from '@gs/subsystems_timeline_shared/layer-static-settings.ts';
@@ -7,7 +7,10 @@ import { computed, shallowRef } from 'vue';
 import { inspectStaticParameter, staticParameterShape } from '@gs/shared/parameter/static-parameter.ts';
 import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
 import { findDependencyCycle } from '@gs/shared/utility/dependency-cycle.ts';
-import { inspectCustomNodeGraphEffectNode, validateCustomNodeGraphEffectInterface, customNodeGraphEffectNodeStaticShape } from '@gs/subsystems_custom-node-graph-effect_shared/static-validation.ts';
+import { validateEffectSource } from '@gs/subsystems_effect-new_shared/validate-effect-source.ts';
+import { resolveEffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
+import type { EffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
+import type { NativeEffectDefinitions } from '@gs/glitch-studio_shared/project/effects.ts';
 import { inspectTimelineLayer, timelineLayerStaticShape } from '@gs/subsystems_timeline_shared/static-validation.ts';
 import { getTimelineLayerOutputDependencyGraph, validateTimelineLayerMaskReferences } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import type { TimelineImageInputReference } from '@gs/subsystems_timeline_shared/layer-output.ts';
@@ -17,8 +20,9 @@ import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/pla
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { customNodeGraphEffectTargetKey } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
 import type { CustomNodeGraphEffectTarget } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
-import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectNode, CustomNodeGraphEffectArgumentBindings } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { EffectDefinitions } from '@gs/subsystems_effect-new_shared/effect-source.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import type { CustomNodeGraphEffectArgumentBindings } from '@/types/custom-node-graph-effect-view.ts';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { AppStateChange, ProjectState } from './Project.ts';
@@ -33,11 +37,10 @@ type LayerLocation = { path: number[]; insideGroup: boolean };
  * 描画停止はプロジェクト全体なので、子の診断を参照元へ伝播・複製する必要はない。
  */
 export class ProjectRenderValidation {
+	private nodeValidationShapes = new Map<string, Map<string, string>>();
 	private units = new Map<string, ValidationUnit>();
 	private errors = new Map<string, RenderValidationDiagnostic>();
 	private dependents = new Map<string, Set<string>>();
-	private customNodeGraphEffects = new Map<string, CustomNodeGraphEffect>();
-	private nodeEdges = new Map<string, Map<string, readonly string[]>>();
 	private sceneEdges = new Map<string, Map<string, readonly string[]>>();
 	private imageInputs = new Map<string, Map<string, TimelineImageInputReference[]>>();
 	private locations = new Map<string, Map<string, LayerLocation>>();
@@ -47,17 +50,17 @@ export class ProjectRenderValidation {
 	public readonly diagnostics = shallowRef<readonly RenderValidationDiagnostic[]>([]);
 	public readonly errorMessage = computed(() => this.diagnostics.value[0]?.message ?? null);
 
-	constructor(private state: ProjectState, private builtinDefinitions: Readonly<Record<string, EffectDefinition>>) {}
+	constructor(private state: ProjectState, private builtinDefinitions: NativeEffectDefinitions) {}
 
-	private get definitions() { return getProjectEffectDefinitions(this.state.customShaderEffects?.value ?? [], this.builtinDefinitions); }
+	private get definitions() { return createProjectEffectDefinitions({ customShaderEffects: this.state.customShaderEffects?.value ?? [], customNodeGraphEffects: this.state.customNodeGraphEffects.value }, this.builtinDefinitions); }
 
 	public reset(): void {
-		this.units.clear(); this.errors.clear(); this.dependents.clear();
-		this.customNodeGraphEffects.clear(); this.nodeEdges.clear(); this.sceneEdges.clear(); this.imageInputs.clear(); this.locations.clear();
+		this.nodeValidationShapes.clear(); this.units.clear(); this.errors.clear(); this.dependents.clear();
+		this.sceneEdges.clear(); this.imageInputs.clear(); this.locations.clear();
 		this.customNodeGraphEffectLivePreviewInputs = null;
 		this.assets = new Map(this.state.assets.value.map(asset => [asset.id, asset.fileDataType]));
 		this.players = new Set(this.state.players.value.map(player => player.id));
-		for (const customNodeGraphEffect of this.state.customNodeGraphEffects.value) this.replaceCustomNodeGraphEffect({ customNodeGraphEffectId: customNodeGraphEffect.id }, customNodeGraphEffect);
+		for (const customNodeGraphEffect of this.state.customNodeGraphEffects.value) this.replaceCustomNodeGraphEffect({ customNodeGraphEffectId: customNodeGraphEffect.id }, customNodeGraphEffect.definition);
 		for (const scene of this.state.timelineScenes.value) this.replaceScene(scene);
 		this.checkRegistrations(); this.checkSettings(); this.checkSceneGraph(); this.publish();
 	}
@@ -73,24 +76,21 @@ export class ProjectRenderValidation {
 		for (const change of changes) {
 			if (change.type === 'customNodeGraphEffectRegistration') {
 				const customNodeGraphEffect = this.state.customNodeGraphEffects.value.find(customNodeGraphEffect => customNodeGraphEffect.id === change.customNodeGraphEffectId);
-				this.replaceCustomNodeGraphEffect({ customNodeGraphEffectId: change.customNodeGraphEffectId }, customNodeGraphEffect);
+				this.replaceCustomNodeGraphEffect({ customNodeGraphEffectId: change.customNodeGraphEffectId }, customNodeGraphEffect?.definition);
 				this.recheckDependents('customNodeGraphEffect:' + change.customNodeGraphEffectId);
 				this.checkRegistrations();
 			} else if (change.type === 'customNodeGraphEffect' || change.type === 'node') {
-				const customNodeGraphEffect = this.resolveCustomNodeGraphEffect(change.target);
-				if (change.type === 'customNodeGraphEffect') {
-					this.replaceCustomNodeGraphEffect(change.target, customNodeGraphEffect);
-					if ('customNodeGraphEffectId' in change.target) this.recheckDependents('customNodeGraphEffect:' + change.target.customNodeGraphEffectId);
-					else {
-						// 公開定義の型・canNodeの変更は、Bindingの形が同じでも引数の許可条件を変える。
-						// Inlineの利用先は所有レイヤー一つなので、参照索引を経由せず再検証する。
-						this.checkLayer(change.target.sceneId, change.target.inlineCustomNodeGraphEffectLayerId, true, true);
+				if ('customNodeGraphEffectId' in change.target) {
+					const id = change.target.customNodeGraphEffectId;
+					const graph = this.state.customNodeGraphEffects.value.find(entry => entry.id === id)?.definition;
+					if (change.type === 'node' && graph != null) {
+						const node = graph.nodes.find(node => node.id === change.nodeId);
+						const shape = node == null ? null : this.nodeShape(node);
+						if (shape != null && this.nodeValidationShapes.get(customNodeGraphEffectTargetKey(change.target))?.get(change.nodeId) === shape) continue;
 					}
-				} else if (customNodeGraphEffect) {
-					this.customNodeGraphEffects.set(customNodeGraphEffectTargetKey(change.target), customNodeGraphEffect);
-					const node = customNodeGraphEffect.nodes.find(node => node.id === change.nodeId);
-					if (node) this.checkNode(change.target, node);
-				}
+					this.replaceCustomNodeGraphEffect(change.target, graph);
+					this.recheckDependents('customNodeGraphEffect:' + id);
+				} else this.checkLayer(change.target.sceneId, change.target.layerId, true, true);
 			} else if (change.type === 'scene' || change.type === 'layerTree' || change.type === 'layerOrder') {
 				const scene = this.state.timelineScenes.value.find(scene => scene.id === change.sceneId);
 				if (scene) this.replaceScene(scene); else this.removeTimelineScene(change.sceneId);
@@ -111,7 +111,7 @@ export class ProjectRenderValidation {
 			} else if (change.type === 'projectResolution' || change.type === 'timelineRenderSettings') this.checkSettings();
 		}
 		if (this.customNodeGraphEffectLivePreviewInputs && changes.some(change => change.type === 'customNodeGraphEffect' || change.type === 'customNodeGraphEffectRegistration')) {
-			this.removeUnit('Custom Node Graph Effect Live Preview inputs');
+			this.removeUnit('Effect Live Preview inputs');
 			this.setCustomNodeGraphEffectLivePreviewInputs(this.customNodeGraphEffectLivePreviewInputs.customNodeGraphEffectId, this.customNodeGraphEffectLivePreviewInputs.bindings);
 		}
 		this.publish();
@@ -119,12 +119,12 @@ export class ProjectRenderValidation {
 
 	public setCustomNodeGraphEffectLivePreviewInputs(customNodeGraphEffectId: string | null, bindings: CustomNodeGraphEffectArgumentBindings = {}) {
 		this.customNodeGraphEffectLivePreviewInputs = customNodeGraphEffectId == null ? null : { customNodeGraphEffectId, bindings };
-		if (customNodeGraphEffectId == null) { this.removeUnit('Custom Node Graph Effect Live Preview inputs'); this.publish(); return; }
+		if (customNodeGraphEffectId == null) { this.removeUnit('Effect Live Preview inputs'); this.publish(); return; }
 		const customNodeGraphEffect = this.state.customNodeGraphEffects.value.find(customNodeGraphEffect => customNodeGraphEffect.id === customNodeGraphEffectId);
-		if (!customNodeGraphEffect) { this.removeUnit('Custom Node Graph Effect Live Preview inputs'); this.publish(); return; }
-		const values = customNodeGraphEffect.paramDefs.map(def => [def, bindings[def.id] ?? def.defaultValue] as const);
+		if (!customNodeGraphEffect) { this.removeUnit('Effect Live Preview inputs'); this.publish(); return; }
+		const values = Object.entries(customNodeGraphEffect.definition.paramDefs).map(([id, def]) => [def, bindings[id] ?? def.defaultValue] as const);
 		const dependencies = new Set<string>();
-		this.check('Custom Node Graph Effect Live Preview inputs', [customNodeGraphEffectId, values.map(([def, value]) => staticParameterShape(def, value))], () => {
+		this.check('Effect Live Preview inputs', [customNodeGraphEffectId, values.map(([def, value]) => staticParameterShape(def, value))], () => {
 			for (const [def, value] of values) inspectStaticParameter(def, value, (leaf, binding) => {
 				if (leaf.dataType.kind === 'audioSource') validateLiteralAudioSourceBinding(binding);
 				this.value(leaf, binding, dependencies);
@@ -165,7 +165,6 @@ export class ProjectRenderValidation {
 		for (const key of [...this.dependents.get(reference) ?? []]) {
 			const unit = this.units.get(key)!;
 			this.check(key, JSON.parse(unit.shape), unit.check, unit.dependencies, true);
-			if (key.includes('/node:')) this.checkNodeGraph(key.slice(0, key.lastIndexOf('/node:')));
 			if (key.includes('/layer:')) this.checkLayerOutputGraph(key.slice('scene:'.length, key.lastIndexOf('/layer:')));
 		}
 	}
@@ -202,49 +201,48 @@ export class ProjectRenderValidation {
 		}
 	}
 
-	private resolveCustomNodeGraphEffect(target: CustomNodeGraphEffectTarget): CustomNodeGraphEffect | null {
-		if ('customNodeGraphEffectId' in target) return this.state.customNodeGraphEffects.value.find(customNodeGraphEffect => customNodeGraphEffect.id === target.customNodeGraphEffectId) ?? null;
-		const layer = this.layer(target.sceneId, target.inlineCustomNodeGraphEffectLayerId);
-		return layer?.layerType === 'inlineCustomNodeGraphEffect' ? layer.customNodeGraphEffect : null;
+	private nodeShape(node: CustomNodeGraphEffect['nodes'][number], definitions?: EffectDefinitions): string | null {
+		if (node.type === 'relay') return JSON.stringify(node);
+		try {
+			const { paramDefs } = resolveEffectSource(node.effectSource, definitions ?? this.definitions).definition;
+			const params = Object.entries(node.params).map(([id, binding]) => [id, staticParameterShape(paramDefs[id], binding)]);
+			return JSON.stringify([node.effectSource, node.staticSettings, node.resolution, node.isBypass, params]);
+		} catch { return null; }
 	}
 
-	private replaceCustomNodeGraphEffect(target: CustomNodeGraphEffectTarget, customNodeGraphEffect?: CustomNodeGraphEffect | null) {
+	private replaceCustomNodeGraphEffect(target: CustomNodeGraphEffectTarget, graph?: CustomNodeGraphEffect | null) {
 		const key = customNodeGraphEffectTargetKey(target);
-		for (const nodeId of this.nodeEdges.get(key)?.keys() ?? []) this.removeUnit(key + '/node:' + nodeId);
-		this.removeUnit(key); this.removeUnit(key + '/connections');
-		this.nodeEdges.delete(key); this.customNodeGraphEffects.delete(key);
-		if (!customNodeGraphEffect) return;
-		this.customNodeGraphEffects.set(key, customNodeGraphEffect); this.nodeEdges.set(key, new Map());
-		this.check(key, customNodeGraphEffect, () => validateCustomNodeGraphEffectInterface(customNodeGraphEffect));
-		for (const node of customNodeGraphEffect.nodes) this.checkNode(target, node, false);
-		this.checkNodeGraph(key);
-	}
-
-	private checkNode(target: CustomNodeGraphEffectTarget, node: CustomNodeGraphEffectNode, graph = true) {
-		const key = customNodeGraphEffectTargetKey(target);
-		const edges: string[] = [];
+		this.removeUnit(key);
+		this.nodeValidationShapes.delete(key);
+		if (graph == null) return;
 		const dependencies = new Set<string>();
-		let shape: unknown;
-		try { shape = customNodeGraphEffectNodeStaticShape(node, this.definitions); } catch { shape = node; }
-		const changed = this.check(key + '/node:' + node.id, shape, () => {
-			edges.length = 0;
-			try {
-				inspectCustomNodeGraphEffectNode(node, this.customNodeGraphEffects.get(key)!, this.definitions, id => edges.push(id), (def, binding) => this.value(def, binding, dependencies));
-				if (node.type === 'effect') this.staticSettings(this.definitions[node.effectId].staticSettingDefs ?? {}, node.staticSettings ?? {}, dependencies);
-			} finally {
-				this.nodeEdges.get(key)?.set(node.id, edges);
-			}
+		this.check(key, null, () => {
+			const source: EffectSource = { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph };
+			const definitions = this.definitions;
+			this.checkEffectResources(source, dependencies, definitions);
+			validateEffectSource(source, definitions);
+			this.nodeValidationShapes.set(key, new Map(graph.nodes.flatMap(node => {
+				const shape = this.nodeShape(node, definitions);
+				return shape == null ? [] : [[node.id, shape]];
+			})));
 		}, dependencies);
-		if (!changed) return;
-		if (graph) this.checkNodeGraph(key);
 	}
 
-	private checkNodeGraph(key: string) {
-		const edges = this.nodeEdges.get(key)!;
-		this.check(key + '/connections', [...edges], () => {
-			const cycle = findDependencyCycle(edges);
-			if (cycle) throw new Error('Circular node reference: ' + cycle.join(' → '));
-		});
+	private checkEffectResources(source: EffectSource, dependencies: Set<string>, definitions = this.definitions, visited = new Set<CustomNodeGraphEffect>()) {
+		if (source.type === 'customNodeGraphEffectReference') dependencies.add('customNodeGraphEffect:' + source.id);
+		const effect = resolveEffectSource(source, definitions);
+		if (effect.type !== 'customNodeGraphEffect' || visited.has(effect.definition)) return;
+		const graph = effect.definition;
+		visited.add(graph);
+		for (const node of graph.nodes) {
+			if (node.type === 'relay') continue;
+			this.checkEffectResources(node.effectSource, dependencies, definitions, visited);
+			const def = resolveEffectSource(node.effectSource, definitions).definition;
+			this.staticSettings(def.staticSettingDefs ?? {}, node.staticSettings ?? {}, dependencies);
+			for (const [key, parameter] of Object.entries(def.paramDefs)) {
+				inspectStaticParameter(parameter, node.params[key] ?? parameter.defaultValue, (leaf, value) => this.value(leaf, value, dependencies));
+			}
+		}
 	}
 
 	private layer(sceneId: string, layerId: string): TimelineLayer | null {
@@ -260,7 +258,7 @@ export class ProjectRenderValidation {
 	private removeTimelineScene(id: string) {
 		for (const layerId of this.locations.get(id)?.keys() ?? []) {
 			this.removeUnit('scene:' + id + '/layer:' + layerId);
-			this.replaceCustomNodeGraphEffect({ sceneId: id, inlineCustomNodeGraphEffectLayerId: layerId });
+			this.replaceCustomNodeGraphEffect({ sceneId: id, layerId: layerId });
 		}
 		this.locations.delete(id); this.sceneEdges.delete(id); this.removeUnit('scene:' + id);
 		this.imageInputs.delete(id); this.removeUnit('scene:' + id + '/layer outputs');
@@ -283,8 +281,6 @@ export class ProjectRenderValidation {
 			if (duplicate) throw new Error('Duplicate layer ID');
 		});
 		for (const id of locations.keys()) {
-			const layer = this.layer(scene.id, id)!;
-			if (layer.layerType === 'inlineCustomNodeGraphEffect') this.replaceCustomNodeGraphEffect({ sceneId: scene.id, inlineCustomNodeGraphEffectLayerId: id }, layer.customNodeGraphEffect);
 			this.checkLayer(scene.id, id, false);
 		}
 		this.checkSceneGraph();
@@ -294,29 +290,27 @@ export class ProjectRenderValidation {
 	private checkLayer(sceneId: string, id: string, graph = true, force = false) {
 		const layer = this.layer(sceneId, id);
 		if (!layer) return;
-		const customNodeGraphEffect = layer.layerType === 'inlineCustomNodeGraphEffect' ? layer.customNodeGraphEffect : layer.layerType === 'customNodeGraphEffect' ? this.state.customNodeGraphEffects.value.find(customNodeGraphEffect => customNodeGraphEffect.id === layer.customNodeGraphEffectId) : null;
-		const effect = layer.layerType === 'effect' ? this.definitions[layer.effectId] : null;
 		const dependencies = new Set<string>();
-		if (layer.layerType === 'customNodeGraphEffect') dependencies.add('customNodeGraphEffect:' + layer.customNodeGraphEffectId);
+		const getEffect = () => layer.layerType === 'effect' ? resolveEffectSource(layer.effectSource, this.definitions).definition : null;
 		const edges = layer.layerType === 'scene' ? layer.clips.map(clip => clip.sceneId) : [];
 		const previous = this.sceneEdges.get(sceneId)?.get(id);
 		// Shapeの種類など、形の抽出自体が失敗する設定も診断として保持する。
 		let shape: unknown;
-		try { shape = timelineLayerStaticShape(layer, customNodeGraphEffect, effect); } catch { shape = layer; }
+		try { shape = timelineLayerStaticShape(layer, getEffect()); } catch { shape = layer; }
 		const changed = this.check('scene:' + sceneId + '/layer:' + id, shape, () => {
 			const inputs: TimelineImageInputReference[] = [];
 			this.imageInputs.get(sceneId)?.set(id, inputs);
 			if (layer.layerType === 'camera' && this.locations.get(sceneId)?.get(id)?.insideGroup) throw new Error('Camera is inside a Group');
-			if (layer.layerType === 'customNodeGraphEffect') dependencies.add('customNodeGraphEffect:' + layer.customNodeGraphEffectId);
+			if (layer.layerType === 'effect') this.checkEffectResources(layer.effectSource, dependencies);
 			for (const scene of edges) {
 				dependencies.add('scene:' + scene);
 				if (!this.locations.has(scene) && !this.state.timelineScenes.value.some(candidate => candidate.id === scene)) throw new Error('Scene not found: ' + scene);
 			}
 			if (layer.layerType === 'image' || layer.layerType === 'video' || layer.layerType === 'audio') for (const clip of layer.clips) this.asset(clip.assetId, dependencies);
-			const currentCustomNodeGraphEffect = layer.layerType === 'customNodeGraphEffect' ? this.state.customNodeGraphEffects.value.find(customNodeGraphEffect => customNodeGraphEffect.id === layer.customNodeGraphEffectId) : customNodeGraphEffect;
-			const settings = getTimelineLayerStaticSettings(layer, effect);
+
+			const settings = getTimelineLayerStaticSettings(layer, getEffect());
 			this.staticSettings(settings.definitions, settings.values ?? {}, dependencies);
-			inspectTimelineLayer(layer, currentCustomNodeGraphEffect, effect, (def, binding) => {
+			inspectTimelineLayer(layer, this.definitions, (def, binding) => {
 				this.value(def, binding, dependencies);
 				const input = binding as { inputSource: string };
 				if (input.inputSource === 'lowerLayerOutput' || input.inputSource === 'anotherLayerOutput') inputs.push(binding as TimelineImageInputReference);

@@ -26,7 +26,7 @@ const bundle = await build({
 			? 'export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: { state: {} } } };'
 			: `import { reactive } from 'vue';
 				export const fixtureDefinitions = reactive({});
-				export function getEffectDefinitions() { return fixtureDefinitions; }` }));
+				export function listSelectableEffects() { return Object.entries(fixtureDefinitions).map(([id, definition]) => ({ ...definition, effectSource: { type: 'nativeEffect', id } })); }` }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => path.endsWith('GsEffectPicker.vue')
 			? null : { path: basename(path, '.vue'), namespace: 'control' });
 		build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ contents: `
@@ -102,7 +102,7 @@ function fixture(t, definitions) {
 			await nextTick();
 		},
 		results: () => allElements().filter(element => Object.hasOwn(element.props, 'data-test-effect-picker-effect'))
-			.map(element => element.props['data-test-effect-picker-effect']),
+			.map(element => JSON.parse(element.props['data-test-effect-picker-effect']).id),
 	};
 }
 

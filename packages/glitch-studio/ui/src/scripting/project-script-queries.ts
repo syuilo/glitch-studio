@@ -3,7 +3,7 @@ import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { getCustomNodeGraphEffect, listCustomNodeGraphEffects } from '../utility/custom-node-graph-effect-target.ts';
-import { getEffectDefinitions } from '../utility/project-effects.ts';
+import { getEffectDefinitions, listSelectableEffects } from '../utility/project-effects.ts';
 import { getLayerParameterDefinitions, getLayerParameterTargets, getLayerParameterValues } from '../utility/timeline-scene.ts';
 import { parseProjectApiValue } from '../project-api/contract.ts';
 import { customNodeGraphEffectTargetSchema, customNodeGraphEffectNodeReferenceSchema } from '../commands/custom-node-graph-effect-contract-schemas.ts';
@@ -54,7 +54,7 @@ function customNodeGraphEffectName(state: ProjectState, target: CustomNodeGraphE
 		if (customNodeGraphEffect == null) throw new Error(`Custom Node Graph Effect not found: ${target.customNodeGraphEffectId}`);
 		return customNodeGraphEffect.name;
 	}
-	return layerReference(state, { sceneId: target.sceneId, layerId: target.inlineCustomNodeGraphEffectLayerId }).layer.name;
+	return layerReference(state, { sceneId: target.sceneId, layerId: target.layerId }).layer.name;
 }
 
 function assetMetadata(asset: ProjectAsset) {
@@ -95,18 +95,18 @@ export const PROJECT_SCRIPT_QUERY_DEFINITIONS = {
 	}),
 	'Query:listNodes': defineQuery({
 		argumentCount: 1, inputSchema: customNodeGraphEffectTargetSchema, resultSchema: z.array(customNodeGraphEffectNodeSummarySchema),
-		description: 'List the Nodes of a Custom Node Graph Effect in stored order with their types, display names and target references. Includes input, output and relay Nodes; their effectId is null.',
+		description: 'List the Nodes of a Custom Node Graph Effect in stored order with their types, display names and target references. Includes input, output and relay Nodes; their effectSource is null.',
 		examples: ['let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\n<: Query:listNodes(customNodeGraphEffect)'],
 		execute: (state, customNodeGraphEffect) => snapshot(getCustomNodeGraphEffect(state, customNodeGraphEffect).nodes.map(node => ({
 			target: { customNodeGraphEffect, nodeId: node.id }, id: node.id, type: node.type,
-			effectId: node.type === 'effect' ? node.effectId : null,
+			effectSource: node.type === 'effect' ? node.effectSource : null,
 			displayName: node.type === 'effect' ? node.displayName : node.type === 'relay' ? node.label ?? '' : '',
 		}))),
 	}),
 	'Query:getNode': defineQuery({
 		argumentCount: 1, inputSchema: customNodeGraphEffectNodeReferenceSchema, resultSchema: customNodeGraphEffectNodeResultSchema,
 		description: 'Get a detached Custom Node Graph Effect Node and its target reference. Effect Nodes include stored parameter bindings, static settings, resolution and bypass state. Obtain parameter definitions through Query:getEffect.',
-		examples: ['let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\nlet node = Command:createCustomNodeGraphEffectEffectNode({ customNodeGraphEffect: customNodeGraphEffect, effectId: "fill" })\n<: Query:getNode(node)'],
+		examples: ['let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\nlet node = Command:createCustomNodeGraphEffectEffectNode({ customNodeGraphEffect: customNodeGraphEffect, effectSource: { type: "nativeEffect", id: "fill" } })\n<: Query:getNode(node)'],
 		execute(state, { customNodeGraphEffect, nodeId }) {
 			const node = getCustomNodeGraphEffect(state, customNodeGraphEffect).nodes.find(candidate => candidate.id === nodeId);
 			if (node == null) throw new Error(`Custom Node Graph Effect Node not found: ${nodeId}`);
@@ -213,20 +213,18 @@ export const PROJECT_SCRIPT_QUERY_DEFINITIONS = {
 	}),
 	'Query:listEffects': defineQuery({
 		argumentCount: 0, inputSchema: z.null(), resultSchema: z.array(effectSummarySchema),
-		description: 'List built-in Effects and the current Project custom Effects with display names, Japanese/English summaries, kinds and tags. Use an effectId with Query:getEffect before constructing parameter bindings.',
+		description: 'List built-in Effects and the current Project custom Effects with display names, Japanese/English summaries, kinds and tags. Use an effectSource with Query:getEffect before constructing parameter bindings.',
 		examples: ['<: Query:listEffects()'],
-		execute: state => snapshot(Object.values(getEffectDefinitions(state)).map(effect => ({
-			target: { effectId: effect.id }, id: effect.id, displayName: effect.displayName, summary: effect.summary, kind: effect.kind, tags: effect.tags,
+		execute: state => snapshot(listSelectableEffects(state).map(effect => ({
+			target: { effectSource: effect.effectSource }, effectSource: effect.effectSource, displayName: effect.displayName, summary: effect.summary, kind: effect.kind, tags: effect.tags,
 		}))),
 	}),
 	'Query:getEffect': defineQuery({
 		argumentCount: 1, inputSchema: effectReferenceSchema, resultSchema: effectDefinitionResultSchema,
 		description: 'Get a complete Effect definition: parameter types, defaults, static settings, output ports and primary input/output selection. Color values use linear sRGB and may be outside 0..1; spatial values use the common long-edge unit. Does not include renderer implementation code.',
-		examples: ['<: Query:getEffect({ effectId: "fill" })'],
-		execute(state, { effectId }) {
-			const definitions = getEffectDefinitions(state);
-			if (!Object.hasOwn(definitions, effectId)) throw new Error(`Effect not found: ${effectId}`);
-			return snapshot({ ...definitions[effectId], target: { effectId } });
+		examples: ['<: Query:getEffect({ effectSource: { type: "nativeEffect", id: "fill" } })'],
+		execute(state, { effectSource }) {
+			return snapshot({ ...getEffectDefinitions(state).describe(effectSource), target: { effectSource } });
 		},
 	}),
 	'Query:listProjectAutomationGraphs': defineQuery({

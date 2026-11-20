@@ -15,12 +15,12 @@ const bundled = await build({
 		export { createEffectTimelineLayer } from './src/utility/effect-timeline-layer.ts';
 		export { createInlineCustomNodeGraphEffectLayer } from './src/utility/inline-custom-node-graph-effect-layer.ts';
 		export { createTextTimelineLayer } from './src/utility/text-timeline-layer.ts';
-		export { default as definition } from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
+		export { default as definition } from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts';
 	` },
 	plugins: [{ name: 'timeline-parameter-effects', setup(build) {
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ loader: 'ts', resolveDir: directory,
-			contents: "import definition from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts'; export const effectDefinitions = { [definition.id]: definition };",
+			contents: "import definition from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };",
 		}));
 	} }],
 });
@@ -71,7 +71,7 @@ test('merges consecutive values but separates modifier and reset UI actions', t 
 // ルートBindingへ縮めてからマージするとxとyが同じ対象になり、片方だけUndoできない。
 // 同じ末端の反復入力は一履歴のまま、別の末端へ移ったところで区切る。
 test('preserves nested parameter paths and merges only the edited leaf', t => {
-	const layer = createEffectTimelineLayer(definition, 0);
+	const layer = createEffectTimelineLayer({ ...definition, effectSource: { type: 'nativeEffect', id: 'testStructArray' } }, 0);
 	const f = fixture(t, layer);
 	const path = ['buzzs', 'first', 'x'];
 	const converted = getTimelineParameterEditBinding(f.state, { sceneId: 'scene', layerId: layer.id, target: 'effect', paramPath: path, edit: { kind: 'literal', value: 1 } });
@@ -96,7 +96,7 @@ test('preserves nested parameter paths and merges only the edited leaf', t => {
 // 親Bindingがliteralであっても、末端の方式と操作の意味で履歴を決める。
 // 配列の構造変更通知は、値編集と異なりレンダラーの再構築が必要になる。
 test('separates source switches arrays and nested keyframes from value typing', t => {
-	const layer = createEffectTimelineLayer(definition, 0);
+	const layer = createEffectTimelineLayer({ ...definition, effectSource: { type: 'nativeEffect', id: 'testStructArray' } }, 0);
 	const f = fixture(t, layer);
 	const path = ['buzzs', 'first', 'x'];
 	f.edit('effect', path, { kind: 'inputSource', inputSource: 'expression' });
@@ -127,7 +127,7 @@ test('separates source switches arrays and nested keyframes from value typing', 
 // 貼り付けやスクリプトはUIイベントを持たないため、Command自身が静的状態の破棄に
 // 必要な差分を判定する。Undo/Redoでも同じ変更種別を通知する。
 test('classifies complete replacements and preserves notifications through undo and redo', t => {
-	const layer = createEffectTimelineLayer(definition, 0);
+	const layer = createEffectTimelineLayer({ ...definition, effectSource: { type: 'nativeEffect', id: 'testStructArray' } }, 0);
 	const f = fixture(t, layer);
 	const reference = { sceneId: 'scene', layerId: layer.id, parameterGroup: 'effect', parameterPath: ['foo'] };
 	const replace = binding => f.manager.commit('replaceTimelineLayerParameterBinding', { ...reference, binding });
@@ -155,10 +155,10 @@ test('classifies complete replacements and preserves notifications through undo 
 test('reports structural changes for Custom Node Graph Effect argument UI actions', t => {
 	const layer = createInlineCustomNodeGraphEffectLayer(0);
 	const f = fixture(t, layer);
-	const path = [layer.customNodeGraphEffect.primaryInputId];
-	f.edit('customNodeGraphEffect', path, { kind: 'inputSource', inputSource: 'anotherLayerOutput' });
-	f.edit('customNodeGraphEffect', path, { kind: 'anotherLayerOutput', value: { inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'rendered' } });
-	f.edit('customNodeGraphEffect', path, { kind: 'reset' });
+	const path = [layer.effectSource.customNodeGraphEffect.primaryInputParameter];
+	f.edit('effect', path, { kind: 'inputSource', inputSource: 'anotherLayerOutput' });
+	f.edit('effect', path, { kind: 'anotherLayerOutput', value: { inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'rendered' } });
+	f.edit('effect', path, { kind: 'reset' });
 	assert.deepEqual(f.notifications, ['inputSource', 'connection', 'reset']);
 	f.manager.undo(); f.manager.undo(); f.manager.undo();
 	assert.deepEqual(f.notifications.slice(-3), ['reset', 'connection', 'inputSource']);
