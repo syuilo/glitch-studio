@@ -79,7 +79,7 @@ claude mcp add --scope user --transport http glitch_studio http://127.0.0.1:4572
 let customNodeGraphEffect = Command:createCustomNodeGraphEffect({ name: "Generated" })
 let fillNode = Command:createCustomNodeGraphEffectEffectNode({
   customNodeGraphEffect: customNodeGraphEffect
-  effectId: "fill"
+  effectSource: { type: "nativeEffect", id: "fill" }
   connectionMode: "appendToPrimaryOutput"
 })
 Command:setCustomNodeGraphEffectNodeParameterSource({
@@ -89,6 +89,9 @@ Command:setCustomNodeGraphEffectNodeParameterSource({
 })
 <: Query:getCustomNodeGraphEffect(customNodeGraphEffect)
 ```
+
+`Query:listEffects()`はNative Effectと登録済みのCustom Shader Effectを返します。各項目の`target`を`Query:getEffect`に渡すとパラメータと出力ポートの定義を取得でき、`effectSource`はノードやタイムラインのEffectレイヤーを作成するときに使えます。
+登録済みのCustom Node Graph Effectを配置するときは、`Query:listCustomNodeGraphEffects()`の各項目のうち、`target.customNodeGraphEffectId`を持つものを選び、`{ type: "customNodeGraphEffectReference", id: entry.target.customNodeGraphEffectId }`を`effectSource`として渡します。
 
 MCPで渡したスクリプトはScriptingパネルの本文・出力を書き換えません。出力、正常終了したCommandの件数、エラーの有無をツールの結果へ返します。出力量には上限があり、切り詰めた場合は結果に示します。
 

@@ -58,13 +58,7 @@ test('connects the real Electron MCP server to project scripting, references and
 		}));
 		window.ready = true;
 	` }, bundle: true, format: 'esm', platform: 'browser', write: false,
-		define: { __ELECTRON__: 'true', 'import.meta.env.DEV': 'false' }, plugins: [{ name: 'mcp-test-effects', setup(builder) {
-			builder.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'mcp-test-effects' }));
-			builder.onLoad({ filter: /.*/, namespace: 'mcp-test-effects' }, () => ({ loader: 'ts', resolveDir: uiDirectory, contents: `
-				import fill from '@gs/subsystems_effect_shared/fx/fill/_def_.ts';
-				export const effectDefinitions = { fill };
-			` }));
-		} }],
+		define: { __ELECTRON__: 'true', 'import.meta.env.DEV': 'false' },
 	});
 	await fs.writeFile(path.join(directory, 'editor.js'), bundle.outputFiles[0].text);
 	const mainUrl = new URL('../main.mjs', import.meta.url).href;
@@ -158,6 +152,31 @@ test('connects the real Electron MCP server to project scripting, references and
 			const reference = data(await call('get_scripting_api', { names: ['Command:setProjectName', 'Query:getProject'] }));
 			assert.equal(reference[0].inputSchema.properties.name.type, 'string');
 			assert.equal(reference[1].kind, 'query');
+			// MCPが配る例そのものを実行し、資料・UIの公開契約・Native Effectのカタログのずれを検出する。
+			stage = 'executing the scripting guide example';
+			const guide = await call('get_scripting_guide');
+			const example = /^~~~aiscript\\n([\\s\\S]+?)\\n~~~$/m.exec(guide.content[0].text);
+			assert.ok(example, 'Expected an AiScript example in the MCP guide');
+			const graph = data(await call('execute_script', { projectSessionId: 'second', source: example[1] }));
+			assert.equal(graph.error, null);
+			assert.equal(graph.commandsExecuted, 2);
+			assert.deepEqual(JSON.parse(graph.output[0]).effectSource, { type: 'nativeEffect', id: 'fill' });
+			// ガイドで案内した二つの一覧から、IDを決め打ちせず登録定義を取得できる。
+			const registered = data(await call('execute_script', { projectSessionId: 'second', source: [
+				'let entry = Query:listCustomNodeGraphEffects()[0]',
+				'let graph = Query:getEffect({ effectSource: { type: "customNodeGraphEffectReference", id: entry.target.customNodeGraphEffectId } })',
+				'<: graph.displayName',
+				'Command:createCustomShaderEffect({ name: "MCP Shader" })',
+				'each (let effect, Query:listEffects()) {',
+				'  if effect.effectSource.type == "customShaderEffectReference" { <: Query:getEffect(effect.target).displayName }',
+				'}',
+			].join('\\n') }));
+			assert.equal(registered.error, null);
+			assert.deepEqual(registered.output, ['Generated', 'MCP Shader']);
+			await evaluate('window.testSessions[1].projectContext.stateManager.undo(); void 0;');
+			assert.equal(await evaluate('window.testSessions[1].projectContext.stateManager.state.customShaderEffects.value.length'), 0);
+			await evaluate('window.testSessions[1].projectContext.stateManager.undo(); void 0;');
+			assert.equal(await evaluate('window.testSessions[1].projectContext.stateManager.state.customNodeGraphEffects.value.length'), 0);
 			stage = 'executing project script';
 			const executed = data(await call('execute_script', { projectSessionId: 'second',
 				source: 'Command:setProjectName({ name: "Edited second" })\\nlet project = Query:getProject()\\n<: project.name',
