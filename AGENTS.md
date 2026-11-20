@@ -105,7 +105,7 @@
 - 実装に取り掛かる前、または実装作業中に不明点・懸念点が出た場合や、判断が必要と思われる重要な設計上の事項などが発生した場合は、独断で作業を継続せず、作業を中断し判断を仰ぐようにすること。
 - /docs-siteは編集しないこと。
 - コンポーネントの実装など、UIに関する編集を行う際はuiパッケージのAGENTS.mdも一読してルールに従う。
-- Effectの実装を行う際は[Effect subsystemのREADME](./packages/subsystems/effect/README.md)も一読する。
+- Native Effectの実装を行う際は[native-effectsパッケージのAGENTS.md](./packages/subsystems/effect/native-effects/AGENTS.md)も一読する。
 
 ### Coding
 
