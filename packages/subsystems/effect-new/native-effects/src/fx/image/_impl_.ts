@@ -58,6 +58,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs, ne
 		});
 
 		return {
+			cacheKey: 0,
 			render: (ctx) => {
 				if (sourceTexture == null || bindGroup == null) {
 					const pass = ctx.commandEncoder.beginRenderPass(descriptor);
