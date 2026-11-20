@@ -47,6 +47,6 @@ export interface CustomNodeGraphEffect extends EffectDefinition {
 	readonly customParameterValues?: Readonly<Record<string, CustomNodeGraphEffectValueBinding>>;
 	readonly automationGraphs?: readonly AutomationGraph[];
 	readonly nodes: readonly CustomNodeGraphEffectNode[];
-	/** 公開入力からの直結は値・解像度を借用する。未接続の公開出力にはエントリを持たない。 */
+	/** 公開入力からの直結はテクスチャのある配置で出力する。未接続の公開出力にはエントリを持たない。 */
 	readonly outputSources: Readonly<Partial<Record<string, CustomNodeGraphEffectOutputSource>>>;
 }

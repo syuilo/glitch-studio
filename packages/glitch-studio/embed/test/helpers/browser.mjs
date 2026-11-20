@@ -150,10 +150,18 @@ try {
 		await checkSymbolTextureRendering(symbols, iconset);
 		symbols.remove();
 	}
-	const { element: uniform } = await mount('uniform');
-	color = await pixel(uniform, 0.05, 0.05);
-	check(Math.abs(color[0] - 188) <= 2 && Math.abs(color[3] - 128) <= 2, 'public color wired directly to Out fills the canvas without texture letterboxing: ' + color);
-	uniform.remove();
+	// 【公開色を画像として描画する経路と、Outに直結する経路を区別する】
+	// Fillは公開色とアルファを表示する。値だけが届くOutは描画ループを維持して透明になる。
+	const { element: solid } = await mount('solid');
+	color = await pixel(solid, 0.05, 0.05);
+	check(Math.abs(color[0] - 188) <= 2 && Math.abs(color[3] - 128) <= 2, 'Fill renders a public color across the canvas: ' + color);
+	await rendered(solid, () => solid.setParameters({ tint: [0, 0.5, 0, 0.5] }));
+	color = await pixel(solid);
+	check(color[0] === 0 && Math.abs(color[1] - 188) <= 2 && Math.abs(color[3] - 128) <= 2, 'Fill responds to changes in the public color: ' + color);
+	solid.remove();
+	const { element: noOutput } = await mount('nooutput');
+	check((await pixel(noOutput))[3] === 0, 'uniform wired directly to Out presents a transparent frame');
+	noOutput.remove();
 	const { element: player } = await mount('player');
 	check((await pixel(player))[3] === 0, 'unconnected Players produce transparent video without permission prompts');
 	player.remove();

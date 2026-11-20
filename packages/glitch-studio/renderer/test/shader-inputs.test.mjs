@@ -17,7 +17,6 @@ const { default: imageEffect } = await load('@gs/subsystems_effect-new_native-ef
 const { default: imageDefinition } = await load('@gs/subsystems_effect-new_native-effects/fx/image/_def_.ts');
 const { default: videoEffect } = await load('@gs/subsystems_effect-new_native-effects/fx/video/_impl_.ts');
 const { default: videoDefinition } = await load('@gs/subsystems_effect-new_native-effects/fx/video/_def_.ts');
-const { UniformOrTextureToTextureResolver } = await load('@gs/shared/gpu/uniform-or-texture-to-texture-resolver.ts');
 const { toShaderInput } = await load('@gs/shared/gpu/shader-input.ts');
 const { TimelineRenderer } = await load('@gs/subsystems_timeline_renderer/timeline-renderer.ts');
 import { createTimelineEffectProbe } from './helpers/timeline-effect-probe.mjs';
@@ -362,7 +361,11 @@ test('only bypasses anchor placement when position cancels the fitted origin', (
 // 出力配列の先頭や以前の主出力を暗黙に使い続ける不具合を防ぐ。
 test('renders the selected Custom Node Graph Effect primary output after updates', async t => {
 	const { device, encoder } = gpuFixture();
-	const inputs = { a: { kind: 'uniform', value: [1, 0, 0, 1] }, b: { kind: 'uniform', value: [0, 1, 0, 1] } };
+	const resolution = { width: 3, height: 2 };
+	const inputs = {
+		a: { kind: 'texture', resolution, texture: device.createTexture({ size: resolution }) },
+		b: { kind: 'texture', resolution, texture: device.createTexture({ size: resolution }) },
+	};
 	for (const primaryOutput of ['b', 'a', null]) {
 		const graph = { ...publicGraph, primaryOutput };
 		const renderer = await place(device, inline(graph), { inputs, usedOutputPorts: new Set(primaryOutput == null ? [] : [primaryOutput]) });
@@ -449,59 +452,32 @@ test('borrows the scene texture through a public graph input', async t => {
 	assert.equal(received.texture, image.texture);
 });
 
-// 【バイパス経由の定数入力】
-// In→バイパス→エフェクトでも定数の精度と乗算済み色を保ち、GPUへの転送を発生させない。
-test('passes Custom Node Graph Effect constants through bypasses without allocating input textures', async t => {
+// 【バイパスの定数入力は出力を作らない】
+// 色の主入力へ定数を渡した場合、画像化やGPUへの転送を発生させずに未接続扱いにする。
+test('omits bypassed constants without allocating textures', async t => {
 	const { device, calls, encoder } = gpuFixture();
 	const graph = { ...publicGraph, nodes: [{ id: 'bypass', effectSource: native('colorMix'), isBypass: true,
 		params: { inputA: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'a' } } }], outputSources: { a: { nodeId: 'bypass', outputPort: 'output' } } };
 	const input = { kind: 'uniform', value: [0.125, 0.25, 0.5, 0.5] };
 	const renderer = await place(device, inline(graph), { inputs: { a: input }, usedOutputPorts: new Set(['a']) }); t.after(() => renderer.dispose());
 	renderer.render(shaderFrame(), encoder);
-	assert.deepEqual(renderer.outputs.get('a').value, input.value); assert.equal(calls.textures.length, 0);
+	assert.equal(renderer.outputs.has('a'), false);
+	assert.equal(calls.textures.length, 0);
 });
 
 // 【別配置の公開入力を切り替える】
-// 同じInポートの定数/画像切替を検出し、各接続の設定を独立して適用する。
-test('switches Custom Node Graph Effect outputs between constants and borrowed textures', async t => {
+// 同じInポートに定数を渡した配置は出力を持たず、画像を渡した配置では借用した出力を返す。
+test('publishes direct graph outputs in placements with a texture input', async () => {
 	const { device, encoder } = gpuFixture();
 	const texture = device.createTexture({ size: [3, 2] });
 	for (const input of [{ kind: 'uniform', value: [1, 0, 0, 1] }, { kind: 'texture', texture, resolution: texture }]) {
 		const renderer = await place(device, inline(publicGraph), { inputs: { a: input }, usedOutputPorts: new Set(['a']) });
-		renderer.render(shaderFrame(), encoder); assert.equal(renderer.outputs.get('a'), input); renderer.dispose(); assert.equal(texture.destroyed, false);
+		renderer.render(shaderFrame(), encoder);
+		assert.equal(renderer.outputs.get('a'), input.kind === 'texture' ? input : undefined);
+		renderer.dispose();
+		assert.equal(texture.destroyed, false);
 	}
 });
-
-for (const enable32bit of [false, true]) {
-	// 【表示用の定数texture】
-	// 定数のテクスチャ化は表示境界だけで行い、同値の転送を省略し、所有リソースだけ破棄する。
-	test(`materializes constants only at the texture boundary with ${enable32bit ? 32 : 16}-bit storage`, () => {
-		const { device, calls } = gpuFixture();
-		const uploads = [];
-		device.queue.writeTexture = (target, data, layout) => uploads.push({ target, data: [...data], layout });
-		const resolver = new UniformOrTextureToTextureResolver(device, enable32bit);
-		const constant = { kind: 'uniform', value: [0.25, 0.125, 0, 0.25] };
-		const texture = resolver.resolve(constant);
-		assert.equal(texture.format, enable32bit ? 'rgba32float' : 'rgba16float');
-		assert.deepEqual(uploads[0].data, enable32bit ? constant.value : [0x3400, 0x3000, 0, 0x3400]);
-		assert.equal(uploads[0].layout.bytesPerRow, enable32bit ? 16 : 8);
-		assert.strictEqual(resolver.resolve({ ...constant, value: [...constant.value] }), texture);
-		assert.equal(uploads.length, 1);
-		assert.strictEqual(resolver.resolve({ kind: 'uniform', value: [0.5, 0, 0, 1] }), texture);
-		assert.equal(uploads.length, 2);
-		const scalar = resolver.resolve({ kind: 'uniform', value: [1] });
-		const vector = resolver.resolve({ kind: 'uniform', value: [1, 2] });
-		assert.equal(scalar.format, enable32bit ? 'r32float' : 'r16float');
-		assert.equal(vector.format, enable32bit ? 'rg32float' : 'rg16float');
-		assert.deepEqual(toShaderInput({ kind: 'uniform', value: [1] }, { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }).value, [1, 0, 0, 1]);
-		const borrowed = device.createTexture({ size: [10, 20] });
-		assert.strictEqual(resolver.resolve({ kind: 'texture', texture: borrowed }), borrowed);
-		assert.equal(calls.textures.length, 4);
-		resolver.dispose();
-		assert.ok([texture, scalar, vector].every(texture => texture.destroyed));
-		assert.equal(borrowed.destroyed, false);
-	});
-}
 
 // 【ID付き配列から接続と定数を評価し、エフェクトへは通常の配列を渡す】
 // 構造体配列内の接続・定数を解決し、要素の変更でレンダラーのキャッシュも更新する。
@@ -544,6 +520,7 @@ test('normalizes constants and preserves explicit connection sampling settings',
 	assert.deepEqual(constantShaderInput('color', null).value, [0, 0, 0, 0]);
 	assert.deepEqual(constantShaderInput('vector', [-2, 3]).value, [-2, 3]);
 	assert.deepEqual(constantShaderInput('scalar', 0.123456789).value, [0.123456789]);
+	assert.deepEqual(toShaderInput({ kind: 'uniform', value: [1] }, { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }).value, [1, 0, 0, 1]);
 	assert.deepEqual(textureShaderInput('texture', { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }), { kind: 'texture', texture: 'texture', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
 });
 

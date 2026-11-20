@@ -23,6 +23,8 @@ after(() => {
 
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { TimelineRendererManager } = await load('../src/timeline-renderer-manager.ts');
+const { default: fillDefinition } = await load('@gs/subsystems_effect-new_native-effects/fx/fill/_def_.ts');
+const { default: fillImplementation } = await load('@gs/subsystems_effect-new_native-effects/fx/fill/_impl_.ts');
 const { timelineCompositingParamDefs } = await load('@gs/subsystems_timeline_shared/timeline-compositing.ts');
 const { createTimelineTransformParameterValues } = await load('@gs/subsystems_timeline_shared/layers/transform/transform.ts');
 const literal = value => ({ inputSource: 'literal', value });
@@ -34,13 +36,17 @@ const probeParamDefs = { input: color, amount: scalar, local: scalar, caller: sc
 const graph = value => ({ id: 'graph', nameForReference: 'graph', isNormalized: true, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
 
 function createCustomNodeGraphEffect({ primaryInput = false, params } = {}) {
+	const input = { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'input' };
+	const usesFill = params == null && !primaryInput;
+	const nodes = [];
+	if (params != null) nodes.push({ id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'probe' }, params: { input, ...params } });
+	else if (usesFill) nodes.push({ id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'fill' }, params: { color: input } });
 	return {
-		kind: primaryInput ? 'modify' : 'generate', paramDefs: { input: { ...color, nameForReference: 'input' } },
+		kind: primaryInput ? 'modify' : 'generate', paramDefs: { input: { ...color, canNode: !usesFill, nameForReference: 'input' } },
 		primaryInputParameter: primaryInput ? 'input' : null, resolutionInputParameters: primaryInput ? ['input'] : [],
 		outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output',
-		nodes: params ? [{ id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'probe' },
-			params: { input: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'input' }, ...params } }] : [],
-		outputSources: { output: params ? { nodeId: 'node', outputPort: 'output' } : { parameterId: 'input' } },
+		nodes,
+		outputSources: { output: nodes.length > 0 ? { nodeId: 'node', outputPort: 'output' } : { parameterId: 'input' } },
 	};
 }
 
@@ -80,11 +86,11 @@ async function fixture(t, { present = false, disableCache = true, timelineFps = 
 	};
 	const manager = await TimelineRendererManager.create({
 		gpuDevice: device, gpuContext: { canvas: { width: 16, height: 16 }, configure() {}, getCurrentTexture: texture },
-		nativeEffectDefinitions: { probe: {
+		nativeEffectDefinitions: { fill: fillDefinition, probe: {
 			paramDefs: probeParamDefs,
 			primaryInputParameter: 'input', resolutionInputParameters: ['input'], primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } },
 		} },
-		nativeEffectImplementations: { probe: {
+		nativeEffectImplementations: { fill: fillImplementation, probe: {
 			init({ inputs, outputTextures, resolution }) {
 				const instance = { renders: 0, disposed: false, resolution };
 				calls.instances.push(instance);
@@ -100,7 +106,7 @@ async function fixture(t, { present = false, disableCache = true, timelineFps = 
 		if (event.type === 'effectLayerState') calls.statuses.push(event.ctx);
 		if (event.type === 'renderError') calls.errors.push(event.ctx.message);
 	});
-	// Canvasへの最終テクスチャ化の直前で観測し、Custom Node Graph Effect境界でuniformが失われていないか調べる。
+	// Canvasの表示前に、Timelineが確定したテクスチャとそのScene領域を観測する。
 	if (!present) manager.presentOutput = output => calls.outputs.push(output);
 	manager.canvasRenderer.renderToCanvas = texture => calls.presented.push(texture);
 	t.after(() => manager.destroy());
@@ -763,9 +769,8 @@ test('isolates repeated scene instances and reports their placement paths', asyn
 	assert.deepEqual(calls.renders.slice(-2).map(call => call.timeDelta), [50, 50]);
 });
 
-// 【子Sceneは透明背景から合成し、定数もSceneの画面として確定する】
-// 親背景を取り込むと通常合成で背景が二重になる。定数を無寸法のまま返すと、
-// 異なる縦横比の親へ配置したときに子Sceneの画面サイズを失ってしまう。
+// 【子Sceneは透明背景から合成し、Sceneの画面として確定する】
+// 親背景を取り込むと通常合成で背景が二重になる。子Sceneへは固有の画面サイズを与える。
 test('starts nested scenes on transparent backgrounds and materializes their canvas', async t => {
 	const { manager, calls } = await fixture(t);
 	await manager.updateDynamicOptions({ sceneId: 'root', timelineScenes: [
@@ -805,10 +810,10 @@ test('uses each containing scene for context nodes and preserves project referen
 	}
 });
 
-// 【Sceneの境界で定数と異なる画素数のreplace出力を指定寸法へ揃える】
+// 【Sceneの境界で異なる画素数のreplace出力を指定寸法へ揃える】
 // 画面の確定は単独プレビューと親への配置で共通にする。すでに指定サイズの出力は
 // 再利用し、MP4用の最終寸法補正はノードやSceneのサイズへ混ぜない。
-test('finalizes uniform and replace outputs at scene size before final canvas adjustment', async t => {
+test('finalizes replace outputs at scene size before final canvas adjustment', async t => {
 	const { manager, calls } = await fixture(t, { present: true });
 	const entry = layer('constant', createCustomNodeGraphEffect(), { clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] });
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'customAbsolute', width: 513, height: 257 }, layers: [entry] };

@@ -31,17 +31,19 @@ export class PortableCanvasRenderer {
 		});
 	}
 
-	public render(texture: GPUTexture, encoder: GPUCommandEncoder, aspectRatio = texture.width / texture.height) {
+	public render(texture: GPUTexture | null, encoder: GPUCommandEncoder, aspectRatio: number) {
 		const pass = encoder.beginRenderPass({ colorAttachments: [{ view: this.context.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] });
-		// 固定寸法のノードも意味を変えない。異なる比率の出力は透明余白でcontainする。
-		const width = Math.min(this.canvas.width, this.canvas.height * aspectRatio);
-		const height = width / aspectRatio;
-		pass.setViewport((this.canvas.width - width) / 2, (this.canvas.height - height) / 2, width, height, 0, 1);
-		pass.setPipeline(this.pipeline);
-		pass.setBindGroup(0, this.device.createBindGroup({ layout: this.pipeline.getBindGroupLayout(0), entries: [
-			{ binding: 0, resource: texture.createView() }, { binding: 1, resource: this.sampler },
-		] }));
-		pass.draw(3);
+		if (texture != null) {
+			// 固定寸法のノードも意味を変えない。異なる比率の出力は透明余白でcontainする。
+			const width = Math.min(this.canvas.width, this.canvas.height * aspectRatio);
+			const height = width / aspectRatio;
+			pass.setViewport((this.canvas.width - width) / 2, (this.canvas.height - height) / 2, width, height, 0, 1);
+			pass.setPipeline(this.pipeline);
+			pass.setBindGroup(0, this.device.createBindGroup({ layout: this.pipeline.getBindGroupLayout(0), entries: [
+				{ binding: 0, resource: texture.createView() }, { binding: 1, resource: this.sampler },
+			] }));
+			pass.draw(3);
+		}
 		pass.end();
 	}
 

@@ -48,12 +48,16 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	const pointer = fixture();
 	pointer.customNodeGraphEffect.nodes[0].params.color.expression = '[POINTER_POSITION[0] + 0.5, POINTER_POSITION[1] + 0.5, 0, 1]';
 	await add('pointer', pointer);
-	const uniform = fixture();
-	uniform.customNodeGraphEffect.paramDefs = { tint: { ...parameter('color', [0.5, 0, 0, 0.5], 'tint'), canNode: true } };
-	uniform.customNodeGraphEffect.primaryInputParameter = 'tint';
-	uniform.customNodeGraphEffect.nodes = [];
-	uniform.customNodeGraphEffect.outputSources = { output: { parameterId: 'tint' } };
-	await add('uniform', uniform);
+	const solid = fixture();
+	const tint = parameter('color', [0.5, 0, 0, 0.5], 'tint');
+	solid.customNodeGraphEffect.paramDefs = { tint };
+	solid.customNodeGraphEffect.nodes[0].params.color = { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'tint' };
+	await add('solid', solid);
+	const noOutput = fixture();
+	noOutput.customNodeGraphEffect.paramDefs = { tint: { ...tint, canNode: true } };
+	noOutput.customNodeGraphEffect.nodes = [];
+	noOutput.customNodeGraphEffect.outputSources = { output: { parameterId: 'tint' } };
+	await add('nooutput', noOutput);
 	const imageInput = fixture();
 	imageInput.assets = [{ id: 'image', name: 'Image', width: 2, height: 2, fileDataType: 'image/png',
 		fileData: new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAE0lEQVR4nGP4z8DQAMIMDP8hEAA55Ab7GrcJWQAAAABJRU5ErkJggg==', 'base64')]) }];

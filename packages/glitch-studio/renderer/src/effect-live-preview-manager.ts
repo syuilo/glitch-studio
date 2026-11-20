@@ -24,7 +24,7 @@ import { applyRendererProjectChanges, isEffectLivePreviewProjectChange } from '@
 import { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import EventEmitter from 'eventemitter3';
-import { UniformOrTextureToTextureResolver } from '@gs/shared/gpu/uniform-or-texture-to-texture-resolver.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { browserFrameScheduler, EffectLivePreviewRenderLoop } from './effect-live-preview-render-loop.ts';
 import { AssetTextures } from './asset-textures.ts';
 import { PlayerAudioInputs } from './player-audio-inputs.ts';
@@ -152,7 +152,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 	private gpuDevice: GPUDevice;
 	private canvasRenderer: CanvasRenderer;
 	private readonly vertex: GPUShaderModule;
-	private outputTextures: UniformOrTextureToTextureResolver;
+	private transparentTexture: GPUTexture | null = null;
 	private frameScheduler: FrameScheduler;
 	private effectLivePreviewRenderLoop: EffectLivePreviewRenderLoop;
 	private placement: EffectLivePreviewPlacement | null = null;
@@ -240,7 +240,6 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		});
 		this.gpuDevice = coreConfig.gpuDevice;
 		this.playerVideoTextures = new PlayerVideoTextures(this.gpuDevice);
-		this.outputTextures = new UniformOrTextureToTextureResolver(this.gpuDevice, this.staticOptions.enable32bitDataTextures);
 		this.gpuContext = coreConfig.gpuContext;
 		this.nativeEffectDefinitions = coreConfig.nativeEffectDefinitions;
 		this.nativeEffectImplementations = coreConfig.nativeEffectImplementations;
@@ -539,9 +538,14 @@ export class EffectLivePreviewManager extends EventEmitter<{
 			await effect.renderTiled(frame, signal, progress => this.previewRenderDelayMonitor.updateTilingProgress(frame, progress));
 			signal.throwIfAborted();
 			const output = active.port == null ? null : effect.outputs.get(active.port);
-			this.updateCanvasResolution(output?.kind === 'texture' ? output.resolution : resolution);
+			this.updateCanvasResolution(output?.resolution ?? resolution);
 			const encoder = this.gpuDevice.createCommandEncoder();
-			const texture = this.outputTextures.resolve(output ?? { kind: 'uniform', value: [0, 0, 0, 0] });
+			// 出力がないフレームも同じ表示・読み戻し経路を使う。初期値が透明黒の読み取り専用画像を再利用する。
+			const texture = output?.texture ?? (this.transparentTexture ??= this.gpuDevice.createTexture({
+				size: { width: 1, height: 1 },
+				format: INTERMEDIATE_TEXTURE_FORMAT,
+				usage: GPUTextureUsage.TEXTURE_BINDING,
+			}));
 			this.canvasRenderer.renderToCanvas(texture, encoder, timing.time, generation);
 			cpuFrame?.prepareReadback(encoder);
 			this.gpuDevice.queue.submit([encoder.finish()]);
@@ -613,7 +617,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		if (this.telemetryReportIntervalId != null) clearInterval(this.telemetryReportIntervalId);
 		if (this.gpuMemoryReportIntervalId != null) clearInterval(this.gpuMemoryReportIntervalId);
 		this.stopRenderLoop();
-		this.outputTextures.dispose();
+		this.transparentTexture?.destroy();
 		this.assetTextures.dispose();
 		for (const id of this.audioPorts.keys()) this.resetAudioSource(id, null);
 		this.playerVideoTextures.dispose();

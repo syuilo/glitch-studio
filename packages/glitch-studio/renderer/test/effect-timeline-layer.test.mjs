@@ -132,7 +132,8 @@ test('routes region transforms through both Custom Node Graph Effect layer rende
 	const observations = [];
 	f.manager.createCompositingObserver = () => (_source, settings) => observations.push(settings);
 	const customNodeGraphEffect = { ...definition, kind: 'generate', resolutionInputParameters: [], primaryInputParameter: null,
-		paramDefs: { color }, nodes: [], outputSources: { output: { parameterId: 'color' } } };
+		paramDefs: {}, nodes: [{ id: 'probe', effectSource: { type: 'nativeEffect', id: 'probe' }, params: {} }],
+		outputSources: { output: { nodeId: 'probe', outputPort: 'output' } } };
 	for (const effectSource of [{ type: 'customNodeGraphEffectReference', id: 'visual' }, { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect }]) {
 		const entry = layer(effectSource.type, {}, { effectSource, effectParamValues: {}, transformTarget: 'region' });
 		await f.setup([entry], { customNodeGraphEffects: [{ id: 'visual', name: 'Visual', definition: customNodeGraphEffect }] });

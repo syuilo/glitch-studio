@@ -46,14 +46,14 @@ test('declares a fixed output type even when disconnected', async t => {
 });
 
 for (const [kind, value] of [['scalar', [0.125]], ['vector', [-2, 3]], ['color', color.value]]) {
-	// 【中継を連ねてもuniformをテクスチャ化しない】
-	// 任意の成分数と負値・乗算済みアルファを維持し、GPU資源を一つも確保しない。
-	test('preserves ' + kind + ' uniforms through relay chains without allocation', async t => {
+	// 【中継を連ねたuniformはOutに現れない】
+	// 値の型によらず、公開出力のためのGPU資源を一つも確保しない。
+	test('omits ' + kind + ' uniform outputs through relay chains without allocation', async t => {
 		const f = setup([relay('first', publicInput, kind), relay('last', reference('first'), kind)], reference('last'), kind);
 		const input = { kind: 'uniform', value };
 		const instance = await f.place(input); t.after(() => instance.dispose());
 		instance.render(frame(), {});
-		assert.equal(instance.outputs.get('result'), input);
+		assert.equal(instance.outputs.has('result'), false);
 		assert.equal(f.textures.length, 0);
 	});
 }
@@ -118,9 +118,12 @@ test('keeps consumers live when a borrowed texture retains its identity', async 
 // 無効化したノードが画像を再生成したり、その履歴を進めたりしない。
 test('resolves relays on both sides of a bypassed effect', async t => {
 	const f = setup([relay('first'), node('bypass', { a: connection('first') }, true), relay('last', reference('bypass'))]);
-	const instance = await f.place(color); t.after(() => instance.dispose());
+	const texture = {};
+	const instance = await f.place({ kind: 'texture', resolution: size, texture }); t.after(() => instance.dispose());
 	instance.render(frame(), {});
-	assert.equal(instance.outputs.get('result').value, color.value); assert.deepEqual(f.renders, []);
+	assert.equal(instance.outputs.get('result').texture, texture);
+	assert.deepEqual(f.renders, []);
+	assert.deepEqual(f.textures, []);
 });
 
 for (const [label, source] of [['missing node', reference('removed')], ['missing public input', { parameterId: 'removed' }], ['unknown relay port', reference('first', 'removed')]]) {
@@ -132,11 +135,12 @@ for (const [label, source] of [['missing node', reference('removed')], ['missing
 	});
 }
 
-// 【any型の中継を挟んでも値を変換しない】
-// 互換性があるポートを経由するとき、スカラーの値と成分数を維持する。
+// 【any型の中継を挟んでもテクスチャを変換しない】
+// 互換性があるポートを経由するとき、スカラーテクスチャをそのまま借用する。
 test('honors any compatibility without converting the output', async t => {
 	const f = setup([relay('first', publicInput, 'any'), relay('last', reference('first'), 'scalar')], reference('last'), 'scalar');
 	f.validate();
-	const input = { kind: 'uniform', value: [0.125] }, instance = await f.place(input); t.after(() => instance.dispose());
+	const input = { kind: 'texture', resolution: size, texture: { format: 'r16float' } };
+	const instance = await f.place(input); t.after(() => instance.dispose());
 	assert.equal(instance.outputs.get('result'), input);
 });

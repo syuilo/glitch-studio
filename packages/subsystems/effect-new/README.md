@@ -25,7 +25,8 @@ instance.render(frame, commandEncoder);
 ```
 
 - 配線、使用出力、各Bindingの `inputSource`、配列の構造、入力種別・寸法・サンプリング、静的設定は生成時に確定する。これらを編集したら配置を再生成する。値や同じ寸法の借用テクスチャの差し替えには入力のgetterを使える。時間は秒、`timeDelta` はミリ秒で渡す。
-- Custom Node Graph Effect は各ノードの `effectSource` と公開出力の `outputSources` を持つ。公開入力からの直結はuniformまたはtextureをそのまま転送し、画像を読む接続がFit／Wrap／Filterを指定する。未接続の公開出力は `outputs` に含まれない。出力の寸法は接続元で決まり、uniformは固有寸法を持たない。
+- Custom Node Graph Effect は各ノードの `effectSource` と公開出力の `outputSources` を持つ。InからOutへ直結すると、その配置の入力がtextureの場合に元のテクスチャ・寸法・世代を借用する。Relay経由も同じ。uniformの直結と未接続ポートは `outputs` に含まれない。画像を読む接続がFit／Wrap／Filterを指定する。
+- Bypassは型が互換な主ポート間でテクスチャを転送する。副出力とuniformの主入力は未接続として扱う。
 - 既定値と配列要素追加用の値はすべてliteralで、初期化時に展開する。`params` は配置側のBinding、`inputs` は解決済みの入力で、同じIDでは `inputs` が優先される。式・環境変数・キー・Automation Graph・加工式は標準評価器が処理する。ホスト固有の処理は `bindParameterValue` で差し替えられる。
 - 旧実装の `canLazyAllocation` は廃止した。`createEffectInstance()` は `usedOutputPorts` に指定された公開出力から配線を逆にたどり、描画に必要な Native Effect・Custom Shader Effect の出力ポートだけにテクスチャを確保する。各実装は初期化時に `outputTextures` でそのポートとテクスチャを受け取る。使用する出力が変わったらインスタンスを作り直す。
 - Custom Shader Effect は全入力の種別と使用する出力に合わせて、配置ごとに一度だけpipelineを生成する。ユーザーのWGSL関数は定義された全出力を持つ `Output` を返し、生成したfragmentエントリポイントが使用する出力だけを描画先へ書き込む。コンパイルが失敗した場合は `createEffectInstance()` が失敗する。

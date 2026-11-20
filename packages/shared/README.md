@@ -48,9 +48,8 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 - `oklab.wgsl`: 未乗算linear sRGBとOklabの相互変換。CPUの`color-space.ts`と同じ係数と符号付き立方根を使い、HDR・負値を制限しない。OKLCH Adjust・Palette Match・Color Rampから共有する。
 - `color-ramp.ts` / `color-ramp.wgsl`: fragment描画用のColor Rampのbuffer・binding・乗算済みlinear sRGBへの評価。呼び出し側がbind group番号を指定し、`shaderCode`をシェーダーへ組み込み、`update()`が返すbind groupを使用する。stop数の変更はbufferの拡張で扱い、pipelineの再生成を要求しない。
 - `shape-distance.wgsl`: 楕円・角丸矩形の境界への距離と、楕円の最近点を求める数学処理。座標の単位・配置・描画方式は呼び出し側が決める。
-- `uniform-or-texture-to-texture-resolver.ts`: `GPUTexture`が必要な境界で定数だけをテクスチャ化する`UniformOrTextureToTextureResolver`。借用テクスチャの所有権は持たず、自身が作った定数テクスチャだけを管理する。
 
-色はpremultiply済みのまま受け渡し、変換時に再乗算しない。定数をいつテクスチャ化するかとresolverの寿命は呼び出し側が決める。ノードの接続解決、Effectの出力管理、Sceneの画面サイズ確定は、それぞれのドメインが担当する。
+色はpremultiply済みのまま受け渡し、変換時に再乗算しない。ノードの接続解決、Effectの出力管理、Sceneの画面サイズ確定は、それぞれのドメインが担当する。
 
 ## 波形の集計
 

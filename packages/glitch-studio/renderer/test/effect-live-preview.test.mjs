@@ -76,11 +76,14 @@ test('previews a removed output as transparent and resumes it when the definitio
 	await f.frame(40);
 	const transparent = f.submitted.at(-1).texture;
 	assert.equal(transparent.format, 'rgba16float');
-	assert.deepEqual(uploads, [{ texture: transparent, components: [0, 0, 0, 0] }]);
+	assert.deepEqual([transparent.width, transparent.height], [1, 1]);
+	await f.frame(50);
+	assert.equal(f.submitted.at(-1).texture, transparent);
+	assert.deepEqual(uploads, []);
 
 	updateShader(shader);
 	await f.frame(60);
-	assert.deepEqual(f.submitted.map(({ texture }) => texture.format), ['r16float', 'rgba16float', 'r16float']);
+	assert.deepEqual(f.submitted.map(({ texture }) => texture.format), ['r16float', 'rgba16float', 'rgba16float', 'r16float']);
 	assert.deepEqual(f.errors, []);
 });
 

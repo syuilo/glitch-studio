@@ -1,11 +1,10 @@
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { createProjectEffectDefinitions, type NativeEffectDefinitions } from '@gs/glitch-studio_shared/project/effects.ts';
 import { createEffectInstance } from '@gs/subsystems_effect-new_renderer/create-effect-instance.ts';
-import type { EffectInstance, EffectImageInput, EffectFrameContext, NativeEffectImplementation } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
+import type { EffectInstance, EffectFrameContext, NativeEffectImplementation } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
 import { createPortableEffectInputs } from './effect-inputs.ts';
 import { AssetTextures } from '@gs/glitch-studio_renderer/asset-textures.ts';
 import { PortableCanvasRenderer } from '@gs/glitch-studio_renderer/portable-canvas-renderer.ts';
-import { UniformOrTextureToTextureResolver } from '@gs/shared/gpu/uniform-or-texture-to-texture-resolver.ts';
 import { getPortableRenderResolution, getPortablePointerPosition } from './protocol.ts';
 import type { PortableCustomNodeGraphEffectRequest, PortableCustomNodeGraphEffectResponse, PortableCustomNodeGraphEffectFrame } from './protocol.ts';
 import type { PortableCustomNodeGraphEffect } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
@@ -21,7 +20,6 @@ export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffe
 	let assetTextures: AssetTextures | null = null;
 	let effect: EffectInstance | null = null;
 	let presenter: PortableCanvasRenderer | null = null;
-	let outputTextures: UniformOrTextureToTextureResolver | null = null;
 	let renderFrame: ((frame: PortableCustomNodeGraphEffectFrame) => Promise<void>) | null = null;
 	let processingFrame = false;
 
@@ -29,7 +27,6 @@ export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffe
 		controller.abort();
 		effect?.dispose();
 		assetTextures?.dispose();
-		outputTextures?.dispose();
 		presenter?.destroy();
 		device?.destroy();
 		effect = null;
@@ -64,11 +61,8 @@ export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffe
 		const effectDefinitions = createProjectEffectDefinitions(data, definitions);
 		const gpu = { device, defaultVertexShaderModule: device.createShaderModule({ code: vertexCode }), enable32bitDataTextures: false };
 		const resources = { assets, assetTextures: assetTextures.textures };
-		outputTextures = new UniformOrTextureToTextureResolver(device, false);
 		presenter = new PortableCanvasRenderer(device, canvas);
 		let inputs: ReturnType<typeof createPortableEffectInputs> | null = null;
-		const transparent: EffectImageInput = { kind: 'uniform', value: [0, 0, 0, 0] };
-		let output: EffectImageInput = transparent;
 		let previousTime = 0;
 		let previousPointer: [number, number] | null = null;
 		renderFrame = async frame => {
@@ -85,7 +79,6 @@ export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffe
 					effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect }, definitions: effectDefinitions,
 					resolution, resources, inputs: inputs.inputs, usedOutputPorts: new Set([port]),
 				}, gpu, id => implementations[id], controller.signal);
-				output = effect.outputs.get(port) ?? transparent;
 				previousPointer = null;
 				previousTime = frame.time;
 			} else if (frame.resetHistory) {
@@ -93,7 +86,8 @@ export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffe
 				previousPointer = null;
 				previousTime = frame.time;
 			}
-			const outputResolution = output.kind === 'texture' ? output.resolution : resolution;
+			const output = effect.outputs.get(port);
+			const outputResolution = output?.resolution ?? resolution;
 			const position = getPortablePointerPosition(frame.pointerElementPosition, resolution, outputResolution);
 			const context: EffectFrameContext = {
 				time: frame.time / 1000, timeDelta: Math.max(0, frame.time - previousTime), endTime: Infinity, progress: 0, isExport: false,
@@ -104,7 +98,7 @@ export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffe
 			controller.signal.throwIfAborted();
 			const encoder = createdDevice.createCommandEncoder();
 			effect.render(context, encoder);
-			presenter!.render(outputTextures!.resolve(output), encoder, outputResolution.width / outputResolution.height);
+			presenter!.render(output?.texture ?? null, encoder, outputResolution.width / outputResolution.height);
 			createdDevice.queue.submit([encoder.finish()]);
 			await createdDevice.queue.onSubmittedWorkDone();
 			controller.signal.throwIfAborted();

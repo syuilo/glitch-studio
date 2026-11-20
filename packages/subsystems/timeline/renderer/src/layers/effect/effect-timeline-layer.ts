@@ -1,5 +1,4 @@
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
-import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { createResolutionExpressionVariables } from '@gs/shared/expression/resolution-variables.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import { createEffectInstance, type EffectPlacement } from '@gs/subsystems_effect-new_renderer/create-effect-instance.ts';
@@ -56,8 +55,6 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, options: E
 	const lifetime = new AbortController();
 	let initialization: Promise<EffectInstance> | null = null;
 	let instance: EffectInstance | null = null;
-	let uniformTexture: GPUTexture | null = null;
-	let lastColor: readonly number[] | null = null;
 	let pending: Promise<unknown> = Promise.resolve();
 
 	function initialize() {
@@ -95,34 +92,12 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, options: E
 		// 各ノードのタイル要否とコマンドの送信はEffect側の計画に従う。直接出力だけのGraphはGPUパスを作らない。
 		await effect.renderTiled(frame, signal, context.isExport || options.tiling == null || options.tiling.mode === 'disabled' ? undefined : options.onTilingProgress);
 		signal.throwIfAborted();
-		let texture: GPUTexture;
-		if (output.kind === 'texture') {
-			texture = output.texture;
-		} else {
-			// Custom Node Graph Effectは公開色を直接返せる。Timelineの境界でだけ画像化し、同じ色の再描画を省く。
-			texture = uniformTexture ??= device.createTexture({
-				size: effectResolution, format: INTERMEDIATE_TEXTURE_FORMAT,
-				usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
-			});
-			const color = output.value;
-			if (color.some((value, i) => value !== lastColor?.[i])) {
-				const encoder = device.createCommandEncoder();
-				encoder.beginRenderPass({
-					colorAttachments: [{
-						view: texture.createView(), loadOp: 'clear', storeOp: 'store',
-						clearValue: { r: color[0], g: color[1], b: color[2], a: color[3] },
-					}],
-				}).end();
-				device.queue.submit([encoder.finish()]);
-				lastColor = [...color];
-			}
-		}
 		const settings = compositing.evaluate({
 			time: context.sceneTimeMs, isExport: context.isExport, coordinateSpace: layer.coordinateSpace, mask: layer.mask,
 			layerMask: layer.layerMask, transformTarget: layer.transformTarget, paramValues: layer.compositingParamValues,
 			publicParameters: context.publicParameters, automationGraphs: layer.automationGraphs,
 		});
-		return compositor.evaluate(context, { kind: 'texture', texture }, settings);
+		return compositor.evaluate(context, { kind: 'texture', texture: output.texture }, settings);
 	}
 
 	return {
@@ -140,7 +115,6 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, options: E
 			lifetime.abort();
 			instance?.dispose();
 			inputs.dispose();
-			uniformTexture?.destroy();
 			compositor.dispose();
 		},
 	};

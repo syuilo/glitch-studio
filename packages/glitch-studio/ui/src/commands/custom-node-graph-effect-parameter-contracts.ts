@@ -52,7 +52,7 @@ export const CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS = {
 		inputSchema: customNodeGraphEffectNodeParameterReferenceSchema.extend({ elementIds: z.array(z.string()) }), resultSchema: z.null(),
 	},
 	setCustomNodeGraphEffectNodeBypass: {
-		description: 'Enable or disable bypass on an effect node without deleting its definition, bindings, or connections.',
+		description: 'Enable or disable bypass on an effect node. A bypassed node forwards a texture from its primary input to a compatible primary output. Other outputs are absent.',
 		examples: [nodeSetup + 'Command:setCustomNodeGraphEffectNodeBypass({ target: node, bypass: true })'],
 		inputSchema: z.object({ target: customNodeGraphEffectNodeReferenceSchema, bypass: z.boolean() }), resultSchema: z.null(),
 	},
@@ -72,7 +72,7 @@ export const CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS = {
 		inputSchema: z.object({ target: customNodeGraphEffectNodeReferenceSchema, resolution: effectResolutionSchema }), resultSchema: z.null(),
 	},
 	setCustomNodeGraphEffectOutputConnection: {
-		description: 'Connect a Custom Node Graph Effect output to an output port on a node in the same Custom Node Graph Effect. source: null disconnects it. Output port identifiers come from the node\'s effect definition. connectionTypePolicy defaults to strict.',
+		description: 'Connect a Custom Node Graph Effect output to an output port in the same graph. Pass null as source to disconnect it. An In connection, including through a relay, produces output only when the placement supplies a texture. connectionTypePolicy defaults to strict.',
 		examples: [nodeSetup + 'let customNodeGraphEffectState = Query:getCustomNodeGraphEffect(customNodeGraphEffect)\nCommand:setCustomNodeGraphEffectOutputConnection({ target: { customNodeGraphEffect: customNodeGraphEffect, outputId: customNodeGraphEffectState.primaryOutputId }, source: { nodeId: node.nodeId, outputPort: "output" } })'],
 		inputSchema: z.object({ target: customNodeGraphEffectOutputReferenceSchema, source: z.object({ nodeId: z.string(), outputPort: z.string() }).nullable(), connectionTypePolicy: connectionTypePolicySchema.nullish() }), resultSchema: z.null(),
 	},

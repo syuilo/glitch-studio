@@ -12,6 +12,8 @@ Custom Node Graph Effect内の式では、`POINTER_POSITION`でポインタ位�
 
 レイヤーとして使う場合、下のレイヤーまでの合成結果がInノードの出力になります。Outノードの出力は、タイムライン側でレイヤーのtransform・opacity・合成方法を適用してから、上のレイヤーへの入力になります。
 
+InからOutへつないだ入力は、中継ノードを経由する場合も、テクスチャが渡された配置でだけ出力されます。公開パラメータで指定した単色を表示するには、値として公開した色をFillノードに割り当て、Fillの出力をOutへつなぎます。
+
 ## カスタムパラメータ
 
 エディタの「カスタムパラメータ」で、Custom Node Graph Effect内部の複数ノードから利用する共通の値を定義できます。公開入力やInノードのポートには追加されず、外部から上書きできません。`customParameterDefs`と`customParameterValues`はCustom Node Graph Effect本体の必須フィールドで、未使用時も`[]`と`{}`を保持します。定義と値はCustom Node Graph Effect本体に保存され、同じCustom Node Graph Effectを複数箇所で使う場合も、それぞれの利用インスタンスの時刻・公開引数で評価します。

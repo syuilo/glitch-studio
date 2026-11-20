@@ -36,9 +36,12 @@ function customNodeGraphEffect() {
 }
 
 function constantCustomNodeGraphEffect() {
-	return { ...customNodeGraphEffect(), paramDefs: { color: { nameForReference: 'color', dataType: { kind: 'color' },
-		ui: { label: 'Color', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] } } },
-		nodes: [], outputSources: { output: { parameterId: 'color' } } };
+	return {
+		...customNodeGraphEffect(),
+		paramDefs: { color: { ...fillDefinition.paramDefs.color, nameForReference: 'color', defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] } } },
+		nodes: [{ id: 'a', effectSource: { type: 'nativeEffect', id: 'fill' },
+			params: { color: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'color' } } }],
+	};
 }
 
 for (const framesAhead of [undefined, 0, 1, 2, 3]) {
@@ -579,10 +582,10 @@ async function fixture(t, staticOptions = {}, Manager = EffectLivePreviewManager
 		gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
 		...waveformAndHistogramCanvases,
 		frameScheduler: { now: () => 0, requestFrame: callback => { frames.set(++frameId, callback); return frameId; }, cancelFrame: id => frames.delete(id) },
-		nativeEffectDefinitions: { pass: { kind: 'modify', paramDefs: {
+		nativeEffectDefinitions: { fill: fillDefinition, pass: { kind: 'modify', paramDefs: {
 			input: { dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] }, ui: { label: 'Input', control: {} } },
 		}, primaryInputParameter: 'input', resolutionInputParameters: ['input'], outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output' } },
-		nativeEffectImplementations: { pass: { init: () => ({ render() {}, dispose() {} }) } },
+		nativeEffectImplementations: { fill: fillImplementation, pass: { init: () => ({ render() {}, dispose() {} }) } },
 	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: true, enable32bitDataTextures: false, ...staticOptions }, { assets: [], players: [] });
 	renderer.on('ev', event => {
 		if (event.type === 'renderError') errors.push(event.ctx.message);
@@ -1400,35 +1403,35 @@ test('resizes both the canvas and the live effect output', async t => {
 
 // 【Effect Live PreviewのOutを切断したら透明な出力を描画し、再接続で復旧する】
 // 出力なしで描画をスキップすると、接続中の最後の映像がCanvasに残ってしまう。
-// 実際のIn/Outの配線を差分更新し、透明RGBAの転送と最終描画が行われること、
-// 未接続のままでも描画ループが継続し、再接続した次のフレームで色が戻ることを確認する。
+// Outの配線を差分更新しても描画ループが継続し、未接続中は透明画像を再利用する。
+// 再接続した次のフレームではFillが出力した寸法の画像を表示する。
 test('renders transparent Effect Live Preview output after disconnecting Out and recovers on reconnection', async t => {
 	const { renderer, errors, frames, frame } = await fixture(t);
 	const definition = constantCustomNodeGraphEffect();
 	const reconnect = outputSources => renderer.applyProjectChanges([{ type: 'customNodeGraphEffect', customNodeGraphEffectId: referenceSource.id, customNodeGraphEffect: { ...definition, outputSources } }]);
 	renderer.updateDynamicOptions({ resolution: { width: 320, height: 180 }, resolutionScale: 0.5, customNodeGraphEffects: [registration(definition)] });
-	const writes = [];
-	t.mock.method(renderer.gpuDevice.queue, 'writeTexture', (destination, data) => writes.push(Array.from(data)));
 	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
+	const textureAt = index => present.mock.calls[index].arguments[0];
 	renderer.startEffectLivePreview({ effectSource: referenceSource });
 	await frame(16);
-	assert.deepEqual(writes.at(-1), [0x3c00, 0, 0, 0x3c00]);
+	assert.deepEqual([textureAt(0).width, textureAt(0).height], [160, 90]);
 	assert.equal(present.mock.callCount(), 1);
 
 	reconnect({});
 	await frame(32);
-	assert.deepEqual(writes.at(-1), [0, 0, 0, 0]);
+	assert.deepEqual([textureAt(1).width, textureAt(1).height], [1, 1]);
 	assert.equal(present.mock.callCount(), 2);
 	assert.equal(renderer.gpuContext.canvas.width, 160);
 	assert.equal(renderer.gpuContext.canvas.height, 90);
 	await frame(48);
 	assert.equal(present.mock.callCount(), 3);
+	assert.equal(textureAt(2), textureAt(1));
 	assert.equal(frames.size, 1);
 
 	reconnect(definition.outputSources);
 	await frame(64);
-	assert.deepEqual(writes.at(-1), [0x3c00, 0, 0, 0x3c00]);
 	assert.equal(present.mock.callCount(), 4);
+	assert.deepEqual([textureAt(3).width, textureAt(3).height], [160, 90]);
 	assert.deepEqual(errors, []);
 });
 
@@ -1669,19 +1672,17 @@ for (const Manager of [EffectLivePreviewManager, TimelineRendererManager]) {
 			points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
 		const expression = { inputSource: 'expression', expression: '[GRAPH("Curve", TIME_MS, "clamp"), 0, 0, 1]' };
 		const observedColors = [];
-		if (Manager === TimelineRendererManager) {
-			const create = renderer.gpuDevice.createCommandEncoder.bind(renderer.gpuDevice);
-			renderer.gpuDevice.createCommandEncoder = () => {
-				const encoder = create();
-				const begin = encoder.beginRenderPass.bind(encoder);
-				encoder.beginRenderPass = descriptor => {
-					const color = descriptor.colorAttachments[0].clearValue;
-					if (color?.a === 1) observedColors.push([color.r, color.g, color.b, color.a]);
-					return begin(descriptor);
-				};
-				return encoder;
+		const create = renderer.gpuDevice.createCommandEncoder.bind(renderer.gpuDevice);
+		renderer.gpuDevice.createCommandEncoder = () => {
+			const encoder = create();
+			const begin = encoder.beginRenderPass.bind(encoder);
+			encoder.beginRenderPass = descriptor => {
+				const color = descriptor.colorAttachments[0].clearValue;
+				if (color?.a === 1 && color.r > 0) observedColors.push([color.r, color.g, color.b, color.a]);
+				return begin(descriptor);
 			};
-		}
+			return encoder;
+		};
 		const definition = constantCustomNodeGraphEffect();
 		await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(definition)], automationGraphs: [graph(0.5)] });
 		if (Manager === EffectLivePreviewManager) renderer.startEffectLivePreview({ effectSource: referenceSource, params: { color: expression } });
@@ -1690,19 +1691,14 @@ for (const Manager of [EffectLivePreviewManager, TimelineRendererManager]) {
 			scene.layers[0].effectParamValues = { color: expression };
 			renderer.applyProjectChanges([{ type: 'scene', sceneId: scene.id, scene }]);
 		}
-		const writes = [];
-		const writeTexture = renderer.gpuDevice.queue.writeTexture;
-		renderer.gpuDevice.queue.writeTexture = (...args) => { writes.push(Array.from(new Uint16Array(args[1].buffer, args[1].byteOffset, 4))); writeTexture(...args); };
 		let timestamp = 0;
 		const render = async () => Manager === EffectLivePreviewManager ? frame(timestamp += 16) : renderer.renderTimelineAt(100);
 		await render();
 		assert.deepEqual(errors, []);
-		if (Manager === TimelineRendererManager) assert.ok(observedColors.some(([red]) => red === 0.5));
-		else assert.deepEqual(writes.at(-1), [0x3800, 0, 0, 0x3c00]);
+		assert.deepEqual(observedColors.at(-1), [0.5, 0, 0, 1]);
 		renderer.applyProjectChanges([{ type: 'automationGraphs', automationGraphs: [graph(0.25)] }]);
 		await render();
-		if (Manager === TimelineRendererManager) assert.ok(observedColors.some(([red]) => red === 0.25));
-		else assert.deepEqual(writes.at(-1), [0x3400, 0, 0, 0x3c00]);
+		assert.deepEqual(observedColors.at(-1), [0.25, 0, 0, 1]);
 		assert.deepEqual(renderer.dynamicOptions.customNodeGraphEffects[0].definition.automationGraphs ?? [], []);
 		renderer.applyProjectChanges([{ type: 'automationGraphs', automationGraphs: [] }]);
 		await render();

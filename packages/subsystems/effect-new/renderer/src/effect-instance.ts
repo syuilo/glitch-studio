@@ -10,10 +10,18 @@ import type { DataType } from '@gs/shared/data-type/data-type.ts';
 import type { EffectParameterDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
 import type { CustomNodeGraphEffect, CustomNodeGraphEffectEffectNode } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
 
+/** 寸法は配置中固定する。textureとversionは描画後に最新のものを取得する。 */
+export type EffectTextureOutput = {
+	readonly kind: 'texture';
+	readonly resolution: Resolution;
+	readonly texture: GPUTexture;
+	readonly version?: number;
+};
+
 /** 種別と寸法は配置の寿命中固定する。値・借用テクスチャはgetterでフレームごとの内容を渡せる。 */
 export type EffectImageInput =
 	| { readonly kind: 'uniform'; readonly value: readonly number[] }
-	| { readonly kind: 'texture'; readonly resolution: Resolution; readonly texture: GPUTexture; readonly sampling?: ShaderInputSampling; readonly version?: number };
+	| (EffectTextureOutput & { readonly sampling?: ShaderInputSampling });
 
 export function toFixedShaderInput(input: EffectImageInput): FixedShaderInput {
 	if (input.kind === 'uniform') return input;
@@ -73,8 +81,8 @@ export interface EffectInstance {
 	updateCustomNodeGraphEffectValues(customNodeGraphEffectId: string | null, update: CustomNodeGraphEffectValueUpdate): void;
 	resetRenderHistory(): void;
 	dispose(): void;
-	/** 要求された接続済みポート。値の読み取りは描画を起動せず、所有権も移さない。 */
-	readonly outputs: ReadonlyMap<string, EffectImageInput>;
+	/** 要求されたポートのうち、テクスチャを出力するものだけを持つ。所有権は移さない。 */
+	readonly outputs: ReadonlyMap<string, EffectTextureOutput>;
 }
 
 export interface EffectGpuContext {

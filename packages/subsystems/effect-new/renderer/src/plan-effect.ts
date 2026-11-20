@@ -4,6 +4,7 @@ import { scaleResolution } from '@gs/shared/resolution.ts';
 import { resolveEffectNodeResolution } from '@gs/subsystems_effect-new_shared/effect-node-resolution.ts';
 import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
 import { canCoerceParameterDataType, coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
+import { areNodeDataTypesCompatible, getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import { constantShaderInputComponents } from '@gs/shared/gpu/shader-input.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
@@ -22,7 +23,7 @@ import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-bindi
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { EffectSource, EffectDefinitions, ResolvedEffect } from '@gs/subsystems_effect-new_shared/effect-source.ts';
 import { isUnselectedGraphParameterReference, type CustomNodeGraphEffect, type CustomNodeGraphEffectEffectNode, type CustomNodeGraphEffectParameterBinding, type NodeOutputReference } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
-import type { CustomNodeGraphEffectValueUpdate, EffectParameterInput, EffectImageInput, EffectFrameContext, EffectPreparationStatus } from './effect-instance.ts';
+import type { CustomNodeGraphEffectValueUpdate, EffectParameterInput, EffectTextureOutput, EffectFrameContext, EffectPreparationStatus } from './effect-instance.ts';
 
 export interface EffectPlacement {
 	readonly effectSource: EffectSource;
@@ -47,8 +48,8 @@ export interface EffectPlacement {
 	readonly bindParameterValue?: (binding: ValueParameterBinding, definition: ParameterDefinition, nodePath: readonly string[]) => (frame: EffectFrameContext) => unknown;
 }
 
-interface PlannedInput {
-	readonly input: EffectParameterInput;
+interface PlannedInput<Input extends EffectParameterInput = EffectParameterInput> {
+	readonly input: Input;
 	/** 寸法だけを問い合わせた依存は描画しない。実際に値を読む経路に限って順序へ追加する。 */
 	readonly prepareRead?: () => ReadFrameValue;
 	readonly use?: (dependencies: Set<RenderStep>) => void;
@@ -68,6 +69,7 @@ interface PlannedEffectRenderer {
 export type EvaluateStep = { readonly active: boolean; evaluate: (frame: EffectFrameContext) => void };
 type RenderStep = PlannedEffectRenderer | EvaluateStep;
 type ResolvePort = (port: string) => PlannedInput | null;
+type ResolveEffectOutput = (port: string) => PlannedInput<EffectTextureOutput> | null;
 type ObserveBinding = (update: (binding: CustomNodeGraphEffectParameterBinding) => boolean) => void;
 type EvaluatedBinding = Exclude<CustomNodeGraphEffectParameterBinding, { inputSource: 'node' | 'customNodeGraphEffectPublicParameterReference' }>;
 
@@ -95,6 +97,10 @@ function withSampling(source: PlannedInput, sampling?: ShaderInputSampling): Pla
 	const input = source.input;
 	if (input.kind !== 'texture' || sampling === input.sampling) return source;
 	return { use: source.use, input: { kind: 'texture', sampling, resolution: input.resolution, get texture() { return input.texture; }, get version() { return input.version; } } };
+}
+
+function textureOutput(source: PlannedInput | null): PlannedInput<EffectTextureOutput> | null {
+	return source?.input.kind === 'texture' ? { input: source.input, use: source.use } : null;
 }
 
 function largestInputResolution(input: EffectParameterInput, largest: Resolution | null): Resolution | null {
@@ -269,7 +275,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 	}
 
 	function planPlacement(source: EffectSource, effect: ResolvedEffect, bind: (id: string, nodeResolution: () => Resolution) => PlannedInput, baseResolution: () => Resolution,
-		setting: Resolution | EffectResolution | null, staticSettings: StaticSettingValues, path: readonly string[], bypass = false): ResolvePort {
+		setting: Resolution | EffectResolution | null, staticSettings: StaticSettingValues, path: readonly string[], bypass = false): ResolveEffectOutput {
 		const inputs = new Map<string, PlannedInput>();
 
 		function parameter(id: string): PlannedInput {
@@ -303,8 +309,13 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 		}
 
 		if (bypass) {
-			const primary = effect.definition.primaryInputParameter;
-			return () => primary == null ? null : parameter(primary);
+			const { primaryInputParameter, primaryOutput, paramDefs, outputDefs } = effect.definition;
+			if (primaryInputParameter == null || primaryOutput == null
+				|| !areNodeDataTypesCompatible(outputDefs[primaryOutput]?.dataType, getNodeInputDataType(paramDefs[primaryInputParameter]))) {
+				return () => null;
+			}
+			// Bypassは主入力の画像を借用する。副出力を参照しても主入力の描画は起動しない。
+			return id => id === primaryOutput ? textureOutput(parameter(primaryInputParameter)) : null;
 		}
 
 		if (effect.type === 'customNodeGraphEffect') {
@@ -371,7 +382,8 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 			return id => {
 				const source = graph.outputSources[id];
 				if (source == null) return null;
-				return 'parameterId' in source ? parameter(source.parameterId) : nodeOutput(source);
+				// Relayを含めて配線を解決した後、テクスチャを持つ配置だけがOutから出力する。
+				return textureOutput('parameterId' in source ? parameter(source.parameterId) : nodeOutput(source));
 			};
 		}
 
@@ -380,13 +392,13 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 			staticSettings: settings, path, version: 0,
 			bindOutputTextures: new Map(), dependencies: new Set(),
 		};
-		const ports = new Map<string, PlannedInput>();
+		const ports = new Map<string, PlannedInput<EffectTextureOutput>>();
 		return id => {
 			const existing = ports.get(id);
 			if (existing != null) return existing;
 			// 計画中は種別・寸法だけで配線できる。履歴の書き込み先が交替しても、このポートから最新の結果を読める。
 			let texture: GPUTexture;
-			const port: PlannedInput = {
+			const port: PlannedInput<EffectTextureOutput> = {
 				input: { kind: 'texture', resolution: renderer.resolution, get texture() { return texture; }, get version() { return renderer.version; } },
 				use(dependencies) {
 					dependencies.add(renderer);
@@ -418,13 +430,13 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 		const def = root.definition.paramDefs[id];
 		return input != null ? { input } : planBinding(def, placement.params?.[id] ?? def.defaultValue, noParent, noParent, [], { graph: rootScope, resolution });
 	}, () => contextResolution, placement.resolutionSetting ?? { mode: 'context', scale: 1 }, placement.staticSettings ?? {}, []);
-	const outputs = new Map<string, EffectImageInput>();
+	const outputs = new Map<string, EffectTextureOutput>();
 	const roots = new Set<RenderStep>();
 	for (const id of placement.usedOutputPorts) {
 		const source = resolve(id);
 		if (source == null) continue;
 		source.use?.(roots);
-		outputs.set(id, source.input as EffectImageInput);
+		outputs.set(id, source.input);
 	}
 	// 後から要求されたポートが追加の上流を使う場合がある。全ポートの依存が揃ってから一度だけ描画順を決める。
 	const ordered = new Set<RenderStep>();

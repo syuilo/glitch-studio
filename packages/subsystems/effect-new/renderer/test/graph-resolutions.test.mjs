@@ -64,3 +64,17 @@ test('resolves only declared sources through relay and bypass connections', () =
 		assert.throws(() => validateEffectSource({ type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph }, definitions));
 	}
 });
+
+// 【バイパスは互換な主ポート間だけを転送する】
+// 副出力だけを使う場合や主ポートの型が異なる場合に、主入力の解決や描画が起動してはいけない。
+test('does not resolve the bypass input for a secondary or incompatible output', () => {
+	const definition = { ...metadata, outputDefs: { ...metadata.outputDefs, mask: { dataType: { kind: 'scalar' } } } };
+	const graph = { ...definition, nodes: [{ id: 'bypass', effectSource: native, params: { input: publicImage('input') }, isBypass: true }],
+		outputSources: { output: ref('bypass'), mask: ref('bypass', 'mask') } };
+	const { outputs } = plan(graph, { input: borrowed(80, 40) }, {}, { getNativeEffect: () => definition });
+	assert.deepEqual([...outputs.keys()], ['output']);
+	const unusedInputs = { get input() { assert.fail('Bypass resolved an unused primary input'); } };
+	assert.equal(plan(graph, unusedInputs, { usedOutputPorts: new Set(['mask']) }, { getNativeEffect: () => definition }).outputs.size, 0);
+	const incompatible = { ...definition, primaryOutput: 'mask' };
+	assert.equal(plan(graph, unusedInputs, {}, { getNativeEffect: () => incompatible }).outputs.size, 0);
+});

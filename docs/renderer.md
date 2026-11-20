@@ -48,21 +48,18 @@ let amount = read_amount(position);
 
 ### 内部表現と生成処理
 
-- `kind: 'uniform'` は空間的に一定の値です。リテラルに限らず、式やautomationの評価結果、接続されたCustom Node Graph Effectの定数出力も含みます。生成関数はuniform bufferから読み、入力用の1x1テクスチャは作りません。値はf32で渡し、テクスチャ精度設定による16bitへの丸めは行いません。
+- `kind: 'uniform'` はリテラル、式、Automation Graphなどから得られる空間的に一定の値です。生成関数はuniform bufferからf32で読みます。
 - `kind: 'texture'` は元の `GPUTexture` と、受け取り側のfit/wrap/filter設定です。接続時にテクスチャの保存形式を暗黙に変換しません。「接続されているなら必ずtexture」と仮定しないでください。
 - 色の定数は入力・出力値へ変換する境界で一度だけpremultiplyします。既に乗算済みの値や画像入力に再乗算してはいけません。データ用のスカラー・ベクトルには乗算しません。
 - `generateShaderInputs()` がWGSLの宣言・参照関数・binding配置を生成し、`createShaderInputBindings()` が値とGPUリソースを更新します。通常のrender pipelineでは、構成の生成・再利用をまとめた `createShaderInputPipeline()` を使用できます。bindingの更新には、fitの基準となる実際の出力サイズを渡してください。
 - 定数/テクスチャの種別、配列長や各要素の種別が変わるとpipelineの構成が変わります。値・接続先・fit/wrap/filterだけの変更ではpipelineを再生成せず、uniformやbindingを更新します。エフェクト破棄時はヘルパーの `dispose()` も呼びます。
 - 厳密な整数画素アクセスや履歴処理などでは、必要に応じて元のテクスチャを直接扱えます。その場合もuniform入力を扱い、生成関数を使わない理由を明確にしてください。画像素材・動画・音声など、`canNode` ではないパラメータはそれぞれの型で受け取ります。
 
-### Custom Node Graph Effect出力とテクスチャ化の境界
+### Effectの出力
 
-Custom Node Graph EffectのIn/Out・バイパス・タイムラインのレイヤー間では、定数またはテクスチャを表す `UniformOrTexture` を受け渡します。Custom Node Graph Effectの境界だけを理由に定数をテクスチャ化しません。エフェクトが描画した出力はtexture、Inから渡された定数はuniformのままです。
+`EffectInstance.outputs` にはテクスチャを持つポートだけが含まれます。Custom Node Graph EffectのInがOutまで直結されている場合は、Relay経由も含め、入力がtextureの配置で元のテクスチャとその寸法・世代を借用します。Bypassは型が互換な主入力と主出力の間でテクスチャを転送します。副出力とuniformを転送する経路は未接続として扱います。
 
-- `UniformOrTexture` 自体はサンプリング設定を持ちません。エフェクトやタイムラインの合成などでシェーダー入力になるときに `toShaderInput()` が受け取り側の設定を付け、`ShaderInput` にします。色の再乗算は行いません。scalar/vectorの不足成分はr/rgテクスチャと同じくRGBを0、alphaを1で補います。
-- Custom Node Graph Effectの `paramValues` はCPUで評価する通常のパラメータ値、`paramInputs` は上流から渡された `UniformOrTexture` です。`paramInputs` はuniformでも `PUBLIC` 式からは参照せず、Inノードや `canNode` 入力から読みます。上流の出力種別によって式の可否を変えないためです。
-- 最終表示・集計など、`GPUTexture` が必要な境界では `UniformOrTextureToTextureResolver` が定数だけを1x1テクスチャへ変換します。成分数ごとに再利用し、同値の転送を省略します。保存精度は `enable32bitDataTextures` に従います。
-- 借用した出力テクスチャは変換・破棄しません。resolver自身の定数テクスチャは `dispose()` で破棄します。再利用するテクスチャを上書きするため、そのテクスチャを読むコマンドをsubmitしてから次の `resolve()` を呼んでください。
+未接続の出力を読むノードは入力の既定値を使います。Timelineはそのレイヤーの合成を省き、Effect Live PreviewとWeb書き出しは透明なフレームを表示します。
 
 ## 浮動小数点テクスチャの精度とサンプリング
 

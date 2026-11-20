@@ -208,27 +208,24 @@ test('coerces public string references read by nested graph expressions', async 
 	}
 });
 
-// 【公開入力からRelayを通る配線は、外部入力の種類と値をそのまま渡す】
-// InからOutへ直接つないだ場合と同じく、Relay自身はGPUリソースや描画処理を必要としない。
-test('passes both uniform and texture public inputs through a relay', async () => {
+// 【公開入力からRelayを経由してもOutはtextureだけを公開する】
+// Relay自身はGPUリソースを確保しない。In→Outの規則が、直接接続と中継経由で変わらないことを確認する。
+test('publishes borrowed textures through a relay and omits uniform outputs', async () => {
 	const graph = { ...definition, paramDefs: { gain: { ...scalar, canNode: true } },
 		nodes: [{ id: 'wire', type: 'relay', dataType: { kind: 'scalar' }, input: { parameterId: 'gain' } }],
 		outputDefs: { image: { dataType: { kind: 'scalar' } } }, outputSources: { image: { nodeId: 'wire', outputPort: 'output' } } };
 	validateEffectSource(inline(graph), {});
-	for (const input of [{ kind: 'uniform', value: 0.5 }, { kind: 'texture', texture: {}, resolution: size }]) {
+	for (const input of [{ kind: 'uniform', value: [0.5] }, { kind: 'texture', texture: {}, resolution: size }]) {
 		const instance = await create(inline(graph), definition, () => assert.fail('Unexpected Native Effect'), { inputs: { gain: input } });
 		instance.render(frame());
-		const result = instance.outputs.get('image');
-		assert.equal(result.kind, input.kind);
-		if (input.kind === 'texture') assert.equal(result.texture, input.texture);
-		else assert.equal(result.value, input.value);
+		assert.equal(instance.outputs.get('image'), input.kind === 'texture' ? input : undefined);
 		instance.dispose();
 	}
 });
 
 // 【保存した型不一致の配線でも入力種別と値を維持する】
 // scalarの公開入力からvectorのRelayとcolorの入力・公開出力につないでも、
-// 配置が選んだuniform・textureの束縛でそのまま描画する。Relayや型の違いで書き換えや再確保が起きると失敗する。
+// 内部ノードはどちらの入力種別もそのまま受け取り、公開出力はtextureのあるときだけ転送する。
 test('loads mismatched ports and draws with the original fixed shader inputs', async () => {
 	const color = { ...scalar, canNode: true, dataType: { kind: 'color' }, defaultValue: literal([0, 0, 0, 0]) };
 	const consumer = { ...definition, paramDefs: { wired: color, direct: color } };
@@ -260,7 +257,7 @@ test('loads mismatched ports and draws with the original fixed shader inputs', a
 		try {
 			instance.render(frame(1));
 			instance.render(frame(2));
-			assert.equal(instance.outputs.get('relay').kind, input.kind);
+			assert.equal(instance.outputs.get('relay'), input.kind === 'texture' ? input : undefined);
 			assert.equal(draws, 2);
 		} finally {
 			instance.dispose();

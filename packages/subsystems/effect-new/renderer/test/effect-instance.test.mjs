@@ -64,23 +64,55 @@ test('plans nested ports once and keeps state per placement', async () => {
 	assert.deepEqual(destroyed, ['b', 'main', 'b', 'a']);
 });
 
-// 【公開入力の直結はGPUリソースも描画も必要としない】
-// 配置中に変化するuniformと借用textureは、子のグラフ境界を越えても同じ値・寸法で読める。
-test('forwards changing uniform and texture inputs through nested graphs', async () => {
+// 【子グラフへの直結は借用textureだけを公開する】
+// GPUを確保せず元の寸法・参照・世代を読める。別の配置で同じ入力にuniformを渡した場合は出力も値の評価も不要。
+test('forwards changing borrowed textures through nested graphs and omits uniform outputs', async t => {
 	const child = { ...base, paramDefs: { source: scalar }, nodes: [], outputSources: { main: { parameterId: 'source' } } };
 	const graph = { ...child, nodes: [{ id: 'child', effectSource: inline(child),
 		params: { source: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'source' } } }],
 		outputSources: { main: { nodeId: 'child', outputPort: 'main' } } };
-	let value = 1;
-	for (const input of [{ kind: 'uniform', get value() { return [value]; } }, { kind: 'texture', resolution: size, get texture() { return value; } }]) {
-		const instance = await createEffectInstance({ effectSource: inline(graph), inputs: { source: input }, usedOutputPorts: new Set(['main']), definitions: {}, resolution: size }, {}, assert.fail);
-		const output = instance.outputs.get('main');
-		assert.equal(output, input);
-		value++;
-		instance.render({ time: 0 });
-		assert.equal(output.kind === 'uniform' ? output.value[0] : output.texture, value);
-		instance.dispose();
-	}
+	const place = source => createEffectInstance({
+		effectSource: inline(graph), inputs: { source }, usedOutputPorts: new Set(['main']), definitions: {}, resolution: size,
+	}, {}, assert.fail);
+	const uniform = await place({ kind: 'uniform', get value() { assert.fail('Unused output read a uniform'); } });
+	t.after(() => uniform.dispose());
+	uniform.render({ time: 0 });
+	assert.equal(uniform.outputs.has('main'), false);
+
+	let texture = {};
+	let version = 0;
+	const input = { kind: 'texture', resolution: size, get texture() { return texture; }, get version() { return version; } };
+	const instance = await place(input);
+	t.after(() => instance.dispose());
+	const output = instance.outputs.get('main');
+	assert.equal(output, input);
+	texture = {};
+	version++;
+	instance.render({ time: 0 });
+	assert.equal(output.texture, texture);
+	assert.equal(output.version, version);
+});
+
+// 【出力がない子グラフにつないだ入力は、受け取り側の既定値を使う】
+// 子のInに値を渡した配置では、その値が子のOutを越えて親側の描画に混入しない。
+test('uses the downstream default when a nested graph has no texture output', async t => {
+	const child = { ...base, paramDefs: { source: scalar }, nodes: [], outputSources: { main: { parameterId: 'source' } } };
+	const consumer = { ...base, paramDefs: { input: { ...scalar, defaultValue: { inputSource: 'literal', value: 4 } } } };
+	const graph = { ...base, nodes: [
+		{ id: 'child', effectSource: inline(child), params: { source: { inputSource: 'literal', value: 7 } } },
+		{ id: 'consumer', effectSource: native('consumer'), params: { input: wire('child', 'main') } },
+	], outputSources: { main: { nodeId: 'consumer', outputPort: 'main' } } };
+	const instance = await createEffectInstance({
+		effectSource: inline(graph), definitions: { getNativeEffect: () => consumer }, usedOutputPorts: new Set(['main']), resolution: size,
+	}, {}, () => ({
+		createOutputTexture: () => ({ destroy() {} }),
+		init({ inputs }) {
+			assert.deepEqual(inputs.input, { kind: 'uniform', value: [4] });
+			return { render() {}, dispose() {} };
+		},
+	}));
+	t.after(() => instance.dispose());
+	assert.equal(instance.outputs.has('main'), true);
 });
 
 // 【GPU確保前の入力種別検査と部分初期化の巻き戻し】

@@ -347,14 +347,15 @@ test('defaults unassigned direct references and rejects invalid expressions', ()
 	assert.equal(result.paramValues.get('missingAutomationGraph'), 12);
 });
 
-// 【バイパスでは主入力だけを評価する】
-// バイパス中は主入力以外の不正なコンテナも評価しない
-test('evaluates only the primary parameter when bypassed', () => {
-	const params = { main: literal(4), unused: expression('invalid container') };
-	const input = context({ main: { ...number, canNode: true }, unused: arrayParameter(number) }, params, { nodes: [node(params, true)] });
+// 【バイパスの主入力が値の場合はノードの評価を起動しない】
+// 主出力と型が合っていても式によるuniformは転送しない。描画や他の入力の評価も不要。
+test('omits a bypassed uniform without evaluating the node', () => {
+	const color = { ...paramDef('color', [0, 0, 0, 0], 'color'), canNode: true };
+	const params = { main: expression('invalid primary value'), unused: expression('invalid container') };
+	const input = context({ main: color, unused: arrayParameter(number) }, params, { nodes: [node(params, true)] });
 	input.effectDefinitions.test.primaryInputParameter = 'main';
 	const result = evaluate(new ParameterBindingEvaluator(new ExpressionEvaluator()), input);
-	assert.deepEqual(result.output.value, [4]);
+	assert.equal(result.output, undefined);
 	assert.equal(result.nodeParams.size, 0);
 });
 
