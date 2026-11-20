@@ -36,7 +36,7 @@ async function fixture(t, implementation) {
 		customShaderEffects: [{ id: 'shared', name: 'Shader', summary: '', definition: shader }],
 		customNodeGraphEffects: [{ id: 'shared', name: 'Graph', definition: graph(reference) }] });
 	manager.canvasRenderer.renderToCanvas = (texture, _encoder, time) => submitted.push({ texture, time });
-	return { manager, submitted, errors, async frame(time) { frame(time); await new Promise(resolve => setImmediate(resolve)); } };
+	return { manager, device, submitted, errors, async frame(time) { frame(time); await new Promise(resolve => setImmediate(resolve)); } };
 }
 
 // 【全5種類のEffectSourceを同じWorker用Managerから描画する】
@@ -56,6 +56,32 @@ test('previews every source kind with a fixed output port and native channel for
 	f.manager.startEffectLivePreview({ effectSource: reference }, 'instance');
 	await f.frame(25);
 	assert.equal(f.submitted.at(-1).texture.format, 'rgba16float');
+});
+
+// 【選択中の出力を削除すると透明になり、Undoで選択した出力が復帰する】
+// ポートの削除は正当な定義変更。別の主出力が残っていても透明を表示し、元のIDが戻るまで選択を保持する。
+test('previews a removed output as transparent and resumes it when the definition is restored', async t => {
+	const f = await fixture(t);
+	const uploads = [];
+	f.device.queue.writeTexture = ({ texture }, data) => { uploads.push({ texture, components: Array.from(data) }); };
+	const updateShader = definition => f.manager.applyProjectChanges([{
+		type: 'customShaderEffectRegistration', customShaderEffectId: reference.id,
+		customShaderEffect: { id: reference.id, name: 'Shader', summary: '', definition },
+	}]);
+	f.manager.startEffectLivePreview({ effectSource: reference, outputPort: 'scalar' });
+	await f.frame(20);
+	assert.equal(f.submitted.at(-1).texture.format, 'r16float');
+
+	updateShader({ ...shader, outputDefs: { color: shader.outputDefs.color }, code: 'fn main(p: vec2f) -> Output { return Output(vec4f(1.)); }' });
+	await f.frame(40);
+	const transparent = f.submitted.at(-1).texture;
+	assert.equal(transparent.format, 'rgba16float');
+	assert.deepEqual(uploads, [{ texture: transparent, components: [0, 0, 0, 0] }]);
+
+	updateShader(shader);
+	await f.frame(60);
+	assert.deepEqual(f.submitted.map(({ texture }) => texture.format), ['r16float', 'rgba16float', 'r16float']);
+	assert.deepEqual(f.errors, []);
 });
 
 // 【公開パラメータの値編集は履歴を保持し、参照先の定義編集はその配置を再生成する】

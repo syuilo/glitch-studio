@@ -115,7 +115,10 @@ export type EffectLivePreviewManagerCoreConfig = {
 	nativeEffectImplementations: Readonly<Record<string, NativeEffectImplementation>>;
 };
 
-/** 出力は配置の寿命中固定する。省略時は主出力、続いて定義順の先頭を使用する。 */
+/**
+ * 出力は配置の寿命中固定する。省略時は主出力、続いて定義順の先頭を使用する。
+ * 指定したポートがなくなった間は透明を表示し、同じIDが復元されたらその出力を使う。
+ */
 export type EffectLivePreviewPlacement = {
 	effectSource: EffectSource;
 	outputPort?: string;
@@ -460,8 +463,8 @@ export class EffectLivePreviewManager extends EventEmitter<{
 			return;
 		}
 		const { definition } = resolveEffectSource(effectSource, this.definitions);
-		const port = placement.outputPort ?? definition.primaryOutput ?? Object.keys(definition.outputDefs)[0] ?? null;
-		if (port != null && !Object.hasOwn(definition.outputDefs, port)) throw new Error('Unknown Effect output: ' + port);
+		const requestedPort = placement.outputPort ?? definition.primaryOutput ?? Object.keys(definition.outputDefs)[0] ?? null;
+		const port = requestedPort != null && Object.hasOwn(definition.outputDefs, requestedPort) ? requestedPort : null;
 		const source: EffectLivePreviewStatusSource = { type: 'effectLivePreview', instanceId: this.effectLivePreviewStatusInstanceId! };
 		const lifetime = new AbortController();
 		const resolveAudio = (selection: unknown) => this.playerAudioInputs.resolve(selection);
