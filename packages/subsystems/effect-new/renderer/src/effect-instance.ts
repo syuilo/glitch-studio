@@ -8,6 +8,7 @@ import type { EffectRenderTilingProgressObserver, EffectRenderWorkloadHint } fro
 import type { ParameterDefaultValue } from '@gs/shared/parameter/parameter-definition.ts';
 import type { DataType } from '@gs/shared/data-type/data-type.ts';
 import type { EffectParameterDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectEffectNode } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
 
 /** 種別と寸法は配置の寿命中固定する。値・借用テクスチャはgetterでフレームごとの内容を渡せる。 */
 export type EffectImageInput =
@@ -56,6 +57,10 @@ export interface EffectRenderOperation {
 
 export type EffectPreparationStatus = { type: 'idle' | 'loading' | 'ready' } | { type: 'error'; error: unknown };
 
+export type CustomNodeGraphEffectValueUpdate =
+	| { nodeId: string; params: CustomNodeGraphEffectEffectNode['params'] }
+	| { customParameterValues: CustomNodeGraphEffect['customParameterValues'] };
+
 export interface EffectInstance {
 	readonly preparationStatus: EffectPreparationStatus;
 	tryPrepare(frame: EffectFrameContext): boolean;
@@ -64,6 +69,8 @@ export interface EffectInstance {
 	render(frame: EffectFrameContext, commandEncoder: GPUCommandEncoder): void;
 	renderTiled(frame: EffectFrameContext, signal?: AbortSignal, onProgress?: EffectRenderTilingProgressObserver): Promise<void>;
 	readonly dependsOnRenderHistory: boolean;
+	/** フレーム間で、配線・入力構造が同じ配置の値を更新する。nullはルートのinline Custom Node Graph Effectを指す。 */
+	updateCustomNodeGraphEffectValues(customNodeGraphEffectId: string | null, update: CustomNodeGraphEffectValueUpdate): void;
 	resetRenderHistory(): void;
 	dispose(): void;
 	/** 要求された接続済みポート。値の読み取りは描画を起動せず、所有権も移さない。 */

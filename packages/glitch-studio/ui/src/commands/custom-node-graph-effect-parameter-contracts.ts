@@ -102,7 +102,7 @@ export const CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS = {
 		inputSchema: z.object({ target: customNodeGraphEffectPublicParameterReferenceSchema, definition: customNodeGraphEffectPublicParameterInputSchema }), resultSchema: z.null(),
 	},
 	removeCustomNodeGraphEffectPublicParameter: {
-		description: 'Remove a public parameter and clear any primary input designation that references it. Existing references are retained as unresolved so Undo can restore their meaning.',
+		description: 'Remove a public parameter, its primary input designation, and the corresponding arguments on Nodes and Layers. Connections inside the definition retain their IDs as unresolved references. Undo restores the definition and arguments.',
 		examples: [publicParameterSetup + 'Command:removeCustomNodeGraphEffectPublicParameter({ target: parameter })'],
 		inputSchema: z.object({ target: customNodeGraphEffectPublicParameterReferenceSchema }), resultSchema: z.null(),
 	},

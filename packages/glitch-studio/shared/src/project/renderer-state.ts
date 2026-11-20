@@ -27,11 +27,13 @@ export type CustomNodeGraphEffectNodeChange =
 	| { type: 'parameter'; kind: ParameterChangeKind }
 	| { type: 'effectSource' | 'bypass' | 'resolution' | 'staticSetting' };
 
-// 定義と利用側の補正を同じ差分列で適用する。インライン編集は定義を所有するノード・Graphまたはレイヤーの置換で伝える。
+// 登録とインライン配置のどちらでも、ノードの値編集はそのノードだけを送る。
+// 定義と利用側の補正は同じ差分列で適用する。
 export type RendererProjectChange =
 	| { type: 'automationGraphs'; automationGraphs: AutomationGraph[] }
-	| { type: 'node'; customNodeGraphEffectId: string; node: CustomNodeGraphEffectNode; changes: CustomNodeGraphEffectNodeChange[] }
-	| { type: 'customNodeGraphEffect'; customNodeGraphEffectId: string; customNodeGraphEffect: CustomNodeGraphEffect; customParameterValuesOnly?: boolean }
+	| (CustomNodeGraphEffectTarget & { type: 'node'; node: CustomNodeGraphEffectNode; changes: CustomNodeGraphEffectNodeChange[] })
+	| (CustomNodeGraphEffectTarget & { type: 'customNodeGraphEffect'; customNodeGraphEffect: CustomNodeGraphEffect; customParameterValuesOnly?: false })
+	| (CustomNodeGraphEffectTarget & { type: 'customNodeGraphEffect'; customNodeGraphEffect: Pick<CustomNodeGraphEffect, 'customParameterValues'>; customParameterValuesOnly: true })
 	| { type: 'customNodeGraphEffectRegistration'; customNodeGraphEffectId: string; customNodeGraphEffect: ProjectCustomNodeGraphEffect | null }
 	| { type: 'customShaderEffectRegistration'; customShaderEffectId: string; customShaderEffect: ProjectCustomShaderEffect | null }
 	| { type: 'layer'; sceneId: string; layerId: string; layer: RendererLayerState | null; changes: TimelineLayerChange[] }
@@ -39,6 +41,11 @@ export type RendererProjectChange =
 	| { type: 'layerTree'; sceneId: string; layers: TimelineLayer[] }
 	| { type: 'layerOrder'; sceneId: string; layerIds: string[] }
 	| { type: 'scene'; sceneId: string; scene: TimelineScene | null };
+
+/** Effect Live Previewが所有するのは登録定義と共通のAutomation Graph。レイヤー内の編集はTimelineだけに送る。 */
+export function isEffectLivePreviewProjectChange(change: RendererProjectChange) {
+	return change.type === 'customShaderEffectRegistration' || change.type === 'automationGraphs' || 'customNodeGraphEffectId' in change;
+}
 
 export function findRendererCustomNodeGraphEffect(state: RendererProjectState, target: CustomNodeGraphEffectTarget): CustomNodeGraphEffect | null {
 	if ('customNodeGraphEffectId' in target) return state.customNodeGraphEffects.find(customNodeGraphEffect => customNodeGraphEffect.id === target.customNodeGraphEffectId)?.definition ?? null;
@@ -80,19 +87,27 @@ export function applyRendererProjectChanges(state: RendererProjectState, changes
 				break;
 			case 'node':
 			case 'customNodeGraphEffect': {
-				const index = customNodeGraphEffects.findIndex(entry => entry.id === change.customNodeGraphEffectId);
-				if (index < 0) throw new Error('Custom Node Graph Effect not found: ' + change.customNodeGraphEffectId);
-				const previous = customNodeGraphEffects[index];
-				let definition: CustomNodeGraphEffect;
-				if (change.type === 'node') {
-					const nodes = previous.definition.nodes;
-					const nodeIndex = nodes.findIndex(node => node.id === change.node.id);
+				const update = (definition: CustomNodeGraphEffect): CustomNodeGraphEffect => {
+					if (change.type === 'customNodeGraphEffect') {
+						return change.customParameterValuesOnly === true ? { ...definition, customParameterValues: change.customNodeGraphEffect.customParameterValues } : change.customNodeGraphEffect;
+					}
+					const nodeIndex = definition.nodes.findIndex(node => node.id === change.node.id);
 					if (nodeIndex < 0) throw new Error('Node not found: ' + change.node.id);
-					definition = { ...previous.definition, nodes: nodes.with(nodeIndex, change.node) };
+					return { ...definition, nodes: definition.nodes.with(nodeIndex, change.node) };
+				};
+				if ('customNodeGraphEffectId' in change) {
+					const index = customNodeGraphEffects.findIndex(entry => entry.id === change.customNodeGraphEffectId);
+					if (index < 0) throw new Error('Custom Node Graph Effect not found: ' + change.customNodeGraphEffectId);
+					const previous = customNodeGraphEffects[index];
+					customNodeGraphEffects = customNodeGraphEffects.with(index, { ...previous, definition: update(previous.definition) });
 				} else {
-					definition = change.customNodeGraphEffect;
+					updateScene(change.sceneId, scene => {
+						const layer = findTimelineLayer(scene.layers, change.layerId);
+						if (layer?.layerType !== 'effect' || layer.effectSource.type !== 'inlineCustomNodeGraphEffect') throw new Error('Inline Custom Node Graph Effect not found');
+						const effectSource = { ...layer.effectSource, customNodeGraphEffect: update(layer.effectSource.customNodeGraphEffect) };
+						return { ...scene, layers: updateTimelineLayer(scene.layers, layer.id, () => ({ ...layer, effectSource })) };
+					});
 				}
-				customNodeGraphEffects = customNodeGraphEffects.with(index, { ...previous, definition });
 				break;
 			}
 			case 'layer':

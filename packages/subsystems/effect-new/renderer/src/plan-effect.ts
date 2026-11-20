@@ -6,6 +6,7 @@ import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared
 import { canCoerceParameterDataType, coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { constantShaderInputComponents } from '@gs/shared/gpu/shader-input.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
+import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { resolveEffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
 import { getEffectIntrinsicResolution, type EffectStaticResourceContext } from './effect-static-settings.ts';
 import { createGraphEvaluation, type ReadFrameValue } from './graph-evaluation.ts';
@@ -20,8 +21,8 @@ import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definit
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { EffectSource, EffectDefinitions, ResolvedEffect } from '@gs/subsystems_effect-new_shared/effect-source.ts';
-import { isUnselectedGraphParameterReference, type CustomNodeGraphEffect, type CustomNodeGraphEffectParameterBinding, type NodeOutputReference } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
-import type { EffectParameterInput, EffectImageInput, EffectFrameContext, EffectPreparationStatus } from './effect-instance.ts';
+import { isUnselectedGraphParameterReference, type CustomNodeGraphEffect, type CustomNodeGraphEffectEffectNode, type CustomNodeGraphEffectParameterBinding, type NodeOutputReference } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import type { CustomNodeGraphEffectValueUpdate, EffectParameterInput, EffectImageInput, EffectFrameContext, EffectPreparationStatus } from './effect-instance.ts';
 
 export interface EffectPlacement {
 	readonly effectSource: EffectSource;
@@ -64,9 +65,11 @@ interface PlannedEffectRenderer {
 	readonly dependencies: Set<RenderStep>;
 }
 
-type EvaluateStep = { evaluate: (frame: EffectFrameContext) => void };
+export type EvaluateStep = { readonly active: boolean; evaluate: (frame: EffectFrameContext) => void };
 type RenderStep = PlannedEffectRenderer | EvaluateStep;
 type ResolvePort = (port: string) => PlannedInput | null;
+type ObserveBinding = (update: (binding: CustomNodeGraphEffectParameterBinding) => boolean) => void;
+type EvaluatedBinding = Exclude<CustomNodeGraphEffectParameterBinding, { inputSource: 'node' | 'customNodeGraphEffectPublicParameterReference' }>;
 
 function prepareCpuReader(source: PlannedInput): ReadFrameValue {
 	if (source.prepareRead != null) return source.prepareRead();
@@ -112,6 +115,8 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 	let evaluator: ParameterBindingEvaluator | null = null;
 	const getEvaluator = () => evaluator ??= new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const bindScopes = new Set<() => void>();
+	const graphValueUpdates = new Map<string | null, ((change: CustomNodeGraphEffectValueUpdate) => boolean)[]>();
+	let preparationLayoutRevision = 0;
 	type Evaluation = {
 		graph: () => ReturnType<typeof createGraphEvaluation>;
 		resolution: () => Resolution;
@@ -120,9 +125,10 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 
 	function planBinding(definition: ParameterDefinition, binding: CustomNodeGraphEffectParameterBinding,
 		publicInput: (id: string) => PlannedInput, nodeOutput: (reference: NodeOutputReference) => PlannedInput | null,
-		path: readonly string[], evaluation: Evaluation, isDefault = binding === definition.defaultValue): PlannedInput {
+		path: readonly string[], evaluation: Evaluation, observe: ObserveBinding | null = null, isDefault = binding === definition.defaultValue): PlannedInput {
 		if (isUnselectedGraphParameterReference(binding)) {
 			binding = definition.defaultValue;
+			observe = null;
 			isDefault = true;
 		}
 		if (binding.inputSource === 'customNodeGraphEffectPublicParameterReference') {
@@ -149,14 +155,19 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 			const source = binding.source == null ? null : nodeOutput(binding.source);
 			if (source != null) return withSampling(source, binding.sampling);
 			binding = definition.defaultValue;
+			observe = null;
 			isDefault = true;
 		}
 		if (binding.inputSource === 'literal') {
 			const literal = binding;
-			const child = (def: ParameterDefinition, value: CustomNodeGraphEffectParameterBinding) => planBinding(def, value, publicInput, nodeOutput, path, evaluation, isDefault);
+			// 要素の並びとフィールドは配置中固定。編集時も同じ位置のBindingを各末端に渡す。
+			const observeParent = observe;
+			const child = (def: ParameterDefinition, select: (parent: typeof literal) => CustomNodeGraphEffectParameterBinding) => planBinding(
+				def, select(literal), publicInput, nodeOutput, path, evaluation,
+				observeParent == null ? null : update => observeParent(next => update(select(next as typeof literal))), isDefault);
 			if (definition.dataType.kind === 'array') {
 				const elementDefinition = getArrayElementDefinition(definition);
-				const elements = (literal.value as ParameterArrayElement<CustomNodeGraphEffectParameterBinding>[]).map(element => child(elementDefinition, element.binding));
+				const elements = (literal.value as ParameterArrayElement<CustomNodeGraphEffectParameterBinding>[]).map((_, index) => child(elementDefinition, parent => parent.value[index].binding));
 				return {
 					input: { kind: 'array', elements: elements.map(element => element.input) },
 					use: deps => elements.forEach(element => element.use?.(deps)),
@@ -167,7 +178,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 				};
 			}
 			if (definition.dataType.kind === 'struct') {
-				const fields = Object.entries(getStructFieldDefinitions(definition)).map(([key, def]) => [key, child(def, literal.value[key])] as const);
+				const fields = Object.entries(getStructFieldDefinitions(definition)).map(([key, def]) => [key, child(def, parent => parent.value[key])] as const);
 				return {
 					input: { kind: 'struct', fields: Object.fromEntries(fields.map(([key, field]) => [key, field.input])) },
 					use: deps => fields.forEach(([, field]) => field.use?.(deps)),
@@ -177,60 +188,87 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 					},
 				};
 			}
-			if (definition.dataType.kind === 'audioSource') {
-				if (literal.value == null || placement.resolveAudioSource == null) return { input: { kind: 'value', value: null } };
-				const resolve = placement.resolveAudioSource;
-				let audio: AudioInput | null = null;
-				const step = { evaluate(frame: EffectFrameContext) { audio = resolve(literal.value, frame); } };
-				return { input: { kind: 'value', get value() { return audio; } }, use: deps => deps.add(step) };
-			}
-			if (isDefault) {
+			if (observe == null && definition.dataType.kind !== 'audioSource' && isDefault) {
 				// 末端までliteralなので、既定色のpremultiplyなども初期化時の一度で済む。
 				return { input: definition.canNode === true
 					? { kind: 'uniform', value: constantShaderInputComponents(definition.dataType.kind, literal.value) }
 					: { kind: 'value', value: literal.value } };
 			}
-			if (literal.expressionModifier?.enabled !== true) return { input: valueInput(definition, () => literal.value) };
-		}
-
-		const dynamicBinding = binding;
-		let value: unknown = definition.defaultValue.value;
-		let step: EvaluateStep | null = null;
-
-		function prepareStep(): EvaluateStep {
-			if (step != null) return step;
-			let evaluate: ReadFrameValue;
-			if (dynamicBinding.inputSource === 'customNodeGraphEffectCustomParameterValueReference') {
-				const graph = evaluation.graph();
-				evaluate = frame => graph.readCustom(dynamicBinding.parameterId, frame);
-			} else if (placement.bindParameterValue != null) {
-				evaluate = placement.bindParameterValue(dynamicBinding, definition, path);
-			} else {
-				const graph = evaluation.graph();
-				const scope = graph.nodeScope(contextResolution, evaluation.resolution());
-				const read = getEvaluator().bind(dynamicBinding, definition.defaultValue.value, definition, graph.automationGraphs);
-				evaluate = frame => read(scope(frame));
+			if (observe == null && definition.dataType.kind !== 'audioSource' && literal.expressionModifier?.enabled !== true) {
+				return { input: valueInput(definition, () => literal.value) };
 			}
-			let lastFrame: EffectFrameContext | null = null;
-			step = { evaluate(frame) {
-				if (lastFrame === frame) return;
-				value = evaluate(frame);
-				lastFrame = frame;
-			} };
-			return step;
 		}
 
+		let selected: EvaluatedBinding = binding;
+		let value: unknown;
+		let components: readonly number[] = [];
+		let read: ReadFrameValue | null = null;
+		let lastFrame: EffectFrameContext | null = null;
+		let used = false;
+
+		function setValue(next: unknown) {
+			value = next;
+			if (definition.canNode === true) components = constantShaderInputComponents(definition.dataType.kind, next);
+		}
+
+		function bindValue(source: EvaluatedBinding): ReadFrameValue | null {
+			if (source.inputSource === 'literal' && definition.dataType.kind === 'audioSource') {
+				setValue(null);
+				const resolve = placement.resolveAudioSource;
+				return source.value != null && resolve != null ? frame => resolve(source.value, frame) : null;
+			}
+			if (source.inputSource === 'literal' && source.expressionModifier?.enabled !== true) {
+				setValue(source.value);
+				return null;
+			}
+			setValue(definition.defaultValue.value);
+			if (source.inputSource === 'customNodeGraphEffectCustomParameterValueReference') {
+				const graph = evaluation.graph();
+				return frame => graph.readCustom(source.parameterId, frame);
+			}
+			if (placement.bindParameterValue != null) return placement.bindParameterValue(source, definition, path);
+			const graph = evaluation.graph();
+			const scope = graph.nodeScope(contextResolution, evaluation.resolution());
+			const evaluate = getEvaluator().bind(source, definition.defaultValue.value, definition, graph.automationGraphs);
+			return frame => evaluate(scope(frame));
+		}
+
+		function activate() {
+			if (used) return;
+			used = true;
+			read = bindValue(selected);
+		}
+
+		const step: EvaluateStep = {
+			get active() { return read != null; },
+			evaluate(frame) {
+				if (read == null || lastFrame === frame) return;
+				setValue(read(frame));
+				lastFrame = frame;
+			},
+		};
+		observe?.(next => {
+			if (deepEqual(selected, next)) return false;
+			// 入力方式・配線の変更は配置を再生成するので、この末端には同じ構造の値だけが届く。
+			selected = next as EvaluatedBinding;
+			if (!used) return false;
+			const wasActive = step.active;
+			read = bindValue(selected);
+			lastFrame = null;
+			if (step.active !== wasActive) preparationLayoutRevision++;
+			return true;
+		});
 		return {
-			input: valueInput(definition, () => value),
-			use: deps => deps.add(prepareStep()),
+			input: definition.canNode === true ? { kind: 'uniform', get value() { return components; } } : { kind: 'value', get value() { return value; } },
+			use(deps) { activate(); if (step.active || observe != null) deps.add(step); },
 			prepareRead() {
-				const evaluationStep = prepareStep();
-				return frame => { evaluationStep.evaluate(frame); return value; };
+				activate();
+				return frame => { step.evaluate(frame); return value; };
 			},
 		};
 	}
 
-	function planPlacement(effect: ResolvedEffect, bind: (id: string, nodeResolution: () => Resolution) => PlannedInput, baseResolution: () => Resolution,
+	function planPlacement(source: EffectSource, effect: ResolvedEffect, bind: (id: string, nodeResolution: () => Resolution) => PlannedInput, baseResolution: () => Resolution,
 		setting: Resolution | EffectResolution | null, staticSettings: StaticSettingValues, path: readonly string[], bypass = false): ResolvePort {
 		const inputs = new Map<string, PlannedInput>();
 
@@ -272,10 +310,25 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 		if (effect.type === 'customNodeGraphEffect') {
 			const graph = effect.definition;
 			let scope: ReturnType<typeof createGraphEvaluation> | null = null;
+			let customParameterValues = graph.customParameterValues;
+			type NodeParams = CustomNodeGraphEffectEffectNode['params'];
+			// 登録IDは複数の配置に対応する。nullは呼び出し元が直接所有するルートのインライン定義に限る。
+			const acceptsValueUpdates = source.type === 'customNodeGraphEffectReference' || path.length === 0;
+			const nodeValueUpdates = new Map<string, (params: NodeParams) => boolean>();
+			if (acceptsValueUpdates) {
+				const id = source.type === 'customNodeGraphEffectReference' ? source.id : null;
+				let updates = graphValueUpdates.get(id);
+				if (updates == null) graphValueUpdates.set(id, updates = []);
+				updates.push(change => {
+					if ('nodeId' in change) return nodeValueUpdates.get(change.nodeId)?.(change.params) ?? false;
+					customParameterValues = change.customParameterValues;
+					return scope?.updateCustomParameterValues(customParameterValues) ?? false;
+				});
+			}
 
 			function graphScope() {
 				if (scope == null) {
-					scope = createGraphEvaluation(graph, getEvaluator(), id => prepareCpuReader(parameter(id)));
+					scope = createGraphEvaluation({ ...graph, customParameterValues }, getEvaluator(), id => prepareCpuReader(parameter(id)));
 					bindScopes.add(scope.bindPublicValues);
 				}
 				return scope;
@@ -295,12 +348,21 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 					}
 					const child = resolveEffectSource(node.effectSource, placement.definitions);
 					const childPath = [...path, node.id];
+					let params = node.params;
+					const updateBindings: ((params: NodeParams) => boolean)[] = [];
+					if (acceptsValueUpdates) nodeValueUpdates.set(node.id, next => {
+						params = next;
+						let affected = false;
+						for (const update of updateBindings) if (update(params)) affected = true;
+						return affected;
+					});
 					const childInput = (id: string, nodeResolution: () => Resolution) => {
 						const def = child.definition.paramDefs[id];
-						return planBinding(def, node.params[id] ?? def.defaultValue, parameter, nodeOutput, childPath,
-							{ graph: graphScope, resolution: nodeResolution, publicParameterDefs: graph.paramDefs });
+						return planBinding(def, params[id] ?? def.defaultValue, parameter, nodeOutput, childPath,
+							{ graph: graphScope, resolution: nodeResolution, publicParameterDefs: graph.paramDefs },
+							acceptsValueUpdates ? update => updateBindings.push(next => update(next[id] ?? def.defaultValue)) : null);
 					};
-					resolve = planPlacement(child, childInput, getResolution, node.resolution ?? null, node.staticSettings ?? {}, childPath, node.isBypass);
+					resolve = planPlacement(node.effectSource, child, childInput, getResolution, node.resolution ?? null, node.staticSettings ?? {}, childPath, node.isBypass);
 					placements.set(node.id, resolve);
 				}
 				return resolve(reference.outputPort);
@@ -351,7 +413,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 	const noParent = (): never => { throw new Error('Effect defaults must be literal'); };
 	let rootEvaluation: ReturnType<typeof createGraphEvaluation> | null = null;
 	const rootScope = () => rootEvaluation ??= createGraphEvaluation({ paramDefs: {}, automationGraphs: placement.automationGraphs }, getEvaluator(), noParent);
-	const resolve = planPlacement(root, (id, resolution) => {
+	const resolve = planPlacement(placement.effectSource, root, (id, resolution) => {
 		const input = placement.inputs?.[id];
 		const def = root.definition.paramDefs[id];
 		return input != null ? { input } : planBinding(def, placement.params?.[id] ?? def.defaultValue, noParent, noParent, [], { graph: rootScope, resolution });
@@ -373,7 +435,25 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 		ordered.add(step);
 	}
 
+	// 値編集で初めて式修飾子が有効になると、PUBLICを読むための親側の入力が追加で必要になる。
+	function bindPublicValues() {
+		for (const bind of bindScopes) bind();
+		bindScopes.clear();
+	}
+
 	for (const step of roots) append(step);
-	for (const bind of bindScopes) bind();
-	return { steps: ordered, outputs, contextResolution, resources };
+	bindPublicValues();
+	const valueUpdates = {
+		get preparationLayoutRevision() { return preparationLayoutRevision; },
+		apply(id: string | null, change: CustomNodeGraphEffectValueUpdate) {
+			const updates = graphValueUpdates.get(id);
+			if (updates == null) return false;
+			let affected = false;
+			for (const update of updates) if (update(change)) affected = true;
+			bindPublicValues();
+			return affected;
+		},
+		clear() { graphValueUpdates.clear(); },
+	};
+	return { steps: ordered, outputs, contextResolution, resources, valueUpdates };
 }

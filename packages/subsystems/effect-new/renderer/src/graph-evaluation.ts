@@ -1,5 +1,6 @@
 import { createResolutionExpressionVariables } from '@gs/shared/expression/resolution-variables.ts';
 import { prepareExpressionParameterValue } from '@gs/shared/parameter/expression-parameter-value.ts';
+import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import type { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 import type { ParameterEvaluationScope } from '@gs/shared/parameter/parameter-evaluation-scope.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
@@ -26,7 +27,7 @@ export function createEffectFrameMapper(root: Resolution, node: Resolution): (fr
 		? frame.pointerPosition : convert(frame.pointerPosition), pointerVector: frame.pointerVector == null ? frame.pointerVector : convert(frame.pointerVector) });
 }
 
-/** 名前と評価器を配置に固定する。動的なCUSTOM呼出しだけは実際の経路で循環を検出する。 */
+/** 名前は配置に固定し、共有値の評価器は編集時に差し替える。動的なCUSTOM呼出しは実際の経路で循環を検出する。 */
 export function createGraphEvaluation(graph: Pick<CustomNodeGraphEffect, 'paramDefs' | 'customParameterDefs' | 'customParameterValues' | 'automationGraphs'>, evaluator: ParameterBindingEvaluator,
 	publicReader: (id: string) => ReadFrameValue) {
 	const publicIds = new Map<string, string>();
@@ -37,28 +38,41 @@ export function createGraphEvaluation(graph: Pick<CustomNodeGraphEffect, 'paramD
 	let customScope: ParameterEvaluationScope;
 	let customScopeFrame: EffectFrameContext | null = null;
 	const customReaders = new Map<string, ReadFrameValue>();
+	let previousCustomParameterValues: CustomNodeGraphEffect['customParameterValues'];
 	const visiting = new Set<string>();
 	let currentFrame: EffectFrameContext | null = null;
 	for (const [id, def] of Object.entries(graph.paramDefs)) {
 		if (def.canNode !== true && def.dataType.kind !== 'audioSource') publicIds.set(def.nameForReference ?? id, id);
 	}
-	for (const [id, def] of Object.entries(graph.customParameterDefs ?? {})) {
-		customIds.set(def.nameForReference, id);
-		const selected = graph.customParameterValues?.[id];
-		const binding = selected == null || isUnselectedGraphParameterReference(selected) ? def.defaultValue : selected;
-		if (binding.inputSource === 'customNodeGraphEffectPublicParameterReference') customReaders.set(id, frame => readPublic(binding.parameterId, frame));
-		else if (binding.inputSource === 'customNodeGraphEffectCustomParameterValueReference') customReaders.set(id, frame => readCustom(binding.parameterId, frame));
-		else {
-			const read = evaluator.bind(binding, def.defaultValue.value, def, graph.automationGraphs ?? []);
-			customReaders.set(id, frame => {
-				if (customScopeFrame !== frame) {
-					customScope = scope(frame);
-					customScopeFrame = frame;
-				}
-				return read(customScope);
-			});
+	const customDefinitions = Object.entries(graph.customParameterDefs ?? {});
+	for (const [id, def] of customDefinitions) customIds.set(def.nameForReference, id);
+
+	function updateCustomParameterValues(values: CustomNodeGraphEffect['customParameterValues']) {
+		let changed = false;
+		for (const [id, def] of customDefinitions) {
+			const selected = values?.[id];
+			if (customReaders.has(id) && deepEqual(previousCustomParameterValues?.[id], selected)) continue;
+			changed = true;
+			const binding = selected == null || isUnselectedGraphParameterReference(selected) ? def.defaultValue : selected;
+			if (binding.inputSource === 'customNodeGraphEffectPublicParameterReference') customReaders.set(id, frame => readPublic(binding.parameterId, frame));
+			else if (binding.inputSource === 'customNodeGraphEffectCustomParameterValueReference') customReaders.set(id, frame => readCustom(binding.parameterId, frame));
+			else {
+				const read = evaluator.bind(binding, def.defaultValue.value, def, graph.automationGraphs ?? []);
+				customReaders.set(id, frame => {
+					if (customScopeFrame !== frame) {
+						customScope = scope(frame);
+						customScopeFrame = frame;
+					}
+					return read(customScope);
+				});
+			}
 		}
+		previousCustomParameterValues = values;
+		if (changed) customValues.clear();
+		return changed;
 	}
+
+	updateCustomParameterValues(graph.customParameterValues);
 
 	function readPublic(id: string, frame: EffectFrameContext): unknown {
 		const read = publicValues.get(id);
@@ -116,7 +130,7 @@ export function createGraphEvaluation(graph: Pick<CustomNodeGraphEffect, 'paramD
 	}
 
 	return {
-		nodeScope, readCustom, automationGraphs: graph.automationGraphs ?? [],
+		nodeScope, readCustom, updateCustomParameterValues, automationGraphs: graph.automationGraphs ?? [],
 		bindPublicValues() {
 			for (const id of publicIds.values()) publicValues.set(id, publicReader(id));
 		},

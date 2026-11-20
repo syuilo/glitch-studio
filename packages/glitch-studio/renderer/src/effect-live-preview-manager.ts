@@ -6,6 +6,8 @@ import { resolveEffectSource, type EffectDefinitions, type EffectSource } from '
 import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import { normalizedToSpatialCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { changedEffectReferences, diffEffectRegistrationSnapshots } from './effect-registration-changes.ts';
+import { isCustomNodeGraphEffectValueChange } from './project-change-policy.ts';
+import { PendingCustomNodeGraphEffectValues } from './pending-custom-node-graph-effect-values.ts';
 import { createEffectLivePreviewInputs, type EffectLivePreviewParameters } from './effect-live-preview-inputs.ts';
 import type { EffectRenderTiling, EffectRenderTilingProgress } from '@gs/subsystems_effect-new_shared/effect-render-tiling.ts';
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
@@ -18,7 +20,7 @@ import type { PreviewImageSource } from '@gs/glitch-studio_shared/preview-image-
 import type { ProjectCustomShaderEffect, ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import { getPlayerIntrinsicResolution } from '@gs/glitch-studio_shared/player-resolution.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
-import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
+import { applyRendererProjectChanges, isEffectLivePreviewProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import EventEmitter from 'eventemitter3';
@@ -157,6 +159,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		instance: EffectInstance | null;
 		port: string | null;
 		inputs: ReturnType<typeof createEffectLivePreviewInputs>;
+		pendingValues: PendingCustomNodeGraphEffectValues;
 		gpuTiming: {
 			frameTimes: WeakMap<EffectFrameContext, Promise<number | null>>;
 			pending: Promise<void>;
@@ -398,17 +401,24 @@ export class EffectLivePreviewManager extends EventEmitter<{
 	}
 
 	public applyProjectChanges(changes: readonly RendererProjectChange[]) {
-		const relevant = changes.filter(change => change.type === 'customShaderEffectRegistration' || change.type === 'automationGraphs'
-			|| change.type === 'customNodeGraphEffectRegistration' || change.type === 'node' || change.type === 'customNodeGraphEffect');
+		const relevant = changes.filter(isEffectLivePreviewProjectChange);
 		if (relevant.length === 0) return;
 		const { timelineScenes, ...next } = applyRendererProjectChanges({ ...this.dynamicOptions, timelineScenes: [] }, relevant);
-		const affected = changedEffectReferences(relevant, next);
+		// 初期化失敗後はインスタンスがないので、参照先の値修正からも選択中の配置を復旧する。
+		const changesRequiringInitialization = this.activeEffect == null ? relevant : relevant.filter(change => !isCustomNodeGraphEffectValueChange(change));
+		const affected = changedEffectReferences(changesRequiringInitialization, next);
 		if (next.customNodeGraphEffects !== this.dynamicOptions.customNodeGraphEffects || next.customShaderEffects !== this.dynamicOptions.customShaderEffects) {
 			this.definitions = createProjectEffectDefinitions(next, this.nativeEffectDefinitions);
 		}
 		Object.assign(this.dynamicOptions, next);
-		if (this.placement != null && affected?.(this.placement.effectSource) === true) this.initializePlacement();
-		else if (relevant.some(change => change.type === 'automationGraphs')) this.activeEffect?.inputs.updateAutomationGraphs(next.automationGraphs);
+		if (this.placement != null && affected?.(this.placement.effectSource) === true) {
+			this.initializePlacement();
+		} else if (this.activeEffect != null) {
+			for (const change of relevant) {
+				if (isCustomNodeGraphEffectValueChange(change)) this.activeEffect.pendingValues.enqueue(change);
+				if (change.type === 'automationGraphs') this.activeEffect.inputs.updateAutomationGraphs(next.automationGraphs);
+			}
+		}
 	}
 
 	public updateEffectLivePreviewParamValues(params: EffectLivePreviewParameters) {
@@ -475,13 +485,19 @@ export class EffectLivePreviewManager extends EventEmitter<{
 			onFrameGpuTime: gpuTiming == null ? undefined : (frame, result) => { gpuTiming.frameTimes.set(frame, result); },
 		}, { device: this.gpuDevice, defaultVertexShaderModule: this.vertex, enable32bitDataTextures: this.staticOptions.enable32bitDataTextures },
 		id => this.nativeEffectImplementations[id], lifetime.signal);
-		const active: NonNullable<EffectLivePreviewManager['activeEffect']> = { lifetime, inputs, ready, port, instance: null, gpuTiming };
+		const active: NonNullable<EffectLivePreviewManager['activeEffect']> = { lifetime, inputs, ready, port, instance: null, gpuTiming, pendingValues: new PendingCustomNodeGraphEffectValues(null) };
 		this.activeEffect = active;
 		void ready.then(instance => {
 			if (lifetime.signal.aborted) instance.dispose();
 			else active.instance = instance;
 		}, error => {
 			if (lifetime.signal.aborted) return;
+			// 初期化中に届いた値修正はまだ適用できていない。失敗した配置がその登録を使って
+			// いれば、最新の定義から再試行する。新しい編集がなければ失敗はそのまま通知する。
+			if (changedEffectReferences(active.pendingValues.edits, this.dynamicOptions)?.(effectSource) === true) {
+				this.initializePlacement();
+				return;
+			}
 			// 編集中のShaderはコンパイルに失敗し得る。配置の選択と時計を保持し、
 			// 次の定義編集で同じLive Previewを復旧できるようにする。
 			this.releasePlacement();
@@ -515,6 +531,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		try {
 			const effect = await active.ready;
 			signal.throwIfAborted();
+			active.pendingValues.applyTo(effect);
 			active.inputs.beginFrame(timing.time);
 			await effect.renderTiled(frame, signal, progress => this.previewRenderDelayMonitor.updateTilingProgress(frame, progress));
 			signal.throwIfAborted();

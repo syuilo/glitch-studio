@@ -2,6 +2,7 @@ import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts'
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { customNodeGraphEffectTargetKey } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
 import { getRendererLayerState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
+import { findCustomNodeGraphEffectOwner } from './utility/custom-node-graph-effect-target.ts';
 import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { ProjectContentChange, ProjectContext } from './Project.ts';
 
@@ -47,23 +48,12 @@ export class RendererProjectSynchronizer {
 	}
 
 	private createChanges(targets: readonly ProjectContentChange[]): RendererProjectChange[] {
-		// インライン定義の編集は所有レイヤーの置換一件へまとめる。同時に編集した引数も
-		// その最終状態に含まれるので、同じ配置をWorkerで二度再生成する必要はない。
-		const inlineLayers = new Map<string, Extract<ProjectContentChange, { type: 'layer' }>>();
-		for (const target of targets) {
-			if ((target.type !== 'node' && target.type !== 'customNodeGraphEffect') || !('sceneId' in target.target)) continue;
-			const { sceneId, layerId } = target.target;
-			const scene = this.manager.state.timelineScenes.value.find(scene => scene.id === sceneId);
-			if (scene != null && findTimelineLayer(scene.layers, layerId) != null) {
-				inlineLayers.set(JSON.stringify([sceneId, layerId]), { type: 'layer', sceneId, layerId, changes: [{ type: 'definition' }] });
-			}
-		}
-		if (inlineLayers.size > 0) targets = [
-			...targets.filter(target => target.type !== 'layer' || !inlineLayers.has(JSON.stringify([target.sceneId, target.layerId]))),
-			...inlineLayers.values(),
-		];
 		const scenes = new Set(targets.filter(target => target.type === 'scene').map(target => target.sceneId));
 		const layerTrees = new Set(targets.filter(target => target.type === 'layerTree').map(target => target.sceneId));
+		// 追加・削除・置換される所有レイヤーはインライン定義も含む。それ以外の編集では、
+		// レイヤー引数と内部ノードそれぞれの変更種別を残し、描画履歴の扱いを受信側に伝える。
+		const replacedLayers = new Set(targets.flatMap(target => target.type === 'layer' && target.changes.some(change => change.type === 'definition')
+			? [customNodeGraphEffectTargetKey(target)] : []));
 		const updatedCustomNodeGraphEffectTargetKeys = new Set(targets.flatMap(target => target.type === 'customNodeGraphEffect' && target.customParameterValuesOnly !== true ? [customNodeGraphEffectTargetKey(target.target)] : []));
 		const registeredCustomNodeGraphEffectIds = new Set(targets.filter(target => target.type === 'customNodeGraphEffectRegistration').map(target => target.customNodeGraphEffectId));
 		const changes: RendererProjectChange[] = [];
@@ -81,18 +71,27 @@ export class RendererProjectSynchronizer {
 				const customNodeGraphEffectTarget = target.target;
 				// 追加直後の編集や同じターンのUndoは、登録の最終状態へまとめる。
 				if ('customNodeGraphEffectId' in customNodeGraphEffectTarget && registeredCustomNodeGraphEffectIds.has(customNodeGraphEffectTarget.customNodeGraphEffectId)) continue;
-				if (!('customNodeGraphEffectId' in customNodeGraphEffectTarget)) continue;
+				if ('sceneId' in customNodeGraphEffectTarget && (scenes.has(customNodeGraphEffectTarget.sceneId) || replacedLayers.has(customNodeGraphEffectTargetKey(customNodeGraphEffectTarget)))) continue;
 				if (target.type === 'node' && updatedCustomNodeGraphEffectTargetKeys.has(customNodeGraphEffectTargetKey(customNodeGraphEffectTarget))) continue;
-				const { customNodeGraphEffectId } = customNodeGraphEffectTarget;
-				const customNodeGraphEffect = this.manager.state.customNodeGraphEffects.value.find(entry => entry.id === customNodeGraphEffectId)?.definition;
-				if (customNodeGraphEffect == null) throw new Error('Changed Custom Node Graph Effect not found');
-				if (target.type === 'customNodeGraphEffect') changes.push({ type: 'customNodeGraphEffect', customNodeGraphEffectId, customNodeGraphEffect, ...(target.customParameterValuesOnly === true ? { customParameterValuesOnly: true } : {}) });
-				else {
+				const owner = findCustomNodeGraphEffectOwner(this.manager.state, customNodeGraphEffectTarget);
+				if (owner == null) {
+					if ('sceneId' in customNodeGraphEffectTarget && layerTrees.has(customNodeGraphEffectTarget.sceneId)) continue;
+					throw new Error('Changed Custom Node Graph Effect not found');
+				}
+				const customNodeGraphEffect = 'definition' in owner ? owner.definition : owner.customNodeGraphEffect;
+				const address = 'customNodeGraphEffectId' in customNodeGraphEffectTarget ? { customNodeGraphEffectId: customNodeGraphEffectTarget.customNodeGraphEffectId }
+					: { sceneId: customNodeGraphEffectTarget.sceneId, layerId: customNodeGraphEffectTarget.layerId };
+				if (target.type === 'customNodeGraphEffect') {
+					if (target.customParameterValuesOnly === true) {
+						const { customParameterValues } = customNodeGraphEffect;
+						changes.push({ ...address, type: 'customNodeGraphEffect', customParameterValuesOnly: true, customNodeGraphEffect: { customParameterValues } });
+					} else changes.push({ ...address, type: 'customNodeGraphEffect', customNodeGraphEffect });
+				} else {
 					const node = customNodeGraphEffect.nodes.find(node => node.id === target.nodeId);
 					if (!node) throw new Error('Changed node not found');
 					changes.push({
 						type: 'node',
-						customNodeGraphEffectId,
+						...address,
 						node,
 						changes: target.changes,
 					});

@@ -27,13 +27,13 @@ export function diffEffectRegistrationSnapshots(previous: ProjectEffectRegistrat
 	];
 }
 
-/** 差分の適用時にだけ依存をたどる。登録を何度参照しても、同じ定義の探索結果を全配置で共有する。 */
-export function changedEffectReferences(changes: readonly RendererProjectChange[], project: ProjectEffectRegistrations) {
+/** 指定の変更が影響する配置を、インライン定義・登録参照の入れ子までたどる。 */
+export function changedEffectReferences(changes: Iterable<RendererProjectChange>, project: ProjectEffectRegistrations) {
 	const shaders = new Set<string>();
 	const graphs = new Set<string>();
 	for (const change of changes) {
 		if (change.type === 'customShaderEffectRegistration') shaders.add(change.customShaderEffectId);
-		if (change.type === 'customNodeGraphEffectRegistration' || change.type === 'customNodeGraphEffect' || change.type === 'node') graphs.add(change.customNodeGraphEffectId);
+		if ('customNodeGraphEffectId' in change) graphs.add(change.customNodeGraphEffectId);
 	}
 	if (shaders.size === 0 && graphs.size === 0) return null;
 	const registered = new Map(project.customNodeGraphEffects.map(entry => [entry.id, entry.definition]));

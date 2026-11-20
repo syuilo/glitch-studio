@@ -1,4 +1,4 @@
-import { canConnectNodeDataTypes, type ConnectionTypePolicy } from '@gs/shared/data-type/node-compatibility.ts';
+import { canConnectNodeDataTypes } from '@gs/shared/data-type/node-compatibility.ts';
 import { AiSON } from '@syuilo/aiscript';
 import { validateStaticSettingValue } from '@gs/shared/static-setting.ts';
 import { preserveParameterExpressionModifier, supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
@@ -6,6 +6,7 @@ import { validateParameterDefaultValues } from '@gs/shared/parameter/static-para
 import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
 import { getArrayElementDefinition, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import type { Cloneable } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { customNodeGraphEffectTargetKey } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
@@ -23,11 +24,13 @@ import { createNamedParameterFromLiteral } from '../utility/named-parameter-crea
 import { editCustomNodeGraphEffectCustomParameterBinding } from '../utility/custom-node-graph-effect-custom-parameter-edit.ts';
 import { validateCustomNodeGraphEffectNodeParameterBinding } from './custom-node-graph-effect-parameter-validation.ts';
 import { getParameterBindingChangeKind } from './parameter-change.ts';
+import { prepareProjectEffectPlacementChanges } from './project-effect-placements.ts';
 import { defineCommand, withCommandContract } from './definition.ts';
 import { CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS } from './custom-node-graph-effect-parameter-contracts.ts';
 import { stateUtility } from './custom-node-graph-effect.ts';
 import { getCustomNodeGraphEffectEffectNode, prepareCustomNodeGraphEffectFields, prepareCustomNodeGraphEffectValue } from './custom-node-graph-effect-change.ts';
 import type { StructParameterFieldBindings } from '../utility/struct-parameter-edit.ts';
+import type { ConnectionTypePolicy } from '@gs/shared/data-type/node-compatibility.ts';
 import type { ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParameterChangeKind } from '@gs/shared/parameter/parameter-definition.ts';
@@ -266,7 +269,7 @@ function validateOutputDefinition(customNodeGraphEffect: CustomNodeGraphEffect, 
 
 const setCustomNodeGraphEffectPrimaryInput = defineCommand<{ target: CustomNodeGraphEffectTarget; primaryInputId: string | null }>({
 	label: 'Set Custom Node Graph Effect primary input',
-	prepare: (state, input) => prepareCustomNodeGraphEffectFields(state, input.target, ['primaryInputId', 'resolutionInputParameters'], customNodeGraphEffect => {
+	prepare: (state, input) => prepareCustomNodeGraphEffectFields(state, input.target, ['primaryInputId'], customNodeGraphEffect => {
 		if (input.primaryInputId !== null && !customNodeGraphEffect.paramDefs.some(definition => definition.id === input.primaryInputId && definition.canNode && definition.dataType.kind === 'color')) throw new Error('Primary input must reference a node-capable color parameter');
 		customNodeGraphEffect.primaryInputId = input.primaryInputId;
 	}),
@@ -307,16 +310,47 @@ const replaceCustomNodeGraphEffectPublicParameterDefinition = defineCommand<{ ta
 		if (customNodeGraphEffect.primaryAudioInputId === definition.id && (definition.canNode || definition.dataType.kind !== 'audioSource')) customNodeGraphEffect.primaryAudioInputId = null;
 	}),
 });
+
+function prepareArgumentRemoval<Placement, Binding extends Cloneable>(placement: Placement, parameterId: string, valuesOf: (placement: Placement) => Record<string, Binding>) {
+	const values = valuesOf(placement);
+	if (!Object.hasOwn(values, parameterId)) return null;
+	const before = deepClone(values[parameterId]);
+	return (current: Placement, restore: boolean) => {
+		const currentValues = valuesOf(current);
+		if (restore) currentValues[parameterId] = deepClone(before);
+		else delete currentValues[parameterId];
+	};
+}
+
 const removeCustomNodeGraphEffectPublicParameter = defineCommand<{ target: CustomNodeGraphEffectPublicParameterReference }>({
 	label: 'Remove Custom Node Graph Effect public parameter',
-	prepare: (state, input) => prepareCustomNodeGraphEffectFields(state, input.target.customNodeGraphEffect, ['paramDefs', 'primaryInputId', 'primaryAudioInputId', 'resolutionInputParameters'], customNodeGraphEffect => {
-		const index = customNodeGraphEffect.paramDefs.findIndex(definition => definition.id === input.target.parameterId);
-		if (index < 0) throw new Error('Custom Node Graph Effect public parameter not found');
-		customNodeGraphEffect.paramDefs.splice(index, 1);
-		if (customNodeGraphEffect.primaryInputId === input.target.parameterId) customNodeGraphEffect.primaryInputId = null;
-		if (customNodeGraphEffect.primaryAudioInputId === input.target.parameterId) customNodeGraphEffect.primaryAudioInputId = null;
-		// 参照IDは保持する。未解決になったノードの参照はUndoで再び有効になる。
-	}),
+	prepare(state, { target: { customNodeGraphEffect: target, parameterId } }) {
+		const { change } = prepareCustomNodeGraphEffectFields(state, target, ['paramDefs', 'primaryInputId', 'primaryAudioInputId', 'resolutionInputParameters'], customNodeGraphEffect => {
+			const index = customNodeGraphEffect.paramDefs.findIndex(definition => definition.id === parameterId);
+			if (index < 0) throw new Error('Custom Node Graph Effect public parameter not found');
+			customNodeGraphEffect.paramDefs.splice(index, 1);
+			if (customNodeGraphEffect.primaryInputId === parameterId) customNodeGraphEffect.primaryInputId = null;
+			if (customNodeGraphEffect.primaryAudioInputId === parameterId) customNodeGraphEffect.primaryAudioInputId = null;
+			// 定義内部から公開入力への配線は未解決のまま保持する。取り除くのは配置側が渡す引数だけ。
+		});
+		if (change == null) return { result: undefined, change: null };
+		const registrationId = 'customNodeGraphEffectId' in target ? target.customNodeGraphEffectId : null;
+		const placements = prepareProjectEffectPlacementChanges(state, {
+			node: registrationId == null ? undefined : node => node.effectSource.type === 'customNodeGraphEffectReference' && node.effectSource.id === registrationId
+				? prepareArgumentRemoval(node, parameterId, current => current.params) : null,
+			layerArguments(layer, sceneId) {
+				const usesDefinition = 'customNodeGraphEffectId' in target
+					? layer.effectSource.type === 'customNodeGraphEffectReference' && layer.effectSource.id === target.customNodeGraphEffectId
+					: sceneId === target.sceneId && layer.id === target.layerId;
+				return usesDefinition ? prepareArgumentRemoval(layer, parameterId, current => current.effectParamValues) : null;
+			},
+		});
+		return { result: undefined, change: {
+			changes: [...change.changes, ...placements.changes],
+			apply(current) { change.apply(current); placements.apply(current); },
+			revert(current) { change.revert(current); placements.revert(current); },
+		} };
+	},
 });
 const createCustomNodeGraphEffectCustomParameter = defineCommand<{ customNodeGraphEffect: CustomNodeGraphEffectTarget; definition: Omit<CustomNodeGraphEffectCustomParameterDefinition, 'id'> }, CustomNodeGraphEffectCustomParameterReference>({
 	label: 'Create Custom Node Graph Effect custom parameter',
@@ -396,11 +430,12 @@ function defineCustomParameterCommand<Input extends { target: CustomNodeGraphEff
 			const before = customNodeGraphEffect.customParameterValues[input.target.parameterId] ?? null;
 			const after = update(definition, deepClone(before ?? definition.defaultValue), input);
 			validateCustomNodeGraphEffectCustomParameterBinding(definition, after ?? definition.defaultValue);
+			const customParameterValuesOnly = getParameterBindingChangeKind(definition, before ?? definition.defaultValue, after ?? definition.defaultValue) === 'value';
 			return prepareCustomNodeGraphEffectValue(before, after, (currentState, value) => {
 				const current = getCustomNodeGraphEffect(currentState, input.target.customNodeGraphEffect);
 				if (value == null) delete current.customParameterValues[input.target.parameterId];
 				else current.customParameterValues[input.target.parameterId] = value;
-			}, [{ type: 'customNodeGraphEffect', target: input.target.customNodeGraphEffect, customParameterValuesOnly: true }]);
+			}, [{ type: 'customNodeGraphEffect', target: input.target.customNodeGraphEffect, customParameterValuesOnly }]);
 		},
 	});
 }

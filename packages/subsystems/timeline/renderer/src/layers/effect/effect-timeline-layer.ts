@@ -24,6 +24,7 @@ type EffectTimelineLayerOptions = Pick<EffectPlacement, 'definitions' | 'resourc
 	sceneBaseResolution: Resolution;
 	resolutionScale: number;
 	getAudioInput?: TimelineAudioInputProvider;
+	applyPendingEffectValues?: (instance: EffectInstance) => void;
 	onTilingProgress?: EffectRenderTilingProgressObserver;
 	onCompositing?: TimelineCompositingObserver | null;
 };
@@ -80,6 +81,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, options: E
 		const signal = AbortSignal.any([request, lifetime.signal]);
 		const effect = await initialize();
 		signal.throwIfAborted();
+		options.applyPendingEffectValues?.(effect);
 		const output = effect.outputs.get(port);
 		if (output == null) return { gpuTime: 0 };
 		const scope = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, publicParameters: context.publicParameters, automationGraphs: layer.automationGraphs });

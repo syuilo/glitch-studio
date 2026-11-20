@@ -2,13 +2,15 @@ import * as z from 'zod';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { genId } from '@gs/shared/utility/id.ts';
+import { resolveEffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
 import { ref } from 'vue';
 import { getEffectDefinitions } from '../utility/project-effects.ts';
 import { getScene } from '../utility/timeline-scene.ts';
-import { getCustomNodeGraphEffect, saveCustomNodeGraphEffect, listCustomNodeGraphEffects } from '../utility/custom-node-graph-effect-target.ts';
+import { getCustomNodeGraphEffect, saveCustomNodeGraphEffect } from '../utility/custom-node-graph-effect-target.ts';
 import { defineCommand, definePublicCommand } from './definition.ts';
 import { playerSourceSchema } from './project-contract-schemas.ts';
 import { prepareProjectValueChange } from './prepared-value.ts';
+import { prepareProjectEffectPlacementChanges } from './project-effect-placements.ts';
 import { getTimelineAssetPlacementChanges, validateTimelineAssetPlacement, removeTimelineAssetPlacement } from './timeline.ts';
 import type { Player } from '@gs/shared/types.ts';
 import type { AppStateChange, ProjectState, ProjectAsset } from '../Project.ts';
@@ -133,37 +135,33 @@ export const removeAssetCommandDef = definePublicCommand({
 	label: 'Remove asset',
 	inputSchema: z.object({ assetId: z.string().min(1) }),
 	resultSchema: z.null(),
-	description: 'Remove an existing Asset and clear Effect static-setting references to it. Other saved references can become unresolved. Undo restores the Asset and cleared references; no source file is deleted.',
+	description: 'Remove an existing Asset and clear its static-setting references on nodes in registered and inline Custom Node Graph Effects. Other saved references can become unresolved. Undo restores the Asset and cleared references; no source file is deleted.',
 	examples: ['let assets = Query:listAssets()\nif (assets.len > 0) { Command:removeAsset(assets[0].target) }'],
 	prepare(state, { assetId }) {
 		const asset = deepClone(getAsset(state, assetId));
 		const assetIndex = state.assets.value.findIndex(candidate => candidate.id === assetId);
 		const definitions = getEffectDefinitions(state);
-		const references = listCustomNodeGraphEffects(state).flatMap(({ target, customNodeGraphEffect }) => customNodeGraphEffect.nodes.flatMap(node => {
-			if (node.type !== 'effect') return [];
-			return Object.entries(definitions.describe(node.effectSource).staticSettingDefs ?? {}).flatMap(([key, definition]) =>
-				definition.dataType.kind === 'assetReference' && node.staticSettings[key] === assetId ? [{ target, nodeId: node.id, key }] : []);
-		}));
-		const changes: AppStateChange[] = [{ type: 'asset', assetId }, ...references.map(reference => ({ type: 'customNodeGraphEffect' as const, target: reference.target }))];
-		const setReferences = (current: ProjectState, value: string | null) => {
-			for (const reference of references) {
-				const graph = getCustomNodeGraphEffect(current, reference.target);
-				const node = graph.nodes.find(candidate => candidate.id === reference.nodeId);
-				if (node?.type === 'effect') {
-					node.staticSettings[reference.key] = value;
-					saveCustomNodeGraphEffect(current, reference.target, graph, node.id);
-				}
-			}
-		};
+		const references = prepareProjectEffectPlacementChanges(state, {
+			node(node) {
+				const matching = Object.entries(node.staticSettings ?? {}).filter(([, value]) => value === assetId);
+				if (matching.length === 0) return null;
+				const settings = resolveEffectSource(node.effectSource, definitions).definition.staticSettingDefs;
+				const keys = matching.map(([key]) => key).filter(key => settings?.[key]?.dataType.kind === 'assetReference');
+				if (keys.length === 0) return null;
+				return (current, restore) => {
+					for (const key of keys) current.staticSettings![key] = restore ? assetId : null;
+				};
+			},
+		});
 		return {
 			result: undefined,
 			change: {
-				changes,
-				apply(current) { current.assets.value = current.assets.value.filter(candidate => candidate.id !== assetId); setReferences(current, null); },
+				changes: [{ type: 'asset', assetId }, ...references.changes],
+				apply(current) { current.assets.value = current.assets.value.filter(candidate => candidate.id !== assetId); references.apply(current); },
 				revert(current) {
 					// 別素材に対するUndo対象外のリロードを巻き戻さないよう、削除した値だけを戻す。
 					current.assets.value.splice(assetIndex, 0, deepClone(asset));
-					setReferences(current, assetId);
+					references.revert(current);
 				},
 			},
 		};

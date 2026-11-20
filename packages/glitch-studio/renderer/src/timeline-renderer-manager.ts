@@ -12,6 +12,7 @@ import type { PreviewGamutWarningSettings } from '@gs/glitch-studio_shared/previ
 import type { PreviewImageSource } from '@gs/glitch-studio_shared/preview-image-source.ts';
 import { isCustomNodeGraphEffectValueChange } from './project-change-policy.ts';
 import type { CustomNodeGraphEffectValueChange } from './project-change-policy.ts';
+import { customNodeGraphEffectValueChangeKey, PendingCustomNodeGraphEffectValues } from './pending-custom-node-graph-effect-values.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import { createTimelineLayerPublicParameterContextIndex } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import type { TimelineLayerPublicParameterContext } from '@gs/subsystems_timeline_shared/public-parameters.ts';
@@ -221,6 +222,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private readonly frameCacheReportIntervalId: ReturnType<typeof setInterval> | null = null;
 	private activePreviewFrame: PreviewFrameCapture | null = null;
 	private pendingCustomNodeGraphEffectValueChanges = new Map<string, CustomNodeGraphEffectValueChange>();
+	private readonly effectLayerValueUpdates = new Set<PendingCustomNodeGraphEffectValues>();
 	private pendingCustomNodeGraphEffectValueRevision: number | null = null;
 	private frameRenderer: TimelineFrameRenderer<TimelineImage>;
 	private motionBlurAccumulator: ReturnType<typeof createMotionBlurAccumulator> | null = null;
@@ -549,7 +551,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			// 呼び出し時の検証は維持し、描画中の状態はまだ変更しない。
 			applyRendererProjectChanges(this.dynamicOptions, [...this.pendingCustomNodeGraphEffectValueChanges.values(), ...changes]);
 			for (const change of changes) {
-				const key = JSON.stringify([change.customNodeGraphEffectId, change.type, change.type === 'node' ? change.node.id : null]);
+				const key = customNodeGraphEffectValueChangeKey(change);
 				// 同じノードの値は最新だけ残す。Custom Node Graph Effect全体の更新と混在しても
 				// 最後に届いたスナップショットが後から適用されるよう、順序も更新する。
 				this.pendingCustomNodeGraphEffectValueChanges.delete(key);
@@ -594,6 +596,11 @@ export class TimelineRendererManager extends EventEmitter<{
 		}
 		this.motionBlurTiming = null;
 		this.projectVersions.apply(changes, this.dynamicOptions, next);
+		for (const change of changes) {
+			if (isCustomNodeGraphEffectValueChange(change)) {
+				for (const pending of this.effectLayerValueUpdates) pending.enqueue(change);
+			}
+		}
 		Object.assign(this.dynamicOptions, next);
 		this.refreshEvaluationScenes();
 		this.definitions = definitions;
@@ -1031,6 +1038,8 @@ export class TimelineRendererManager extends EventEmitter<{
 				});
 			case 'effect': {
 				const source = this.createLayerStatusSource(layer.id, clipId, layerPath);
+				const pendingValues = layer.effectSource.type === 'inlineCustomNodeGraphEffect' || layer.effectSource.type === 'customNodeGraphEffectReference'
+					? new PendingCustomNodeGraphEffectValues({ sceneId, layerId: layer.id }) : null;
 				// 配線と入力種別は固定し、通常の値編集だけは次の評価で最新の配置から読む。
 				let scenes = this.evaluationScenes;
 				let currentLayer = layer;
@@ -1049,6 +1058,7 @@ export class TimelineRendererManager extends EventEmitter<{
 					get effectParamValues() { return readValues(); },
 				}, {
 					definitions: this.definitions,
+					applyPendingEffectValues: pendingValues == null ? undefined : instance => pendingValues.applyTo(instance),
 					getNativeEffectImplementation: id => this.nativeEffectImplementations[id],
 					tiling: this.staticOptions.effectRenderTiling ?? { mode: 'auto' },
 					onCompositing,
@@ -1070,8 +1080,10 @@ export class TimelineRendererManager extends EventEmitter<{
 						if (this.activePreviewFrame != null) this.previewRenderDelayMonitor.updateTilingProgress(this.activePreviewFrame, progress);
 					},
 				});
+				if (pendingValues != null) this.effectLayerValueUpdates.add(pendingValues);
 				return { ...renderer, destroy: () => {
 					active = false;
+					if (pendingValues != null) this.effectLayerValueUpdates.delete(pendingValues);
 					renderer.destroy();
 					this.emit('ev', { type: 'effectLayerState', ctx: { source, status: null } });
 				} };

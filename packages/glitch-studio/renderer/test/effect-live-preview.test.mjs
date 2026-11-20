@@ -105,3 +105,78 @@ test('preserves unrelated history on snapshot sync and resumes a corrected defin
 	assert.equal(f.errors.length, 1);
 	assert.equal(f.submitted.at(-1).time, 40);
 });
+
+// 【入れ子の登録ノードを初期化中に編集しても、最初の描画に最新値を使う】
+// インラインの親の中でGPU初期化を待つ間にも、同じ登録への編集やUndoは到着する。
+// ノードの履歴と出力テクスチャを保ったまま、各フレームで最後に確定した値だけを読む。
+test('applies nested registration edits received during initialization and preserves subsequent history', async t => {
+	const initialization = Promise.withResolvers();
+	const values = [];
+	let initializations = 0;
+	let disposals = 0;
+	const f = await fixture(t, { async init({ inputs }) {
+		initializations++;
+		await initialization.promise;
+		let history = 0;
+		return { render() { values.push([++history, inputs.value.value]); }, dispose() { disposals++; } };
+	} });
+	const child = graph({ type: 'nativeEffect', id: 'shared' });
+	child.nodes[0].params.value = literal(1);
+	f.manager.updateDynamicOptions({ customNodeGraphEffects: [{ id: 'inner', name: 'Inner', definition: child }] });
+	f.manager.startEffectLivePreview({ effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph({ type: 'customNodeGraphEffectReference', id: 'inner' }) } });
+	const edit = value => f.manager.applyProjectChanges([{ type: 'node', customNodeGraphEffectId: 'inner',
+		node: { ...child.nodes[0], params: { value: literal(value) } }, changes: [{ type: 'parameter', kind: 'value' }] }]);
+	await f.frame(10);
+	edit(2);
+	edit(3);
+	initialization.resolve();
+	await new Promise(resolve => setImmediate(resolve));
+	const texture = f.submitted.at(-1).texture;
+	edit(1);
+	await f.frame(20);
+	assert.deepEqual(values, [[1, 3], [2, 1]]);
+	assert.equal(initializations, 1);
+	assert.equal(disposals, 0);
+	assert.equal(f.submitted.at(-1).texture, texture);
+	assert.deepEqual(f.errors, []);
+});
+
+// 【初期化に失敗した配置は、参照先のノードの値を直すと同じ選択で復帰する】
+// GPUの準備を待つ間に編集が先着する場合と、エラーを見てから修正する場合の両方で、
+// 新しい定義を使って再開する。無関係な登録の編集は失敗した配置の再試行を起動しない。
+test('recovers the selected graph when its node value is corrected during or after failed initialization', async t => {
+	for (const editDuringInitialization of [true, false]) {
+		const initialization = Promise.withResolvers();
+		const initialized = [];
+		const rendered = [];
+		const f = await fixture(t, { async init({ inputs }) {
+			const value = inputs.value.value;
+			initialized.push(value);
+			if (value === 0) {
+				await initialization.promise;
+				throw new Error('Invalid initial value');
+			}
+			return { render() { rendered.push(inputs.value.value); }, dispose() {} };
+		} });
+		const child = graph({ type: 'nativeEffect', id: 'shared' });
+		f.manager.updateDynamicOptions({ customNodeGraphEffects: ['selected', 'other'].map(id => ({ id, name: id, definition: structuredClone(child) })) });
+		f.manager.startEffectLivePreview({ effectSource: { type: 'customNodeGraphEffectReference', id: 'selected' } });
+		const edit = id => f.manager.applyProjectChanges([{ type: 'node', customNodeGraphEffectId: id,
+			node: { ...child.nodes[0], params: { value: literal(3) } }, changes: [{ type: 'parameter', kind: 'value' }] }]);
+		await f.frame(10);
+		if (editDuringInitialization) edit('selected');
+		initialization.resolve();
+		await new Promise(resolve => setImmediate(resolve));
+		if (!editDuringInitialization) {
+			assert.deepEqual(f.errors, ['Invalid initial value']);
+			edit('other');
+			await f.frame(20);
+			assert.deepEqual(initialized, [0]);
+			edit('selected');
+		}
+		await f.frame(30);
+		assert.deepEqual(initialized, [0, 3]);
+		assert.deepEqual(rendered, [3]);
+		assert.equal(f.errors.length, editDuringInitialization ? 0 : 1);
+	}
+});

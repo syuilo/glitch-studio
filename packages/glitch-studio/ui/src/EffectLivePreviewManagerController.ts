@@ -3,6 +3,7 @@ import { getFileSourceUrl, getFileSourceError } from '@gs/shared/file-source.ts'
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { createEffectLivePreviewManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
+import { isEffectLivePreviewProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { isVideoFrameAvailable } from './utility/video.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
@@ -375,9 +376,8 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 
 	public async applyProjectChanges(changes: readonly RendererProjectChange[]) {
 		if (!this.isReady.value) return;
-		const patch = deepClone(changes.filter(change => change.type === 'customShaderEffectRegistration' || change.type === 'automationGraphs' || change.type === 'customNodeGraphEffectRegistration'
-			|| change.type === 'node' || change.type === 'customNodeGraphEffect'));
-		if (patch.length > 0) await this.callAndWaitReturn('applyProjectChanges', [patch]);
+		const patch = changes.filter(isEffectLivePreviewProjectChange);
+		if (patch.length > 0) await this.callAndWaitReturn('applyProjectChanges', [deepClone(patch)]);
 	}
 
 	private releasePlayerMedia() {

@@ -156,15 +156,19 @@ for (const kind of ['CustomNodeGraphEffect', 'Timeline']) {
 	});
 
 	// 【定義と配置の一括更新を既存Workerへ送り、CanvasやControllerを再生成しない】
-	// Custom Node Graph Effect側の差分フィルターで更新を落としたり、再初期化へ戻したりしないことを確認する。
-	test(`sends Custom Shader Effect snapshots through the existing ${kind} worker`, async t => {
+	// 登録定義の変更を両方へ送り、特定のTimelineレイヤー内に閉じたノード編集は所属するWorkerへだけ送る。
+	test(`sends registered effects and the applicable graph edits through the existing ${kind} worker`, async t => {
 		const { controller, workers } = fixture(t, kind);
 		const worker = await initialize(controller, workers);
 		const canvas = controller.canvas;
-		const changes = [{ type: 'customShaderEffectRegistration', customShaderEffectId: 'shader', customShaderEffect: null }];
+		const node = { id: 'fill', effectSource: { type: 'nativeEffect', id: 'fill' }, params: {} };
+		const edit = { type: 'node', node, changes: [{ type: 'parameter', kind: 'value' }] };
+		const shared = [{ type: 'customShaderEffectRegistration', customShaderEffectId: 'shader', customShaderEffect: null },
+			{ ...edit, customNodeGraphEffectId: 'graph' }];
+		const changes = [...shared, { ...edit, sceneId: 'scene', layerId: 'inline' }];
 		const update = controller.applyProjectChanges(changes);
 		const call = worker.calls('applyProjectChanges').at(-1);
-		assert.deepEqual(call.args[0], changes);
+		assert.deepEqual(call.args[0], kind === 'Timeline' ? changes : shared);
 		worker.returnValue(call, {});
 		await update;
 		assert.equal(workers.length, 1);

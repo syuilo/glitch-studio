@@ -1902,11 +1902,10 @@ for (const path of ['Live Preview', 'Timeline Custom Node Graph Effect', 'Timeli
 	});
 }
 
-{
-	const kind = 'public';
+for (const kind of ['public', 'node', 'custom']) {
 	// 【値だけの連続変更ではタイル描画を完成させ、最新値だけを次フレームへ渡す】
 	// 中断による再初期化は、解像度表示の点滅だけでなくGPU資源の再確保と履歴消失も起こす。
-	// 同じ公開入力への複数の変更は最新の値を使う。
+	// 公開引数、内部ノードとカスタムパラメータのどこを編集しても、次のフレームには最新値が届く。
 	test(`coalesces ${kind} values after a tiled Live Preview frame without clearing resolution or history`, async t => {
 		const f = await tiledValueFixture(t, kind);
 		await f.frame(16);
@@ -1972,7 +1971,7 @@ for (const kind of ['node', 'custom']) {
 		assert.equal(f.renders.length, 3);
 		assert.equal(f.renders[1].input.value[0], 0.1);
 		assert.equal(f.renders[2].input.value[0], 0.7);
-		assert.equal(f.init.mock.callCount(), 2);
+		assert.equal(f.init.mock.callCount(), 1);
 		assert.deepEqual(completed.map(frame => frame.requestId), [3]);
 		assert.equal(completed[0].revision, f.renderer.dynamicOptions.previewRevision);
 		assert.deepEqual(f.errors, []);
@@ -2022,7 +2021,7 @@ test('preserves the order of coalesced node and custom parameter changes in Time
 	await finishTiledWork(f.waits, 10);
 	await drawing;
 	assert.equal(f.renders.at(-1).input.value[0], 0.75);
-	assert.equal(f.init.mock.callCount(), 2);
+	assert.equal(f.init.mock.callCount(), 1);
 	assert.deepEqual(f.errors, []);
 });
 

@@ -18,6 +18,127 @@ function create(effectSource, def, init, options = {}) {
 		usedOutputPorts: new Set(['image']), ...options }, {}, () => ({ createOutputTexture() { return { destroy() {} }; }, init }));
 }
 
+// 【インライン定義の省略値・式修飾子を編集しても同じ配置が履歴を引き継ぐ】
+// 停止中の同一時刻でも準備済みの値を更新し、初めて使うPUBLICとCUSTOMを次の描画までに束縛する。
+test('updates default uniforms and modifiers while retaining the inline placement history', async () => {
+	const graph = { ...definition, paramDefs: { bias: scalar }, customParameterDefs: { offset: { ...scalar, nameForReference: 'offset' } },
+		nodes: [{ id: 'draw', effectSource: native, params: {} }], outputSources: { image: output } };
+	const def = { ...definition, paramDefs: { gain: { ...scalar, canNode: true }, unused: scalar },
+		outputDefs: { image: { ...definition.outputDefs.image, inputParameters: ['gain'] } } };
+	const draws = [];
+	let publicBindings = 0;
+	const instance = await create(inline(graph), def, ({ inputs }) => {
+		let previous = 0;
+		return {
+			render(ctx) {
+				const [gain] = inputs.gain.value;
+				draws.push([previous, gain, ctx.timeDelta]);
+				previous = gain;
+			},
+			resetRenderHistory() { assert.fail('A parameter edit reset render history'); },
+			dispose() {},
+		};
+	}, { inputs: { get bias() { publicBindings++; return { kind: 'value', value: 4 }; } } });
+
+	try {
+		const source = frame(1);
+		const texture = instance.outputs.get('image').texture;
+		instance.render(source);
+		instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'draw', params: { gain: literal(3) } });
+		instance.render(source);
+		instance.updateCustomNodeGraphEffectValues(null, { customParameterValues: { offset: literal(7) } });
+		assert.equal(publicBindings, 0);
+		const modifier = code => ({ ...literal(3), expressionModifier: { enabled: true, code } });
+		const firstModifier = modifier('VALUE + PUBLIC("bias")');
+		instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'draw', params: { gain: firstModifier } });
+		assert.equal(publicBindings, 1);
+		assert.equal(instance.tryPrepare(source), true);
+		instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'draw', params: { gain: firstModifier, unused: literal(9) } });
+		assert.equal(instance.preparationStatus.type, 'ready');
+		instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'draw', params: { gain: modifier('VALUE + PUBLIC("bias") + CUSTOM("offset") + TIME') } });
+		instance.render(source);
+		instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'draw', params: {} });
+		instance.render(source);
+		assert.deepEqual(draws, [[0, 0, 40], [0, 3, 40], [3, 15, 40], [15, 0, 40]]);
+		assert.equal(instance.outputs.get('image').texture, texture);
+	} finally { instance.dispose(); }
+});
+
+// 【登録値の編集を同じ登録IDの全配置に届け、無関係な出力はキャッシュから返す】
+// 入れ子と直接配置でノードIDが同じでも、PUBLICは各配置の引数を読み、外側の同名ノードは描き直さない。
+test('updates every nested placement of a registration and retains unrelated cached outputs', async () => {
+	const ref = { type: 'customNodeGraphEffectReference', id: 'registered' };
+	const def = { ...definition, paramDefs: { gain: scalar } };
+	const registered = { ...definition, paramDefs: { bias: scalar }, customParameterDefs: { offset: { ...scalar, nameForReference: 'offset' } },
+		nodes: [{ id: 'draw', effectSource: native, params: { gain: expression('PUBLIC("bias") + CUSTOM("offset")') } }],
+		outputSources: { image: output } };
+	const nested = { ...definition, nodes: [{ id: 'draw', effectSource: ref, params: { bias: literal(5) } }], outputSources: { image: output } };
+	const root = { ...definition, nodes: [
+		{ id: 'first', effectSource: ref, params: { bias: literal(1) } },
+		{ id: 'second', effectSource: inline(nested), params: {} },
+		{ id: 'draw', effectSource: native, params: { gain: literal(100) } },
+	], outputSources: { first: { nodeId: 'first', outputPort: 'image' }, second: { nodeId: 'second', outputPort: 'image' }, other: output } };
+	const values = [];
+	const instance = await create(inline(root), def, ({ inputs }) => {
+		const draws = [];
+		values.push(draws);
+		return { cacheKey: 0, render() { draws.push(inputs.gain.value); }, dispose() {} };
+	}, { definitions: { getNativeEffect: () => def, getCustomNodeGraphEffect: () => registered },
+		usedOutputPorts: new Set(['first', 'second', 'other']) });
+
+	try {
+		const source = frame();
+		instance.render(source);
+		instance.updateCustomNodeGraphEffectValues('registered', { customParameterValues: { offset: literal(3) } });
+		instance.render(source);
+		instance.updateCustomNodeGraphEffectValues('registered', { nodeId: 'draw', params: { gain: expression('(PUBLIC("bias") + CUSTOM("offset")) * 2') } });
+		instance.render(source);
+		instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'first', params: { bias: literal(2) } });
+		instance.render(source);
+		instance.render(source);
+		assert.deepEqual(values, [[1, 4, 8, 10], [5, 8, 16], [100]]);
+	} finally { instance.dispose(); }
+});
+
+// 【固定長の配列・構造体の末端と音声選択の編集を次の準備に反映する】
+// GPUが初期化時に参照したフィールドを保ち、変わった式だけを再束縛する。音声が未選択の間は取得しない。
+test('rebinds edited array fields and audio selections before native frame preparation', async () => {
+	const color = { ...scalar, canNode: true, dataType: { kind: 'color' }, defaultValue: literal([0, 0, 0, 0]) };
+	const fields = { gain: scalar, color };
+	const element = { dataType: { kind: 'struct', fields: { gain: scalar.dataType, color: color.dataType } },
+		ui: { label: 'Entry', control: { fields: { gain: scalar.ui, color: color.ui } } }, fields,
+		defaultValue: literal({ gain: scalar.defaultValue, color: color.defaultValue }) };
+	const entries = { dataType: { kind: 'array', elementType: element.dataType }, element, defaultValue: literal([]),
+		ui: { label: 'Entries', control: { element: element.ui.control } } };
+	const audio = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: literal(null) };
+	const def = { ...definition, paramDefs: { entries, audio } };
+	const bindings = (code, alpha) => literal([{ id: 'entry', binding: literal({ gain: expression(code), color: literal([1, 0, 0, alpha]) }) }]);
+	const graph = { ...definition, nodes: [{ id: 'draw', effectSource: native, params: { entries: bindings('1', 1) } }], outputSources: { image: output } };
+	const bound = [], audioReads = [], prepared = [];
+	const instance = await create(inline(graph), def, ({ inputs }) => {
+		const { gain, color } = inputs.entries.elements[0].fields;
+		return { prepare() { prepared.push([gain.value, color.value, inputs.audio.value?.id ?? null]); }, render() {}, dispose() {} };
+	}, {
+		bindParameterValue(binding, _definition, path) {
+			bound.push([binding.expression, path]);
+			return () => Number(binding.expression);
+		},
+		resolveAudioSource(id) { audioReads.push(id); return { id }; },
+	});
+
+	try {
+		const source = frame();
+		instance.render(source);
+		instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'draw', params: { entries: bindings('1', 0.5), audio: literal('sample') } });
+		instance.render(source);
+		instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'draw', params: { entries: bindings('2', 0.25) } });
+		instance.render(source);
+		assert.deepEqual(prepared, [[1, [1, 0, 0, 1], null], [1, [0.5, 0, 0, 0.5], 'sample'], [2, [0.25, 0, 0, 0.25], null]]);
+		assert.deepEqual(bound, [['1', ['draw']], ['2', ['draw']]]);
+		assert.deepEqual(audioReads, ['sample']);
+	} finally { instance.dispose(); }
+});
+
 // 【入れ子の配置で公開値・内部の共有値・Automation Graph・キーを同じフレームで評価する】
 // 親子で同じ名前の値があっても、引数は親、ノードの式は子のスコープに属する。共有値の未使用の循環は実行しない。
 test('evaluates nested public and custom scopes, modifiers, automation and keyframes', async () => {

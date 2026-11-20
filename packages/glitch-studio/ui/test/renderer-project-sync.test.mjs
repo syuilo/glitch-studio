@@ -125,6 +125,7 @@ test('synchronizes custom values without hiding structural edits in the same bat
 	f.manager.commit('setCustomNodeGraphEffectCustomParameterSource', { target: customParameterTarget({ customNodeGraphEffectId: 'customNodeGraphEffect', parameterId }), source: { inputSource: 'literal', value: 2 } });
 	await f.sync.flush();
 	assert.equal(f.batches.at(-1)[0].customParameterValuesOnly, true);
+	assert.deepEqual(Object.keys(f.batches.at(-1)[0].customNodeGraphEffect), ['customParameterValues']);
 	assert.equal(f.replica.customNodeGraphEffects[0].definition.customParameterValues[parameterId].value, 2);
 	f.manager.commit('setCustomNodeGraphEffectNodeResolution', { target: nodeTarget({ ...f.target }), resolution: { mode: 'context', scale: 0.5 } });
 	f.manager.commit('setCustomNodeGraphEffectCustomParameterSource', { target: customParameterTarget({ customNodeGraphEffectId: 'customNodeGraphEffect', parameterId }), source: { inputSource: 'literal', value: 3 } });
@@ -136,6 +137,14 @@ test('synchronizes custom values without hiding structural edits in the same bat
 	await f.sync.flush();
 	assert.notEqual(f.batches.at(-1)[0].customParameterValuesOnly, true);
 	assert.equal(f.replica.customNodeGraphEffects[0].definition.customParameterDefs[parameterId].nameForReference, 'renamed');
+	const target = customParameterTarget({ customNodeGraphEffectId: 'customNodeGraphEffect', parameterId });
+	f.manager.commit('setCustomNodeGraphEffectCustomParameterSource', { target, source: { inputSource: 'expression', expression: 'TIME' } });
+	await f.sync.flush();
+	assert.notEqual(f.batches.at(-1)[0].customParameterValuesOnly, true);
+	f.manager.commit('setCustomNodeGraphEffectCustomParameterSource', { target, source: { inputSource: 'expression', expression: 'TIME + 2' } });
+	await f.sync.flush();
+	assert.equal(f.batches.at(-1)[0].customParameterValuesOnly, true);
+	assert.equal(f.replica.customNodeGraphEffects[0].definition.customParameterValues[parameterId].expression, 'TIME + 2');
 	f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'customNodeGraphEffectCustomParameterValueReference', parameterId } });
 	await f.sync.flush();
 	const decoded = decodeProjectFile(await encodeProjectFile({ assets: [], generatedSpeech: [], automationGraphs: [],
@@ -350,8 +359,11 @@ test('retains inline edit metadata across reparenting and restores edited delete
 	edit(0.4);
 	f.manager.commit('moveTimelineLayerInTree', { sceneId: 'scene', layerId: 'inline', parentId: null, beforeId: null });
 	await f.sync.flush();
-	assert.deepEqual(f.batches.at(-1).map(change => change.type), ['layerTree', 'layer']);
-	assert.deepEqual(f.batches.at(-1)[1].changes, [{ type: 'definition' }]);
+	assert.deepEqual(f.batches.at(-1).map(change => change.type), ['layerTree', 'node']);
+	const changedNode = f.batches.at(-1)[1];
+	assert.equal(changedNode.sceneId, 'scene');
+	assert.equal(changedNode.layerId, 'inline');
+	assert.deepEqual(changedNode.changes, [{ type: 'parameter', kind: 'value' }]);
 	assert.equal(f.replica.timelineScenes[0].layers[1].effectSource.customNodeGraphEffect.nodes[0].params.buzzs.value[0].binding.value.x.value, 0.4);
 	f.manager.undo();
 	await f.sync.flush();
@@ -433,8 +445,12 @@ test('retains layer edit kinds through merged history and simultaneous inline ed
 	f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ sceneId: 'scene', layerId: 'inline', nodeId: 'node-0', paramPath: f.target.paramPath }), source: { inputSource: 'literal', value: 0.75 } });
 	await f.sync.flush();
 	const batch = f.batches.at(-1);
-	assert.deepEqual(batch.map(change => change.type), ['layer']);
-	assert.deepEqual(batch[0].changes, [{ type: 'definition' }]);
+	assert.deepEqual(batch.map(change => change.type), ['node', 'layer']);
+	assert.deepEqual(batch[0].changes, [{ type: 'parameter', kind: 'value' }]);
+	assert.deepEqual(batch[1].changes, [
+		{ type: 'parameter', target: 'effect', kind: 'reset' }, { type: 'parameter', target: 'effect', kind: 'value' },
+		{ type: 'parameter', target: 'compositing', kind: 'value' },
+	]);
 	const replica = f.replica.timelineScenes[0].layers[0];
 	assert.equal(replica.effectSource.customNodeGraphEffect.nodes[0].params.buzzs.value[0].binding.value.x.value, 0.75);
 	assert.equal(replica.effectParamValues.amount.value, 4);

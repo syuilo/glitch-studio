@@ -2,7 +2,7 @@ import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { changedEffectReferences } from './effect-registration-changes.ts';
-import { canPreserveTimelineLayerInstance } from './project-change-policy.ts';
+import { canPreserveTimelineLayerInstance, isCustomNodeGraphEffectValueChange } from './project-change-policy.ts';
 
 /** 定義の変更だけを数える。描画回数やGPUリソースの世代とは独立して扱う。 */
 export class ProjectStateVersions {
@@ -15,7 +15,7 @@ export class ProjectStateVersions {
 
 	public apply(changes: readonly RendererProjectChange[], previousState: RendererProjectState, next: RendererProjectState) {
 		const revision = ++this.revision;
-		const affected = changedEffectReferences(changes, next);
+		const affected = changedEffectReferences(changes.filter(change => !isCustomNodeGraphEffectValueChange(change)), next);
 		if (affected != null) {
 			for (const scene of next.timelineScenes) {
 				for (const layer of flattenTimelineLayers(scene.layers)) {
@@ -32,6 +32,8 @@ export class ProjectStateVersions {
 				for (const id of new Set([...previousLayers.keys(), ...nextLayers.keys()])) {
 					if (previousLayers.get(id) !== nextLayers.get(id)) this.layers.set(JSON.stringify([change.sceneId, id]), revision);
 				}
+			} else if ((change.type === 'node' || change.type === 'customNodeGraphEffect') && 'sceneId' in change && !isCustomNodeGraphEffectValueChange(change)) {
+				this.layers.set(JSON.stringify([change.sceneId, change.layerId]), revision);
 			} else if (change.type === 'layer' && !canPreserveTimelineLayerInstance(change.changes)
 				&& ((change.layer == null || !isTimelineContainerLayer(change.layer)) || change.changes.some(edit => edit.type === 'definition'))) {
 				// コンテナ自身の設定は毎回読み直すため、子の描画履歴まで巻き込んで破棄しない。

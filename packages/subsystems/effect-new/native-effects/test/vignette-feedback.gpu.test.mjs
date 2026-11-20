@@ -16,6 +16,10 @@ test('decays each pixel from a Vignette texture at its original position on WebG
 // 初期化時のテクスチャを下流が保持してしまうと、片方のフレームだけ古い画素が表示される。
 test('publishes alternating Feedback textures and resets nested history on WebGPU', options, () => runEffectGpuTest(browserTests, 'feedback'));
 
+// 【グラフ内のFeedback入力の編集とUndoをまたいで蓄積した画素を維持する】
+// 既存の履歴と新しい入力が半減期に従って混ざることをGPUから読み戻し、再初期化による履歴の消失を検出する。
+test('keeps Feedback pixels across graph node value edits and undo on WebGPU', options, () => runEffectGpuTest(browserTests, 'editFeedbackInput'));
+
 // 【タイル描画を中断して再開し、全画素・履歴・パス計測を確認する】
 // 未送信のタイルや中断したフレームのキャッシュが残ると、再開後に古い画像が混ざる。
 test('recovers tiled rendering and reports GPU time per placement and pass', options, () => runEffectGpuTest(browserTests, 'tiledHistory'));

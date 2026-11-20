@@ -396,9 +396,8 @@ test('refreshes public parameter scopes after parent value edits and hierarchy c
 	assert.deepEqual(calls.errors, []);
 });
 
-// 【共有Moduleの差分は各配置へ反映し、引数編集では配置ごとの履歴とキャッシュを保持する】
-// 同じModuleの二つのクリップは別インスタンスだが、定義編集は両方へ届く必要がある。
-// 引数だけを変えた配置のために、他の配置や上流のエフェクトを再生成してはいけない。
+// 【登録したCustom Node Graph Effectのノード値をすべての配置へ反映し、履歴を保持する】
+// 配置の引数は個別に変わり、定義内部の値は全参照先で変わる。どちらの編集でも既存の出力と履歴を引き継ぐ。
 test('updates shared definitions and Custom Node Graph Effect arguments without recreating placements', async t => {
 	const { manager, calls } = await fixture(t, { disableCache: false });
 	const customNodeGraphEffect = { ...createCustomNodeGraphEffect({ params: { amount: expression('PUBLIC("amount")') } }), id: 'registered', name: 'Custom Node Graph Effect' };
@@ -423,8 +422,8 @@ test('updates shared definitions and Custom Node Graph Effect arguments without 
 	manager.applyProjectChanges([{ type: 'node', customNodeGraphEffectId: customNodeGraphEffect.id, node: editedNode, changes: [{ type: 'parameter', kind: 'value' }] }]);
 	await manager.renderTimelineFrame(350, 20);
 	assert.deepEqual(calls.renders.slice(-2).map(call => call.params.local), [9, 9]);
-	assert.equal(calls.instances.length, 4);
-	assert.ok(instances.every(instance => instance.disposed));
+	assert.equal(calls.instances.length, 2);
+	assert.ok(instances.every(instance => !instance.disposed));
 	manager.applyProjectChanges([{ type: 'layerOrder', sceneId: 'scene', layerIds: ['second', 'first'] }]);
 	await manager.renderTimelineFrame(350, 20);
 	assert.equal(calls.renders.length, 5);
@@ -500,9 +499,8 @@ test('preserves Transform child instances and outside inputs across project patc
 });
 
 // 【値編集では履歴を保ち、接続変更を含むバッチではCustom Node Graph Effect内の全エフェクトを再作成する】
-// 接続変更は解像度の静的計画にも影響するため、値編集と同じバッチに含まれていても
-// 全エフェクトの履歴とキャッシュを破棄する。値編集だけなら上流の描画と既存インスタンスを保つ。
-test('recreates the owning inline placement after changing an internal node', async t => {
+// 接続変更は解像度の静的計画にも影響するため、構造変更を含む編集では所有する配置を再生成する。
+test('recreates the owning inline placement when a node edit changes its connection', async t => {
 	const { manager, calls } = await fixture(t, { disableCache: false });
 	const inlineCustomNodeGraphEffect = createCustomNodeGraphEffect({ params: { amount: literal(1) } });
 	const upstream = inlineCustomNodeGraphEffect.nodes[0];
@@ -513,13 +511,41 @@ test('recreates the owning inline placement after changing an internal node', as
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [entry] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(350, 20);
 	const instances = [...calls.instances];
-	const edited = structuredClone(entry);
-	edited.effectSource.customNodeGraphEffect.nodes[1].params.amount = literal(3);
-	manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: entry.id, layer: edited, changes: [{ type: 'definition' }] }]);
+	const edited = structuredClone(downstream);
+	edited.params.amount = literal(3);
+	edited.params.input.sampling.fitMode = 'contain';
+	manager.applyProjectChanges([{ type: 'node', sceneId: 'scene', layerId: entry.id, node: edited,
+		changes: [{ type: 'parameter', kind: 'value' }, { type: 'parameter', kind: 'connection' }] }]);
 	await manager.renderTimelineFrame(350, 20);
 	assert.ok(instances.every(instance => instance.disposed));
 	assert.equal(calls.instances.length, 4);
 	assert.equal(calls.renders.at(-1).params.amount, 3);
+	assert.deepEqual(calls.errors, []);
+});
+
+// 【インライン定義内の値編集は所有レイヤーだけに反映して上流の描画キャッシュを保つ】
+// 同じノードIDを持つ別のレイヤーにも差分が届くと、その配置の出力まで変わる。
+// 同じ時刻を再描画し、編集した末端だけが既存のNative Effectインスタンスで再実行されることを確かめる。
+test('updates only the edited inline node and retains upstream and sibling caches', async t => {
+	const { manager, calls } = await fixture(t, { disableCache: false });
+	const graph = createCustomNodeGraphEffect({ params: { amount: literal(1) } });
+	const upstream = graph.nodes[0];
+	const downstream = { ...upstream, id: 'downstream', params: { input: connection(upstream.id), amount: literal(2) } };
+	graph.nodes.push(downstream);
+	graph.outputSources.output = { nodeId: downstream.id, outputPort: 'output' };
+	const layers = ['first', 'second'].map(id => layer(id, structuredClone(graph)));
+	manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers }], sceneId: 'scene' });
+	await manager.renderTimelineFrame(350, 0);
+	assert.equal(calls.instances.length, 4);
+	assert.equal(calls.renders.length, 4);
+	const edited = { ...downstream, params: { ...downstream.params, amount: literal(3) } };
+	manager.applyProjectChanges([{ type: 'node', sceneId: 'scene', layerId: 'first', node: edited, changes: [{ type: 'parameter', kind: 'value' }] }]);
+	await manager.renderTimelineFrame(350, 0);
+	assert.equal(calls.instances.length, 4);
+	assert.equal(calls.renders.length, 5);
+	assert.equal(calls.renders.at(-1).params.amount, 3);
+	assert.equal(calls.renders.at(-1).instance.renders, 2);
+	assert.ok(calls.instances.every(instance => !instance.disposed));
 	assert.deepEqual(calls.errors, []);
 });
 

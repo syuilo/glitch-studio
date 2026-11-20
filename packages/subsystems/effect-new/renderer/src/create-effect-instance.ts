@@ -6,7 +6,7 @@ import { createEffectGpuExecution, type CollectGpuTime } from './effect-gpu-exec
 import { createEffectRenderDevice } from './tiling/effect-render-device.ts';
 import { createEffectFrameMapper } from './graph-evaluation.ts';
 import { resolveEffectStaticResources } from './effect-static-settings.ts';
-import { planEffect, type EffectPlacement } from './plan-effect.ts';
+import { planEffect, type EffectPlacement, type EvaluateStep } from './plan-effect.ts';
 import type { EffectRenderTilingProgressObserver } from '@gs/subsystems_effect-new_shared/effect-render-tiling.ts';
 import type { EffectGpuContext, EffectInitContext, EffectInstance, EffectFrameContext, EffectRenderContext, NativeEffectImplementation } from './effect-instance.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
@@ -22,13 +22,14 @@ function outputFormat(type: TextureDataType, enable32bitDataTextures: boolean): 
 export async function createEffectInstance(placement: EffectPlacement, gpu: EffectGpuContext,
 	getNativeEffectImplementation: (id: string) => NativeEffectImplementation, signal?: AbortSignal): Promise<EffectInstance> {
 	signal?.throwIfAborted();
-	const { steps, outputs, contextResolution, resources } = planEffect(placement, gpu.device?.limits?.maxTextureDimension2D);
+	const { steps, outputs, contextResolution, resources, valueUpdates } = planEffect(placement, gpu.device?.limits?.maxTextureDimension2D);
 	const tiling = placement.tiling ?? { mode: 'disabled' };
 	if (tiling.mode === 'manual' && (!Number.isSafeInteger(tiling.tileSize) || tiling.tileSize <= 0)) throw new Error('Expected a positive tile size');
 	const device = gpu.device;
 	const reportFrameGpuTime = placement.onFrameGpuTime;
 	if (tiling.mode !== 'disabled' || placement.onGpuTime != null || reportFrameGpuTime != null) gpu = { ...gpu, device: createEffectRenderDevice(device) };
 	const prepareSteps: PrepareFrame[] = [];
+	const prepareSources: (PrepareFrame | EvaluateStep)[] = [];
 	const preparation = createFramePreparation(prepareSteps, placement.onPreparationStatus);
 	const renderSteps: {
 		needsRender: () => boolean;
@@ -43,6 +44,15 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 	let tiledRequest: AbortController | null = null;
 	let disposed = false;
 
+	// 式修飾子や音声の選択状態は値編集で切り替わる。静的値の読み取りはフレームごとの準備から除外する。
+	function updatePrepareSteps() {
+		prepareSteps.length = 0;
+		for (const source of prepareSources) {
+			if (typeof source === 'function') prepareSteps.push(source);
+			else if (source.active) prepareSteps.push(source.evaluate);
+		}
+	}
+
 	function reset() {
 		preparation.invalidate();
 		for (const reset of historyResets) reset();
@@ -53,7 +63,8 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 			for (let index = disposers.length - 1; index >= 0; index--) disposers[index]();
 			disposers.length = 0;
 		});
-		renderSteps.length = prepareSteps.length = historyResets.length = 0;
+		renderSteps.length = prepareSteps.length = prepareSources.length = historyResets.length = 0;
+		valueUpdates.clear();
 		outputs.clear();
 	}
 
@@ -94,7 +105,7 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 	try {
 		for (const step of steps) {
 			if ('evaluate' in step) {
-				prepareSteps.push(step.evaluate);
+				prepareSources.push(step);
 				continue;
 			}
 			const { effect, resolution } = step;
@@ -132,7 +143,7 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 				const mapped = map(frame);
 				return historyResetPending ? { ...mapped, timeDelta: 0, pointerVector: [0, 0] as const } : mapped;
 			};
-			if (operation.prepare != null) prepareSteps.push((frame, signal) => operation.prepare!(nodeFrame(frame), signal));
+			if (operation.prepare != null) prepareSources.push((frame, signal) => operation.prepare!(nodeFrame(frame), signal));
 			renderSteps.push({
 				needsRender: () => cache?.needsRender() ?? true,
 				record: (frame, encoder, collectGpuTime) => gpuExecution.record(nodeFrame(frame), encoder, collectGpuTime),
@@ -153,11 +164,19 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 				operation.resetRenderHistory?.();
 			});
 		}
+		updatePrepareSteps();
 		return {
 			outputs, dependsOnRenderHistory,
 			get preparationStatus() { return preparation.status; },
 			tryPrepare(frame) { checkAvailable(); return preparation.tryPrepare(frame); },
 			async prepare(frame, signal) { checkAvailable(); await preparation.prepare(frame, signal); },
+			updateCustomNodeGraphEffectValues(id, update) {
+				checkAvailable();
+				const revision = valueUpdates.preparationLayoutRevision;
+				if (!valueUpdates.apply(id, update)) return;
+				preparation.invalidate();
+				if (revision !== valueUpdates.preparationLayoutRevision) updatePrepareSteps();
+			},
 			render(source: EffectFrameContext, encoder?: GPUCommandEncoder) {
 				checkAvailable();
 				const frame = preparation.take(source);

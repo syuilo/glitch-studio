@@ -224,3 +224,27 @@ export async function feedback() {
 		} finally { add.dispose(); }
 	});
 }
+
+export async function editFeedbackInput() {
+	await withGpu(async ({ create, render, read, textures, pipelines }) => {
+		const definition = nativeEffectDefinitions.feedback;
+		const params = { input: literal([4, 0, 0, 0]), mode: literal('interpolate'), halfLife: literal(1000) };
+		const graph = { ...definition, nodes: [{ id: 'history', effectSource: native('feedback'), params }],
+			outputSources: { output: { nodeId: 'history', outputPort: 'output' } } };
+		const instance = await create(inlineGraph(graph), ['output']);
+		try {
+			const output = instance.outputs.get('output');
+			render(instance, 1000);
+			near((await read(output.texture))[0], 4, 'initial history');
+			const initialTextures = textures.length;
+			const initialPipelines = pipelines();
+			instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'history', params: { ...params, input: literal([0, 0, 0, 0]) } });
+			render(instance, 1000);
+			near((await read(output.texture))[0], 2, 'decay from the value before the edit');
+			instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'history', params });
+			render(instance, 1000);
+			near((await read(output.texture))[0], 3, 'interpolate from existing history after undo');
+			check(textures.length === initialTextures && pipelines() === initialPipelines, 'reuse Feedback textures and pipeline');
+		} finally { instance.dispose(); }
+	});
+}

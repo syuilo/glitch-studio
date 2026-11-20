@@ -50,6 +50,7 @@ function fixture() {
 
 function fixtureWithRemovedPublicInput() {
 	const { state, node, target } = fixture();
+	state.timelineScenes = { value: [] };
 	const customNodeGraphEffect = state.customNodeGraphEffects.value[0];
 	customNodeGraphEffect.definition.paramDefs = {};
 	customNodeGraphEffect.definition.primaryInputParameter = null;

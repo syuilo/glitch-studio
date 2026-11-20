@@ -50,10 +50,9 @@ export function prepareCustomNodeGraphEffectFields<Key extends keyof CustomNodeG
 	const draft = { ...customNodeGraphEffect, ...deepClone(before) };
 	const result = edit(draft);
 	if (keys.some(key => key === 'resolutionInputParameters')) {
-		// 公開入力を削除・変更したときの解像度依存も、同じUndoで元の順番に戻す。
+		// Auto解像度の候補は主入力と独立している。公開入力の編集で使えなくなった候補だけを除く。
 		const parameters = new Map(draft.paramDefs.map(def => [def.id, def]));
-		const inputs = draft.resolutionInputParameters.map(id => id === customNodeGraphEffect.primaryInputId ? draft.primaryInputId : id);
-		draft.resolutionInputParameters = [...new Set(inputs.filter((id): id is string => id != null && acceptsResolutionInput(parameters.get(id))))];
+		draft.resolutionInputParameters = draft.resolutionInputParameters.filter(id => acceptsResolutionInput(parameters.get(id)));
 	}
 	const after = Object.fromEntries(keys.map(key => [key, draft[key]])) as Pick<CustomNodeGraphEffect, Key>;
 	return prepareCustomNodeGraphEffectValue(before, after, (currentState, values) => {
