@@ -22,7 +22,12 @@
 			<XPublicParameterDefinitionEditor :def="parameter" :supportedTypes="supportedTypes" :data-test-custom-shader-effect-parameter="parameter.id" @update="updateParameter(parameter.id, $event)" @remove="removeParameter(parameter.id)"/>
 			<GsSwitch :modelValue="draft.resolutionInputParameters.includes(parameter.id)" @update:modelValue="setResolutionInput(parameter.id, $event)">{{ i18n.ts._CustomShaderEffect.ResolutionInput }}</GsSwitch>
 			<div :class="$style.actions">
-				<GsButton :disabled="index === 0" icon="ti ti-arrow-up" @click="move(draft.paramDefs, index, -1)">{{ i18n.ts._CustomShaderEffect.MoveUp }}</GsButton>
+				<GsButton
+					:data-test-move-custom-shader-effect-parameter-up="parameter.id"
+					:disabled="index === 0"
+					icon="ti ti-arrow-up"
+					@click="move(draft.paramDefs, index, -1)"
+				>{{ i18n.ts._CustomShaderEffect.MoveUp }}</GsButton>
 				<GsButton :disabled="index === draft.paramDefs.length - 1" icon="ti ti-arrow-down" @click="move(draft.paramDefs, index, 1)">{{ i18n.ts._CustomShaderEffect.MoveDown }}</GsButton>
 			</div>
 		</GsFolder>
@@ -31,13 +36,22 @@
 	<template v-else-if="tab === 'outputs'">
 		<div>{{ i18n.ts._CustomShaderEffect.ReferenceNames }}</div>
 		<GsFolder v-for="(output, index) in draft.outputDefs" :key="output.id" defaultOpen>
-			<template #label>{{ output.label }}</template>
+			<template #label>{{ output.label ?? output.nameForReference }}</template>
 			<div class="_gaps_m">
-				<GsInput v-model="output.label" :data-test-custom-shader-effect-output-label="output.id"><template #label>{{ i18n.ts.Label }}</template></GsInput>
+				<GsInput
+					:modelValue="output.label ?? output.nameForReference"
+					:data-test-custom-shader-effect-output-label="output.id"
+					@update:modelValue="output.label = $event"
+				><template #label>{{ i18n.ts.Label }}</template></GsInput>
 				<GsInput v-model="output.nameForReference" monospace :data-test-custom-shader-effect-output-name="output.id"><template #label>{{ i18n.ts._ParameterEditor.ReferenceName }}</template></GsInput>
 				<GsSelect :modelValue="output.dataType.kind" :items="dataTypeItems" :data-test-custom-shader-effect-output-type="output.id" @update:modelValue="updateOutputType(output.id, $event)"><template #label>{{ i18n.ts._ParameterEditor.DataType }}</template></GsSelect>
 				<div :class="$style.actions">
-					<GsButton :disabled="index === 0" icon="ti ti-arrow-up" @click="move(draft.outputDefs, index, -1)">{{ i18n.ts._CustomShaderEffect.MoveUp }}</GsButton>
+					<GsButton
+						:data-test-move-custom-shader-effect-output-up="output.id"
+						:disabled="index === 0"
+						icon="ti ti-arrow-up"
+						@click="move(draft.outputDefs, index, -1)"
+					>{{ i18n.ts._CustomShaderEffect.MoveUp }}</GsButton>
 					<GsButton :disabled="index === draft.outputDefs.length - 1" icon="ti ti-arrow-down" @click="move(draft.outputDefs, index, 1)">{{ i18n.ts._CustomShaderEffect.MoveDown }}</GsButton>
 					<GsButton :data-test-remove-custom-shader-effect-output="output.id" danger icon="ti ti-trash" @click="removeOutput(output.id)">{{ i18n.ts.Delete }}</GsButton>
 				</div>
@@ -58,7 +72,6 @@
 <script lang="ts" setup>
 import { computed, ref, watch } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { CustomShaderEffectDefinitionError, describeCustomShaderEffectInterface, validateCustomShaderEffectDefinition } from '@gs/subsystems_effect-new_shared/custom-shader-effect.ts';
 import GsButton from './common/GsButton.vue';
@@ -74,6 +87,7 @@ import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { CustomShaderEffect } from '@gs/subsystems_effect-new_shared/custom-shader-effect.ts';
 import { i18n } from '@/i18n.ts';
+import { areProjectCustomShaderEffectsEqual } from '@/utility/custom-shader-effect.ts';
 
 const props = defineProps<{ customShaderEffect: ProjectCustomShaderEffect }>();
 const emit = defineEmits<{ apply: [definition: ProjectCustomShaderEffect] }>();
@@ -85,7 +99,7 @@ function rows<T extends object>(record: Readonly<Record<string, T>>) {
 
 function toDraft(entry: ProjectCustomShaderEffect) {
 	const { definition, ...registration } = deepClone(entry);
-	return { ...registration, ...definition, paramDefs: rows(definition.paramDefs), outputDefs: rows(definition.outputDefs).map(output => ({ ...output, label: output.label ?? output.nameForReference })),
+	return { ...registration, ...definition, paramDefs: rows(definition.paramDefs), outputDefs: rows(definition.outputDefs),
 		resolutionInputParameters: [...definition.resolutionInputParameters] };
 }
 
@@ -112,8 +126,8 @@ const kindItems: { value: CustomShaderEffect['kind']; label: string }[] = [
 ];
 const noneItem = { value: null, label: i18n.ts._CustomShaderEffect.None };
 const primaryInputItems = computed(() => [noneItem, ...draft.value.paramDefs.filter(parameter => parameter.dataType.kind === 'color').map(parameter => ({ value: parameter.id, label: parameter.ui.label }))]);
-const primaryOutputItems = computed(() => [noneItem, ...draft.value.outputDefs.filter(output => output.dataType.kind === 'color').map(output => ({ value: output.id, label: output.label }))]);
-const changed = computed(() => !deepEqual(registration.value, props.customShaderEffect));
+const primaryOutputItems = computed(() => [noneItem, ...draft.value.outputDefs.filter(output => output.dataType.kind === 'color').map(output => ({ value: output.id, label: output.label ?? output.nameForReference }))]);
+const changed = computed(() => !areProjectCustomShaderEffectsEqual(registration.value, props.customShaderEffect));
 const interfaceDescription = computed(() => describeCustomShaderEffectInterface(registration.value.definition));
 const validationError = computed(() => {
 	if (draft.value.name.trim().length === 0) return i18n.ts._CustomShaderEffect.EmptyName;

@@ -2,7 +2,7 @@ import * as z from 'zod';
 import { findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { validateCustomShaderEffectDefinition } from '@gs/subsystems_effect-new_shared/custom-shader-effect.ts';
-import { createProjectCustomShaderEffect } from '../utility/custom-shader-effect.ts';
+import { areProjectCustomShaderEffectsEqual, createProjectCustomShaderEffect } from '../utility/custom-shader-effect.ts';
 import { isCustomShaderEffectUsed, reconcileCustomShaderEffectUsages } from '../utility/custom-shader-effect-usages.ts';
 import { defineCommand, definePublicCommand } from './definition.ts';
 import { projectCustomShaderEffectDefinitionSchema } from './project-contract-schemas.ts';
@@ -78,6 +78,8 @@ const replaceCustomShaderEffectDefinition = definePublicCommand({
 		return prepareProjectValueChange({
 			before: { definition: beforeDefinition, customNodeGraphEffects: graphs.map(({ before }) => before), layers: layers.map(({ sceneId, before }) => ({ sceneId, layer: before })) },
 			after: { definition: afterDefinition, customNodeGraphEffects: graphs.map(({ after }) => after), layers: layers.map(({ sceneId, after }) => ({ sceneId, layer: after })) },
+			// Node・Layer の更新は定義の変更からのみ生じる。
+			equals: (before, after) => areProjectCustomShaderEffectsEqual(before.definition, after.definition),
 			result: undefined, changes: [
 				{ type: 'customShaderEffect', customShaderEffectId },
 				...graphs.map(({ after }) => ({ type: 'customNodeGraphEffect' as const, target: { customNodeGraphEffectId: after.id } })),

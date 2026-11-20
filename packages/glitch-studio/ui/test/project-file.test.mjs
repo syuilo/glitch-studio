@@ -549,9 +549,12 @@ test('persists Custom Shader Effect definitions through project snapshots and fi
 	customShaderEffect.summary = 'A shader with an unfinished draft.';
 	customShaderEffect.definition.outputDefs.mask = { nameForReference: 'mask', label: 'Mask', dataType: { kind: 'scalar' } };
 	manager.commit('insertCustomShaderEffect', { definition: customShaderEffect });
+	customShaderEffect.definition.outputDefs = Object.fromEntries(Object.entries(customShaderEffect.definition.outputDefs).reverse());
+	manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: customShaderEffect.id, definition: customShaderEffect });
 	const snapshot = context.snapshot();
 	const restored = decodeProjectFile(await encodeProjectFile(snapshot));
 	assert.deepEqual(restored.customShaderEffects, [customShaderEffect]);
+	assert.deepEqual(Object.keys(restored.customShaderEffects[0].definition.outputDefs), ['mask', customShaderEffect.definition.primaryOutput]);
 	const restoredSession = await app.projectSessions.open(restored);
 	const restoredManager = restoredSession.projectContext.stateManager;
 	assert.deepEqual(JSON.parse(JSON.stringify(restoredManager.state.customShaderEffects.value)), [customShaderEffect]);

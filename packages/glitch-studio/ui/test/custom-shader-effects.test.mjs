@@ -274,6 +274,26 @@ test('duplicates definitions with independent identities and correctly remapped 
 	assert.equal(original.definition.paramDefs[original.definition.primaryInputParameter].defaultValue.value[0], 0);
 });
 
+// 【複製した Custom Shader Effect のレイアウトが新しい入力 ID を参照する】
+// 直下と入れ子の両方にある入力を付け替えても、セクションの識別子・表示設定・並びは維持する。
+test('remaps root and nested parameter layout entries when duplicating a shader', () => {
+	const { definition: original, state, manager } = usageFixture();
+	const layout = (amount, source) => [amount, {
+		type: 'section', id: 'group', label: 'Group', defaultExpanded: false,
+		children: [{ type: 'section', id: 'nested', label: 'Nested', children: [source] }],
+	}];
+	const originalLayout = layout('amount', original.definition.primaryInputParameter);
+	const withLayout = { ...original, definition: { ...original.definition, ui: { parameterLayout: originalLayout } } };
+	manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: original.id, definition: withLayout });
+	const { customShaderEffectId } = manager.commit('duplicateCustomShaderEffect', { customShaderEffectId: original.id });
+	const copy = state.customShaderEffects.value.find(entry => entry.id === customShaderEffectId).definition;
+	const [source, amount] = Object.keys(copy.paramDefs);
+	assert.notEqual(source, original.definition.primaryInputParameter);
+	assert.notEqual(amount, 'amount');
+	assert.deepEqual(copy.ui.parameterLayout, layout(amount, source));
+	assert.deepEqual(state.customShaderEffects.value[0].definition.ui.parameterLayout, originalLayout);
+});
+
 // 【未完成コードは保存できるが、入出力の重複・不正な値・無効な主出力は適用しない】
 // コードの編集中エラーと、UIが所有する定義構造の破損を分けて扱う。
 test('accepts unfinished WGSL while rejecting invalid interface definitions without adding history', () => {
@@ -317,6 +337,43 @@ test('keeps drafts private and applies code and multiple outputs in one event', 
 	await nextTick();
 	assert.equal(f.find('data-test-custom-shader-effect-unapplied'), null);
 	assert.equal(f.find('data-test-apply-custom-shader-effect').props.disabled, true);
+});
+
+// 【入力だけ・出力だけを並べ替えた編集を適用して Undo/Redo できる】
+// ポートの値や固定 ID は同じでも、入力の表示順と WGSL の出力順は保存する定義の一部になる。
+test('applies and undoes input-only and output-only port reorders from the shader editor', async t => {
+	const { definition, state, manager } = usageFixture();
+	delete definition.definition.outputDefs.mask.label;
+	const editor = fixture(t);
+	editor.props.customShaderEffect = state.customShaderEffects.value[0];
+	for (const [tab, field, button] of [
+		['inputs', 'paramDefs', 'data-test-move-custom-shader-effect-parameter-up'],
+		['outputs', 'outputDefs', 'data-test-move-custom-shader-effect-output-up'],
+	]) {
+		await editor.tab(tab);
+		const savedOrder = () => Object.keys(state.customShaderEffects.value[0].definition[field]);
+		const original = savedOrder();
+		assert.equal(editor.find('data-test-apply-custom-shader-effect').props.disabled, true);
+		editor.find(button, original[1]).props.onClick();
+		await nextTick();
+		const apply = editor.find('data-test-apply-custom-shader-effect');
+		assert.equal(apply.props.disabled, false);
+		apply.props.onClick();
+		const replacement = { customShaderEffectId: definition.id, definition: editor.applied.at(-1) };
+		assert.equal(Object.hasOwn(replacement.definition.definition.outputDefs.mask, 'label'), false);
+		manager.commit('replaceCustomShaderEffectDefinition', replacement);
+		assert.deepEqual(savedOrder(), original.toReversed());
+		editor.props.customShaderEffect = state.customShaderEffects.value[0];
+		await nextTick();
+		assert.equal(editor.find('data-test-apply-custom-shader-effect').props.disabled, true);
+		// 同じ順序を再適用しても履歴は増えず、一度の Undo で元に戻る。
+		manager.commit('replaceCustomShaderEffectDefinition', replacement);
+		manager.undo();
+		assert.deepEqual(savedOrder(), original);
+		manager.redo();
+		assert.deepEqual(savedOrder(), original.toReversed());
+		editor.props.customShaderEffect = state.customShaderEffects.value[0];
+	}
 });
 
 // 【型変更で無効になった主出力を解除し、削除した入力の主入力・解像度参照も解除する】
