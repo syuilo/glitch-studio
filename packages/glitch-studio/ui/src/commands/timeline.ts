@@ -16,7 +16,7 @@ import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-re
 import { validateTimelineMask, validateTimelineLayerMask, isTimelineLayerTransformTarget } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { getTimelineLayerMaskSources } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import { getEffectDefinitions } from '../utility/project-effects.ts';
-import { getScene, getLayerParameterTargets, getLayerParameterDefinitions, resolveLayerParameter } from '../utility/timeline-scene.ts';
+import { getScene, getLayerParameterTargets, getLayerParameterDefinitions, getLayerParameterValues } from '../utility/timeline-scene.ts';
 import { prepareTimelineContainerMove } from '../utility/timeline-container.ts';
 import { setTimelineLayerParameterRoot } from '../utility/timeline-parameter-edit.ts';
 import { defineTimelineCommand } from './timeline-preparation.ts';
@@ -920,27 +920,26 @@ export const removeTimelineKeyframesCommandDef = defineTimelineCommand<{ sceneId
 	scope: payload => ({ sceneId: payload.sceneId }),
 	edit: (state, payload) => {
 		const scene = getScene(state, payload.sceneId);
-		const ids = new Set(payload.keyframes.map(point => point.layerId));
-		const proposed = deepClone(flattenTimelineLayers(scene.layers).filter(layer => ids.has(layer.id)));
+		const layersById = new Map(flattenTimelineLayers(scene.layers).map(layer => [layer.id, layer]));
+		// 編集用に分離済みのSceneを変更する。全件の削除に成功してからCommandが反映する。
 		for (const point of payload.keyframes) {
-			const layer = proposed.find(layer => layer.id === point.layerId);
-			if (!layer) throw new Error('Timeline layer not found');
+			const layer = layersById.get(point.layerId);
+			if (layer == null) throw new Error('Timeline layer not found');
 			if (point.target === 'utterance') {
 				if (layer.layerType !== 'voicevox' || (point.paramPath.length !== 1 || point.paramPath[0] !== 'utterances') || !layer.utterances.some(utterance => utterance.id === point.keyframeId)) throw new Error('Utterance not found');
 				layer.utterances = layer.utterances.filter(utterance => utterance.id !== point.keyframeId);
 			} else {
-				// 未設定の引数は既定値のコピーを返すため、ルートから独立した編集案を作る。
-				// 入れ子のIDパスもこの案で解決し、次の削除には保存済みの案を引き継ぐ。
-				// レイヤー全体を確定する前の変更なので、後続の失敗時も元の未設定状態を保つ。
-				const rootKey = point.paramPath[0];
-				const draft = { [rootKey]: deepClone(resolveLayerParameter(state, layer, point.target, [rootKey]).value) };
-				const binding = resolveParameter<EditableTimelineParameterBinding>(getLayerParameterDefinitions(state, layer, point.target), draft, point.paramPath).value;
-				if (binding.inputSource !== 'keyframesTimelineInline' || !binding.keyframesTimeline.keyframes.some(keyframe => keyframe.id === point.keyframeId)) throw new Error('Timeline keyframe not found');
-				binding.keyframesTimeline.keyframes.splice(binding.keyframesTimeline.keyframes.findIndex(keyframe => keyframe.id === point.keyframeId), 1);
-				setTimelineLayerParameterRoot(layer, point.target, rootKey, draft[rootKey]);
+				const values = getLayerParameterValues(layer, point.target);
+				if (values[point.paramPath[0]] == null) throw new Error('Timeline keyframe not found');
+				const defs = getLayerParameterDefinitions(state, layer, point.target);
+				const binding = resolveParameter<EditableTimelineParameterBinding>(defs, values, point.paramPath).value;
+				if (binding.inputSource !== 'keyframesTimelineInline') throw new Error('Timeline keyframe not found');
+				const keyframes = binding.keyframesTimeline.keyframes;
+				const keyframeIndex = keyframes.findIndex(keyframe => keyframe.id === point.keyframeId);
+				if (keyframeIndex < 0) throw new Error('Timeline keyframe not found');
+				keyframes.splice(keyframeIndex, 1);
 			}
 		}
-		for (const layer of proposed) scene.layers = updateTimelineLayer(scene.layers, layer.id, () => layer);
 	},
 });
 

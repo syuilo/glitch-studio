@@ -296,9 +296,14 @@ test('remaps root and nested parameter layout entries when duplicating a shader'
 
 // 【未完成コードは保存できるが、入出力の重複・不正な値・無効な主出力は適用しない】
 // コードの編集中エラーと、UIが所有する定義構造の破損を分けて扱う。
+// anyのnullは未接続を表す有効な既定値だが、valueの欠落や加工式は定義として拒否する。
 test('accepts unfinished WGSL while rejecting invalid interface definitions without adding history', () => {
 	const original = createProjectCustomShaderEffect([]);
 	original.definition.code = 'not valid WGSL';
+	original.definition.paramDefs.signal = {
+		nameForReference: 'signal', canNode: true, dataType: { kind: 'any' },
+		ui: { label: 'Signal', control: {} }, defaultValue: { inputSource: 'literal', value: null },
+	};
 	assert.doesNotThrow(() => validateCustomShaderEffectDefinition(original.definition));
 	const manager = new UndoRedo({ customShaderEffects: ref([]), timelineScenes: ref([]), customNodeGraphEffects: ref([]) }, CUSTOM_SHADER_EFFECT_COMMAND_DEFS);
 	for (const [reason, edit] of [
@@ -306,13 +311,17 @@ test('accepts unfinished WGSL while rejecting invalid interface definitions with
 		['duplicateOutput', definition => definition.outputDefs.another = { ...definition.outputDefs[definition.primaryOutput] }],
 		['invalidReferenceName', definition => { definition.outputDefs[definition.primaryOutput].nameForReference = 'gs_internal'; }],
 		['invalidParameter', definition => { definition.paramDefs[definition.primaryInputParameter].defaultValue.value = [1, 2]; }],
+		['invalidParameter', definition => { delete definition.paramDefs.signal.defaultValue.value; }],
+		['invalidParameter', definition => { definition.paramDefs.signal.defaultValue.expressionModifier = { enabled: false, code: 'VALUE' }; }],
 		['invalidPrimaryOutput', definition => { definition.primaryOutput = 'missing'; }],
 		['invalidResolutionInput', definition => { definition.resolutionInputParameters = ['missing']; }],
 		['missingOutput', definition => { definition.outputDefs = {}; }],
 	]) {
 		const invalid = structuredClone(original);
 		edit(invalid.definition);
-		assert.throws(() => manager.commit('insertCustomShaderEffect', { definition: invalid }), error => error.reason === reason);
+		const matchesReason = error => error.reason === reason;
+		assert.throws(() => validateCustomShaderEffectDefinition(invalid.definition), matchesReason);
+		assert.throws(() => manager.commit('insertCustomShaderEffect', { definition: invalid }), matchesReason);
 		assert.equal(manager.undoStack.value.length, 0);
 		assert.equal(manager.state.customShaderEffects.value.length, 0);
 	}

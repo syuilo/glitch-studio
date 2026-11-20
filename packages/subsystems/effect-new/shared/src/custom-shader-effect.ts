@@ -1,11 +1,12 @@
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { EffectDefinition, EffectParameterDefinition } from './effect-definition.ts';
+import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
+import type { EffectDefinition } from './effect-definition.ts';
 
 export interface CustomShaderEffect extends EffectDefinition {
 	readonly canHaveLongRunningRenderPass?: boolean;
 	readonly shaderApiVersion: 1;
 	readonly code: string;
-	readonly paramDefs: Readonly<Record<string, EffectParameterDefinition<TextureDataType> & { canNode: true; nameForReference: string }>>;
+	readonly paramDefs: Readonly<Record<string, ParameterDefinition<TextureDataType> & { canNode: true; nameForReference: string }>>;
 	readonly outputDefs: Readonly<Record<string, { dataType: TextureDataType; nameForReference: string; label?: string }>>;
 }
 
@@ -38,12 +39,14 @@ export function validateCustomShaderEffectDefinition(definition: CustomShaderEff
 	validateNames(definition.outputDefs, 'duplicateOutput');
 	for (const parameter of Object.values(definition.paramDefs)) {
 		const kind = parameter.dataType.kind;
-		if (!['scalar', 'vector', 'color', 'any'].includes(kind) || parameter.canNode !== true || parameter.defaultValue.inputSource !== 'literal') {
+		const defaultValue = parameter.defaultValue;
+		if (!['scalar', 'vector', 'color', 'any'].includes(kind) || parameter.canNode !== true
+			|| defaultValue == null || defaultValue.inputSource !== 'literal' || !('value' in defaultValue) || defaultValue.expressionModifier != null) {
 			throw new CustomShaderEffectDefinitionError('invalidParameter', parameter.nameForReference);
 		}
-		const value = parameter.defaultValue.value;
+		const value = defaultValue.value;
 		const isValidValue = kind === 'scalar' ? typeof value === 'number' && Number.isFinite(value)
-			: kind === 'any' && value == null ? true
+			: kind === 'any' && value === null ? true
 			: Array.isArray(value) && value.length === (kind === 'vector' ? 2 : 4) && value.every(component => typeof component === 'number' && Number.isFinite(component));
 		if (!isValidValue) throw new CustomShaderEffectDefinitionError('invalidParameter', parameter.nameForReference);
 	}

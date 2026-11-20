@@ -194,7 +194,7 @@ NOISE(TIME * 3, 1) * 0.03
 
 `expressionModifier`の未指定・nullは加工なし、`enabled: false`は本文を保持したまま無効化します。有効な基準式・加工式が空文字列または空白だけの場合はエラーです。構文・実行・戻り値の型のエラーもフォールバックせず、そのフレームのレンダリングや書き出しを失敗させます。エラーには基準式／加工式と対象パラメータを含めます。キーが空などの正常な未設定状態に対する既定値の使用とは区別します。
 
-加工式は各利用箇所のBindingに保持します。パラメータ定義の既定Bindingでは、配列・構造体の内部や要素追加用の既定値を含めて加工式を禁止します。既定値は加工前の初期状態を表し、Live Previewで引数を省略した場合も同じ値になります。
+パラメータ定義の既定値は、配列の初期要素・追加時の要素や構造体フィールドを含め、末端まで `inputSource: 'literal'` と `value` を持ちます。式・キー・加工式は利用箇所のBindingに設定します。Live Previewで引数を省略した場合は定義の既定値を使います。
 
 基準入力の値や方式を変更しても加工式は保持します。加工式の無効化・削除は基準値に影響せず、パラメータ全体のリセットでは両方を定義の既定値へ戻します。Commandを通した編集・Undo/Redo・保存・複製でも加工式を保持します。
 
@@ -218,7 +218,7 @@ Bindingは利用可能な入力方式を所有するドメインで定義しま�
 
 Effect Layerは3種類のEffectすべてに `TimelineEffectParameterBinding` を使います。Timelineの入力方式に加え、音声用の `lowerLayerAudio` / `anotherLayerAudio` と画像用の `lowerLayerOutput` / `anotherLayerOutput` を持ちます。画像Bindingにはfit・wrap・filterを保存でき、Custom Node Graph Effect内のサンプリングは内部接続が指定します。Custom Node Graph Effect Live Previewから渡す `CustomNodeGraphEffectArgumentBindings` は共通方式だけを許可し、タイムラインの合成設定・音量にはTimelineの方式を許可します。
 
-共通の `ParameterBindingBase` はツリー操作に必要な `inputSource` だけを持ち、保存用の全方式を集めたunionにはしません。共通の走査・IDパスによる編集処理はジェネリックにし、呼び出し側のBinding型を保持します。パラメータ定義の初期値も子要素を含めて共通方式に限定し、ノード接続やレイヤー入力は利用ドメイン側で設定します。複数ドメインを扱う編集用unionはUI側に置き、各Commandへ渡す境界で対象を絞り込みます。literalの内部値の完全な静的型付けは行っていないため、配列・構造体内部の入力方式の実行時検証も維持します。
+共通の `ParameterBindingBase` はツリー操作に必要な `inputSource` だけを持ち、保存用の全方式を集めたunionにはしません。共通の走査・IDパスによる編集処理はジェネリックにし、呼び出し側のBinding型を保持します。未設定の値を補う `walkParameters` は、呼び出し側のBindingかliteralの既定値を返します。ノード接続やレイヤー入力は利用ドメイン側で設定します。複数ドメインを扱う編集用unionはUI側に置き、各Commandへ渡す境界で対象を絞り込みます。literalの内部値の完全な静的型付けは行っていないため、配列・構造体内部の入力方式の実行時検証も維持します。
 
 ## 静的設定
 

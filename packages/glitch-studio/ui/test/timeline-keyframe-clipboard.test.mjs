@@ -175,10 +175,10 @@ test('requires the original scene and compatible surviving lanes without requiri
 	assert.equal(prepareTimelineKeyframePaste(f.state, f.scene, clipboard, 1000), null);
 });
 
-// 【未設定のCustom Node Graph Effect引数では既定Bindingを変更せず、Undoで未設定へ戻す】
-// 既定値のキーを共有定義に直接追加すると、別の配置にもキーが増えてしまう。
+// 【同じ配置に保存されたCustom Node Graph Effect引数のキー入力へ貼り付ける】
+// キー入力が削除された後も既定値からレーンを作り直さないようにする。
 // enumの候補が更新された場合も、追加する値を現在の選択肢で検証する。
-test('materializes default Custom Node Graph Effect arguments independently and validates enum options at paste time', t => {
+test('pastes into saved Custom Node Graph Effect arguments and validates current enum options', t => {
 	const f = fixture(t);
 	const dataType = { kind: 'enum', options: ['one', 'two'] };
 	const def = { id: 'choice', dataType, ui: { label: 'Choice', control: { labels: {} } }, canNode: false,
@@ -197,7 +197,12 @@ test('materializes default Custom Node Graph Effect arguments independently and 
 	assert.deepEqual(def.defaultValue, originalDefault);
 	assert.deepEqual(f.read(f.selection[0]).keyframesTimeline.keyframes.map(point => point.x), [0, 1000]);
 	f.history.undo();
-	assert.deepEqual(f.scene.layers.at(-1).effectParamValues.choice, placement);
+	const values = f.scene.layers.at(-1).effectParamValues;
+	assert.deepEqual(values.choice, placement);
+	delete values.choice;
+	assert.equal(prepareTimelineKeyframePaste(f.state, f.scene, clipboard, 1000), null);
+	assert.equal(copyTimelineKeyframes(f.state, f.scene, f.selection), null);
+	values.choice = structuredClone(placement);
 	def.dataType.options = ['two'];
 	assert.equal(prepareTimelineKeyframePaste(f.state, f.scene, clipboard, 1000), null);
 	const malformed = structuredClone(keyframes);
@@ -205,10 +210,10 @@ test('materializes default Custom Node Graph Effect arguments independently and 
 	assert.equal(getTimelineKeyframePasteUpdates(f.state, f.scene, malformed), null);
 });
 
-// 【既定値から表示したキーをレイヤー側で削除し、Undoで未設定に戻す】
-// 未設定ルートの既定Bindingはコピーなので直接変更しても保存されない。配列・構造体は
-// 先にルートを用意し、同じルートの別レーンを一括削除しても互いの変更を残す必要がある。
-test('removes default keys from independent root drafts and restores unset arguments on undo', t => {
+// 【保存済みのキーをまとめて削除し、失敗時はシーンや履歴を変更しない】
+// 同じ配列・構造体の別レーンを削除しても互いの編集が残ることを確認する。
+// 有効な削除の後に存在しないキーや未設定の引数が含まれていた場合は、操作全体を取り消す。
+test('removes saved keys atomically and restores each lane through undo and redo', t => {
 	for (const nested of [false, true]) {
 		const f = fixture(t);
 		const scalar = { id: 'value', dataType: { kind: 'scalar' }, ui: { label: 'Value', control: {} }, defaultValue: { inputSource: 'literal', value: 0 } };
@@ -244,9 +249,11 @@ test('removes default keys from independent root drafts and restores unset argum
 		}
 		f.history.undo();
 		const changes = f.changes.length;
-		assert.throws(() => f.history.commit('removeTimelineKeyframes', { sceneId: 'scene',
-			keyframes: [...selection, { ...selection[0], keyframeId: 'missing' }] }), /Timeline keyframe not found/);
-		assert.deepEqual(f.scene, before);
+		for (const invalid of [{ ...selection[0], keyframeId: 'missing' }, { ...selection[0], layerId: 'untouched' }]) {
+			assert.throws(() => f.history.commit('removeTimelineKeyframes', { sceneId: 'scene',
+				keyframes: [...selection, invalid] }), /Timeline keyframe not found/);
+			assert.deepEqual(f.scene, before);
+		}
 		assert.deepEqual(def.defaultValue, originalDefault);
 		assert.equal(f.changes.length, changes);
 		assert.equal(f.history.undoStack.value.length, 0);

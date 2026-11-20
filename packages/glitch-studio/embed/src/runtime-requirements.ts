@@ -1,6 +1,7 @@
 import { walkParameterLeaves } from '@gs/shared/parameter/parameter-tree.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
-import type { EffectParameterDefinition, NativeEffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
+import type { NativeEffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
 import type { CustomNodeGraphEffect, CustomNodeGraphEffectParameterBinding } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
 import type { CustomNodeGraphEffectResources } from '@gs/glitch-studio_shared/custom-node-graph-effect-resources.ts';
 import type { CustomNodeGraphEffectEditorMetadata } from '@gs/glitch-studio_shared/project/types.ts';
@@ -11,7 +12,7 @@ export type PortableCustomNodeGraphEffectRuntimeRequirements = {
 	requiresCustomShaderEffects: boolean;
 };
 
-function usesExpressions(definitions: Readonly<Record<string, EffectParameterDefinition>>, bindings: Readonly<Record<string, CustomNodeGraphEffectParameterBinding>>) {
+function usesExpressions(definitions: Readonly<Record<string, ParameterDefinition>>, bindings: Readonly<Record<string, CustomNodeGraphEffectParameterBinding>>) {
 	// 省略された入力は末端までliteralの既定値なので、配置で指定されたBindingだけを調べる。
 	for (const [key, binding] of Object.entries(bindings)) {
 		for (const { param } of walkParameterLeaves<CustomNodeGraphEffectParameterBinding>({ value: definitions[key] }, { value: binding })) {

@@ -7,7 +7,7 @@ import { validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/pa
 import { validateVoicevoxLayer } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import type { VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { appendInlineKeyframes } from './keyframes-timeline.ts';
-import { getLayerParameterDefinitions, getLayerParameterValues, resolveLayerParameter } from './timeline-scene.ts';
+import { getLayerParameterDefinitions, getLayerParameterValues } from './timeline-scene.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { KeyframesDataType, KeyframesTimelineKeyframe } from '@gs/shared/keyframes/keyframes-timeline.ts';
 import type { TimelineScene, TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
@@ -38,10 +38,9 @@ type ParameterUpdate = {
 	layerId: string;
 	target: TimelineParameterTarget;
 	paramId: string;
-	before: EditableTimelineParameterBinding | null;
 	after: EditableTimelineParameterBinding;
 };
-type UtteranceUpdate = { layerId: string; target: 'utterance'; before: VoicevoxUtterance[]; after: VoicevoxUtterance[] };
+type UtteranceUpdate = { layerId: string; target: 'utterance'; after: VoicevoxUtterance[] };
 
 type ParameterState = Pick<ProjectState, 'customNodeGraphEffects'>;
 
@@ -64,7 +63,9 @@ export function copyTimelineKeyframes(state: ParameterState, scene: TimelineScen
 				}));
 				continue;
 			}
-			const binding = resolveLayerParameter(state, layer, point.target, point.paramPath).value;
+			const defs = getLayerParameterDefinitions(state, layer, point.target);
+			const values = getLayerParameterValues(layer, point.target);
+			const binding = resolveParameter<EditableTimelineParameterBinding>(defs, values, point.paramPath).value;
 			if (binding.inputSource !== 'keyframesTimelineInline') return null;
 			const keyframe = binding.keyframesTimeline.keyframes.find(keyframe => keyframe.id === point.keyframeId);
 			if (!keyframe) return null;
@@ -93,7 +94,6 @@ export function getTimelineKeyframePasteUpdates(state: ParameterState, scene: Ti
 			const update = speechUpdates.get(layer.id) ?? {
 				layerId: layer.id,
 				target: 'utterance',
-				before: deepClone(layer.utterances),
 				after: deepClone(layer.utterances),
 			};
 			update.after.push(deepClone(entry.utterance));
@@ -118,14 +118,15 @@ export function getTimelineKeyframePasteUpdates(state: ParameterState, scene: Ti
 			const paramId = entry.paramPath[0];
 			const key = JSON.stringify([entry.layerId, entry.target, paramId]);
 			let update = updates.get(key);
-			if (!update) {
-				const before = getLayerParameterValues(layer, entry.target)[paramId] ?? null;
+			if (update == null) {
+				const binding = getLayerParameterValues(layer, entry.target)[paramId];
+				// 既定値はliteralなので、貼り付け先のレーンは配置に保存されている必要がある。
+				if (binding == null) return null;
 				update = {
 					layerId: layer.id,
 					target: entry.target,
 					paramId,
-					before: deepClone(before),
-					after: deepClone(resolveLayerParameter(state, layer, entry.target, [paramId]).value),
+					after: deepClone(binding),
 				};
 				updates.set(key, update);
 			}

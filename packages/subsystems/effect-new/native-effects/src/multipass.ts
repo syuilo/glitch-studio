@@ -1,6 +1,6 @@
 import { toFixedShaderInput, type EffectImageInput, type EffectParameterInput, type NativeEffectImplementation } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
 import { createFixedInputBindings, type FixedInputs } from './shader-input.ts';
-import type { EffectParameterDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { FixedShaderInputSamplingOverrides, ShaderInputSampling, ShaderInputSchema, FixedShaderInput } from '@gs/shared/gpu/shader-input.ts';
 
@@ -10,7 +10,7 @@ type ParameterValue<Input> = Input extends EffectImageInput ? FixedShaderInput
 	: Input extends { kind: 'array'; elements: readonly (infer Element)[] } ? readonly ParameterValue<Element>[]
 	: Input extends { kind: 'struct'; fields: infer Fields } ? ParameterValues<Fields> : never;
 
-export type NativeParameterValues<Defs extends Readonly<Record<string, EffectParameterDefinition>>> =
+export type NativeParameterValues<Defs extends Readonly<Record<string, ParameterDefinition>>> =
 	ParameterValues<Parameters<NativeEffectImplementation<Defs>['init']>[0]['inputs']>;
 
 /** 配線と配列・構造体の形は配置ごとに一度だけ展開し、式の値と上流のtextureだけを描画時に読む。 */

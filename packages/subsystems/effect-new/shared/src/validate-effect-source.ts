@@ -32,7 +32,6 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 		const effect = resolveEffectSource(source, definitions);
 		if (effect.type === 'nativeEffect' || validated.has(effect.definition)) return effect.definition;
 		if (effect.definition.ui != null) validateEffectParameterLayout(effect.definition.ui.parameterLayout, Object.keys(effect.definition.paramDefs));
-		for (const parameter of Object.values(effect.definition.paramDefs)) validateParameterDefaultValues(parameter, true);
 		validateStaticSettings(effect.definition.staticSettingDefs ?? {}, {});
 		const intrinsic = effect.definition.intrinsicResolutionSetting;
 		if (intrinsic != null) {
@@ -44,6 +43,7 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 		if (effect.type === 'customShaderEffect') validateCustomShaderEffectDefinition(effect.definition);
 		if (effect.type === 'customNodeGraphEffect') {
 			const graph = effect.definition;
+			for (const parameter of Object.values(graph.paramDefs)) validateParameterDefaultValues(parameter);
 			const registeredId = source.type === 'customNodeGraphEffectReference' ? source.id : null;
 			if (ancestors.has(graph) || (registeredId != null && ancestorIds.has(registeredId))) throw new Error('Cyclic Custom Node Graph Effect reference');
 			if (registeredId != null) ancestorIds.add(registeredId);
@@ -126,7 +126,7 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 			for (const def of custom) {
 				if (def.canNode != null && def.canNode !== false) throw new Error('Custom parameters require CPU values');
 				if (!['scalar', 'bool', 'string', 'color', 'vector', 'enum', 'colorRamp', 'sizeReference'].includes(def.dataType.kind)) throw new Error('Unsupported custom parameter type');
-				validateParameterDefaultValues(def, true);
+				validateParameterDefaultValues(def);
 			}
 			const checkedCustom = new Set<string>();
 			const checkingCustom = new Set<string>();

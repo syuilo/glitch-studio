@@ -9,7 +9,7 @@ export const CUSTOM_NODE_GRAPH_EFFECT_CUSTOM_PARAMETER_TYPES = ['scalar', 'bool'
 export function validateCustomNodeGraphEffectCustomParameterDefinition(definition: CustomNodeGraphEffectCustomParameterDefinition): void {
 	if (!(CUSTOM_NODE_GRAPH_EFFECT_CUSTOM_PARAMETER_TYPES as readonly string[]).includes(definition.dataType.kind) || definition.canNode !== false) throw new Error('Unsupported custom parameter type');
 	if (definition.id.trim() === '' || definition.nameForReference.trim() === '') throw new Error('Custom parameter ID and name must not be empty');
-	validateParameterDefaultValues(definition, true);
+	validateParameterDefaultValues(definition);
 	if (definition.dataType.kind === 'enum') {
 		const options = definition.dataType.options;
 		const defaultValue = definition.defaultValue.value;

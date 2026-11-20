@@ -5,9 +5,8 @@ import type { FileSource } from '@gs/shared/file-source.ts';
 import type { VideoFrameTexture } from '@gs/shared/media/video-texture.ts';
 import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 import type { EffectRenderTilingProgressObserver, EffectRenderWorkloadHint } from '@gs/subsystems_effect-new_shared/effect-render-tiling.ts';
-import type { ParameterDefaultValue } from '@gs/shared/parameter/parameter-definition.ts';
+import type { ParameterDefaultValue, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { DataType } from '@gs/shared/data-type/data-type.ts';
-import type { EffectParameterDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
 import type { CustomNodeGraphEffect, CustomNodeGraphEffectEffectNode } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
 
 /** 寸法は配置中固定する。textureとversionは描画後に最新のものを取得する。 */
@@ -118,11 +117,11 @@ export interface EffectInitContext<Inputs = Readonly<Record<string, EffectParame
 	readonly outputTextures: ReadonlyMap<string, GPUTexture>;
 }
 
-type NativeEffectInputs<Params extends Readonly<Record<string, EffectParameterDefinition>>> = {
+type NativeEffectInputs<Params extends Readonly<Record<string, ParameterDefinition>>> = {
 	readonly [Key in keyof Params]: NativeEffectInput<Params[Key]['dataType'], Params[Key]>;
 };
 
-export interface NativeEffectImplementation<Params extends Readonly<Record<string, EffectParameterDefinition>> = Readonly<Record<string, EffectParameterDefinition>>,
+export interface NativeEffectImplementation<Params extends Readonly<Record<string, ParameterDefinition>> = Readonly<Record<string, ParameterDefinition>>,
 	ConditionalInputs extends keyof Params = never, Settings extends StaticSettingDefinitions = StaticSettingDefinitions> {
 	/** computeなど、標準の描画用テクスチャ以外を必要とする実装が指定する。 */
 	createOutputTexture?(id: string, resolution: Resolution, gpu: EffectGpuContext): GPUTexture;

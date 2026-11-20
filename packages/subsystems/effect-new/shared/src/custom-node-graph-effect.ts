@@ -1,11 +1,12 @@
 import type { ShaderInputSampling } from '@gs/shared/gpu/shader-input.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
+import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { DataType, TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { EffectResolution } from './resolution.ts';
-import type { EffectDefinition, EffectParameterDefinition } from './effect-definition.ts';
+import type { EffectDefinition } from './effect-definition.ts';
 import type { EffectSource } from './effect-source.ts';
 
 export type NodeOutputReference = { nodeId: string; outputPort: string };
@@ -42,8 +43,8 @@ type CustomParameterType = Extract<DataType, { kind: 'scalar' | 'bool' | 'string
 
 export interface CustomNodeGraphEffect extends EffectDefinition {
 	readonly outputDefs: Readonly<Record<string, EffectDefinition['outputDefs'][string] & { readonly nameForReference?: string }>>;
-	readonly paramDefs: Readonly<Record<string, EffectParameterDefinition & { readonly nameForReference?: string }>>;
-	readonly customParameterDefs?: Readonly<Record<string, EffectParameterDefinition<CustomParameterType> & { readonly nameForReference: string; readonly canNode?: false }>>;
+	readonly paramDefs: Readonly<Record<string, ParameterDefinition & { readonly nameForReference?: string }>>;
+	readonly customParameterDefs?: Readonly<Record<string, ParameterDefinition<CustomParameterType> & { readonly nameForReference: string; readonly canNode?: false }>>;
 	readonly customParameterValues?: Readonly<Record<string, CustomNodeGraphEffectValueBinding>>;
 	readonly automationGraphs?: readonly AutomationGraph[];
 	readonly nodes: readonly CustomNodeGraphEffectNode[];

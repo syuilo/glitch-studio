@@ -1,5 +1,5 @@
 import type { DataType } from '@gs/shared/data-type/data-type.ts';
-import type { EffectParameterDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { EffectParameterInput } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
 import { constantShaderInputComponents, type ShaderInput } from '@gs/shared/gpu/shader-input.ts';
 
@@ -41,7 +41,7 @@ function testInput(type: DataType, settings: InputSettings, read: () => unknown)
 }
 
 /** 値だけを変更する試行間では、実装に渡した入力の種類とgetterを維持する。 */
-export function createTestInputs(definitions: Readonly<Record<string, EffectParameterDefinition>>, read: () => Values) {
+export function createTestInputs(definitions: Readonly<Record<string, ParameterDefinition>>, read: () => Values) {
 	return Object.fromEntries(Object.entries(definitions).map(([key, definition]) =>
 		[key, testInput(definition.dataType, definition, () => {
 			const values = read();

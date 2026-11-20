@@ -251,7 +251,7 @@ const setCustomNodeGraphEffectOutputConnection = defineCommand<{ target: CustomN
 });
 
 function validateCustomNodeGraphEffectPublicParameterDefinition(customNodeGraphEffect: CustomNodeGraphEffect, definition: CustomNodeGraphEffectParamDef, previousId?: string) {
-	validateParameterDefaultValues(definition, true);
+	validateParameterDefaultValues(definition);
 	if (definition.dataType.kind === 'audioSource') {
 		validateLiteralAudioSourceBinding(definition.defaultValue);
 		if (definition.defaultValue.value !== null) throw new Error('The default audio source must be unselected');

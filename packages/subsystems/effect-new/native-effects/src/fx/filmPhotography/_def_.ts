@@ -1,4 +1,4 @@
-import type { EffectParameterDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import type { ParameterDefinition_Scalar, ParameterDefinition_Struct } from '@gs/shared/parameter/parameter-definition.ts';
 import { defineNativeEffect } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
 import { DEFAULT_BASE, DEFAULT_FILM_LAYERS, DEFAULT_PAPER, DEFAULT_PRINT } from './material.ts';
 import type { FilmLayer } from './material.ts';
@@ -8,13 +8,13 @@ type ScalarControl = { label: string; min: number; max: number; step: number };
 function scalarGroup<T extends Record<string, number>>(label: string, defaults: T, controls: Record<keyof T, ScalarControl>) {
 	type Fields = { [K in keyof T]: { kind: 'scalar' } };
 	const literal = (value: number) => ({ inputSource: 'literal' as const, value });
-	const definition: EffectParameterDefinition<{ kind: 'struct'; fields: Fields }> = {
+	const definition: ParameterDefinition_Struct<Fields> = {
 		dataType: { kind: 'struct', fields: Object.fromEntries(Object.keys(defaults).map(key => [key, { kind: 'scalar' }])) as Fields },
 		ui: { label, control: { fields: Object.fromEntries(Object.entries(controls).map(([key, control]) => [key, {
 			label: control.label, control: { controlType: 'range', min: control.min, max: control.max, step: control.step },
-		}])) as EffectParameterDefinition<{ kind: 'struct'; fields: Fields }>['ui']['control']['fields'] } },
-		fields: Object.fromEntries(Object.entries(defaults).map(([key, value]) => [key, { defaultValue: literal(value) }])) as EffectParameterDefinition<{ kind: 'struct'; fields: Fields }>['fields'],
-		defaultValue: { inputSource: 'literal', value: Object.fromEntries(Object.entries(defaults).map(([key, value]) => [key, literal(value)])) as EffectParameterDefinition<{ kind: 'struct'; fields: Fields }>['defaultValue']['value'] },
+		}])) as ParameterDefinition_Struct<Fields>['ui']['control']['fields'] } },
+		fields: Object.fromEntries(Object.entries(defaults).map(([key, value]) => [key, { defaultValue: literal(value) }])) as ParameterDefinition_Struct<Fields>['fields'],
+		defaultValue: { inputSource: 'literal', value: Object.fromEntries(Object.entries(defaults).map(([key, value]) => [key, literal(value)])) as ParameterDefinition_Struct<Fields>['defaultValue']['value'] },
 	};
 	return definition;
 }
@@ -35,7 +35,7 @@ const layerControls: Record<keyof FilmLayer, ScalarControl> = {
 	secondaryWidth: { label: 'Secondary Absorption Width (σ, nm)', min: 5, max: 150, step: 1 },
 };
 
-const exposureParameter = (label: string): EffectParameterDefinition<{ kind: 'scalar' }> & { canNode: true } => ({
+const exposureParameter = (label: string): ParameterDefinition_Scalar & { canNode: true } => ({
 	dataType: { kind: 'scalar' }, ui: { label, control: { controlType: 'range', min: -8, max: 8, step: 0.01 } },
 	canNode: true, defaultValue: { inputSource: 'literal', value: 0 },
 });

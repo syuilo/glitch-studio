@@ -2,7 +2,7 @@ import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import type { EffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
 import type { EffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { EffectParameterDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { FitMode, WrapMode } from '@gs/shared/types.js';
@@ -77,14 +77,14 @@ export type CustomNodeGraphEffectOutputDef = {
 	dataType: TextureDataType;
 };
 
-export type CustomNodeGraphEffectParamDef = EffectParameterDefinition & {
+export type CustomNodeGraphEffectParamDef = ParameterDefinition & {
 	id: string;
 	nameForReference: string; // expressionから参照するとき用
 	// ParameterDefinitionでノード入力を許可する型だけ、Inノードの出力として公開できる。
 	canNode: boolean;
 };
 
-export type CustomNodeGraphEffectCustomParameterDefinition = Extract<EffectParameterDefinition, { dataType: { kind: 'scalar' | 'bool' | 'string' | 'color' | 'vector' | 'enum' | 'colorRamp' | 'sizeReference' } }> & {
+export type CustomNodeGraphEffectCustomParameterDefinition = Extract<ParameterDefinition, { dataType: { kind: 'scalar' | 'bool' | 'string' | 'color' | 'vector' | 'enum' | 'colorRamp' | 'sizeReference' } }> & {
 	id: string;
 	nameForReference: string;
 	canNode: false;

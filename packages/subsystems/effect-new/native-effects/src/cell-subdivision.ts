@@ -1,4 +1,4 @@
-import type { EffectParameterDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 
 // 各画素が所属する葉だけを探索する方式でも、密度入力の参照回数に上限を設ける。
 const maximumCellSubdivisionLevels = 8;
@@ -25,7 +25,7 @@ export const cellSubdivisionParameterDefinitions = {
 		ui: { label: 'Max Subdivision Levels', control: { controlType: 'range', min: 0, max: maximumCellSubdivisionLevels, step: 1 } },
 		defaultValue: { inputSource: 'literal', value: 4 },
 	},
-} as const satisfies Record<string, EffectParameterDefinition>;
+} as const satisfies Record<string, ParameterDefinition>;
 
 /** Uniformでは探索を行わず、式で与えた深度も有限の整数へ揃える。 */
 export function getCellSubdivisionLevels(subdivisionMode: 'uniform' | 'adaptive', levels: number): number {

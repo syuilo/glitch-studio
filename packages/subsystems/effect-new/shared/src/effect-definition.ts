@@ -1,14 +1,11 @@
-import type { DataType, TextureDataType } from '@gs/shared/data-type/data-type.ts';
+import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { CheckedParameterDefinition, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { CheckedStaticSettingDefinition, StaticSettingDefinitions } from '@gs/shared/static-setting.ts';
 import type { CheckedEffectParameterLayout, EffectParameterLayoutItem } from './effect-parameter-layout.ts';
 
-/** 配置のBindingは式や接続を持てるが、定義の初期値・追加用の要素は末端までliteralにする。 */
-export type EffectParameterDefinition<T extends DataType = DataType> = ParameterDefinition<T, never>;
-
 /** Recordのキーは配線・保存用の固定ID。表示名や実装内で参照する名前から独立させる。 */
 export interface EffectDefinition {
-	readonly paramDefs: Readonly<Record<string, EffectParameterDefinition>>;
+	readonly paramDefs: Readonly<Record<string, ParameterDefinition>>;
 	readonly outputDefs: Readonly<Record<string, { dataType: TextureDataType; label?: string }>>;
 	readonly primaryInputParameter: string | null;
 	readonly primaryOutput: string | null;

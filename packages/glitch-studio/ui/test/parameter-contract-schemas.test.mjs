@@ -52,17 +52,17 @@ test('preserves and validates default expansion in nested container controls', (
 	assert.deepEqual(parameterDefinitionSchema.parse(struct).ui.control, struct.ui.control);
 });
 
-// 【配列の保存構造とカスタムパラメータの制約をJSON資料に残す】
-// JSONという説明だけでは配列要素のIDとBindingを組み立てられない。型付きの公開値と
-// 内部共有値の違いも資料から判別でき、サポート外の定義を入力時に拒否する必要がある。
-test('documents array element bindings and custom parameter restrictions', () => {
+// 【配列・構造体の既定値とカスタムパラメータの制約を公開契約に反映する】
+// 配列要素のIDとBindingの形を資料から組み立てられるようにし、動的な入力方式は配置で指定する。
+// 型付きの公開値と内部共有値の違いも資料から判別でき、サポート外の定義を入力時に拒否する必要がある。
+test('documents literal container defaults and custom parameter restrictions', () => {
 	const documentation = z.toJSONSchema(parameterDefinitionSchema, { io: 'input' });
 	const array = documentation.anyOf.find(branch => branch.properties?.dataType.properties.kind.const === 'array');
 	const value = array.properties.defaultValue.properties.value;
 	assert.equal(value.type, 'array');
 	assert.deepEqual(value.items.required, ['id', 'binding']);
 	assert.equal(value.items.properties.id.type, 'string');
-	assert.ok(value.items.properties.binding);
+	assert.equal(value.items.properties.binding.properties.inputSource.const, 'literal');
 	assert.ok(array.properties.element);
 	assert.ok(array.properties.ui.properties.control.properties.element);
 	const customDocumentation = z.toJSONSchema(customNodeGraphEffectCustomParameterInputSchema, { io: 'input' });
@@ -81,6 +81,14 @@ test('documents array element bindings and custom parameter restrictions', () =>
 	assert.equal(customNodeGraphEffectCustomParameterInputSchema.safeParse({ ...custom, canNode: true }).success, false);
 	const arrayDefinition = effectDefinitions.testStructArray.paramDefs.buzzs;
 	assert.equal(customNodeGraphEffectCustomParameterInputSchema.safeParse({ ...arrayDefinition, nameForReference: 'items', canNode: false }).success, false);
+	const expression = { inputSource: 'expression', expression: 'TIME' };
+	const invalidArray = structuredClone(arrayDefinition);
+	invalidArray.defaultValue.value[0].binding = expression;
+	assert.equal(parameterDefinitionSchema.safeParse(invalidArray).success, false);
+	const invalidStruct = structuredClone(effectDefinitions.doublePendulumFractal.paramDefs.view);
+	const field = Object.keys(invalidStruct.defaultValue.value)[0];
+	invalidStruct.defaultValue.value[field] = expression;
+	assert.equal(parameterDefinitionSchema.safeParse(invalidStruct).success, false);
 });
 
 // 【保存済みの参照・HDR値・省略された設定をQueryの契約で保持する】
