@@ -21,12 +21,21 @@ export function textureShaderInput(texture: GPUTexture, sampling: ShaderInputSam
 	return { kind: 'texture', texture, resolution: texture, sampling: { ...sampling } };
 }
 
+/** スカラーやベクトルをanyで読むときにR/RGテクスチャと揃うよう、欠けた成分だけを補う。 */
+function writeUniformComponents(target: number[] | Float32Array, offset: number, components: readonly number[]): void {
+	target[offset] = components[0] ?? 0;
+	target[offset + 1] = components[1] ?? 0;
+	target[offset + 2] = components[2] ?? 0;
+	target[offset + 3] = components[3] ?? 1;
+}
+
 /** 受け取り側の読み取り設定を付ける。定数をテクスチャ化せず、色の再乗算も行わない。 */
 export function toShaderInput(source: UniformOrTexture, sampling: ShaderInputSampling): ShaderInput {
 	if (source.kind === 'texture') return textureShaderInput(source.texture, sampling);
-	// r/rgテクスチャを別の型の入力へ接続した場合と同じ、欠けた成分=(0, 0, 1)。
-	// 受け取り側の型でpremultiplyし直すと色が二重乗算されるため、そのまま渡す。
-	return { kind: 'uniform', value: [source.value[0] ?? 0, source.value[1] ?? 0, source.value[2] ?? 0, source.value[3] ?? 1] };
+	// 受け取り側の型でpremultiplyし直すと色が二重乗算されるため、成分の補完だけを行う。
+	const value: number[] = [];
+	writeUniformComponents(value, 0, source.value);
+	return { kind: 'uniform', value };
 }
 
 /** 色のリテラルは未乗算linear sRGB。画像入力と同じ意味になる境界で一度だけ乗算する。 */
@@ -320,14 +329,7 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 			const matchesFrame = (texture: GPUTexture, index: number) => texture === frameTextures[index];
 			const matchesSampler = (sampler: GPUSampler, index: number) => sampler === dynamicSamplerSlots[index].sampler;
 			return (): GPUBindGroup => {
-				for (const { input, offset } of uniforms) {
-					const components = input.value;
-					// r/rgのuniformをanyへ接続してもtextureLoadと同じ欠落成分を読む。
-					values[offset] = components[0] ?? 0;
-					values[offset + 1] = components[1] ?? 0;
-					values[offset + 2] = components[2] ?? 0;
-					values[offset + 3] = components[3] ?? 1;
-				}
+				for (const { input, offset } of uniforms) writeUniformComponents(values, offset, input.value);
 				let writeUniforms = uniforms.length > 0;
 				for (const update of updateSampling) {
 					if (update()) writeUniforms = true;
@@ -357,7 +359,7 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 				const value = inputs[slot.sourceName];
 				const input = 'kind' in value ? value : value[slot.elementIndex!];
 				if (input.kind === 'uniform') {
-					values.set(input.value, slot.index * 8);
+					writeUniformComponents(values, slot.index * 8, input.value);
 					continue;
 				}
 				const references = inputReferenceResolutions[slot.sourceName];

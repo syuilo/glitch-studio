@@ -29,6 +29,29 @@ function fixture() {
 	return { device, calls };
 }
 
+// 【4成分で読むuniformの補完を両方の束縛方法で揃える】
+// scalarやvectorをanyで読むときはR/RGテクスチャと同じ成分を返し、明示された第4成分の0は保持する。
+test('writes the same uniform components in both binding paths', () => {
+	const { device, calls } = fixture();
+	const inputs = { data: [
+		constantShaderInput('scalar', 0.25),
+		constantShaderInput('vector', [-0.5, 0.75]),
+		constantShaderInput('any', [0.25, -0.5, 2, 0]),
+	] };
+	const generated = generateShaderInputs({ data: { array: 'any' } }, inputs);
+	const fixedBindings = createShaderInputBindings(device, generated);
+	const frameBindings = createShaderInputBindings(device, generated);
+	const getBindGroup = fixedBindings.bindFixedInputs(inputs, output);
+	getBindGroup();
+	frameBindings.update(inputs, output);
+
+	const expected = [[0.25, 0, 0, 1], [-0.5, 0.75, 0, 1], [0.25, -0.5, 2, 0]];
+	const uploaded = calls.writes.map(buffer => [0, 8, 16].map(offset => buffer.slice(offset, offset + 4)));
+	assert.deepEqual(uploaded, [expected, expected]);
+	fixedBindings.dispose();
+	frameBindings.dispose();
+});
+
 // 【入力寸法だけで束縛を準備し、描画時に差し替わるテクスチャを読む】
 // 上流の出力が未確保でもFitを計算でき、履歴出力が2枚を交互に返しても同じbind groupを再利用できることを確認する。
 test('binds from the declared resolution and reads textures only during drawing', () => {
