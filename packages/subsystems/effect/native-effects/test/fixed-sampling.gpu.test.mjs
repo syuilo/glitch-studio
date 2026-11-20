@@ -13,6 +13,14 @@ test('interpolates fixed candidates of each output type', options, () => runEffe
 // 候補の切り替え後も入力固有のFit・Wrap・Filterで読み、pipelineを再作成しない。
 test('binds only textures that contribute to interpolation when candidates exceed the device limit', options, () => runEffectGpuTest(entry, 'interpolatorTextureBindings'));
 
+// 【Selectorは小数Indexでも近い候補の値をそのまま出力する】
+// 定数とテクスチャの境界で2候補を混ぜない。端点への丸めと空配列のゼロ値は、出力型にかかわらず成立する。
+test('selects one nearest candidate of each output type without interpolation', options, () => runEffectGpuTest(entry, 'selectors'));
+
+// 【Selectorは候補がテクスチャ上限を超えても選んだ1枚だけをbindする】
+// 連続して候補を切り替えても、各入力のFit・Wrap・Filterと1枚のbindingを両立する。
+test('binds one selected texture when candidates exceed the device limit', options, () => runEffectGpuTest(entry, 'selectorTextureBindings'));
+
 // 【進捗で変化する分割領域に合わせてFitを更新する】
 // 入力画像の寸法・世代が同じでも、全幅と半幅ではcoverで表示する画素が変わる。
 test('updates cover mapping when split regions resize', options, () => runEffectGpuTest(entry, 'regionFit'));

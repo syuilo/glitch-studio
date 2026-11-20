@@ -29,6 +29,7 @@ import colorClamp from './fx/colorClamp/_impl_.ts';
 import colorInterpolator from './fx/colorInterpolator/_impl_.ts';
 import colorMix from './fx/colorMix/_impl_.ts';
 import colorRamp from './fx/colorRamp/_impl_.ts';
+import colorSelector from './fx/colorSelector/_impl_.ts';
 import composeColor from './fx/composeColor/_impl_.ts';
 import composeColorHsl from './fx/composeColorHsl/_impl_.ts';
 import composeVector from './fx/composeVector/_impl_.ts';
@@ -132,6 +133,7 @@ import scalarGradient from './fx/scalarGradient/_impl_.ts';
 import scalarInterpolator from './fx/scalarInterpolator/_impl_.ts';
 import scalarMath from './fx/scalarMath/_impl_.ts';
 import scalarRangeLimit from './fx/scalarRangeLimit/_impl_.ts';
+import scalarSelector from './fx/scalarSelector/_impl_.ts';
 import scanlineReplace from './fx/scanlineReplace/_impl_.ts';
 import sdfBoolean from './fx/sdfBoolean/_impl_.ts';
 import sdfToMask from './fx/sdfToMask/_impl_.ts';
@@ -164,6 +166,7 @@ import vectorFieldVisualization from './fx/vectorFieldVisualization/_impl_.ts';
 import vectorInterpolator from './fx/vectorInterpolator/_impl_.ts';
 import vectorLength from './fx/vectorLength/_impl_.ts';
 import vectorMath from './fx/vectorMath/_impl_.ts';
+import vectorSelector from './fx/vectorSelector/_impl_.ts';
 import vectorSmear from './fx/vectorSmear/_impl_.ts';
 import vhsPlayback from './fx/vhsPlayback/_impl_.ts';
 import video from './fx/video/_impl_.ts';
@@ -208,6 +211,7 @@ export const nativeEffectImplementations = {
 	colorInterpolator,
 	colorMix,
 	colorRamp,
+	colorSelector,
 	composeColor,
 	composeColorHsl,
 	composeVector,
@@ -311,6 +315,7 @@ export const nativeEffectImplementations = {
 	scalarInterpolator,
 	scalarMath,
 	scalarRangeLimit,
+	scalarSelector,
 	scanlineReplace,
 	sdfBoolean,
 	sdfToMask,
@@ -343,6 +348,7 @@ export const nativeEffectImplementations = {
 	vectorInterpolator,
 	vectorLength,
 	vectorMath,
+	vectorSelector,
 	vectorSmear,
 	vhsPlayback,
 	video,

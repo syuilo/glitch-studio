@@ -47,7 +47,43 @@ export async function interpolators() {
 	});
 }
 
-export async function interpolatorTextureBindings() {
+export async function selectors() {
+	await withGpu(async ({ gpu, create, render, read, pipelines }) => {
+		const stripe = stripeInput(gpu.device);
+		const first = { kind: 'uniform', value: [-2, 2, 1, 0.5] };
+		const last = { kind: 'uniform', value: [4, -4, 3, 0.25] };
+		const elements = [first, stripe, last];
+		const stripePixel = [2, -2, 0, 1];
+		try {
+			for (const [id, channels] of [['scalarSelector', 1], ['vectorSelector', 2], ['colorSelector', 4]]) {
+				let index = 0;
+				const instance = await create({ type: 'nativeEffect', id }, ['output'], {
+					inputs: { kind: 'array', elements }, index: { kind: 'value', get value() { return index; } },
+				}, { resolution });
+				try {
+					const compiled = pipelines();
+					for (const [value, expected] of [[0.49, first.value], [0.5, stripePixel], [1.49, stripePixel], [1.5, last.value],
+						[-5, first.value], [10, last.value], [Infinity, last.value], [-Infinity, first.value], [NaN, first.value]]) {
+						index = value;
+						render(instance);
+						const pixels = await read(instance.outputs.get('output').texture);
+						for (let c = 0; c < channels; c++) near(pixels[4 + c], expected[c], id + ' index ' + index);
+					}
+					check(compiled === pipelines(), 'Selector index changes reuse the pipeline');
+				} finally { instance.dispose(); }
+
+				const empty = await create({ type: 'nativeEffect', id }, ['output'], { inputs: { kind: 'array', elements: [] } }, { resolution });
+				try {
+					render(empty);
+					const pixels = await read(empty.outputs.get('output').texture);
+					for (let c = 0; c < channels; c++) near(pixels[c], 0, id + ' empty input');
+				} finally { empty.dispose(); }
+			}
+		} finally { stripe.texture.destroy(); }
+	});
+}
+
+async function checkTextureBindingCases(id, getCases) {
 	await withGpu(async ({ gpu, create, render, read, pipelines }) => {
 		const { device } = gpu;
 		const elements = Array.from({ length: device.limits.maxSampledTexturesPerShaderStage }, () => stripeInput(device));
@@ -59,7 +95,7 @@ export async function interpolatorTextureBindings() {
 
 		const last = elements.length - 1;
 		let index = 0;
-		const instance = await create({ type: 'nativeEffect', id: 'colorInterpolator' }, ['output'], {
+		const instance = await create({ type: 'nativeEffect', id }, ['output'], {
 			inputs: { kind: 'array', elements }, index: { kind: 'value', get value() { return index; } },
 		}, { resolution });
 		const createBindGroup = device.createBindGroup;
@@ -70,9 +106,7 @@ export async function interpolatorTextureBindings() {
 		};
 		try {
 			const compiled = pipelines();
-			// 最後のケースは補間率をf32に丸めると1になるため、後ろの候補だけを使う。
-			for (const [value, textureCount, expected] of [[0, 1, [1, 2, 3, 4]], [last - 0.5, 2, [2.5, 6, 8.5, 6]],
-				[last - 2 ** -26, 1, [4, 10, 14, 8]]]) {
+			for (const [value, textureCount, expected] of getCases(last)) {
 				index = value;
 				textureBindingCounts.length = 0;
 				render(instance);
@@ -81,13 +115,24 @@ export async function interpolatorTextureBindings() {
 				const pixels = await read(instance.outputs.get('output').texture);
 				for (const [pixel, red] of expected.entries()) near(pixels[pixel * 4], red, 'index ' + index + ' pixel ' + pixel);
 			}
-			check(compiled === pipelines(), 'Interpolator texture switches reuse pipelines');
+			check(compiled === pipelines(), id + ' texture switches reuse pipelines');
 		} finally {
 			device.createBindGroup = createBindGroup;
 			instance.dispose();
 			for (const element of elements) element.texture.destroy();
 		}
 	});
+}
+
+export async function interpolatorTextureBindings() {
+	// 最後のケースは補間率をf32に丸めると1になるため、後ろの候補だけを使う。
+	await checkTextureBindingCases('colorInterpolator', last => [[0, 1, [1, 2, 3, 4]], [last - 0.5, 2, [2.5, 6, 8.5, 6]],
+		[last - 2 ** -26, 1, [4, 10, 14, 8]]]);
+}
+
+export async function selectorTextureBindings() {
+	await checkTextureBindingCases('colorSelector', last => [[0, 1, [1, 2, 3, 4]], [last - 0.5, 1, [4, 10, 14, 8]],
+		[last - 0.51, 1, [1, 2, 3, 4]]]);
 }
 
 async function checkRedRow(instance, fixture, expected, label) {

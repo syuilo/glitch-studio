@@ -1,0 +1,29 @@
+import { toFixedShaderInput, type EffectImageInput, type EffectInitContext } from '@gs/subsystems_effect_renderer/effect-instance.ts';
+import { createFullscreenEffectWithInputVariants } from '../fullscreen-input-variants.ts';
+import shader from './selector.wgsl?raw';
+
+type SelectorInputs = {
+	inputs: { readonly kind: 'array'; readonly elements: readonly EffectImageInput[] };
+	index: { readonly value: number };
+};
+
+export function createInputSelector(context: EffectInitContext<SelectorInputs>, type: 'color' | 'scalar' | 'vector') {
+	const zeroInput = { kind: 'uniform', value: [0, 0, 0, 0] } as const;
+	const { inputs, index } = context.inputs;
+	const candidates = inputs.elements.map(input => ({ source: toFixedShaderInput(input) }));
+	const empty = { source: zeroInput };
+	const lastIndex = Math.max(0, candidates.length - 1);
+	const resultType = { color: 'vec4f', scalar: 'f32', vector: 'vec2f' }[type];
+
+	return createFullscreenEffectWithInputVariants(context, {
+		code: 'alias SelectedValue = ' + resultType + ';\n' + shader,
+		schema: { source: type },
+		inputVariants: candidates.length > 0 ? candidates : [empty],
+		selectInputs() {
+			const value = index.value;
+			// UI以外から式やキーフレームで小数も渡る。Indexを最も近い整数に丸め、その候補だけを描画に渡す。
+			const selectedIndex = Number.isNaN(value) ? 0 : Math.round(Math.min(lastIndex, Math.max(0, value)));
+			return candidates[selectedIndex] ?? empty;
+		},
+	});
+}
