@@ -92,7 +92,7 @@ import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsFolder from './common/GsFolder.vue';
-import type { EffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
+import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { CustomNodeGraphEffect, CustomNodeGraphEffectEffectNode } from '@/types/custom-node-graph-effect-view.ts';
 import { useProjectSession } from '@/project-session.ts';

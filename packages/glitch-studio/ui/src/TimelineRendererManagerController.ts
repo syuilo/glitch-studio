@@ -9,8 +9,8 @@ import type { PreviewImageAnalysisSettings, PreviewImageAnalysisDisplaySettings 
 import type { TimelineTransformPreview } from '@gs/glitch-studio_shared/timeline-transform-preview.ts';
 import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { TimelineRendererManager, TimelineRendererManagerResources, TimelineRendererManagerStaticOptions, TimelineRendererManagerDynamicOptions, TimelinePreviewStatistics } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
-import type { EffectPreparationStatus } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
-import type { EffectRenderTilingProgress } from '@gs/subsystems_effect-new_shared/effect-render-tiling.ts';
+import type { EffectPreparationStatus } from '@gs/subsystems_effect_renderer/effect-instance.ts';
+import type { EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { TimelinePreviewFrameCacheState, TimelinePreviewSeekMode } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 
 export type TimelineRendererManagerInitialOptions = {

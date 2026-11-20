@@ -8,8 +8,8 @@ import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_share
 import { isTimelineAudioInputBinding, isTimelineImageInputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { createTimelineAudioInputResolver, type TimelineAudioInputProvider } from '../../timeline-audio-input-resolver.ts';
 import { createSceneOutput } from '../../scene-output.ts';
-import type { EffectParameterInput } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
-import type { EffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import type { EffectParameterInput } from '@gs/subsystems_effect_renderer/effect-instance.ts';
+import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { TimelineEffectParameterBinding, TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { TimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';

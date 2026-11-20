@@ -1,8 +1,8 @@
 import { LinearImageReadback } from '../../src/linear-image-readback.ts';
 import { SrgbImageReadback } from '../../src/srgb-image-readback.ts';
 import { TimelineRendererManager } from '../../src/timeline-renderer-manager.ts';
-import fillDefinition from '@gs/subsystems_effect-new_native-effects/fx/fill/_def_.ts';
-import fillImplementation from '@gs/subsystems_effect-new_native-effects/fx/fill/_impl_.ts';
+import fillDefinition from '@gs/subsystems_effect_native-effects/fx/fill/_def_.ts';
+import fillImplementation from '@gs/subsystems_effect_native-effects/fx/fill/_impl_.ts';
 
 export async function run() {
 	const adapter = await navigator.gpu.requestAdapter();

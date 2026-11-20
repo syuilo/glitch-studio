@@ -1,0 +1,103 @@
+import { defineNativeEffect } from '@gs/subsystems_effect_shared/effect-definition.ts';
+
+export default defineNativeEffect({
+	displayName: 'Grid',
+	summary: {
+		'ja-JP': '格子模様を描画します。',
+		'en-US': 'Draws a grid pattern.',
+	},
+	kind: 'generate',
+	dependsOnRenderHistory: false,
+	tags: ['pattern'],
+	paramDefs: {
+		background: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Background', control: {} },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+		},
+		frequency: {
+			dataType: { kind: 'vector' },
+			ui: {
+				label: 'Frequency',
+				control: {
+					controlType: 'dimension',
+					min: 0.01,
+					max: 1000,
+					logarithmic: true,
+				},
+			},
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [3, 3] },
+		},
+		// Phaseは画面上の距離ではなく、回転後のパターンの1周期を単位にする。
+		phase: {
+			dataType: { kind: 'vector' },
+			ui: {
+				label: 'Phase',
+				control: {
+					controlType: 'vector',
+					min: -1,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0] },
+		},
+		angle: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Angle', control: { controlType: 'angle' } },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		majorWidth: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Major Width',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.001,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.036 },
+		},
+		majorColor: { dataType: { kind: 'color' }, ui: { label: 'Major Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 0.75] } },
+		minorDivisions: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Minor Divisions',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 16,
+					step: 1,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 4 },
+		},
+		minorWidth: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Minor Width',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.001,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.036 },
+		},
+		minorColor: { dataType: { kind: 'color' }, ui: { label: 'Minor Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 0.5] } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+	},
+	primaryInputParameter: 'background',
+	resolutionInputParameters: ['background'],
+	outputDefs: {
+		output: { dataType: { kind: 'color' } },
+	},
+	primaryOutput: 'output',
+});

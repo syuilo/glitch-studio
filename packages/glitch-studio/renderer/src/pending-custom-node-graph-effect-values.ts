@@ -1,4 +1,4 @@
-import type { EffectInstance } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
+import type { EffectInstance } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import type { CustomNodeGraphEffectValueChange } from './project-change-policy.ts';
 
 export function customNodeGraphEffectValueChangeKey(change: CustomNodeGraphEffectValueChange): string {

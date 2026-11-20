@@ -13,7 +13,7 @@ const directory = fileURLToPath(new URL('../', import.meta.url));
 const bundle = await build({
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
 		export * from './src/custom-node-graph-effect-file-codec.ts';
-		export { default as imageDefinition } from '@gs/subsystems_effect-new_native-effects/fx/image/_def_.ts';
+		export { default as imageDefinition } from '@gs/subsystems_effect_native-effects/fx/image/_def_.ts';
 		export * from './src/utility/custom-node-graph-effect-file.ts';
 		export { ProjectContext } from './src/Project.ts';
 		export { createProjectCustomNodeGraphEffect } from './src/utility/project-custom-node-graph-effect.ts';
@@ -27,7 +27,7 @@ const bundle = await build({
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', resolveDir: directory,
 			contents: path.endsWith('preferences.ts') ? 'export const preferences = { s: { forceTypeSafety: false } };'
 				: /ui\.ts$/.test(path) ? 'export async function alert(options) { globalThis.customNodeGraphEffectAlerts.push(options); }'
-					: "import image from '@gs/subsystems_effect-new_native-effects/fx/image/_def_.ts'; export const nativeEffectDefinitions = { image, resources: { ...image, paramDefs: { audio: { dataType: {kind:'audioSource'}, defaultValue:{inputSource:'literal',value:null} }, amount: {dataType:{kind:'scalar'},defaultValue:{inputSource:'literal',value:0}}, input: {dataType:{kind:'color'},canNode:true,defaultValue:{inputSource:'literal',value:[0,0,0,0]}} } } };",
+					: "import image from '@gs/subsystems_effect_native-effects/fx/image/_def_.ts'; export const nativeEffectDefinitions = { image, resources: { ...image, paramDefs: { audio: { dataType: {kind:'audioSource'}, defaultValue:{inputSource:'literal',value:null} }, amount: {dataType:{kind:'scalar'},defaultValue:{inputSource:'literal',value:0}}, input: {dataType:{kind:'color'},canNode:true,defaultValue:{inputSource:'literal',value:[0,0,0,0]}} } } };",
 		}));
 	} }],
 });

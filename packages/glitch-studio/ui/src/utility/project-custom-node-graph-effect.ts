@@ -1,6 +1,6 @@
 import { genId } from '@gs/shared/utility/id.ts';
 import type { ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
 
 export function createCustomNodeGraphEffectDefinition(): CustomNodeGraphEffect {
 	const inputId = genId();

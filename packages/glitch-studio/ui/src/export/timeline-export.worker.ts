@@ -3,8 +3,8 @@ import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-res
 import { TimelineRendererManager } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import { createSrgbCanvasOutputSettings } from '@gs/glitch-studio_renderer/canvas-output.ts';
 import { getRendererRequiredGpuFeatures } from '@gs/glitch-studio_renderer/renderer-gpu-features.ts';
-import { nativeEffectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
-import { nativeEffectImplementations } from '@gs/subsystems_effect-new_native-effects/implementations.ts';
+import { nativeEffectDefinitions } from '@gs/subsystems_effect_native-effects/definitions.ts';
+import { nativeEffectImplementations } from '@gs/subsystems_effect_native-effects/implementations.ts';
 import { createMp4Writer } from './mp4-writer.ts';
 import { adjustExportResolution, scaleExportResolution } from './export-settings.ts';
 import { prepareStillWebp } from './still-webp.ts';

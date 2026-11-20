@@ -19,7 +19,7 @@
 	},
 	"dependencies": {
 		"@gs/shared": "workspace:*",
-		"@gs/subsystems_effect-new_shared": "workspace:*",
+		"@gs/subsystems_effect_shared": "workspace:*",
 		"@gs/subsystems_timeline_shared": "workspace:*"
 	}
 }

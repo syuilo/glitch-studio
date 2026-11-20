@@ -1,9 +1,9 @@
-import { createEffectInstance } from '@gs/subsystems_effect-new_renderer/create-effect-instance.ts';
-import { createTestInputs } from '@gs/subsystems_effect-new_native-effects/test/native-effect-probe.ts';
-import definition from '@gs/subsystems_effect-new_native-effects/fx/applyLut/_def_.ts';
-import implementation from '@gs/subsystems_effect-new_native-effects/fx/applyLut/_impl_.ts';
-import { createLutLayout, createLutResources } from '@gs/subsystems_effect-new_native-effects/fx/applyLut/lut-resources.ts';
-import { parseCubeLut } from '@gs/subsystems_effect-new_native-effects/fx/applyLut/cube.ts';
+import { createEffectInstance } from '@gs/subsystems_effect_renderer/create-effect-instance.ts';
+import { createTestInputs } from '@gs/subsystems_effect_native-effects/test/native-effect-probe.ts';
+import definition from '@gs/subsystems_effect_native-effects/fx/applyLut/_def_.ts';
+import implementation from '@gs/subsystems_effect_native-effects/fx/applyLut/_impl_.ts';
+import { createLutLayout, createLutResources } from '@gs/subsystems_effect_native-effects/fx/applyLut/lut-resources.ts';
+import { parseCubeLut } from '@gs/subsystems_effect_native-effects/fx/applyLut/cube.ts';
 import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { linearSrgbToSrgb, srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';

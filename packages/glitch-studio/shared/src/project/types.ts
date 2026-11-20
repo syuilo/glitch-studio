@@ -1,5 +1,5 @@
-import type { CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
-import type { CustomShaderEffect } from '@gs/subsystems_effect-new_shared/custom-shader-effect.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
+import type { CustomShaderEffect } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
 
 /** キーは各Custom Node Graph Effect内のノードID。インラインの子も配置先で編集情報を所有する。 */
 export type CustomNodeGraphEffectEditorMetadata = {

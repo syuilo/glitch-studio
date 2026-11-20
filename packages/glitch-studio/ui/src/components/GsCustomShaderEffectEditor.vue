@@ -73,7 +73,7 @@
 import { computed, ref, watch } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
-import { CustomShaderEffectDefinitionError, describeCustomShaderEffectInterface, validateCustomShaderEffectDefinition } from '@gs/subsystems_effect-new_shared/custom-shader-effect.ts';
+import { CustomShaderEffectDefinitionError, describeCustomShaderEffectInterface, validateCustomShaderEffectDefinition } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsTextarea from './common/GsTextarea.vue';
@@ -85,7 +85,7 @@ import XPublicParameterDefinitionEditor from './XPublicParameterDefinitionEditor
 import type { PublicParameterDefinitionEdit } from '@/types/parameter-edit.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { CustomShaderEffect } from '@gs/subsystems_effect-new_shared/custom-shader-effect.ts';
+import type { CustomShaderEffect } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
 import { i18n } from '@/i18n.ts';
 import { areProjectCustomShaderEffectsEqual } from '@/utility/custom-shader-effect.ts';
 

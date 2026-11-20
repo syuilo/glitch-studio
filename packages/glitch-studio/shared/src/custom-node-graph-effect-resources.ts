@@ -1,15 +1,15 @@
 import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
 import { walkParameterLeaves } from '@gs/shared/parameter/parameter-tree.ts';
-import { resolveEffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
-import { validateEffectSource } from '@gs/subsystems_effect-new_shared/validate-effect-source.ts';
+import { resolveEffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
+import { validateEffectSource } from '@gs/subsystems_effect_shared/validate-effect-source.ts';
 import { validatePlayerAudioSourceSelection } from './player-audio-source.ts';
 import { createProjectEffectDefinitions } from './project/effects.ts';
 import type { Asset, Player } from '@gs/shared/types.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { StaticSettingDefinition } from '@gs/shared/static-setting.ts';
-import type { EffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
-import type { EffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectParameterBinding } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import type { EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectParameterBinding } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
 import type { NativeEffectDefinitions } from './project/effects.ts';
 import type { CustomNodeGraphEffectEditorMetadata, ProjectEffectRegistrations } from './project/types.ts';
 

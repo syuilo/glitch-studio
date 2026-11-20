@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createEffectInstance } from '@gs/subsystems_effect-new_renderer/create-effect-instance.ts';
-import { validateEffectSource } from '@gs/subsystems_effect-new_shared/validate-effect-source.ts';
+import { createEffectInstance } from '@gs/subsystems_effect_renderer/create-effect-instance.ts';
+import { validateEffectSource } from '@gs/subsystems_effect_shared/validate-effect-source.ts';
 
 const reference = (nodeId, outputPort = 'output') => ({ nodeId, outputPort });
 const publicInput = { parameterId: 'input' };

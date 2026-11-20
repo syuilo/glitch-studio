@@ -2,7 +2,7 @@ import * as z from 'zod';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { genId } from '@gs/shared/utility/id.ts';
-import { resolveEffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
+import { resolveEffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
 import { ref } from 'vue';
 import { getEffectDefinitions } from '../utility/project-effects.ts';
 import { getScene } from '../utility/timeline-scene.ts';

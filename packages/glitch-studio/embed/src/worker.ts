@@ -1,7 +1,7 @@
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { createProjectEffectDefinitions, type NativeEffectDefinitions } from '@gs/glitch-studio_shared/project/effects.ts';
-import { createEffectInstance } from '@gs/subsystems_effect-new_renderer/create-effect-instance.ts';
-import type { EffectInstance, EffectFrameContext, NativeEffectImplementation } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
+import { createEffectInstance } from '@gs/subsystems_effect_renderer/create-effect-instance.ts';
+import type { EffectInstance, EffectFrameContext, NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import { createPortableEffectInputs } from './effect-inputs.ts';
 import { AssetTextures } from '@gs/glitch-studio_renderer/asset-textures.ts';
 import { PortableCanvasRenderer } from '@gs/glitch-studio_renderer/portable-canvas-renderer.ts';

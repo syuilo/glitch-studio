@@ -1,5 +1,5 @@
 import type { Asset } from '@gs/shared/types.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
 import type { ProjectEffectRegistrations } from './project/types.ts';
 
 export type PortableCustomNodeGraphEffectSettings = {

@@ -22,8 +22,8 @@ after(() => {
 });
 const { EffectLivePreviewManager, createManager: createEffectLivePreviewManager } = await loadShaderSource(fileURLToPath(new URL('../src/effect-live-preview-manager.ts', import.meta.url)));
 const { TimelineRendererManager, createManager: createTimelineManager } = await loadShaderSource(fileURLToPath(new URL('../src/timeline-renderer-manager.ts', import.meta.url)));
-const { default: fillDefinition } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_effect-new_native-effects/fx/fill/_def_.ts')));
-const { default: fillImplementation } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_effect-new_native-effects/fx/fill/_impl_.ts')));
+const { default: fillDefinition } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_effect_native-effects/fx/fill/_def_.ts')));
+const { default: fillImplementation } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_effect_native-effects/fx/fill/_impl_.ts')));
 
 const referenceSource = { type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' };
 const registration = (definition, id = definition.id ?? referenceSource.id) => ({ id, name: 'Test', definition });

@@ -1,0 +1,244 @@
+import { createEffectInstance } from '@gs/subsystems_effect_renderer/create-effect-instance.ts';
+import type { EffectInstance, NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
+import type { EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
+import type { NativeEffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import { createTestInputs } from './native-inputs.ts';
+import mandelbrotDefinition from '../../src/fx/mandelbrot/_def_.ts';
+import mandelbrotImplementation from '../../src/fx/mandelbrot/_impl_.ts';
+import magneticPendulumDefinition from '../../src/fx/magneticPendulum/_def_.ts';
+import magneticPendulumImplementation from '../../src/fx/magneticPendulum/_impl_.ts';
+import doublePendulumFractalDefinition from '../../src/fx/doublePendulumFractal/_def_.ts';
+import doublePendulumFractalImplementation from '../../src/fx/doublePendulumFractal/_impl_.ts';
+import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
+
+type FrameTiming = { label: string; elapsedMs: number; renderMs: number; submissions: number; queries: number; bundles: number; progress: EffectRenderTilingProgress | null };
+
+export async function run() {
+	const adapter = await navigator.gpu.requestAdapter();
+	if (adapter == null || !adapter.features.has('timestamp-query')) throw new Error('Timestamp-capable WebGPU adapter required');
+	const device = await adapter.requestDevice({ requiredFeatures: ['timestamp-query'] });
+	const errors: string[] = [];
+	device.addEventListener('uncapturederror', event => errors.push(event.error.message));
+	const checks: string[] = [];
+	const timings: FrameTiming[] = [];
+	const panBenchmarks: object[] = [];
+	const tileBenchmarks: object[] = [];
+	const assert = (condition: boolean, label: string) => { if (!condition) throw new Error(label); checks.push(label); };
+	const vertex = device.createShaderModule({ code: vertexCode });
+	const reader = device.createRenderPipeline({ layout: 'auto', vertex: { module: device.createShaderModule({ code: vertexCode }) }, fragment: {
+		module: device.createShaderModule({ code: `@group(0) @binding(0) var image: texture_2d<f32>;
+@fragment fn fs(@builtin(position) p: vec4f) -> @location(0) vec4f { return textureLoad(image, vec2i(p.xy), 0); }` }),
+		targets: [{ format: 'rgba16float' }],
+	} });
+	let submissions = 0;
+	let queries = 0;
+	let bundles = 0;
+	const originalBundleEncoder = device.createRenderBundleEncoder.bind(device);
+	device.createRenderBundleEncoder = descriptor => { bundles++; return originalBundleEncoder(descriptor); };
+	const originalSubmit = device.queue.submit.bind(device.queue);
+	device.queue.submit = buffers => { submissions++; originalSubmit(buffers); };
+	const originalEncoder = device.createCommandEncoder.bind(device);
+	device.createCommandEncoder = descriptor => {
+		const encoder = originalEncoder(descriptor);
+		const beginRenderPass = encoder.beginRenderPass.bind(encoder);
+		encoder.beginRenderPass = passDescriptor => {
+			if (passDescriptor.timestampWrites != null) queries++;
+			return beginRenderPass(passDescriptor);
+		};
+		return encoder;
+	};
+	const literal = <T>(value: T) => ({ inputSource: 'literal' as const, value });
+	function parameterBindings(definition: NativeEffectDefinition) {
+		return Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, structuredClone(parameter.defaultValue)]));
+	}
+	function createPlacement(definition: NativeEffectDefinition, implementation: NativeEffectImplementation, params: ReturnType<typeof parameterBindings>,
+		size: number, mode: 'auto' | 'disabled' | 'manual', statistics = false) {
+		const customNodeGraphEffect = { ...definition, nodes: [{ id: 'draw', effectSource: { type: 'nativeEffect' as const, id: 'native' },
+			params: Object.fromEntries(Object.keys(params).map(id => [id, { inputSource: 'customNodeGraphEffectPublicParameterReference' as const, parameterId: id }])) }],
+			outputSources: { output: { nodeId: 'draw', outputPort: 'output' } } };
+		return createEffectInstance({ effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect },
+			inputs: createTestInputs(definition.paramDefs, () => params), definitions: { getNativeEffect: () => definition },
+			resolution: { width: size, height: size }, usedOutputPorts: new Set(['output']), tiling: mode === 'manual' ? { mode, tileSize: 128 } : { mode },
+			onGpuTime: statistics ? () => {} : undefined }, { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false }, () => implementation);
+	}
+	async function draw(target: EffectInstance, label: string, report = true) {
+		const start = performance.now();
+		const context = { time: 0, timeDelta: 0 };
+		const signal = new AbortController().signal;
+		await target.prepare(context, signal);
+		const startSubmissions = submissions;
+		const startQueries = queries;
+		const startBundles = bundles;
+		let progress: EffectRenderTilingProgress | null = null;
+		await target.renderTiled(context, signal, value => { if (value != null) progress = value; });
+		const output = target.outputs.get('output');
+		const renderMs = Math.round((performance.now() - start) * 100) / 100;
+		await device.queue.onSubmittedWorkDone();
+		if (output?.kind !== 'texture') throw new Error('Expected texture output');
+		const timing: FrameTiming = { label, elapsedMs: Math.round(performance.now() - start), renderMs, submissions: submissions - startSubmissions,
+			queries: queries - startQueries, bundles: bundles - startBundles, progress };
+		if (report) {
+			timings.push(timing);
+			await fetch('/progress', { method: 'POST', body: JSON.stringify(timing) });
+		}
+		return { texture: output.texture, timing };
+	}
+	async function pixels(texture: GPUTexture) {
+		const { width, height } = texture;
+		const copy = device.createTexture({ size: { width, height }, format: 'rgba16float', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
+		const bytesPerRow = Math.ceil(width * 8 / 256) * 256;
+		const buffer = device.createBuffer({ size: bytesPerRow * height, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+		try {
+			const group = device.createBindGroup({ layout: reader.getBindGroupLayout(0), entries: [{ binding: 0, resource: texture.createView() }] });
+			const encoder = device.createCommandEncoder();
+			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: copy.createView(), loadOp: 'clear', storeOp: 'store' }] });
+			pass.setPipeline(reader); pass.setBindGroup(0, group); pass.draw(3); pass.end();
+			encoder.copyTextureToBuffer({ texture: copy }, { buffer, bytesPerRow }, { width, height });
+			device.queue.submit([encoder.finish()]);
+			await buffer.mapAsync(GPUMapMode.READ);
+			const result = new Uint8Array(buffer.getMappedRange().slice(0)); buffer.unmap();
+			return result;
+		} finally { buffer.destroy(); copy.destroy(); }
+	}
+	async function compare(auto: EffectInstance, disabled: EffectInstance, label: string) {
+		const expected = await pixels((await draw(disabled, `${label}: disabled`)).texture);
+		const actual = await draw(auto, `${label}: auto`);
+		const bytes = await pixels(actual.texture);
+		assert(bytes.length === expected.length && bytes.every((value, index) => value === expected[index]), `${label}: exact rgba16float output`);
+		const cached = await draw(auto, `${label}: cached`);
+		assert(cached.timing.submissions === 0 && cached.timing.queries === 0, `${label}: static cache skips GPU work`);
+		return actual;
+	}
+	try {
+		const mandelbrotCustomNodeGraphEffect = parameterBindings(mandelbrotDefinition);
+		// 過分割が報告された1024角・4235反復の深ズームを回帰条件にする。
+		mandelbrotCustomNodeGraphEffect.view = literal({ center: literal([-0.2058423031514639, 0.27240018402412547]), zoom: literal(11601744.655951558), rotation: literal(0) });
+		mandelbrotCustomNodeGraphEffect.maximumIterations = literal(4235);
+		const auto = await createPlacement(mandelbrotDefinition, mandelbrotImplementation, mandelbrotCustomNodeGraphEffect, 1024, 'auto');
+		const disabled = await createPlacement(mandelbrotDefinition, mandelbrotImplementation, mandelbrotCustomNodeGraphEffect, 1024, 'disabled');
+		try {
+			await compare(auto, disabled, 'Mandelbrot initial');
+			mandelbrotCustomNodeGraphEffect.view = literal({ center: literal([-0.2058423131514639, 0.27240018402412547]), zoom: literal(11601744.655951558), rotation: literal(0) });
+
+			await compare(auto, disabled, 'Mandelbrot moved');
+			// 配色だけならヒントを維持でき、静的キャッシュを更新する実描画もQueryなしへ戻る。
+			mandelbrotCustomNodeGraphEffect.unescapedColor = literal([1, 0, 0, 1]);
+
+			const recolored = await draw(auto, 'Mandelbrot recolored');
+			assert(recolored.timing.queries === 0, 'Mandelbrot returns to ordinary rendering after a light first draw');
+		} finally { auto.dispose(); disabled.dispose(); }
+
+		const pendulum = parameterBindings(magneticPendulumDefinition);
+		let automaticPendulum = await createPlacement(magneticPendulumDefinition, magneticPendulumImplementation, pendulum, 1024, 'auto');
+		let disabledPendulum = await createPlacement(magneticPendulumDefinition, magneticPendulumImplementation, pendulum, 1024, 'disabled');
+		try {
+			for (const size of [1024, 2048, 1024, 512, 256]) {
+				automaticPendulum.dispose(); disabledPendulum.dispose();
+				automaticPendulum = await createPlacement(magneticPendulumDefinition, magneticPendulumImplementation, pendulum, size, 'auto');
+				disabledPendulum = await createPlacement(magneticPendulumDefinition, magneticPendulumImplementation, pendulum, size, 'disabled');
+				const actual = await compare(automaticPendulum, disabledPendulum, `Magnetic Pendulum ${size}`);
+				if (size <= 512) assert((actual.timing.progress?.totalTiles ?? 1) === 1, `Magnetic Pendulum ${size}: removes unnecessary tiling in the first resized draw`);
+			}
+			pendulum.view = literal({ center: literal([0.01, 0]), zoom: literal(1) });
+
+			const moved = await compare(automaticPendulum, disabledPendulum, 'Magnetic Pendulum moved');
+			assert((moved.timing.progress?.totalTiles ?? 1) === 1, 'Magnetic Pendulum removes unnecessary tiling after a view change');
+		} finally { automaticPendulum.dispose(); disabledPendulum.dispose(); }
+		// ヒントの接続・端数付き積分とAAの変更・配色だけの通常描画復帰を、実際の配置で確かめる。
+		const doublePendulumCustomNodeGraphEffect = parameterBindings(doublePendulumFractalDefinition);
+		doublePendulumCustomNodeGraphEffect.coloringMethod = literal('angle1');
+		const automaticDoublePendulum = await createPlacement(doublePendulumFractalDefinition, doublePendulumFractalImplementation, doublePendulumCustomNodeGraphEffect, 256, 'auto');
+		const disabledDoublePendulum = await createPlacement(doublePendulumFractalDefinition, doublePendulumFractalImplementation, doublePendulumCustomNodeGraphEffect, 256, 'disabled');
+		try {
+			const initial = await compare(automaticDoublePendulum, disabledDoublePendulum, 'Double Pendulum initial');
+			assert((initial.timing.progress?.totalTiles ?? 1) === 1, 'Double Pendulum renders a light first draw in one tile');
+			doublePendulumCustomNodeGraphEffect.simulationTime = literal(3.005);
+			doublePendulumCustomNodeGraphEffect.antialiasing = literal(true);
+
+
+			await compare(automaticDoublePendulum, disabledDoublePendulum, 'Double Pendulum partial step and AA');
+			const ramp = doublePendulumFractalDefinition.paramDefs.ramp.defaultValue.value;
+			doublePendulumCustomNodeGraphEffect.ramp = literal({ ...ramp,
+				stops: ramp.stops.map((stop, index) => index === 0 ? { ...stop, color: [1, 0, 0, 1] } : stop),
+			});
+
+
+			const recolored = await compare(automaticDoublePendulum, disabledDoublePendulum, 'Double Pendulum recolored');
+			assert(recolored.timing.queries === 0, 'Double Pendulum reuses learned untiled rendering for ramp color edits');
+			doublePendulumCustomNodeGraphEffect.view = literal({ center: literal([0.1, 0.2]), zoom: literal(2) });
+
+
+			await compare(automaticDoublePendulum, disabledDoublePendulum, 'Double Pendulum moved');
+		} finally { automaticDoublePendulum.dispose(); disabledDoublePendulum.dispose(); }
+		// 添付プロジェクトの1024角・約2314積分を64回連続でパンする。256角の単発描画だけでは、
+		// 視点キーの再学習や30回ごとの定期計測による引っ掛かりを検出できない。
+		for (const statistics of [false, true]) {
+			const customNodeGraphEffect = parameterBindings(doublePendulumFractalDefinition);
+			customNodeGraphEffect.initialAngularVelocity1 = literal(4.530000000000001);
+			customNodeGraphEffect.gravity = literal(26.82);
+			customNodeGraphEffect.timeStep = literal(0.001296523784419149);
+			customNodeGraphEffect.angularVelocityRange = literal(8.087466597938915);
+			const view = (index: number) => literal({ center: literal([-2.3783367035287313 + index * 0.015, 3.0766039599245305 + index * 0.01]), zoom: literal(1.704604830642477) });
+			customNodeGraphEffect.view = view(0);
+
+
+			const automatic = await createPlacement(doublePendulumFractalDefinition, doublePendulumFractalImplementation, customNodeGraphEffect, 1024, 'auto', statistics);
+			const disabled = await createPlacement(doublePendulumFractalDefinition, doublePendulumFractalImplementation, customNodeGraphEffect, 1024, 'disabled', statistics);
+			try {
+				await compare(automatic, disabled, `Double Pendulum attached statistics=${statistics}`);
+				const automaticFrames: FrameTiming[] = [];
+				const disabledFrames: FrameTiming[] = [];
+				for (let index = 1; index <= 64; index++) {
+					customNodeGraphEffect.view = view(index);
+
+
+					disabledFrames.push((await draw(disabled, `pan ${index}: disabled`, false)).timing);
+					automaticFrames.push((await draw(automatic, `pan ${index}: auto`, false)).timing);
+				}
+				const automaticQueries = automaticFrames.reduce((sum, frame) => sum + frame.queries, 0);
+				assert(automaticFrames.every(frame => frame.submissions === 1), `panning keeps ordinary submissions with statistics=${statistics}`);
+				assert(statistics ? automaticQueries === 64 : automaticQueries > 0 && automaticQueries <= 3,
+					`periodic GPU measurements share statistics and avoid per-pan probing with statistics=${statistics}: ${automaticQueries}`);
+				const automaticImage = await pixels((await draw(automatic, 'last cached auto', false)).texture);
+				const disabledImage = await pixels((await draw(disabled, 'last cached disabled', false)).texture);
+				assert(automaticImage.every((value, index) => value === disabledImage[index]), `panning remains pixel-identical with statistics=${statistics}`);
+				const median = (values: number[]) => [...values].sort((first, second) => first - second)[Math.floor(values.length / 2)];
+				panBenchmarks.push({ statistics, frames: 64, automaticQueries,
+					disabledMedianMs: median(disabledFrames.map(frame => frame.elapsedMs)), automaticMedianMs: median(automaticFrames.map(frame => frame.elapsedMs)),
+					disabledRenderMedianMs: median(disabledFrames.map(frame => frame.renderMs)), automaticRenderMedianMs: median(automaticFrames.map(frame => frame.renderMs)),
+				});
+			} finally {
+				automatic.dispose(); disabled.dispose();
+			}
+		}
+		// 同じ64タイルを毎回描き、分割数の学習や静止画キャッシュの影響を除いて実行器を比較する。
+		// 統計の有無を分けることで、コマンド再生とreadback待ちのそれぞれの費用を確認できる。
+		for (const statistics of [false, true]) {
+			const customNodeGraphEffect = parameterBindings(doublePendulumFractalDefinition);
+
+			const manual = await createPlacement(doublePendulumFractalDefinition, doublePendulumFractalImplementation, customNodeGraphEffect, 1024, 'manual', statistics);
+			const disabled = await createPlacement(doublePendulumFractalDefinition, doublePendulumFractalImplementation, customNodeGraphEffect, 1024, 'disabled');
+			try {
+				const frames: FrameTiming[] = [];
+				for (let index = 0; index < 20; index++) {
+					customNodeGraphEffect.view = literal({ center: literal([index * 0.01, 0]), zoom: literal(1) });
+
+					const frame = await draw(manual, `64 tiles statistics=${statistics} frame=${index}`, false);
+					if (frame.timing.progress?.completedTiles !== 64 || frame.timing.progress.totalTiles !== 64) throw new Error(`incomplete manual frame ${index}`);
+					if (frame.timing.bundles !== 1) throw new Error(`manual frame ${index} did not share exactly one bundle`);
+					if (index >= 4) frames.push(frame.timing);
+				}
+
+				const actual = await pixels((await draw(manual, 'manual final cached', false)).texture);
+				const expected = await pixels((await draw(disabled, 'manual reference', false)).texture);
+				assert(frames.every(frame => frame.bundles === 1 && frame.queries === (statistics ? 64 : 0)), `64 manual tiles share a bundle without adding queries statistics=${statistics}`);
+				assert(actual.every((value, index) => value === expected[index]), `64 manual tiles remain pixel-identical statistics=${statistics}`);
+				const median = (values: number[]) => [...values].sort((first, second) => first - second)[Math.floor(values.length / 2)];
+				tileBenchmarks.push({ statistics, tiles: 64, frames: frames.length, medianMs: median(frames.map(frame => frame.renderMs)),
+					queries: frames.map(frame => frame.queries), submissions: frames.map(frame => frame.submissions) });
+			} finally { manual.dispose(); disabled.dispose(); }
+		}
+		assert(errors.length === 0, `no GPU validation errors: ${errors.join('; ')}`);
+		return { adapter: { vendor: adapter.info.vendor, architecture: adapter.info.architecture, description: adapter.info.description }, checks, timings, panBenchmarks, tileBenchmarks };
+	} finally { device.destroy(); }
+}

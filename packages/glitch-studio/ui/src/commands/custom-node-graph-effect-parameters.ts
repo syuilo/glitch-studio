@@ -10,8 +10,8 @@ import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { customNodeGraphEffectTargetKey } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
-import { validateEffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
-import { resolveEffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
+import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
+import { resolveEffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
 import { validateCustomNodeGraphEffectCustomParameterDefinition, validateCustomNodeGraphEffectCustomParameterBinding } from '@/utility/custom-node-graph-effect-view-parameters.ts';
 import { getNodeOutputs } from '@/utility/custom-node-graph-effect-node-outputs.ts';
 import { updateStructParameterFields } from '../utility/struct-parameter-edit.ts';
@@ -44,7 +44,7 @@ import type {
 	CustomNodeGraphEffectEffectNode as StoredCustomNodeGraphEffectEffectNode,
 	CustomNodeGraphEffectParameterBinding as StoredCustomNodeGraphEffectParameterBinding,
 	NodeOutputReference,
-} from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+} from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
 import type { CustomNodeGraphEffectNodeReference } from './custom-node-graph-effect-change.ts';
 
 import type { ProjectState, AppStateChange } from '../Project.ts';

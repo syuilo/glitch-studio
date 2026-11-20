@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const directory = fileURLToPath(new URL('../', import.meta.url));
-const effectDirectory = new URL('../../../subsystems/effect-new/native-effects/src/fx/', import.meta.url);
+const effectDirectory = new URL('../../../subsystems/effect/native-effects/src/fx/', import.meta.url);
 const effectNames = [];
 for await (const path of glob('*/_def_.ts', { cwd: effectDirectory })) effectNames.push(path.split(/[\\/]/)[0]);
 effectNames.sort();
@@ -15,7 +15,7 @@ const bundled = await build({
 	absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', write: false,
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
 		export { createProjectScriptQueries } from './src/scripting/project-script-queries.ts';
-		export { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
+		export { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect_native-effects/definitions.ts';
 	` },
 });
 const loaded = { exports: {} };

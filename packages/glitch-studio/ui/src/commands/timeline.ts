@@ -6,7 +6,7 @@ import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation, ge
 import { validateVoicevoxLayer } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
 import { validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
-import { validateEffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
+import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import { canReferenceScene, validateTimelineLayer } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getTimelineClipTrimBounds, getTimelineClipInsertionDuration, validateTimelineClips } from '@gs/subsystems_timeline_shared/timing.ts';
 import { changeTimelineMediaPlaybackRate, createTimelineMediaClipTiming, getTimelineMediaLoopBounds, getTimelineMediaSingleDuration, getTimelineMediaTrimBounds, trimTimelineMediaClip, validateTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
@@ -30,7 +30,7 @@ import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from '@gs/subsystems_timeline_shared/clip.ts';
 import type { TimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import type { TimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
-import type { EffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
+import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { VoicevoxSettings, VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import type { AppStateChange, ProjectState } from '../Project.ts';
 import type { EditableTimelineParameterBinding } from '../types/parameter-edit.ts';

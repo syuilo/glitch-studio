@@ -1,4 +1,4 @@
-import type { NativeEffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import type { NativeEffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import { analyzePortableCustomNodeGraphEffectRuntime } from './runtime-requirements.ts';
 import { readFileSource } from '@gs/shared/file-source.ts';
 import { collectCustomNodeGraphEffectResources, type CustomNodeGraphEffectResources } from '@gs/glitch-studio_shared/custom-node-graph-effect-resources.ts';

@@ -9,7 +9,7 @@ const directory = fileURLToPath(new URL('../', import.meta.url));
 const bundled = await build({
 	absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', write: false,
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
-		export { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
+		export { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect_native-effects/definitions.ts';
 		export { z } from 'zod';
 		export { parameterDefinitionSchema, staticSettingDefinitionSchema } from './src/commands/parameter-contract-schemas.ts';
 		export { customNodeGraphEffectCustomParameterInputSchema, customNodeGraphEffectSchema } from './src/commands/custom-node-graph-effect-contract-schemas.ts';

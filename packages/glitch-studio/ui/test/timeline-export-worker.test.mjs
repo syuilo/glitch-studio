@@ -9,7 +9,7 @@ const bundled = await build({
 	entryPoints: [fileURLToPath(new URL('../src/export/timeline-export.worker.ts', import.meta.url))],
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'export-worker-platform', setup(build) {
-		build.onResolve({ filter: /^@gs\/glitch-studio_renderer\/|^@gs\/subsystems_effect-new_native-effects\/(?:definitions|implementations)\.ts$|\/mp4-writer\.ts$|\/still-(?:webp|openexr)\.ts$|\/timeline-audio-export\.ts$/ }, args =>
+		build.onResolve({ filter: /^@gs\/glitch-studio_renderer\/|^@gs\/subsystems_effect_native-effects\/(?:definitions|implementations)\.ts$|\/mp4-writer\.ts$|\/still-(?:webp|openexr)\.ts$|\/timeline-audio-export\.ts$/ }, args =>
 			['@gs/glitch-studio_renderer/canvas-output.ts', '@gs/glitch-studio_renderer/renderer-gpu-features.ts'].includes(args.path)
 				? null : { path: args.path, namespace: 'platform' });
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, () => ({ contents: `

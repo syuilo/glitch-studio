@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { customShaderEffectDefinitionSchema } from './project-contract-schemas.ts';
 import { automationGraphSchema, effectResolutionSchema, parameterDefinitionSchema, staticSettingValuesSchema, textureDataTypeSchema, valueParameterBindingSchema } from './parameter-contract-schemas.ts';
-import type { EffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import type { EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
 
 const id = z.string().min(1);
 const record = <T extends z.ZodType>(value: T) => z.record(id, value);

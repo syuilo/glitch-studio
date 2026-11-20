@@ -19,7 +19,7 @@ const bundled = await build({
 	plugins: [{ name: 'project-api-effects', setup(build) {
 		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ loader: 'ts', resolveDir: directory, contents: `
-			import fill from '@gs/subsystems_effect-new_native-effects/fx/fill/_def_.ts';
+			import fill from '@gs/subsystems_effect_native-effects/fx/fill/_def_.ts';
 			export const nativeEffectDefinitions = { fill };
 		` }));
 	} }],

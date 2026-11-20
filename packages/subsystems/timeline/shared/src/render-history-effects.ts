@@ -1,6 +1,6 @@
-import { resolveEffectSource, type EffectSource, type EffectDefinitions } from '@gs/subsystems_effect-new_shared/effect-source.ts';
+import { resolveEffectSource, type EffectSource, type EffectDefinitions } from '@gs/subsystems_effect_shared/effect-source.ts';
 import { getTimelineClipLayers } from './layer-tree.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
 import type { TimelineScene } from './types.ts';
 
 /** 配置されたEffectをたどる。同じCustom Node Graph Effectを複数箇所で参照しても検査は一度でよい。 */

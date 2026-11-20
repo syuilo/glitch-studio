@@ -72,9 +72,9 @@ import GsStaticSettings from './GsStaticSettings.vue';
 import GsEllipsis from './common/GsEllipsis.vue';
 import type { AnotherLayerAudioOption, ParamEdit } from './GsVisualParam.vue';
 import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import type { EffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
+import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
-import type { EffectPreparationStatus } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
+import type { EffectPreparationStatus } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 

@@ -1,6 +1,6 @@
 import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
-import type { EffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
-import type { EffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
+import type { EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
+import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';

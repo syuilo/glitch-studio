@@ -1,7 +1,7 @@
-import { nativeEffectProbe } from '@gs/subsystems_effect-new_native-effects/test/native-effect-probe.ts';
-import videoDefinition from '@gs/subsystems_effect-new_native-effects/fx/video/_def_.ts';
+import { nativeEffectProbe } from '@gs/subsystems_effect_native-effects/test/native-effect-probe.ts';
+import videoDefinition from '@gs/subsystems_effect_native-effects/fx/video/_def_.ts';
 import { PlayerVideoTextures } from '../../src/player-video-textures.ts';
-import videoImplementationNative from '@gs/subsystems_effect-new_native-effects/fx/video/_impl_.ts';
+import videoImplementationNative from '@gs/subsystems_effect_native-effects/fx/video/_impl_.ts';
 import type { FitMode } from '@gs/shared/types.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 

@@ -5,9 +5,9 @@ import { areNodeDataTypesCompatible, getNodeInputDataType } from '@gs/shared/dat
 import { walkParameters, resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
 import { getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
-import { resolveEffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
-import type { EffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectOutputSource, CustomNodeGraphEffectParameterBinding } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import { resolveEffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
+import type { EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectOutputSource, CustomNodeGraphEffectParameterBinding } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
 import { getEffectDefinitions } from './project-effects.ts';
 import type { ProjectState } from '../Project.ts';
 import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';

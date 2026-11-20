@@ -39,11 +39,11 @@ const numberBool: KeyframesTimelineData = { dataType: { kind: 'bool' }, isNormal
 const invalidEnumKey: KeyframesTimelineKeyframe<{ kind: 'enum'; options: readonly ['left', 'right'] }> = { id: 'a', x: 0, value: 'center', interpolation: hold };
 // @ts-expect-error Binding経由でもタイムラインの型と値の対応を維持する
 const mismatchedBinding: ValueParameterBinding = { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null, keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [{ id: 'a', x: 0, value: 'Hello', interpolation: hold }] } };
-import { defineNativeEffect as defineEffect, type NativeEffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import { defineNativeEffect as defineEffect, type NativeEffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 type EffectOutputDefinitions = NativeEffectDefinition['outputDefs'];
 import type { ParameterDefinition, ParameterDefaultValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { colorBlendModes, type BlendMode } from '@gs/shared/color-blend.ts';
-import type { NativeEffectImplementation } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
+import type { NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import type { CustomNodeGraphEffect, CustomNodeGraphEffectArgumentBindings, NodeOutputReference } from '../src/types/custom-node-graph-effect-view.ts';
 import type { DataType, TextureDataType } from '@gs/shared/data-type/data-type.ts';
 type CustomNodeGraphEffectParamDef = CustomNodeGraphEffect['paramDefs'][number];
@@ -90,7 +90,7 @@ const invalidAssetDefault: ParameterDefinition = { ...videoAsset, defaultValue: 
 const assetNodeInput: ParameterDefinition = { ...fontAsset, canNode: true };
 const videoSetting = { dataType: { kind: 'assetReference', assetType: 'video' }, ui: { label: 'Video' }, defaultValue: null } as const;
 const staticSettingDefs = { video: videoSetting, font: { ...videoSetting, dataType: { kind: 'assetReference', assetType: 'font' } }, lut: { ...videoSetting, dataType: { kind: 'assetReference', assetType: 'lut' } } } as const;
-type ResolvedStaticResources = import('@gs/subsystems_effect-new_renderer/effect-instance.ts').EffectStaticResources<{ staticSettingDefs: typeof staticSettingDefs }>;
+type ResolvedStaticResources = import('@gs/subsystems_effect_renderer/effect-instance.ts').EffectStaticResources<{ staticSettingDefs: typeof staticSettingDefs }>;
 // @ts-expect-error 設定値はBindingではなく素材IDを直接保存する
 const invalidStaticValue: import('@gs/shared/static-setting.ts').StaticSettingValues<typeof staticSettingDefs> = { video: { inputSource: 'literal', value: 'video' }, font: null, lut: null };
 const runtimeVideoFile: ResolvedStaticResources['video'] = new Blob();
@@ -168,10 +168,10 @@ externalValues[external.id] = { inputSource: 'customNodeGraphEffectPublicParamet
 
 // 表示範囲のUIは中心vector・倍率scalarを必須とし、回転scalarは省略できる。
 // 見た目の指定だけで、別の型や不足したフィールドをプレビュー編集へ渡さない。
-import mandelbrot from '@gs/subsystems_effect-new_native-effects/fx/mandelbrot/_def_.ts';
-import imageTrap from '@gs/subsystems_effect-new_native-effects/fx/imageTrap/_def_.ts';
-import magneticPendulum from '@gs/subsystems_effect-new_native-effects/fx/magneticPendulum/_def_.ts';
-import doublePendulumFractal from '@gs/subsystems_effect-new_native-effects/fx/doublePendulumFractal/_def_.ts';
+import mandelbrot from '@gs/subsystems_effect_native-effects/fx/mandelbrot/_def_.ts';
+import imageTrap from '@gs/subsystems_effect_native-effects/fx/imageTrap/_def_.ts';
+import magneticPendulum from '@gs/subsystems_effect_native-effects/fx/magneticPendulum/_def_.ts';
+import doublePendulumFractal from '@gs/subsystems_effect_native-effects/fx/doublePendulumFractal/_def_.ts';
 defineEffect({ ...outputDefinition, tags: [], paramDefs: { view: mandelbrot.paramDefs.view } });
 defineEffect({ ...outputDefinition, tags: [], paramDefs: { imageTrapView: imageTrap.paramDefs.view, magneticView: magneticPendulum.paramDefs.view, doublePendulumView: doublePendulumFractal.paramDefs.view } });
 const unrelatedStruct = {

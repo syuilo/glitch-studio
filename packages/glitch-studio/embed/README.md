@@ -8,7 +8,7 @@ Custom Node Graph Effectをエディタから独立したWeb Componentとして�
 - `src/archive.ts`: HTML・JavaScript・利用案内を一回でダウンロードする非圧縮ZIPの生成。
 - `src/element.ts`: Custom Elementの登録、Shadow DOM、表示サイズ・可視性・時間・ポインター・公開値とWorkerの管理。
 - `src/frame-rate-limiter.ts`: 表示周期の端数を持ち越すFPS制限。rAF時刻の丸めによる余分な間引きを防ぎ、失った描画枠は再実行しません。
-- `src/worker.ts`: WebGPU・素材・`effect-new` の `EffectInstance` の生成と破棄。主出力を指定して描画を準備し、完了したフレームをCanvasへ渡します。
+- `src/worker.ts`: WebGPU・素材・`effect` の `EffectInstance` の生成と破棄。主出力を指定して描画を準備し、完了したフレームをCanvasへ渡します。
 - `src/parameters.ts`: 公開値の検証と既定値の解決。編集用Bindingではなく通常の値をAPI境界で扱います。
 - `src/effect-inputs.ts` は公開パラメータの値をWorker内のEffect入力へ束縛します。
 - `src/runtime-requirements.ts`: 検証済みの作品から、配置済みエフェクトと式評価・Custom Shader Effectの必要性を判定します。

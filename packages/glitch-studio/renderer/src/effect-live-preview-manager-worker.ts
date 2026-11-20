@@ -1,7 +1,7 @@
 // Managerクラスのメソッドの呼び出しやイベント通知を行うだけ。独自の処理を追加しないこと！ そうしないとWorkerでの利用と非Workerでの利用で機能に差が生まれることになる
 
-import { nativeEffectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
-import { nativeEffectImplementations } from '@gs/subsystems_effect-new_native-effects/implementations.ts';
+import { nativeEffectDefinitions } from '@gs/subsystems_effect_native-effects/definitions.ts';
+import { nativeEffectImplementations } from '@gs/subsystems_effect_native-effects/implementations.ts';
 import { createManager, EffectLivePreviewManager } from './effect-live-preview-manager.ts';
 
 let manager: EffectLivePreviewManager | null = null;

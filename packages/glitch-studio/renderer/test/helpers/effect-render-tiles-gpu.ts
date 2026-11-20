@@ -1,19 +1,19 @@
-import { createEffectInstance } from '@gs/subsystems_effect-new_renderer/create-effect-instance.ts';
-import { createTestInputs } from '@gs/subsystems_effect-new_native-effects/test/native-effect-probe.ts';
+import { createEffectInstance } from '@gs/subsystems_effect_renderer/create-effect-instance.ts';
+import { createTestInputs } from '@gs/subsystems_effect_native-effects/test/native-effect-probe.ts';
 import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
-import gradientDefinition from '@gs/subsystems_effect-new_native-effects/fx/gradient/_def_.ts';
-import gradient from '@gs/subsystems_effect-new_native-effects/fx/gradient/_impl_.ts';
-import pixelSortDefinition from '@gs/subsystems_effect-new_native-effects/fx/pixelSort/_def_.ts';
-import pixelSort from '@gs/subsystems_effect-new_native-effects/fx/pixelSort/_impl_.ts';
-import lightTracingDefinition from '@gs/subsystems_effect-new_native-effects/fx/lightTracing2d/_def_.ts';
-import lightTracing from '@gs/subsystems_effect-new_native-effects/fx/lightTracing2d/_impl_.ts';
-import feedbackDefinition from '@gs/subsystems_effect-new_native-effects/fx/feedback/_def_.ts';
-import feedback from '@gs/subsystems_effect-new_native-effects/fx/feedback/_impl_.ts';
-import type { NativeEffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
-import type { NativeEffectImplementation } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
-import type { EffectRenderTiling } from '@gs/subsystems_effect-new_shared/effect-render-tiling.ts';
-import mandelbrotDefinition from '@gs/subsystems_effect-new_native-effects/fx/mandelbrot/_def_.ts';
-import mandelbrot from '@gs/subsystems_effect-new_native-effects/fx/mandelbrot/_impl_.ts';
+import gradientDefinition from '@gs/subsystems_effect_native-effects/fx/gradient/_def_.ts';
+import gradient from '@gs/subsystems_effect_native-effects/fx/gradient/_impl_.ts';
+import pixelSortDefinition from '@gs/subsystems_effect_native-effects/fx/pixelSort/_def_.ts';
+import pixelSort from '@gs/subsystems_effect_native-effects/fx/pixelSort/_impl_.ts';
+import lightTracingDefinition from '@gs/subsystems_effect_native-effects/fx/lightTracing2d/_def_.ts';
+import lightTracing from '@gs/subsystems_effect_native-effects/fx/lightTracing2d/_impl_.ts';
+import feedbackDefinition from '@gs/subsystems_effect_native-effects/fx/feedback/_def_.ts';
+import feedback from '@gs/subsystems_effect_native-effects/fx/feedback/_impl_.ts';
+import type { NativeEffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import type { NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
+import type { EffectRenderTiling } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
+import mandelbrotDefinition from '@gs/subsystems_effect_native-effects/fx/mandelbrot/_def_.ts';
+import mandelbrot from '@gs/subsystems_effect_native-effects/fx/mandelbrot/_impl_.ts';
 
 export async function checkEffectRenderTiles(device: GPUDevice, vertex: GPUShaderModule, read: (texture: GPUTexture) => Promise<number[]>) {
 	const completed: string[] = [];

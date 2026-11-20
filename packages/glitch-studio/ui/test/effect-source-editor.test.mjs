@@ -16,8 +16,8 @@ const bundle = await build({
 		export { RendererProjectSynchronizer } from './src/RendererProjectSynchronizer.ts';
 		export { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 		export { collectCustomNodeGraphEffectFile, encodeCustomNodeGraphEffectFile, decodeCustomNodeGraphEffectFile, prepareCustomNodeGraphEffectImport } from './src/custom-node-graph-effect-file-codec.ts';
-		export { nativeEffectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
-		export { validateEffectSource } from '@gs/subsystems_effect-new_shared/validate-effect-source.ts';
+		export { nativeEffectDefinitions } from '@gs/subsystems_effect_native-effects/definitions.ts';
+		export { validateEffectSource } from '@gs/subsystems_effect_shared/validate-effect-source.ts';
 		export { getEffectDefinitions } from './src/utility/project-effects.ts';
 	` },
 	plugins: [{ name: 'editor-settings', setup(builder) {

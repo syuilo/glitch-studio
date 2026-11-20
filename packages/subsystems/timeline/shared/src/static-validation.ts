@@ -15,8 +15,8 @@ import { textParamDefs } from './layers/text/text.ts';
 import { voicevoxSubtitleParamDefs } from './layers/voicevox/voicevox-subtitle.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParameterBindingBase } from '@gs/shared/parameter/parameter-binding.ts';
-import type { EffectDefinitions } from '@gs/subsystems_effect-new_shared/effect-source.ts';
-import type { EffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import type { EffectDefinitions } from '@gs/subsystems_effect_shared/effect-source.ts';
+import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { TimelineLayer } from './types.ts';
 
 type ParameterGroup = { name: string; definitions: Record<string, ParameterDefinition>; values: Record<string, ParameterBindingBase>; imageInput?: boolean; audioInput?: boolean };

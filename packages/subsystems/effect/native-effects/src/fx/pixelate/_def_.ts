@@ -1,0 +1,60 @@
+import { defineNativeEffect } from '@gs/subsystems_effect_shared/effect-definition.ts';
+
+export default defineNativeEffect({
+	displayName: 'Pixelate',
+	summary: {
+		'ja-JP': '入力画像を大きな画素のモザイク状に変換します。',
+		'en-US': 'Turns the input image into a mosaic of large pixels.',
+	},
+	kind: 'modify',
+	dependsOnRenderHistory: false,
+	tags: ['stylized'],
+	paramDefs: {
+		input: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Input', control: {} },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+		},
+		density: {
+			dataType: { kind: 'vector' },
+			ui: {
+				label: 'Density',
+				control: {
+					controlType: 'dimension',
+					min: 1,
+					max: 1000,
+					logarithmic: true,
+				},
+			},
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [3, 3] },
+		},
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		rotation: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Rotation', control: { controlType: 'angle' } },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		samples: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Samples',
+				control: {
+					controlType: 'range',
+					min: 1,
+					max: 256,
+					step: 1,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 16 },
+		},
+	},
+	primaryInputParameter: 'input',
+	resolutionInputParameters: ['input'],
+	outputDefs: {
+		output: { dataType: { kind: 'color' } },
+	},
+	primaryOutput: 'output',
+});

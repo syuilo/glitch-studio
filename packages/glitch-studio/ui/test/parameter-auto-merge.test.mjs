@@ -16,13 +16,13 @@ const bundle = await build({
 		export { createInlineCustomNodeGraphEffectLayer } from './src/utility/inline-custom-node-graph-effect-layer.ts';
 		export { createInlineKeyframesTimeline } from './src/utility/keyframes-timeline.ts';
 		export { createInlineAutomationGraph } from './src/utility/automation-graph.ts';
-		export { default as definition } from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts';
+		export { default as definition } from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts';
 	` },
 	plugins: [{ name: 'parameter-auto-merge-platform', setup(build) {
 		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$|preferences\.ts$/ }, ({ path }) => ({ path, namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', resolveDir: directory,
 			contents: path.endsWith('preferences.ts') ? 'export const preferences = { s: { forceTypeSafety: false } };'
-				: "import definition from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };",
+				: "import definition from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };",
 		}));
 	} }],
 });

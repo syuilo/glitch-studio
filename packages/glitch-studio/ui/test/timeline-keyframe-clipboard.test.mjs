@@ -21,7 +21,7 @@ const bundled = await build({
 		export { createShapeTimelineLayer } from './src/utility/shape-timeline-layer.ts';
 		export { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
 		export { genId } from '@gs/shared/utility/id.ts';
-		export { default as arrayDefinition } from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts';
+		export { default as arrayDefinition } from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts';
 	`, resolveDir: uiDirectory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'keyframe-clipboard-test', setup(build) {
@@ -29,7 +29,7 @@ const bundled = await build({
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({
 			contents: path === 'effects'
-				? "import definition from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };"
+				? "import definition from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };"
 				: 'export const preferences = { s: { forceTypeSafety: true } };', loader: 'ts', resolveDir: uiDirectory,
 		}));
 	} }],

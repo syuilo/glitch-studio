@@ -1,11 +1,11 @@
 import { validateStaticSettings } from '@gs/shared/static-setting.ts';
-import { validateEffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
+import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { resolveEffectSource, type EffectDefinitions, type EffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
-import { validateEffectSource } from '@gs/subsystems_effect-new_shared/validate-effect-source.ts';
+import { resolveEffectSource, type EffectDefinitions, type EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
+import { validateEffectSource } from '@gs/subsystems_effect_shared/validate-effect-source.ts';
 import { createLowerLayerOutputBinding, validateTimelineParameterTree } from '../../parameter-binding.ts';
 import type { TimelineEffectParameterBinding, TimelineEffectLayer } from '../../types.ts';
-import type { EffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 export { createLowerLayerOutputBinding } from '../../parameter-binding.ts';
 
 export function findTimelineEffectOutput(definition: EffectDefinition): string | null {

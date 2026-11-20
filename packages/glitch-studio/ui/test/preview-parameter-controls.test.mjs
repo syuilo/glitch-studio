@@ -25,7 +25,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		export * from './src/utility/preview-parameter-editing.ts';
 		export * from './src/utility/preview-viewport.ts';
 		export { createInlineKeyframesTimeline } from './src/utility/keyframes-timeline.ts';
-		import { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
+		import { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect_native-effects/definitions.ts';
 		export const testedEffect = effectDefinitions.test;
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
@@ -38,10 +38,10 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		build.onResolve({ filter: /(?:^@\/|\/src\/)(app|project-session|ui)\.ts$/ }, ({ path }) => ({ path: (path.endsWith('app.ts') || path.endsWith('project-session.ts')) ? 'app' : 'ui', namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', resolveDir: directory, contents: {
 			preferences: "import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false) } };",
-			effects: `import mandelbrot from '@gs/subsystems_effect-new_native-effects/fx/mandelbrot/_def_.ts';
-				import imageTrap from '@gs/subsystems_effect-new_native-effects/fx/imageTrap/_def_.ts';
-				import magneticPendulum from '@gs/subsystems_effect-new_native-effects/fx/magneticPendulum/_def_.ts';
-				import doublePendulumFractal from '@gs/subsystems_effect-new_native-effects/fx/doublePendulumFractal/_def_.ts';
+			effects: `import mandelbrot from '@gs/subsystems_effect_native-effects/fx/mandelbrot/_def_.ts';
+				import imageTrap from '@gs/subsystems_effect_native-effects/fx/imageTrap/_def_.ts';
+				import magneticPendulum from '@gs/subsystems_effect_native-effects/fx/magneticPendulum/_def_.ts';
+				import doublePendulumFractal from '@gs/subsystems_effect_native-effects/fx/doublePendulumFractal/_def_.ts';
 				export const nativeEffectDefinitions = { test: { ...${JSON.stringify(effect)}, paramDefs: { ...${JSON.stringify(effect.paramDefs)},
 					view: mandelbrot.paramDefs.view, otherView: mandelbrot.paramDefs.view, imageTrapView: imageTrap.paramDefs.view,
 					magneticPendulumView: magneticPendulum.paramDefs.view, doublePendulumView: doublePendulumFractal.paramDefs.view } } };`,

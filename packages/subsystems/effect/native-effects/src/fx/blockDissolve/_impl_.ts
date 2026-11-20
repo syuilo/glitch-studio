@@ -1,0 +1,44 @@
+import type { NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
+import { createFullscreenEffect } from '../../fullscreen-effect.ts';
+import { transitionOutputs } from '../../transition/outputs.ts';
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
+import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
+import code, { uniforms as codeUniforms } from './shader.wgsl?shader';
+import type definition from './_def_.ts';
+
+const implementation: NativeEffectImplementation<typeof definition.paramDefs, 'inputA' | 'inputB'> = {
+	init(context) {
+		const { device, inputs, resolution } = context;
+		const uniformValues = createShaderBuffer(codeUniforms.uniforms);
+		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+		const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
+		const bindGroup = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
+		const outputs = transitionOutputs(context.outputTextures, code, { progress: 'scalar' });
+		uniformValues.set({
+			halfExtent: getSpatialHalfExtent(resolution),
+		});
+		return createFullscreenEffect(context, {
+			...outputs,
+			inputs,
+			internalLayouts: [layout],
+			sampling: 'level0',
+			bindResources(pass) {
+				const referenceScale = getSizeReferenceLength(inputs.sizeReference.value, resolution) / Math.max(resolution.width, resolution.height);
+				uniformValues.set({
+					gridOffset: inputs.gridOffset.value,
+					cellSize: Math.max(0.000001, inputs.cellSize.value) * referenceScale,
+					order: { random: 0, leftToRight: 1, topToBottom: 2 }[inputs.order.value],
+					seed: inputs.seed.value >>> 0,
+					softness: Math.max(0, inputs.softness.value),
+					reverse: inputs.reverse.value ? 1 : 0,
+				});
+				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
+				pass.setBindGroup(0, bindGroup);
+			},
+			disposeResources() { uniformBuffer.destroy(); },
+		});
+	},
+};
+
+export default implementation;

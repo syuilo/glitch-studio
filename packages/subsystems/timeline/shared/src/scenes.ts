@@ -1,7 +1,7 @@
 import { isTimelineContainerLayer, isTimelineVisualLayer } from './types.ts';
 import { validateTimelineMask, validateTimelineLayerMask, isTimelineLayerTransformTarget } from './timeline-compositing.ts';
 import { validateTimelineTransform } from './layers/transform/transform.ts';
-import { validateEffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
+import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import { validateTimelineCamera } from './layers/camera/camera.ts';
 import { flattenTimelineLayers, getTimelineClipLayers } from './layer-tree.ts';
 import { getTimelineClipEnd, validateTimelineClips } from './timing.ts';

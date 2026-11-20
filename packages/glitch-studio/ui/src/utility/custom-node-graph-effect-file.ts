@@ -1,11 +1,11 @@
 import type { CustomNodeGraphEffectEditorMetadata } from '@gs/glitch-studio_shared/project/types.ts';
 import { i18n } from '@/i18n.ts';
-import { nativeEffectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
+import { nativeEffectDefinitions } from '@gs/subsystems_effect_native-effects/definitions.ts';
 import { collectCustomNodeGraphEffectFile, encodeCustomNodeGraphEffectFile, decodeCustomNodeGraphEffectFile, prepareCustomNodeGraphEffectImport } from '../custom-node-graph-effect-file-codec.ts';
 import * as ui from '../ui.ts';
 import { applicationActivity } from '../application-activity.ts';
 import { resolveExternalAssets } from '../external-assets.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
 import type { ProjectContext } from '../Project.ts';
 
 export function pickCustomNodeGraphEffectFile(): Promise<File | null> {

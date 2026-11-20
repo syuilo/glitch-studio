@@ -1,11 +1,11 @@
 import type { CustomNodeGraphEffectEditorMetadata } from '@gs/glitch-studio_shared/project/types.ts';
-import { nativeEffectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
+import { nativeEffectDefinitions } from '@gs/subsystems_effect_native-effects/definitions.ts';
 import { preparePortableCustomNodeGraphEffect } from '@gs/glitch-studio_embed/export.ts';
 import { DEFAULT_PORTABLE_CUSTOM_NODE_GRAPH_EFFECT_SETTINGS } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
 import type { ProjectSessionContext } from '@/ProjectSessionContext.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
 
 export async function exportPortableCustomNodeGraphEffectFile(session: ProjectSessionContext, customNodeGraphEffect: CustomNodeGraphEffect, name: string, nodeMetadata?: CustomNodeGraphEffectEditorMetadata['nodeMetadata']): Promise<void> {
 	if (session.isDisposed) return;

@@ -1,4 +1,4 @@
-import type { EffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
+import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { NodeOutputReference, CustomNodeGraphEffectOutputDef, CustomNodeGraphEffectParamDef } from '@/types/custom-node-graph-effect-view.ts';
 import type { ParamEdit } from '@/components/GsVisualParam.vue';

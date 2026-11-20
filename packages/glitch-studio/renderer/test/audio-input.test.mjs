@@ -4,14 +4,14 @@ import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
-import { createAudioWindowReader } from '@gs/subsystems_effect-new_native-effects/audio-window.ts';
-import { createEffectInstance } from '@gs/subsystems_effect-new_renderer/create-effect-instance.ts';
+import { createAudioWindowReader } from '@gs/subsystems_effect_native-effects/audio-window.ts';
+import { createEffectInstance } from '@gs/subsystems_effect_renderer/create-effect-instance.ts';
 const { AudioHistory } = await load('@gs/subsystems_audio_renderer/audio-history.ts');
 const { playerAudioSourceId } = await load('@gs/shared/audio.ts');
 const { PlayerAudioInputs } = await loadShaderSource(fileURLToPath(new URL('../src/player-audio-inputs.ts', import.meta.url)));
 import { createTimelineEffectProbe } from './helpers/timeline-effect-probe.mjs';
-const { default: waveform } = await load('@gs/subsystems_effect-new_native-effects/fx/audioWaveform/_impl_.ts');
-const { default: waveformDefinition } = await load('@gs/subsystems_effect-new_native-effects/fx/audioWaveform/_def_.ts');
+const { default: waveform } = await load('@gs/subsystems_effect_native-effects/fx/audioWaveform/_impl_.ts');
+const { default: waveformDefinition } = await load('@gs/subsystems_effect_native-effects/fx/audioWaveform/_def_.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const audioDef = waveformDefinition.paramDefs.audio;
 const signal = () => new AbortController().signal;

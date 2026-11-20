@@ -4,9 +4,9 @@ import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { genId } from '@gs/shared/utility/id.ts';
-import imageEffectDef from '@gs/subsystems_effect-new_native-effects/fx/image/_def_.ts';
-import videoEffectDef from '@gs/subsystems_effect-new_native-effects/fx/video/_def_.ts';
-import audioWaveformEffectDef from '@gs/subsystems_effect-new_native-effects/fx/audioWaveform/_def_.ts';
+import imageEffectDef from '@gs/subsystems_effect_native-effects/fx/image/_def_.ts';
+import videoEffectDef from '@gs/subsystems_effect_native-effects/fx/video/_def_.ts';
+import audioWaveformEffectDef from '@gs/subsystems_effect_native-effects/fx/audioWaveform/_def_.ts';
 import { DEFAULT_TIMELINE_FPS, DEFAULT_TIMELINE_MOTION_BLUR } from './project-defaults.ts';
 import { DEFAULT_PROJECT_NAME, selectProjectFile } from './gsproj.ts';
 import { recentProjects } from './recent-projects.ts';

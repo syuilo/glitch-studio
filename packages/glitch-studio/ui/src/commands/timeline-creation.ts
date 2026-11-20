@@ -10,7 +10,7 @@ import { createCameraTimelineLayer } from '../utility/camera-timeline-layer.ts';
 import { createVoicevoxTimelineLayer } from '../utility/voicevox-timeline-layer.ts';
 import { createImageLayer } from '../utility/image-layer.ts';
 import { getEffectDefinitions } from '../utility/project-effects.ts';
-import type { EffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
+import type { EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
 import type { ProjectState } from '../Project.ts';
 import type { ShapeType } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import type { TimelineLayer, TimelineClipLayer } from '@gs/subsystems_timeline_shared/types.ts';

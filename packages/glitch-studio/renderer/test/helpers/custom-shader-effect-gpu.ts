@@ -1,14 +1,14 @@
-import { createEffectInstance } from '@gs/subsystems_effect-new_renderer/create-effect-instance.ts';
-import type { EffectParameterInput } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
-import type { CustomShaderEffect } from '@gs/subsystems_effect-new_shared/custom-shader-effect.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
-import type { EffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
+import { createEffectInstance } from '@gs/subsystems_effect_renderer/create-effect-instance.ts';
+import type { EffectParameterInput } from '@gs/subsystems_effect_renderer/effect-instance.ts';
+import type { CustomShaderEffect } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
+import type { EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
 import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { EffectLivePreviewManager } from '@gs/glitch-studio_renderer/effect-live-preview-manager.ts';
 import { TimelineRendererManager } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
-import fillDefinition from '@gs/subsystems_effect-new_native-effects/fx/fill/_def_.ts';
-import fillImplementation from '@gs/subsystems_effect-new_native-effects/fx/fill/_impl_.ts';
+import fillDefinition from '@gs/subsystems_effect_native-effects/fx/fill/_def_.ts';
+import fillImplementation from '@gs/subsystems_effect_native-effects/fx/fill/_impl_.ts';
 async function checkCanvasPixel(device: GPUDevice, canvas: OffscreenCanvas, expected: number[]) {
 	await device.queue.onSubmittedWorkDone();
 	const bitmap = await createImageBitmap(canvas);

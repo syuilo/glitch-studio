@@ -1,12 +1,12 @@
 import vertex from '@gs/shared/gpu/vertex.wgsl?raw';
-import fillDefinition from '@gs/subsystems_effect-new_native-effects/fx/fill/_def_.ts';
-import fillImplementation from '@gs/subsystems_effect-new_native-effects/fx/fill/_impl_.ts';
+import fillDefinition from '@gs/subsystems_effect_native-effects/fx/fill/_def_.ts';
+import fillImplementation from '@gs/subsystems_effect_native-effects/fx/fill/_impl_.ts';
 import { createEffectTimelineLayer } from '../../src/layers/effect/effect-timeline-layer.ts';
 import { testEffectLayer, testLayerContext } from './effect-layer-fixture.ts';
 import { createTextureReader } from './read-texture.ts';
-import type { CustomShaderEffect } from '@gs/subsystems_effect-new_shared/custom-shader-effect.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
-import type { EffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
+import type { CustomShaderEffect } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
+import type { EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
 import { acquireTransparentTimelineImage, type TimelineImage } from '../../src/timeline-image.ts';
 
 const literal = <T>(value: T) => ({ inputSource: 'literal' as const, value });

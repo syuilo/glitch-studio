@@ -4,7 +4,7 @@ import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
-import type { CustomNodeGraphEffect as Definition, CustomNodeGraphEffectNode as StoredNode, CustomNodeGraphEffectOutputSource, CustomNodeGraphEffectParameterBinding as StoredBinding } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import type { CustomNodeGraphEffect as Definition, CustomNodeGraphEffectNode as StoredNode, CustomNodeGraphEffectOutputSource, CustomNodeGraphEffectParameterBinding as StoredBinding } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
 import type { CustomNodeGraphEffectEditorMetadata } from '@gs/glitch-studio_shared/project/types.ts';
 import type { ProjectState } from '../Project.ts';
 import { getEffectDefinitions } from './project-effects.ts';

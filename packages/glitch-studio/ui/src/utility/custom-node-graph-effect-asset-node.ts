@@ -1,8 +1,8 @@
 import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
-import imageEffect from '@gs/subsystems_effect-new_native-effects/fx/image/_def_.ts';
-import videoEffect from '@gs/subsystems_effect-new_native-effects/fx/video/_def_.ts';
-import audioWaveformEffect from '@gs/subsystems_effect-new_native-effects/fx/audioWaveform/_def_.ts';
+import imageEffect from '@gs/subsystems_effect_native-effects/fx/image/_def_.ts';
+import videoEffect from '@gs/subsystems_effect_native-effects/fx/video/_def_.ts';
+import audioWaveformEffect from '@gs/subsystems_effect_native-effects/fx/audioWaveform/_def_.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import type { CustomNodeGraphEffectEffectNode } from '@/types/custom-node-graph-effect-view.ts';

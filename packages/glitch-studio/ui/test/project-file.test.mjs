@@ -105,9 +105,9 @@ const appBundle = await build({
 			build.onLoad({ filter: /.*/, namespace: 'platform' }, args => ({
 				loader: 'ts', resolveDir: import.meta.dirname,
 				contents: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/.test(args.path)
-					? `import fill from '@gs/subsystems_effect-new_native-effects/fx/fill/_def_.ts';
-						import image from '@gs/subsystems_effect-new_native-effects/fx/image/_def_.ts';
-						import video from '@gs/subsystems_effect-new_native-effects/fx/video/_def_.ts';
+					? `import fill from '@gs/subsystems_effect_native-effects/fx/fill/_def_.ts';
+						import image from '@gs/subsystems_effect_native-effects/fx/image/_def_.ts';
+						import video from '@gs/subsystems_effect_native-effects/fx/video/_def_.ts';
 						export const nativeEffectDefinitions = { fill, image, video };`
 					: args.path.endsWith('preferences.ts') ? `
 						import { reactive, toRefs } from 'vue';

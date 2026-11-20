@@ -2,7 +2,7 @@ import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.t
 import { findTimelineLayer, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { ProjectCustomShaderEffect, ProjectCustomNodeGraphEffect, ProjectEffectRegistrations } from './types.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectNode } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectNode } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
 import type { ParameterChangeKind } from '@gs/shared/parameter/parameter-definition.ts';
 import type { TimelineClipLayer, TimelineContainerLayer, TimelineLayer, TimelineLayerChange, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { CustomNodeGraphEffectTarget } from './custom-node-graph-effect-target.ts';

@@ -1,4 +1,4 @@
-import { acceptsResolutionInput } from '@gs/subsystems_effect-new_shared/validate-effect-source.ts';
+import { acceptsResolutionInput } from '@gs/subsystems_effect_shared/validate-effect-source.ts';
 import { editCustomNodeGraphEffectView } from '../utility/custom-node-graph-effect-view.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import type { Cloneable } from '@gs/shared/utility/deep-clone.ts';

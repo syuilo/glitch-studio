@@ -31,7 +31,7 @@ const bundled = await build({
 		export { commitCustomNodeGraphEffectEdit } from './src/utility/custom-node-graph-effect-edit.ts';
 		export { RendererProjectSynchronizer } from './src/RendererProjectSynchronizer.ts';
 		export { EffectLivePreviewManager } from '@gs/glitch-studio_renderer/effect-live-preview-manager.ts';
-		export { createEffectInstance } from '@gs/subsystems_effect-new_renderer/create-effect-instance.ts';
+		export { createEffectInstance } from '@gs/subsystems_effect_renderer/create-effect-instance.ts';
 	` },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	loader: { '.wgsl': 'text' },

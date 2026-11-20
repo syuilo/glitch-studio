@@ -1,6 +1,6 @@
-import { nativeEffectProbe } from '@gs/subsystems_effect-new_native-effects/test/native-effect-probe.ts';
-import gradientNative from '@gs/subsystems_effect-new_native-effects/fx/gradient/_impl_.ts';
-import definition from '@gs/subsystems_effect-new_native-effects/fx/gradient/_def_.ts';
+import { nativeEffectProbe } from '@gs/subsystems_effect_native-effects/test/native-effect-probe.ts';
+import gradientNative from '@gs/subsystems_effect_native-effects/fx/gradient/_impl_.ts';
+import definition from '@gs/subsystems_effect_native-effects/fx/gradient/_def_.ts';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { float32ToFloat16Bits } from '@gs/shared/utility/float32ToFloat16Bits.ts';
 

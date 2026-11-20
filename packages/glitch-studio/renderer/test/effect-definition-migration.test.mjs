@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
-const effectDirectory = new URL('../', import.meta.resolve('@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts'));
+const effectDirectory = new URL('../', import.meta.resolve('@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts'));
 const definitions = await Promise.all((await readdir(effectDirectory, { withFileTypes: true }))
 	.filter(entry => entry.isDirectory() && existsSync(new URL(`${entry.name}/_def_.ts`, effectDirectory)))
 	.map(async entry => ({ id: entry.name, ...(await import(new URL(`${entry.name}/_def_.ts`, effectDirectory))).default })));
@@ -78,9 +78,9 @@ test('uses string sizes and named processing modes', () => {
 test('infers string enums and nested shader inputs from migrated definitions', () => {
 	const fileName = fileURLToPath(new URL('./effect-definition-migration.fixture.ts', import.meta.url)).replaceAll('\\', '/');
 	const source = `
-import type spectrum from '@gs/subsystems_effect-new_native-effects/fx/audioSpectrum/_def_.ts';
-import type nested from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts';
-import type { NativeParameterValues } from '@gs/subsystems_effect-new_native-effects/multipass.ts';
+import type spectrum from '@gs/subsystems_effect_native-effects/fx/audioSpectrum/_def_.ts';
+import type nested from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts';
+import type { NativeParameterValues } from '@gs/subsystems_effect_native-effects/multipass.ts';
 type Spectrum = NativeParameterValues<typeof spectrum.paramDefs>;
 type Nested = NativeParameterValues<typeof nested.paramDefs>;
 const fftSize: Spectrum['fftSize'] = '2048';
@@ -123,8 +123,8 @@ function assertTypeChecks(fileName, source) {
 test('rejects unknown and missing struct fields in effect definitions', () => {
 	const fileName = fileURLToPath(new URL('./exact-effect-definition.fixture.ts', import.meta.url)).replaceAll('\\', '/');
 	const source = `
-import { defineNativeEffect } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
-import definition from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts';
+import { defineNativeEffect } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import definition from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts';
 const { paramDefs: { foo: struct, buzzs: array }, ...definitionMetadata } = definition;
 const base = { ...definitionMetadata, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameters: [] };
 const uiField = struct.ui.control.fields.node;

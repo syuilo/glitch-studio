@@ -1,9 +1,9 @@
-import { nativeEffectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
+import { nativeEffectDefinitions } from '@gs/subsystems_effect_native-effects/definitions.ts';
 import { createProjectEffectDefinitions } from '@gs/glitch-studio_shared/project/effects.ts';
-import { resolveEffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
-import type { EffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
-import type { EffectDefinition, NativeEffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import { resolveEffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
+import type { EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
+import type { EffectDefinition, NativeEffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { ProjectCustomNodeGraphEffect, ProjectEffectRegistrations } from '@gs/glitch-studio_shared/project/types.ts';
 
 type RegistrationState = { [K in keyof ProjectEffectRegistrations]?: { readonly value: ProjectEffectRegistrations[K] } };

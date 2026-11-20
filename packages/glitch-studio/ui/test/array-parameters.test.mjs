@@ -18,7 +18,7 @@ const bundled = await build({
 			export { commitCustomNodeGraphEffectEdit } from './src/utility/custom-node-graph-effect-edit.ts';
 			export { resolveNodeParam, walkNodeParams } from './src/utility/node-params.ts';
 			export { createResetParameterBinding } from './src/utility/parameter-default.ts';
-			export { default as definition } from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts';
+			export { default as definition } from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts';
 		`,
 		resolveDir: uiDirectory, loader: 'ts',
 	},
@@ -30,7 +30,7 @@ const bundled = await build({
 			loader: 'ts', resolveDir: uiDirectory,
 			contents: path === 'preferences'
 				? 'export const preferences = { s: { forceTypeSafety: false } };'
-				: "import definition from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };",
+				: "import definition from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };",
 		}));
 	} }],
 });

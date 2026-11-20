@@ -6,7 +6,7 @@ import { prepareProjectEffectPlacementChanges } from './project-effect-placement
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { CustomNodeGraphEffectTarget } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
-import type { CustomNodeGraphEffectParameterBinding } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import type { CustomNodeGraphEffectParameterBinding } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
 import type { TimelineEffectParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { AppStateChange, ProjectState } from '../Project.ts';
 import type { PreparedCommand } from '../utility/undo-redo.ts';

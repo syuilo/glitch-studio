@@ -1,0 +1,61 @@
+import type { NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
+import { createFullscreenEffect } from '../../fullscreen-effect.ts';
+import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
+import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
+import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
+import { createLinearBlurTaps, getLinearBlurSampleCount } from './sampling.ts';
+import code, { uniforms as codeUniforms } from './shader.shader.ts?shader';
+import type definition from './_def_.ts';
+
+const implementation: NativeEffectImplementation<typeof definition.paramDefs> = {
+	init(context) {
+		const { device, resolution, inputs } = context;
+		const uniformValues = createShaderBuffer(codeUniforms.uniforms);
+		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+		const tapTableValues = createShaderBuffer(codeUniforms.tapTable);
+		const tapTableBuffer = device.createBuffer({ size: tapTableValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+		const layout = device.createBindGroupLayout({ entries: [
+			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+		] });
+		const bindGroup = device.createBindGroup({ layout, entries: [
+			{ binding: 0, resource: { buffer: uniformBuffer } },
+			{ binding: 1, resource: { buffer: tapTableBuffer } },
+		] });
+
+		const halfExtent = getSpatialHalfExtent(resolution);
+		let previousSampleCount: number | null = null;
+		return createFullscreenEffect(context, {
+			code,
+			schema: { input: 'color', length: 'scalar', angle: 'scalar', focusRadius: 'scalar', dispersion: 'scalar', dispersionFalloff: 'scalar', bias: 'scalar', highlights: 'scalar', jitter: 'scalar' },
+			inputs,
+			internalLayouts: [layout],
+			sampling: 'level0',
+			bindResources(pass) {
+				const sampleCount = getLinearBlurSampleCount(inputs.samples.value);
+				if (sampleCount !== previousSampleCount) {
+					tapTableValues.set({ taps: createLinearBlurTaps(sampleCount) });
+					device.queue.writeBuffer(tapTableBuffer, 0, tapTableValues.arrayBuffer);
+					previousSampleCount = sampleCount;
+				}
+				uniformValues.set({
+					halfExtent,
+					// 直線のぼかしには回転中心がない。元実装と同じく画面中央からの
+					// 距離で保護・分散を決め、長さと方向は出力位置ごとの入力で指定する。
+					maximumDistance: Math.hypot(...halfExtent),
+					referenceScale: getSizeReferenceLength(inputs.sizeReference.value, resolution) / Math.max(resolution.width, resolution.height),
+					samples: sampleCount,
+					seed: Math.trunc(inputs.seed.value) >>> 0,
+				});
+				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
+				pass.setBindGroup(0, bindGroup);
+			},
+			disposeResources() {
+				uniformBuffer.destroy();
+				tapTableBuffer.destroy();
+			},
+		});
+	},
+};
+
+export default implementation;

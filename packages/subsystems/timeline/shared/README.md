@@ -121,4 +121,4 @@ Effectレイヤーの画像入力に`lowerLayerOutput` / `anotherLayerOutput`を
 
 公開する位置・移動・距離・CameraのXY/Zは[共通空間単位](../../../../docs/spatial-coordinate.md)です。Originは透明余白を含む素材の長辺単位、Positionは配置先のScene単位です。画像合成・クリップ・行列は内部の各軸[-1,+1]で扱い、`layer-transform.ts`が境界の換算を担当します。カメラの画角と既定Zも長辺基準とし、パラメータ定義・作成・評価にはSceneの解像度を渡しません。投影と祖先Transformの座標換算には引き続き描画先のScene寸法を使います。
 
-Effectレイヤーの `effectSource` はeffect-newのEffectSourceを保存する。Native Effect、Custom Shader Effect、Custom Node Graph Effectに共通のパラメータ・静的設定・解像度を持ち、Custom EffectはID参照とインライン配置の両方を扱う。Timelineへ配置するEffectは、プライマリ出力にcolorポートを指定する。
+Effectレイヤーの `effectSource` はeffectのEffectSourceを保存する。Native Effect、Custom Shader Effect、Custom Node Graph Effectに共通のパラメータ・静的設定・解像度を持ち、Custom EffectはID参照とインライン配置の両方を扱う。Timelineへ配置するEffectは、プライマリ出力にcolorポートを指定する。

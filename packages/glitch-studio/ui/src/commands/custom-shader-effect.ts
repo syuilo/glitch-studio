@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import { findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { validateCustomShaderEffectDefinition } from '@gs/subsystems_effect-new_shared/custom-shader-effect.ts';
+import { validateCustomShaderEffectDefinition } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
 import { areProjectCustomShaderEffectsEqual, createProjectCustomShaderEffect } from '../utility/custom-shader-effect.ts';
 import { isCustomShaderEffectUsed, reconcileCustomShaderEffectUsages } from '../utility/custom-shader-effect-usages.ts';
 import { defineCommand, definePublicCommand } from './definition.ts';

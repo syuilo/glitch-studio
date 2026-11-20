@@ -15,8 +15,8 @@ const bundled = await build({ absWorkingDir: directory, bundle: true, platform: 
 		export * from './src/utility/preview-parameter-editing.ts';
 		export * from './src/utility/preview-parameter-position.ts';
 		export * from './src/utility/preview-viewport.ts';
-		export { default as mandelbrot } from '@gs/subsystems_effect-new_native-effects/fx/mandelbrot/_def_.ts';
-		export { default as magneticPendulum } from '@gs/subsystems_effect-new_native-effects/fx/magneticPendulum/_def_.ts';
+		export { default as mandelbrot } from '@gs/subsystems_effect_native-effects/fx/mandelbrot/_def_.ts';
+		export { default as magneticPendulum } from '@gs/subsystems_effect_native-effects/fx/magneticPendulum/_def_.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { createInlineKeyframesTimeline } from './src/utility/keyframes-timeline.ts';
@@ -25,7 +25,7 @@ const bundled = await build({ absWorkingDir: directory, bundle: true, platform: 
 		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'stub' }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'stub' }));
 		build.onLoad({ filter: /.*/, namespace: 'stub' }, ({ path }) => ({ resolveDir: directory, contents: path === 'effects'
-			? `import mandelbrot from '@gs/subsystems_effect-new_native-effects/fx/mandelbrot/_def_.ts'; export const nativeEffectDefinitions = { test: { ...mandelbrot, ...${JSON.stringify(effect)}, paramDefs: { ...${JSON.stringify(effect.paramDefs)}, view: mandelbrot.paramDefs.view } } };`
+			? `import mandelbrot from '@gs/subsystems_effect_native-effects/fx/mandelbrot/_def_.ts'; export const nativeEffectDefinitions = { test: { ...mandelbrot, ...${JSON.stringify(effect)}, paramDefs: { ...${JSON.stringify(effect.paramDefs)}, view: mandelbrot.paramDefs.view } } };`
 			: 'export const preferences = { s: { forceTypeSafety: false } };' }));
 	} }],
 });

@@ -1,7 +1,7 @@
 import type { CustomNodeGraphEffectNodeChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { TimelineLayerChange } from '@gs/subsystems_timeline_shared/types.ts';
 import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
-import type { CustomNodeGraphEffectEffectNode } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import type { CustomNodeGraphEffectEffectNode } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
 
 export type CustomNodeGraphEffectValueChange =
 	| (Extract<RendererProjectChange, { type: 'node' }> & { node: CustomNodeGraphEffectEffectNode; changes: { type: 'parameter'; kind: 'value' }[] })

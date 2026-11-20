@@ -15,13 +15,13 @@ const bundled = await build({
 		export { createEffectTimelineLayer } from './src/utility/effect-timeline-layer.ts';
 		export { createInlineCustomNodeGraphEffectLayer } from './src/utility/inline-custom-node-graph-effect-layer.ts';
 		export { createTextTimelineLayer } from './src/utility/text-timeline-layer.ts';
-		export { default as definition } from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts';
+		export { default as definition } from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts';
 	` },
 	plugins: [{ name: 'timeline-parameter-effects', setup(build) {
 		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', resolveDir: directory,
-			contents: path === 'preferences' ? 'export const preferences = { s: { forceTypeSafety: false } };' : "import definition from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };",
+			contents: path === 'preferences' ? 'export const preferences = { s: { forceTypeSafety: false } };' : "import definition from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };",
 		}));
 	} }],
 });

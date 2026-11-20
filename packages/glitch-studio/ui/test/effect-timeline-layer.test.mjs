@@ -20,7 +20,7 @@ const bundled = await build({
 		export { canConnectNodeDataTypes } from './src/utility/node-outputs.ts';
 		export { commitTimelineParameterEdit } from './src/utility/timeline-parameter-command-actions.ts';
 		export { areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
-		export { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
+		export { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect_native-effects/definitions.ts';
 		export { preferences } from './src/preferences.ts';
 		export { validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 	`, resolveDir: uiDirectory, loader: 'ts' },

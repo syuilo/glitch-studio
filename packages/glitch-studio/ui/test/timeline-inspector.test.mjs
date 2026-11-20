@@ -48,7 +48,7 @@ const result = await build({
 				timelineAudioPreview: { buffering: ref(false), error: ref(null) },
 				timelineRendererManagerController: { errorMessage: ref(null), frameCacheState: ref(null), isReady: ref(true), isFrameCacheEnabled: ref(false), layerTransform: ref(null), async observeLayerTransform() {}, getLayerEffectStates() {}, getEffectLayerState() {} },
 			};`,
-			effects: "import audioWaveform from '@gs/subsystems_effect-new_native-effects/fx/audioWaveform/_def_.ts'; export const nativeEffectDefinitions = { audioWaveform };",
+			effects: "import audioWaveform from '@gs/subsystems_effect_native-effects/fx/audioWaveform/_def_.ts'; export const nativeEffectDefinitions = { audioWaveform };",
 			preferences: `import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: true }, r: { showTransformInPreview: ref(true) },
 				model: key => ref(key === 'timelineTickMode' ? 'binary' : false) };`,
 			ui: `export const dropUiTest = { dialogs: 0 };

@@ -23,7 +23,7 @@ import type { Ref, ShallowRef } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.js';
 import { deepEqual } from '@gs/shared/utility/deep-equal.js';
-import { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
+import { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect_native-effects/definitions.ts';
 import { getSceneAudioClips } from '@gs/subsystems_timeline_shared/scene-audio.js';
 import { VoicevoxGeneration } from './audio/voicevox-generation.ts';
 import { AudioOutput } from './audio/audio-output.ts';

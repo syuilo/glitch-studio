@@ -24,14 +24,14 @@ const commands = evaluate(await build({
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts';
-		export { default as definition } from '@gs/subsystems_effect-new_native-effects/fx/colorRamp/_def_.ts';
+		export { default as definition } from '@gs/subsystems_effect_native-effects/fx/colorRamp/_def_.ts';
 	` },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 	plugins: [i18nPlugin, { name: 'color-ramp-command-platform', setup(build) {
 		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$|preferences\.ts$/ }, args => ({ path: args.path.includes('preferences') ? 'preferences' : 'effects', namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', resolveDir: uiDirectory, contents: path === 'preferences'
 			? 'export const preferences = { s: { forceTypeSafety: true } };'
-			: "import definition from '@gs/subsystems_effect-new_native-effects/fx/colorRamp/_def_.ts'; export const nativeEffectDefinitions = { colorRamp: definition };" }));
+			: "import definition from '@gs/subsystems_effect_native-effects/fx/colorRamp/_def_.ts'; export const nativeEffectDefinitions = { colorRamp: definition };" }));
 	} }],
 }));
 

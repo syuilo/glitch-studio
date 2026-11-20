@@ -1,5 +1,5 @@
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { EffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { getEffectDefinitions } from './project-effects.ts';
 type EffectOutputDefinitions = Record<string, EffectDefinition['outputDefs'][string]>;
 import type { CustomNodeGraphEffectNode, CustomNodeGraphEffect } from '../types/custom-node-graph-effect-view.ts';

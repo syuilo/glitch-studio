@@ -16,7 +16,7 @@ const bundled = await build({
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { createShapeTimelineLayer } from './src/utility/shape-timeline-layer.ts';
 		export { createInlineKeyframesTimeline } from './src/utility/keyframes-timeline.ts';
-		export { default as definition } from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts';
+		export { default as definition } from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts';
 	`, resolveDir: uiDirectory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'parameter-clipboard-test', setup(build) {
@@ -24,7 +24,7 @@ const bundled = await build({
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({
 			contents: path === 'effects'
-				? "import definition from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };"
+				? "import definition from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };"
 				: 'export const preferences = { s: { forceTypeSafety: true } };', loader: 'ts', resolveDir: uiDirectory,
 		}));
 	} }],

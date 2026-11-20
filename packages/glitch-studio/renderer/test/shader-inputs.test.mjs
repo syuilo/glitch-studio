@@ -1,4 +1,4 @@
-import { createEffectInstance } from '@gs/subsystems_effect-new_renderer/create-effect-instance.ts';
+import { createEffectInstance } from '@gs/subsystems_effect_renderer/create-effect-instance.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -11,12 +11,12 @@ globalThis.GPUQueue = class { submit() {} };
 
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { constantShaderInput, textureShaderInput, inputUvScale } = await load('@gs/shared/gpu/shader-input.ts');
-const { default: effect } = await load('@gs/subsystems_effect-new_native-effects/fx/colorMix/_impl_.ts');
-const { default: definition } = await load('@gs/subsystems_effect-new_native-effects/fx/colorMix/_def_.ts');
-const { default: imageEffect } = await load('@gs/subsystems_effect-new_native-effects/fx/image/_impl_.ts');
-const { default: imageDefinition } = await load('@gs/subsystems_effect-new_native-effects/fx/image/_def_.ts');
-const { default: videoEffect } = await load('@gs/subsystems_effect-new_native-effects/fx/video/_impl_.ts');
-const { default: videoDefinition } = await load('@gs/subsystems_effect-new_native-effects/fx/video/_def_.ts');
+const { default: effect } = await load('@gs/subsystems_effect_native-effects/fx/colorMix/_impl_.ts');
+const { default: definition } = await load('@gs/subsystems_effect_native-effects/fx/colorMix/_def_.ts');
+const { default: imageEffect } = await load('@gs/subsystems_effect_native-effects/fx/image/_impl_.ts');
+const { default: imageDefinition } = await load('@gs/subsystems_effect_native-effects/fx/image/_def_.ts');
+const { default: videoEffect } = await load('@gs/subsystems_effect_native-effects/fx/video/_impl_.ts');
+const { default: videoDefinition } = await load('@gs/subsystems_effect_native-effects/fx/video/_def_.ts');
 const { toShaderInput } = await load('@gs/shared/gpu/shader-input.ts');
 const { TimelineRenderer } = await load('@gs/subsystems_timeline_renderer/timeline-renderer.ts');
 import { createTimelineEffectProbe } from './helpers/timeline-effect-probe.mjs';

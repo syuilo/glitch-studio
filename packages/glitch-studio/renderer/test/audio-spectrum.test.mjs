@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import { createEffectInstance } from '@gs/subsystems_effect-new_renderer/create-effect-instance.ts';
+import { createEffectInstance } from '@gs/subsystems_effect_renderer/create-effect-instance.ts';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
-const { default: implementation } = await load('@gs/subsystems_effect-new_native-effects/fx/audioSpectrum/_impl_.ts');
-const { default: definition } = await load('@gs/subsystems_effect-new_native-effects/fx/audioSpectrum/_def_.ts');
+const { default: implementation } = await load('@gs/subsystems_effect_native-effects/fx/audioSpectrum/_impl_.ts');
+const { default: definition } = await load('@gs/subsystems_effect_native-effects/fx/audioSpectrum/_def_.ts');
 const { createTimelineAudioInput } = await load('@gs/subsystems_timeline_audio-renderer/timeline-audio-input.ts');
 const { TimelineAudioRenderer } = await load('@gs/subsystems_timeline_audio-renderer/timeline-audio-renderer.ts');
 const { createAudioWindow } = await load('@gs/subsystems_audio_shared/audio-window.ts');

@@ -1,4 +1,4 @@
-import { createEffectInstance } from '@gs/subsystems_effect-new_renderer/create-effect-instance.ts';
+import { createEffectInstance } from '@gs/subsystems_effect_renderer/create-effect-instance.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { TimelineRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';

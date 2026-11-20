@@ -3,8 +3,8 @@ import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.
 import { getArrayElementDefinition, getStructFieldDefinitions, validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { constantShaderInputComponents } from '@gs/shared/gpu/shader-input.ts';
-import type { EffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
-import type { EffectParameterInput } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
+import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import type { EffectParameterInput } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { ParameterEvaluationScope } from '@gs/shared/parameter/parameter-evaluation-scope.ts';

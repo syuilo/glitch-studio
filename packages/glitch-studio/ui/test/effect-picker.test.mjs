@@ -17,7 +17,7 @@ const bundle = await build({
 	absWorkingDir: directory,
 	stdin: { contents: `
 		export { default as EffectPicker } from './src/components/GsEffectPicker.vue';
-		export { nativeEffectDefinitions as fixtureDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
+		export { nativeEffectDefinitions as fixtureDefinitions } from '@gs/subsystems_effect_native-effects/definitions.ts';
 		export { state } from '@/project-session.ts';
 	`, resolveDir: directory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,

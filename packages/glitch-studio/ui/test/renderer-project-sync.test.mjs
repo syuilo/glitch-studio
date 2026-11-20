@@ -21,7 +21,7 @@ const bundle = await build({
 		export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts';
 		export { RendererProjectSynchronizer } from './src/RendererProjectSynchronizer.ts';
 		export { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
-		export { default as definition } from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts';
+		export { default as definition } from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts';
 		export { createEffectTimelineLayer } from './src/utility/effect-timeline-layer.ts';
 		export { createInlineCustomNodeGraphEffectLayer } from './src/utility/inline-custom-node-graph-effect-layer.ts';
 		export { createCameraTimelineLayer } from './src/utility/camera-timeline-layer.ts';
@@ -35,7 +35,7 @@ const bundle = await build({
 		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$|preferences\.ts$/ }, args => ({ path: args.path, namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', resolveDir: directory,
 			contents: path.endsWith('preferences.ts') ? 'export const preferences = { s: { forceTypeSafety: false } };'
-				: "import definition from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };",
+				: "import definition from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };",
 		}));
 	} }],
 });

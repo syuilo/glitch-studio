@@ -1,6 +1,6 @@
 import { createTextureReader } from './read-texture.ts';
-import definition from '@gs/subsystems_effect-new_native-effects/fx/text/_def_.ts';
-import implementation from '@gs/subsystems_effect-new_native-effects/fx/text/_impl_.ts';
+import definition from '@gs/subsystems_effect_native-effects/fx/text/_def_.ts';
+import implementation from '@gs/subsystems_effect_native-effects/fx/text/_impl_.ts';
 import { createEffectTimelineLayer } from '../../src/layers/effect/effect-timeline-layer.ts';
 import { testEffectLayer, testLayerContext } from './effect-layer-fixture.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';

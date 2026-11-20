@@ -11,7 +11,7 @@
 <script lang="ts" setup>
 import { computed, useTemplateRef } from 'vue';
 import GsDetachableView from './GsDetachableView.vue';
-import type { SpectrogramSettings } from '@gs/subsystems_effect-new_native-effects/fx/audioSpectrogram/audio-spectrogram.ts';
+import type { SpectrogramSettings } from '@gs/subsystems_effect_native-effects/fx/audioSpectrogram/audio-spectrogram.ts';
 import type { PreviewOptions } from '@/audio/audio-preview-types.ts';
 import { i18n } from '@/i18n.ts';
 import { useAudioPreview } from '@/use-audio-preview.ts';

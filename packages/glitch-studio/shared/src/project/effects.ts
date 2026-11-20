@@ -1,4 +1,4 @@
-import type { EffectDefinitions } from '@gs/subsystems_effect-new_shared/effect-source.ts';
+import type { EffectDefinitions } from '@gs/subsystems_effect_shared/effect-source.ts';
 import type { ProjectEffectRegistrations } from './types.ts';
 
 export type NativeEffectDefinitions = Readonly<Record<string, ReturnType<EffectDefinitions['getNativeEffect']>>>;

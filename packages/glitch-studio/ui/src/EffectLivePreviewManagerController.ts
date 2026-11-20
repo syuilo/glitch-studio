@@ -16,8 +16,8 @@ import type { ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/proj
 import type { Asset, Player } from '@gs/shared/types.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { CustomNodeGraphEffectArgumentBindings } from '@/types/custom-node-graph-effect-view.ts';
-import type { EffectPreparationStatus } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
-import type { EffectRenderTilingProgress } from '@gs/subsystems_effect-new_shared/effect-render-tiling.ts';
+import type { EffectPreparationStatus } from '@gs/subsystems_effect_renderer/effect-instance.ts';
+import type { EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { EffectLivePreviewManager, EffectLivePreviewManagerResources, EffectLivePreviewManagerStaticOptions, EffectLivePreviewManagerDynamicOptions, EffectLivePreviewManagerEvents } from '@gs/glitch-studio_renderer/effect-live-preview-manager.ts';
 
 export type EffectLivePreviewManagerInitialOptions = {

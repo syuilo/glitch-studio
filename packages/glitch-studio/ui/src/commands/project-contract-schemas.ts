@@ -2,7 +2,7 @@ import * as z from 'zod';
 import { automationGraphDataSchema, parameterDefinitionSchema, textureDataTypeSchema } from './parameter-contract-schemas.ts';
 import type { Player } from '@gs/shared/types.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
-import type { CustomShaderEffect } from '@gs/subsystems_effect-new_shared/custom-shader-effect.ts';
+import type { CustomShaderEffect } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
 export { automationGraphSchema } from './parameter-contract-schemas.ts';
 
 export const projectResolutionSchema = z.object({

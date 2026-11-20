@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
-import definition from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts';
+import definition from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts';
 
 // 【データ型を構造で比較する】
 // 参照が異なる型でも同じ構造ならプレビュー値を維持し、要素型が変われば再初期化する。

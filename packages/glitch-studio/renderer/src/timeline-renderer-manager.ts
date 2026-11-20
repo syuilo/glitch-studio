@@ -1,8 +1,8 @@
 import { diffEffectRegistrationSnapshots } from './effect-registration-changes.ts';
 import { createProjectEffectDefinitions, type NativeEffectDefinitions } from '@gs/glitch-studio_shared/project/effects.ts';
-import type { EffectDefinitions } from '@gs/subsystems_effect-new_shared/effect-source.ts';
-import type { NativeEffectImplementation, EffectPreparationStatus } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
-import type { EffectRenderTiling, EffectRenderTilingProgress } from '@gs/subsystems_effect-new_shared/effect-render-tiling.ts';
+import type { EffectDefinitions } from '@gs/subsystems_effect_shared/effect-source.ts';
+import type { NativeEffectImplementation, EffectPreparationStatus } from '@gs/subsystems_effect_renderer/effect-instance.ts';
+import type { EffectRenderTiling, EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
 import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes, PreviewImageAnalysisDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';

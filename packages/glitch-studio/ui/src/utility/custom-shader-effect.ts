@@ -2,7 +2,7 @@ import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
-import type { EffectParameterLayoutItem } from '@gs/subsystems_effect-new_shared/effect-parameter-layout.ts';
+import type { EffectParameterLayoutItem } from '@gs/subsystems_effect_shared/effect-parameter-layout.ts';
 
 export function areProjectCustomShaderEffectsEqual(before: ProjectCustomShaderEffect, after: ProjectCustomShaderEffect): boolean {
 	// ポートの列挙順は入力の表示順と WGSL の Output 構造体のメンバー順を決める。

@@ -19,7 +19,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		export { provideCustomNodeGraphEffectWires } from './src/utility/custom-node-graph-effect-wires.ts';
 		export { parameterExpansionScopeKey } from './src/composables/useParameterExpansion.ts';
 		export { projectSession } from './src/project-session.ts';
-		export { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
+		export { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect_native-effects/definitions.ts';
 		export { preferences } from './src/preferences.ts';
 	` },
 	plugins: [i18nPlugin, { name: 'parameter-expansion', setup(build) {
@@ -28,7 +28,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		build.onResolve({ filter: /(?:^@\/|\/src\/)(app|project-session|ui)\.ts$/ }, ({ path }) => ({ path: path.endsWith('ui.ts') ? 'ui' : 'app', namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', resolveDir: directory, contents: {
 			preferences: "import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false), customNodeGraphEffectWireStyle: ref('straight') } };",
-			effects: "import definition from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };",
+			effects: "import definition from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };",
 			app: 'export const projectSession = {}; export function useProjectSession() { return projectSession; }',
 			ui: 'export function popupMenu() {} export function popup() {} export function contextMenu() {} export function alert() {} export async function inputText() { return { canceled: true }; }',
 		}[path] }));

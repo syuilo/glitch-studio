@@ -34,7 +34,7 @@ export function getPortableRenderResolution(width: number, height: number, setti
 	return resolution;
 }
 
-/** containの余白を含む要素内位置から、配置の等方座標へ換算する。出力と寸法の異なる内部ノードへの換算はeffect-newに任せる。 */
+/** containの余白を含む要素内位置から、配置の等方座標へ換算する。出力と寸法の異なる内部ノードへの換算はeffectに任せる。 */
 export function getPortablePointerPosition(position: { x: number; y: number } | null, resolution: Resolution, outputResolution: Resolution) {
 	if (position == null) return null;
 	const aspectRatio = outputResolution.width / outputResolution.height;

@@ -23,8 +23,8 @@ after(() => {
 
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { TimelineRendererManager } = await load('../src/timeline-renderer-manager.ts');
-const { default: fillDefinition } = await load('@gs/subsystems_effect-new_native-effects/fx/fill/_def_.ts');
-const { default: fillImplementation } = await load('@gs/subsystems_effect-new_native-effects/fx/fill/_impl_.ts');
+const { default: fillDefinition } = await load('@gs/subsystems_effect_native-effects/fx/fill/_def_.ts');
+const { default: fillImplementation } = await load('@gs/subsystems_effect_native-effects/fx/fill/_impl_.ts');
 const { timelineCompositingParamDefs } = await load('@gs/subsystems_timeline_shared/timeline-compositing.ts');
 const { createTimelineTransformParameterValues } = await load('@gs/subsystems_timeline_shared/layers/transform/transform.ts');
 const literal = value => ({ inputSource: 'literal', value });

@@ -32,7 +32,7 @@ const bundled = await build({
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { getTimelineClipMoveBounds, getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
 		export { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
-		export { default as arrayDefinition } from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts';
+		export { default as arrayDefinition } from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts';
 	` },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [i18nPlugin, { name: 'clip-move-dependencies', setup(build) {
@@ -40,7 +40,7 @@ const bundled = await build({
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', resolveDir: uiDirectory,
 			contents: path === 'effects'
-				? "import definition from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };"
+				? "import definition from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };"
 				: 'export const preferences = { s: { forceTypeSafety: true } };',
 		}));
 	} }],

@@ -1,6 +1,6 @@
 import { findTimelineLayer, flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectEffectNode } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
-import type { EffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectEffectNode } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
+import type { EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
 import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { AppStateChange, ProjectState } from '../Project.ts';
 import type { PreparedCommandChange } from '../utility/undo-redo.ts';

@@ -25,7 +25,7 @@ const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { TimelineRendererManager } = await load('../src/timeline-renderer-manager.ts');
 const { createEffectTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/effect/effect-timeline-layer.ts');
 const { timelineCompositingParamDefs } = await load('@gs/subsystems_timeline_shared/timeline-compositing.ts');
-const { default: nested } = await load('@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts');
+const { default: nested } = await load('@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const input = { inputSource: 'lowerLayerOutput', sampling: { fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' } };

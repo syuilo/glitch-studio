@@ -24,7 +24,7 @@ const bundle = await build({
 		export { CUSTOM_SHADER_EFFECT_COMMAND_DEFS } from './src/commands/custom-shader-effect.ts';
 		export { createProjectCustomShaderEffect } from './src/utility/custom-shader-effect.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
-		export * from '@gs/subsystems_effect-new_shared/custom-shader-effect.ts';
+		export * from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
 	` },
 	plugins: [i18nPlugin, { name: 'custom-shader-effect-controls', setup(build) {
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'custom-shader-effect-preferences' }));

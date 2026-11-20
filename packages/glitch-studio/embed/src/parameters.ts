@@ -1,4 +1,4 @@
-import type { CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
 import { colorBlendModes } from '@gs/shared/color-blend.ts';
 import { validateColorRamp } from '@gs/shared/color-ramp.ts';
 import { SIZE_REFERENCES } from '@gs/shared/size-reference.ts';
