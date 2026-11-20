@@ -1,4 +1,4 @@
-import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { validateTimelineParameterTree } from '../../parameter-binding.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { TimelineParameterBinding } from '../../parameter-binding.ts';
@@ -15,7 +15,7 @@ export const timelineTransformParamDefs = {
 				step: 0.01,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: [0, 0] },
+		defaultValue: [0, 0],
 		canNode: false,
 	},
 	z: {
@@ -29,7 +29,7 @@ export const timelineTransformParamDefs = {
 				step: 0.01,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: 0 },
+		defaultValue: 0,
 		canNode: false,
 	},
 	scale: {
@@ -43,13 +43,13 @@ export const timelineTransformParamDefs = {
 				step: 0.01,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: [1, 1] },
+		defaultValue: [1, 1],
 		canNode: false,
 	},
 	rotation: {
 		dataType: { kind: 'scalar' },
 		ui: { label: 'Rotation', control: { controlType: 'angle' } },
-		defaultValue: { inputSource: 'literal', value: 0 },
+		defaultValue: 0,
 		canNode: false,
 	},
 } as const satisfies Record<string, ParameterDefinition>;
@@ -58,7 +58,7 @@ export type TimelineTransformParameterValues = Record<keyof typeof timelineTrans
 export type EvaluatedTimelineTransform = { position: [number, number]; z: number; scale: [number, number]; rotation: number };
 
 export function createTimelineTransformParameterValues(): TimelineTransformParameterValues {
-	return Object.fromEntries(Object.entries(timelineTransformParamDefs).map(([key, def]) => [key, deepClone(def.defaultValue)])) as TimelineTransformParameterValues;
+	return Object.fromEntries(Object.entries(timelineTransformParamDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])) as TimelineTransformParameterValues;
 }
 
 export function validateTimelineTransform(values: TimelineTransformParameterValues): void {

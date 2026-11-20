@@ -28,13 +28,13 @@ export async function run() {
 	const checks: string[] = [];
 	let comparisons = 0;
 	const defaults: SplitTransitionParameters = {
-		inputA: constantShaderInput('color', definition.paramDefs.inputA.defaultValue.value),
-		inputB: constantShaderInput('color', definition.paramDefs.inputB.defaultValue.value),
-		progress: definition.paramDefs.progress.defaultValue.value,
-		direction: definition.paramDefs.direction.defaultValue.value,
-		reverse: definition.paramDefs.reverse.defaultValue.value,
-		gap: definition.paramDefs.gap.defaultValue.value,
-		sizeReference: definition.paramDefs.sizeReference.defaultValue.value,
+		inputA: constantShaderInput('color', definition.paramDefs.inputA.defaultValue),
+		inputB: constantShaderInput('color', definition.paramDefs.inputB.defaultValue),
+		progress: definition.paramDefs.progress.defaultValue,
+		direction: definition.paramDefs.direction.defaultValue,
+		reverse: definition.paramDefs.reverse.defaultValue,
+		gap: definition.paramDefs.gap.defaultValue,
+		sizeReference: definition.paramDefs.sizeReference.defaultValue,
 	};
 	const inputs = {
 		inputA: constantShaderInput('color', [4, -2, 1, 0.5]),

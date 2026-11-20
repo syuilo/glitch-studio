@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { createProjectEffectDefinitions } from '@gs/glitch-studio_shared/project/effects.ts';
 import type { StaticSettingDefinitions, StaticSettingValues } from '@gs/shared/static-setting.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
@@ -123,7 +124,7 @@ export class ProjectRenderValidation {
 		if (customNodeGraphEffectId == null) { this.removeUnit('Effect Live Preview inputs'); this.publish(); return; }
 		const customNodeGraphEffect = this.state.customNodeGraphEffects.value.find(customNodeGraphEffect => customNodeGraphEffect.id === customNodeGraphEffectId);
 		if (!customNodeGraphEffect) { this.removeUnit('Effect Live Preview inputs'); this.publish(); return; }
-		const values = Object.entries(customNodeGraphEffect.definition.paramDefs).map(([id, def]) => [def, bindings[id] ?? def.defaultValue] as const);
+		const values = Object.entries(customNodeGraphEffect.definition.paramDefs).map(([id, def]) => [def, bindings[id] ?? createDefaultParameterBinding(def)] as const);
 		const dependencies = new Set<string>();
 		this.check('Effect Live Preview inputs', [customNodeGraphEffectId, values.map(([def, value]) => staticParameterShape(def, value))], () => {
 			for (const [def, value] of values) inspectStaticParameter(def, value, (leaf, binding) => {
@@ -241,7 +242,7 @@ export class ProjectRenderValidation {
 			const def = resolveEffectSource(node.effectSource, definitions).definition;
 			this.staticSettings(def.staticSettingDefs ?? {}, node.staticSettings ?? {}, dependencies);
 			for (const [key, parameter] of Object.entries(def.paramDefs)) {
-				inspectStaticParameter(parameter, node.params[key] ?? parameter.defaultValue, (leaf, value) => this.value(leaf, value, dependencies));
+				inspectStaticParameter(parameter, node.params[key] ?? createDefaultParameterBinding(parameter), (leaf, value) => this.value(leaf, value, dependencies));
 			}
 		}
 	}

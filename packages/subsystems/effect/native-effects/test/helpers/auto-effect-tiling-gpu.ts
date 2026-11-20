@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { createEffectInstance } from '@gs/subsystems_effect_renderer/create-effect-instance.ts';
 import type { EffectInstance, NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import type { EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
@@ -49,7 +50,7 @@ export async function run() {
 	};
 	const literal = <T>(value: T) => ({ inputSource: 'literal' as const, value });
 	function parameterBindings(definition: NativeEffectDefinition) {
-		return Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, structuredClone(parameter.defaultValue)]));
+		return Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, createDefaultParameterBinding(parameter)]));
 	}
 	function createPlacement(definition: NativeEffectDefinition, implementation: NativeEffectImplementation, params: ReturnType<typeof parameterBindings>,
 		size: number, mode: 'auto' | 'disabled' | 'manual', statistics = false) {
@@ -157,7 +158,7 @@ export async function run() {
 
 
 			await compare(automaticDoublePendulum, disabledDoublePendulum, 'Double Pendulum partial step and AA');
-			const ramp = doublePendulumFractalDefinition.paramDefs.ramp.defaultValue.value;
+			const ramp = doublePendulumFractalDefinition.paramDefs.ramp.defaultValue;
 			doublePendulumCustomNodeGraphEffect.ramp = literal({ ...ramp,
 				stops: ramp.stops.map((stop, index) => index === 0 ? { ...stop, color: [1, 0, 0, 1] } : stop),
 			});

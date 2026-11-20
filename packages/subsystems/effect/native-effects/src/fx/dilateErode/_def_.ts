@@ -10,23 +10,23 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	tags: ['math', 'utility'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Input', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		operation: {
 			dataType: { kind: 'enum', options: ['dilate', 'erode'] },
 			ui: { label: 'Operation', control: { labels: { dilate: 'Dilate', erode: 'Erode' } } },
-			defaultValue: { inputSource: 'literal', value: 'dilate' },
+			defaultValue: 'dilate',
 		},
 		// 正方形の形態演算を段階的に合成するため、半径は描画全体で共通にする。
 		radius: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Radius (Reference Ratio)', control: { controlType: 'number', min: 0, step: 0.001 } },
-			defaultValue: { inputSource: 'literal', value: 0.01 },
+			defaultValue: 0.01,
 		},
 	},
 	primaryInputParameter: 'input',

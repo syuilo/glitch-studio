@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -22,7 +23,7 @@ const window = (left = [1, -1], right = left) => createAudioWindow(48000, [Float
 const deferred = () => Promise.withResolvers();
 
 async function audioPlacement(bindings, resolveAudioSource, publicAudio = null) {
-	const native = { type: 'nativeEffect', id: 'probe' }, amount = { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: {} }, defaultValue: literal(0) };
+	const native = { type: 'nativeEffect', id: 'probe' }, amount = { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: {} }, defaultValue: 0 };
 	const metadata = { primaryInputParameter: null, primaryOutput: 'output', resolutionInputParameters: [], outputDefs: { output: { dataType: { kind: 'color' } } } };
 	const graph = { ...metadata, paramDefs: { sound: { ...audioDef, nameForReference: 'sound' } },
 		outputDefs: Object.fromEntries(bindings.map((_, i) => [i, metadata.outputDefs.output])), primaryOutput: '0',
@@ -276,7 +277,7 @@ test('uploads selected channel peaks and distinguishes silence from no source', 
 			buffer: Float32Array.from([...left.subarray(start, end), ...right.subarray(start, end)]).buffer });
 	}
 	const inputs = new PlayerAudioInputs(new Map([[playerAudioSourceId('player'), history]]));
-	const params = { ...Object.fromEntries(Object.entries(waveformDefinition.paramDefs).map(([key, def]) => [key, def.defaultValue.value])),
+	const params = { ...Object.fromEntries(Object.entries(waveformDefinition.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])),
 		channel: 'stereo', duration: 0.005, color: [1, 0, 0, 0.5], audio: inputs.resolve({ type: 'player', playerId: 'player' }) };
 	history.reset();
 	const bound = Object.fromEntries(Object.keys(params).map(key => [key, { kind: 'value', get value() { return params[key]; } }]));

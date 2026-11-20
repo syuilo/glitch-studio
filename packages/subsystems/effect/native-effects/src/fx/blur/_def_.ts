@@ -10,12 +10,12 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	tags: ['blur'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		radius: {
 			dataType: { kind: 'vector' },
@@ -29,13 +29,13 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0.25, 0.25] },
+			defaultValue: [0.25, 0.25],
 		},
 		rotation: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Rotation', control: { controlType: 'angle' } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		samples: {
 			dataType: { kind: 'scalar' },
@@ -48,7 +48,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 32 },
+			defaultValue: 32,
 		},
 	},
 	primaryInputParameter: 'input',

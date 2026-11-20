@@ -6,7 +6,7 @@ const nodeSetup = 'let customNodeGraphEffect = Command:createCustomNodeGraphEffe
 const customParameterSetup = nodeSetup + 'let parameter = Command:createCustomNodeGraphEffectCustomParameterFromParameter({ target: node, parameterPath: ["color"] })\n';
 const publicParameterSetup = nodeSetup + 'let parameter = Command:createCustomNodeGraphEffectPublicParameterFromParameter({ target: node, parameterPath: ["color"] })\n';
 const outputSetup = 'let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\nlet output = Command:createCustomNodeGraphEffectOutput({ customNodeGraphEffect: customNodeGraphEffect, definition: { name: "auxiliary", label: "Auxiliary", dataType: { kind: "color" } } })\n';
-const scalarDefinition = '{ nameForReference: "amount", dataType: { kind: "scalar" }, ui: { label: "Amount", control: { controlType: "number" } }, defaultValue: { inputSource: "literal", value: 1 }, canNode: false }';
+const scalarDefinition = '{ nameForReference: "amount", dataType: { kind: "scalar" }, ui: { label: "Amount", control: { controlType: "number" } }, defaultValue: 1, canNode: false }';
 
 // 共通のパラメータ更新処理を使うCommandにも、その公開入力ごとの契約を付ける。
 // 保存形式の形は再利用し、修飾式の保持・入力方式切替など操作固有の意味はここで説明する。

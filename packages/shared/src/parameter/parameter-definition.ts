@@ -3,7 +3,6 @@ import type { DataType, TextureDataType } from '../data-type/data-type.ts';
 import type { DataTypeUiDefinition } from '../data-type/data-type-ui.ts';
 import type { BlendMode } from '../color-blend.ts';
 import type { FitMode, WrapMode } from '../types.ts';
-import type { ParameterArrayElement } from './parameter-binding.ts';
 import type { ColorRamp } from '../color-ramp.ts';
 import type { SizeReference } from '../size-reference.ts';
 import type { LinearSrgbColor } from '../color-space.ts';
@@ -29,22 +28,22 @@ type ParameterDefaultValueMap = {
 	any: [number, number, number, number] | null;
 };
 
-// コンテナ内部は素の値ではなく子ごとのBindingを保持する。
-// 既定値は利用箇所から独立した初期状態なので、配列・構造体の末端までliteralとする。
-// 式・キー・接続・加工設定は各利用箇所のBindingで指定する。
-export type ParameterDefaultValue<T extends DataType = DataType> = {
-	inputSource: 'literal';
-	expressionModifier?: never;
-	value: T extends { kind: 'array'; elementType: infer E extends DataType }
-		? ParameterArrayElement<ParameterDefaultValue<E>>[]
-		: T extends { kind: 'struct'; fields: infer F extends Record<string, DataType> }
-			? { [K in keyof F]: ParameterDefaultValue<F[K]> }
+// 子の型が不明な場合は、条件型の再帰を止めて値全体を表す。
+type ParameterDefaultValueTree = ParameterDefaultValueMap[keyof ParameterDefaultValueMap]
+	| ParameterDefaultValueTree[] | { [key: string]: ParameterDefaultValueTree };
+
+// 定義は配列・構造体の末端まで値を保持する。要素IDや入力方式は利用箇所のBindingが所有する。
+export type ParameterDefaultValue<T extends DataType = DataType> = DataType extends T
+	? ParameterDefaultValueTree
+	: T extends { kind: 'array'; elementType: infer Element extends DataType }
+		? ParameterDefaultValue<Element>[]
+		: T extends { kind: 'struct'; fields: infer Fields extends Record<string, DataType> }
+			? { [Key in keyof Fields]: ParameterDefaultValue<Fields[Key]> }
 			: T extends { kind: 'enum'; options: readonly string[] }
 				? T['options'][number]
 				: T extends { kind: keyof ParameterDefaultValueMap }
 					? ParameterDefaultValueMap[T['kind']]
 					: never;
-};
 
 // 型とUIは別のツリーにあるため、ここでは子の接続可否・初期値だけを定義する。
 // element.defaultValueは要素追加時の初期値、外側のdefaultValueは配列全体の初期値。
@@ -74,18 +73,21 @@ export type ParameterDefinition<T extends DataType = DataType> = T extends DataT
 
 // ジェネリックな定義関数では余剰プロパティ検査が働かないため、
 // 実際に推論したキーを具体的なスキーマと照合する。配列・unionも再帰的に扱う。
-// Expected側を分配し、Bindingの各inputSourceやscalarの各controlTypeを混ぜない。
-type ExactParameterShape<Actual, Expected> = Expected extends unknown
-	? Actual extends Expected
-		? Actual extends readonly unknown[]
-			? Expected extends readonly (infer E)[]
-				? { [K in keyof Actual]: ExactParameterShape<Actual[K], E> }
-				: never
-			: Actual extends object
-				? { [K in keyof Actual]: K extends keyof Expected ? ExactParameterShape<Actual[K], Expected[K]> : never }
-				: Actual
-		: never
-	: never;
+// 子のDataTypeが不明な箇所では、キーを列挙できないため値ツリーへの代入可否だけを検査する。
+// Expected側を分配し、scalarの各controlTypeなどunionの分岐を混ぜない。
+type ExactParameterShape<Actual, Expected> = [ParameterDefaultValueTree] extends [Expected]
+	? Extract<Actual, Expected>
+	: Expected extends unknown
+		? Actual extends Expected
+			? Actual extends readonly unknown[]
+				? Expected extends readonly (infer E)[]
+					? { [K in keyof Actual]: ExactParameterShape<Actual[K], E> }
+					: never
+				: Actual extends object
+					? { [K in keyof Actual]: K extends keyof Expected ? ExactParameterShape<Actual[K], Expected[K]> : never }
+					: Actual
+			: never
+		: never;
 
 // dataTypeからフィールド名を確定し、UIや初期値から型が広がるのを防ぐ。
 export type CheckedParameterDefinition<P extends ParameterDefinition> =

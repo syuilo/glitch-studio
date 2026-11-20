@@ -93,7 +93,7 @@ export async function run() {
 
 	function createEffect(definition: EffectDefinition, implementation: NativeEffectProbe, enable32bitDataTextures: boolean, overrides: Record<string, unknown>) {
 		const params = { ...Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name,
-			parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value])), ...overrides };
+			parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue) : parameter.defaultValue])), ...overrides };
 		const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures };
 		const texture = implementation.createTexture('output', { wgpu, resolution });
 		const instance = implementation.place(wgpu, resolution);

@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { createTimelineTransformParameterValues } from './layers/transform/transform.ts';
 import { timelineCompositingParamDefs } from './timeline-compositing.ts';
@@ -26,8 +27,8 @@ export function createTimelineContainerLayer<Type extends TimelineContainerLayer
 			mask: null,
 			layerMask: null,
 			isIncludedInComposite: true,
-			compositingParamValues: Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, definition]) => [key, deepClone(definition.defaultValue)])) as TimelineGroupLayer['compositingParamValues'],
-			audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
+			compositingParamValues: Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, definition]) => [key, createDefaultParameterBinding(definition)])) as TimelineGroupLayer['compositingParamValues'],
+			audioParamValues: { volume: createDefaultParameterBinding(timelineAudioParamDefs.volume) },
 		}; break;
 		default: throw new Error('Unknown timeline container type');
 	}

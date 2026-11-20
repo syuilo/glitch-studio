@@ -10,7 +10,7 @@ export const cellSubdivisionParameterDefinitions = {
 			label: 'Subdivision Mode',
 			control: { labels: { uniform: 'Uniform', adaptive: 'Adaptive' } },
 		},
-		defaultValue: { inputSource: 'literal', value: 'uniform' },
+		defaultValue: 'uniform',
 	},
 	// 各候補セルの中心で評価する。0〜1を最大深度までの目標深度へ四捨五入し、
 	// その深度に達するまで四分割する。0では基本格子、1では最大深度まで分割する。
@@ -18,12 +18,12 @@ export const cellSubdivisionParameterDefinitions = {
 		dataType: { kind: 'scalar' },
 		ui: { label: 'Density Map', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 		canNode: true,
-		defaultValue: { inputSource: 'literal', value: 0.5 },
+		defaultValue: 0.5,
 	},
 	maxSubdivisionLevels: {
 		dataType: { kind: 'scalar' },
 		ui: { label: 'Max Subdivision Levels', control: { controlType: 'range', min: 0, max: maximumCellSubdivisionLevels, step: 1 } },
-		defaultValue: { inputSource: 'literal', value: 4 },
+		defaultValue: 4,
 	},
 } as const satisfies Record<string, ParameterDefinition>;
 

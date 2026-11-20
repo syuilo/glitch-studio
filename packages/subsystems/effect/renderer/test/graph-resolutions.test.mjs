@@ -4,7 +4,7 @@ import { planEffect } from '../src/plan-effect.ts';
 import { validateEffectSource } from '@gs/subsystems_effect_shared/validate-effect-source.ts';
 
 const color = { kind: 'color' };
-const image = { dataType: color, ui: { label: 'Image', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } };
+const image = { dataType: color, ui: { label: 'Image', control: {} }, canNode: true, defaultValue: [0, 0, 0, 0] };
 const metadata = { primaryInputParameter: 'input', primaryOutput: 'output', resolutionInputParameters: ['input'], paramDefs: { input: image }, outputDefs: { output: { dataType: color } } };
 const native = { type: 'nativeEffect', id: 'filter' };
 const sampling = { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
@@ -43,7 +43,7 @@ test('plans graph resolutions before any frames, textures or expressions exist',
 // 幅と高さを別々に最大化せず、入力全体で最大面積の候補を選ぶ。
 test('uses every nested candidate and preserves the first aspect ratio on equal areas', () => {
 	const candidates = { dataType: { kind: 'array', elementType: color }, ui: { label: 'Candidates', control: { element: {} } },
-		element: { canNode: true, defaultValue: image.defaultValue }, defaultValue: { inputSource: 'literal', value: [] } };
+		element: { canNode: true, defaultValue: image.defaultValue }, defaultValue: [] };
 	const definition = { ...metadata, paramDefs: { candidates }, resolutionInputParameters: ['candidates'], primaryInputParameter: null };
 	const graph = { ...metadata, paramDefs: { landscape: image, portrait: image }, resolutionInputParameters: [], primaryInputParameter: null,
 		nodes: [{ id: 'selector', effectSource: native, params: { candidates: { inputSource: 'literal',

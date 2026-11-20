@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { effectSourceSchema } from './effect-source-schema.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
@@ -145,7 +146,7 @@ const createCustomNodeGraphEffectEffectNode = definePublicCommand({
 			const previous = previousInput?.nodeId == null ? null : customNodeGraphEffect.nodes.find(node => node.id === previousInput.nodeId);
 			const parameters: CustomNodeGraphEffectEffectNode['params'] = {};
 			for (const [key, parameterDefinition] of Object.entries(definition.paramDefs)) {
-				parameters[key] = deepClone(parameterDefinition.defaultValue);
+				parameters[key] = createDefaultParameterBinding(parameterDefinition);
 				if (key !== definition.primaryInputParameter || previousInput?.nodeId == null) continue;
 				const output = getNodeOutputs(previous, customNodeGraphEffect.paramDefs, definitions)[previousInput.outputPort];
 				if (canConnectNodeDataTypes(output?.dataType, getNodeInputDataType(parameterDefinition), connectionTypePolicy)) {

@@ -11,6 +11,7 @@ import { voicevoxSubtitleParamDefs } from '@gs/subsystems_timeline_shared/layers
 import { textParamDefs } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
 import { getShapeParameterDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter-path.ts';
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { getParameterPathLabel } from './parameter-label.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { TimelineEffectParameterBinding, TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
@@ -81,12 +82,13 @@ export function getLayerParameterDefinitions(state: Pick<ProjectState, 'customNo
 export function resolveLayerParameter(state: Pick<ProjectState, 'customNodeGraphEffects'> & Partial<Pick<ProjectState, 'customShaderEffects'>>, layer: TimelineLayer, target: TimelineParameterTarget, path: ParamPath) {
 	const defs = getLayerParameterDefinitions(state, layer, target);
 	const values = getLayerParameterValues(layer, target);
-	// 未編集のCustom Node Graph Effect引数は定義の既定値を参照する。参照だけでは保存値を増やさない。
-	if (path.length === 1 && values[path[0]] == null && defs[path[0]] != null) {
-		if (target === 'effect' && layer.layerType === 'effect') return { def: defs[path[0]], value: getEffectLayerParameterDefault(getEffectDefinitions(state).describe(layer.effectSource), path[0]) };
-		return { def: defs[path[0]], value: defs[path[0]].defaultValue };
-	}
-	const { def, value } = resolveParameter<EditableTimelineParameterBinding>(defs, values, path);
+	// 未編集の引数は、表示や編集が使う配列要素IDと同じIDで参照する。読み出しだけでは保存値を増やさない。
+	const rootKey = path[0];
+	const definition = defs[rootKey];
+	const rootBinding = values[rootKey] ?? (definition == null ? null : target === 'effect' && layer.layerType === 'effect'
+		? getEffectLayerParameterDefault(getEffectDefinitions(state).describe(layer.effectSource), rootKey)
+		: createDefaultParameterBinding(definition));
+	const { def, value } = resolveParameter<EditableTimelineParameterBinding>(defs, rootBinding == null ? values : { [rootKey]: rootBinding }, path);
 	return { def, value };
 }
 

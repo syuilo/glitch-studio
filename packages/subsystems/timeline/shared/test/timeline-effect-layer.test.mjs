@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { loadSource } from './helpers/load-source.mjs';
 
 const { getEffectLayerParameterDefault, validateTimelineEffectLayer } = await loadSource(fileURLToPath(new URL('../src/layers/effect/effect-layer.ts', import.meta.url)));
-const color = { dataType: { kind: 'color' }, canNode: true, ui: { label: 'Input', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } };
+const color = { dataType: { kind: 'color' }, canNode: true, ui: { label: 'Input', control: {} }, defaultValue: [0, 0, 0, 0] };
 const definition = { kind: 'modify', paramDefs: { input: color }, primaryInputParameter: 'input', primaryOutput: 'out',
 	outputDefs: { out: { dataType: { kind: 'color' } } }, resolutionInputParameters: ['input'] };
 const definitions = { getNativeEffect: () => definition };
@@ -15,7 +15,7 @@ const layer = { layerType: 'effect', effectSource: { type: 'nativeEffect', id: '
 test('uses Timeline defaults at the placement boundary', () => {
 	assert.deepEqual(getEffectLayerParameterDefault(definition, 'input'), { inputSource: 'lowerLayerOutput' });
 	assert.deepEqual(getEffectLayerParameterDefault({ ...definition, primaryAudioInputParameter: 'audio' }, 'audio'), { inputSource: 'lowerLayerAudio' });
-	assert.deepEqual(getEffectLayerParameterDefault({ ...definition, kind: 'generate' }, 'input'), color.defaultValue);
+	assert.deepEqual(getEffectLayerParameterDefault({ ...definition, kind: 'generate' }, 'input'), { inputSource: 'literal', value: color.defaultValue });
 	validateTimelineEffectLayer(layer, definitions);
 });
 

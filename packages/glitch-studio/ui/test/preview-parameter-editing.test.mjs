@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { testGraph } from './helpers/effect-graph.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -8,7 +9,7 @@ import { ref } from 'vue';
 
 const directory = fileURLToPath(new URL('../', import.meta.url));
 const literal = value => ({ inputSource: 'literal', value });
-const definition = { dataType: { kind: 'vector' }, ui: { label: 'Position', control: { controlType: 'xy' } }, defaultValue: literal([0, 0]) };
+const definition = { dataType: { kind: 'vector' }, ui: { label: 'Position', control: { controlType: 'xy' } }, defaultValue: [0, 0] };
 const effect = { id: 'test', paramDefs: { first: definition, second: definition } };
 const bundled = await build({ absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
@@ -233,7 +234,7 @@ test('updates viewport fields atomically on an effect layer and restores omitted
 	const notifications = [];
 	f.manager.onChange(() => notifications.push(structuredClone(JSON.parse(JSON.stringify(layer.effectParamValues)))));
 	const command = beginPreviewViewportBindingEdit(f.manager, { kind: 'timelineLayer', sceneId: 'scene', layerId: 'layer' }, null, 'effect', ['view']);
-	const drag = preparePreviewViewportDrag(mandelbrot.paramDefs.view, structuredClone(mandelbrot.paramDefs.view.defaultValue), 500, 1000, command);
+	const drag = preparePreviewViewportDrag(mandelbrot.paramDefs.view, createDefaultParameterBinding(mandelbrot.paramDefs.view), 500, 1000, command);
 	drag.update({ ...drag.initialValue, center: [-0.743643887, 0.131825904], zoom: 1000 });
 	drag.finish();
 	assert.equal(notifications.length, 1);
@@ -249,7 +250,7 @@ test('updates viewport fields atomically on an effect layer and restores omitted
 test('restores unchanged viewport field bindings while retaining stable keys on changed fields', () => {
 	const f = fixture();
 	const def = mandelbrot.paramDefs.view;
-	f.node.params.view = structuredClone(def.defaultValue);
+	f.node.params.view = createDefaultParameterBinding(def);
 	for (const key of ['center', 'zoom']) {
 		const field = { ...def.fields[key], dataType: def.dataType.fields[key], ui: def.ui.control.fields[key] };
 		f.node.params.view.value[key] = createInlineKeyframesTimeline(field, f.node.params.view.value[key]);
@@ -273,7 +274,7 @@ test('restores unchanged viewport field bindings while retaining stable keys on 
 test('rejects normalized timeline viewport bindings without changing state or history', () => {
 	const f = fixture();
 	const def = mandelbrot.paramDefs.view;
-	const view = structuredClone(def.defaultValue);
+	const view = createDefaultParameterBinding(def);
 	for (const key of ['center', 'zoom', 'rotation']) {
 		const field = { ...def.fields[key], dataType: def.dataType.fields[key], ui: def.ui.control.fields[key] };
 		view.value[key] = createInlineKeyframesTimeline(field, view.value[key]);
@@ -296,10 +297,10 @@ test('rejects normalized timeline viewport bindings without changing state or hi
 // 回転なしの表示範囲は操作できる一方、既存の回転式を0と決めつけて編集してはいけない。
 test('defaults only undeclared viewport rotation to zero', () => {
 	const def = magneticPendulum.paramDefs.view;
-	const binding = structuredClone(def.defaultValue);
+	const binding = createDefaultParameterBinding(def);
 	assert.deepEqual(getPreviewViewportValue(def, binding, 0, 0), { center: [0, 0], zoom: 1, rotation: 0 });
 	assert.equal(Object.hasOwn(binding.value, 'rotation'), false);
-	const required = structuredClone(mandelbrot.paramDefs.view.defaultValue);
+	const required = createDefaultParameterBinding(mandelbrot.paramDefs.view);
 	delete required.value.rotation;
 	assert.equal(getPreviewViewportValue(mandelbrot.paramDefs.view, required, 0, 0), null);
 	required.value.rotation = { inputSource: 'expression', expression: 'TIME' };

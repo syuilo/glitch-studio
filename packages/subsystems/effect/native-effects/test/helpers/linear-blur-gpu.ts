@@ -28,7 +28,7 @@ export async function run() {
 	const constantColor = [2, -1, 0.5, 0.5];
 	const defaults: Parameters = {
 		input: constantShaderInput('color', [4, -2, 1, 0.5]),
-		length: scalar(definition.paramDefs.length.defaultValue.value), angle: scalar(definition.paramDefs.angle.defaultValue.value), focusRadius: scalar(0),
+		length: scalar(definition.paramDefs.length.defaultValue), angle: scalar(definition.paramDefs.angle.defaultValue), focusRadius: scalar(0),
 		dispersion: scalar(0), dispersionFalloff: scalar(0), bias: scalar(0), highlights: scalar(0),
 		jitter: scalar(0), samples: 32, seed: 0, sizeReference: 'longSide',
 	};

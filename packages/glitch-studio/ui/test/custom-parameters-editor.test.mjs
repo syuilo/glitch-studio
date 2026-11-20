@@ -31,8 +31,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
 const { CustomParameters, Keyframes } = loaded.exports;
-const literal = value => ({ inputSource: 'literal', value });
-const scalar = (id, nameForReference = id) => ({ id, nameForReference, canNode: false, dataType: { kind: 'scalar' }, ui: { label: nameForReference, control: { controlType: 'number' } }, defaultValue: literal(1) });
+const scalar = (id, nameForReference = id) => ({ id, nameForReference, canNode: false, dataType: { kind: 'scalar' }, ui: { label: nameForReference, control: { controlType: 'number' } }, defaultValue: 1 });
 
 function fixture(t, component, initialProps) {
 	const element = type => ({ type, props: {}, children: [], parent: null });

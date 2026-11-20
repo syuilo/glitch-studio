@@ -10,7 +10,7 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: true,
 	tags: ['temporal', 'utility'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		strength: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -22,7 +22,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.3 },
+			defaultValue: 0.3,
 		},
 
 		radius: {
@@ -36,7 +36,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.3 },
+			defaultValue: 0.3,
 		},
 		halfLife: {
 			dataType: { kind: 'scalar' },
@@ -49,7 +49,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 300 },
+			defaultValue: 300,
 		},
 	},
 	primaryInputParameter: null,

@@ -14,9 +14,9 @@ const definition = defineNativeEffect({
 			dataType: { kind: 'any' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
-		mode: { dataType: { kind: 'enum', options: ['add', 'interpolate'] }, ui: { label: 'Mode', control: { labels: { add: 'Add', interpolate: 'Interpolate' } } }, defaultValue: { inputSource: 'literal', value: 'add' } },
+		mode: { dataType: { kind: 'enum', options: ['add', 'interpolate'] }, ui: { label: 'Mode', control: { labels: { add: 'Add', interpolate: 'Interpolate' } } }, defaultValue: 'add' },
 		strength: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -28,7 +28,7 @@ const definition = defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		halfLife: {
 			dataType: { kind: 'scalar' },
@@ -41,9 +41,9 @@ const definition = defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 300 },
+			defaultValue: 300,
 		},
-		reset: { dataType: { kind: 'bool' }, ui: { label: 'Reset', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		reset: { dataType: { kind: 'bool' }, ui: { label: 'Reset', control: {} }, defaultValue: false },
 	},
 	primaryInputParameter: 'input',
 	resolutionInputParameters: ['input'],

@@ -44,13 +44,13 @@ export const timelineCompositingParamDefs = {
 				step: 0.01,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: 0 },
+		defaultValue: 0,
 		canNode: false,
 	},
 	blendMode: {
 		dataType: { kind: 'blendMode' },
 		ui: { label: 'Blend mode', control: {} },
-		defaultValue: { inputSource: 'literal', value: 'normal' },
+		defaultValue: 'normal',
 	},
 	opacity: {
 		dataType: { kind: 'scalar' },
@@ -63,14 +63,14 @@ export const timelineCompositingParamDefs = {
 				step: 0.01,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: 1 },
+		defaultValue: 1,
 		canNode: false,
 	},
 	// レイヤーの種類によらず、出力全体を画面へ収めてからtransformを適用する。
 	fitMode: {
 		dataType: { kind: 'fitMode' },
 		ui: { label: 'Fit', control: {} },
-		defaultValue: { inputSource: 'literal', value: 'contain' },
+		defaultValue: 'contain',
 	},
 	// Positionは移動量ではなく、素材内のOriginを配置する画面上の位置。
 	position: {
@@ -84,7 +84,7 @@ export const timelineCompositingParamDefs = {
 				step: 0.01,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: [0, 0] },
+		defaultValue: [0, 0],
 		canNode: false,
 	},
 	// 透明な余白を含む入力全体の座標。中央が[0, 0]、左下が[-1, -1]、右上が[1, 1]。
@@ -100,7 +100,7 @@ export const timelineCompositingParamDefs = {
 				step: 0.01,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: [0, 0] },
+		defaultValue: [0, 0],
 		canNode: false,
 	},
 	scale: {
@@ -114,19 +114,19 @@ export const timelineCompositingParamDefs = {
 				step: 0.01,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: [1, 1] },
+		defaultValue: [1, 1],
 		canNode: false,
 	},
 	rotation: {
 		dataType: { kind: 'scalar' },
 		ui: { label: 'Rotation', control: { controlType: 'angle' } },
-		defaultValue: { inputSource: 'literal', value: 0 },
+		defaultValue: 0,
 		canNode: false,
 	},
 	clipToFrame: {
 		dataType: { kind: 'bool' },
 		ui: { label: 'Clip to Frame', control: {} },
-		defaultValue: { inputSource: 'literal', value: false },
+		defaultValue: false,
 		canNode: false,
 	},
 } as const satisfies Record<string, ParameterDefinition>;

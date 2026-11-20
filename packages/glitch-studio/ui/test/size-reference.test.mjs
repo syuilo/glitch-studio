@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { testGraph } from './helpers/effect-graph.mjs';
 import { nodeParameterTarget } from './helpers/command-inputs.mjs';
 import assert from 'node:assert/strict';
@@ -38,9 +39,9 @@ const commands = evaluate(await build({
 test('preserves the dedicated size-reference type through edits undo redo and saving', async () => {
 	const { definition, COMMAND_DEFS, UndoRedo, encodeProjectFile, decodeProjectFile } = commands;
 	assert.deepEqual(definition.paramDefs.sizeReference.dataType, { kind: 'sizeReference' });
-	assert.equal(definition.paramDefs.sizeReference.defaultValue.value, 'longSide');
+	assert.equal(definition.paramDefs.sizeReference.defaultValue, 'longSide');
 	assert.equal('fitMode' in definition.paramDefs, false);
-	const node = { id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'checker' }, resolution: { mode: 'auto', scale: 1 }, staticSettings: {}, isBypass: false, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([name, def]) => [name, structuredClone(def.defaultValue)])) };
+	const node = { id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'checker' }, resolution: { mode: 'auto', scale: 1 }, staticSettings: {}, isBypass: false, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([name, def]) => [name, createDefaultParameterBinding(def)])) };
 	const publicParameterDefinition = { id: 'reference', nameForReference: 'size_reference', ...structuredClone(definition.paramDefs.sizeReference) };
 	const customNodeGraphEffect = { id: 'custom-node-graph-effect', definition: testGraph({ customParameterValues: {}, nodes: [node], paramDefs: { [publicParameterDefinition.id]: publicParameterDefinition } }) };
 	const state = { customNodeGraphEffects: { value: [customNodeGraphEffect] } };

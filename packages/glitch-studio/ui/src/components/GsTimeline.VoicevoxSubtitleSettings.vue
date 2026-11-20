@@ -15,7 +15,7 @@
 			:projectAutomationGraphs="projectSession.projectContext.stateManager.state.automationGraphs.value"
 			:paramPath="[key]"
 			:paramDef="def"
-			:paramValue="values[key] ?? def.defaultValue"
+			:paramValue="values[key] ?? createDefaultParameterBinding(def)"
 			@edit="emit('edit', $event)"
 		/>
 	</div>
@@ -23,6 +23,7 @@
 </template>
 
 <script lang="ts" setup>
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import { computed } from 'vue';

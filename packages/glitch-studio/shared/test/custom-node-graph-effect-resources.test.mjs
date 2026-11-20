@@ -14,12 +14,12 @@ const shaderReference = { type: 'customShaderEffectReference', id: 'shared-id' }
 const nativeReference = { type: 'nativeEffect', id: 'shared-id' };
 const literal = value => ({ inputSource: 'literal', value });
 const assetSetting = { dataType: { kind: 'assetReference', assetType: 'image' }, ui: { label: 'Image' }, defaultValue: 'shared-id' };
-const audio = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: literal(null) };
+const audio = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null };
 const audioList = {
 	dataType: { kind: 'array', elementType: { kind: 'struct', fields: { audio: audio.dataType } } },
 	ui: { label: 'Tracks', control: { element: { fields: { audio: audio.ui } } } },
-	defaultValue: literal([]),
-	element: { defaultValue: literal({ audio: literal(null) }), fields: { audio: { defaultValue: literal(null) } } },
+	defaultValue: [],
+	element: { defaultValue: { audio: null }, fields: { audio: { defaultValue: null } } },
 };
 const nativeDefinitions = { 'shared-id': { ...definition, paramDefs: { tracks: audioList }, staticSettingDefs: { image: assetSetting } } };
 

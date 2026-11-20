@@ -10,18 +10,18 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	tags: ['glitch', 'composite', 'color', 'stylized'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		donor: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Donor', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		blockSize: {
 			dataType: { kind: 'scalar' },
@@ -34,7 +34,7 @@ export default defineNativeEffect({
 					step: 0.1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 2 },
+			defaultValue: 2,
 		},
 		minFrequency: {
 			dataType: { kind: 'scalar' },
@@ -47,7 +47,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.2 },
+			defaultValue: 0.2,
 		},
 		maxFrequency: {
 			dataType: { kind: 'scalar' },
@@ -60,7 +60,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		softness: {
 			dataType: { kind: 'scalar' },
@@ -73,14 +73,14 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.05 },
+			defaultValue: 0.05,
 		},
 		components: {
 			dataType: { kind: 'enum', options: ['all', 'luminance', 'chroma'] },
 			ui: { label: 'Components', control: { labels: { all: 'Luminance and Chroma', luminance: 'Luminance Only', chroma: 'Chroma Only' } } },
-			defaultValue: { inputSource: 'literal', value: 'all' },
+			defaultValue: 'all',
 		},
-		includeDc: { dataType: { kind: 'bool' }, ui: { label: 'Include DC (Average Color)', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		includeDc: { dataType: { kind: 'bool' }, ui: { label: 'Include DC (Average Color)', control: {} }, defaultValue: false },
 		donorGain: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -92,7 +92,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		donorOffset: {
 			dataType: { kind: 'vector' },
@@ -105,9 +105,9 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: [0, 0] },
+			defaultValue: [0, 0],
 		},
-		preserveDetails: { dataType: { kind: 'bool' }, ui: { label: 'Preserve Input Detail', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		preserveDetails: { dataType: { kind: 'bool' }, ui: { label: 'Preserve Input Detail', control: {} }, defaultValue: true },
 	},
 	primaryInputParameter: 'input',
 	resolutionInputParameters: ['input'],

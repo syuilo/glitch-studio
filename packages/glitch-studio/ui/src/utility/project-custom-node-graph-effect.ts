@@ -8,7 +8,7 @@ export function createCustomNodeGraphEffectDefinition(): CustomNodeGraphEffect {
 	return {
 		kind: 'modify', primaryInputParameter: inputId, primaryOutput: outputId, resolutionInputParameters: [inputId],
 		paramDefs: { [inputId]: { nameForReference: 'input', dataType: { kind: 'color' }, ui: { label: 'Input', control: {} },
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] }, canNode: true } },
+			defaultValue: [0, 0, 0, 0], canNode: true } },
 		outputDefs: { [outputId]: { label: 'Output', nameForReference: 'output', dataType: { kind: 'color' } } },
 		outputSources: {}, nodes: [], customParameterDefs: {}, customParameterValues: {}, automationGraphs: [],
 	};

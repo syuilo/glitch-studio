@@ -1,5 +1,6 @@
-import { getArrayElementDefinition, getStructFieldDefinitions } from './parameter-definition.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from './parameter-definition.ts';
 import { validateParameterExpressionModifier } from './parameter-expression-modifier.ts';
+import { prepareExpressionParameterValue } from './expression-parameter-value.ts';
 import type { ParameterDefinition } from './parameter-definition.ts';
 import type { ParameterBindingBase, ParameterArrayElement } from './parameter-binding.ts';
 
@@ -8,19 +9,49 @@ export function validateColorRampParameterInputSource(definition: Pick<Parameter
 	if (definition.dataType.kind === 'colorRamp' && ['keyframesTimelineInline', 'automationGraphReference', 'automationGraphInline'].includes(binding.inputSource)) throw new Error('Color Ramp does not support keyframes or Automation Graph input');
 }
 
-/** 定義の初期状態は末端までliteralに限定する。式や加工は各利用箇所のBindingで設定する。 */
+/** 保存ファイルやCommandで渡された定義は、コンテナの値と子設定の既定値をそれぞれ検査する。 */
 export function validateParameterDefaultValues(definition: ParameterDefinition): void {
-	if (!['scalar', 'bool', 'string', 'color', 'colorRamp', 'vector', 'blendMode', 'fitMode', 'sizeReference', 'wrapMode', 'enum', 'audioSource', 'any', 'array', 'struct'].includes(definition.dataType.kind)) throw new Error('Unsupported parameter data type');
-	inspectStaticParameter(definition, definition.defaultValue, (_definition, binding) => {
-		if (binding.expressionModifier != null) throw new Error('Expression modifier is not allowed on parameter default values');
-		if (binding.inputSource !== 'literal' || !('value' in binding)) throw new Error('Parameter defaults must be literal and provide a value');
-	});
+	validateDefaultValue(definition, definition.defaultValue);
 	// 配列全体が空でも、新しい要素・フィールドの初期値には独立した既定値がある。
 	if (definition.dataType.kind === 'array') {
 		validateParameterDefaultValues(getArrayElementDefinition(definition));
 	} else if (definition.dataType.kind === 'struct') {
 		for (const field of Object.values(getStructFieldDefinitions(definition))) validateParameterDefaultValues(field);
 	}
+}
+
+function validateDefaultValue(definition: ParameterDefinition, value: unknown): void {
+	const kind = definition.dataType.kind;
+	const invalidDefault = () => new Error(`Invalid ${kind} default value for parameter ${JSON.stringify(definition.ui?.label)}`);
+	if (isParameterType(definition, 'array')) {
+		if (!Array.isArray(value)) throw invalidDefault();
+		const element = getArrayElementDefinition(definition);
+		for (const elementValue of value) validateDefaultValue(element, elementValue);
+		return;
+	}
+	if (isParameterType(definition, 'struct')) {
+		if (value == null || typeof value !== 'object' || Array.isArray(value)) throw invalidDefault();
+		const values = value as Record<string, unknown>;
+		const fields = getStructFieldDefinitions(definition);
+		if (Object.keys(values).length !== Object.keys(fields).length) throw invalidDefault();
+		for (const [key, field] of Object.entries(fields)) {
+			if (!Object.hasOwn(values, key)) throw invalidDefault();
+			validateDefaultValue(field, values[key]);
+		}
+		return;
+	}
+	if (kind === 'audioSource') {
+		if (value !== null) throw invalidDefault();
+		return;
+	}
+	if (kind === 'any') {
+		if (value !== null && (!Array.isArray(value) || value.length !== 4 || !value.every(Number.isFinite))) throw invalidDefault();
+		return;
+	}
+	if (!['scalar', 'bool', 'string', 'color', 'colorRamp', 'vector', 'blendMode', 'fitMode', 'sizeReference', 'wrapMode', 'enum'].includes(kind)) throw new Error('Unsupported parameter data type');
+	// 式が受け取る文字列の数値変換は、型に対応する値を直接保存する定義には適用しない。
+	if (kind === 'scalar' && typeof value !== 'number') throw invalidDefault();
+	prepareExpressionParameterValue(definition, value);
 }
 
 /** 値の妥当性は評価後に検査する。ここではBindingの構造と静的な参照だけを扱う。 */

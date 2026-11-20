@@ -15,12 +15,12 @@ export default defineNativeEffect({
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		layout: {
 			dataType: { kind: 'enum', options: ['blocks', 'horizontalBands', 'verticalBands'] },
 			ui: { label: 'Regions', control: { labels: { blocks: 'Blocks', horizontalBands: 'Horizontal Bands', verticalBands: 'Vertical Bands' } } },
-			defaultValue: { inputSource: 'literal', value: 'blocks' },
+			defaultValue: 'blocks',
 		},
 		amount: {
 			dataType: { kind: 'scalar' },
@@ -33,7 +33,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		density: {
 			dataType: { kind: 'vector' },
@@ -47,9 +47,9 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [12, 12] },
+			defaultValue: [12, 12],
 		},
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		maxDelay: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -61,9 +61,9 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 500 },
+			defaultValue: 500,
 		},
-		channelSplit: { dataType: { kind: 'bool' }, ui: { label: 'Separate RGB Delays', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		channelSplit: { dataType: { kind: 'bool' }, ui: { label: 'Separate RGB Delays', control: {} }, defaultValue: false },
 		patternRate: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -75,9 +75,9 @@ export default defineNativeEffect({
 					step: 0.1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
-		interpolate: { dataType: { kind: 'bool' }, ui: { label: 'Interpolate History Frames', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		interpolate: { dataType: { kind: 'bool' }, ui: { label: 'Interpolate History Frames', control: {} }, defaultValue: false },
 		historyFrames: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -89,7 +89,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 8 },
+			defaultValue: 8,
 		},
 		historyScale: {
 			dataType: { kind: 'scalar' },
@@ -102,10 +102,10 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 100 },
+			defaultValue: 100,
 		},
-		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: { inputSource: 'literal', value: 0 } },
-		reset: { dataType: { kind: 'bool' }, ui: { label: 'Reset History', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: 0 },
+		reset: { dataType: { kind: 'bool' }, ui: { label: 'Reset History', control: {} }, defaultValue: false },
 	},
 	primaryInputParameter: 'input',
 	resolutionInputParameters: ['input'],

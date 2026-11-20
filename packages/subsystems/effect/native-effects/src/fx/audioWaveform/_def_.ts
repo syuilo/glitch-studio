@@ -11,11 +11,11 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	tags: ['audio', 'analysis'],
 	paramDefs: {
-		audio: { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
+		audio: { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null },
 		channel: {
 			dataType: { kind: 'enum', options: ['left', 'right', 'stereo'] },
 			ui: { label: 'Channel', control: { labels: { 'left': 'L', 'right': 'R', 'stereo': 'Stereo' } } },
-			defaultValue: { inputSource: 'literal', value: 'stereo' },
+			defaultValue: 'stereo',
 		},
 		duration: {
 			dataType: { kind: 'scalar' },
@@ -28,7 +28,7 @@ export default defineNativeEffect({
 					step: 0.005,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.05 },
+			defaultValue: 0.05,
 		},
 		amplitude: {
 			dataType: { kind: 'scalar' },
@@ -41,7 +41,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		lineWidth: {
 			dataType: { kind: 'scalar' },
@@ -54,9 +54,9 @@ export default defineNativeEffect({
 					step: 0.001,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.003 },
+			defaultValue: 0.003,
 		},
-		color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
+		color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: [1, 1, 1, 1] },
 	},
 	primaryInputParameter: null,
 	primaryAudioInputParameter: 'audio',

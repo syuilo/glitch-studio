@@ -4,7 +4,7 @@ import { createEffectInstance } from '../src/create-effect-instance.ts';
 import { validateEffectSource } from '@gs/subsystems_effect_shared/validate-effect-source.ts';
 
 const size = { width: 24, height: 12 };
-const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } };
+const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: {} }, canNode: true, defaultValue: 0 };
 const base = { kind: 'generate', primaryInputParameter: null, primaryOutput: 'main', resolutionInputParameters: [],
 	paramDefs: {}, outputDefs: { main: { dataType: { kind: 'scalar' } } } };
 const sampling = { fitMode: 'contain', wrapMode: 'clamp', filterMode: 'nearest' };
@@ -97,7 +97,7 @@ test('forwards changing borrowed textures through nested graphs and omits unifor
 // 子のInに値を渡した配置では、その値が子のOutを越えて親側の描画に混入しない。
 test('uses the downstream default when a nested graph has no texture output', async t => {
 	const child = { ...base, paramDefs: { source: scalar }, nodes: [], outputSources: { main: { parameterId: 'source' } } };
-	const consumer = { ...base, paramDefs: { input: { ...scalar, defaultValue: { inputSource: 'literal', value: 4 } } } };
+	const consumer = { ...base, paramDefs: { input: { ...scalar, defaultValue: 4 } } };
 	const graph = { ...base, nodes: [
 		{ id: 'child', effectSource: inline(child), params: { source: { inputSource: 'literal', value: 7 } } },
 		{ id: 'consumer', effectSource: native('consumer'), params: { input: wire('child', 'main') } },
@@ -139,16 +139,16 @@ test('validates recursive references and defaults at the editing boundary', () =
 	const graph = { ...base, nodes: [{ id: 'self', effectSource: source, params: {} }], outputSources: {} };
 	assert.throws(() => validateEffectSource(source, { getCustomNodeGraphEffect: () => graph }), /Cyclic Custom Node Graph Effect/);
 	const array = { dataType: { kind: 'array', elementType: scalar.dataType }, ui: { label: '', control: { element: {} } }, element: scalar,
-		defaultValue: { inputSource: 'literal', value: [{ id: 'e', binding: { inputSource: 'expression', expression: 'TIME' } }] } };
-	assert.throws(() => validateEffectSource(inline({ ...graph, nodes: [], paramDefs: { array } }), {}), /must be literal/);
+		defaultValue: [{ inputSource: 'expression', expression: 'TIME' }] };
+	assert.throws(() => validateEffectSource(inline({ ...graph, nodes: [], paramDefs: { array } }), {}), /Invalid scalar default value/);
 });
 
 // 【解像度だけに寄与する配線は、配列・構造体の中にあっても描画しない】
 // 子の基準寸法は入力由来でも、子の公開出力への経路で画素を読まなければ上流のGPU資源は不要。
 test('resolves nested input dimensions without rendering a size-only dependency', async () => {
 	const field = { dataType: { kind: 'struct', fields: { gain: scalar.dataType } }, ui: { label: '', control: { fields: { gain: scalar.ui } } },
-		fields: { gain: scalar }, defaultValue: { inputSource: 'literal', value: { gain: scalar.defaultValue } } };
-	const array = { dataType: { kind: 'array', elementType: field.dataType }, element: field, ui: { label: '', control: { element: field.ui.control } }, defaultValue: { inputSource: 'literal', value: [] } };
+		fields: { gain: scalar }, defaultValue: { gain: scalar.defaultValue } };
+	const array = { dataType: { kind: 'array', elementType: field.dataType }, element: field, ui: { label: '', control: { element: field.ui.control } }, defaultValue: [] };
 	const child = { ...base, paramDefs: { sizes: array }, resolutionInputParameters: ['sizes'],
 		nodes: [{ id: 'draw', effectSource: native('draw'), params: {} }], outputSources: { main: { nodeId: 'draw', outputPort: 'main' } } };
 	const graph = { ...base, nodes: [{ id: 'metadata', effectSource: native('metadata'), resolution: size, params: {} },

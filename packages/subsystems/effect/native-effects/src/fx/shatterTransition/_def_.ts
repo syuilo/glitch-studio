@@ -12,73 +12,73 @@ export default defineNativeEffect({
 	paramDefs: {
 		inputA: {
 			dataType: { kind: 'color' }, ui: { label: 'A', control: {} }, canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		inputB: {
 			dataType: { kind: 'color' }, ui: { label: 'B', control: {} }, canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		progress: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Progress', control: { controlType: 'range', min: 0, max: 1, step: 0.001 } }, canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		fragmentSize: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Fragment Size (Reference Ratio)', control: { controlType: 'range', min: 0.01, max: 1, step: 0.001 } },
-			defaultValue: { inputSource: 'literal', value: 0.08 },
+			defaultValue: 0.08,
 		},
 		irregularity: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Irregularity', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
-			defaultValue: { inputSource: 'literal', value: 0.8 },
+			defaultValue: 0.8,
 		},
 		center: {
 			dataType: { kind: 'vector' },
 			ui: { label: 'Center', control: { controlType: 'xy', min: -0.5, max: 0.5, step: 0.001 } },
-			defaultValue: { inputSource: 'literal', value: [0, 0] },
+			defaultValue: [0, 0],
 		},
 		spread: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Spread (Reference Ratio)', control: { controlType: 'range', min: 0, max: 2, step: 0.01 } },
-			defaultValue: { inputSource: 'literal', value: 0.6 },
+			defaultValue: 0.6,
 		},
 		depth: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Depth (Reference Ratio)', control: { controlType: 'range', min: -2, max: 2, step: 0.01 } },
-			defaultValue: { inputSource: 'literal', value: -2 },
+			defaultValue: -2,
 		},
 		rotation: {
 			dataType: { kind: 'scalar' }, ui: { label: 'Rotation', control: { controlType: 'angle' } },
-			defaultValue: { inputSource: 'literal', value: 0.75 },
+			defaultValue: 0.75,
 		},
 		gravity: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Gravity (Reference Ratio)', control: { controlType: 'range', min: -2, max: 2, step: 0.01 } },
-			defaultValue: { inputSource: 'literal', value: 0.25 },
+			defaultValue: 0.25,
 		},
 		stagger: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Stagger', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
-			defaultValue: { inputSource: 'literal', value: 0.3 },
+			defaultValue: 0.3,
 		},
 		perspective: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Perspective', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
-			defaultValue: { inputSource: 'literal', value: 0.5 },
+			defaultValue: 0.5,
 		},
 		shading: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Shading', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
-			defaultValue: { inputSource: 'literal', value: 0.6 },
+			defaultValue: 0.6,
 		},
 		seed: {
 			dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } },
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		sizeReference: {
 			dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} },
-			defaultValue: { inputSource: 'literal', value: 'longSide' },
+			defaultValue: 'longSide',
 		},
 	},
 	primaryInputParameter: 'inputA',

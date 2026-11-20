@@ -66,7 +66,7 @@ export async function run() {
 		const output = selectedImplementation.createTexture('output', { wgpu, resolution });
 		assert(output.format === INTERMEDIATE_TEXTURE_FORMAT, 'fixed rgba16float image output');
 		owned.push(output);
-		const selectedDefaults = Object.fromEntries(Object.entries(selectedDefinition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value]));
+		const selectedDefaults = Object.fromEntries(Object.entries(selectedDefinition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue) : parameter.defaultValue]));
 		const base = { ...selectedDefaults, text: 'F', size: 0.22, sizeReference: 'height', ...(effectKind === 'text' ? { overflow: 'none' } : { repetitions: [1, 1] }) } as Parameters;
 		let effect = selectedImplementation.place(wgpu, resolution, { font: null });
 		effects.push(effect);

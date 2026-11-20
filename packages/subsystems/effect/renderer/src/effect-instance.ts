@@ -100,7 +100,7 @@ type NativeEffectInput<D extends DataType, Settings> = Settings extends { canNod
 	} : D extends { kind: 'struct'; fields: infer Fields extends Record<string, DataType> } ? {
 		readonly kind: 'struct';
 		readonly fields: { readonly [Key in keyof Fields]: NativeEffectInput<Fields[Key], Settings extends { fields: infer S } ? S[Key & keyof S] : never> };
-	} : { readonly kind: 'value'; readonly value: D extends { kind: 'audioSource' } ? AudioInput | null : ParameterDefaultValue<D>['value'] };
+	} : { readonly kind: 'value'; readonly value: D extends { kind: 'audioSource' } ? AudioInput | null : ParameterDefaultValue<D> };
 
 type EffectStaticResource<T extends StaticSettingDataType> =
 	T extends { kind: 'assetReference'; assetType: 'image' } ? GPUTexture | null :

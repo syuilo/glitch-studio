@@ -15,7 +15,7 @@ export default defineNativeEffect({
 			dataType: { kind: 'audioSource' },
 			ui: { label: 'Audio', control: {} },
 			canNode: false,
-			defaultValue: { inputSource: 'literal', value: null },
+			defaultValue: null,
 		},
 		channel: {
 			dataType: { kind: 'enum', options: ['left', 'right', 'mix', 'stereo'] },
@@ -30,7 +30,7 @@ export default defineNativeEffect({
 					},
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 'mix' },
+			defaultValue: 'mix',
 		},
 		fftSize: {
 			dataType: { kind: 'enum', options: ['256', '512', '1024', '2048', '4096', '8192', '16384', '32768'] },
@@ -49,7 +49,7 @@ export default defineNativeEffect({
 					},
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: '2048' },
+			defaultValue: '2048',
 		},
 		window: {
 			dataType: { kind: 'enum', options: ['hann', 'hamming', 'blackman', 'rectangular'] },
@@ -64,7 +64,7 @@ export default defineNativeEffect({
 					},
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 'hann' },
+			defaultValue: 'hann',
 		},
 		smoothing: {
 			dataType: { kind: 'scalar' },
@@ -77,7 +77,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		minFrequency: {
 			dataType: { kind: 'scalar' },
@@ -90,7 +90,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 20 },
+			defaultValue: 20,
 		},
 		maxFrequency: {
 			dataType: { kind: 'scalar' },
@@ -103,9 +103,9 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 20000 },
+			defaultValue: 20000,
 		},
-		logarithmic: { dataType: { kind: 'bool' }, ui: { label: 'Logarithmic Frequency', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		logarithmic: { dataType: { kind: 'bool' }, ui: { label: 'Logarithmic Frequency', control: {} }, defaultValue: false },
 		minDb: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -117,7 +117,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: -80 },
+			defaultValue: -80,
 		},
 		maxDb: {
 			dataType: { kind: 'scalar' },
@@ -130,7 +130,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		duration: {
 			dataType: { kind: 'scalar' },
@@ -143,19 +143,19 @@ export default defineNativeEffect({
 					step: 0.5,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 10 },
+			defaultValue: 10,
 		},
 		orientation: {
 			dataType: { kind: 'enum', options: ['horizontal', 'vertical'] },
 			ui: { label: 'Time Axis', control: { labels: { 'horizontal': 'Horizontal', 'vertical': 'Vertical' } } },
-			defaultValue: { inputSource: 'literal', value: 'horizontal' },
+			defaultValue: 'horizontal',
 		},
 		direction: {
 			dataType: { kind: 'enum', options: ['forward', 'reverse'] },
 			ui: { label: 'Flow Direction', control: { labels: { 'forward': 'Right to Left / Top to Bottom', 'reverse': 'Left to Right / Bottom to Top' } } },
-			defaultValue: { inputSource: 'literal', value: 'forward' },
+			defaultValue: 'forward',
 		},
-		flipFrequency: { dataType: { kind: 'bool' }, ui: { label: 'Reverse Frequency Axis', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		flipFrequency: { dataType: { kind: 'bool' }, ui: { label: 'Reverse Frequency Axis', control: {} }, defaultValue: false },
 	},
 	primaryInputParameter: null,
 	primaryAudioInputParameter: 'audio',

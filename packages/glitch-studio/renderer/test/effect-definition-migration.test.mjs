@@ -3,6 +3,7 @@ import { readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
 import ts from 'typescript';
 
 const effectDirectory = new URL('../', import.meta.resolve('@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts'));
@@ -12,14 +13,7 @@ const definitions = await Promise.all((await readdir(effectDirectory, { withFile
 
 function checkParameter(dataType, settings, control) {
 	assert.equal(typeof dataType.kind, 'string');
-	assert.equal(settings.defaultValue.inputSource, 'literal');
 	if (dataType.kind === 'array') {
-		assert.ok(Array.isArray(settings.defaultValue.value));
-		assert.equal(new Set(settings.defaultValue.value.map(element => element.id)).size, settings.defaultValue.value.length);
-		for (const element of settings.defaultValue.value) {
-			assert.equal(typeof element.id, 'string');
-			assert.equal(element.binding.inputSource, 'literal');
-		}
 		checkParameter(dataType.elementType, settings.element, control.element);
 	} else if (dataType.kind === 'struct') {
 		// 子設定とUIはフィールド名で対応付けるため、宣言順ではなくキーの過不足を検証する。
@@ -33,13 +27,13 @@ function checkParameter(dataType, settings, control) {
 	} else if (dataType.kind === 'enum') {
 		assert.ok(dataType.options.every(option => typeof option === 'string'));
 		assert.equal(new Set(dataType.options).size, dataType.options.length);
-		assert.ok(dataType.options.includes(settings.defaultValue.value));
+		assert.ok(dataType.options.includes(settings.defaultValue));
 		assert.deepEqual(Object.keys(control.labels).sort(), [...dataType.options].sort());
 	}
 }
 
-// 【全エフェクトの定義と配列要素IDの整合性】
-// 全定義を実際に読み込み、選択肢・初期値・子設定の移行漏れや、配列内でのID重複を検出する。
+// 【全Native Effectの定義と既定値の整合性】
+// 実際の定義を読み込み、子設定や配列の各初期値が宣言された型に対応することを確認する。
 test('keeps all effect schemas and string enum defaults consistent', () => {
 	assert.ok(definitions.length > 0);
 	for (const definition of definitions) {
@@ -49,6 +43,7 @@ test('keeps all effect schemas and string enum defaults consistent', () => {
 		assert.ok(definition.primaryOutput === null || Object.hasOwn(definition.outputDefs, definition.primaryOutput),
 			`Unknown primary output in ${definition.id}: ${definition.primaryOutput}`);
 		for (const parameter of Object.values(definition.paramDefs)) {
+			validateParameterDefaultValues(parameter);
 			checkParameter(parameter.dataType, parameter, parameter.ui.control);
 		}
 		for (const output of Object.values(definition.outputDefs)) {
@@ -62,13 +57,13 @@ test('keeps all effect schemas and string enum defaults consistent', () => {
 // 数値を表す選択肢も文字列で保存し、モード番号は意味のある名前へ置き換える。
 test('uses string sizes and named processing modes', () => {
 	const find = id => definitions.find(definition => definition.id === id).paramDefs;
-	assert.equal(find('audioSpectrum').fftSize.defaultValue.value, '2048');
-	assert.equal(find('audioSpectrogram').fftSize.defaultValue.value, '2048');
-	assert.equal(find('histogram').resolution.defaultValue.value, '1');
-	assert.equal(find('waveform').resolution.defaultValue.value, '1');
+	assert.equal(find('audioSpectrum').fftSize.defaultValue, '2048');
+	assert.equal(find('audioSpectrogram').fftSize.defaultValue, '2048');
+	assert.equal(find('histogram').resolution.defaultValue, '1');
+	assert.equal(find('waveform').resolution.defaultValue, '1');
 	for (const id of ['image', 'video']) {
 		assert.equal(find(id).fit.dataType.kind, 'fitMode');
-		assert.equal(find(id).fit.defaultValue.value, 'cover');
+		assert.equal(find(id).fit.defaultValue, 'cover');
 	}
 	assert.deepEqual(find('rgbTo').mode.dataType.options, ['intensity', 'luminance']);
 });
@@ -129,28 +124,28 @@ const { paramDefs: { foo: struct, buzzs: array }, ...definitionMetadata } = defi
 const base = { ...definitionMetadata, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameters: [] };
 const uiField = struct.ui.control.fields.node;
 const fieldSettings = struct.fields.node;
-const binding = struct.defaultValue.value.node;
-// 正しいフィールドと既存のBindingは受け入れる。
+const value = struct.defaultValue.node;
+// 正しいフィールドと既定値を受け入れる。
 const valid = defineNativeEffect({ ...base, paramDefs: { struct, array } });
 const preserved: true = valid.paramDefs.struct.fields.node.canNode;
 // @ts-expect-error UIに存在しないfieldを追加できない。
 defineNativeEffect({ ...base, paramDefs: { struct: { ...struct, ui: { ...struct.ui, control: { fields: { ...struct.ui.control.fields, typo: uiField } } } } } });
 // @ts-expect-error 初期値に存在しないfieldを追加できない。
-defineNativeEffect({ ...base, paramDefs: { struct: { ...struct, defaultValue: { inputSource: 'literal', value: { node: binding, typo: binding } } } } });
+defineNativeEffect({ ...base, paramDefs: { struct: { ...struct, defaultValue: { node: value, typo: value } } } });
 // @ts-expect-error 子設定に存在しないfieldを追加できない。
 defineNativeEffect({ ...base, paramDefs: { struct: { ...struct, fields: { ...struct.fields, typo: fieldSettings } } } });
 // @ts-expect-error UIの必須fieldを省略できない。
 defineNativeEffect({ ...base, paramDefs: { struct: { ...struct, ui: { ...struct.ui, control: { fields: {} } } } } });
 // @ts-expect-error 初期値の必須fieldを省略できない。
-defineNativeEffect({ ...base, paramDefs: { struct: { ...struct, defaultValue: { inputSource: 'literal', value: {} } } } });
+defineNativeEffect({ ...base, paramDefs: { struct: { ...struct, defaultValue: {} } } });
 // @ts-expect-error 配列の要素UIに存在しないfieldを追加できない。
 defineNativeEffect({ ...base, paramDefs: { array: { ...array, ui: { ...array.ui, control: { element: { fields: { ...array.ui.control.element.fields, typo: uiField } } } } } } });
 // @ts-expect-error 配列内の構造体初期値にも存在しないfieldを追加できない。
-defineNativeEffect({ ...base, paramDefs: { array: { ...array, defaultValue: { inputSource: 'literal', value: [{ id: 'first', binding: { inputSource: 'literal', value: { ...array.element.defaultValue.value, typo: binding } } }] } } } });
+defineNativeEffect({ ...base, paramDefs: { array: { ...array, defaultValue: [{ ...array.element.defaultValue, typo: value }] } } });
 // @ts-expect-error 要素追加時の初期値にも存在しないfieldを追加できない。
-defineNativeEffect({ ...base, paramDefs: { array: { ...array, element: { ...array.element, defaultValue: { inputSource: 'literal', value: { ...array.element.defaultValue.value, typo: binding } } } } } });
+defineNativeEffect({ ...base, paramDefs: { array: { ...array, element: { ...array.element, defaultValue: { ...array.element.defaultValue, typo: value } } } } });
 // @ts-expect-error 正しいfield名でもリテラルの型は一致する必要がある。
-defineNativeEffect({ ...base, paramDefs: { array: { ...array, element: { ...array.element, defaultValue: { inputSource: 'literal', value: { ...array.element.defaultValue.value, x: { inputSource: 'literal', value: 'bad' } } } } } } });
+defineNativeEffect({ ...base, paramDefs: { array: { ...array, element: { ...array.element, defaultValue: { ...array.element.defaultValue, x: 'bad' } } } } });
 `;
 	assertTypeChecks(fileName, source);
 });

@@ -10,8 +10,8 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	tags: ['gradient', 'utility'],
 	paramDefs: {
-		mode: { dataType: { kind: 'enum', options: ['linear', 'radial'] }, ui: { label: 'Type', control: { labels: { 'linear': 'Linear', 'radial': 'Radial' } } }, defaultValue: { inputSource: 'literal', value: 'linear' } },
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		mode: { dataType: { kind: 'enum', options: ['linear', 'radial'] }, ui: { label: 'Type', control: { labels: { 'linear': 'Linear', 'radial': 'Radial' } } }, defaultValue: 'linear' },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		center: {
 			dataType: { kind: 'vector' },
 			ui: {
@@ -23,7 +23,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: [0, 0] },
+			defaultValue: [0, 0],
 		},
 		startPosition: {
 			dataType: { kind: 'scalar' },
@@ -37,7 +37,7 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		endPosition: {
 			dataType: { kind: 'scalar' },
@@ -51,28 +51,28 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		startValue: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Start Value', control: { controlType: 'number', step: 0.01 } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		endValue: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'End Value', control: { controlType: 'number', step: 0.01 } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
-		clampEdge: { dataType: { kind: 'bool' }, ui: { label: 'Clamp to Edge', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		clampEdge: { dataType: { kind: 'bool' }, ui: { label: 'Clamp to Edge', control: {} }, defaultValue: true },
 		frequency: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Frequency', control: { controlType: 'number', step: 0.01 } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
-		mirrorRepeat: { dataType: { kind: 'bool' }, ui: { label: 'Mirror Repeat', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		mirrorRepeat: { dataType: { kind: 'bool' }, ui: { label: 'Mirror Repeat', control: {} }, defaultValue: false },
 		skew: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -85,7 +85,7 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		// TIPS: expressionでこれにTIMEを渡したいときは `TIME % 1` と書くことを推奨。そうしないと16bitの精度の問題で刻みが粗くなる。0~1の位相なので1で折り返して問題ない
 		phase: {
@@ -100,9 +100,9 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
-		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Angle', control: { controlType: 'angle' } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Angle', control: { controlType: 'angle' } }, defaultValue: 0 },
 		interpolation: {
 			dataType: { kind: 'enum', options: ['linear', 'smoothstep', 'smootherstep', 'cosine', 'circular', 'back', 'elastic', 'expo', 'expo-in', 'expo-out'] },
 			ui: {
@@ -122,7 +122,7 @@ export default defineNativeEffect({
 					},
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 'linear' },
+			defaultValue: 'linear',
 		},
 	},
 	primaryInputParameter: null,

@@ -13,14 +13,14 @@ export default defineNativeEffect({
 		foo: {
 			dataType: { kind: 'struct', fields: { node: { kind: 'color' } } },
 			ui: { label: 'Foo', control: { fields: { node: { label: 'Node', control: {} } } } },
-			defaultValue: { inputSource: 'literal', value: { node: { inputSource: 'literal', value: [0, 0, 0, 0] } } },
-			fields: { node: { canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } } },
+			defaultValue: { node: [0, 0, 0, 0] },
+			fields: { node: { canNode: true, defaultValue: [0, 0, 0, 0] } },
 		},
 		bars: {
 			dataType: { kind: 'array', elementType: { kind: 'color' } },
 			ui: { label: 'Bars', control: { element: {} } },
-			defaultValue: { inputSource: 'literal', value: [] },
-			element: { defaultValue: { inputSource: 'literal', value: [0, 1, 0, 1] } },
+			defaultValue: [],
+			element: { defaultValue: [0, 1, 0, 1] },
 		},
 		buzzs: {
 			dataType: { kind: 'array', elementType: { kind: 'struct', fields: { image: { kind: 'color' }, x: { kind: 'scalar' }, y: { kind: 'scalar' } } } },
@@ -52,15 +52,12 @@ export default defineNativeEffect({
 					},
 				},
 			},
-			defaultValue: {
-				inputSource: 'literal',
-				value: [
-					{ id: 'first', binding: { inputSource: 'literal', value: { image: { inputSource: 'literal', value: [0, 0, 1, 1] }, x: { inputSource: 'literal', value: 0 }, y: { inputSource: 'literal', value: 0 } } } },
-				],
-			},
+			defaultValue: [
+				{ image: [0, 0, 1, 1], x: 0, y: 0 },
+			],
 			element: {
-				defaultValue: { inputSource: 'literal', value: { image: { inputSource: 'literal', value: [0, 0, 1, 1] }, x: { inputSource: 'literal', value: 0 }, y: { inputSource: 'literal', value: 0 } } },
-				fields: { image: { canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 1, 1] } }, x: { defaultValue: { inputSource: 'literal', value: 0 } }, y: { defaultValue: { inputSource: 'literal', value: 0 } } },
+				defaultValue: { image: [0, 0, 1, 1], x: 0, y: 0 },
+				fields: { image: { canNode: true, defaultValue: [0, 0, 1, 1] }, x: { defaultValue: 0 }, y: { defaultValue: 0 } },
 			},
 		},
 	},

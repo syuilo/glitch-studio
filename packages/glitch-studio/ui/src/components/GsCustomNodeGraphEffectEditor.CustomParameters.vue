@@ -9,7 +9,7 @@
 			:customNodeGraphEffect="customNodeGraphEffect"
 			:paramPath="[definition.id]"
 			:paramDef="definition"
-			:paramValue="customNodeGraphEffect.customParameterValues[definition.id] ?? definition.defaultValue"
+			:paramValue="customNodeGraphEffect.customParameterValues[definition.id] ?? createDefaultParameterBinding(definition)"
 			:data-test-custom-parameter-value="definition.id"
 			@edit="event => editValue(definition.id, event)"
 		/>
@@ -29,6 +29,7 @@
 </template>
 
 <script lang="ts" setup>
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { reactive } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import { CUSTOM_NODE_GRAPH_EFFECT_CUSTOM_PARAMETER_VAR_DEFS } from '@/utility/custom-node-graph-effect-expression.ts';
@@ -58,7 +59,7 @@ function add() {
 	for (let suffix = 2; props.customNodeGraphEffect.customParameterDefs.some(definition => definition.nameForReference === nameForReference); suffix++) nameForReference = `my_param_${suffix}`;
 	emit('edit', { kind: 'updateCustomParameter', definition: {
 		id: genId(), nameForReference: nameForReference, canNode: false,
-		dataType: { kind: 'scalar' }, ui: { label: nameForReference, control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.5 },
+		dataType: { kind: 'scalar' }, ui: { label: nameForReference, control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: 0.5,
 	} });
 }
 

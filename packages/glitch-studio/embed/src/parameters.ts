@@ -3,8 +3,7 @@ import { colorBlendModes } from '@gs/shared/color-blend.ts';
 import { validateColorRamp } from '@gs/shared/color-ramp.ts';
 import { SIZE_REFERENCES } from '@gs/shared/size-reference.ts';
 import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
-import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
-import type { ParameterDefaultValue, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
+import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return value != null && typeof value === 'object' && !Array.isArray(value);
@@ -62,12 +61,8 @@ export function validatePortableParameters(definitions: ReadonlyMap<string, Para
 }
 
 export function getPortableParameterDefaults(definitions: ReadonlyMap<string, ParameterDefinition>): Record<string, unknown> {
-	return Object.fromEntries(Array.from(definitions, ([name, definition]) => [name,
-		mapParameterTree<ParameterDefaultValue>(definition, definition.defaultValue, [], (leaf, binding) => {
-			// 配布先にはPlayerがなく、配列要素の編集用IDやBindingも公開しない。
-			const value = leaf.dataType.kind === 'audioSource' ? null : binding.value;
-			validatePortableParameterValue(leaf, value);
-			return value;
-		}),
-	]));
+	return Object.fromEntries(Array.from(definitions, ([name, definition]) => {
+		validatePortableParameterValue(definition, definition.defaultValue);
+		return [name, structuredClone(definition.defaultValue)];
+	}));
 }

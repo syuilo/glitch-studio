@@ -885,7 +885,7 @@ test('keeps invalid projects editable and recreates both previews after correcti
 // エラー表示だけが消えてWorkerを持たない状態のままにならないよう、両エンジンの復帰を確認する。
 test('recreates previews after switching away from invalid customNodeGraphEffectLivePreview inputs', async t => {
 	setup(t);
-	const { projectSession } = evaluateSession(project({ customNodeGraphEffects: [{ id: 'customNodeGraphEffect', definition: testGraph({ customParameterValues: {}, nodes: [], paramDefs: { "audio": { nameForReference: 'audio', dataType: { kind: 'audioSource' }, canNode: false, ui: { label: 'Audio', control: { controlType: 'audioSource' } }, defaultValue: { inputSource: 'literal', value: null } } } }) }] }));
+	const { projectSession } = evaluateSession(project({ customNodeGraphEffects: [{ id: 'customNodeGraphEffect', definition: testGraph({ customParameterValues: {}, nodes: [], paramDefs: { "audio": { nameForReference: 'audio', dataType: { kind: 'audioSource' }, canNode: false, ui: { label: 'Audio', control: { controlType: 'audioSource' } }, defaultValue: null } } }) }] }));
 	await startActiveProjectSession(projectSession);
 	projectSession.previewPlayback.updateCustomNodeGraphEffectLivePreviewParamValues('customNodeGraphEffect', { audio: { inputSource: 'literal', value: { type: 'player', playerId: 'missing' } } });
 	assert.ok(projectSession.renderValidation.diagnostics.value.length > 0);

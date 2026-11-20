@@ -55,7 +55,7 @@ export async function run() {
 
 	function createEffect(definition: EffectDefinition, implementation: NativeEffectProbe) {
 		const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name,
-			constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value)]));
+			constantShaderInput(parameter.dataType.kind, parameter.defaultValue)]));
 		const output = implementation.createTexture('output', { wgpu, resolution });
 		const instance = implementation.place(wgpu, resolution);
 		const readGroup = device.createBindGroup({ layout: reader.getBindGroupLayout(0), entries: [{ binding: 0, resource: output.createView() }] });

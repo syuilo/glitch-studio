@@ -23,10 +23,10 @@ function fixture(enabled = false, inline = false) {
 	const effectDefinitions = {
 		previous: { paramDefs: {}, outputDefs: { main: { dataType: { kind: 'color' } }, secondary: { dataType: { kind: 'color' } } } },
 		filter: { primaryInputParameter: 'image', primaryOutput: 'result',
-			paramDefs: { image: { canNode: true, dataType: { kind: 'color' }, defaultValue: disconnected } },
+			paramDefs: { image: { canNode: true, dataType: { kind: 'color' }, defaultValue: disconnected.value } },
 			outputDefs: { result: { dataType: { kind: 'color' } } } },
 		scalar: { primaryInputParameter: 'value', primaryOutput: 'result',
-			paramDefs: { value: { canNode: true, dataType: { kind: 'scalar' }, defaultValue: { inputSource: 'literal', value: 0 } } },
+			paramDefs: { value: { canNode: true, dataType: { kind: 'scalar' }, defaultValue: 0 } },
 			outputDefs: { result: { dataType: { kind: 'scalar' } } } },
 	};
 	const module = { exports: {} };

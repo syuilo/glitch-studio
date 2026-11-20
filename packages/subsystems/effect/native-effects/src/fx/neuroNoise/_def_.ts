@@ -17,19 +17,19 @@ export default defineNativeEffect({
 			dataType: { kind: 'color' },
 			ui: { label: 'Background', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] },
+			defaultValue: [0, 0, 0, 1],
 		},
 		colorFront: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Highlight Color', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] },
+			defaultValue: [1, 1, 1, 1],
 		},
 		colorMid: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Main Color', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: srgbToLinearSrgb([71 / 255, 166 / 255, 1, 1]) },
+			defaultValue: srgbToLinearSrgb([71 / 255, 166 / 255, 1, 1]),
 		},
 		brightness: {
 			dataType: { kind: 'scalar' },
@@ -42,7 +42,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.05 },
+			defaultValue: 0.05,
 		},
 		contrast: {
 			dataType: { kind: 'scalar' },
@@ -55,10 +55,10 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.3 },
+			defaultValue: 0.3,
 		},
-		time: { dataType: { kind: 'scalar' }, ui: { label: 'Time', control: { controlType: 'number', step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		time: { dataType: { kind: 'scalar' }, ui: { label: 'Time', control: { controlType: 'number', step: 0.01 } }, defaultValue: 0 },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		density: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -70,9 +70,9 @@ export default defineNativeEffect({
 					logarithmic: true,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1.3 },
+			defaultValue: 1.3,
 		},
-		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Angle', control: { controlType: 'angle' } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Angle', control: { controlType: 'angle' } }, defaultValue: 0 },
 		offset: {
 			dataType: { kind: 'vector' },
 			ui: {
@@ -84,7 +84,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: [0, 0] },
+			defaultValue: [0, 0],
 		},
 	},
 	primaryInputParameter: 'background',

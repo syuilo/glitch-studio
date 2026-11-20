@@ -4,7 +4,7 @@ import implementationNative from '../../src/fx/magneticPendulum/_impl_.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
-import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import type { NativeParameterValues } from '../../src/multipass.ts';
 
 const implementation = nativeEffectProbe(definition, implementationNative);
@@ -19,9 +19,8 @@ export async function run() {
 	const checks: string[] = [];
 	const resources: (() => void)[] = [];
 	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name,
-		mapParameterTree<ValueParameterBinding>(parameter, parameter.defaultValue, [], (field, binding) => {
-			if (binding.inputSource !== 'literal') throw new Error('Expected literal test defaults');
-			return 'canNode' in field && field.canNode === true ? constantShaderInput(field.dataType.kind, binding.value) : structuredClone(binding.value);
+		mapParameterTree<ReturnType<typeof createDefaultParameterBinding>>(parameter, createDefaultParameterBinding(parameter), [], (field, binding) => {
+			return 'canNode' in field && field.canNode === true ? constantShaderInput(field.dataType.kind, binding.value) : binding.value;
 		}),
 	])) as Parameters;
 	const reader = device.createRenderPipeline({ layout: 'auto', vertex: { module: wgpu.defaultVertexShaderModule }, fragment: {

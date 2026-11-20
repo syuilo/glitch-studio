@@ -1,6 +1,6 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { validateStaticSettings } from '@gs/shared/static-setting.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
-import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { resolveEffectSource, type EffectDefinitions, type EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
 import { validateEffectSource } from '@gs/subsystems_effect_shared/validate-effect-source.ts';
 import { createLowerLayerOutputBinding, validateTimelineParameterTree } from '../../parameter-binding.ts';
@@ -24,7 +24,7 @@ export function getTimelineEffectOutput(definition: EffectDefinition): string {
 export function getEffectLayerParameterDefault(definition: EffectDefinition, key: string): TimelineEffectParameterBinding {
 	if (definition.primaryAudioInputParameter === key) return { inputSource: 'lowerLayerAudio' };
 	return definition.kind === 'modify' && definition.primaryInputParameter === key
-		? createLowerLayerOutputBinding() : deepClone(definition.paramDefs[key].defaultValue);
+		? createLowerLayerOutputBinding() : createDefaultParameterBinding(definition.paramDefs[key]);
 }
 
 /** 配置の受け入れ時に、インライン定義と入れ子の参照も含めて検証する。 */

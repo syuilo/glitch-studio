@@ -29,7 +29,7 @@ const shaderSource = { type: 'customShaderEffectReference', id: 'shader' } as co
 function registeredShader(code: string, colorPort = 'color'): ProjectCustomShaderEffect {
 	return { id: shaderSource.id, name: 'Shader', summary: '', definition: {
 		kind: 'modify', shaderApiVersion: 1, code,
-		paramDefs: { source: { nameForReference: 'source', canNode: true, dataType: { kind: 'color' }, ui: { label: 'Source', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 0, 1, 1] } } },
+		paramDefs: { source: { nameForReference: 'source', canNode: true, dataType: { kind: 'color' }, ui: { label: 'Source', control: {} }, defaultValue: [1, 0, 1, 1] } },
 		primaryInputParameter: 'source', primaryOutput: colorPort, resolutionInputParameters: ['source'],
 		outputDefs: { [colorPort]: { nameForReference: 'color', dataType: { kind: 'color' } } },
 	} };

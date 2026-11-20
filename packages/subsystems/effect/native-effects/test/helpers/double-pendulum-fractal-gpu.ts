@@ -5,8 +5,6 @@ import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import type { TestOutputTextures } from './native-effect-probe.ts';
 import type { NativeParameterValues } from '../../src/multipass.ts';
 import type { ColorRamp } from '@gs/shared/color-ramp.ts';
-import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
-import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 
 const implementation = nativeEffectProbe(definition, implementationNative);
 
@@ -52,10 +50,7 @@ export async function run(benchmark = false) {
 	const timings: { resolution: string; simulationTime: number; milliseconds: number }[] = [];
 	const resources: (() => void)[] = [];
 	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name,
-		mapParameterTree<ValueParameterBinding>(parameter, parameter.defaultValue, [], (_field, binding) => {
-			if (binding.inputSource !== 'literal') throw new Error('Expected literal test defaults');
-			return structuredClone(binding.value);
-		}),
+		structuredClone(parameter.defaultValue),
 	])) as Parameters;
 	const assert = (condition: boolean, label: string) => {
 		if (!condition) throw new Error(label);

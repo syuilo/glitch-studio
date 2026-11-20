@@ -1,9 +1,9 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { canConnectNodeDataTypes } from '@gs/shared/data-type/node-compatibility.ts';
 import { AiSON } from '@syuilo/aiscript';
 import { validateStaticSettingValue } from '@gs/shared/static-setting.ts';
 import { preserveParameterExpressionModifier, supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
 import { validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
-import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
 import { getArrayElementDefinition, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter-path.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
@@ -114,8 +114,8 @@ const switchCustomNodeGraphEffectNodeParameterInputSource = defineNodeParameterC
 	(parameter, input) => {
 		assertLeafParameter(parameter);
 		switch (input.inputSource) {
-			case 'literal': return deepClone(parameter.def.defaultValue);
-			case 'expression': return { inputSource: 'expression', expression: AiSON.stringify(parameter.value.inputSource === 'literal' ? parameter.value.value : parameter.def.defaultValue.value) };
+			case 'literal': return createDefaultParameterBinding(parameter.def);
+			case 'expression': return { inputSource: 'expression', expression: AiSON.stringify(parameter.value.inputSource === 'literal' ? parameter.value.value : parameter.def.defaultValue) };
 			case 'envVariable': return { inputSource: 'envVariable', variable: '' };
 			case 'automationGraphReference': return { inputSource: 'automationGraphReference', automationGraphId: null, trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' };
 			case 'automationGraphInline': return createInlineAutomationGraph();
@@ -251,16 +251,11 @@ const setCustomNodeGraphEffectOutputConnection = defineCommand<{ target: CustomN
 });
 
 function validateCustomNodeGraphEffectPublicParameterDefinition(customNodeGraphEffect: CustomNodeGraphEffect, definition: CustomNodeGraphEffectParamDef, previousId?: string) {
-	validateParameterDefaultValues(definition);
-	if (definition.dataType.kind === 'audioSource') {
-		validateLiteralAudioSourceBinding(definition.defaultValue);
-		if (definition.defaultValue.value !== null) throw new Error('The default audio source must be unselected');
-	}
 	if (isParameterType(definition, 'enum')) {
 		const options = definition.dataType.options;
 		if (options.length === 0 || options.some(value => value.trim() === '') || new Set(options).size !== options.length) throw new Error('Enum options must be non-empty and unique');
-		if (!options.includes(definition.defaultValue.value)) throw new Error('Enum default must be one of its options');
 	}
+	validateParameterDefaultValues(definition);
 	if (definition.canNode && !isTextureDataType(definition.dataType)) throw new Error('Only node-capable parameter types can be exposed as In node outputs');
 	if (customNodeGraphEffect.paramDefs.some(item => item.id !== previousId && (item.id === definition.id || item.nameForReference === definition.nameForReference))) throw new Error('Parameter ID and name must be unique');
 }
@@ -354,7 +349,7 @@ const replaceCustomNodeGraphEffectCustomParameterDefinition = defineCommand<{ ta
 		const definition = { ...deepClone(input.definition), id: input.target.parameterId } as CustomNodeGraphEffectCustomParameterDefinition;
 		validateCustomParameterDefinition(customNodeGraphEffect, definition, input.target.parameterId);
 		if (customNodeGraphEffect.customParameterDefs[index].dataType.kind !== definition.dataType.kind) delete customNodeGraphEffect.customParameterValues[definition.id];
-		validateCustomNodeGraphEffectCustomParameterBinding(definition, customNodeGraphEffect.customParameterValues[definition.id] ?? definition.defaultValue);
+		validateCustomNodeGraphEffectCustomParameterBinding(definition, customNodeGraphEffect.customParameterValues[definition.id] ?? createDefaultParameterBinding(definition));
 		customNodeGraphEffect.customParameterDefs[index] = definition;
 	}),
 });
@@ -413,9 +408,10 @@ function defineCustomParameterCommand<Input extends { target: CustomNodeGraphEff
 			const definition = customNodeGraphEffect.customParameterDefs.find(candidate => candidate.id === input.target.parameterId);
 			if (definition == null) throw new Error('Custom Node Graph Effect custom parameter not found');
 			const before = customNodeGraphEffect.customParameterValues[input.target.parameterId] ?? null;
-			const after = update(definition, deepClone(before ?? definition.defaultValue), input);
-			validateCustomNodeGraphEffectCustomParameterBinding(definition, after ?? definition.defaultValue);
-			const customParameterValuesOnly = getParameterBindingChangeKind(definition, before ?? definition.defaultValue, after ?? definition.defaultValue) === 'value';
+			const defaultBinding = createDefaultParameterBinding(definition);
+			const after = update(definition, deepClone(before ?? defaultBinding), input);
+			validateCustomNodeGraphEffectCustomParameterBinding(definition, after ?? defaultBinding);
+			const customParameterValuesOnly = getParameterBindingChangeKind(definition, before ?? defaultBinding, after ?? defaultBinding) === 'value';
 			return prepareCustomNodeGraphEffectValue(before, after, (currentState, value) => {
 				const current = getCustomNodeGraphEffect(currentState, input.target.customNodeGraphEffect);
 				if (value == null) delete current.customParameterValues[input.target.parameterId];

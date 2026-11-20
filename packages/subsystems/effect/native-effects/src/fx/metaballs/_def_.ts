@@ -16,22 +16,19 @@ export default defineNativeEffect({
 			dataType: { kind: 'color' },
 			ui: { label: 'Background', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] },
+			defaultValue: [0, 0, 0, 1],
 		},
 		colors: {
 			dataType: { kind: 'array', elementType: { kind: 'color' } },
 			ui: { label: 'Colors', control: { element: {} } },
-			defaultValue: {
-				inputSource: 'literal',
-				value: [
-					{ id: 'first', binding: { inputSource: 'literal', value: [110 / 255, 51 / 255, 204 / 255, 1] } },
-					{ id: 'second', binding: { inputSource: 'literal', value: [1, 85 / 255, 0, 1] } },
-					{ id: 'third', binding: { inputSource: 'literal', value: [1, 193 / 255, 5 / 255, 1] } },
-					{ id: 'fourth', binding: { inputSource: 'literal', value: [1, 200 / 255, 0, 1] } },
-					{ id: 'fifth', binding: { inputSource: 'literal', value: [245 / 255, 133 / 255, 1, 1] } },
-				],
-			},
-			element: { canNode: true, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
+			defaultValue: [
+				[110 / 255, 51 / 255, 204 / 255, 1],
+				[1, 85 / 255, 0, 1],
+				[1, 193 / 255, 5 / 255, 1],
+				[1, 200 / 255, 0, 1],
+				[245 / 255, 133 / 255, 1, 1],
+			],
+			element: { canNode: true, defaultValue: [1, 1, 1, 1] },
 		},
 		// 小数部分で最後のボールの大きさを変えるため、整数に丸めない。
 		count: {
@@ -45,7 +42,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 10 },
+			defaultValue: 10,
 		},
 		size: {
 			dataType: { kind: 'scalar' },
@@ -58,10 +55,10 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.83 },
+			defaultValue: 0.83,
 		},
-		time: { dataType: { kind: 'scalar' }, ui: { label: 'Time', control: { controlType: 'number', step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		time: { dataType: { kind: 'scalar' }, ui: { label: 'Time', control: { controlType: 'number', step: 0.01 } }, defaultValue: 0 },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		scale: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -73,9 +70,9 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
-		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Angle', control: { controlType: 'angle' } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Angle', control: { controlType: 'angle' } }, defaultValue: 0 },
 		offset: {
 			dataType: { kind: 'vector' },
 			ui: {
@@ -87,7 +84,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: [0, 0] },
+			defaultValue: [0, 0],
 		},
 	},
 	primaryInputParameter: 'background',

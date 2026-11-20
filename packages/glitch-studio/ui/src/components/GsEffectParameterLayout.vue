@@ -40,6 +40,7 @@
 </template>
 
 <script lang="ts" setup>
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { computed, inject, shallowRef, watchEffect } from 'vue';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import GsNodePort from './GsNodePort.vue';
@@ -89,7 +90,7 @@ const expanded = useParameterExpansionState(projectSession,
 
 function isVisible(parameterKey: string): boolean {
 	const definition = props.definition.paramDefs[parameterKey];
-	const defaultBinding = props.defaultBindings?.[parameterKey] ?? definition.defaultValue;
+	const defaultBinding = props.defaultBindings?.[parameterKey] ?? createDefaultParameterBinding(definition);
 
 	return isParameterVisible(definition, props.values[parameterKey] ?? defaultBinding, defaultBinding, preferences.r.showAdvancedParameters.value);
 }

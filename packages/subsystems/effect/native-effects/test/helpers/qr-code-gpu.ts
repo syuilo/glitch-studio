@@ -53,7 +53,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 
 	function createEffect(width = 444, height = 444, overrides: Partial<QrCodeParameters> = {}) {
 		const resolution = { width, height };
-		const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, 'canNode' in parameter && parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value])) as QrCodeParameters;
+		const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, 'canNode' in parameter && parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue) : parameter.defaultValue])) as QrCodeParameters;
 		const base = { ...defaults, version: 3, content: 'https://example.com', errorCorrection: 'H', sizeReference: 'shortSide', ...overrides } as QrCodeParameters;
 		let uploads = 0;
 		// 実GPUへの転送を数え、装飾だけの更新でマスを再転送していないことを確認する。

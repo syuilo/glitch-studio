@@ -8,7 +8,7 @@ import { createGraphEvaluation } from '../src/graph-evaluation.ts';
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const customReference = parameterId => ({ inputSource: 'customNodeGraphEffectCustomParameterValueReference', parameterId });
-const scalar = (id, nameForReference = id) => ({ id, nameForReference, canNode: false, dataType: { kind: 'scalar' }, ui: { label: nameForReference, control: { controlType: 'number' } }, defaultValue: literal(0) });
+const scalar = (id, nameForReference = id) => ({ id, nameForReference, canNode: false, dataType: { kind: 'scalar' }, ui: { label: nameForReference, control: { controlType: 'number' } }, defaultValue: 0 });
 const scope = (time = 500, publicValue = 3) => ({ time, publicValue, automationGraphs: [] });
 function graphDefinition(definitions, values = {}, environment = scope()) {
 	return { paramDefs: { 'public-speed': scalar('public-speed', 'speed') }, customParameterDefs: Object.fromEntries(definitions.map(def => [def.id, def])),
@@ -51,12 +51,12 @@ test('memoizes dependency diamonds and isolates mutable results', () => {
 	assert.equal(f.read(expression('CUSTOM("left") + CUSTOM("right")')), 1501);
 	assert.equal(f.read(customReference('base')), 500);
 	assert.equal(evaluations, 1);
-	const color = { ...scalar('color'), dataType: { kind: 'color' }, defaultValue: literal([1, 0.5, 0, 1]) };
+	const color = { ...scalar('color'), dataType: { kind: 'color' }, defaultValue: [1, 0.5, 0, 1] };
 	const colors = fixture([color]);
 	const result = colors.read(customReference('color'), color);
 	result[0] = 99;
 	assert.deepEqual(colors.read(expression('CUSTOM("color")'), color), [1, 0.5, 0, 1]);
-	assert.deepEqual(color.defaultValue.value, [1, 0.5, 0, 1]);
+	assert.deepEqual(color.defaultValue, [1, 0.5, 0, 1]);
 });
 
 // 【評価済み値は描画時刻や利用インスタンスを跨いで共有しない】
@@ -115,7 +115,7 @@ test('excludes node-specific variables and defaults unavailable environment bind
 // 【直接参照は存在と型を検査し、削除・型変更後も参照IDを失わない】
 // 型変換が必要な場合は式で明示させ、削除された値や型違いを既定値で隠さない。
 test('rejects missing and mismatched direct references without falling back', () => {
-	const text = { ...scalar('text'), dataType: { kind: 'string' }, defaultValue: literal('') };
+	const text = { ...scalar('text'), dataType: { kind: 'string' }, defaultValue: '' };
 	assert.throws(() => validate(graphDefinition([text], { text: customReference('deleted') })), /Incompatible custom parameter/);
 	assert.throws(() => validate(graphDefinition([text, scalar('speed')], { text: customReference('speed') })), /Incompatible custom parameter/);
 	const reference = parameterId => ({ inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId });
@@ -161,12 +161,12 @@ test('resolves public names separately from IDs and rejects invalid expressions'
 // 【評価結果から公開引数の配列を書き換えられない】
 // 式と直接参照のどちらでも、一方の利用者による変更を次の評価へ持ち越さない。
 test('clones public parameter values returned to independent consumers', () => {
-	const color = { ...scalar('color'), dataType: { kind: 'color' }, defaultValue: literal([1, 0.5, 0, 0.25]) };
+	const color = { ...scalar('color'), dataType: { kind: 'color' }, defaultValue: [1, 0.5, 0, 0.25] };
 	const graph = { paramDefs: { color }, customParameterDefs: { copy: color }, customParameterValues: {
 		copy: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'color' },
 	} };
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
-	const state = createGraphEvaluation(graph, evaluator, () => () => color.defaultValue.value);
+	const state = createGraphEvaluation(graph, evaluator, () => () => color.defaultValue);
 	state.bindPublicValues();
 	const frame = { time: 0, timeDelta: 0 }, size = { width: 8, height: 8 };
 	const readers = [() => state.readCustom('copy', frame),

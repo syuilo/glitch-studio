@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -29,6 +30,7 @@ const loaded = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
 const { COMMAND_DEFS, UndoRedo, commitTimelineParameterEdit, getTimelineParameterEditBinding,
 	createEffectTimelineLayer, createInlineCustomNodeGraphEffectLayer, createTextTimelineLayer, definition } = loaded.exports;
+const defaultBuzzId = createDefaultParameterBinding(definition.paramDefs.buzzs).value[0].id;
 
 function fixture(t, layer) {
 	// 全操作を同じ時刻に固定し、自動マージの時間条件が必ず満たされる状況で確認する。
@@ -74,13 +76,13 @@ test('merges consecutive values but separates modifier and reset UI actions', t 
 test('preserves nested parameter paths and merges only the edited leaf', t => {
 	const layer = createEffectTimelineLayer({ ...definition, effectSource: { type: 'nativeEffect', id: 'testStructArray' } }, 0);
 	const f = fixture(t, layer);
-	const path = ['buzzs', 'first', 'x'];
+	const path = ['buzzs', defaultBuzzId, 'x'];
 	const converted = getTimelineParameterEditBinding(f.state, { sceneId: 'scene', layerId: layer.id, target: 'effect', paramPath: path, edit: { kind: 'literal', value: 1 } });
 	assert.deepEqual(converted.parameterPath, path);
 	assert.deepEqual(converted.binding, { inputSource: 'literal', value: 1 });
 	f.edit('effect', path, { kind: 'literal', value: 0.1 });
 	f.edit('effect', path, { kind: 'literal', value: 0.2 });
-	f.edit('effect', ['buzzs', 'first', 'y'], { kind: 'literal', value: 0.3 });
+	f.edit('effect', ['buzzs', defaultBuzzId, 'y'], { kind: 'literal', value: 0.3 });
 	assert.equal(f.manager.undoStack.value.length, 2);
 	const values = () => layer.effectParamValues.buzzs.value[0].binding.value;
 	f.manager.undo();
@@ -99,7 +101,7 @@ test('preserves nested parameter paths and merges only the edited leaf', t => {
 test('separates source switches arrays and nested keyframes from value typing', t => {
 	const layer = createEffectTimelineLayer({ ...definition, effectSource: { type: 'nativeEffect', id: 'testStructArray' } }, 0);
 	const f = fixture(t, layer);
-	const path = ['buzzs', 'first', 'x'];
+	const path = ['buzzs', defaultBuzzId, 'x'];
 	f.edit('effect', path, { kind: 'inputSource', inputSource: 'expression' });
 	f.edit('effect', path, { kind: 'expression', value: 'TIME' });
 	f.edit('effect', path, { kind: 'expression', value: 'TIME * 2' });
@@ -139,7 +141,7 @@ test('classifies complete replacements and preserves notifications through undo 
 	assert.equal(f.notifications.at(-1), 'connection');
 	f.manager.undo(); f.manager.redo();
 	assert.deepEqual(f.notifications.slice(-2), ['connection', 'connection']);
-	const scalarReference = { ...reference, parameterPath: ['buzzs', 'first', 'x'] };
+	const scalarReference = { ...reference, parameterPath: ['buzzs', defaultBuzzId, 'x'] };
 	for (const value of [0.1, 0.2]) f.manager.commit('replaceTimelineLayerParameterBinding', { ...scalarReference, binding: { inputSource: 'literal', value } });
 	assert.equal(f.manager.undoStack.value.length, 4);
 	f.manager.undo();

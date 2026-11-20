@@ -14,7 +14,7 @@ const { getActiveTimelineCamera } = await load('scene-camera.ts');
 const { getSceneDuration } = await load('scenes.ts');
 const { getTimelineRenderLayers } = await load('layer-tree.ts');
 const literal = value => ({ inputSource: 'literal', value });
-const scalar = id => ({ id, nameForReference: id, dataType: { kind: 'scalar' }, ui: { label: id, control: { controlType: 'number' } }, defaultValue: literal(0) });
+const scalar = id => ({ id, nameForReference: id, dataType: { kind: 'scalar' }, ui: { label: id, control: { controlType: 'number' } }, defaultValue: 0 });
 const container = type => createTimelineContainerLayer(type, type, type);
 const sound = () => ({ id: 'sound', layerType: 'audio', name: 'Sound', isDisabled: false, automationGraphs: [], audioParamValues: { volume: literal(1) }, clips: [{ id: 'clip', startMs: 100, durationMs: 200, sourceInMs: 0, sourceOutMs: 200, playbackRate: 1, loop: false, assetId: 'asset' }] });
 

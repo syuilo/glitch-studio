@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { preserveParameterExpressionModifier, supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
@@ -26,8 +27,8 @@ export function editCustomNodeGraphEffectCustomParameterBinding(definition: Cust
 		case 'reset': next = createResetParameterBinding(definition); break;
 		case 'inputSource':
 			switch (edit.inputSource) {
-				case 'literal': next = deepClone(definition.defaultValue); break;
-				case 'expression': next = { inputSource: 'expression', expression: AiSON.stringify(current.inputSource === 'literal' ? current.value : definition.defaultValue.value) }; break;
+				case 'literal': next = createDefaultParameterBinding(definition); break;
+				case 'expression': next = { inputSource: 'expression', expression: AiSON.stringify(current.inputSource === 'literal' ? current.value : definition.defaultValue) }; break;
 				case 'envVariable': next = { inputSource: 'envVariable', variable: '' }; break;
 				case 'automationGraphInline': next = createInlineAutomationGraph(); break;
 				case 'automationGraphReference': next = { inputSource: 'automationGraphReference', automationGraphId: null, trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;

@@ -15,45 +15,42 @@ export default defineNativeEffect({
 			dataType: { kind: 'array', elementType: { kind: 'color' } },
 			ui: { label: 'Inputs', control: { element: {} } },
 			maxElements: 10,
-			defaultValue: {
-				inputSource: 'literal',
-				value: [{ id: 'first', binding: { inputSource: 'literal', value: [1, 1, 1, 1] } }],
-			},
-			element: { canNode: true, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
+			defaultValue: [[1, 1, 1, 1]],
+			element: { canNode: true, defaultValue: [1, 1, 1, 1] },
 		},
 		// Frequencyは最も粗い格子の密度。素材10個・個別制御5個・Density Mapでテクスチャは最大16個。
 		frequency: {
 			dataType: { kind: 'vector' },
 			ui: { label: 'Frequency', control: { controlType: 'dimension', min: 0.01, max: 1000, logarithmic: true } },
 			canNode: false,
-			defaultValue: { inputSource: 'literal', value: [10, 10] },
+			defaultValue: [10, 10],
 		},
 		// 画面上の距離ではなくセルの周期が単位。1で回転後の格子を1セル分ずらす。
 		phase: {
 			dataType: { kind: 'vector' },
 			ui: { label: 'Phase', control: { controlType: 'vector', min: -1, max: 1, step: 0.01 } },
 			canNode: false,
-			defaultValue: { inputSource: 'literal', value: [0, 0] },
+			defaultValue: [0, 0],
 		},
 		angle: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Angle', control: { controlType: 'angle' } },
 			canNode: false,
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		...cellSubdivisionParameterDefinitions,
 		perCellSelection: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Per Cell Selection', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		perCellOpacity: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Per Cell Opacity', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		// Cellではセル幅／高さ1つ分、Canvasでは長辺全体を移動量1とする。
 		// 個別のScaleでは単位を変えず、Angleで移動方向は回さない。
@@ -61,7 +58,7 @@ export default defineNativeEffect({
 			dataType: { kind: 'vector' },
 			ui: { label: 'Per Cell Translation', control: { controlType: 'vector', min: -2, max: 2, step: 0.01 } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0] },
+			defaultValue: [0, 0],
 		},
 		translationUnit: {
 			dataType: { kind: 'enum', options: ['cell', 'canvas'] },
@@ -69,30 +66,30 @@ export default defineNativeEffect({
 				label: 'Translation Unit',
 				control: { labels: { cell: 'Cell', canvas: 'Canvas' } },
 			},
-			defaultValue: { inputSource: 'literal', value: 'cell' },
+			defaultValue: 'cell',
 		},
 		perCellScale: {
 			dataType: { kind: 'vector' },
 			ui: { label: 'Per Cell Scale', control: { controlType: 'dimension', min: -1, max: 4, step: 0.01 } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [1, 1] },
+			defaultValue: [1, 1],
 		},
 		perCellRotation: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Per Cell Rotation', control: { controlType: 'angle' } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		// 接続先画像のwrapとは別に、セル内の変形で生じる余白の描画方法を指定する。
 		cellWrapMode: {
 			dataType: { kind: 'wrapMode' },
 			ui: { label: 'Cell Wrap Mode', control: {} },
-			defaultValue: { inputSource: 'literal', value: 'transparent' },
+			defaultValue: 'transparent',
 		},
 		controlSamples: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Control Samples', control: { controlType: 'range', min: 1, max: 256, step: 1 } },
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 	},
 	// 素材の配列要素を主入力にはしない。自動解像度は全素材の最大画素数から求める。

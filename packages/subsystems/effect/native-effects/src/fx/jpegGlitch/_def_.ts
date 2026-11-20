@@ -10,12 +10,12 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	tags: ['glitch', 'stylized'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		blockSize: {
 			dataType: { kind: 'scalar' },
@@ -28,20 +28,20 @@ export default defineNativeEffect({
 					step: 0.1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 2 },
+			defaultValue: 2,
 		},
 		blockOrigin: {
 			dataType: { kind: 'enum', options: ['topLeft', 'center'] },
 			ui: { label: 'Block Origin', control: { labels: { topLeft: 'Top Left', center: 'Center' } } },
-			defaultValue: { inputSource: 'literal', value: 'center' },
+			defaultValue: 'center',
 		},
-		preserveDetails: { dataType: { kind: 'bool' }, ui: { label: 'Preserve Input Detail', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		preserveDetails: { dataType: { kind: 'bool' }, ui: { label: 'Preserve Input Detail', control: {} }, defaultValue: true },
 		inverseTransform: {
 			dataType: { kind: 'enum', options: ['dct', 'hadamard'] },
 			ui: { label: 'Inverse Transform', control: { labels: { dct: 'DCT (JPEG)', hadamard: 'Hadamard' } } },
-			defaultValue: { inputSource: 'literal', value: 'dct' },
+			defaultValue: 'dct',
 		},
-		quantization: { dataType: { kind: 'bool' }, ui: { label: 'Quantization', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		quantization: { dataType: { kind: 'bool' }, ui: { label: 'Quantization', control: {} }, defaultValue: true },
 		quality: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -53,15 +53,15 @@ export default defineNativeEffect({
 					step: 0.001,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.6 },
+			defaultValue: 0.6,
 		},
 		chromaSubsampling: {
 			dataType: { kind: 'enum', options: ['444', '420'] },
 			ui: { label: 'Chroma Subsampling', control: { labels: { '444': '4:4:4 (Off)', '420': '4:2:0' } } },
-			defaultValue: { inputSource: 'literal', value: '420' },
+			defaultValue: '420',
 		},
-		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: { inputSource: 'literal', value: 0 } },
-		dcCorruption: { dataType: { kind: 'bool' }, ui: { label: 'DC Corruption', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: 0 },
+		dcCorruption: { dataType: { kind: 'bool' }, ui: { label: 'DC Corruption', control: {} }, defaultValue: true },
 		dcProbability: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -73,7 +73,7 @@ export default defineNativeEffect({
 					step: 0.001,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.02 },
+			defaultValue: 0.02,
 		},
 		dcLuminance: {
 			dataType: { kind: 'scalar' },
@@ -86,7 +86,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.15 },
+			defaultValue: 0.15,
 		},
 		dcChroma: {
 			dataType: { kind: 'scalar' },
@@ -99,9 +99,9 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.3 },
+			defaultValue: 0.3,
 		},
-		dcPropagation: { dataType: { kind: 'bool' }, ui: { label: 'DC Error Propagation', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		dcPropagation: { dataType: { kind: 'bool' }, ui: { label: 'DC Error Propagation', control: {} }, defaultValue: true },
 		dcRetention: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -113,9 +113,9 @@ export default defineNativeEffect({
 					step: 0.001,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
-		acCorruption: { dataType: { kind: 'bool' }, ui: { label: 'AC Corruption', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		acCorruption: { dataType: { kind: 'bool' }, ui: { label: 'AC Corruption', control: {} }, defaultValue: true },
 		acProbability: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -127,7 +127,7 @@ export default defineNativeEffect({
 					step: 0.001,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.08 },
+			defaultValue: 0.08,
 		},
 		acCoefficientProbability: {
 			dataType: { kind: 'scalar' },
@@ -140,7 +140,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.15 },
+			defaultValue: 0.15,
 		},
 		acMode: {
 			dataType: { kind: 'enum', options: ['mixed', 'drop', 'invert', 'amplify', 'shift'] },
@@ -156,7 +156,7 @@ export default defineNativeEffect({
 					},
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 'mixed' },
+			defaultValue: 'mixed',
 		},
 		acStrength: {
 			dataType: { kind: 'scalar' },
@@ -169,7 +169,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		acMinFrequency: {
 			dataType: { kind: 'scalar' },
@@ -182,7 +182,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		acMaxFrequency: {
 			dataType: { kind: 'scalar' },
@@ -195,7 +195,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 63 },
+			defaultValue: 63,
 		},
 		acFrequencyShift: {
 			dataType: { kind: 'scalar' },
@@ -208,9 +208,9 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 5 },
+			defaultValue: 5,
 		},
-		blockShift: { dataType: { kind: 'bool' }, ui: { label: 'Block Displacement', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		blockShift: { dataType: { kind: 'bool' }, ui: { label: 'Block Displacement', control: {} }, defaultValue: true },
 		shiftProbability: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -222,7 +222,7 @@ export default defineNativeEffect({
 					step: 0.001,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.01 },
+			defaultValue: 0.01,
 		},
 		shiftAmount: {
 			dataType: { kind: 'scalar' },
@@ -235,9 +235,9 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 4 },
+			defaultValue: 4,
 		},
-		resynchronization: { dataType: { kind: 'bool' }, ui: { label: 'Restart Synchronization', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		resynchronization: { dataType: { kind: 'bool' }, ui: { label: 'Restart Synchronization', control: {} }, defaultValue: true },
 		restartInterval: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -249,7 +249,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 64 },
+			defaultValue: 64,
 		},
 	},
 	primaryInputParameter: 'input',

@@ -16,7 +16,7 @@ export default defineNativeEffect({
 			dataType: { kind: 'audioSource' },
 			ui: { label: 'Audio', control: {} },
 			canNode: false,
-			defaultValue: { inputSource: 'literal', value: null },
+			defaultValue: null,
 		},
 		channel: {
 			dataType: { kind: 'enum', options: ['left', 'right', 'mix', 'stereo'] },
@@ -31,7 +31,7 @@ export default defineNativeEffect({
 					},
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 'stereo' },
+			defaultValue: 'stereo',
 		},
 		fftSize: {
 			dataType: { kind: 'enum', options: ['256', '512', '1024', '2048', '4096', '8192', '16384', '32768'] },
@@ -50,7 +50,7 @@ export default defineNativeEffect({
 					},
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: '2048' },
+			defaultValue: '2048',
 		},
 		window: {
 			dataType: { kind: 'enum', options: ['hann', 'hamming', 'blackman', 'rectangular'] },
@@ -65,7 +65,7 @@ export default defineNativeEffect({
 					},
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 'hann' },
+			defaultValue: 'hann',
 		},
 		smoothing: {
 			dataType: { kind: 'scalar' },
@@ -78,7 +78,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.15 },
+			defaultValue: 0.15,
 		},
 		minFrequency: {
 			dataType: { kind: 'scalar' },
@@ -91,7 +91,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 20 },
+			defaultValue: 20,
 		},
 		maxFrequency: {
 			dataType: { kind: 'scalar' },
@@ -104,9 +104,9 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 20000 },
+			defaultValue: 20000,
 		},
-		logarithmic: { dataType: { kind: 'bool' }, ui: { label: 'Logarithmic Frequency', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		logarithmic: { dataType: { kind: 'bool' }, ui: { label: 'Logarithmic Frequency', control: {} }, defaultValue: false },
 		minDb: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -118,7 +118,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: -80 },
+			defaultValue: -80,
 		},
 		maxDb: {
 			dataType: { kind: 'scalar' },
@@ -131,10 +131,10 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
-		color: { dataType: { kind: 'color' }, ui: { label: 'Color (L)', control: {} }, defaultValue: { inputSource: 'literal', value: srgbToLinearSrgb([0.2, 0.9, 1, 1]) } },
-		rightColor: { dataType: { kind: 'color' }, ui: { label: 'Color (R)', control: {} }, defaultValue: { inputSource: 'literal', value: srgbToLinearSrgb([1, 0.3, 0.6, 1]) } },
+		color: { dataType: { kind: 'color' }, ui: { label: 'Color (L)', control: {} }, defaultValue: srgbToLinearSrgb([0.2, 0.9, 1, 1]) },
+		rightColor: { dataType: { kind: 'color' }, ui: { label: 'Color (R)', control: {} }, defaultValue: srgbToLinearSrgb([1, 0.3, 0.6, 1]) },
 	},
 	primaryInputParameter: null,
 	primaryAudioInputParameter: 'audio',

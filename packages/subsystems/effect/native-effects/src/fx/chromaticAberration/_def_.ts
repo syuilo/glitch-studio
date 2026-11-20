@@ -14,7 +14,7 @@ export default defineNativeEffect({
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		amount: {
 			dataType: { kind: 'scalar' },
@@ -27,9 +27,9 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.1 },
+			defaultValue: 0.1,
 		},
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		rStrength: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -41,7 +41,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		gStrength: {
 			dataType: { kind: 'scalar' },
@@ -54,7 +54,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1.5 },
+			defaultValue: 1.5,
 		},
 		bStrength: {
 			dataType: { kind: 'scalar' },
@@ -67,9 +67,9 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 2 },
+			defaultValue: 2,
 		},
-		samples: { dataType: { kind: 'scalar' }, ui: { label: 'Samples', control: { controlType: 'number', min: 1, max: 100 } }, defaultValue: { inputSource: 'literal', value: 32 } },
+		samples: { dataType: { kind: 'scalar' }, ui: { label: 'Samples', control: { controlType: 'number', min: 1, max: 100 } }, defaultValue: 32 },
 		start: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -81,7 +81,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		vector: {
 			dataType: { kind: 'vector' },
@@ -94,9 +94,9 @@ export default defineNativeEffect({
 					max: 5,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: [0, 0] },
+			defaultValue: [0, 0],
 		},
-		normalize: { dataType: { kind: 'bool' }, ui: { label: 'Normalize', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		normalize: { dataType: { kind: 'bool' }, ui: { label: 'Normalize', control: {} }, defaultValue: false },
 	},
 	primaryInputParameter: 'input',
 	resolutionInputParameters: ['input'],

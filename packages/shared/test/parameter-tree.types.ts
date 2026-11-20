@@ -1,22 +1,23 @@
 import { resolveParameter, walkParameters } from '../src/parameter/parameter-path.ts';
 import { mapParameterTree, walkParameterLeaves } from '../src/parameter/parameter-tree.ts';
 import { ParameterBindingEvaluator } from '../src/parameter/parameter-binding-evaluator.ts';
+import { createDefaultParameterBinding } from '../src/parameter/parameter-default.ts';
 import type { ParameterDefaultValue, ParameterDefinition } from '../src/parameter/parameter-definition.ts';
 import type { ValueParameterBinding } from '../src/parameter/value-parameter-binding.ts';
 
-// 【加工設定は利用箇所のBindingにだけ保持する】
-// 広いBinding型を経由した代入でも、既定値とコンテナの子へ加工式を持ち込ませない。
+// 【定義の既定値には値を直接指定する】
+// 入力方式や加工式を持つBindingは、利用箇所の編集状態として扱う。
 declare const modifiedLiteral: Extract<ValueParameterBinding, { inputSource: 'literal' }>;
-// @ts-expect-error 通常のBindingは加工設定を持ち得るため既定値として代入しない
+// @ts-expect-error scalarの既定値は数値
 const scalarDefault: ParameterDefaultValue<{ kind: 'scalar' }> = modifiedLiteral;
 
 // 【配列内の構造体も、要素の追加用設定も、末端までliteralのみを許可する】
 // 既定値を利用箇所から独立させ、参照解決や式評価をせずに初期状態を作れるようにする。
 type NestedParameter = ParameterDefinition<{ kind: 'array'; elementType: { kind: 'struct'; fields: { amount: { kind: 'scalar' } } } }>;
-type ArrayField = NestedParameter['defaultValue']['value'][number]['binding']['value']['amount'];
-type NewElementField = NestedParameter['element']['defaultValue']['value']['amount'];
+type ArrayField = NestedParameter['defaultValue'][number]['amount'];
+type NewElementField = NestedParameter['element']['defaultValue']['amount'];
 type FieldDefault = NestedParameter['element']['fields']['amount']['defaultValue'];
-const literal: ArrayField = { inputSource: 'literal', value: 2 };
+const literal: ArrayField = 2;
 const expression = { inputSource: 'expression', expression: 'TIME' } as const;
 // @ts-expect-error 配列全体の既定値に埋め込んだフィールドにも式は指定できない
 const arrayField: ArrayField = expression;
@@ -37,14 +38,14 @@ type DomainBinding = ValueParameterBinding | ReferenceBinding;
 declare const arrayDefinition: ParameterDefinition<{ kind: 'array'; elementType: { kind: 'scalar' } }>;
 declare const structDefinition: ParameterDefinition<{ kind: 'struct'; fields: { amount: { kind: 'scalar' } } }>;
 const definitions = { array: arrayDefinition, struct: structDefinition };
-const literalParents = { array: arrayDefinition.defaultValue, struct: structDefinition.defaultValue };
+const literalParents = { array: createDefaultParameterBinding(arrayDefinition), struct: createDefaultParameterBinding(structDefinition) };
 
 // 親はliteralと分かっていても、配列要素・構造体フィールドには式などが入る。
 // 型引数の指定漏れを親の具体型やコールバックの型から補ってはいけない。
 // @ts-expect-error ツリー全体で許可するBinding型を明示する必要がある
-mapParameterTree(arrayDefinition, arrayDefinition.defaultValue, [], () => 0);
+mapParameterTree(arrayDefinition, literalParents.array, [], () => 0);
 // @ts-expect-error コールバックからもBinding型を推論しない
-mapParameterTree(structDefinition, structDefinition.defaultValue, [], (_def, _binding: DomainBinding) => 0);
+mapParameterTree(structDefinition, literalParents.struct, [], (_def, _binding: DomainBinding) => 0);
 // @ts-expect-error 親だけがliteralの一覧から子のBinding型を推論しない
 walkParameterLeaves(definitions, literalParents);
 // @ts-expect-error IDパスの解決でも子のBinding型を親から推論しない
@@ -53,7 +54,7 @@ resolveParameter(definitions, literalParents, ['array', 'first']);
 walkParameters(definitions, literalParents);
 
 // 共通方式だけのBindingを持つ配置では、literalの親の下にも式を指定できる。
-mapParameterTree<ValueParameterBinding>(arrayDefinition, arrayDefinition.defaultValue, [], (_def, binding) => {
+mapParameterTree<ValueParameterBinding>(arrayDefinition, literalParents.array, [], (_def, binding) => {
 	// @ts-expect-error literalの親でも末端のvalueを無条件に読むことはできない
 	binding.value;
 	if (binding.inputSource === 'expression') return binding.expression;
@@ -68,7 +69,7 @@ for (const { param } of walkParameterLeaves<ValueParameterBinding>(definitions, 
 }
 
 // ドメインを明示すると、literalの親の下でも固有方式を読める。
-mapParameterTree<DomainBinding>(structDefinition, structDefinition.defaultValue, [], (_def, binding) => {
+mapParameterTree<DomainBinding>(structDefinition, literalParents.struct, [], (_def, binding) => {
 	if (binding.inputSource === 'testReference') return binding.referenceId;
 	return binding.inputSource;
 });

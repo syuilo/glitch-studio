@@ -8,25 +8,25 @@ import { mapParameterTree, walkParameterLeaves } from '../src/parameter/paramete
 const literal = value => ({ inputSource: 'literal', value });
 const scalar = {
 	dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } },
-	defaultValue: literal(0),
+	defaultValue: 0,
 };
 const item = {
 	dataType: { kind: 'struct', fields: { amount: scalar.dataType } },
 	ui: { label: 'Item', control: { fields: { amount: scalar.ui } } },
 	fields: { amount: { defaultValue: scalar.defaultValue } },
-	defaultValue: literal({ amount: scalar.defaultValue }),
+	defaultValue: { amount: scalar.defaultValue },
 };
 const items = {
 	dataType: { kind: 'array', elementType: item.dataType },
 	ui: { label: 'Items', control: { element: item.ui.control } },
 	element: { fields: item.fields, defaultValue: item.defaultValue },
-	defaultValue: literal([{ id: 'first', binding: item.defaultValue }]),
+	defaultValue: [item.defaultValue],
 };
 const group = {
 	dataType: { kind: 'struct', fields: { items: items.dataType } },
 	ui: { label: 'Group', control: { fields: { items: items.ui } } },
 	fields: { items: { element: items.element, defaultValue: items.defaultValue } },
-	defaultValue: literal({ items: items.defaultValue }),
+	defaultValue: { items: items.defaultValue },
 };
 
 function createValues() {

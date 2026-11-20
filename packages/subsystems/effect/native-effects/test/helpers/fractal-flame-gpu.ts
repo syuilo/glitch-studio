@@ -4,7 +4,6 @@ import implementationNative from '../../src/fx/fractalFlame/_impl_.ts';
 import type { FlameTransform } from '../../src/fx/fractalFlame/flame-settings.ts';
 import type { TestOutputTextures } from './native-effect-probe.ts';
 import type { NativeParameterValues } from '../../src/multipass.ts';
-import type { DataType } from '@gs/shared/data-type/data-type.ts';
 import type { ColorRamp } from '@gs/shared/color-ramp.ts';
 import { COLOR_RAMP_INTERPOLATIONS, prepareColorRamp, evaluatePreparedColorRamp } from '@gs/shared/color-ramp.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
@@ -13,12 +12,6 @@ const implementation = nativeEffectProbe(definition, implementationNative);
 
 type Parameters = NativeParameterValues<typeof definition.paramDefs>;
 type OutputPort = keyof typeof definition.outputDefs;
-
-function defaultValue(dataType: DataType, binding: any): any {
-	if (dataType.kind === 'array') return binding.value.map((element: any) => defaultValue(dataType.elementType, element.binding));
-	if (dataType.kind === 'struct') return Object.fromEntries(Object.entries(dataType.fields).map(([name, field]) => [name, defaultValue(field, binding.value[name])]));
-	return structuredClone(binding.value);
-}
 
 function fixedTransform(overrides: Partial<Omit<FlameTransform, 'variations'>> & { variations?: Partial<FlameTransform['variations']> } = {}): FlameTransform {
 	return { weight: 1, position: [0, 0], rotation: 0, scale: [0, 0], shear: 0, colorPosition: 0.5, ...overrides,
@@ -35,7 +28,7 @@ export async function run() {
 	const checks: string[] = [];
 	const assert = (condition: boolean, label: string) => { if (!condition) throw new Error(label); checks.push(label); };
 	const near = (actual: number, expected: number, label: string, tolerance = 0.001) => assert(Number.isFinite(actual) && Math.abs(actual - expected) <= tolerance, `${label}: ${actual} ~= ${expected}`);
-	const effectDefaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, defaultValue(parameter.dataType, parameter.defaultValue)])) as Parameters;
+	const effectDefaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, structuredClone(parameter.defaultValue)])) as Parameters;
 	const redRamp: ColorRamp = { interpolation: 'linear', colorSpace: 'srgb', repeatCount: 1, repeatMode: 'wrap', stops: [{ id: 'red', position: 0, color: [1, 0, 0, 1] }] };
 	const defaults: Parameters = { ...effectDefaults, transforms: [fixedTransform()], ramp: redRamp, orbitCount: 128, iterations: 64, burnIn: 32, densityResolution: '256', symmetry: 1, gamma: 1, exposure: 1 };
 	const readLayout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' } }] });

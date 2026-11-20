@@ -80,12 +80,11 @@ export function validateTimelineLayerPublicParameterDefinitions(definitions: rea
 		if (definition.id.length === 0 || ids.has(definition.id)) throw new Error('Duplicate or empty timeline public parameter ID');
 		if (definition.nameForReference.trim().length === 0 || names.has(definition.nameForReference)) throw new Error('Duplicate or empty timeline public parameter reference name');
 		if (definition.canNode === true) throw new Error('Timeline public parameters cannot use node inputs');
-		validateParameterDefaultValues(definition);
 		if (isParameterType(definition, 'enum')) {
 			const options = definition.dataType.options;
 			if (options.length === 0 || options.some(option => option.trim().length === 0) || new Set(options).size !== options.length) throw new Error('Enum options must be non-empty and unique');
-			if (!options.includes(definition.defaultValue.value)) throw new Error('Enum default must be one of its options');
 		}
+		validateParameterDefaultValues(definition);
 		ids.add(definition.id);
 		names.add(definition.nameForReference);
 	}

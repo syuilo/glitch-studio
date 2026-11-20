@@ -41,8 +41,8 @@ export async function run() {
 	device.queue.writeTexture({ texture: scalarTexture }, pixels, { bytesPerRow: resolution.width * 4 }, resolution);
 	const input = textureShaderInput(scalarTexture, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' });
 	const defaultRepetition = {
-		repeatCount: definition.paramDefs.repeatCount.defaultValue.value,
-		repeatMode: definition.paramDefs.repeatMode.defaultValue.value,
+		repeatCount: definition.paramDefs.repeatCount.defaultValue,
+		repeatMode: definition.paramDefs.repeatMode.defaultValue,
 	};
 	const defaults = {
 		ramp: createDefaultColorRamp(), input: constantShaderInput('scalar', 0), mode: 'clamp' as const,
@@ -84,7 +84,7 @@ export async function run() {
 		checks.push(label);
 	}
 	try {
-		if (definition.paramDefs.mode.defaultValue.value !== 'clamp' || definition.paramDefs.mode.dataType.options.join(',') !== 'clamp,wrap,pingPong') throw new Error('Color Ramp input mode contract');
+		if (definition.paramDefs.mode.defaultValue !== 'clamp' || definition.paramDefs.mode.dataType.options.join(',') !== 'clamp,wrap,pingPong') throw new Error('Color Ramp input mode contract');
 		if (defaultRepetition.repeatCount !== 1 || defaultRepetition.repeatMode !== 'wrap' || definition.paramDefs.repeatMode.dataType.options.join(',') !== 'wrap,pingPong') throw new Error('Color Ramp effect repetition defaults');
 		for (const colorSpace of ['srgb', 'linearSrgb', 'oklab', 'oklch'] as const) for (const interpolation of COLOR_RAMP_INTERPOLATIONS) {
 			const ramp: ColorRamp = { colorSpace, interpolation, repeatCount: 1, repeatMode: 'wrap', stops: [

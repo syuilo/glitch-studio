@@ -30,18 +30,18 @@ test('resolves nested parameter definitions from separate type UI and settings t
 	assert.equal(fields.image.ui.label, 'Image');
 	assert.deepEqual(fields.image.ui.control, {});
 	assert.deepEqual(fields.x.ui.control, { controlType: 'range', min: -1, max: 1, step: 0.01 });
-	assert.deepEqual(fields.image.defaultValue.value, [0, 0, 1, 1]);
+	assert.deepEqual(fields.image.defaultValue, [0, 0, 1, 1]);
 	assert.deepEqual(source, before);
 });
 
-// 【既定のBindingを独立して生成する】
-// enumの空値は選択肢の文字列、structの空値は子のBindingであり、評価済みの素の値とは異なる。
-test('creates string enum fallbacks and independent struct default bindings', () => {
+// 【構造体の空値を子の既定値から生成する】
+// 子の既定値をコピーし、編集で値を書き換えても定義に伝播しないようにする。
+test('creates string enum fallbacks and independent struct values', () => {
 	assert.equal(genEmptyValue({ dataType: { kind: 'enum', options: ['first', 'second'] } }), 'first');
 	assert.equal(genEmptyValue({ dataType: { kind: 'enum', options: [] } }), '');
 	const element = getArrayElementDefinition(definition.paramDefs.buzzs);
 	const value = genEmptyValue(element);
-	assert.deepEqual(value, element.defaultValue.value);
-	value.image.value[0] = 0.9;
-	assert.equal(element.fields.image.defaultValue.value[0], 0);
+	assert.deepEqual(value, element.defaultValue);
+	value.image[0] = 0.9;
+	assert.equal(element.fields.image.defaultValue[0], 0);
 });

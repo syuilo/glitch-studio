@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { testGraph } from './helpers/effect-graph.mjs';
 import { nodeParameterTarget } from './helpers/command-inputs.mjs';
 import assert from 'node:assert/strict';
@@ -39,7 +40,7 @@ const commands = evaluate(await build({
 // 個別stopをCommandの対象へ追加せず、既存の末端値編集で実際の履歴とMessagePack保存を往復する。
 test('preserves Color Ramp values and modifiers through merged edits, undo, redo and saving', async () => {
 	const { definition, COMMAND_DEFS, UndoRedo, encodeProjectFile, decodeProjectFile } = commands;
-	const node = { id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'colorRamp' }, resolution: { mode: 'context', scale: 1 }, staticSettings: {}, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([name, def]) => [name, structuredClone(def.defaultValue)])) };
+	const node = { id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'colorRamp' }, resolution: { mode: 'context', scale: 1 }, staticSettings: {}, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([name, def]) => [name, createDefaultParameterBinding(def)])) };
 	const customNodeGraphEffect = { id: 'custom-node-graph-effect', definition: testGraph({ customParameterValues: {}, nodes: [node] }) };
 	const state = { customNodeGraphEffects: { value: [customNodeGraphEffect] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);

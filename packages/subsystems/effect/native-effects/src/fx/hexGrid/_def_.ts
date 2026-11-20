@@ -14,7 +14,7 @@ export default defineNativeEffect({
 			dataType: { kind: 'color' },
 			ui: { label: 'Background', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		frequency: {
 			dataType: { kind: 'vector' },
@@ -29,7 +29,7 @@ export default defineNativeEffect({
 			},
 			canNode: true,
 			// X/Yの周期を別々に数えるため、正六角形となるY周波数はXの1/√3倍。
-			defaultValue: { inputSource: 'literal', value: [3, Math.sqrt(3)] },
+			defaultValue: [3, Math.sqrt(3)],
 		},
 		// Phaseは画面上の距離ではなく、回転後のパターンの1周期を単位にする。
 		phase: {
@@ -44,13 +44,13 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0] },
+			defaultValue: [0, 0],
 		},
 		angle: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Angle', control: { controlType: 'angle' } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		lineWidth: {
 			dataType: { kind: 'scalar' },
@@ -63,10 +63,10 @@ export default defineNativeEffect({
 					step: 0.001,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.036 },
+			defaultValue: 0.036,
 		},
-		lineColor: { dataType: { kind: 'color' }, ui: { label: 'Line Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 0.75] } },
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		lineColor: { dataType: { kind: 'color' }, ui: { label: 'Line Color', control: {} }, defaultValue: [1, 1, 1, 0.75] },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 	},
 	primaryInputParameter: 'background',
 	resolutionInputParameters: ['background'],

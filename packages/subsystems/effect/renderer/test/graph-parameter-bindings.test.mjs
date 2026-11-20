@@ -22,9 +22,9 @@ function evaluate(evaluator, input) {
 	for (const def of input.paramDefs) {
 		if (input.inputParamIds.has(def.id)) continue;
 		const value = input.paramValues[def.id];
-		paramValues.set(def.id, structuredClone(value == null ? def.defaultValue.value : evaluator.evaluate(value, {
+		paramValues.set(def.id, structuredClone(value == null ? def.defaultValue : evaluator.evaluate(value, {
 			variables, automationGraphs: input.callerGraphs ?? [], time: input.time, endTime: input.endTime,
-		}, value.inputSource === 'automationGraphReference' ? def.defaultValue.value : genEmptyValue(def), def)));
+		}, value.inputSource === 'automationGraphReference' ? def.defaultValue : genEmptyValue(def), def)));
 	}
 	const asRecord = defs => Object.fromEntries(defs.map(def => [def.id, def]));
 	const outputDefs = { output: { dataType: { kind: 'color' } } };
@@ -57,18 +57,18 @@ const expression = expression => ({ inputSource: 'expression', expression });
 const arrayBinding = bindings => literal(bindings.map((binding, index) => ({ id: `element-${index}`, binding })));
 // テスト用のコンテナも実際の保存形式と同様、型・UI・子設定を分離する。
 function arrayParameter({ dataType, ui, ...settings }) {
-	return { dataType: { kind: 'array', elementType: dataType }, ui: { label: 'Values', control: { element: ui.control } }, element: settings, defaultValue: literal([]) };
+	return { dataType: { kind: 'array', elementType: dataType }, ui: { label: 'Values', control: { element: ui.control } }, element: settings, defaultValue: [] };
 }
 function structParameter(fields) {
 	return {
 		dataType: { kind: 'struct', fields: Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, field.dataType])) },
 		ui: { label: 'Group', control: { fields: Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, field.ui])) } },
 		fields: Object.fromEntries(Object.entries(fields).map(([key, { dataType, ui, ...settings }]) => [key, settings])),
-		defaultValue: literal(Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, field.defaultValue]))),
+		defaultValue: Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, field.defaultValue])),
 	};
 }
 
-const number = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: literal(0) };
+const number = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: 0 };
 
 // 【内部の共通値を、実際のノード評価経路から公開入力と同時に利用する】
 // 単体の名前解決だけでなく、ノード間の値共有と、描画ごとの時刻・公開引数の取り込みを確認する。
@@ -83,11 +83,11 @@ test('evaluates custom values through the renderer with per-sample public argume
 	input.time = 1000;
 	input.paramValues.public = literal(4);
 	assert.deepEqual(evaluate(evaluator, input).nodeParams.get('node'), { amount: 13, direct: 9 });
-	const unselectedDefinition = { ...number, defaultValue: literal(7) };
+	const unselectedDefinition = { ...number, defaultValue: 7 };
 	assert.equal(evaluate(evaluator, context({ amount: unselectedDefinition }, { amount: { inputSource: 'customNodeGraphEffectCustomParameterValueReference', parameterId: '' } })).nodeParams.get('node').amount, 7);
 });
 const node = (params, isBypass = false) => ({ id: 'node', type: 'effect', resolution: { mode: 'context', scale: 1 }, effectSource: { type: 'nativeEffect', id: 'test' }, isBypass, params });
-const paramDef = (id, defaultValue = 7, dataType = 'scalar', nameForReference = id.replaceAll('-', '_')) => ({ id, nameForReference, dataType: { kind: dataType }, ui: { label: id, control: dataType === 'scalar' ? { controlType: 'number' } : {} }, defaultValue: literal(defaultValue), canNode: false });
+const paramDef = (id, defaultValue = 7, dataType = 'scalar', nameForReference = id.replaceAll('-', '_')) => ({ id, nameForReference, dataType: { kind: dataType }, ui: { label: id, control: dataType === 'scalar' ? { controlType: 'number' } : {} }, defaultValue: defaultValue, canNode: false });
 const context = (defs, params, overrides = {}) => ({
 	customParameterDefs: [],
 	customParameterValues: {},
@@ -371,7 +371,7 @@ test('keeps previous results and clones Custom Node Graph Effect defaults betwee
 	assert.equal(first.nodeParams.get('node').value, 0.5);
 	assert.equal(second.nodeParams.get('node').value, 2);
 	assert.deepEqual(second.paramValues.get('color'), [1, 0.5, 0, 0.25]);
-	assert.deepEqual(def.defaultValue.value, [1, 0.5, 0, 0.25]);
+	assert.deepEqual(def.defaultValue, [1, 0.5, 0, 0.25]);
 	assert.equal(evaluate(evaluator, { ...input, nodes: [] }).nodeParams.size, 0);
 });
 
@@ -423,8 +423,8 @@ for (const enable32bitDataTextures of [false, true]) {
 	// prepare済みのフレームを描画するときに定数のGPU転送や再評価を行わない。
 	test('preserves uniform inputs with ' + (enable32bitDataTextures ? 32 : 16) + '-bit storage', async t => {
 		const scalar = { ...number, canNode: true };
-		const vector = { ...number, dataType: { kind: 'vector' }, canNode: true, defaultValue: literal([0, 0]) };
-		const color = { ...number, dataType: { kind: 'color' }, canNode: true, defaultValue: literal([0, 0, 0, 0]) };
+		const vector = { ...number, dataType: { kind: 'vector' }, canNode: true, defaultValue: [0, 0] };
+		const color = { ...number, dataType: { kind: 'color' }, canNode: true, defaultValue: [0, 0, 0, 0] };
 		const def = { paramDefs: { group: structParameter({ amount: scalar, vector, color }) }, outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output', primaryInputParameter: null, resolutionInputParameters: [] };
 		const observed = [];
 		const instance = await createEffectInstance({ effectSource: { type: 'nativeEffect', id: 'probe' }, definitions: { getNativeEffect: () => def },

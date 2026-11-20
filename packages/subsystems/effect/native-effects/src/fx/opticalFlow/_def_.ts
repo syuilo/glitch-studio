@@ -14,7 +14,7 @@ export default defineNativeEffect({
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		strength: {
 			dataType: { kind: 'scalar' },
@@ -27,7 +27,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		confidence: {
 			dataType: { kind: 'scalar' },
@@ -40,7 +40,7 @@ export default defineNativeEffect({
 					step: 0.0001,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.0001 },
+			defaultValue: 0.0001,
 		},
 		smoothing: {
 			dataType: { kind: 'scalar' },
@@ -53,7 +53,7 @@ export default defineNativeEffect({
 					step: 0.1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 	},
 	primaryInputParameter: 'input',

@@ -30,10 +30,10 @@ export async function run() {
 	const checks: string[] = [];
 	const disposables: (() => void)[] = [];
 	const defaults: Parameters = {
-		input: constantShaderInput('color', definition.paramDefs.input.defaultValue.value),
-		iterations: definition.paramDefs.iterations.defaultValue.value,
-		direction: definition.paramDefs.direction.defaultValue.value,
-		axis: definition.paramDefs.axis.defaultValue.value,
+		input: constantShaderInput('color', definition.paramDefs.input.defaultValue),
+		iterations: definition.paramDefs.iterations.defaultValue,
+		direction: definition.paramDefs.direction.defaultValue,
+		axis: definition.paramDefs.axis.defaultValue,
 	};
 	function compare(actual: Float32Array, expected: ArrayLike<number>, label: string) {
 		if (actual.length !== expected.length) throw new Error(`${label}: dimensions differ`);

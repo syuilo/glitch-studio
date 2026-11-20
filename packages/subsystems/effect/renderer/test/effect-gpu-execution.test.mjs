@@ -155,8 +155,7 @@ test('ignores periodic GPU results after resetting an effect instance', async t 
 
 
 
-const literal = value => ({ inputSource: 'literal', value });
-const image = { dataType: { kind: 'color' }, ui: { label: 'Image', control: {} }, canNode: true, defaultValue: literal([0, 0, 0, 0]) };
+const image = { dataType: { kind: 'color' }, ui: { label: 'Image', control: {} }, canNode: true, defaultValue: [0, 0, 0, 0] };
 const sampling = { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
 const wire = nodeId => ({ inputSource: 'node', source: { nodeId, outputPort: 'output' }, sampling });
 const node = (id, params = {}) => ({ id, params, effectSource: { type: 'nativeEffect', id } });

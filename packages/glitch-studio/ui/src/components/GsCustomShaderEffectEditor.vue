@@ -159,7 +159,7 @@ function nextReferenceName(base: string, definitions: { nameForReference: string
 }
 
 function addParameter() {
-	draft.value.paramDefs.push({ id: genId(), nameForReference: nextReferenceName('amount', draft.value.paramDefs), canNode: true, dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } });
+	draft.value.paramDefs.push({ id: genId(), nameForReference: nextReferenceName('amount', draft.value.paramDefs), canNode: true, dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: 0 });
 }
 
 function updateParameter(id: string, changes: PublicParameterDefinitionEdit) {

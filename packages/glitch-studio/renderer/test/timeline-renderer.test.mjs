@@ -510,7 +510,7 @@ test('separates clip instances and distinguishes transparent output from a gap',
 // TIME / END_TIMEで進行率を再計算する実装へ戻さないための契約。
 test('passes clip progress separately from Custom Node Graph Effect content time and scene arguments', async () => {
 	const contexts = [];
-	const adapter = createTimelineEffectProbe({ paramDefs: { time: { dataType: { kind: 'scalar' }, defaultValue: { inputSource: 'literal', value: 0 } } },
+	const adapter = createTimelineEffectProbe({ paramDefs: { time: { dataType: { kind: 'scalar' }, defaultValue: 0 } },
 		params: { time: { inputSource: 'expression', expression: 'TIME_MS' } }, render(frame, values) { contexts.push([frame.time, frame.endTime, frame.progress, values.time]); } });
 	const context = { sceneTimeMs: 700, contentTimeMs: 600, contentEndTimeMs: 1000, clipElapsedTimeMs: 600, clipDurationMs: 1000, timeDelta: 0, isExport: false };
 	await adapter.evaluate(context, new AbortController().signal);

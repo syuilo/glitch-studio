@@ -105,7 +105,7 @@ test('undoes solo toggles and scene-wide clearing with complete synchronization 
 	assert.equal(other.layers[0].isSolo, true);
 });
 
-const publicScalarParameter = (id, nameForReference = id) => ({ id, nameForReference, dataType: { kind: 'scalar' }, ui: { label: nameForReference, control: { controlType: 'number' } }, defaultValue: literal(0), canNode: false });
+const publicScalarParameter = (id, nameForReference = id) => ({ id, nameForReference, dataType: { kind: 'scalar' }, ui: { label: nameForReference, control: { controlType: 'number' } }, defaultValue: 0, canNode: false });
 
 // 【公開パラメータの型変更では旧型の保存値を外し、Undoで定義と値を一緒に復元する】
 // 固定値だけでなく式やキーも旧型に依存するため、新型の既定値へ戻す。
@@ -118,7 +118,7 @@ test('resets public parameter values on type changes and restores definitions an
 		if (binding != null) owner.publicParameterValues = { speed: binding, other: literal(0.2) };
 		const before = structuredClone(owner);
 		const f = fixture(t, [owner]);
-		const definition = { ...original, dataType: { kind: 'vector' }, ui: { label: 'Speed', control: { controlType: 'vector' } }, defaultValue: literal([0, 0]) };
+		const definition = { ...original, dataType: { kind: 'vector' }, ui: { label: 'Speed', control: { controlType: 'vector' } }, defaultValue: [0, 0] };
 		f.history.commit('replaceTimelineLayerPublicParameterDefinition', { sceneId: 'scene', layerId: owner.id, definition });
 		assert.deepEqual(module.exports.resolveLayerParameter(f.state, owner, 'publicParameter', ['speed']).value, literal([0, 0]));
 		assert.deepEqual(owner.publicParameterValues?.other, before.publicParameterValues?.other);
@@ -142,7 +142,7 @@ test('preserves public parameter bindings when editing labels controls and enum 
 	const before = structuredClone(owner.publicParameterValues);
 	f.history.commit('replaceTimelineLayerPublicParameterDefinition', { ...target, definition: { ...original, ui: { label: 'Renamed', control: { controlType: 'range', min: 0, max: 2 } } } });
 	assert.deepEqual(owner.publicParameterValues, before);
-	const enumDefinition = { ...original, dataType: { kind: 'enum', options: ['left', 'right'] }, ui: { label: 'Direction', control: { labels: {} } }, defaultValue: literal('left') };
+	const enumDefinition = { ...original, dataType: { kind: 'enum', options: ['left', 'right'] }, ui: { label: 'Direction', control: { labels: {} } }, defaultValue: 'left' };
 	f.history.commit('replaceTimelineLayerPublicParameterDefinition', { ...target, definition: enumDefinition });
 	f.history.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(f.history.state, { ...target, target: 'publicParameter', paramPath: ['speed'], edit: { kind: 'literal', value: 'right' } }));
 	f.history.commit('replaceTimelineLayerPublicParameterDefinition', { ...target, definition: { ...enumDefinition, dataType: { kind: 'enum', options: ['left'] } } });
@@ -396,7 +396,7 @@ test('duplicates selected roots together above their sources with one undo', asy
 	const visual = { id: 'visual', name: 'Visual', resolution: { mode: 'auto', scale: 1 }, layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'shared' }, isDisabled: false, automationGraphs: [], clips: [], compositingParamValues: {}, effectParamValues: { audio: { inputSource: 'anotherLayerAudio', layerId: 'audio' } } };
 	const f = fixture(t, [group('parent', [sound('audio')]), visual]);
 	f.state.assets.value = [{ id: 'asset', fileDataType: 'audio/wav' }];
-	f.state.customNodeGraphEffects.value = [{ id: 'shared', definition: testGraph({ paramDefs: { audio: { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: { inputSource: 'literal', value: null } } } }) }];
+	f.state.customNodeGraphEffects.value = [{ id: 'shared', definition: testGraph({ paramDefs: { audio: { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null } } }) }];
 	const before = structuredClone(f.scene);
 	const controls = layerMenuFixture(f, ['audio', 'visual', 'parent']);
 	await controls.open('parent').find(item => item.id === 'duplicate').action();
@@ -448,7 +448,7 @@ test('renames through history and ignores results after the timeline closes', as
 test('leaves the tree selection and history unchanged when duplication preparation fails', async t => {
 	const f = fixture(t, [sound('a'), sound('b')], async () => { throw new Error('Missing media'); });
 	f.state.assets.value = [{ id: 'asset', fileDataType: 'audio/wav' }];
-	f.state.customNodeGraphEffects.value = [{ id: 'shared', definition: testGraph({ paramDefs: { audio: { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: { inputSource: 'literal', value: null } } } }) }];
+	f.state.customNodeGraphEffects.value = [{ id: 'shared', definition: testGraph({ paramDefs: { audio: { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null } } }) }];
 	const before = structuredClone(f.scene);
 	const controls = layerMenuFixture(f, ['a', 'b']);
 	await controls.open('a').find(item => item.id === 'duplicate').action();
@@ -588,7 +588,7 @@ test('validates every descendant before inserting a group', t => {
 	let durationMs = 100;
 	const f = fixture(t, [sound('existing')], () => ({ durationMs, hasAudio: true, hasVideo: false }));
 	f.state.assets.value = [{ id: 'asset', fileDataType: 'audio/wav' }];
-	f.state.customNodeGraphEffects.value = [{ id: 'shared', definition: testGraph({ paramDefs: { audio: { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: { inputSource: 'literal', value: null } } } }) }];
+	f.state.customNodeGraphEffects.value = [{ id: 'shared', definition: testGraph({ paramDefs: { audio: { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null } } }) }];
 	const before = structuredClone(f.scene);
 	const input = { sceneId: 'scene', beforeLayerId: 'existing', layer: group('new', [group('nested', [sound('fresh')])]) };
 	assert.throws(() => f.history.commit('insertTimelineLayer', input), /media duration/);

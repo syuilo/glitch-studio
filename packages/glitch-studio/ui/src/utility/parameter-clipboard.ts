@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { getEffectDefinitions } from './project-effects.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { canConnectNodeDataTypes, getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
@@ -372,7 +373,7 @@ export function resolveProjectClipboardTarget(state: ProjectState, projectSessio
 		const definition = customNodeGraphEffect.customParameterDefs.find(candidate => candidate.id === rootKey);
 		requireValid(definition != null);
 		before = customNodeGraphEffect.customParameterValues[definition.id] ?? null;
-		root = { def: definition, value: before ?? definition.defaultValue };
+		root = { def: definition, value: before ?? createDefaultParameterBinding(definition) };
 		context = { kind: 'customParameter', state, customNodeGraphEffect, source: createCustomNodeGraphEffectClipboardSource(projectSessionId, target.customNodeGraphEffectTarget, customNodeGraphEffect) };
 	} else {
 		const scene = getScene(state, target.sceneId);

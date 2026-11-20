@@ -12,7 +12,7 @@ export function validateCustomNodeGraphEffectCustomParameterDefinition(definitio
 	validateParameterDefaultValues(definition);
 	if (definition.dataType.kind === 'enum') {
 		const options = definition.dataType.options;
-		const defaultValue = definition.defaultValue.value;
+		const defaultValue = definition.defaultValue;
 		if (options.length === 0 || options.some(option => option.trim() === '') || new Set(options).size !== options.length || typeof defaultValue !== 'string' || !options.includes(defaultValue)) throw new Error('Invalid custom parameter enum options or default');
 	}
 }

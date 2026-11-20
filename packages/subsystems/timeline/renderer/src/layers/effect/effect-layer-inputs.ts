@@ -64,7 +64,7 @@ export function createEffectLayerInputs(layer: TimelineEffectLayer, definition: 
 		}
 		// 空のenumキーフレームには定義の既定値を使う。保存済みの無効な値は評価時にエラーとして報告する。
 		const fallback = binding.inputSource === 'automationGraphReference' || (def.dataType.kind === 'enum' && binding.inputSource === 'keyframesTimelineInline')
-			? def.defaultValue.value : def.dataType.kind === 'enum' ? null : genEmptyValue(def);
+			? def.defaultValue : def.dataType.kind === 'enum' ? null : genEmptyValue(def);
 		// 評価結果を切り離し、非同期の入力解決や準備の途中で編集されても今回のサンプルの値を保つ。
 		const convert = (value: Cloneable) => coerceParameterValue(def, deepClone(validateEnumParameterValue(def, value)));
 		const evaluate = (scope: TimelineLayerEvaluationScope) => {
@@ -73,11 +73,11 @@ export function createEffectLayerInputs(layer: TimelineEffectLayer, definition: 
 				? current.value : evaluator.evaluate(current, scope, fallback, def));
 		};
 		if (def.canNode === true) {
-			let value = constantShaderInputComponents(def.dataType.kind, def.defaultValue.value);
+			let value = constantShaderInputComponents(def.dataType.kind, def.defaultValue);
 			updates.push(scope => { value = constantShaderInputComponents(def.dataType.kind, evaluate(scope)); });
 			return { kind: 'uniform', get value() { return value; } };
 		}
-		let value: unknown = def.defaultValue.value;
+		let value: unknown = def.defaultValue;
 		updates.push(scope => { value = evaluate(scope); });
 		return { kind: 'value', get value() { return value; } };
 	}

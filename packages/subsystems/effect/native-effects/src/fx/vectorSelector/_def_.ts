@@ -13,16 +13,13 @@ export default defineNativeEffect({
 		inputs: {
 			dataType: { kind: 'array', elementType: { kind: 'vector' } },
 			ui: { label: 'Inputs', control: { element: { controlType: 'vector', step: 0.01 } } },
-			defaultValue: {
-				inputSource: 'literal',
-				value: [
-					{ id: 'first', binding: { inputSource: 'literal', value: [0, 0] } },
-					{ id: 'second', binding: { inputSource: 'literal', value: [0, 0] } },
-				],
-			},
-			element: { canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0] } },
+			defaultValue: [
+				[0, 0],
+				[0, 0],
+			],
+			element: { canNode: true, defaultValue: [0, 0] },
 		},
-		index: { dataType: { kind: 'scalar' }, ui: { label: 'Index', control: { controlType: 'number', min: 0, step: 1 } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		index: { dataType: { kind: 'scalar' }, ui: { label: 'Index', control: { controlType: 'number', min: 0, step: 1 } }, defaultValue: 0 },
 	},
 	// Indexが変わっても下流の描画サイズが変わらないよう、自動解像度は候補全体の計画寸法から決める。
 	primaryInputParameter: null,

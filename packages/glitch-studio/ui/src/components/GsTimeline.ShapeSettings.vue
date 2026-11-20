@@ -14,7 +14,7 @@
 			:projectAutomationGraphs="projectSession.projectContext.stateManager.state.automationGraphs.value"
 			:paramPath="[key]"
 			:paramDef="def"
-			:paramValue="values[key] ?? def.defaultValue"
+			:paramValue="values[key] ?? createDefaultParameterBinding(def)"
 			@edit="emit('edit', $event)"
 		/>
 	</div>
@@ -22,6 +22,7 @@
 </template>
 
 <script lang="ts" setup>
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { useProjectSession } from '@/project-session.ts';
 import { computed } from 'vue';
 import { getShapeParameterDefinitions, shapeDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';

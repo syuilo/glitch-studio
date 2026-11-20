@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { exportTimeline } from '../../src/export/client.ts';
 import { BrowserExportFile } from '../../src/export/browser-export-file.ts';
 import type { ExportProgress } from '../../src/export/timeline-export.ts';
@@ -14,7 +15,7 @@ function request(compression: 'none' | 'zip', resolution = { width: 5, height: 2
 				id: 'fill', name: 'Fill', color: null, isDisabled: false, isSolo: false, layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'fill' }, resolution: { mode: 'auto', scale: 1 },
 				coordinateSpace: 'screen', mask: null, layerMask: null, isIncludedInComposite: true, forceDisableMotionBlur: false, effectStaticSettings: {},
 				effectParamValues: { color: { inputSource: 'literal', value: [4, -1, 0.5, 0.5] } },
-				compositingParamValues: Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, definition]) => [key, definition.defaultValue])) as TimelineEffectLayer['compositingParamValues'],
+				compositingParamValues: Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, definition]) => [key, createDefaultParameterBinding(definition)])) as TimelineEffectLayer['compositingParamValues'],
 				automationGraphs: [], clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }],
 			}] }],
 		} };

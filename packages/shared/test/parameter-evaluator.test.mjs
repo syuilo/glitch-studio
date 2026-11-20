@@ -485,38 +485,31 @@ test('validates modifier shapes and rejects unsupported input kinds without pars
 	assert.notDeepEqual(staticParameterShape(scalarDefinition, first), staticParameterShape(scalarDefinition, { ...first, expressionModifier: { enabled: 1, code: 'VALUE' } }));
 });
 
-// 【既定値は初期配列や要素追加用の設定も含めて、末端まで値のあるliteralに限定する】
-// 既定値から評価器なしで初期状態を作る利用箇所があるため、式や値の欠落を定義の検証時に拒否する。
-// 加工式は無効でも本文を保持するので、配置のBindingにだけ指定できるようにする。
-test('requires literal values without modifiers throughout parameter defaults', () => {
-	const scalar = { ...scalarDefinition, defaultValue: literal(1) };
+// 【コンテナの初期値と要素追加用の値を、型に沿って検証する】
+// 保存データやCommandで式やBindingを渡すと、初期化時に値として扱えない。
+// 空配列でも要素追加用の設定は使われるため、その既定値も検証する。
+test('validates raw defaults throughout parameter containers and child settings', () => {
+	const scalar = { ...scalarDefinition, defaultValue: 1 };
 	const array = {
 		dataType: { kind: 'array', elementType: scalar.dataType },
 		ui: { label: 'Values', control: { element: {} } },
-		element: { defaultValue: literal(1) },
-		defaultValue: literal([{ id: 'first', binding: scalar.defaultValue }]),
+		element: { defaultValue: 1 },
+		defaultValue: [scalar.defaultValue],
 	};
 	const struct = {
 		dataType: { kind: 'struct', fields: { values: array.dataType } },
 		ui: { label: 'Group', control: { fields: { values: array.ui } } },
 		fields: { values: { element: array.element, defaultValue: array.defaultValue } },
-		defaultValue: literal({ values: array.defaultValue }),
+		defaultValue: { values: array.defaultValue },
 	};
 	assert.doesNotThrow(() => validateParameterDefaultValues(struct));
-	for (const binding of [expression('TIME'), { inputSource: 'literal' }]) {
+	for (const invalidValue of [expression('TIME'), literal(1), modified(literal(1), 'VALUE', false), '1']) {
 		for (const definition of [
-			{ ...struct, defaultValue: literal({ values: literal([{ id: 'first', binding }]) }) },
-			{ ...array, defaultValue: literal([]), element: { defaultValue: binding } },
-		]) assert.throws(() => validateParameterDefaultValues(definition), /must be literal and provide a value/);
+			{ ...scalar, defaultValue: invalidValue },
+			{ ...struct, defaultValue: { values: [invalidValue] } },
+			{ ...array, defaultValue: [], element: { defaultValue: invalidValue } },
+			{ ...struct, fields: { values: { ...struct.fields.values, element: { defaultValue: invalidValue } } } },
+		]) assert.throws(() => validateParameterDefaultValues(definition), /Invalid scalar default value/);
 	}
-	for (const enabled of [true, false]) {
-		const cases = [
-			{ ...scalar, defaultValue: modified(scalar.defaultValue, 'VALUE', enabled) },
-			{ ...array, defaultValue: literal([{ id: 'first', binding: modified(literal(1), 'VALUE', enabled) }]) },
-			{ ...array, defaultValue: literal([]), element: { defaultValue: modified(literal(1), 'VALUE', enabled) } },
-			{ ...struct, defaultValue: literal({ values: literal([{ id: 'first', binding: modified(literal(1), 'VALUE', enabled) }]) }) },
-			{ ...struct, fields: { values: { ...struct.fields.values, element: { defaultValue: modified(literal(1), 'VALUE', enabled) } } } },
-		];
-		for (const definition of cases) assert.throws(() => validateParameterDefaultValues(definition), /not allowed on parameter default values/);
-	}
+	assert.throws(() => validateParameterDefaultValues({ ...struct, defaultValue: {} }), /Invalid struct default value/);
 });

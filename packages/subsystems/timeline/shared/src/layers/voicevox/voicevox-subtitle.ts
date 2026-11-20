@@ -1,5 +1,5 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import type { StaticSettingDefinitions, StaticSettingValues } from '@gs/shared/static-setting.ts';
-import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParameterBindingBase } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
@@ -18,12 +18,12 @@ export const voicevoxSubtitleParamDefs = {
 				logarithmic: true,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: 0.1 },
+		defaultValue: 0.1,
 	},
 	overflow: {
 		dataType: { kind: 'enum', options: ['none', 'shrink', 'compress'] },
 		ui: { label: 'Overflow', control: { labels: { none: 'Do nothing', shrink: 'Shrink font size', compress: 'Compress horizontally' } } },
-		defaultValue: { inputSource: 'literal', value: 'compress' },
+		defaultValue: 'compress',
 	},
 	maxWidth: {
 		dataType: { kind: 'scalar' },
@@ -36,9 +36,9 @@ export const voicevoxSubtitleParamDefs = {
 				step: 0.01,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: 1 },
+		defaultValue: 1,
 	},
-	color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
+	color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: [1, 1, 1, 1] },
 	outlineWidth: {
 		dataType: { kind: 'scalar' },
 		ui: {
@@ -50,11 +50,11 @@ export const voicevoxSubtitleParamDefs = {
 				step: 0.005,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: 0 },
+		defaultValue: 0,
 	},
-	outlineColor: { dataType: { kind: 'color' }, ui: { label: 'Outline color', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] } },
-	shadowEnabled: { dataType: { kind: 'bool' }, ui: { label: 'Drop shadow', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
-	shadowColor: { dataType: { kind: 'color' }, ui: { label: 'Shadow color', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0.5] } },
+	outlineColor: { dataType: { kind: 'color' }, ui: { label: 'Outline color', control: {} }, defaultValue: [0, 0, 0, 1] },
+	shadowEnabled: { dataType: { kind: 'bool' }, ui: { label: 'Drop shadow', control: {} }, defaultValue: false },
+	shadowColor: { dataType: { kind: 'color' }, ui: { label: 'Shadow color', control: {} }, defaultValue: [0, 0, 0, 0.5] },
 	shadowOffset: {
 		dataType: { kind: 'vector' },
 		ui: {
@@ -66,7 +66,7 @@ export const voicevoxSubtitleParamDefs = {
 				step: 0.01,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: [0.1, -0.1] },
+		defaultValue: [0.1, -0.1],
 	},
 	shadowBlur: {
 		dataType: { kind: 'scalar' },
@@ -79,7 +79,7 @@ export const voicevoxSubtitleParamDefs = {
 				step: 0.01,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: 0.1 },
+		defaultValue: 0.1,
 	},
 	position: {
 		dataType: { kind: 'vector' },
@@ -92,24 +92,24 @@ export const voicevoxSubtitleParamDefs = {
 				step: 0.01,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: [0, 0] },
+		defaultValue: [0, 0],
 	},
 	align: {
 		dataType: { kind: 'enum', options: ['left', 'center', 'right'] },
 		ui: { label: 'Alignment', control: { labels: { left: 'Left', center: 'Center', right: 'Right' } } },
-		defaultValue: { inputSource: 'literal', value: 'center' },
+		defaultValue: 'center',
 	},
 	lineHeight: {
 		dataType: { kind: 'scalar' },
 		ui: { label: 'Line height (size ratio)', control: { controlType: 'range', min: 0, max: 3 } },
-		defaultValue: { inputSource: 'literal', value: 1.2 },
+		defaultValue: 1.2,
 	},
 } satisfies Record<string, ParameterDefinition>;
 
 export type VoicevoxSubtitleParameterValues<Binding extends ParameterBindingBase = ValueParameterBinding> = Record<keyof typeof voicevoxSubtitleParamDefs, Binding>;
 
 export function createVoicevoxSubtitleParameterValues(): VoicevoxSubtitleParameterValues {
-	return Object.fromEntries(Object.entries(voicevoxSubtitleParamDefs).map(([key, def]) => [key, deepClone(def.defaultValue)])) as VoicevoxSubtitleParameterValues;
+	return Object.fromEntries(Object.entries(voicevoxSubtitleParamDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])) as VoicevoxSubtitleParameterValues;
 }
 
 export const voicevoxSubtitleStaticSettingDefs = {

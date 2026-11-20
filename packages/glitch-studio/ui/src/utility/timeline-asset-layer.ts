@@ -1,5 +1,5 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { genId } from '@gs/shared/utility/id.ts';
-import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 import { createTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
@@ -38,7 +38,7 @@ export function createTimelineAssetLayer(asset: Asset, startMs: number, media: T
 		...createTimelineClipTiming(Math.max(0, startMs), durationMs),
 	};
 	const audioParamValues = {
-		volume: deepClone(timelineAudioParamDefs.volume.defaultValue),
+		volume: createDefaultParameterBinding(timelineAudioParamDefs.volume),
 	};
 	if (layerType === 'audio') return {
 		...base,
@@ -56,8 +56,8 @@ export function createTimelineAssetLayer(asset: Asset, startMs: number, media: T
 		isIncludedInComposite: true,
 		coordinateSpace: 'screen' as const,
 		forceDisableMotionBlur: false,
-		compositingParamValues: deepClone(Object.fromEntries(Object.entries(timelineCompositingParamDefs)
-			.map(([key, def]) => [key, def.defaultValue]))) as TimelineImageLayer['compositingParamValues'],
+		compositingParamValues: Object.fromEntries(Object.entries(timelineCompositingParamDefs)
+			.map(([key, def]) => [key, createDefaultParameterBinding(def)])) as TimelineImageLayer['compositingParamValues'],
 	};
 	if (layerType === 'image') return {
 		...base,

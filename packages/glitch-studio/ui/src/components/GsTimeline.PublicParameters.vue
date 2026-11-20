@@ -14,7 +14,7 @@
 				:projectAutomationGraphs="stateManager.state.automationGraphs.value"
 				:paramPath="[definition.id]"
 				:paramDef="definition"
-				:paramValue="layer.publicParameterValues?.[definition.id] ?? definition.defaultValue"
+				:paramValue="layer.publicParameterValues?.[definition.id] ?? createDefaultParameterBinding(definition)"
 				@edit="emit('edit', $event)"
 			/>
 			<GsFolder>
@@ -28,6 +28,7 @@
 </template>
 
 <script lang="ts" setup>
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { computed, provide } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import { getTimelineLayerPublicParameterContext, timelineLayerPublicParameterId } from '@gs/subsystems_timeline_shared/public-parameters.ts';
@@ -74,7 +75,7 @@ function add() {
 			nameForReference,
 			dataType: { kind: 'scalar' },
 			ui: { label: nameForReference, control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
-			defaultValue: { inputSource: 'literal', value: 0.5 },
+			defaultValue: 0.5,
 			canNode: false,
 		},
 	});

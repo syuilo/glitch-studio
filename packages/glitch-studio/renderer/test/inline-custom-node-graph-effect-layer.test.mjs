@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { snapshotNativeInputs } from './helpers/manager-gpu.mjs';
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
@@ -30,8 +31,8 @@ const { createTimelineTransformParameterValues } = await load('@gs/subsystems_ti
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const connection = (nodeId, outputPort = 'output') => ({ inputSource: 'node', source: { nodeId, outputPort }, sampling: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' } });
-const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, canNode: false, defaultValue: literal(0) };
-const color = { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: literal([1, 0, 0, 0.5]) };
+const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, canNode: false, defaultValue: 0 };
+const color = { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: [1, 0, 0, 0.5] };
 const probeParamDefs = { input: color, amount: scalar, local: scalar, caller: scalar, localTime: scalar, duration: scalar, exported: scalar, forbidden: scalar, directImage: color };
 const graph = value => ({ id: 'graph', nameForReference: 'graph', isNormalized: true, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
 
@@ -55,7 +56,7 @@ function layer(id, customNodeGraphEffect, overrides = {}) {
 		id, layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect }, resolution: { mode: 'context', scale: 1 }, effectStaticSettings: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 100, contentOffsetMs: 0, durationMs: 1000 }],
 		effectParamValues: {}, automationGraphs: [], isDisabled: false,
 		compositingParamValues: {
-			...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
+			...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])),
 			blendMode: literal('replace'),
 		},
 		...overrides,

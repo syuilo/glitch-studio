@@ -10,12 +10,12 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	tags: ['pattern', 'stylized'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		position: {
 			dataType: { kind: 'vector' },
@@ -28,7 +28,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: [0, 0] },
+			defaultValue: [0, 0],
 		},
 		frequency: {
 			dataType: { kind: 'scalar' },
@@ -41,7 +41,7 @@ export default defineNativeEffect({
 					step: 0.1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 5 },
+			defaultValue: 5,
 		},
 		density: {
 			dataType: { kind: 'scalar' },
@@ -54,7 +54,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.5 },
+			defaultValue: 0.5,
 		},
 		outlineThickness: {
 			dataType: { kind: 'scalar' },
@@ -67,7 +67,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.25 },
+			defaultValue: 0.25,
 		},
 		maskSize: {
 			dataType: { kind: 'scalar' },
@@ -80,7 +80,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.5 },
+			defaultValue: 0.5,
 		},
 	},
 	primaryInputParameter: 'input',

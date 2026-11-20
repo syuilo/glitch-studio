@@ -30,5 +30,5 @@ test('shares MIME constraints between selection and resource validation', () => 
 // 【公開する通常パラメータへ素材参照型を戻せない】
 // ファイルやCommandで作られた定義も検査し、UIの選択肢を隠すだけの制限にしない。
 test('rejects resource references in ordinary parameter definitions', () => {
-	for (const kind of ['imageAssetTextureReference', 'assetReference', 'playerReference']) assert.throws(() => validateParameterDefaultValues({ dataType: { kind }, ui: { label: 'Resource', control: {} }, defaultValue: { inputSource: 'literal', value: null } }), /Unsupported parameter data type/);
+	for (const kind of ['imageAssetTextureReference', 'assetReference', 'playerReference']) assert.throws(() => validateParameterDefaultValues({ dataType: { kind }, ui: { label: 'Resource', control: {} }, defaultValue: null }), /Unsupported parameter data type/);
 });

@@ -76,7 +76,7 @@ export async function run() {
 		for (const [definition, implementation] of effects) {
 			const isStripe = definition.id === 'stripe';
 			const phase = (x: number, y = 0) => isStripe ? scalar(x) : vector([x, y]);
-			const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value]));
+			const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue) : parameter.defaultValue]));
 			const base: NativeParameterValues<typeof definition.paramDefs> = {
 				...defaults, angle: scalar(0), frequency: isStripe ? scalar(3) : vector([3, 2]),
 				sizeReference: 'longSide',

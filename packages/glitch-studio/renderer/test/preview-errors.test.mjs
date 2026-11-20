@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { gpuFixture } from './helpers/manager-gpu.mjs';
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
@@ -38,7 +39,7 @@ function customNodeGraphEffect() {
 function constantCustomNodeGraphEffect() {
 	return {
 		...customNodeGraphEffect(),
-		paramDefs: { color: { ...fillDefinition.paramDefs.color, nameForReference: 'color', defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] } } },
+		paramDefs: { color: { ...fillDefinition.paramDefs.color, nameForReference: 'color', defaultValue: [1, 0, 0, 1] } },
 		nodes: [{ id: 'a', effectSource: { type: 'nativeEffect', id: 'fill' },
 			params: { color: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'color' } } }],
 	};
@@ -583,7 +584,7 @@ async function fixture(t, staticOptions = {}, Manager = EffectLivePreviewManager
 		...waveformAndHistogramCanvases,
 		frameScheduler: { now: () => 0, requestFrame: callback => { frames.set(++frameId, callback); return frameId; }, cancelFrame: id => frames.delete(id) },
 		nativeEffectDefinitions: { fill: fillDefinition, pass: { kind: 'modify', paramDefs: {
-			input: { dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] }, ui: { label: 'Input', control: {} } },
+			input: { dataType: { kind: 'color' }, canNode: true, defaultValue: [0, 0, 0, 0], ui: { label: 'Input', control: {} } },
 		}, primaryInputParameter: 'input', resolutionInputParameters: ['input'], outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output' } },
 		nativeEffectImplementations: { fill: fillImplementation, pass: { init: () => ({ render() {}, dispose() {} }) } },
 	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: true, enable32bitDataTextures: false, ...staticOptions }, { assets: [], players: [] });
@@ -1847,9 +1848,9 @@ async function tiledValueFixture(t, kind = 'node', Manager = EffectLivePreviewMa
 	definition.nodes[0].params.input = { inputSource: 'literal', value: [0.1, 0, 0, 1] };
 	if (kind !== 'node') {
 		const parameter = { id: 'gain', nameForReference: 'gain', canNode: false, dataType: { kind: 'scalar' },
-			ui: { label: 'Gain', control: {} }, defaultValue: { inputSource: 'literal', value: 0.1 } };
+			ui: { label: 'Gain', control: {} }, defaultValue: 0.1 };
 		if (kind === 'public') definition.paramDefs = { gain: parameter };
-		else { definition.customParameterDefs = { gain: parameter }; definition.customParameterValues = { gain: parameter.defaultValue }; }
+		else { definition.customParameterDefs = { gain: parameter }; definition.customParameterValues = { gain: createDefaultParameterBinding(parameter) }; }
 		definition.nodes[0].params.input = { inputSource: 'expression', expression: `[${kind === 'public' ? 'PUBLIC' : 'CUSTOM'}("gain"), 0, 0, 1]` };
 	}
 	f.renderer.updateDynamicOptions({ resolution: { width: 4, height: 4 }, customNodeGraphEffects: [registration(definition)] });

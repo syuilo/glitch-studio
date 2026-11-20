@@ -14,7 +14,7 @@ export default defineNativeEffect({
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		rThreshold: {
 			dataType: { kind: 'scalar' },
@@ -28,7 +28,7 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0.5 },
+			defaultValue: 0.5,
 		},
 		gThreshold: {
 			dataType: { kind: 'scalar' },
@@ -42,7 +42,7 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0.5 },
+			defaultValue: 0.5,
 		},
 		bThreshold: {
 			dataType: { kind: 'scalar' },
@@ -56,7 +56,7 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0.5 },
+			defaultValue: 0.5,
 		},
 	},
 	primaryInputParameter: 'input',

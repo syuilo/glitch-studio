@@ -10,12 +10,12 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	tags: ['stylized', 'experimental'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		threshold: {
 			dataType: { kind: 'scalar' },
@@ -28,7 +28,7 @@ export default defineNativeEffect({
 					step: 0.00001,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.005 },
+			defaultValue: 0.005,
 		},
 		minDivisions: {
 			dataType: { kind: 'scalar' },
@@ -41,7 +41,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 4 },
+			defaultValue: 4,
 		},
 		maxIterations: {
 			dataType: { kind: 'scalar' },
@@ -54,7 +54,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 10 },
+			defaultValue: 10,
 		},
 		borderWidth: {
 			dataType: { kind: 'scalar' },
@@ -67,9 +67,9 @@ export default defineNativeEffect({
 					step: 0.001,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
-		borderAbsolute: { dataType: { kind: 'bool' }, ui: { label: 'Border Absolute', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		borderAbsolute: { dataType: { kind: 'bool' }, ui: { label: 'Border Absolute', control: {} }, defaultValue: false },
 	},
 	primaryInputParameter: 'input',
 	resolutionInputParameters: ['input'],

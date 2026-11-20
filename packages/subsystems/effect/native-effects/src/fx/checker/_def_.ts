@@ -14,7 +14,7 @@ export default defineNativeEffect({
 			dataType: { kind: 'color' },
 			ui: { label: 'Background', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		frequency: {
 			dataType: { kind: 'vector' },
@@ -28,7 +28,7 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [3, 3] },
+			defaultValue: [3, 3],
 		},
 		// Phaseは画面上の距離ではなく、回転後のパターンの1周期を単位にする。
 		phase: {
@@ -43,16 +43,16 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0] },
+			defaultValue: [0, 0],
 		},
 		angle: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Angle', control: { controlType: 'angle' } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
-		color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 0.5] } },
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: [1, 1, 1, 0.5] },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 	},
 	primaryInputParameter: 'background',
 	resolutionInputParameters: ['background'],

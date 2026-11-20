@@ -7,7 +7,7 @@ const definition = defineNativeEffect({
 	kind: 'generate',
 	dependsOnRenderHistory: false,
 	paramDefs: {
-		color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
+		color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: [1, 1, 1, 1] },
 	},
 	primaryInputParameter: null,
 	resolutionInputParameters: [],

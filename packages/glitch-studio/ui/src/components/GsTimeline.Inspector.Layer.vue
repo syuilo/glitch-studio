@@ -111,7 +111,7 @@
 							:projectAutomationGraphs="projectSession.projectContext.stateManager.state.automationGraphs.value"
 							:paramPath="[paramId]"
 							:paramDef="paramDef"
-							:paramValue="layer.compositingParamValues[paramId] ?? paramDef.defaultValue"
+							:paramValue="layer.compositingParamValues[paramId] ?? createDefaultParameterBinding(paramDef)"
 							@edit="event => onTimelineLayerParamEdit(event, 'compositing')"
 						/>
 					</template>
@@ -195,6 +195,7 @@
 </template>
 
 <script lang="ts" setup>
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { getCustomNodeGraphEffectView } from '@/utility/custom-node-graph-effect-view.ts';
 import { srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 import { computed, ref, onBeforeUnmount, provide } from 'vue';

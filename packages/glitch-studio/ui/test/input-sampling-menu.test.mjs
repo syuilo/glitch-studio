@@ -21,7 +21,7 @@ const bundled = await build({
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', contents: path === 'preferences'
 			? 'export const preferences = { s: { forceTypeSafety: false } };'
-			: "export const nativeEffectDefinitions = { test: { paramDefs: { inputs: { dataType: { kind: 'array', elementType: { kind: 'color' } }, ui: { label: 'Inputs', control: { element: {} } }, element: { canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } }, defaultValue: { inputSource: 'literal', value: [] } } } } };",
+			: "export const nativeEffectDefinitions = { test: { paramDefs: { inputs: { dataType: { kind: 'array', elementType: { kind: 'color' } }, ui: { label: 'Inputs', control: { element: {} } }, element: { canNode: true, defaultValue: [0, 0, 0, 0] }, defaultValue: [] } } } };",
 		}));
 	} }],
 });

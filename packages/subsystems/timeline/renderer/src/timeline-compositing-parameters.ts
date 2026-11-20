@@ -34,8 +34,8 @@ export class TimelineCompositingParameters {
 		for (const [key, def] of Object.entries(timelineCompositingParamDefs)) {
 			const value = context.paramValues[key];
 			// 未指定・欠落グラフには設定の既定値を使う。式の失敗は例外として上位へ伝える。
-			values.set(key, coerceParameterValue(def, value == null ? def.defaultValue.value : this.evaluator.evaluate(value, evaluationContext,
-				value.inputSource === 'automationGraphReference' || key === 'fitMode' ? def.defaultValue.value : genEmptyValue(def), def)));
+			values.set(key, coerceParameterValue(def, value == null ? def.defaultValue : this.evaluator.evaluate(value, evaluationContext,
+				value.inputSource === 'automationGraphReference' || key === 'fitMode' ? def.defaultValue : genEmptyValue(def), def)));
 		}
 		// 不正な式の型や非有限値をGPUへ流さない。範囲外の有限な位置・倍率は制限しない。
 		const number = (id: string, fallback: number) => {
@@ -58,7 +58,7 @@ export class TimelineCompositingParameters {
 			blendMode: isBlendMode(mode) ? colorBlendModes[mode] : 0,
 			opacity: Math.min(1, Math.max(0, number('opacity', 1))),
 			// 範囲はSceneの矩形を基準にする。保存したFitは画像モードへ戻したときに再び使う。
-			fitMode: context.transformTarget === 'region' ? 'stretch' : fitMode === 'contain' || fitMode === 'cover' || fitMode === 'stretch' ? fitMode : timelineCompositingParamDefs.fitMode.defaultValue.value,
+			fitMode: context.transformTarget === 'region' ? 'stretch' : fitMode === 'contain' || fitMode === 'cover' || fitMode === 'stretch' ? fitMode : timelineCompositingParamDefs.fitMode.defaultValue,
 			position: vector('position', [0, 0]),
 			origin: vector('origin', [0, 0]),
 			scale: vector('scale', [1, 1]),

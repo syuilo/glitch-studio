@@ -1,9 +1,9 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import imageEffect from '@gs/subsystems_effect_native-effects/fx/image/_def_.ts';
 import videoEffect from '@gs/subsystems_effect_native-effects/fx/video/_def_.ts';
 import audioWaveformEffect from '@gs/subsystems_effect_native-effects/fx/audioWaveform/_def_.ts';
-import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import type { CustomNodeGraphEffectEffectNode } from '@/types/custom-node-graph-effect-view.ts';
 import type { CustomNodeGraphEffectTarget } from './custom-node-graph-effect-target.ts';
@@ -30,7 +30,7 @@ export function createCustomNodeGraphEffectAssetNode(asset: Asset, players: read
 			playerId = player.id;
 		}
 	}
-	const params: CustomNodeGraphEffectEffectNode['params'] = deepClone(Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, def.defaultValue])));
+	const params: CustomNodeGraphEffectEffectNode['params'] = Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)]));
 	const staticSettings: StaticSettingValues = createStaticSettingValues('staticSettingDefs' in definition ? definition.staticSettingDefs : {});
 	if (definition === imageEffect) staticSettings.image = asset.id;
 	else if (definition === videoEffect) staticSettings.player = playerId;

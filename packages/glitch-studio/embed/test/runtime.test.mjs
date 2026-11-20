@@ -27,7 +27,7 @@ test('detects expression capabilities in nested bindings, modifiers and custom p
 	customNodeGraphEffect.nodes[0].params.color = { inputSource: 'envVariable', variable: 'POINTER_POSITION' };
 	assert.equal(analyze().requiresExpressions, false);
 	const nested = { ...parameter('array', [], 'values'), dataType: { kind: 'array', elementType: { kind: 'scalar' } },
-		element: { defaultValue: literal(0) }, ui: { label: 'Values', control: { element: {} } } };
+		element: { defaultValue: 0 }, ui: { label: 'Values', control: { element: {} } } };
 	const nestedGraph = fixture().customNodeGraphEffect;
 	nestedGraph.nodes = [];
 	nestedGraph.outputSources = {};

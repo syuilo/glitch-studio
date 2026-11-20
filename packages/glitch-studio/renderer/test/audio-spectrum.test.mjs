@@ -19,7 +19,7 @@ async function fixture() {
 	const statuses = [];
 	const device = { limits: { maxTextureDimension2D: 8192 }, createTexture: ({ size }) => ({ ...size, createView: () => ({}), destroy() {} }), createShaderModule: () => ({}), createRenderPipeline: () => ({ getBindGroupLayout: () => ({}) }), createBuffer: () => ({ destroy() {} }), createBindGroup: () => ({}),
 		queue: { writeBuffer: (_buffer, _offset, data) => writes.push([...data]) } };
-	const params = { ...Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, def.defaultValue.value])),
+	const params = { ...Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, def.defaultValue])),
 		fftSize: '256', window: 'rectangular', smoothing: 0, minFrequency: 0, maxFrequency: 24000, color: [1, 0.5, 0, 0.25] };
 	const inputs = Object.fromEntries(Object.keys(params).map(key => [key, { kind: 'value', get value() { return params[key]; } }]));
 	const instance = await createEffectInstance({ effectSource: { type: 'nativeEffect', id: 'audioSpectrum' }, definitions: { getNativeEffect: () => definition }, inputs,

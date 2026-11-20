@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { createEffectTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/effect/effect-timeline-layer.ts';
 import { TimelineRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
 import { createSolidTimelineImage } from './solid-timeline-image.ts';
@@ -43,7 +44,7 @@ export async function checkBlurRegionTimelineLayer(device: GPUDevice, vertex: GP
 		automationGraphs: [],
 		effectParamValues: Object.fromEntries(Object.keys(blurDefinition.paramDefs).map(key => [key, getEffectLayerParameterDefault(blurDefinition, key)])),
 		compositingParamValues: {
-			...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) as TimelineEffectLayer['compositingParamValues'],
+			...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])) as TimelineEffectLayer['compositingParamValues'],
 			position: { inputSource: 'literal', value: [0.25, 0] },
 			scale: { inputSource: 'literal', value: [0.5, 1] },
 			blendMode: { inputSource: 'literal', value: 'replace' },
@@ -127,12 +128,12 @@ export async function checkEffectTimelineLayers(device: GPUDevice, vertex: GPUSh
 			coordinateSpace: 'screen',
 			effectParamValues: Object.fromEntries(Object.keys(definition.paramDefs).map(key => [key, getEffectLayerParameterDefault(definition, key)])),
 			compositingParamValues: {
-				fitMode: structuredClone(timelineCompositingParamDefs.fitMode.defaultValue),
-				opacity: structuredClone(timelineCompositingParamDefs.opacity.defaultValue),
-				position: structuredClone(timelineCompositingParamDefs.position.defaultValue),
-				origin: structuredClone(timelineCompositingParamDefs.origin.defaultValue),
-				scale: structuredClone(timelineCompositingParamDefs.scale.defaultValue),
-				rotation: structuredClone(timelineCompositingParamDefs.rotation.defaultValue),
+				fitMode: createDefaultParameterBinding(timelineCompositingParamDefs.fitMode),
+				opacity: createDefaultParameterBinding(timelineCompositingParamDefs.opacity),
+				position: createDefaultParameterBinding(timelineCompositingParamDefs.position),
+				origin: createDefaultParameterBinding(timelineCompositingParamDefs.origin),
+				scale: createDefaultParameterBinding(timelineCompositingParamDefs.scale),
+				rotation: createDefaultParameterBinding(timelineCompositingParamDefs.rotation),
 				blendMode: { inputSource: 'literal', value: definition.kind === 'modify' ? 'replace' : 'normal' },
 			},
 		};

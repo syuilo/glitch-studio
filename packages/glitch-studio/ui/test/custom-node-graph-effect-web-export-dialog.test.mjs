@@ -59,7 +59,7 @@ function fixture(t, fileData = new Blob(['asset'])) {
 		runtimeRequirements: { effectIds: [], requiresExpressions: false, requiresParameterDefaultExpressions: false, requiresCustomShaderEffects: false },
 		assets: [{ id: 'asset', name: 'Asset', width: 1, height: 1, fileDataType: 'image/png', fileData }],
 		customNodeGraphEffect: { nodes: [], paramDefs: [{ id: 'speed', nameForReference: 'speed', dataType: { kind: 'scalar' }, canNode: false,
-			ui: { label: 'Speed', control: {} }, defaultValue: { inputSource: 'literal', value: 1 } }],
+			ui: { label: 'Speed', control: {} }, defaultValue: 1 }],
 		customParameterDefs: [], customParameterValues: {}, outputDefs: [], automationGraphs: [], primaryInputId: null, primaryOutputId: null },
 	};
 	let input;

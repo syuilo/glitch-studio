@@ -29,7 +29,7 @@ export function createNamedParameterFromLiteral(
 	return deepClone({
 		dataType: definition.dataType,
 		ui: { label: definition.ui.label, control: definition.ui.control },
-		defaultValue: { inputSource: 'literal', value: binding.value },
+		defaultValue: binding.value,
 		canNode: false,
 		nameForReference,
 	}) as ParameterDefinition<NamedParameterDataType> & { canNode: false; nameForReference: string };

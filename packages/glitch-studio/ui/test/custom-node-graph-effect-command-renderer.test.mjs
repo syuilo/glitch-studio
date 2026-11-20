@@ -13,7 +13,7 @@ const effectDefinitions = {
 		kind: 'modify',
 		paramDefs: { input: {
 			dataType: { kind: 'color' }, canNode: true,
-			ui: { label: 'Input', control: {} }, defaultValue: literal([0, 0, 0, 0]),
+			ui: { label: 'Input', control: {} }, defaultValue: [0, 0, 0, 0],
 		} },
 		primaryInputParameter: 'input', resolutionInputParameters: ['input'],
 		primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } },
@@ -246,7 +246,7 @@ for (const [candidates, expectedResolution] of [
 test('removes only ineligible resolution candidates when changing a public parameter', async () => {
 	const { definition, manager, edit, assertResolution } = primaryInputFixture(['mask', 'image']);
 	edit({ kind: 'updateParamDef', defId: 'image', changes: {
-		dataType: { kind: 'scalar' }, defaultValue: literal(0), ui: { label: 'Image', control: { controlType: 'number' } },
+		dataType: { kind: 'scalar' }, defaultValue: 0, ui: { label: 'Image', control: { controlType: 'number' } },
 	} });
 	assert.equal(definition.primaryInputParameter, null);
 	assert.deepEqual(definition.resolutionInputParameters, ['mask', 'image']);

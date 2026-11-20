@@ -61,7 +61,7 @@ function add() {
 				step: 0.01,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: 0.5 },
+		defaultValue: 0.5,
 		canNode: false,
 	});
 }

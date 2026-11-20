@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { SIZE_REFERENCES } from '@gs/shared/size-reference.ts';
 import { COLOR_RAMP_INTERPOLATIONS } from '@gs/shared/color-ramp.ts';
 import { colorBlendModes } from '@gs/shared/color-blend.ts';
+import { validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
 import type { DataType, TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ValueParameterBinding, ValueParameterSource } from '@gs/shared/parameter/value-parameter-binding.ts';
@@ -96,14 +97,8 @@ const scalarControlSchema = z.union([
 	z.object({ controlType: z.literal('seed') }),
 ]);
 const vectorControlSchema = z.object({ controlType: z.enum(['vector', 'xy', 'dimension']), min: z.number().optional(), max: z.number().optional(), step: z.number().optional(), logarithmic: z.boolean().optional() });
-const parameterDefaultSchema = z.object({
-	inputSource: z.literal('literal'),
-	value: z.json().describe('Literal default matching the dataType. All nested child bindings must also be literal.'),
-});
-// 配列の要素IDと構造体のフィールドは契約に明示する。その内側はCommand側でdataTypeに沿って検証する。
-const arrayParameterDefaultSchema = parameterDefaultSchema.extend({ value: z.array(z.object({ id: z.string(), binding: parameterDefaultSchema })) });
-const structParameterDefaultSchema = parameterDefaultSchema.extend({ value: z.record(z.string(), parameterDefaultSchema) });
-type ParameterSettingsData = { defaultValue: { inputSource: 'literal'; value: z.infer<ReturnType<typeof z.json>> }; canNode?: boolean; maxElements?: number; element?: ParameterSettingsData; fields?: Record<string, ParameterSettingsData> };
+const parameterDefaultSchema = z.json().describe('Value matching the dataType. Use plain array elements and struct field values.');
+type ParameterSettingsData = { defaultValue: z.infer<typeof parameterDefaultSchema>; canNode?: boolean; maxElements?: number; element?: ParameterSettingsData; fields?: Record<string, ParameterSettingsData> };
 const parameterSettingsSchema: z.ZodType<ParameterSettingsData> = z.lazy(() => z.object({
 	defaultValue: parameterDefaultSchema, canNode: z.boolean().optional(), maxElements: z.number().optional(),
 	element: parameterSettingsSchema.optional(), fields: z.record(z.string(), parameterSettingsSchema).optional(),
@@ -127,7 +122,7 @@ function leafParameterDefinition(kind: string, control: z.ZodType, value: z.ZodT
 	return z.object({
 		dataType: z.object({ kind: z.literal(kind) }),
 		ui: z.object({ label: z.string(), isAdvanced: z.boolean().optional(), control }),
-		defaultValue: parameterDefaultSchema.extend({ value }), canNode,
+		defaultValue: value, canNode,
 	});
 }
 
@@ -144,19 +139,26 @@ export const parameterDefinitionSchema = z.union([
 	z.object({
 		dataType: z.object({ kind: z.literal('enum'), options: z.array(z.string()) }),
 		ui: z.object({ label: z.string(), isAdvanced: z.boolean().optional(), control: z.object({ labels: z.record(z.string(), z.string()) }) }),
-		defaultValue: parameterDefaultSchema.extend({ value: z.string() }), canNode: z.literal(false).optional(),
+		defaultValue: z.string(), canNode: z.literal(false).optional(),
 	}),
 	z.object({
 		dataType: z.object({ kind: z.literal('array'), elementType: dataTypeSchema }),
 		ui: z.object({ label: z.string(), isAdvanced: z.boolean().optional(), control: z.object({ element: parameterControlSchema, defaultExpanded: z.boolean().optional() }) }),
-		defaultValue: arrayParameterDefaultSchema, canNode: z.literal(false).optional(), maxElements: z.number().optional(), element: parameterSettingsSchema,
+		defaultValue: z.array(parameterDefaultSchema), canNode: z.literal(false).optional(), maxElements: z.number().optional(), element: parameterSettingsSchema,
 	}),
 	z.object({
 		dataType: z.object({ kind: z.literal('struct'), fields: z.record(z.string(), dataTypeSchema) }),
 		ui: z.object({ label: z.string(), isAdvanced: z.boolean().optional(), control: parameterControlSchema }),
-		defaultValue: structParameterDefaultSchema, canNode: z.literal(false).optional(), fields: z.record(z.string(), parameterSettingsSchema),
+		defaultValue: z.record(z.string(), parameterDefaultSchema), canNode: z.literal(false).optional(), fields: z.record(z.string(), parameterSettingsSchema),
 	}),
-]) as z.ZodType<ParameterDefinition>;
+]).superRefine((definition, context) => {
+	if (definition.dataType.kind !== 'array' && definition.dataType.kind !== 'struct') return;
+	try {
+		validateParameterDefaultValues(definition as ParameterDefinition);
+	} catch (error) {
+		context.addIssue({ code: 'custom', path: ['defaultValue'], message: error instanceof Error ? error.message : String(error) });
+	}
+}) as z.ZodType<ParameterDefinition>;
 
 export const staticSettingValueSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 export const staticSettingValuesSchema = z.record(z.string(), staticSettingValueSchema);

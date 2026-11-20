@@ -44,7 +44,7 @@ test('keeps cached gain evaluation when public parameter keyframes cannot affect
 		const renderer = new TimelineAudioRenderer(constant);
 		const evaluate = t.mock.method(renderer.evaluator, 'evaluate');
 		const owner = { id: 'owner', name: 'Owner', automationGraphs: [],
-			publicParameterDefs: [{ id: 'motion', nameForReference: 'motion', dataType: { kind: 'scalar' }, ui: { label: 'Motion', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } }],
+			publicParameterDefs: [{ id: 'motion', nameForReference: 'motion', dataType: { kind: 'scalar' }, ui: { label: 'Motion', control: { controlType: 'number' } }, defaultValue: 0 }],
 			publicParameterValues: { motion: { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
 				keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [{ id: 'key', x: 0, value: 1, interpolation: { type: 'hold' } }] } } },
 		};
@@ -59,7 +59,7 @@ test('keeps cached gain evaluation when public parameter keyframes cannot affect
 // 【加工式から公開パラメータのキーを参照するときはサンプル境界を維持する】
 // 固定値を基準入力にしていても、加工式のPUBLICがholdキーを読むなら200Hz補間へ戻してはいけない。
 test('retains sample-accurate public parameter keyframes referenced by a gain modifier', async () => {
-	const definition = { id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 1 } };
+	const definition = { id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: { controlType: 'number' } }, defaultValue: 1 };
 	const sound = layer({ clips: [{ id: 'clip', startMs: 0, durationMs: 10, sourceInMs: 0, sourceOutMs: 10, playbackRate: 1, loop: false, assetId: 'asset' }],
 		publicParameterDefs: [definition], publicParameterValues: { gain: { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
 			keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [
@@ -74,7 +74,7 @@ test('retains sample-accurate public parameter keyframes referenced by a gain mo
 // 【祖先の公開パラメータを音量へ接続し、参照の奥のholdキーもサンプル境界で切り替える】
 // 200Hzの制御値補間へ丸めると、短いキーの切り替えが映像とずれ、チャンクによって音が変わってしまう。
 test('evaluates ancestor public parameter gain keyframes without smoothing hold boundaries', async () => {
-	const definition = { id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 1 } };
+	const definition = { id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: { controlType: 'number' } }, defaultValue: 1 };
 	const sound = layer({ clips: [{ id: 'clip', startMs: 0, durationMs: 10, sourceInMs: 0, sourceOutMs: 10, playbackRate: 1, loop: false, assetId: 'asset' }],
 		publicParameterDefs: [{ ...definition, id: 'forward' }],
 		publicParameterValues: { forward: { inputSource: 'timelineLayerPublicParameterReference', layerId: 'transform', parameterId: 'gain' } },
@@ -97,7 +97,7 @@ test('evaluates ancestor public parameter gain keyframes without smoothing hold 
 // 【参照先Sceneは親Sceneの公開パラメータを暗黙に継承せず、所属Sceneの時計で評価する】
 // 同じSceneの複数配置が呼び出し側の値を共有してしまわないよう、音声計画にも境界を保持する。
 test('keeps public parameter gain scope inside its owning scene across repeated placements', async () => {
-	const definition = { id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 1 } };
+	const definition = { id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: { controlType: 'number' } }, defaultValue: 1 };
 	const sound = layer({ clips: [{ id: 'clip', startMs: 0, durationMs: 100, sourceInMs: 0, sourceOutMs: 100, playbackRate: 1, loop: false, assetId: 'asset' }], publicParameterDefs: [definition], publicParameterValues: { gain: { inputSource: 'expression', expression: 'TIME_MS / 100' } }, audioParamValues: { volume: { inputSource: 'expression', expression: 'PUBLIC("gain")' } } });
 	const placement = startMs => ({ id: `placement-${startMs}`, name: 'Placement', layerType: 'scene', isDisabled: false, automationGraphs: [], publicParameterDefs: [definition], publicParameterValues: { gain: { inputSource: 'literal', value: 99 } }, audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, clips: [{ id: 'clip', startMs, durationMs: 100, contentOffsetMs: 0, sceneId: 'child' }] });
 	const scenes = [{ id: 'root', layers: [placement(0), placement(100)] }, { id: 'child', layers: [sound] }];

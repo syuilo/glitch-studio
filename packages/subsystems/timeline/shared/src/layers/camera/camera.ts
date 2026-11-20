@@ -1,4 +1,4 @@
-import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { validateTimelineParameterTree } from '../../parameter-binding.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
@@ -22,7 +22,7 @@ export const timelineCameraParamDefs = {
 				step: 0.01,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: [0, 0] },
+		defaultValue: [0, 0],
 		canNode: false,
 	},
 	z: {
@@ -36,13 +36,13 @@ export const timelineCameraParamDefs = {
 				step: 0.01,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: DEFAULT_CAMERA_DISTANCE },
+		defaultValue: DEFAULT_CAMERA_DISTANCE,
 		canNode: false,
 	},
 	roll: {
 		dataType: { kind: 'scalar' },
 		ui: { label: 'Roll', control: { controlType: 'angle' } },
-		defaultValue: { inputSource: 'literal', value: 0 },
+		defaultValue: 0,
 		canNode: false,
 	},
 	fieldOfView: {
@@ -56,7 +56,7 @@ export const timelineCameraParamDefs = {
 				step: 1,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: 45 },
+		defaultValue: 45,
 		canNode: false,
 	},
 } as const satisfies Record<string, ParameterDefinition>;
@@ -64,7 +64,7 @@ export const timelineCameraParamDefs = {
 export type TimelineCameraParameterValues = Record<keyof typeof timelineCameraParamDefs, TimelineParameterBinding>;
 
 export function createTimelineCameraParameterValues(): TimelineCameraParameterValues {
-	return Object.fromEntries(Object.entries(timelineCameraParamDefs).map(([key, def]) => [key, deepClone(def.defaultValue)])) as TimelineCameraParameterValues;
+	return Object.fromEntries(Object.entries(timelineCameraParamDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])) as TimelineCameraParameterValues;
 }
 
 /** 評価器へ渡す設定。カメラ選択・クリップの有効期間はScene側で解決する。 */

@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { preserveParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
@@ -18,7 +19,7 @@ export function canEditTimelineTransform(binding: TimelineParameterBinding | nul
 export function prepareTimelineTransformBindings(bindings: TimelineTransformBindings, keys: TimelineTransformKey[], time: number): TimelineTransformBindings {
 	const result: TimelineTransformBindings = {};
 	for (const key of keys) {
-		const binding = bindings[key] ?? timelineCompositingParamDefs[key].defaultValue;
+		const binding = bindings[key] ?? createDefaultParameterBinding(timelineCompositingParamDefs[key]);
 		if (!canEditTimelineTransform(binding, key)) throw new Error('Transform parameter is driven by an expression or automation');
 		result[key] = binding.inputSource === 'keyframesTimelineInline'
 			? insertInlineKeyframe(binding, timelineCompositingParamDefs[key], Math.round(time), 0)!.value : deepClone(binding);

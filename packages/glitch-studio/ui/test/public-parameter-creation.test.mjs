@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { testGraph } from './helpers/effect-graph.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -8,9 +9,11 @@ import { i18nPlugin } from './helpers/i18n.mjs';
 
 const directory = fileURLToPath(new URL('../', import.meta.url));
 const literal = value => ({ inputSource: 'literal', value });
-const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Amount', isAdvanced: true, control: { controlType: 'range', min: -1, max: 2, step: 0.01 } }, defaultValue: literal(0) };
-const array = { dataType: { kind: 'array', elementType: scalar.dataType }, element: { defaultValue: literal(0) },
-	ui: { label: 'Weights', control: { element: scalar.ui.control } }, defaultValue: literal([{ id: 'first', binding: literal(0.2) }, { id: 'second', binding: literal(0.8) }]) };
+const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Amount', isAdvanced: true, control: { controlType: 'range', min: -1, max: 2, step: 0.01 } }, defaultValue: 0 };
+const array = { dataType: { kind: 'array', elementType: scalar.dataType }, element: { defaultValue: 0 },
+	ui: { label: 'Weights', control: { element: scalar.ui.control } }, defaultValue: [0.2, 0.8] };
+const weightDefaults = createDefaultParameterBinding(array);
+const secondWeightId = weightDefaults.value[1].id;
 const effect = { id: 'test', paramDefs: { amount: scalar, weights: array } };
 const bundle = await build({
 	absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
@@ -32,7 +35,7 @@ new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createR
 const { COMMAND_DEFS, UndoRedo, commitCustomNodeGraphEffectEdit, createNamedParameterFromLiteral } = module.exports;
 
 function fixture() {
-	const node = { id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, params: { amount: literal(0.3), weights: structuredClone(array.defaultValue) } };
+	const node = { id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, params: { amount: literal(0.3), weights: createDefaultParameterBinding(array) } };
 	const customNodeGraphEffect = { id: 'custom-node-graph-effect', definition: testGraph({ customParameterValues: {}, nodes: [node], primaryInputParameter: null, primaryAudioInputParameter: null, automationGraphs: [] }) };
 	const layer = { id: 'layer', name: 'Layer', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, automationGraphs: [], effectParamValues: structuredClone(node.params) };
 	const scene = { id: 'scene', resolution: { mode: 'customAbsolute', width: 1600, height: 800 }, layers: [layer] };
@@ -58,7 +61,7 @@ for (const inline of [false, true]) {
 		assert.deepEqual(definition.dataType, scalar.dataType);
 		assert.deepEqual(definition.ui, { label: 'Amount', control: scalar.ui.control });
 		assert.notEqual(definition.ui.control, scalar.ui.control);
-		assert.deepEqual(definition.defaultValue, literal(0.3));
+		assert.deepEqual(definition.defaultValue, 0.3);
 		assert.equal(definition.canNode, false);
 		assert.equal(definition.nameForReference, 'amount');
 		assert.deepEqual(f.node.params.amount, { inputSource: 'customNodeGraphEffectCustomParameterValueReference', parameterId: definition.id });
@@ -82,13 +85,13 @@ test('promotes an array leaf without replacing existing custom definitions or va
 	f.customNodeGraphEffect.definition.customParameterValues = { existing: { inputSource: 'expression', expression: 'TIME' } };
 	f.customNodeGraphEffect.definition.paramDefs = { 'public-weights': { ...existing, nameForReference: 'weights_2' } };
 	const before = structuredClone(f.customNodeGraphEffect);
-	f.history.commit('createCustomNodeGraphEffectCustomParameterFromParameter', { target: { customNodeGraphEffect: { customNodeGraphEffectId: f.customNodeGraphEffect.id }, nodeId: f.node.id }, parameterPath: ['weights', 'second'] });
+	f.history.commit('createCustomNodeGraphEffectCustomParameterFromParameter', { target: { customNodeGraphEffect: { customNodeGraphEffectId: f.customNodeGraphEffect.id }, nodeId: f.node.id }, parameterPath: ['weights', secondWeightId] });
 	const definition = Object.entries(f.customNodeGraphEffect.definition.customParameterDefs).map(([id, def]) => ({ ...def, id }))[1];
 	assert.equal(definition.nameForReference, 'weights_2');
-	assert.deepEqual(definition.defaultValue, literal(0.8));
+	assert.deepEqual(definition.defaultValue, 0.8);
 	assert.deepEqual(f.customNodeGraphEffect.definition.customParameterValues, before.definition.customParameterValues);
 	assert.deepEqual(f.node.params.weights.value[0], before.definition.nodes[0].params.weights.value[0]);
-	assert.deepEqual(f.node.params.weights.value[1], { id: 'second', binding: { inputSource: 'customNodeGraphEffectCustomParameterValueReference', parameterId: definition.id } });
+	assert.deepEqual(f.node.params.weights.value[1], { id: secondWeightId, binding: { inputSource: 'customNodeGraphEffectCustomParameterValueReference', parameterId: definition.id } });
 	const after = structuredClone(f.customNodeGraphEffect);
 	f.history.undo();
 	assert.deepEqual(f.customNodeGraphEffect, before);
@@ -105,10 +108,10 @@ test('rejects unsupported custom parameter promotion without changing state or h
 		{ inputSource: 'keyframesTimelineInline', keyframesTimeline: { keyframes: [] } },
 		{ ...literal(0.3), expressionModifier: { enabled: true, code: 'VALUE' } },
 		{ ...literal(0.3), expressionModifier: { enabled: false, code: 'VALUE' } },
-		array.defaultValue,
+		weightDefaults,
 	]) {
 		const f = fixture();
-		const path = binding === array.defaultValue ? ['weights'] : ['amount'];
+		const path = binding === weightDefaults ? ['weights'] : ['amount'];
 		f.node.params[path[0]] = structuredClone(binding);
 		const before = structuredClone(f.state);
 		assert.throws(() => f.history.commit('createCustomNodeGraphEffectCustomParameterFromParameter', {
@@ -152,7 +155,7 @@ for (const inline of [false, true]) {
 		f.history.undo();
 		assert.equal(Object.entries(f.customNodeGraphEffect.definition.customParameterDefs).map(([id, def]) => ({ ...def, id }))[0].nameForReference, 'renamed');
 		assert.deepEqual(f.customNodeGraphEffect.definition.customParameterValues[definition.id], binding);
-		commitCustomNodeGraphEffectEdit(f.history, target, { kind: 'updateCustomParameter', definition: { ...definition, dataType: { kind: 'string' }, ui: { label: 'Text', control: {} }, defaultValue: literal('initial') } });
+		commitCustomNodeGraphEffectEdit(f.history, target, { kind: 'updateCustomParameter', definition: { ...definition, dataType: { kind: 'string' }, ui: { label: 'Text', control: {} }, defaultValue: 'initial' } });
 		assert.equal(f.customNodeGraphEffect.definition.customParameterValues[definition.id], undefined);
 		f.history.undo();
 		assert.deepEqual(f.customNodeGraphEffect.definition.customParameterValues[definition.id], binding);
@@ -174,7 +177,7 @@ for (const inline of [false, true]) {
 		const definition = Object.entries(f.customNodeGraphEffect.definition.paramDefs).map(([id, def]) => ({ ...def, id }))[0];
 		assert.deepEqual(definition.dataType, scalar.dataType);
 		assert.deepEqual(definition.ui, { label: 'Amount', control: scalar.ui.control });
-		assert.deepEqual(definition.defaultValue, literal(0.3));
+		assert.deepEqual(definition.defaultValue, 0.3);
 		assert.equal(definition.canNode, false);
 		assert.equal(definition.nameForReference, 'amount');
 		assert.deepEqual(f.node.params.amount, { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: definition.id });
@@ -200,14 +203,14 @@ for (const scope of ['customNodeGraphEffect', 'timeline']) {
 		const owner = scope === 'customNodeGraphEffect' ? f.customNodeGraphEffect : f.layer;
 		const before = structuredClone(owner);
 		f.history.commit(scope === 'customNodeGraphEffect' ? 'createCustomNodeGraphEffectPublicParameterFromParameter' : 'createTimelineLayerPublicParameterFromParameter', {
-			...(scope === 'customNodeGraphEffect' ? { target: { customNodeGraphEffect: { customNodeGraphEffectId: f.customNodeGraphEffect.id }, nodeId: f.node.id } } : { sceneId: 'scene', layerId: f.layer.id, parameterGroup: 'effect' }), parameterPath: ['weights', 'second'],
+			...(scope === 'customNodeGraphEffect' ? { target: { customNodeGraphEffect: { customNodeGraphEffectId: f.customNodeGraphEffect.id }, nodeId: f.node.id } } : { sceneId: 'scene', layerId: f.layer.id, parameterGroup: 'effect' }), parameterPath: ['weights', secondWeightId],
 		});
 		const definitions = scope === 'customNodeGraphEffect' ? Object.entries(f.customNodeGraphEffect.definition.paramDefs).map(([id, def]) => ({ ...def, id })) : f.layer.publicParameterDefs;
 		const values = scope === 'customNodeGraphEffect' ? f.node.params : f.layer.effectParamValues;
 		assert.equal(definitions[1].nameForReference, 'weights_2');
-		assert.deepEqual(definitions[1].defaultValue, literal(0.8));
-		assert.deepEqual(values.weights.value[0], array.defaultValue.value[0]);
-		assert.equal(values.weights.value[1].id, 'second');
+		assert.deepEqual(definitions[1].defaultValue, 0.8);
+		assert.deepEqual(values.weights.value[0], weightDefaults.value[0]);
+		assert.equal(values.weights.value[1].id, secondWeightId);
 		assert.equal(values.weights.value[1].binding.parameterId, definitions[1].id);
 		assert.equal(definitions[1].ui.control === array.ui.control.element, false);
 		const after = structuredClone(owner);
@@ -223,13 +226,13 @@ for (const scope of ['customNodeGraphEffect', 'timeline']) {
 // 影響させない。Undoで不要な保存値と公開パラメータ定義を残さないことも保証する。
 test('promotes an unset inline Custom Node Graph Effect argument into its owning timeline layer', () => {
 	const f = fixture();
-	f.customNodeGraphEffect.definition.paramDefs = { amount: { ...structuredClone(scalar), nameForReference: 'amount', canNode: false, defaultValue: literal(0.75) } };
+	f.customNodeGraphEffect.definition.paramDefs = { amount: { ...structuredClone(scalar), nameForReference: 'amount', canNode: false, defaultValue: 0.75 } };
 	f.layer = { id: 'inline', layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: f.customNodeGraphEffect.definition }, effectParamValues: {}, automationGraphs: [] };
 	f.scene.layers = [f.layer];
 	const before = structuredClone(f.layer);
 	f.history.commit('createTimelineLayerPublicParameterFromParameter', { sceneId: 'scene', layerId: f.layer.id, parameterGroup: 'effect', parameterPath: ['amount'] });
 	const definition = f.layer.publicParameterDefs[0];
-	assert.deepEqual(definition.defaultValue, literal(0.75));
+	assert.deepEqual(definition.defaultValue, 0.75);
 	assert.deepEqual(f.layer.effectParamValues.amount, { inputSource: 'timelineLayerPublicParameterReference', layerId: f.layer.id, parameterId: definition.id });
 	assert.equal(Object.keys(f.customNodeGraphEffect.definition.paramDefs).length, 1);
 	assert.equal(f.history.undoStack.value.length, 1);
@@ -249,7 +252,7 @@ test('uses the fixed default when promoting an unset camera distance', () => {
 	const layer = { id: 'camera', layerType: 'camera', cameraParamValues: {}, automationGraphs: [] };
 	f.scene.layers.push(layer);
 	f.history.commit('createTimelineLayerPublicParameterFromParameter', { sceneId: 'scene', layerId: layer.id, parameterGroup: 'camera', parameterPath: ['z'] });
-	assert.ok(Math.abs(layer.publicParameterDefs[0].defaultValue.value - 0.5 / Math.tan(Math.PI / 8)) < 1e-10);
+	assert.ok(Math.abs(layer.publicParameterDefs[0].defaultValue - 0.5 / Math.tan(Math.PI / 8)) < 1e-10);
 	f.history.undo();
 	assert.deepEqual(layer.cameraParamValues, {});
 	assert.equal(layer.publicParameterDefs, undefined);
@@ -265,10 +268,10 @@ test('rejects nonliteral bindings modifiers and containers without changing stat
 			{ inputSource: 'node', nodeId: 'other', outputPort: 'output' },
 			{ ...literal(0.3), expressionModifier: { enabled: true, code: 'VALUE' } },
 			{ ...literal(0.3), expressionModifier: { enabled: false, code: 'VALUE' } },
-			array.defaultValue,
+			weightDefaults,
 		]) {
 			const f = fixture();
-			const path = binding === array.defaultValue ? ['weights'] : ['amount'];
+			const path = binding === weightDefaults ? ['weights'] : ['amount'];
 			if (scope === 'customNodeGraphEffect') f.node.params[path[0]] = structuredClone(binding);
 			else f.layer.effectParamValues[path[0]] = structuredClone(binding);
 			const before = structuredClone(f.state);
@@ -292,10 +295,10 @@ test('generates valid unique reference names without altering labels or sharing 
 		assert.equal(definition.nameForReference, expected);
 		assert.equal(definition.ui.label, label);
 	}
-	const color = { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: literal([0, 0, 0, 0]), canNode: true };
+	const color = { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: [0, 0, 0, 0], canNode: true };
 	const value = literal([1, 0.5, 0, 0.25]);
 	const definition = createNamedParameterFromLiteral(color, value, []);
-	definition.defaultValue.value[0] = 0;
+	definition.defaultValue[0] = 0;
 	assert.deepEqual(value.value, [1, 0.5, 0, 0.25]);
 	assert.equal(definition.canNode, false);
 });
@@ -329,7 +332,7 @@ test('returns stable references and retains only successful changes in an asynch
 test('returns array element paths and keeps redo on no-op or invalid edits', async () => {
 	const f = fixture();
 	const input = { target: { customNodeGraphEffect: { customNodeGraphEffectId: f.customNodeGraphEffect.id }, nodeId: f.node.id }, parameterPath: ['weights'] };
-	const inserted = await f.history.execute('insertCustomNodeGraphEffectNodeParameterArrayElement', { ...input, beforeElementId: 'second' });
+	const inserted = await f.history.execute('insertCustomNodeGraphEffectNodeParameterArrayElement', { ...input, beforeElementId: secondWeightId });
 	assert.deepEqual(inserted.parameterPath.slice(0, -1), ['weights']);
 	assert.equal(f.node.params.weights.value[1].id, inserted.parameterPath.at(-1));
 	await f.history.execute('setCustomNodeGraphEffectNodeParameterSource', { ...inserted, source: literal(0.4) });

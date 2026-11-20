@@ -176,7 +176,7 @@ test('removes public arguments from every registered graph use and restores thei
 	const parent = manager.commit('createCustomNodeGraphEffect', {});
 	const literal = value => ({ inputSource: 'literal', value });
 	const parameter = manager.commit('createCustomNodeGraphEffectPublicParameter', { customNodeGraphEffect: child, definition: {
-		nameForReference: 'strength', dataType: { kind: 'scalar' }, canNode: false, ui: { label: 'Strength', control: { controlType: 'number' } }, defaultValue: literal(3),
+		nameForReference: 'strength', dataType: { kind: 'scalar' }, canNode: false, ui: { label: 'Strength', control: { controlType: 'number' } }, defaultValue: 3,
 	} });
 	const { parameterId } = parameter;
 	const reference = { type: 'customNodeGraphEffectReference', id: child.customNodeGraphEffectId };
@@ -232,7 +232,7 @@ test('removes public arguments from every registered graph use and restores thei
 // 定義と引数を同じ履歴で扱い、検証やWorkerに古いBindingが残らないことをUndo/Redoも含めて確認する。
 test('clears texture arguments when a registered public parameter stops accepting node input', async t => {
 	const literal = value => ({ inputSource: 'literal', value });
-	const image = { nameForReference: 'image', dataType: { kind: 'color' }, canNode: true, ui: { label: 'Image', control: {} }, defaultValue: literal([0, 0, 0, 0]) };
+	const image = { nameForReference: 'image', dataType: { kind: 'color' }, canNode: true, ui: { label: 'Image', control: {} }, defaultValue: [0, 0, 0, 0] };
 	const child = testGraph({ paramDefs: { image }, primaryInputParameter: 'image', resolutionInputParameters: ['image'] });
 	const reference = { type: 'customNodeGraphEffectReference', id: 'child' };
 	const sampling = { fitMode: 'contain', wrapMode: 'clamp', filterMode: 'nearest' };
@@ -291,22 +291,23 @@ test('clears texture arguments when a registered public parameter stops acceptin
 // 引数全体の型を変えた場合も同じ履歴で旧引数を解除し、所有レイヤーに新しい定義を同期する。
 test('updates incompatible arguments on the Timeline layer that owns an inline definition', async t => {
 	const literal = value => ({ inputSource: 'literal', value });
-	const image = { canNode: true, defaultValue: literal([0, 0, 0, 0]) };
-	const amount = { defaultValue: literal(0) };
-	const defaultElement = literal({ image: image.defaultValue, amount: amount.defaultValue });
+	const image = { canNode: true, defaultValue: [0, 0, 0, 0] };
+	const amount = { defaultValue: 0 };
+	const defaultElement = { image: image.defaultValue, amount: amount.defaultValue };
 	const settings = { nameForReference: 'settings', canNode: false, dataType: { kind: 'array', elementType: {
 		kind: 'struct', fields: { image: { kind: 'color' }, amount: { kind: 'scalar' } },
 	} }, ui: { label: 'Settings', control: { element: { fields: {
 		image: { label: 'Image', control: {} }, amount: { label: 'Amount', control: { controlType: 'number' } },
-	} } } }, element: { fields: { image, amount }, defaultValue: defaultElement }, defaultValue: literal([{ id: 'entry', binding: defaultElement }]) };
+	} } } }, element: { fields: { image, amount }, defaultValue: defaultElement }, defaultValue: [defaultElement] };
 	const manager = new ProjectContext(createTestProject({ timelineScenes: [scene()] })).stateManager;
 	const { layerId } = manager.commit('createTimelineLayer', { sceneId: 'scene', clips: [], layer: { layerType: 'effect',
 		effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: testGraph({ paramDefs: { settings } }) },
 	} });
 	const target = { customNodeGraphEffect: { sceneId: 'scene', layerId }, parameterId: 'settings' };
 	const layer = manager.state.timelineScenes.value[0].layers[0];
+	const elementId = layer.effectParamValues.settings.value[0].id;
 	const updateField = (field, source) => manager.commit('setTimelineLayerParameterSource', {
-		sceneId: 'scene', layerId, parameterGroup: 'effect', parameterPath: ['settings', 'entry', field], source,
+		sceneId: 'scene', layerId, parameterGroup: 'effect', parameterPath: ['settings', elementId, field], source,
 	});
 	updateField('image', { inputSource: 'lowerLayerOutput' });
 	updateField('amount', literal(0.75));
@@ -317,7 +318,7 @@ test('updates incompatible arguments on the Timeline layer that owns an inline d
 	manager.commit('replaceCustomNodeGraphEffectPublicParameterDefinition', { target, definition: {
 		...settings, element: { ...settings.element, fields: { image: { ...image, canNode: false }, amount } },
 	} });
-	const adjusted = literal([{ id: 'entry', binding: literal({ image: image.defaultValue, amount: literal(0.75) }) }]);
+	const adjusted = literal([{ id: elementId, binding: literal({ image: literal(image.defaultValue), amount: literal(0.75) }) }]);
 	assert.deepEqual(layer.effectParamValues.settings, adjusted);
 	await checkRenderer();
 	manager.undo();
@@ -328,7 +329,7 @@ test('updates incompatible arguments on the Timeline layer that owns an inline d
 	await checkRenderer();
 
 	manager.commit('replaceCustomNodeGraphEffectPublicParameterDefinition', { target, definition: {
-		nameForReference: 'settings', canNode: false, dataType: { kind: 'scalar' }, ui: { label: 'Settings', control: { controlType: 'number' } }, defaultValue: literal(1),
+		nameForReference: 'settings', canNode: false, dataType: { kind: 'scalar' }, ui: { label: 'Settings', control: { controlType: 'number' } }, defaultValue: 1,
 	} });
 	assert.equal(Object.hasOwn(layer.effectParamValues, 'settings'), false);
 	await checkRenderer();

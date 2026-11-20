@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { computed, isReactive } from 'vue';
 import type { ComputedRef } from 'vue';
 import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
@@ -72,7 +73,7 @@ export function createCustomNodeGraphEffectView(graph: Definition, metadata: Cus
 		if (node.type === 'relay') return { ...node, label: info?.displayName, pos: info?.position, input: viewConnection(node.input, inputId) };
 		const def = definitions.describe(node.effectSource);
 		const params = Object.fromEntries(Object.entries(def.paramDefs).map(([key, parameter]) =>
-			[key, mapBinding(parameter, node.params[key] ?? parameter.defaultValue, binding => viewBinding(binding, inputId, graph.paramDefs))]));
+			[key, mapBinding(parameter, node.params[key] ?? createDefaultParameterBinding(parameter), binding => viewBinding(binding, inputId, graph.paramDefs))]));
 		return { ...node, type: 'effect', params, staticSettings: { ...node.staticSettings }, displayName: info?.displayName ?? '', pos: info?.position,
 			isBypass: node.isBypass ?? false, resolution: node.resolution == null ? { mode: 'auto', scale: 1 } : 'mode' in node.resolution ? node.resolution : { mode: 'customAbsolute', ...node.resolution } };
 	});
@@ -137,7 +138,7 @@ export function saveCustomNodeGraphEffectView(owner: GraphOwner, state: ProjectS
 		return { ...original, id: node.id, effectSource: node.effectSource,
 			params: Object.fromEntries(Object.entries(node.params).flatMap(([key, binding]) => {
 				const value = mapBinding(def.paramDefs[key], binding, leaf => storedBinding(leaf, inputId));
-				return original != null && !Object.hasOwn(original.params, key) && deepEqual(value, def.paramDefs[key].defaultValue) ? [] : [[key, value]];
+				return original != null && !Object.hasOwn(original.params, key) && deepEqual(value, createDefaultParameterBinding(def.paramDefs[key])) ? [] : [[key, value]];
 			})),
 			...(original == null || original.type != null ? { type: 'effect' } : {}),
 			...(original?.isBypass != null || node.isBypass ? { isBypass: node.isBypass } : {}),

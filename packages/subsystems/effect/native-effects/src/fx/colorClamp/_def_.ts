@@ -14,7 +14,7 @@ export default defineNativeEffect({
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		rMax: {
 			dataType: { kind: 'scalar' },
@@ -28,7 +28,7 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		rMin: {
 			dataType: { kind: 'scalar' },
@@ -42,7 +42,7 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: -1 },
+			defaultValue: -1,
 		},
 		gMax: {
 			dataType: { kind: 'scalar' },
@@ -56,7 +56,7 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		gMin: {
 			dataType: { kind: 'scalar' },
@@ -70,7 +70,7 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: -1 },
+			defaultValue: -1,
 		},
 		bMax: {
 			dataType: { kind: 'scalar' },
@@ -84,7 +84,7 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		bMin: {
 			dataType: { kind: 'scalar' },
@@ -98,7 +98,7 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: -1 },
+			defaultValue: -1,
 		},
 	},
 	primaryInputParameter: 'input',

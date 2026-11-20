@@ -11,7 +11,7 @@
 ## 定義とパラメータ
 
 - [NativeEffectDefinition](../shared/src/effect-definition.ts)に従い、表示名、日本語・英語の`summary`、`kind`（`generate` / `modify`）、既存の分類に沿った`tags`を指定する。
-- `paramDefs`では`dataType`・`ui`・`defaultValue`・`canNode`の責務を分ける。既定値は配列・構造体の末端まで`{ inputSource: 'literal', value: ... }`。配列・構造体では子の型・UI・設定を分離し、保存用Bindingと評価済みの値を混同しない。定義の詳細は[DataTypeとParameter](../../../../docs/data-type-and-parameter.md)を参照する。
+- `paramDefs`では`dataType`・`ui`・`defaultValue`・`canNode`の責務を分ける。`defaultValue`は配列・構造体の末端まで`dataType`に対応する値を直接指定する。配列・構造体では子の型・UI・設定を分離し、保存用Bindingと評価済みの値を混同しない。定義の詳細は[DataTypeとParameter](../../../../docs/data-type-and-parameter.md)を参照する。
 - `primaryInputParameter`、`resolutionInputParameters`、`outputDefs`、`primaryOutput`を明示する。主入出力なしは`null`、解像度入力なしは`[]`。主入力・解像度入力・`kind`は役割が異なるため、それぞれ仕様に合わせて選ぶ。素材の原寸を使う場合は`intrinsicResolutionSetting`を指定する。
 - `outputDefs`のポートごとに、描画に必要な入力を`inputParameters`で指定できる。省略時は全入力を使う。寸法の依存は`resolutionInputParameters`で指定する。
 - 素材・Player参照など、インスタンスの寿命中に固定する値は`staticSettingDefs`で定義する。静的設定の既定値はBindingで包まず、実装では`init()`に渡される`resources`から解決済みのリソースを受け取る。式・キー・ノード接続で変化する通常パラメータと分ける。

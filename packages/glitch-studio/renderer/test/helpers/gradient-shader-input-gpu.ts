@@ -64,7 +64,7 @@ export async function checkGradientInputs(device: GPUDevice, vertex: GPUShaderMo
 			const params: Record<string, any> = {};
 			const inputs: { name: string; uniform: any; texture: any }[] = [];
 			for (const [name, param] of Object.entries(definition.paramDefs) as [string, any][]) {
-				const value = param.defaultValue.value;
+				const value = param.defaultValue;
 				params[name] = param.canNode ? constantShaderInput('scalar', value) : value;
 				if (param.canNode) inputs.push({ name, uniform: params[name], texture: textureShaderInput(texture(1, 1, 1, [value]), { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }) });
 			}

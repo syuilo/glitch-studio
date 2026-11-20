@@ -44,7 +44,7 @@ export function createProjectCustomShaderEffect(definitions: readonly ProjectCus
 			shaderApiVersion: 1,
 			kind: 'modify',
 			code: 'fn main(position: vec2f) -> Output {\n\tvar output: Output;\n\toutput.color = read_source(position);\n\treturn output;\n}\n',
-			paramDefs: { [inputId]: { nameForReference: 'source', canNode: true, dataType: { kind: 'color' }, ui: { label: 'Source', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } } },
+			paramDefs: { [inputId]: { nameForReference: 'source', canNode: true, dataType: { kind: 'color' }, ui: { label: 'Source', control: {} }, defaultValue: [0, 0, 0, 0] } },
 			outputDefs: { [outputId]: { nameForReference: 'color', label: 'Color', dataType: { kind: 'color' } } },
 			primaryInputParameter: inputId, primaryOutput: outputId, resolutionInputParameters: [inputId],
 		},

@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
@@ -70,7 +71,7 @@ export function reconcileCustomShaderEffectUsages(state: ProjectState, previous:
 					if (previous.definition.paramDefs[id]?.dataType.kind === def.dataType.kind && value != null) continue;
 					const from = value?.inputSource === 'node' ? value.source : value?.inputSource === 'customNodeGraphEffectPublicParameterReference' ? { parameterId: value.parameterId } : null;
 					const type = from == null ? null : outputType(from);
-					if (type == null || !isTextureDataType(type) || !areNodeDataTypesCompatible(type, def.dataType)) params[id] = deepClone(def.defaultValue);
+					if (type == null || !isTextureDataType(type) || !areNodeDataTypesCompatible(type, def.dataType)) params[id] = createDefaultParameterBinding(def);
 				}
 			}
 			if (changed.size > 0) for (const { path, def, value } of walkParameters<CustomNodeGraphEffectParameterBinding>(parameterDefs, params)) {

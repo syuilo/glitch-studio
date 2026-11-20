@@ -28,7 +28,7 @@ export async function run(benchmark = false) {
 		return structuredClone(value);
 	}
 	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name,
-		'canNode' in parameter && parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : literal(parameter.defaultValue.value),
+		'canNode' in parameter && parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue) : literal(parameter.defaultValue),
 	])) as Parameters;
 	const assert = (condition: boolean, message: string) => { if (!condition) throw new Error(message); checks.push(message); };
 	const near = (actual: number, expected: number, message: string, tolerance = 0.002) => {

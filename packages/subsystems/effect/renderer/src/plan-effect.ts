@@ -1,4 +1,5 @@
 import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
 import { scaleResolution } from '@gs/shared/resolution.ts';
 import { resolveEffectNodeResolution } from '@gs/subsystems_effect_shared/effect-node-resolution.ts';
@@ -155,11 +156,12 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 		publicParameterDefs?: CustomNodeGraphEffect['paramDefs'];
 	};
 
-	function planBinding(definition: ParameterDefinition, binding: CustomNodeGraphEffectParameterBinding,
+	function planBinding(definition: ParameterDefinition, binding: CustomNodeGraphEffectParameterBinding | null | undefined,
 		publicInput: (id: string) => PlannedInput, nodeOutput: (reference: NodeOutputReference) => PlannedInput | null,
-		path: readonly string[], evaluation: Evaluation, observe: ObserveBinding | null = null, isDefault = binding === definition.defaultValue): PlannedInput {
+		path: readonly string[], evaluation: Evaluation, observe: ObserveBinding | null = null, isDefault = binding == null): PlannedInput {
+		binding ??= createDefaultParameterBinding(definition);
 		if (isUnselectedGraphParameterReference(binding)) {
-			binding = definition.defaultValue;
+			binding = createDefaultParameterBinding(definition);
 			observe = null;
 			isDefault = true;
 		}
@@ -187,7 +189,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 			// 配線は値評価に先立ち、保存されたBindingから解決する。入力のない場合は定義の初期値を使う。
 			const source = binding.source == null ? null : nodeOutput(binding.source);
 			if (source != null) return withSampling(source, binding.sampling);
-			binding = definition.defaultValue;
+			binding = createDefaultParameterBinding(definition);
 			observe = null;
 			isDefault = true;
 		}
@@ -254,7 +256,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 				setValue(source.value);
 				return null;
 			}
-			setValue(definition.defaultValue.value);
+			setValue(definition.defaultValue);
 			if (source.inputSource === 'customNodeGraphEffectCustomParameterValueReference') {
 				const graph = evaluation.graph();
 				return frame => graph.readCustom(source.parameterId, frame);
@@ -262,7 +264,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 			if (placement.bindParameterValue != null) return placement.bindParameterValue(source, definition, path);
 			const graph = evaluation.graph();
 			const scope = graph.nodeScope(contextResolution, evaluation.resolution());
-			const evaluate = getEvaluator().bind(source, definition.defaultValue.value, definition, graph.automationGraphs);
+			const evaluate = getEvaluator().bind(source, definition.defaultValue, definition, graph.automationGraphs);
 			return frame => evaluate(scope(frame));
 		}
 
@@ -398,9 +400,11 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 					});
 					const childInput = (id: string, nodeResolution: () => Resolution) => {
 						const def = child.definition.paramDefs[id];
-						return planBinding(def, params[id] ?? def.defaultValue, parameter, nodeOutput, childPath,
+						let defaultBinding: ReturnType<typeof createDefaultParameterBinding> | null = null;
+						const read = (bindings: NodeParams) => bindings[id] ?? (defaultBinding ??= createDefaultParameterBinding(def));
+						return planBinding(def, read(params), parameter, nodeOutput, childPath,
 							{ graph: graphScope, resolution: nodeResolution, publicParameterDefs: graph.paramDefs },
-							acceptsValueUpdates ? update => updateBindings.push(next => update(next[id] ?? def.defaultValue)) : null);
+							acceptsValueUpdates ? update => updateBindings.push(next => update(read(next))) : null, params[id] == null);
 					};
 					resolve = planPlacement(node.effectSource, child, childInput, getResolution, node.resolution ?? null, node.staticSettings ?? {}, childPath, node.isBypass);
 					placements.set(node.id, resolve);
@@ -457,7 +461,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 	const resolve = planPlacement(placement.effectSource, root, (id, resolution) => {
 		const input = placement.inputs?.[id];
 		const def = root.definition.paramDefs[id];
-		return input != null ? { input } : planBinding(def, placement.params?.[id] ?? def.defaultValue, noParent, noParent, [], { graph: rootScope, resolution });
+		return input != null ? { input } : planBinding(def, placement.params?.[id], noParent, noParent, [], { graph: rootScope, resolution });
 	}, () => contextResolution, placement.resolutionSetting ?? { mode: 'context', scale: 1 }, placement.staticSettings ?? {}, []);
 	const outputs = new Map<string, EffectTextureOutput>();
 	const roots = new Set<RenderStep>();

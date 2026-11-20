@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { testGraph } from './helpers/effect-graph.mjs';
 import { createDragActionsFixture } from './helpers/timeline-drag-actions.mjs';
 import assert from 'node:assert/strict';
@@ -38,6 +39,7 @@ const bundled = await build({
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { prepareTimelineClipMove, COMMAND_DEFS, UndoRedo, createVoicevoxTimelineLayer, resolveLayerParameter, arrayDefinition, constrainTimelineMove } = module.exports;
+const defaultBuzzId = createDefaultParameterBinding(arrayDefinition.paramDefs.buzzs).value[0].id;
 
 const clip = (id, startMs, durationMs) => ({ id, startMs, durationMs, sourceInMs: 12.25, sourceOutMs: 12.25 + durationMs, playbackRate: 1, loop: false, assetId: 'sound' });
 const keys = times => ({ inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
@@ -172,8 +174,8 @@ test('moves saved scalar and nested lanes with clips through merged undo and red
 	for (const nested of [false, true]) {
 		const f = fixture(t, []);
 		const def = nested ? { ...structuredClone(arrayDefinition.paramDefs.buzzs), id: 'value' }
-			: { id: 'value', dataType: { kind: 'scalar' }, ui: { label: 'Value', control: {} }, defaultValue: { inputSource: 'literal', value: 0 } };
-		const placement = nested ? structuredClone(def.defaultValue) : keys([100, 200]);
+			: { id: 'value', dataType: { kind: 'scalar' }, ui: { label: 'Value', control: {} }, defaultValue: 0 };
+		const placement = nested ? createDefaultParameterBinding(def) : keys([100, 200]);
 		if (nested) {
 			placement.value[0].binding.value.x = keys([100, 200]);
 			placement.value[0].binding.value.y = keys([100, 200]);
@@ -184,7 +186,7 @@ test('moves saved scalar and nested lanes with clips through merged undo and red
 		const defaultBefore = structuredClone(def.defaultValue);
 		const targets = [{ layerId: 'edited', clipId: 'clip' }];
 		const initial = prepareTimelineClipMove(f.state, f.scene, targets);
-		const paths = nested ? [['value', 'first', 'x'], ['value', 'first', 'y']] : [['value']];
+		const paths = nested ? [['value', defaultBuzzId, 'x'], ['value', defaultBuzzId, 'y']] : [['value']];
 		for (const deltaMs of [20, 60, 0, 100]) f.history.commit('setTimelinePositions', {
 			sceneId: 'scene', clips: initial.clips.map(clip => ({ ...clip, startMs: clip.startMs + deltaMs })), keyframes: initial.keyframes.map(point => ({ ...point, x: point.x + deltaMs })),
 		}, 'defaults');

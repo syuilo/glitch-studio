@@ -6,7 +6,7 @@ import { nativeEffectImplementations } from '../src/implementations.ts';
 
 const size = { width: 4, height: 2 };
 const color = name => ({ nameForReference: name, dataType: { kind: 'color' }, canNode: true,
-	ui: { label: name, control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } });
+	ui: { label: name, control: {} }, defaultValue: [0, 0, 0, 0] });
 const output = name => ({ dataType: { kind: 'color' }, nameForReference: name });
 const base = { kind: 'modify', primaryInputParameter: 'image', primaryOutput: 'main', resolutionInputParameters: [], paramDefs: { image: color('image') }, outputDefs: { main: output('mainColor') } };
 const wire = (nodeId, outputPort) => ({ inputSource: 'node', source: { nodeId, outputPort }, sampling: { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' } });
@@ -28,7 +28,7 @@ const parent = { ...base, nodes: [
 export async function run(mismatchedPorts = false) {
 	const adapter = await navigator.gpu.requestAdapter();
 	const device = await adapter.requestDevice();
-	const scalarImage = { ...color('image'), dataType: { kind: 'scalar' }, defaultValue: { inputSource: 'literal', value: 0 } };
+	const scalarImage = { ...color('image'), dataType: { kind: 'scalar' }, defaultValue: 0 };
 	const scalarOutput = { ...output('aux'), dataType: { kind: 'scalar' } };
 	const splitShader = mismatchedPorts ? { ...shader, outputDefs: { ...shader.outputDefs, aux: scalarOutput },
 		code: 'fn main(p: vec2f) -> Output { let gain = read_gain(p); return Output(vec4f(0), read_image(p) + vec4f(0, gain.gba), gain.r); }' } : shader;

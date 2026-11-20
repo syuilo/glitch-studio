@@ -29,10 +29,10 @@ export async function run() {
 	});
 	const defaults: Parameters = {
 		input: constantShaderInput('color', [0, 0, 0, 0]),
-		thresholdMin: definition.paramDefs.thresholdMin.defaultValue.value,
-		thresholdMax: definition.paramDefs.thresholdMax.defaultValue.value,
-		direction: definition.paramDefs.direction.defaultValue.value,
-		order: definition.paramDefs.order.defaultValue.value,
+		thresholdMin: definition.paramDefs.thresholdMin.defaultValue,
+		thresholdMax: definition.paramDefs.thresholdMax.defaultValue,
+		direction: definition.paramDefs.direction.defaultValue,
+		order: definition.paramDefs.order.defaultValue,
 	};
 	const checks: string[] = [];
 	const disposables: (() => void)[] = [];

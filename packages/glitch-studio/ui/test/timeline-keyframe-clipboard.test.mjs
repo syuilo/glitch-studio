@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { testGraph } from './helpers/effect-graph.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -39,6 +40,7 @@ new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(create
 const { copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineKeySelection, getTimelineKeyframePasteUpdates, copyTimelineClips,
 	COMMAND_DEFS, UndoRedo, createShapeTimelineLayer, createInlineKeyframesTimeline, resolveLayerParameter,
 	getLayerParameterDefinitions, getLayerParameterValues, resolveParameter, arrayDefinition, genId } = module.exports;
+const defaultBuzzId = createDefaultParameterBinding(arrayDefinition.paramDefs.buzzs).value[0].id;
 
 const createHandler = context => createTimelineClipboardHandlers(module.exports, context);
 
@@ -141,11 +143,11 @@ test('rejects collisions and invalid times atomically while allowing existing ke
 // 配列の表示順が変わってもコピー元IDを使い、要素を削除した後は残った要素へ振り替えない。
 test('merges nested array lanes into one root draft and preserves element IDs through undo', t => {
 	const f = fixture(t);
-	const values = Object.fromEntries(Object.entries(arrayDefinition.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)]));
+	const values = Object.fromEntries(Object.entries(arrayDefinition.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)]));
 	values.buzzs.value.push({ ...structuredClone(values.buzzs.value[0]), id: 'second' });
 	f.scene.layers.push({ id: 'effect', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, effectParamValues: values, clips: [], compositingParamValues: {} });
 	f.selection.length = 0;
-	for (const id of ['first', 'second']) f.selection.push(...f.addLane('effect', 'effect', ['buzzs', id, 'x'], [
+	for (const id of [defaultBuzzId, 'second']) f.selection.push(...f.addLane('effect', 'effect', ['buzzs', id, 'x'], [
 		{ id: 'same-key-id', x: 100, value: 0.5, interpolation: { type: 'linear' } },
 	]));
 	const clipboard = f.clipboard;
@@ -156,7 +158,7 @@ test('merges nested array lanes into one root draft and preserves element IDs th
 	for (const point of f.selection) assert.deepEqual(f.read(point).keyframesTimeline.keyframes.map(key => key.x), [100, 1000]);
 	f.history.undo();
 	assert.deepEqual(f.scene, before);
-	values.buzzs.value = values.buzzs.value.filter(element => element.id !== 'first');
+	values.buzzs.value = values.buzzs.value.filter(element => element.id !== defaultBuzzId);
 	assert.equal(prepareTimelineKeyframePaste(f.state, f.scene, clipboard, 1000), null);
 });
 
@@ -182,7 +184,7 @@ test('pastes into saved Custom Node Graph Effect arguments and validates current
 	const f = fixture(t);
 	const dataType = { kind: 'enum', options: ['one', 'two'] };
 	const def = { id: 'choice', dataType, ui: { label: 'Choice', control: { labels: {} } }, canNode: false,
-		defaultValue: { inputSource: 'literal', value: 'one' } };
+		defaultValue: 'one' };
 	const placement = createInlineKeyframesTimeline(def);
 	placement.keyframesTimeline.keyframes[0].id = 'default-key';
 	const customNodeGraphEffect = { id: 'customNodeGraphEffect', definition: testGraph({ paramDefs: { [def.id]: def } }) };
@@ -216,14 +218,14 @@ test('pastes into saved Custom Node Graph Effect arguments and validates current
 test('removes saved keys atomically and restores each lane through undo and redo', t => {
 	for (const nested of [false, true]) {
 		const f = fixture(t);
-		const scalar = { id: 'value', dataType: { kind: 'scalar' }, ui: { label: 'Value', control: {} }, defaultValue: { inputSource: 'literal', value: 0 } };
+		const scalar = { id: 'value', dataType: { kind: 'scalar' }, ui: { label: 'Value', control: {} }, defaultValue: 0 };
 		const keys = createInlineKeyframesTimeline(scalar);
 		keys.keyframesTimeline.keyframes = [
 			{ id: 'remove', x: 100, value: 0.5, interpolation: { type: 'linear' } },
 			{ id: 'keep', x: 200, value: 1, interpolation: { type: 'linear' } },
 		];
 		const def = nested ? { ...structuredClone(arrayDefinition.paramDefs.buzzs), id: 'value' } : scalar;
-		const placement = nested ? structuredClone(def.defaultValue) : keys;
+		const placement = nested ? createDefaultParameterBinding(def) : keys;
 		if (nested) {
 			placement.value[0].binding.value.x = structuredClone(keys);
 			placement.value[0].binding.value.y = structuredClone(keys);
@@ -231,7 +233,7 @@ test('removes saved keys atomically and restores each lane through undo and redo
 		const customNodeGraphEffect = { id: 'customNodeGraphEffect', definition: testGraph({ paramDefs: { [def.id]: def } }) };
 		f.state.customNodeGraphEffects.value.push(customNodeGraphEffect);
 		for (const id of ['edited', 'untouched']) f.scene.layers.push({ id, layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' }, effectParamValues: id === 'edited' ? { value: placement } : {}, clips: [], compositingParamValues: {} });
-		const paths = nested ? [['value', 'first', 'x'], ['value', 'first', 'y']] : [['value']];
+		const paths = nested ? [['value', defaultBuzzId, 'x'], ['value', defaultBuzzId, 'y']] : [['value']];
 		const selection = paths.map(paramPath => ({ layerId: 'edited', target: 'effect', paramPath, keyframeId: 'remove' }));
 		const before = structuredClone(f.scene);
 		const originalDefault = structuredClone(def.defaultValue);

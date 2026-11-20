@@ -29,7 +29,7 @@ export async function run() {
 	const width = 64;
 	const repeat = (color: Color) => Array.from({ length: width }, () => color).flat();
 	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name,
-		constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value)])) as SoftClampParameters;
+		constantShaderInput(parameter.dataType.kind, parameter.defaultValue)])) as SoftClampParameters;
 	const reader = device.createRenderPipeline({ layout: 'auto', vertex: { module: vertex }, fragment: {
 		module: device.createShaderModule({ code: `@group(0) @binding(0) var image: texture_2d<f32>;
 @fragment fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f { return textureLoad(image, vec2i(position.xy), 0); }` }),

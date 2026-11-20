@@ -279,7 +279,7 @@ export async function run() {
 			device.pushErrorScope('validation');
 			const resolution = { width, height };
 			const params: Record<string, any> = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]: [string, any]) => {
-				const value = parameter.defaultValue.value;
+				const value = parameter.defaultValue;
 				if (parameter.dataType.kind === 'array') return [name, value.map((element: any) => parameter.element.canNode === true ? constantShaderInput(parameter.dataType.elementType.kind, element.binding.value) : element.binding.value)];
 				return [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, value) : value];
 			}));

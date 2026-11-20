@@ -119,7 +119,7 @@ async function timelineFixture(t, { enableStats = false, timelineMotionBlur = { 
 			}, dispose() { calls.sourcesDisposed++; } };
 		} }
 		: require(name), module, module.exports);
-	const input = { dataType: { kind: 'color' }, canNode: true, defaultValue: literal([0, 0, 0, 0]) };
+	const input = { dataType: { kind: 'color' }, canNode: true, defaultValue: [0, 0, 0, 0] };
 	const manager = await module.exports.TimelineRendererManager.create({
 		gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
 		nativeEffectDefinitions: { pass: { paramDefs: { input }, primaryInputParameter: 'input', resolutionInputParameters: ['input'],
@@ -511,7 +511,7 @@ test('scales video sources once through replace composition and automatic proces
 	const processing = { ...timing, id: 'processing', layerType: 'effect', effectParamValues: {}, effectStaticSettings: {}, resolution: { mode: 'context', scale: 1 },
 		compositingParamValues: { blendMode: literal('replace') },
 		effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: {
-			kind: 'modify', paramDefs: { input: { dataType: { kind: 'color' }, canNode: true, defaultValue: literal([0, 0, 0, 0]) } },
+			kind: 'modify', paramDefs: { input: { dataType: { kind: 'color' }, canNode: true, defaultValue: [0, 0, 0, 0] } },
 			primaryInputParameter: 'input', resolutionInputParameters: ['input'], primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } },
 			outputSources: { output: { nodeId: 'second', outputPort: 'output' } },
 			nodes: [

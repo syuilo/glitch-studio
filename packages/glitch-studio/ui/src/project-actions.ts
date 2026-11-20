@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 import { createTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
@@ -63,7 +64,7 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 					nameForReference: 'my_input',
 					dataType: { kind: 'color' },
 					ui: { label: 'My Input', control: {} },
-					defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+					defaultValue: [0, 0, 0, 0],
 					canNode: true,
 				} },
 				nodes: [{
@@ -110,15 +111,15 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 					isIncludedInComposite: true,
 					coordinateSpace: 'screen',
 					compositingParamValues: deepClone({
-						depth: timelineCompositingParamDefs.depth.defaultValue,
-						clipToFrame: timelineCompositingParamDefs.clipToFrame.defaultValue,
-						fitMode: timelineCompositingParamDefs.fitMode.defaultValue,
-						blendMode: timelineCompositingParamDefs.blendMode.defaultValue,
-						opacity: timelineCompositingParamDefs.opacity.defaultValue,
-						position: timelineCompositingParamDefs.position.defaultValue,
-						origin: timelineCompositingParamDefs.origin.defaultValue,
-						scale: timelineCompositingParamDefs.scale.defaultValue,
-						rotation: timelineCompositingParamDefs.rotation.defaultValue,
+						depth: createDefaultParameterBinding(timelineCompositingParamDefs.depth),
+						clipToFrame: createDefaultParameterBinding(timelineCompositingParamDefs.clipToFrame),
+						fitMode: createDefaultParameterBinding(timelineCompositingParamDefs.fitMode),
+						blendMode: createDefaultParameterBinding(timelineCompositingParamDefs.blendMode),
+						opacity: createDefaultParameterBinding(timelineCompositingParamDefs.opacity),
+						position: createDefaultParameterBinding(timelineCompositingParamDefs.position),
+						origin: createDefaultParameterBinding(timelineCompositingParamDefs.origin),
+						scale: createDefaultParameterBinding(timelineCompositingParamDefs.scale),
+						rotation: createDefaultParameterBinding(timelineCompositingParamDefs.rotation),
 					}),
 					automationGraphs: [],
 					name: 'Custom Node Graph Effect',
@@ -200,7 +201,7 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 					nameForReference: 'my_input',
 					dataType: { kind: 'color' },
 					ui: { label: 'My Input', control: {} },
-					defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+					defaultValue: [0, 0, 0, 0],
 					canNode: true,
 				} },
 				nodes: [result.type.startsWith('image/') ? {
@@ -210,7 +211,7 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 					resolution: { mode: 'auto', scale: 1 },
 					effectSource: { type: 'nativeEffect', id: 'image' },
 					params: {
-						fit: deepClone(imageEffectDef.paramDefs.fit.defaultValue),
+						fit: createDefaultParameterBinding(imageEffectDef.paramDefs.fit),
 					},
 					isBypass: false,
 				} : result.type.startsWith('video/') ? {
@@ -220,7 +221,7 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 					resolution: { mode: 'auto', scale: 1 },
 					effectSource: { type: 'nativeEffect', id: 'video' },
 					params: {
-						fit: deepClone(videoEffectDef.paramDefs.fit.defaultValue),
+						fit: createDefaultParameterBinding(videoEffectDef.paramDefs.fit),
 					},
 					isBypass: false,
 				} : result.type.startsWith('audio/') ? {
@@ -231,11 +232,11 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 					effectSource: { type: 'nativeEffect', id: 'audioWaveform' },
 					params: {
 						audio: { inputSource: 'literal', value: { type: 'player', playerId: player!.id } },
-						channel: deepClone(audioWaveformEffectDef.paramDefs.channel.defaultValue),
-						duration: deepClone(audioWaveformEffectDef.paramDefs.duration.defaultValue),
-						amplitude: deepClone(audioWaveformEffectDef.paramDefs.amplitude.defaultValue),
-						lineWidth: deepClone(audioWaveformEffectDef.paramDefs.lineWidth.defaultValue),
-						color: deepClone(audioWaveformEffectDef.paramDefs.color.defaultValue),
+						channel: createDefaultParameterBinding(audioWaveformEffectDef.paramDefs.channel),
+						duration: createDefaultParameterBinding(audioWaveformEffectDef.paramDefs.duration),
+						amplitude: createDefaultParameterBinding(audioWaveformEffectDef.paramDefs.amplitude),
+						lineWidth: createDefaultParameterBinding(audioWaveformEffectDef.paramDefs.lineWidth),
+						color: createDefaultParameterBinding(audioWaveformEffectDef.paramDefs.color),
 					},
 					isBypass: false,
 				} : {
@@ -282,7 +283,7 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 							audioEnabled: videoMedia.audioAvailable,
 							videoEnabled: true,
 						}],
-						audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
+						audioParamValues: { volume: createDefaultParameterBinding(timelineAudioParamDefs.volume) },
 					} : {
 						layerType: 'effect' as const,
 						transformTarget: 'image' as const,
@@ -301,15 +302,15 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 					isIncludedInComposite: true,
 					coordinateSpace: 'screen',
 					compositingParamValues: deepClone({
-						depth: timelineCompositingParamDefs.depth.defaultValue,
-						clipToFrame: timelineCompositingParamDefs.clipToFrame.defaultValue,
-						fitMode: timelineCompositingParamDefs.fitMode.defaultValue,
-						blendMode: timelineCompositingParamDefs.blendMode.defaultValue,
-						opacity: timelineCompositingParamDefs.opacity.defaultValue,
-						position: timelineCompositingParamDefs.position.defaultValue,
-						origin: timelineCompositingParamDefs.origin.defaultValue,
-						scale: timelineCompositingParamDefs.scale.defaultValue,
-						rotation: timelineCompositingParamDefs.rotation.defaultValue,
+						depth: createDefaultParameterBinding(timelineCompositingParamDefs.depth),
+						clipToFrame: createDefaultParameterBinding(timelineCompositingParamDefs.clipToFrame),
+						fitMode: createDefaultParameterBinding(timelineCompositingParamDefs.fitMode),
+						blendMode: createDefaultParameterBinding(timelineCompositingParamDefs.blendMode),
+						opacity: createDefaultParameterBinding(timelineCompositingParamDefs.opacity),
+						position: createDefaultParameterBinding(timelineCompositingParamDefs.position),
+						origin: createDefaultParameterBinding(timelineCompositingParamDefs.origin),
+						scale: createDefaultParameterBinding(timelineCompositingParamDefs.scale),
+						rotation: createDefaultParameterBinding(timelineCompositingParamDefs.rotation),
 					}),
 					automationGraphs: [],
 				}],

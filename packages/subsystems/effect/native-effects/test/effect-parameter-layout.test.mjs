@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { defineNativeEffect } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import heightLighting from '../src/fx/heightLighting/_def_.ts';
 
-const parameter = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } };
+const parameter = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: 0 };
 const definition = {
 	displayName: 'Layout', summary: { 'ja-JP': 'テスト', 'en-US': 'Test' }, kind: 'generate', dependsOnRenderHistory: false, tags: [],
 	paramDefs: { first: parameter, second: parameter, third: parameter },

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { createEffectInstance } from '../src/create-effect-instance.ts';
 
 const size = { width: 30, height: 20 };
-const color = { dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] } };
+const color = { dataType: { kind: 'color' }, canNode: true, defaultValue: [0, 0, 0, 1] };
 const outputs = { main: { dataType: color.dataType }, other: { dataType: color.dataType } };
 const definition = { kind: 'generate', paramDefs: {}, outputDefs: outputs, primaryOutput: 'main', primaryInputParameter: null, resolutionInputParameters: [] };
 const native = id => ({ type: 'nativeEffect', id });
@@ -169,7 +169,7 @@ test('invalidates only consumers of the public texture whose version changed', a
 // 【ポインターの位置と移動量を各ノードの縦横比へ換算する】
 // 座標を読むキャッシュ可能なノードでも、同じ絶対時刻でポインターを動かせば描画結果が更新される。
 test('maps pointer expressions and motion into node coordinates on each frame', async t => {
-	const vector = { dataType: { kind: 'vector' }, defaultValue: { inputSource: 'literal', value: [0, 0] } };
+	const vector = { dataType: { kind: 'vector' }, defaultValue: [0, 0] };
 	const source = graph([{ ...node('cursor', { position: { inputSource: 'expression', expression: 'POINTER_POSITION' } }),
 		resolution: { mode: 'customAbsolute', width: 20, height: 20 } }], { main: output('cursor') });
 	const positions = [];

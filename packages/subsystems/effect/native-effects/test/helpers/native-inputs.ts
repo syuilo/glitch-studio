@@ -44,6 +44,6 @@ export function createTestInputs(definitions: Readonly<Record<string, ParameterD
 	return Object.fromEntries(Object.entries(definitions).map(([key, definition]) =>
 		[key, testInput(definition.dataType, definition, () => {
 			const values = read();
-			return key in values ? literalValue(values[key]) : definition.defaultValue.value;
+			return key in values ? literalValue(values[key]) : definition.defaultValue;
 		})]));
 }

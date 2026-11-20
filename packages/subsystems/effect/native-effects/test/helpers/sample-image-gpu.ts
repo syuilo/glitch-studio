@@ -25,7 +25,7 @@ export async function run() {
 	const checks: string[] = [];
 	const assert = (condition: boolean, message: string) => { if (!condition) throw new Error(message); };
 	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name,
-		constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value)])) as SampleImageParameters;
+		constantShaderInput(parameter.dataType.kind, parameter.defaultValue)])) as SampleImageParameters;
 	const sampling: ShaderInputSampling = { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' };
 	const reader = device.createRenderPipeline({ layout: 'auto', vertex: { module: vertex }, fragment: {
 		module: device.createShaderModule({ code: `@group(0) @binding(0) var image: texture_2d<f32>;

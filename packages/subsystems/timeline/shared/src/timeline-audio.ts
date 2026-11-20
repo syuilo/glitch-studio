@@ -14,7 +14,7 @@ export const timelineAudioParamDefs = {
 				step: 0.01,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: 1 },
+		defaultValue: 1,
 		canNode: false,
 	},
 } as const satisfies Record<string, ParameterDefinition>;

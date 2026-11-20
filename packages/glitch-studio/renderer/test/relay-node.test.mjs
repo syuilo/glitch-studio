@@ -10,7 +10,7 @@ const sampling = { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'li
 const connection = (nodeId, outputPort = 'output', options = sampling) => ({ inputSource: 'node', source: reference(nodeId, outputPort), sampling: options });
 const node = (id, params = {}, isBypass = false) => ({ id, effectSource: { type: 'nativeEffect', id: 'probe' }, params, isBypass });
 const parameter = kind => ({ dataType: { kind }, ui: { label: 'Input', control: {} }, canNode: true,
-	defaultValue: { inputSource: 'literal', value: kind === 'color' ? [0, 0, 0, 0] : kind === 'vector' ? [0, 0] : 0 } });
+	defaultValue: kind === 'color' ? [0, 0, 0, 0] : kind === 'vector' ? [0, 0] : 0 });
 const size = { width: 16, height: 16 };
 const ports = { output: { dataType: { kind: 'color' } }, extra: { dataType: { kind: 'color' } } };
 function setup(nodes, output = reference(nodes.at(-1).id), kind = 'color') {

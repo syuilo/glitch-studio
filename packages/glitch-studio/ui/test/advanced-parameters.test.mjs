@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { testGraph } from './helpers/effect-graph.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -12,13 +13,13 @@ import { i18nPlugin } from './helpers/i18n.mjs';
 
 const directory = fileURLToPath(new URL('../', import.meta.url));
 const literal = value => ({ inputSource: 'literal', value });
-const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: literal(0) };
-const sizeReference = { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: literal('longSide') };
+const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: 0 };
+const sizeReference = { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' };
 const effect = { id: 'test', displayName: 'Test', kind: 'modify', primaryInputParameter: 'input', primaryOutput: null,
 	paramDefs: {
 		amount: scalar,
 		sizeReference,
-		input: { dataType: { kind: 'color' }, ui: { label: 'Input', isAdvanced: true, control: {} }, canNode: true, defaultValue: literal([0, 0, 0, 0]) },
+		input: { dataType: { kind: 'color' }, ui: { label: 'Input', isAdvanced: true, control: {} }, canNode: true, defaultValue: [0, 0, 0, 0] },
 		end: scalar,
 	},
 	ui: { parameterLayout: ['amount', { type: 'section', id: 'advanced', label: 'Advanced', children: ['sizeReference', 'input'] }, 'end'] },
@@ -100,7 +101,7 @@ for (const target of ['node', 'layer']) {
 	// 初期Bindingだけを含む詳細セクションも隠し、変更時には見出しごと表示する。
 	// 値を戻したときの即時非表示も確認し、表示操作による保存Bindingの変更を防ぐ。
 	test(`toggles advanced ${target} parameters in layout order and keeps changed bindings visible`, async t => {
-		const params = Object.fromEntries(Object.entries(effect.paramDefs).map(([key, definition]) => [key, structuredClone(definition.defaultValue)]));
+		const params = Object.fromEntries(Object.entries(effect.paramDefs).map(([key, definition]) => [key, createDefaultParameterBinding(definition)]));
 		if (target === 'layer') params.input = { inputSource: 'lowerLayerOutput' };
 		const owner = { id: 'effect', type: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, resolution: { mode: 'auto', scale: 1 }, automationGraphs: [], params, effectParamValues: params, isBypass: false };
 		const f = fixture(t, target === 'node' ? NodeSettings : LayerSettings, target === 'node'
@@ -133,10 +134,10 @@ test('reveals advanced ancestors and compares fields against the parent default 
 	const childUi = { ...scalar.ui, isAdvanced: true };
 	const definition = { dataType: { kind: 'struct', fields: { amount: scalar.dataType, reference: sizeReference.dataType } },
 		ui: { label: 'Group', isAdvanced: true, control: { fields: { amount: childUi, reference: sizeReference.ui } } },
-		fields: { amount: { defaultValue: literal(0) }, reference: { defaultValue: literal('longSide') } },
-		defaultValue: literal({ amount: literal(5), reference: literal('longSide') }),
+		fields: { amount: { defaultValue: 0 }, reference: { defaultValue: 'longSide' } },
+		defaultValue: { amount: 5, reference: 'longSide' },
 	};
-	const f = fixture(t, Parameter, { automationGraphs: [], availableVariables: [], paramPath: ['group'], paramDef: definition, paramValue: structuredClone(definition.defaultValue) });
+	const f = fixture(t, Parameter, { automationGraphs: [], availableVariables: [], paramPath: ['group'], paramDef: definition, paramValue: createDefaultParameterBinding(definition) });
 	assert.deepEqual(f.paths(), []);
 	f.props.paramValue.value.reference = literal('width');
 	await nextTick();
@@ -145,7 +146,7 @@ test('reveals advanced ancestors and compares fields against the parent default 
 	await nextTick();
 	assert.deepEqual(f.paths(), [['group'], ['group', 'amount'], ['group', 'reference']]);
 	preferences.r.showAdvancedParameters.value = false;
-	f.props.paramValue = structuredClone(definition.defaultValue);
+	f.props.paramValue = createDefaultParameterBinding(definition);
 	await nextTick();
 	assert.deepEqual(f.paths(), []);
 });
@@ -156,10 +157,10 @@ test('propagates array default contents through nested struct fields', async t =
 	const itemType = { kind: 'struct', fields: { reference: sizeReference.dataType } };
 	const definition = { dataType: { kind: 'array', elementType: itemType },
 		ui: { label: 'Items', control: { element: { fields: { reference: sizeReference.ui } } } },
-		element: { fields: { reference: { defaultValue: literal('longSide') } }, defaultValue: literal({ reference: literal('longSide') }) },
-		defaultValue: literal([{ id: 'initial', binding: literal({ reference: literal('height') }) }]),
+		element: { fields: { reference: { defaultValue: 'longSide' } }, defaultValue: { reference: 'longSide' } },
+		defaultValue: [{ reference: 'height' }],
 	};
-	const value = structuredClone(definition.defaultValue);
+	const value = createDefaultParameterBinding(definition);
 	value.value[0].id = 'reset';
 	const f = fixture(t, Parameter, { automationGraphs: [], availableVariables: [], paramPath: ['items'], paramDef: definition, paramValue: value });
 	assert.deepEqual(f.paths(), [['items'], ['items', 'reset']]);

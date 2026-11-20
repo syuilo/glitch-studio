@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { testGraph } from './helpers/effect-graph.mjs';
 import { nodeParameterTarget, customParameterTarget, nodeTarget, timelineParameterTarget } from './helpers/command-inputs.mjs';
 import { createTestProject } from './helpers/project.mjs';
@@ -44,12 +45,13 @@ new Function('require', 'module', 'exports', 'console', bundle.outputFiles[0].te
 const { ExpressionEvaluator, ProjectContext, RendererProjectSynchronizer, applyRendererProjectChanges, definition,
 	createEffectTimelineLayer, createInlineCustomNodeGraphEffectLayer, createImageLayer, createCameraTimelineLayer,
 	createProjectCustomShaderEffect, getEffectDefinitions, customShaderEffectReference } = module.exports;
+const defaultBuzzId = createDefaultParameterBinding(definition.paramDefs.buzzs).value[0].id;
 
 function fixture(t, count = 1, overrides = {}) {
 	const manager = new ProjectContext(createTestProject()).stateManager;
 	const nodes = Array.from({ length: count }, (_, i) => ({
 		id: 'node-' + i, type: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, pos: { x: 0, y: 0 }, isBypass: false, resolution: { mode: 'auto', scale: 1 },
-		params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
+		params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])),
 	}));
 	const customNodeGraphEffect = { id: 'customNodeGraphEffect', name: 'Custom Node Graph Effect', definition: testGraph({ customParameterValues: {}, nodes, primaryInputParameter: null, automationGraphs: [] }) };
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] };
@@ -62,7 +64,7 @@ function fixture(t, count = 1, overrides = {}) {
 		onUpdated() {}, onError: error => errors.push(error), ...overrides,
 	});
 	t.after(() => sync.dispose());
-	const target = { customNodeGraphEffectId: 'customNodeGraphEffect', nodeId: 'node-0', paramPath: ['buzzs', 'first', 'x'] };
+	const target = { customNodeGraphEffectId: 'customNodeGraphEffect', nodeId: 'node-0', paramPath: ['buzzs', defaultBuzzId, 'x'] };
 	const value = state => state.customNodeGraphEffects[0].definition.nodes[0].params.buzzs.value[0].binding.value.x.value;
 	return { manager, sync, target, batches, errors, value: () => value(replica), get replica() { return replica; } };
 }
@@ -73,7 +75,7 @@ function fixture(t, count = 1, overrides = {}) {
 test('synchronizes shader definitions and reconciled placements atomically through undo and redo', async t => {
 	const f = fixture(t);
 	const customShaderEffect = createProjectCustomShaderEffect([]);
-	customShaderEffect.definition.paramDefs.amount = { nameForReference: 'amount', canNode: true, dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0.25 } };
+	customShaderEffect.definition.paramDefs.amount = { nameForReference: 'amount', canNode: true, dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: 0.25 };
 	customShaderEffect.definition.outputDefs.mask = { nameForReference: 'mask', label: 'Mask', dataType: { kind: 'scalar' } };
 	f.manager.commit('insertCustomShaderEffect', { definition: customShaderEffect });
 	const { nodeId: shaderNodeId } = f.manager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect: { customNodeGraphEffectId: 'customNodeGraphEffect' }, effectSource: customShaderEffectReference(customShaderEffect.id) });
@@ -90,7 +92,7 @@ test('synchronizes shader definitions and reconciled placements atomically throu
 	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [layer, inline] } });
 	await f.sync.flush();
 	const updated = structuredClone(customShaderEffect);
-	updated.definition.paramDefs.amount = { ...updated.definition.paramDefs.amount, dataType: { kind: 'vector' }, ui: { label: 'Amount', control: { controlType: 'vector' } }, defaultValue: { inputSource: 'literal', value: [0.1, 0.2] } };
+	updated.definition.paramDefs.amount = { ...updated.definition.paramDefs.amount, dataType: { kind: 'vector' }, ui: { label: 'Amount', control: { controlType: 'vector' } }, defaultValue: [0.1, 0.2] };
 	delete updated.definition.outputDefs.mask;
 	f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'literal', value: 0.6 } });
 	f.manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: (updated).id, definition: updated });
@@ -119,7 +121,7 @@ test('synchronizes shader definitions and reconciled placements atomically throu
 // 定義変更との合流でも、最後の値編集だけを理由に静的状態を維持しないことを確認する。
 test('synchronizes custom values without hiding structural edits in the same batch', async t => {
 	const f = fixture(t);
-	const definition = { id: 'speed', nameForReference: 'speed', canNode: false, dataType: { kind: 'scalar' }, ui: { label: 'Speed', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 1 } };
+	const definition = { id: 'speed', nameForReference: 'speed', canNode: false, dataType: { kind: 'scalar' }, ui: { label: 'Speed', control: { controlType: 'number' } }, defaultValue: 1 };
 	const { parameterId } = f.manager.commit('createCustomNodeGraphEffectCustomParameter', { customNodeGraphEffect: { customNodeGraphEffectId: 'customNodeGraphEffect' }, definition });
 	await f.sync.flush();
 	f.manager.commit('setCustomNodeGraphEffectCustomParameterSource', { target: customParameterTarget({ customNodeGraphEffectId: 'customNodeGraphEffect', parameterId }), source: { inputSource: 'literal', value: 2 } });
@@ -421,7 +423,7 @@ test('retains layer edit kinds through merged history and simultaneous inline ed
 	const f = fixture(t);
 	const customNodeGraphEffect = structuredClone(f.replica.customNodeGraphEffects[0]);
 	customNodeGraphEffect.definition.paramDefs = { amount: { nameForReference: 'amount', dataType: { kind: 'scalar' },
-		ui: { label: 'Amount', control: { controlType: 'number' } }, canNode: false, defaultValue: { inputSource: 'literal', value: 1 } } };
+		ui: { label: 'Amount', control: { controlType: 'number' } }, canNode: false, defaultValue: 1 } };
 	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [{ id: 'inline', name: 'Inline', resolution: { mode: 'auto', scale: 1 }, layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: customNodeGraphEffect.definition }, clips: [], effectParamValues: {}, compositingParamValues: {}, automationGraphs: [] }] } });
 	await f.sync.flush();
 	const target = { sceneId: 'scene', layerId: 'inline', target: 'effect', paramPath: ['amount'] };

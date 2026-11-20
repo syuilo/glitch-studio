@@ -162,12 +162,12 @@ export async function run() {
 		// SDFを画像へ暗黙変換したり、支点をノードの位置と兼用したりしない契約を確認する。
 		assert(definition.primaryInputParameter === 'input' && definition.resolutionInputParameters.join(',') === 'input' && definition.primaryOutput === 'output', 'primary input and resolution');
 		assert(definition.paramDefs.input.dataType.kind === 'color' && definition.paramDefs.sdf.dataType.kind === 'scalar' && definition.outputDefs.output.dataType.kind === 'color', 'port types');
-		assert(definition.paramDefs.sdf.defaultValue.value === 65504 && !definition.dependsOnRenderHistory, 'empty shape and deterministic definition');
-		assert(definition.paramDefs.innerZoomCenter.defaultValue.value.join(',') === '0,0', 'independent zoom center defaults');
-		assert(definition.paramDefs.refractionModel.defaultValue.value === 'quadratic' && definition.paramDefs.refractionModel.dataType.options.join(',') === 'quadratic,curvedSurface', 'refraction models and unchanged default');
-		assert(definition.paramDefs.curvature.defaultValue.value === 4 && definition.paramDefs.ior.defaultValue.value === 1.5, 'curved surface defaults');
-		assert(definition.paramDefs.normalSmoothing.defaultValue.value === 0 && definition.paramDefs.normalSmoothing.ui.control.min === 0, 'normal smoothing is disabled by default');
-		assert(definition.paramDefs.blurSamples.defaultValue.value === 24 && definition.paramDefs.aberrationSamples.defaultValue.value === 3, 'unchanged blur and three-point aberration defaults');
+		assert(definition.paramDefs.sdf.defaultValue === 65504 && !definition.dependsOnRenderHistory, 'empty shape and deterministic definition');
+		assert(definition.paramDefs.innerZoomCenter.defaultValue.join(',') === '0,0', 'independent zoom center defaults');
+		assert(definition.paramDefs.refractionModel.defaultValue === 'quadratic' && definition.paramDefs.refractionModel.dataType.options.join(',') === 'quadratic,curvedSurface', 'refraction models and unchanged default');
+		assert(definition.paramDefs.curvature.defaultValue === 4 && definition.paramDefs.ior.defaultValue === 1.5, 'curved surface defaults');
+		assert(definition.paramDefs.normalSmoothing.defaultValue === 0 && definition.paramDefs.normalSmoothing.ui.control.min === 0, 'normal smoothing is disabled by default');
+		assert(definition.paramDefs.blurSamples.defaultValue === 24 && definition.paramDefs.aberrationSamples.defaultValue === 3, 'unchanged blur and three-point aberration defaults');
 		assert(definition.paramDefs.aberrationSamples.ui.control.min === 3 && definition.paramDefs.aberrationSamples.ui.control.max === 64 && definition.paramDefs.aberrationSamples.ui.label === 'Aberration Samples', 'aberration sample count describes the entire dispersion range');
 		assert(Object.entries(definition.paramDefs).filter(([, param]) => 'canNode' in param && param.canNode).map(([name]) => name).join(',') === 'input,sdf', 'only image and SDF are node inputs');
 		checks.push('color and scalar ports independent zoom center and resolution contract');

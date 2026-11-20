@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +9,7 @@ const { timelineCompositingParamDefs } = await loadShaderSource(fileURLToPath(im
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const context = { mask: null, layerMask: null, coordinateSpace: 'screen', time: 500, endTime: 2000, isExport: false };
-const evaluate = (values, graphs = [], overrides = {}) => new TimelineCompositingParameters().evaluate({ ...context, ...overrides, paramValues: { ...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])), ...values }, automationGraphs: graphs });
+const evaluate = (values, graphs = [], overrides = {}) => new TimelineCompositingParameters().evaluate({ ...context, ...overrides, paramValues: { ...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])), ...values }, automationGraphs: graphs });
 
 // 【マスクの設定はキーや式で変更せず、評価済みスナップショットとして合成へ渡す】
 // 非同期待機中に保存値が編集されても、開始済みの描画のchannelや反転だけが途中で変わらない。

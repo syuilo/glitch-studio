@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { testGraph } from './helpers/effect-graph.mjs';
 import { nodeParameterTarget, assetSource } from './helpers/command-inputs.mjs';
 import { prepareTestCommand } from './helpers/prepared-command.mjs';
@@ -25,7 +26,7 @@ const bundled = await build({
 				contents: path === 'preferences'
 					? 'export const preferences = { s: { forceTypeSafety: false } };'
 					: `export const nativeEffectDefinitions = { test: { paramDefs: {
-						values: { dataType: { kind: 'array', elementType: { kind: 'scalar' } }, ui: { label: 'Values', control: { element: { controlType: 'number' } } }, element: { defaultValue: { inputSource: 'literal', value: 0 } }, defaultValue: { inputSource: 'literal', value: [] } }
+						values: { dataType: { kind: 'array', elementType: { kind: 'scalar' } }, ui: { label: 'Values', control: { element: { controlType: 'number' } } }, element: { defaultValue: 0 }, defaultValue: [] }
 					} } };`,
 				loader: 'ts',
 			}));
@@ -45,10 +46,10 @@ function mediaCommand(name, { sourceDurationMs, ...input }) {
  return prepareTestCommand(definition, input);
 }
 
-const defaultCompositing = () => Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)]));
+const defaultCompositing = () => Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)]));
 const { createInlineKeyframesTimeline, insertInlineKeyframe, updateInlineKeyframe, canEditKeyframesTimeline } = module.exports;
 
-const keyframeDefinition = (dataType, value) => ({ dataType, defaultValue: { inputSource: 'literal', value }, ui: { label: 'Value', control: {} } });
+const keyframeDefinition = (dataType, value) => ({ dataType, defaultValue: value, ui: { label: 'Value', control: {} } });
 
 // 【キー編集のPartial差分は、省略した項目を維持して指定した値を検証する】
 // nullやundefinedの座標・補間を「変更なし」と扱ってからマージすると、無効なキーを保存してしまう。

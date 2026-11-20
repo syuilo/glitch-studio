@@ -10,12 +10,12 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	tags: ['glitch', 'distortion', 'stylized'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		rasterDensity: {
 			dataType: { kind: 'scalar' },
@@ -29,7 +29,7 @@ export default defineNativeEffect({
 					logarithmic: true,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 32 },
+			defaultValue: 32,
 		},
 		rowWidthError: {
 			dataType: { kind: 'scalar' },
@@ -42,7 +42,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		readOffset: {
 			dataType: { kind: 'scalar' },
@@ -55,7 +55,7 @@ export default defineNativeEffect({
 					step: 0.1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		startPosition: {
 			dataType: { kind: 'scalar' },
@@ -68,9 +68,9 @@ export default defineNativeEffect({
 					step: 0.001,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
-		corruption: { dataType: { kind: 'bool' }, ui: { label: 'Random Desynchronization', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		corruption: { dataType: { kind: 'bool' }, ui: { label: 'Random Desynchronization', control: {} }, defaultValue: true },
 		corruptionProbability: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -82,7 +82,7 @@ export default defineNativeEffect({
 					step: 0.001,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		corruptionAmount: {
 			dataType: { kind: 'scalar' },
@@ -95,9 +95,9 @@ export default defineNativeEffect({
 					step: 0.1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 20 },
+			defaultValue: 20,
 		},
-		resynchronization: { dataType: { kind: 'bool' }, ui: { label: 'Restart Synchronization', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		resynchronization: { dataType: { kind: 'bool' }, ui: { label: 'Restart Synchronization', control: {} }, defaultValue: true },
 		restartInterval: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -109,9 +109,9 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 64 },
+			defaultValue: 64,
 		},
-		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: 0 },
 	},
 	primaryInputParameter: 'input',
 	resolutionInputParameters: ['input'],

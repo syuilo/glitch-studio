@@ -11,12 +11,12 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	tags: ['typography', 'stylized'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		iconset: {
 			dataType: { kind: 'enum', options: ['symbols_numbers', 'symbols', 'numbers', 'sweets'] },
@@ -31,7 +31,7 @@ export default defineNativeEffect({
 					},
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 'symbols' },
+			defaultValue: 'symbols',
 		},
 		highlightClipThreshold: {
 			dataType: { kind: 'scalar' },
@@ -44,7 +44,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.8 },
+			defaultValue: 0.8,
 		},
 		shadowClipThreshold: {
 			dataType: { kind: 'scalar' },
@@ -57,7 +57,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.2 },
+			defaultValue: 0.2,
 		},
 		density: {
 			dataType: { kind: 'scalar' },
@@ -70,7 +70,7 @@ export default defineNativeEffect({
 					logarithmic: true,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 64 },
+			defaultValue: 64,
 		},
 		margin: {
 			dataType: { kind: 'scalar' },
@@ -83,7 +83,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.25 },
+			defaultValue: 0.25,
 		},
 		symbolTexturesRangeMin: {
 			dataType: { kind: 'scalar' },
@@ -96,7 +96,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		symbolTexturesRangeMax: {
 			dataType: { kind: 'scalar' },
@@ -109,12 +109,12 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
-		bgColor: { dataType: { kind: 'color' }, ui: { label: 'Background Color', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] } },
-		colorA: { dataType: { kind: 'color' }, ui: { label: 'Color A', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
-		colorB: { dataType: { kind: 'color' }, ui: { label: 'Color B', control: {} }, defaultValue: { inputSource: 'literal', value: srgbToLinearSrgb([0.8, 1, 0, 1]) } },
-		colorC: { dataType: { kind: 'color' }, ui: { label: 'Color C', control: {} }, defaultValue: { inputSource: 'literal', value: srgbToLinearSrgb([1, 0.3, 0, 1]) } },
+		bgColor: { dataType: { kind: 'color' }, ui: { label: 'Background Color', control: {} }, defaultValue: [0, 0, 0, 1] },
+		colorA: { dataType: { kind: 'color' }, ui: { label: 'Color A', control: {} }, defaultValue: [1, 1, 1, 1] },
+		colorB: { dataType: { kind: 'color' }, ui: { label: 'Color B', control: {} }, defaultValue: srgbToLinearSrgb([0.8, 1, 0, 1]) },
+		colorC: { dataType: { kind: 'color' }, ui: { label: 'Color C', control: {} }, defaultValue: srgbToLinearSrgb([1, 0.3, 0, 1]) },
 		similarityThresholdFactor: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -126,16 +126,16 @@ export default defineNativeEffect({
 					step: 0.1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 2 },
+			defaultValue: 2,
 		},
 		forceField: {
 			dataType: { kind: 'vector' },
 			ui: { label: 'Force Field', control: { controlType: 'vector', min: -1, max: 1 } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0] },
+			defaultValue: [0, 0],
 		},
-		forceFieldShift: { dataType: { kind: 'bool' }, ui: { label: 'Force Field Shift', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
-		forceFieldWarp: { dataType: { kind: 'bool' }, ui: { label: 'Force Field Warp', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		forceFieldShift: { dataType: { kind: 'bool' }, ui: { label: 'Force Field Shift', control: {} }, defaultValue: true },
+		forceFieldWarp: { dataType: { kind: 'bool' }, ui: { label: 'Force Field Warp', control: {} }, defaultValue: true },
 	},
 	primaryInputParameter: 'input',
 	resolutionInputParameters: ['input'],

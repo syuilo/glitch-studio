@@ -6,7 +6,7 @@ import { createTimelineEffectProbe } from './helpers/timeline-effect-probe.mjs';
 globalThis.GPUQueue = class { submit() {} };
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
-const def = (id, value = 7, kind = 'scalar') => ({ id, nameForReference: id.toLowerCase().replaceAll('-', '_'), dataType: { kind }, ui: { label: id, control: kind === 'scalar' ? { controlType: 'number' } : {} }, defaultValue: literal(value), canNode: false });
+const def = (id, value = 7, kind = 'scalar') => ({ id, nameForReference: id.toLowerCase().replaceAll('-', '_'), dataType: { kind }, ui: { label: id, control: kind === 'scalar' ? { controlType: 'number' } : {} }, defaultValue: value, canNode: false });
 const clipFrame = { sceneTimeMs: 500, contentTimeMs: 250, contentEndTimeMs: 2000, clipElapsedTimeMs: 100, clipDurationMs: 1850, isExport: true };
 
 // 【レイヤーの離散キーフレームは評価済みの引数としてCustom Node Graph Effectへ渡す】
@@ -55,7 +55,7 @@ test('uses current enum defaults only for empty timelines and rejects obsolete k
 	};
 	await evaluate();
 	assert.equal(resolved, 'b');
-	definition.defaultValue.value = 'a';
+	definition.defaultValue = 'a';
 	await evaluate();
 	assert.equal(resolved, 'a');
 	input.keyframesTimeline.keyframes.push({ id: 'key', x: 0, value: 'obsolete', interpolation: { type: 'hold' } });

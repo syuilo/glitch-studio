@@ -24,8 +24,8 @@ export async function run(includePreview = false, includeVariationsPreview = fal
 	const assert = (condition: boolean, message: string) => { if (!condition) throw new Error(message); };
 	const near = (actual: number, expected: number, label: string, tolerance = 0.002) => assert(Number.isFinite(actual) && Math.abs(actual - expected) <= tolerance * Math.max(1, Math.abs(expected)), `${label}: ${actual} != ${expected}`);
 	const equal = (actual: Float32Array, expected: Float32Array, label: string) => assert(actual.length === expected.length && actual.every((value, index) => value === expected[index]), label);
-	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, parameter.defaultValue.value])) as unknown as Parameters;
-	defaults.orbColor = constantShaderInput('color', definition.paramDefs.orbColor.defaultValue.value);
+	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, parameter.defaultValue])) as unknown as Parameters;
+	defaults.orbColor = constantShaderInput('color', definition.paramDefs.orbColor.defaultValue);
 	const reader = device.createRenderPipeline({ layout: 'auto', vertex: { module: vertex }, fragment: {
 		module: device.createShaderModule({ code: `@group(0) @binding(0) var image: texture_2d<f32>;
 @fragment fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f { return textureLoad(image, vec2i(position.xy), 0); }` }),

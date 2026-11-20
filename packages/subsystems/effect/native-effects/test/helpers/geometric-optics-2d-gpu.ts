@@ -23,7 +23,7 @@ export async function run() {
 	const checks: string[] = [];
 	const assert = (condition: boolean, message: string) => { if (!condition) throw new Error(message); };
 	const near = (value: number, expected: number, tolerance: number, message: string) => assert(Number.isFinite(value) && Math.abs(value - expected) <= tolerance, `${message}: ${value} != ${expected}`);
-	const defaults = { ...Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, parameter.defaultValue.value])), objects: [], sources: [], exposure: 0, lineWidth: 0.008, pathBudget: 4096 } as Parameters;
+	const defaults = { ...Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, parameter.defaultValue])), objects: [], sources: [], exposure: 0, lineWidth: 0.008, pathBudget: 4096 } as Parameters;
 	const source = (overrides: Partial<Source> = {}): Source => ({ type: 'singleRay', position: [-0.4, 0], direction: 0, width: 0.2, spread: 1, power: 0.005, spectrum: 'monochromatic', wavelength: 550, ...overrides });
 	const object = (sdf: ShaderInput, overrides: Partial<OpticalObject> = {}): OpticalObject => ({ sdf, material: 'dielectric', ior: 1.5, dispersion: 0, reflectivity: 1, absorptionRed: 0, absorptionGreen: 0, absorptionBlue: 0, ...overrides });
 	const readLayout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' } }] });

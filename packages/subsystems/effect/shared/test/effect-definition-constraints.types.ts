@@ -5,31 +5,31 @@ import type { EffectParameterLayoutItem } from '../src/effect-parameter-layout.t
 const scalar = {
 	dataType: { kind: 'scalar' },
 	ui: { label: 'Value', control: { controlType: 'number' } },
-	defaultValue: { inputSource: 'literal', value: 0 },
+	defaultValue: 0,
 } as const;
 const input = { ...scalar, canNode: true } as const;
 const audio = {
 	dataType: { kind: 'audioSource' },
 	ui: { label: 'Audio', control: {} },
-	defaultValue: { inputSource: 'literal', value: null },
+	defaultValue: null,
 } as const;
 const group = {
 	dataType: { kind: 'struct', fields: { input: scalar.dataType } },
 	ui: { label: 'Group', control: { fields: { input: scalar.ui } } },
 	fields: { input: { canNode: true, defaultValue: scalar.defaultValue } },
-	defaultValue: { inputSource: 'literal', value: { input: scalar.defaultValue } },
+	defaultValue: { input: scalar.defaultValue },
 } as const;
 const groups = {
 	dataType: { kind: 'array', elementType: group.dataType },
 	ui: { label: 'Groups', control: { element: group.ui.control } },
 	element: { fields: group.fields, defaultValue: group.defaultValue },
-	defaultValue: { inputSource: 'literal', value: [] as [] },
+	defaultValue: [] as [],
 } as const;
 const values = {
 	dataType: { kind: 'array', elementType: scalar.dataType },
 	ui: { label: 'Values', control: { element: scalar.ui.control } },
 	element: { defaultValue: scalar.defaultValue },
-	defaultValue: { inputSource: 'literal', value: [] as [] },
+	defaultValue: [] as [],
 } as const;
 const definition = {
 	displayName: 'Type Test', summary: { 'ja-JP': '型検査用', 'en-US': 'Type test' },

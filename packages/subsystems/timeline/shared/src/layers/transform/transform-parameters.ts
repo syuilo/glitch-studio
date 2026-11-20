@@ -9,7 +9,7 @@ export class TimelineTransformParameters {
 	private evaluator = new TimelineParameterBindingEvaluator();
 	evaluate(values: TimelineTransformParameterValues, automationGraphs: AutomationGraph[], time: number, isExport: boolean, publicParameters?: TimelineLayerPublicParameterContext | null): EvaluatedTimelineTransform {
 		const scope = createTimelineLayerEvaluationScope({ time, isExport, automationGraphs, publicParameters });
-		const read = (key: keyof typeof timelineTransformParamDefs): unknown => this.evaluator.evaluate(values[key], scope, timelineTransformParamDefs[key].defaultValue.value, timelineTransformParamDefs[key]);
+		const read = (key: keyof typeof timelineTransformParamDefs): unknown => this.evaluator.evaluate(values[key], scope, timelineTransformParamDefs[key].defaultValue, timelineTransformParamDefs[key]);
 		const position = read('position');
 		const z = read('z');
 		const scale = read('scale');

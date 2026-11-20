@@ -24,7 +24,7 @@ test('resolves all four size references across aspect ratios and render scales',
 // 汎用enumやGPUへの入力型とは区別する。式・加工式では同じ4値だけを受け入れ、
 // Checkerなどで廃止したStretchを既定値や不正な入力として暗黙に読み替えない。
 test('uses a dedicated non-texture type with a long-side default and validated values', () => {
-	const definition = { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } };
+	const definition = { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: 'longSide' };
 	assert.equal(genEmptyValue(definition), 'longSide');
 	assert.doesNotThrow(() => validateParameterDefaultValues(definition));
 	assert.equal(isTextureDataType(definition.dataType), false);

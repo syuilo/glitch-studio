@@ -23,7 +23,7 @@ const bundled = await build({
 				fill: {
 					id: 'fill', displayName: 'Fill', summary: { 'ja-JP': '塗りつぶし', 'en-US': 'Fill' },
 					kind: 'generate', dependsOnRenderHistory: false, tags: ['color'],
-					paramDefs: { color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } } },
+					paramDefs: { color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: [1, 1, 1, 1] } },
 					primaryInputParameter: null, resolutionInputParameters: [],
 					outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output',
 				},
@@ -118,9 +118,9 @@ test('returns asset metadata without binary data and detached effect definitions
 	const [effect] = query['Query:listEffects']();
 	const definition = query['Query:getEffect'](effect.target);
 	assert.equal(definition.primaryOutput, 'output');
-	definition.paramDefs.color.defaultValue.value[0] = 42;
+	definition.paramDefs.color.defaultValue[0] = 42;
 	definition.resolutionInputParameters.push('local');
-	assert.equal(query['Query:getEffect'](effect.target).paramDefs.color.defaultValue.value[0], 1);
+	assert.equal(query['Query:getEffect'](effect.target).paramDefs.color.defaultValue[0], 1);
 	assert.deepEqual(query['Query:getEffect'](effect.target).resolutionInputParameters, []);
 	const project = query['Query:getProject']();
 	project.resolution.width = 1;

@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { testGraph } from './helpers/effect-graph.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -12,7 +13,7 @@ import { i18nPlugin } from './helpers/i18n.mjs';
 
 const directory = fileURLToPath(new URL('../', import.meta.url));
 const literal = value => ({ inputSource: 'literal', value });
-const xy = { dataType: { kind: 'vector' }, ui: { label: 'Position', control: { controlType: 'xy' } }, defaultValue: literal([0, 0]) };
+const xy = { dataType: { kind: 'vector' }, ui: { label: 'Position', control: { controlType: 'xy' } }, defaultValue: [0, 0] };
 const effect = { id: 'test', paramDefs: { first: xy, second: { ...xy, ui: { ...xy.ui, label: 'Second position' } },
 	scale: { ...xy, ui: { label: 'Scale', control: { controlType: 'dimension' } } } } };
 const bundle = await build({ absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
@@ -117,7 +118,7 @@ async function fixture(t, { showGrid = false, viewport = false, viewportParamete
 		parentNode: node => node.parent, nextSibling: node => node.parent?.children[node.parent.children.indexOf(node) + 1] ?? null,
 	});
 	const customNodeGraphEffect = { id: 'customNodeGraphEffect', name: 'Custom Node Graph Effect', definition: testGraph({ nodes: [{ id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, isBypass: false,
-		params: { ...Object.fromEntries(Object.entries(testedEffect.paramDefs).map(([key, definition]) => [key, structuredClone(definition.defaultValue)])), scale: literal([1, 1]) } }] }) };
+		params: { ...Object.fromEntries(Object.entries(testedEffect.paramDefs).map(([key, definition]) => [key, createDefaultParameterBinding(definition)])), scale: literal([1, 1]) } }] }) };
 	const state = { customNodeGraphEffects: ref([customNodeGraphEffect]), timelineScenes: ref([]), automationGraphs: ref([]), resolution: ref({ width: 800, height: 400 }) };
 	const manager = new UndoRedo(state, COMMAND_DEFS);
 	const editing = new PreviewParameterEditingController();

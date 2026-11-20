@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { validateStaticSettings } from '@gs/shared/static-setting.ts';
 import { getTimelineLayerStaticSettings } from './layer-static-settings.ts';
 import { validateTimelineLayerPublicParameterDefinitions } from './public-parameters.ts';
@@ -28,7 +29,7 @@ function parameterGroups(layer: TimelineLayer, effect?: EffectDefinition | null)
 	if (publicParameterDefs.length > 0) groups.push({
 		name: 'publicParameterValues',
 		definitions: Object.fromEntries(publicParameterDefs.map(definition => [definition.id, definition])),
-		values: Object.fromEntries(publicParameterDefs.map(definition => [definition.id, layer.publicParameterValues?.[definition.id] ?? definition.defaultValue])),
+		values: Object.fromEntries(publicParameterDefs.map(definition => [definition.id, layer.publicParameterValues?.[definition.id] ?? createDefaultParameterBinding(definition)])),
 	});
 	const add = (name: string, definitions: Record<string, ParameterDefinition>, values: Record<string, ParameterBindingBase>) => groups.push({ name, definitions, values });
 	if ('compositingParamValues' in layer) add('compositingParamValues', timelineCompositingParamDefs, layer.compositingParamValues);

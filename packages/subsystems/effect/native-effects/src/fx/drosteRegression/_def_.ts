@@ -14,7 +14,7 @@ export default defineNativeEffect({
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		amount: {
 			dataType: { kind: 'scalar' },
@@ -27,7 +27,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.5 },
+			defaultValue: 0.5,
 		},
 		twist: {
 			dataType: { kind: 'scalar' },
@@ -40,7 +40,7 @@ export default defineNativeEffect({
 					step: 0.001,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 2 },
+			defaultValue: 2,
 		},
 	},
 	primaryInputParameter: 'input',

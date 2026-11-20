@@ -14,7 +14,7 @@ export default defineNativeEffect({
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		// ±1で長辺全体1つ分の移動。これはUIの操作範囲であり、入力値自体は制限しない。
 		translation: {
@@ -29,7 +29,7 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0] },
+			defaultValue: [0, 0],
 		},
 		scale: {
 			dataType: { kind: 'vector' },
@@ -43,13 +43,13 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [1, 1] },
+			defaultValue: [1, 1],
 		},
 		rotation: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Rotation', control: { controlType: 'angle' } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 	},
 	primaryInputParameter: 'input',

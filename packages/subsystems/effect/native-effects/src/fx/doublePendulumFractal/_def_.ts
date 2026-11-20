@@ -19,7 +19,7 @@ export default defineNativeEffect({
 		simulationTime: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Simulation Time', control: { controlType: 'number', min: 0, step: 0.01 } },
-			defaultValue: { inputSource: 'literal', value: 3 },
+			defaultValue: 3,
 		},
 		view: {
 			dataType: { kind: 'struct', fields: { center: { kind: 'vector' }, zoom: { kind: 'scalar' } } },
@@ -33,38 +33,38 @@ export default defineNativeEffect({
 				},
 			} },
 			fields: {
-				center: { defaultValue: { inputSource: 'literal', value: [0, 0] } },
-				zoom: { defaultValue: { inputSource: 'literal', value: 1 } },
+				center: { defaultValue: [0, 0] },
+				zoom: { defaultValue: 1 },
 			},
-			defaultValue: { inputSource: 'literal', value: {
-				center: { inputSource: 'literal', value: [0, 0] },
-				zoom: { inputSource: 'literal', value: 1 },
-			} },
+			defaultValue: {
+				center: [0, 0],
+				zoom: 1,
+			},
 		},
 		initialAngularVelocity1: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Initial Angular Velocity 1 (rad/s)', control: { controlType: 'range', min: -10, max: 10, step: 0.01 } },
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		initialAngularVelocity2: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Initial Angular Velocity 2 (rad/s)', control: { controlType: 'range', min: -10, max: 10, step: 0.01 } },
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		lengthRatio: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Length Ratio', control: { controlType: 'range', min: 0.1, max: 10, logarithmic: true } },
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		massRatio: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Mass Ratio', control: { controlType: 'range', min: 0.1, max: 10, logarithmic: true } },
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		gravity: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Gravity', control: { controlType: 'range', min: 0, max: 30, step: 0.01 } },
-			defaultValue: { inputSource: 'literal', value: 9.81 },
+			defaultValue: 9.81,
 		},
 		coloringMethod: {
 			dataType: { kind: 'enum', options: ['sphericalRgb', 'angle1', 'angle2', 'angularVelocity1', 'angularVelocity2'] },
@@ -72,33 +72,33 @@ export default defineNativeEffect({
 				sphericalRgb: 'Spherical RGB', angle1: 'Angle 1', angle2: 'Angle 2',
 				angularVelocity1: 'Angular Velocity 1', angularVelocity2: 'Angular Velocity 2',
 			} } },
-			defaultValue: { inputSource: 'literal', value: 'sphericalRgb' },
+			defaultValue: 'sphericalRgb',
 		},
 		ramp: {
 			dataType: { kind: 'colorRamp' },
 			ui: { label: 'Color Ramp', control: {} },
-			defaultValue: { inputSource: 'literal', value: {
+			defaultValue: {
 				interpolation: 'linear', colorSpace: 'srgb', repeatCount: 1, repeatMode: 'wrap', stops: [
 					{ id: 'start', position: 0, color: srgbToLinearSrgb([0.05, 0.15, 0.6, 1]) },
 					{ id: 'middle', position: 0.5, color: srgbToLinearSrgb([0.1, 0.9, 0.8, 1]) },
 					{ id: 'end', position: 1, color: srgbToLinearSrgb([0.9, 0.1, 0.6, 1]) },
 				],
-			} },
+			},
 		},
 		angularVelocityRange: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Angular Velocity Range (rad/s)', control: { controlType: 'range', min: 0.1, max: 100, logarithmic: true } },
-			defaultValue: { inputSource: 'literal', value: 10 },
+			defaultValue: 10,
 		},
 		timeStep: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Time Step', control: { controlType: 'range', min: 0.0005, max: 0.05, logarithmic: true } },
-			defaultValue: { inputSource: 'literal', value: 0.01 },
+			defaultValue: 0.01,
 		},
 		antialiasing: {
 			dataType: { kind: 'bool' },
 			ui: { label: 'Antialiasing', control: {} },
-			defaultValue: { inputSource: 'literal', value: false },
+			defaultValue: false,
 		},
 	},
 	primaryInputParameter: null,

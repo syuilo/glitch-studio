@@ -6,7 +6,7 @@ import { validateEffectSource } from '@gs/subsystems_effect_shared/validate-effe
 const size = { width: 32, height: 16 };
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
-const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: {} }, defaultValue: literal(0) };
+const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: {} }, defaultValue: 0 };
 const native = { type: 'nativeEffect', id: 'test' };
 const inline = customNodeGraphEffect => ({ type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect });
 const definition = { kind: 'generate', primaryInputParameter: null, primaryOutput: 'image', paramDefs: {},
@@ -103,14 +103,14 @@ test('updates every nested placement of a registration and retains unrelated cac
 // 【固定長の配列・構造体の末端と音声選択の編集を次の準備に反映する】
 // GPUが初期化時に参照したフィールドを保ち、変わった式だけを再束縛する。音声が未選択の間は取得しない。
 test('rebinds edited array fields and audio selections before native frame preparation', async () => {
-	const color = { ...scalar, canNode: true, dataType: { kind: 'color' }, defaultValue: literal([0, 0, 0, 0]) };
+	const color = { ...scalar, canNode: true, dataType: { kind: 'color' }, defaultValue: [0, 0, 0, 0] };
 	const fields = { gain: scalar, color };
 	const element = { dataType: { kind: 'struct', fields: { gain: scalar.dataType, color: color.dataType } },
 		ui: { label: 'Entry', control: { fields: { gain: scalar.ui, color: color.ui } } }, fields,
-		defaultValue: literal({ gain: scalar.defaultValue, color: color.defaultValue }) };
-	const entries = { dataType: { kind: 'array', elementType: element.dataType }, element, defaultValue: literal([]),
+		defaultValue: { gain: scalar.defaultValue, color: color.defaultValue } };
+	const entries = { dataType: { kind: 'array', elementType: element.dataType }, element, defaultValue: [],
 		ui: { label: 'Entries', control: { element: element.ui.control } } };
-	const audio = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: literal(null) };
+	const audio = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null };
 	const def = { ...definition, paramDefs: { entries, audio } };
 	const bindings = (code, alpha) => literal([{ id: 'entry', binding: literal({ gain: expression(code), color: literal([1, 0, 0, alpha]) }) }]);
 	const graph = { ...definition, nodes: [{ id: 'draw', effectSource: native, params: { entries: bindings('1', 1) } }], outputSources: { image: output } };
@@ -186,7 +186,7 @@ test('coerces public string references read by nested graph expressions', async 
 	};
 	const parent = inline({
 		...definition,
-		paramDefs: { text: { ...scalar, dataType: { kind: 'string' }, defaultValue: literal('0') } },
+		paramDefs: { text: { ...scalar, dataType: { kind: 'string' }, defaultValue: '0' } },
 		nodes: [{
 			id: 'child', effectSource: inline(child),
 			params: { gain: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'text' } },
@@ -227,7 +227,7 @@ test('publishes borrowed textures through a relay and omits uniform outputs', as
 // scalarの公開入力からvectorのRelayとcolorの入力・公開出力につないでも、
 // 内部ノードはどちらの入力種別もそのまま受け取り、公開出力はtextureのあるときだけ転送する。
 test('loads mismatched ports and draws with the original fixed shader inputs', async () => {
-	const color = { ...scalar, canNode: true, dataType: { kind: 'color' }, defaultValue: literal([0, 0, 0, 0]) };
+	const color = { ...scalar, canNode: true, dataType: { kind: 'color' }, defaultValue: [0, 0, 0, 0] };
 	const consumer = { ...definition, paramDefs: { wired: color, direct: color } };
 	const graph = inline({ ...definition, paramDefs: { gain: { ...scalar, canNode: true } },
 		nodes: [
@@ -268,7 +268,7 @@ test('loads mismatched ports and draws with the original fixed shader inputs', a
 // 【原寸と倍率を一度だけ適用し、画像・ファイル・Playerを借用し、音声をフレーム単位で解決する】
 // 素材や音声を所有する呼び出し側が同じGPU画像の内容を更新しても、配置の再生成は不要。
 test('resolves borrowed resources, audio and scaled intrinsic dimensions', async () => {
-	const audio = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: literal(null) };
+	const audio = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null };
 	const setting = (dataType, defaultValue) => ({ dataType, defaultValue, ui: { label: 'Resource' } });
 	const def = { ...definition, paramDefs: { audio }, intrinsicResolutionSetting: 'image', staticSettingDefs: {
 		image: setting({ kind: 'assetReference', assetType: 'image' }, 'i'), font: setting({ kind: 'assetReference', assetType: 'font' }, 'f'),

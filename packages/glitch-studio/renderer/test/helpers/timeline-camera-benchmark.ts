@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { TimelineRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
 import { createShapeTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/shape/shape-timeline-layer.ts';
@@ -20,7 +21,7 @@ export async function run() {
 		resolution: { width: 1920, height: 1080 },
 	};
 	const literal = (value: any) => ({ inputSource: 'literal' as const, value });
-	const compositing = () => Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) as TimelineGroupLayer['compositingParamValues'];
+	const compositing = () => Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])) as TimelineGroupLayer['compositingParamValues'];
 	const common = {
 		isDisabled: false,
 		forceDisableMotionBlur: false,

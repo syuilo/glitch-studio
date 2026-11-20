@@ -56,7 +56,7 @@
 	</div>
 	<div v-if="isParameterType(def, 'enum')" :class="$style.option">
 		<label :class="$style.optionLabel">{{ i18n.ts._PublicParameterInput.Options }}</label>
-		<XEnumOptionsEditor :class="$style.optionControl" :options="def.dataType.options" :labels="def.ui.control.labels" :defaultValue="def.defaultValue.value" @update="updateEnumOptions"/>
+		<XEnumOptionsEditor :class="$style.optionControl" :options="def.dataType.options" :labels="def.ui.control.labels" :defaultValue="def.defaultValue" @update="updateEnumOptions"/>
 	</div>
 	<div v-if="def.dataType.kind !== 'array' && def.dataType.kind !== 'struct' && def.dataType.kind !== 'any' && def.dataType.kind !== 'enum' && def.dataType.kind !== 'audioSource'" :class="$style.option">
 		<label :class="$style.optionLabel">{{ i18n.ts._PublicParameterInput.DefaultValue }}</label>
@@ -65,7 +65,7 @@
 			:class="$style.optionControl"
 			:dataType="def.dataType"
 			:control="def.ui.control"
-			:value="def.defaultValue.value"
+			:value="def.defaultValue"
 			@input="updateDefaultValue"
 			@beginChanging="beginDefaultValueChange"
 			@changeContinuous="updateDefaultValueContinuously"
@@ -123,7 +123,7 @@ function beginDefaultValueChange() {
 }
 
 function updateDefaultValue(value: any, mergeKey?: string | null) {
-	emit('update', { defaultValue: { inputSource: 'literal', value } }, mergeKey);
+	emit('update', { defaultValue: value }, mergeKey);
 }
 
 function updateDefaultValueContinuously(value: any) {
@@ -136,7 +136,7 @@ function updateEnumOptions(options: string[], labels: Record<string, string>, de
 	update({
 		dataType: { kind: 'enum', options },
 		ui: { ...def.ui, control: { labels } },
-		defaultValue: { inputSource: 'literal', value: defaultValue },
+		defaultValue: defaultValue,
 	});
 }
 
@@ -164,7 +164,7 @@ function updateType(dataType: EditableDataType) {
 		...schema,
 		// Inノードでは型変換せず公開するため、ノード入出力に対応しない型では解除する。
 		canNode: isTextureDataType(schema.dataType) && props.def.canNode,
-		defaultValue: { inputSource: 'literal', value: genEmptyValue(schema) },
+		defaultValue: genEmptyValue(schema),
 	});
 }
 

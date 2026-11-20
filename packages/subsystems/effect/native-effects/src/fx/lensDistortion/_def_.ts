@@ -16,7 +16,7 @@ export default defineNativeEffect({
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		spread: {
 			dataType: { kind: 'scalar' },
@@ -29,7 +29,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.6 },
+			defaultValue: 0.6,
 		},
 		bias: {
 			dataType: { kind: 'scalar' },
@@ -42,7 +42,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		perspective: {
 			dataType: { kind: 'scalar' },
@@ -55,7 +55,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.1 },
+			defaultValue: 0.1,
 		},
 		count: {
 			dataType: { kind: 'scalar' },
@@ -68,7 +68,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 35 },
+			defaultValue: 35,
 		},
 		dispersion: {
 			dataType: { kind: 'scalar' },
@@ -81,7 +81,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		dispersionShift: {
 			dataType: { kind: 'scalar' },
@@ -94,7 +94,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		dispersionColor: {
 			dataType: { kind: 'scalar' },
@@ -107,7 +107,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.6 },
+			defaultValue: 0.6,
 		},
 		focusCenter: {
 			dataType: { kind: 'scalar' },
@@ -120,7 +120,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.8 },
+			defaultValue: 0.8,
 		},
 		focusEdges: {
 			dataType: { kind: 'scalar' },
@@ -133,7 +133,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		swirl: {
 			dataType: { kind: 'scalar' },
@@ -146,7 +146,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.35 },
+			defaultValue: 0.35,
 		},
 		lensBulge: {
 			dataType: { kind: 'scalar' },
@@ -159,7 +159,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		lensCircle: {
 			dataType: { kind: 'scalar' },
@@ -172,7 +172,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		grainMixer: {
 			dataType: { kind: 'scalar' },
@@ -185,7 +185,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		grainOverlay: {
 			dataType: { kind: 'scalar' },
@@ -198,9 +198,9 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
-		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Spread Angle', control: { controlType: 'angle' } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Spread Angle', control: { controlType: 'angle' } }, defaultValue: 0 },
 	},
 	primaryInputParameter: 'input',
 	resolutionInputParameters: ['input'],

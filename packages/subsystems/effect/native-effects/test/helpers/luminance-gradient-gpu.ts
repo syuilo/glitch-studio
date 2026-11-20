@@ -21,7 +21,7 @@ export async function run() {
 	const checks: string[] = [];
 	const assert = (condition: boolean, message: string) => { if (!condition) throw new Error(message); };
 	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name,
-		'canNode' in parameter && parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value])) as Parameters;
+		'canNode' in parameter && parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue) : parameter.defaultValue])) as Parameters;
 	const sampling: ShaderInputSampling = { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' };
 	const reader = device.createRenderPipeline({ layout: 'auto', vertex: { module: vertex }, fragment: {
 		module: device.createShaderModule({ code: `@group(0) @binding(0) var image: texture_2d<f32>;

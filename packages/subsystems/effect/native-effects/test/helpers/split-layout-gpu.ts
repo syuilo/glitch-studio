@@ -50,12 +50,12 @@ export async function run() {
 	const checks: string[] = [];
 	let comparisons = 0;
 	const defaults: SplitLayoutParameters = {
-		inputA: constantShaderInput('color', definition.paramDefs.inputA.defaultValue.value),
-		inputB: constantShaderInput('color', definition.paramDefs.inputB.defaultValue.value),
-		angle: definition.paramDefs.angle.defaultValue.value,
-		offset: definition.paramDefs.offset.defaultValue.value,
-		gap: definition.paramDefs.gap.defaultValue.value,
-		sizeReference: definition.paramDefs.sizeReference.defaultValue.value,
+		inputA: constantShaderInput('color', definition.paramDefs.inputA.defaultValue),
+		inputB: constantShaderInput('color', definition.paramDefs.inputB.defaultValue),
+		angle: definition.paramDefs.angle.defaultValue,
+		offset: definition.paramDefs.offset.defaultValue,
+		gap: definition.paramDefs.gap.defaultValue,
+		sizeReference: definition.paramDefs.sizeReference.defaultValue,
 	};
 	const inputs = {
 		inputA: constantShaderInput('color', [4, -2, 1, 0.5]),

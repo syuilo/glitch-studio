@@ -25,7 +25,7 @@ const cameraLayer = (id, startMs, durationMs, paramValues = {}) => ({
 // 【カメラと祖先Transformも、通常のレイヤーと同じ公開パラメータの参照規則を使う】
 // カメラは映像レイヤーの描画走査とは別に評価するため、Scene側でも所有レイヤーの環境を渡す必要がある。
 test('evaluates camera and ancestor transforms with public parameter scopes', () => {
-	const definition = { id: 'offset', nameForReference: 'offset', dataType: { kind: 'scalar' }, ui: { label: 'Offset', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } };
+	const definition = { id: 'offset', nameForReference: 'offset', dataType: { kind: 'scalar' }, ui: { label: 'Offset', control: { controlType: 'number' } }, defaultValue: 0 };
 	const camera = cameraLayer('view', 0, 1000, { position: { inputSource: 'expression', expression: '[PUBLIC("offset"), 0]' } });
 	camera.publicParameterDefs = [definition];
 	camera.publicParameterValues = { offset: { inputSource: 'expression', expression: 'PUBLIC("offset") * 2' } };

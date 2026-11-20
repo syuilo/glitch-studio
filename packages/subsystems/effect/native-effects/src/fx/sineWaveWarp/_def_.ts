@@ -10,24 +10,24 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	tags: ['distortion', 'color'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		direction: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Direction', control: { controlType: 'angle' } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0.25 },
+			defaultValue: 0.25,
 		},
 		phase: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Phase', control: { controlType: 'angle' } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		frequency: {
 			dataType: { kind: 'scalar' },
@@ -41,7 +41,7 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 5 },
+			defaultValue: 5,
 		},
 		amplitude: {
 			dataType: { kind: 'scalar' },
@@ -55,7 +55,7 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0.05 },
+			defaultValue: 0.05,
 		},
 		chromaticAberrationStrength: {
 			dataType: { kind: 'scalar' },
@@ -69,7 +69,7 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		chromaticAberrationSamples: {
 			dataType: { kind: 'scalar' },
@@ -82,7 +82,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 16 },
+			defaultValue: 16,
 		},
 	},
 	primaryInputParameter: 'input',

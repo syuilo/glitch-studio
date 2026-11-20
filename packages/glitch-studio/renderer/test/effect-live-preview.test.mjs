@@ -13,7 +13,7 @@ after(() => { for (const [key, descriptor] of globals) { if (descriptor) Object.
 const { EffectLivePreviewManager } = await loadShaderSource(fileURLToPath(new URL('../src/effect-live-preview-manager.ts', import.meta.url)));
 const literal = value => ({ inputSource: 'literal', value });
 const definition = { kind: 'generate', primaryInputParameter: null, primaryOutput: 'color', resolutionInputParameters: [],
-	paramDefs: { value: { dataType: { kind: 'scalar' }, defaultValue: literal(0), ui: { label: 'Value', control: {} } } },
+	paramDefs: { value: { dataType: { kind: 'scalar' }, defaultValue: 0, ui: { label: 'Value', control: {} } } },
 	outputDefs: { scalar: { dataType: { kind: 'scalar' }, nameForReference: 'gray' }, color: { dataType: { kind: 'color' }, nameForReference: 'color' } } };
 const shader = { ...definition, paramDefs: {}, code: 'fn main(p: vec2f) -> Output { return Output(1., vec4f(1.)); }', shaderApiVersion: 1 };
 const reference = { type: 'customShaderEffectReference', id: 'shared' };

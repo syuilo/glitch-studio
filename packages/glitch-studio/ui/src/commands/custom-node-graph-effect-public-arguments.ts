@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
@@ -26,7 +27,7 @@ function createArgumentUpdate(previous: ParameterDefinition, next: ParameterDefi
 			if (binding.inputSource !== 'literal') return null;
 			// 配列要素のIDは維持し、ツリー内の無効なBindingにはその位置の既定値を明示する。
 			const value = (binding.value as ParameterArrayElement<ArgumentBinding>[]).map(entry => ({
-				...entry, binding: updateElement(entry.binding, usesTextureInput) ?? element.defaultValue,
+				...entry, binding: updateElement(entry.binding, usesTextureInput) ?? createDefaultParameterBinding(element),
 			}));
 			return { ...binding, value };
 		};
@@ -43,7 +44,7 @@ function createArgumentUpdate(previous: ParameterDefinition, next: ParameterDefi
 			const value = Object.fromEntries(fields.map(({ key, definition, update }) => {
 				const previousValue = previousValues[key];
 				const field = previousValue != null && update != null ? update(previousValue, usesTextureInput) : previousValue;
-				return [key, field ?? definition.defaultValue];
+				return [key, field ?? createDefaultParameterBinding(definition)];
 			}));
 			return { ...binding, value };
 		};

@@ -17,9 +17,10 @@ export class TextParameters {
 		const scope = createTimelineLayerEvaluationScope(context);
 		const values: Record<string, unknown> = {};
 		for (const [key, def] of Object.entries(textParamDefs)) {
-			const binding = bindings[key as keyof TextParameterValues] ?? def.defaultValue;
-			const fallback = binding.inputSource === 'automationGraphReference' || def.dataType.kind === 'enum' ? def.defaultValue.value : genEmptyValue(def);
-			values[key] = coerceParameterValue(def, validateEnumParameterValue(def, this.evaluator.evaluate(binding, scope, fallback, def)));
+			const binding = bindings[key as keyof TextParameterValues];
+			const fallback = binding?.inputSource === 'automationGraphReference' || def.dataType.kind === 'enum' ? def.defaultValue : genEmptyValue(def);
+			const value = binding == null ? def.defaultValue : this.evaluator.evaluate(binding, scope, fallback, def);
+			values[key] = coerceParameterValue(def, validateEnumParameterValue(def, value));
 		}
 		// 式が返した値は保存値を変更せず描画境界で整える。色はここでは未乗算。
 		const number = (value: unknown) => typeof value === 'number' && Number.isFinite(Math.fround(value)) ? value : 0;

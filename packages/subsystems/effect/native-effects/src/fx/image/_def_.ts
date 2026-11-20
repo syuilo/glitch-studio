@@ -17,7 +17,7 @@ export default defineNativeEffect({
 		fit: {
 			dataType: { kind: 'fitMode' },
 			ui: { label: 'Fit', control: {} },
-			defaultValue: { inputSource: 'literal', value: 'cover' },
+			defaultValue: 'cover',
 		},
 	},
 	primaryInputParameter: null,

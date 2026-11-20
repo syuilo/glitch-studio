@@ -24,7 +24,8 @@ export class TimelineParameterBindingEvaluator {
 			// 同名のPUBLICが子自身へ戻り、階層だけで保証できる非循環性を失ってしまう。
 			const ownerContext = { layer: owner, ancestors: ownerIndex < 0 ? context.ancestors : context.ancestors.slice(0, ownerIndex) };
 			const ownerScope = createTimelineLayerEvaluationScope({ time: scope.time, isExport: scope.variables.IS_EXPORT === true, automationGraphs: owner.automationGraphs, publicParameters: ownerContext });
-			const value = evaluate(owner.publicParameterValues?.[publicParameterDefinition.id] ?? publicParameterDefinition.defaultValue, ownerScope, publicParameterDefinition.defaultValue.value, publicParameterDefinition, true);
+			const binding = owner.publicParameterValues?.[publicParameterDefinition.id];
+			const value = binding == null ? publicParameterDefinition.defaultValue : evaluate(binding, ownerScope, publicParameterDefinition.defaultValue, publicParameterDefinition, true);
 			const result = prepareExpressionParameterValue(publicParameterDefinition, deepClone(value)) as Cloneable;
 			cache.set(key, result);
 			return result;
@@ -32,10 +33,10 @@ export class TimelineParameterBindingEvaluator {
 		const evaluate = (value: TimelineParameterBinding, environment: TimelineLayerEvaluationScope, defaultValue: any, target: ParameterDefinition, isPublicParameterValue: boolean): any => {
 			const context = environment.publicParameters;
 			if (value.inputSource === 'timelineLayerPublicParameterReference') {
-				if (context == null) return deepClone(target.defaultValue.value);
+				if (context == null) return deepClone(target.defaultValue);
 				const source = resolveTimelineLayerPublicParameterReference(context, value.layerId, value.parameterId, isPublicParameterValue);
 				// 削除・階層移動後も保存IDを維持する。Undoで元の祖先へ戻せば再接続できる。
-				if (source == null) return deepClone(target.defaultValue.value);
+				if (source == null) return deepClone(target.defaultValue);
 				if (!areTimelinePublicParameterTypesCompatible(target, source.definition)) throw new Error('Timeline public parameter reference type mismatch');
 				return deepClone(evaluatePublicParameter(source.layer, source.definition, context));
 			}

@@ -12,7 +12,7 @@
 			@beginChanging="valueMergeKey = genId()"
 			@changeContinuous="value => update(keyframe.id, { value }, valueMergeKey)"
 			@changeFinished="valueMergeKey = null"
-			@reset="update(keyframe.id, { value: definition.defaultValue.value })"
+			@reset="update(keyframe.id, { value: definition.defaultValue })"
 		/>
 		<GsSelect v-if="supportsKeyframeInterpolation(definition.dataType)" :modelValue="keyframe.interpolation.type" :items="interpolationItems" :data-test-inline-keyframe-interpolation="keyframe.id" @update:modelValue="type => updateInterpolation(keyframe.id, type)">
 			<template #label>{{ i18n.ts._TimelineKeyframe.InterpolationToNext }}</template>

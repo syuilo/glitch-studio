@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { createTimelineContainerLayer } from '@gs/subsystems_timeline_shared/container-layer.ts';
@@ -49,16 +50,16 @@ export function createTimelineLayerFromRecipe(state: ProjectState, recipe: Timel
 		case 'image': layer = createImageLayer('', 0); break;
 		case 'video': {
 			const image = createImageLayer('', 0, 'Video');
-			layer = { ...image, layerType: 'video', clips: [], audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) } };
+			layer = { ...image, layerType: 'video', clips: [], audioParamValues: { volume: createDefaultParameterBinding(timelineAudioParamDefs.volume) } };
 			break;
 		}
 		case 'audio': layer = {
 			id: genId(), name: 'Audio', layerType: 'audio', color: null, isDisabled: false, isSolo: false,
-			automationGraphs: [], audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) }, clips: [],
+			automationGraphs: [], audioParamValues: { volume: createDefaultParameterBinding(timelineAudioParamDefs.volume) }, clips: [],
 		}; break;
 		case 'scene': {
 			const image = createImageLayer('', 0, 'Scene');
-			layer = { ...image, layerType: 'scene', clips: [], audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) } };
+			layer = { ...image, layerType: 'scene', clips: [], audioParamValues: { volume: createDefaultParameterBinding(timelineAudioParamDefs.volume) } };
 			break;
 		}
 		default: throw new Error('Unknown timeline layer type');

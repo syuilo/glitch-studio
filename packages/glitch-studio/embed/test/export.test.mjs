@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { implementation } from './helpers/load.mjs';
-import { fixture, parameter, literal, shaderDefinition } from './helpers/fixture.mjs';
+import { fixture, parameter, shaderDefinition } from './helpers/fixture.mjs';
 
 const { preparePortableCustomNodeGraphEffect, encodePortableCustomNodeGraphEffect, createPortableCustomNodeGraphEffectFiles, createPortableCustomNodeGraphEffectArchive,
 	getPortableParameterDefinitions, validatePortableParameters, getPortableParameterDefaults, getPortableRenderResolution, fill, image, video } = implementation;
@@ -44,9 +44,9 @@ test('collects immutable resources and custom shaders without local paths or dev
 test('validates public values atomically while preserving HDR colors and nested containers', () => {
 	const scalar = parameter('scalar', 1, 'Speed');
 	const color = parameter('color', [0, 0, 0, 1], 'Color');
-	const array = { ...parameter('array', [], 'Points'), dataType: { kind: 'array', elementType: { kind: 'vector' } }, element: { defaultValue: literal([0, 0]) }, maxElements: 2,
+	const array = { ...parameter('array', [], 'Points'), dataType: { kind: 'array', elementType: { kind: 'vector' } }, element: { defaultValue: [0, 0] }, maxElements: 2,
 		ui: { label: 'Points', control: { element: {} } } };
-	array.defaultValue = literal([{ id: 'internal-id', binding: literal([0.1, 0.2]) }]);
+	array.defaultValue = [[0.1, 0.2]];
 	const defs = getPortableParameterDefinitions({ paramDefs: { speedId: scalar, colorId: color, arrayId: array } });
 	assert.deepEqual(getPortableParameterDefaults(defs).Points, [[0.1, 0.2]]);
 	const values = { Speed: 2, Color: [-1, 3, 0.25, 0.5], Points: [[0.2, -0.1]] };
@@ -113,8 +113,8 @@ test('rejects invalid output and cyclic graphs before encoding', () => {
 // 同じ長さの更新で配置を破棄するとFeedbackの履歴が失われる。入れ子の可変長配列についても判定する。
 test('reuses bound inputs until a used nested array changes length', () => {
 	const samples = { ...parameter('array', [], 'samples'), dataType: { kind: 'array', elementType: { kind: 'vector' } },
-		element: { defaultValue: literal([0, 0]), canNode: true }, ui: { label: 'Samples', control: { element: {} } } };
-	const field = { ...parameter('struct', { samples: literal([]) }, 'field'), dataType: { kind: 'struct', fields: { samples: samples.dataType } },
+		element: { defaultValue: [0, 0], canNode: true }, ui: { label: 'Samples', control: { element: {} } } };
+	const field = { ...parameter('struct', { samples: [] }, 'field'), dataType: { kind: 'struct', fields: { samples: samples.dataType } },
 		fields: { samples }, ui: { label: 'Field', control: { fields: { samples: samples.ui } } } };
 	const bound = implementation.createPortableEffectInputs({ settings: field, unused: { ...samples, nameForReference: 'unused' } },
 		{ field: { samples: [[1, 2]] }, unused: [] });

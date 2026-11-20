@@ -106,7 +106,7 @@ export function getPreviewParameterPosition(definition: ParameterDefinition, bin
 export function getPreviewParameterBaseValue(definition: ParameterDefinition, binding: EditableParameterBinding, time: number, endTime: number): any {
 	return binding.inputSource === 'literal' ? binding.value
 		: binding.inputSource === 'keyframesTimelineInline' && canEditKeyframesTimeline(definition, binding)
-			? evaluateKeyframesTimeline(binding.keyframesTimeline, binding, time, endTime, definition.defaultValue.value) : null;
+			? evaluateKeyframesTimeline(binding.keyframesTimeline, binding, time, endTime, definition.defaultValue) : null;
 }
 
 /** 保存先ごとのCommandを選ぶ。ドラッグ中も通常の編集と同じ変更通知・レンダラー同期を通す。 */

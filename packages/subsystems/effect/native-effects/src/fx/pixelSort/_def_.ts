@@ -14,7 +14,7 @@ export default defineNativeEffect({
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		thresholdMin: {
 			dataType: { kind: 'scalar' },
@@ -27,7 +27,7 @@ export default defineNativeEffect({
 					step: 0.001,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		thresholdMax: {
 			dataType: { kind: 'scalar' },
@@ -40,17 +40,17 @@ export default defineNativeEffect({
 					step: 0.001,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.5 },
+			defaultValue: 0.5,
 		},
 		direction: {
 			dataType: { kind: 'enum', options: ['horizontal', 'vertical'] },
 			ui: { label: 'Direction', control: { labels: { 'horizontal': 'Horizontal', 'vertical': 'Vertical' } } },
-			defaultValue: { inputSource: 'literal', value: 'horizontal' },
+			defaultValue: 'horizontal',
 		},
 		order: {
 			dataType: { kind: 'enum', options: ['descending', 'ascending'] },
 			ui: { label: 'Order', control: { labels: { 'descending': 'A > B', 'ascending': 'B > A' } } },
-			defaultValue: { inputSource: 'literal', value: 'descending' },
+			defaultValue: 'descending',
 		},
 	},
 	primaryInputParameter: 'input',

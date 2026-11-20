@@ -25,7 +25,7 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { ProjectRenderValidation, PreviewRenderEngine, inspectTimelineLayer, createTimelineCameraParameterValues, createTimelineTransformParameterValues, ref } = module.exports;
 const literal = value => ({ inputSource: 'literal', value });
-const scalar = { dataType: { kind: 'scalar' }, canNode: true, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: literal(0) };
+const scalar = { dataType: { kind: 'scalar' }, canNode: true, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: 0 };
 const definitions = { effect: { id: 'effect', paramDefs: { amount: scalar }, kind: 'modify', primaryOutput: 'image', outputDefs: { output: { dataType: { kind: 'scalar' } }, image: { dataType: { kind: 'color' } } }, primaryInputParameter: 'amount' } };
 const node = (id, amount = literal(0)) => ({ id, type: 'effect', effectSource: { type: 'nativeEffect', id: 'effect' }, resolution: { mode: 'context', scale: 1 }, params: { amount }, isBypass: false });
 const connection = id => ({ inputSource: 'node', source: { nodeId: id, outputPort: 'output' }, sampling: { fitMode: 'contain', wrapMode: 'clamp', filterMode: 'linear' } });
@@ -75,8 +75,8 @@ function nestedParameterDefinition() {
 	return {
 		dataType: { kind: 'array', elementType: { kind: 'struct', fields: { asset: { kind: 'audioSource' } } } },
 		ui: { label: 'Inputs', control: { element: { fields: { asset: { label: 'Asset', control: {} } } } } },
-		element: { fields: { asset: { defaultValue: literal(null), canNode: false } }, defaultValue: literal({ asset: literal(null) }) },
-		defaultValue: literal([]),
+		element: { fields: { asset: { defaultValue: null, canNode: false } }, defaultValue: { asset: null } },
+		defaultValue: [],
 	};
 }
 
@@ -268,7 +268,7 @@ test('revalidates inline arguments when the public parameter type changes', () =
 	assert.equal(validation.errorMessage.value, null);
 	const current = state.timelineScenes.value[0].layers[0].effectSource.customNodeGraphEffect;
 	const changes = [{ type: 'customNodeGraphEffect', target: { sceneId: 'scene', layerId: 'inline' } }];
-	current.paramDefs.amount = { ...parameter, dataType: { kind: 'audioSource' }, defaultValue: literal(null) };
+	current.paramDefs.amount = { ...parameter, dataType: { kind: 'audioSource' }, defaultValue: null };
 	validation.update(changes);
 	assertDiagnosticTarget(validation, 'scene:scene/layer:inline');
 	current.paramDefs.amount = parameter;
@@ -280,11 +280,11 @@ test('revalidates inline arguments when the public parameter type changes', () =
 // 公開定義だけを変更しても既存のレイヤー引数は残る。
 // レンダラーへ到達して実行時エラーになる前に、所有レイヤーで入力方式を拒否する。
 test('rejects retained inline audio arguments after changing their public type', () => {
-	const audio = { ...scalar, id: 'audio', nameForReference: 'audio', canNode: false, dataType: { kind: 'audioSource' }, defaultValue: literal(null) };
+	const audio = { ...scalar, id: 'audio', nameForReference: 'audio', canNode: false, dataType: { kind: 'audioSource' }, defaultValue: null };
 	const layer = { ...sceneLayer('inline', 'unused'), layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: { ...customNodeGraphEffect([]).definition, paramDefs: { audio } } }, effectParamValues: { audio: { inputSource: 'lowerLayerAudio' } } };
 	const { state, validation } = fixture([], [scene('scene', [layer])]);
 	assert.equal(validation.errorMessage.value, null);
-	state.timelineScenes.value[0].layers[0].effectSource.customNodeGraphEffect.paramDefs.audio = { ...audio, dataType: { kind: 'scalar' }, defaultValue: literal(0) };
+	state.timelineScenes.value[0].layers[0].effectSource.customNodeGraphEffect.paramDefs.audio = { ...audio, dataType: { kind: 'scalar' }, defaultValue: 0 };
 	validation.update([{ type: 'customNodeGraphEffect', target: { sceneId: 'scene', layerId: 'inline' } }]);
 	assertDiagnosticTarget(validation, 'scene:scene/layer:inline');
 });
@@ -484,7 +484,7 @@ test('detects ancestor and inactive image cycles across group boundaries', () =>
 // 公開入力にはサンプリング設定がなくても有効であることも同時に確認する。
 test('includes default public primary inputs in the image dependency graph', () => {
 	const visual = customNodeGraphEffect([], 'visual');
-	visual.definition.paramDefs = { image: { nameForReference: 'image', dataType: { kind: 'color' }, canNode: true, ui: { label: 'Image', control: {} }, defaultValue: literal([0, 0, 0, 0]) } };
+	visual.definition.paramDefs = { image: { nameForReference: 'image', dataType: { kind: 'color' }, canNode: true, ui: { label: 'Image', control: {} }, defaultValue: [0, 0, 0, 0] } };
 	visual.definition.primaryInputParameter = 'image';
 	const publicLayer = { ...imageEffectLayer('public'), layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'visual' }, effectParamValues: {} };
 	const source = imageEffectLayer('source', outputReference('public'));
@@ -500,7 +500,7 @@ test('includes default public primary inputs in the image dependency graph', () 
 // 下層から上層素材を読む有効な配線を使い、主入力指定による循環の導入と解消の両方を確認する。
 test('revalidates image cycles when an inline Custom Node Graph Effect primary input changes', () => {
 	const visual = customNodeGraphEffect([]);
-	visual.definition.paramDefs = { image: { nameForReference: 'image', dataType: { kind: 'color' }, canNode: true, ui: { label: 'Image', control: {} }, defaultValue: literal([0, 0, 0, 0]) } };
+	visual.definition.paramDefs = { image: { nameForReference: 'image', dataType: { kind: 'color' }, canNode: true, ui: { label: 'Image', control: {} }, defaultValue: [0, 0, 0, 0] } };
 	const inline = { ...imageEffectLayer('inline'), layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: visual.definition }, effectParamValues: {} };
 	const f = fixture([], [scene('scene', [inline, imageEffectLayer('lower', outputReference('inline'))])]);
 	const target = { sceneId: 'scene', layerId: 'inline' };
@@ -519,7 +519,7 @@ test('accepts image references in nested Effect arguments that support texture i
 	const visual = customNodeGraphEffect([], 'visual');
 	visual.definition.paramDefs = { settings: { nameForReference: 'settings', canNode: false,
 		dataType: { kind: 'struct', fields: { image: { kind: 'color' } } }, ui: { label: 'Settings', control: { fields: { image: { label: 'Image', control: {} } } } },
-		fields: { image: { canNode: true, defaultValue: literal([0, 0, 0, 0]) } }, defaultValue: literal({ image: literal([0, 0, 0, 0]) }) } };
+		fields: { image: { canNode: true, defaultValue: [0, 0, 0, 0] } }, defaultValue: { image: [0, 0, 0, 0] } } };
 	const layer = { ...imageEffectLayer('public'), layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'visual' }, effectParamValues: { settings: literal({ image: { ...outputReference(null) } }) } };
 	const f = fixture([visual], [scene('scene', [layer])]);
 	assert.equal(f.validation.errorMessage.value, null);

@@ -69,7 +69,7 @@ export async function run() {
 	function effect(definition: any, implementation: any, width: number, height: number) {
 		const resolution = { width, height };
 		const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false };
-		const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([key, parameter]: [string, any]) => [key, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : structuredClone(parameter.defaultValue.value)]));
+		const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([key, parameter]: [string, any]) => [key, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue) : structuredClone(parameter.defaultValue)]));
 		const outputs = Object.fromEntries(Object.keys(definition.outputDefs).map(port => {
 			const texture = implementation.createTexture(port, { wgpu, resolution });
 			resources.push(() => texture.destroy());

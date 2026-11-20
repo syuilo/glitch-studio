@@ -10,7 +10,7 @@ export class TimelineCameraParameters {
 	evaluate(camera: TimelineCamera | null | undefined, time: number, isExport: boolean, publicParameters?: TimelineLayerPublicParameterContext | null): EvaluatedTimelineCamera {
 		const scope = createTimelineLayerEvaluationScope({ time, isExport, publicParameters, automationGraphs: camera?.automationGraphs ?? [] });
 		const read = (key: keyof typeof timelineCameraParamDefs): unknown => {
-			const fallback = timelineCameraParamDefs[key].defaultValue.value;
+			const fallback = timelineCameraParamDefs[key].defaultValue;
 			const binding = camera?.paramValues[key];
 			return binding == null ? fallback : this.evaluator.evaluate(binding, scope, fallback, timelineCameraParamDefs[key]);
 		};

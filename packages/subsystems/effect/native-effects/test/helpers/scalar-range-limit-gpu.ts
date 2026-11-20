@@ -87,7 +87,7 @@ export async function run() {
 		assert(modes.join(',') === 'clamp,wrap,pingPong' && !definition.dependsOnRenderHistory, 'modes and history contract');
 		for (const parameter of ['input', 'min', 'max'] as const) assert(definition.paramDefs[parameter].canNode, `${parameter} accepts node inputs`);
 		for (const [parameter, expected] of [['input', 0], ['min', 0], ['max', 1], ['mode', 'clamp']] as const) {
-			assert(definition.paramDefs[parameter].defaultValue.value === expected, `${parameter} default value`);
+			assert(definition.paramDefs[parameter].defaultValue === expected, `${parameter} default value`);
 		}
 		checks.push('scalar ports defaults modes and resolution contract');
 

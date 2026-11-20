@@ -33,7 +33,7 @@ export async function run(includePreview = false) {
 		assert(actual.length === expected.length && differences === 0, `${label}: ${differences} differing channels, maximum ${maximum}`);
 	};
 	const different = (actual: Float32Array, expected: Float32Array, label: string) => assert(actual.some((value, index) => Math.abs(value - expected[index]) > 0.01), label);
-	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, parameter.defaultValue.value])) as unknown as Parameters;
+	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, parameter.defaultValue])) as unknown as Parameters;
 	const reader = device.createRenderPipeline({ layout: 'auto', vertex: { module: vertex }, fragment: {
 		module: device.createShaderModule({ code: `@group(0) @binding(0) var image: texture_2d<f32>;
 @fragment fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f { return textureLoad(image, vec2i(position.xy), 0); }` }),

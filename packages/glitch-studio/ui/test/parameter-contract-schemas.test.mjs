@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -53,16 +54,14 @@ test('preserves and validates default expansion in nested container controls', (
 });
 
 // 【配列・構造体の既定値とカスタムパラメータの制約を公開契約に反映する】
-// 配列要素のIDとBindingの形を資料から組み立てられるようにし、動的な入力方式は配置で指定する。
+// 配列の各要素と構造体の各フィールドを、対応する型の値として渡せるようにする。
 // 型付きの公開値と内部共有値の違いも資料から判別でき、サポート外の定義を入力時に拒否する必要がある。
 test('documents literal container defaults and custom parameter restrictions', () => {
 	const documentation = z.toJSONSchema(parameterDefinitionSchema, { io: 'input' });
 	const array = documentation.anyOf.find(branch => branch.properties?.dataType.properties.kind.const === 'array');
-	const value = array.properties.defaultValue.properties.value;
+	const value = array.properties.defaultValue;
 	assert.equal(value.type, 'array');
-	assert.deepEqual(value.items.required, ['id', 'binding']);
-	assert.equal(value.items.properties.id.type, 'string');
-	assert.equal(value.items.properties.binding.properties.inputSource.const, 'literal');
+	assert.match(value.items.description, /plain array elements/);
 	assert.ok(array.properties.element);
 	assert.ok(array.properties.ui.properties.control.properties.element);
 	const customDocumentation = z.toJSONSchema(customNodeGraphEffectCustomParameterInputSchema, { io: 'input' });
@@ -75,7 +74,7 @@ test('documents literal container defaults and custom parameter restrictions', (
 	const custom = {
 		nameForReference: 'amount', canNode: false, dataType: { kind: 'scalar' },
 		ui: { label: 'Amount', control: { controlType: 'range', min: 0, max: 1 } },
-		defaultValue: { inputSource: 'literal', value: 2.5 },
+		defaultValue: 2.5,
 	};
 	assert.equal(customNodeGraphEffectCustomParameterInputSchema.safeParse(custom).success, true);
 	assert.equal(customNodeGraphEffectCustomParameterInputSchema.safeParse({ ...custom, canNode: true }).success, false);
@@ -83,11 +82,11 @@ test('documents literal container defaults and custom parameter restrictions', (
 	assert.equal(customNodeGraphEffectCustomParameterInputSchema.safeParse({ ...arrayDefinition, nameForReference: 'items', canNode: false }).success, false);
 	const expression = { inputSource: 'expression', expression: 'TIME' };
 	const invalidArray = structuredClone(arrayDefinition);
-	invalidArray.defaultValue.value[0].binding = expression;
+	invalidArray.defaultValue[0] = expression;
 	assert.equal(parameterDefinitionSchema.safeParse(invalidArray).success, false);
 	const invalidStruct = structuredClone(effectDefinitions.doublePendulumFractal.paramDefs.view);
-	const field = Object.keys(invalidStruct.defaultValue.value)[0];
-	invalidStruct.defaultValue.value[field] = expression;
+	const field = Object.keys(invalidStruct.defaultValue)[0];
+	invalidStruct.defaultValue[field] = expression;
 	assert.equal(parameterDefinitionSchema.safeParse(invalidStruct).success, false);
 });
 
@@ -97,7 +96,7 @@ test('documents literal container defaults and custom parameter restrictions', (
 test('preserves persisted Custom Node Graph Effect bindings and nullable modifiers', () => {
 	const customNodeGraphEffect = createProjectCustomNodeGraphEffect(0).definition;
 	const definition = effectDefinitions.testStructArray;
-	const parameters = Object.fromEntries(Object.entries(definition.paramDefs).map(([key, parameter]) => [key, structuredClone(parameter.defaultValue)]));
+	const parameters = Object.fromEntries(Object.entries(definition.paramDefs).map(([key, parameter]) => [key, createDefaultParameterBinding(parameter)]));
 	parameters.buzzs.value[0].binding.value.image = { inputSource: 'node', source: { nodeId: 'removed-node', outputPort: 'removed-output' }, sampling: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' } };
 	parameters.buzzs.value[0].binding.value.x = { inputSource: 'literal', value: 4.5, expressionModifier: null };
 	customNodeGraphEffect.nodes.push({
@@ -110,7 +109,7 @@ test('preserves persisted Custom Node Graph Effect bindings and nullable modifie
 		params: { color: { inputSource: 'node', source: { nodeId: 'removed-node', outputPort: 'removed-output' }, sampling: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' } } },
 	});
 	customNodeGraphEffect.customParameterDefs['custom-color'] = { nameForReference: 'hdr', canNode: false, dataType: { kind: 'color' },
-		ui: { label: 'HDR', control: {} }, defaultValue: { inputSource: 'literal', value: [-1, 4.5, 0.5, 1] },
+		ui: { label: 'HDR', control: {} }, defaultValue: [-1, 4.5, 0.5, 1],
 	};
 	customNodeGraphEffect.customParameterValues['custom-color'] = {
 		inputSource: 'keyframesTimelineInline', expressionModifier: null, trimmedDurationMs: null, offsetMode: 'start', wrapMode: 'repeat',

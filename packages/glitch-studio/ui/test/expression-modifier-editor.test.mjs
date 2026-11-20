@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFile } from 'node:fs/promises';
@@ -67,7 +68,7 @@ function fixture(t, timeline = null) {
 	});
 	const root = element('root');
 	const props = reactive({ automationGraphs: [], availableVariables: [], paramPath: ['amount'],
-																										paramDef: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } },
+																										paramDef: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: 0 },
 																										paramValue: { inputSource: 'expression', expression: 'TIME', expressionModifier: { enabled: true, code: 'VALUE + 1' } },
 	});
 	const edits = [];
@@ -149,15 +150,15 @@ test('offers named parameter creation only for literal leaves with an owning sco
 		assert.equal(action('createCustomParameter'), undefined);
 	}
 	f.props.paramValue = { inputSource: 'literal', value: null };
-	f.props.paramDef = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: { inputSource: 'literal', value: null } };
+	f.props.paramDef = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null };
 	await nextTick();
 	assert.equal(action(), undefined);
 	assert.equal(action('createCustomParameter'), undefined);
 	for (const kind of ['array', 'struct']) {
 		f.props.paramDef = kind === 'array'
-			? { dataType: { kind, elementType: { kind: 'scalar' } }, element: { defaultValue: { inputSource: 'literal', value: 0 } }, ui: { label: 'Array', control: { element: { controlType: 'number' } } }, defaultValue: { inputSource: 'literal', value: [] } }
-			: { dataType: { kind, fields: {} }, fields: {}, ui: { label: 'Struct', control: { fields: {} } }, defaultValue: { inputSource: 'literal', value: {} } };
-		f.props.paramValue = f.props.paramDef.defaultValue;
+			? { dataType: { kind, elementType: { kind: 'scalar' } }, element: { defaultValue: 0 }, ui: { label: 'Array', control: { element: { controlType: 'number' } } }, defaultValue: [] }
+			: { dataType: { kind, fields: {} }, fields: {}, ui: { label: 'Struct', control: { fields: {} } }, defaultValue: {} };
+		f.props.paramValue = createDefaultParameterBinding(f.props.paramDef);
 		await nextTick();
 		assert.equal(action(), undefined);
 		assert.equal(action('createCustomParameter'), undefined);
@@ -186,7 +187,7 @@ test('offers timeline public parameter creation without offering it for public p
 // 【直接参照の候補を所有レイヤーIDと型で区別し、範囲外になった保存IDも維持する】
 // 同名定義の選択を明確にし、階層移動で参照先を別の同名候補へ自動変更してしまうのを防ぐ。
 test('selects typed timeline references and retains unresolved saved identities', async t => {
-	const scalar = id => ({ id, nameForReference: 'speed', dataType: { kind: 'scalar' }, ui: { label: 'Speed', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } });
+	const scalar = id => ({ id, nameForReference: 'speed', dataType: { kind: 'scalar' }, ui: { label: 'Speed', control: { controlType: 'number' } }, defaultValue: 0 });
 	const context = ref({ layer: { id: 'child', name: 'Child', publicParameterDefs: [scalar('local')] }, ancestors: [
 		{ id: 'root', name: 'Root', publicParameterDefs: [scalar('shared'), { ...scalar('color'), dataType: { kind: 'color' } }] },
 		{ id: 'parent', name: 'Parent', publicParameterDefs: [scalar('parent-speed')] },
@@ -207,7 +208,7 @@ test('selects typed timeline references and retains unresolved saved identities'
 // 【公開パラメータの値では自身を除外し、Custom Node Graph Effect内部へ参照方式を公開しない】
 // 共用エディタの利用でも各スコープの制約を保ち、UIから循環やドメイン越境する接続を作らせない。
 test('excludes own public parameter values and keeps timeline sources out of Custom Node Graph Effect nodes', async t => {
-	const scalar = { id: 'speed', nameForReference: 'speed', dataType: { kind: 'scalar' }, ui: { label: 'Speed', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } };
+	const scalar = { id: 'speed', nameForReference: 'speed', dataType: { kind: 'scalar' }, ui: { label: 'Speed', control: { controlType: 'number' } }, defaultValue: 0 };
 	const context = computed(() => ({ layer: { id: 'child', name: 'Child', publicParameterDefs: [scalar] }, ancestors: [{ id: 'root', name: 'Root', publicParameterDefs: [scalar] }] }));
 	const f = fixture(t, { context, isPublicParameterValue: true });
 	f.props.paramValue = { inputSource: 'timelineLayerPublicParameterReference', layerId: null, parameterId: null };

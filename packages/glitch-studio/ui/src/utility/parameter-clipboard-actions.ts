@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { preferences } from '@/preferences.ts';
 import { findCustomNodeGraphEffectOwner } from './custom-node-graph-effect-target.ts';
 import { getCustomNodeGraphEffectView } from './custom-node-graph-effect-view.ts';
@@ -99,7 +100,8 @@ export async function handlePreviewParameterClipboard(
 	const resolve = () => {
 		const definition = getCustomNodeGraphEffectView(entry, state).paramDefs.find(candidate => candidate.id === rootId);
 		if (definition == null) throw new Error('Preview parameter not found');
-		const draft = { [rootId]: deepClone(values()[rootId] ?? definition.defaultValue) };
+		const current = values()[rootId];
+		const draft = { [rootId]: current == null ? createDefaultParameterBinding(definition) : deepClone(current) };
 		return { draft, parameter: resolveParameter<ValueParameterBinding>({ [rootId]: definition }, draft, path) };
 	};
 

@@ -27,7 +27,7 @@ const bundle = await build({
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', resolveDir: directory,
 			contents: path.endsWith('preferences.ts') ? 'export const preferences = { s: { forceTypeSafety: false } };'
 				: /ui\.ts$/.test(path) ? 'export async function alert(options) { globalThis.customNodeGraphEffectAlerts.push(options); }'
-					: "import image from '@gs/subsystems_effect_native-effects/fx/image/_def_.ts'; export const nativeEffectDefinitions = { image, resources: { ...image, paramDefs: { audio: { dataType: {kind:'audioSource'}, defaultValue:{inputSource:'literal',value:null} }, amount: {dataType:{kind:'scalar'},defaultValue:{inputSource:'literal',value:0}}, input: {dataType:{kind:'color'},canNode:true,defaultValue:{inputSource:'literal',value:[0,0,0,0]}} } } };",
+					: "import image from '@gs/subsystems_effect_native-effects/fx/image/_def_.ts'; export const nativeEffectDefinitions = { image, resources: { ...image, paramDefs: { audio: { dataType: {kind:'audioSource'}, defaultValue:null }, amount: {dataType:{kind:'scalar'},defaultValue:0}, input: {dataType:{kind:'color'},canNode:true,defaultValue:[0,0,0,0]} } } };",
 		}));
 	} }],
 });
@@ -38,7 +38,7 @@ const { collectCustomNodeGraphEffectFile, encodeCustomNodeGraphEffectFile, decod
 
 const literal = value => ({ inputSource: 'literal', value });
 const parameter = (dataType, value = null) => ({ dataType: typeof dataType === 'string' ? { kind: dataType } : dataType,
-	ui: { label: typeof dataType === 'string' ? dataType : dataType.kind, control: {} }, defaultValue: literal(value) });
+	ui: { label: typeof dataType === 'string' ? dataType : dataType.kind, control: {} }, defaultValue: value });
 function asset(id, type = 'image/png') {
 	return { id, name: id, width: 12, height: 8, fileDataType: type, fileData: new Blob([new Uint8Array([1, 2, 3, 4])], { type }),
 		sourceFilePath: 'C:/private/' + id, hash: 'hash-' + id };
@@ -116,7 +116,7 @@ test('round trips referenced media and definition defaults without project paths
 	assert.deepEqual(file.players.map(item => item.id).sort(), ['file-player', 'microphone']);
 	assert.ok(file.assets.every(item => !('sourceFilePath' in item)));
 	f.input.nodeMetadata.effect.displayName = 'Edited after export';
-	f.customNodeGraphEffect.paramDefs.amount.defaultValue.value = null;
+	f.customNodeGraphEffect.paramDefs.amount.defaultValue = null;
 	const decoded = decodeCustomNodeGraphEffectFile(await encodeCustomNodeGraphEffectFile(file), f.input.gsVersion);
 	assert.deepEqual(decoded.customNodeGraphEffect, file.customNodeGraphEffect);
 	assert.deepEqual(decoded.players, file.players);
@@ -125,7 +125,7 @@ test('round trips referenced media and definition defaults without project paths
 		assert.deepEqual([...new Uint8Array(await item.fileData.arrayBuffer())], [1, 2, 3, 4]);
 	}
 	assert.equal(decoded.nodeMetadata.effect.displayName, 'Resource Node');
-	assert.equal(decoded.customNodeGraphEffect.paramDefs.amount.defaultValue.value, 1);
+	assert.equal(decoded.customNodeGraphEffect.paramDefs.amount.defaultValue, 1);
 });
 
 // 【取り込みごとに共有リソースのIDを変え、内部の配線と既定値を維持する】
@@ -156,7 +156,7 @@ test('remaps project resources while preserving local wiring and resetting devic
 	assert.deepEqual(params.audio.value, { type: 'player', playerId: first.players.find(player => player.name === 'Mic').id });
 	assert.equal(first.players.find(player => player.name === 'Mic').sourceType, null);
 	assert.deepEqual(first.unassignedPlayerNames, ['Mic']);
-	assert.equal(file.customNodeGraphEffect.paramDefs.amount.defaultValue.value, 1);
+	assert.equal(file.customNodeGraphEffect.paramDefs.amount.defaultValue, 1);
 });
 
 // 【未知の参照や動的な素材選択は状態変更の前に失敗する】
@@ -275,8 +275,8 @@ test('keeps newly created Custom Node Graph Effects independent and rejects dupl
 	const collectIds = customNodeGraphEffect => [customNodeGraphEffect.id, ...customNodeGraphEffect.definition.nodes.map(node => node.id), ...Object.keys(customNodeGraphEffect.definition.paramDefs), ...Object.keys(customNodeGraphEffect.definition.outputDefs)];
 	const ids = [...collectIds(first), ...collectIds(second)];
 	assert.equal(new Set(ids).size, ids.length);
-	first.definition.paramDefs[first.definition.primaryInputParameter].defaultValue.value[0] = 1;
-	assert.deepEqual(second.definition.paramDefs[second.definition.primaryInputParameter].defaultValue.value, [0, 0, 0, 0]);
+	first.definition.paramDefs[first.definition.primaryInputParameter].defaultValue[0] = 1;
+	assert.deepEqual(second.definition.paramDefs[second.definition.primaryInputParameter].defaultValue, [0, 0, 0, 0]);
 	assert.throws(() => manager.commit('importCustomNodeGraphEffect', { customNodeGraphEffect: first, assets: [], players: [] }), /already exists/);
 	assert.equal(manager.undoStack.value.length, 2);
 	assert.deepEqual(manager.state.customNodeGraphEffects.value, [first, second]);

@@ -14,7 +14,7 @@
 			:projectAutomationGraphs="projectSession.projectContext.stateManager.state.automationGraphs.value"
 			:paramPath="[key]"
 			:paramDef="def"
-			:paramValue="layer.cameraParamValues[key] ?? def.defaultValue"
+			:paramValue="layer.cameraParamValues[key] ?? createDefaultParameterBinding(def)"
 			@edit="emit('edit', $event)"
 		/>
 	</div>
@@ -28,6 +28,7 @@
 </template>
 
 <script lang="ts" setup>
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { useProjectSession } from '@/project-session.ts';
 import { timelineCameraParamDefs } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';

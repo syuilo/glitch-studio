@@ -18,7 +18,7 @@ export async function run() {
 	device.pushErrorScope('validation');
 	const checks: string[] = [];
 	const assert = (condition: boolean, message: string) => { if (!condition) throw new Error(message); };
-	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value])) as Parameters;
+	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue) : parameter.defaultValue])) as Parameters;
 	const owned: { destroy(): void }[] = [];
 	const effects: { dispose(): void }[] = [];
 	const vertex = device.createShaderModule({ code: vertexCode });

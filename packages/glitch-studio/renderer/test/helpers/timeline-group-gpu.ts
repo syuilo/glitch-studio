@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { createSolidTimelineImage } from './solid-timeline-image.ts';
 import { checkTimelineCompositor } from './timeline-compositor-gpu.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
@@ -24,7 +25,7 @@ export async function checkTimelineGroups(device: GPUDevice, vertex: GPUShaderMo
 		layerType: 'image',
 		mask: null,
 		coordinateSpace: 'screen',
-		compositingParamValues: Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) as TimelineGroupLayer['compositingParamValues'],
+		compositingParamValues: Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])) as TimelineGroupLayer['compositingParamValues'],
 		clips: [
 			{
 				id: 'red',

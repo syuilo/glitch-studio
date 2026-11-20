@@ -10,12 +10,12 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	tags: ['glitch', 'distortion', 'color', 'stylized', 'experimental'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		probability: {
 			dataType: { kind: 'scalar' },
@@ -28,7 +28,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.4 },
+			defaultValue: 0.4,
 		},
 		fineScale: {
 			dataType: { kind: 'scalar' },
@@ -41,7 +41,7 @@ export default defineNativeEffect({
 					step: 0.1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.5 },
+			defaultValue: 0.5,
 		},
 		coarseScale: {
 			dataType: { kind: 'scalar' },
@@ -54,7 +54,7 @@ export default defineNativeEffect({
 					step: 0.1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 8 },
+			defaultValue: 8,
 		},
 		blockShape: {
 			dataType: { kind: 'vector' },
@@ -67,9 +67,9 @@ export default defineNativeEffect({
 					step: 0.1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: [4, 1] },
+			defaultValue: [4, 1],
 		},
-		fineEnabled: { dataType: { kind: 'bool' }, ui: { label: 'Fine Detail Corruption', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		fineEnabled: { dataType: { kind: 'bool' }, ui: { label: 'Fine Detail Corruption', control: {} }, defaultValue: true },
 		fineAmount: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -81,7 +81,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		fineShift: {
 			dataType: { kind: 'vector' },
@@ -94,9 +94,9 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: [1, 0.15] },
+			defaultValue: [1, 0.15],
 		},
-		mediumEnabled: { dataType: { kind: 'bool' }, ui: { label: 'Medium Structure Corruption', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		mediumEnabled: { dataType: { kind: 'bool' }, ui: { label: 'Medium Structure Corruption', control: {} }, defaultValue: true },
 		mediumAmount: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -108,7 +108,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		mediumShift: {
 			dataType: { kind: 'vector' },
@@ -121,9 +121,9 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: [0.6, 0.2] },
+			defaultValue: [0.6, 0.2],
 		},
-		coarseEnabled: { dataType: { kind: 'bool' }, ui: { label: 'Coarse Shape Corruption', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		coarseEnabled: { dataType: { kind: 'bool' }, ui: { label: 'Coarse Shape Corruption', control: {} }, defaultValue: true },
 		coarseAmount: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -135,7 +135,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		coarseShift: {
 			dataType: { kind: 'vector' },
@@ -148,7 +148,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: [0.35, 0.15] },
+			defaultValue: [0.35, 0.15],
 		},
 		colorCorruption: {
 			dataType: { kind: 'scalar' },
@@ -161,9 +161,9 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.25 },
+			defaultValue: 0.25,
 		},
-		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: 0 },
 	},
 	primaryInputParameter: 'input',
 	resolutionInputParameters: ['input'],

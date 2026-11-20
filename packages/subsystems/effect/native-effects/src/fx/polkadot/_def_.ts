@@ -14,7 +14,7 @@ export default defineNativeEffect({
 			dataType: { kind: 'color' },
 			ui: { label: 'Background', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		frequency: {
 			dataType: { kind: 'vector' },
@@ -28,7 +28,7 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [3, 3] },
+			defaultValue: [3, 3],
 		},
 		// Phaseは画面上の距離ではなく、回転後のパターンの1周期を単位にする。
 		phase: {
@@ -43,13 +43,13 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0] },
+			defaultValue: [0, 0],
 		},
 		angle: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Angle', control: { controlType: 'angle' } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		majorRadius: {
 			dataType: { kind: 'scalar' },
@@ -62,9 +62,9 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.1 },
+			defaultValue: 0.1,
 		},
-		majorColor: { dataType: { kind: 'color' }, ui: { label: 'Major Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 0.75] } },
+		majorColor: { dataType: { kind: 'color' }, ui: { label: 'Major Color', control: {} }, defaultValue: [1, 1, 1, 0.75] },
 		minorDivisions: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -76,7 +76,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 4 },
+			defaultValue: 4,
 		},
 		minorRadius: {
 			dataType: { kind: 'scalar' },
@@ -89,10 +89,10 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.25 },
+			defaultValue: 0.25,
 		},
-		minorColor: { dataType: { kind: 'color' }, ui: { label: 'Minor Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 0.5] } },
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		minorColor: { dataType: { kind: 'color' }, ui: { label: 'Minor Color', control: {} }, defaultValue: [1, 1, 1, 0.5] },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 	},
 	primaryInputParameter: 'background',
 	resolutionInputParameters: ['background'],

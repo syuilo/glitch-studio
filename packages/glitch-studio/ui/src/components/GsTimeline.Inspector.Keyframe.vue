@@ -18,7 +18,7 @@
 				@beginChanging="keyframeValueMergeKey = genId()"
 				@changeContinuous="value => updateKeyframeValue(value, keyframeValueMergeKey)"
 				@changeFinished="keyframeValueMergeKey = null"
-				@reset="updateKeyframeValue(selectedKeyframe.def.defaultValue.value)"
+				@reset="updateKeyframeValue(selectedKeyframe.def.defaultValue)"
 			/>
 			<template v-for="editor in keyframeInterpolationEditors" :key="editor.keyframe.id">
 				<GsSelect :data-test-keyframe-interpolation="editor.keyframe.id" :modelValue="editor.keyframe.interpolation.type" :items="keyframeInterpolationItems" @update:modelValue="type => updateKeyframeInterpolationType(editor.keyframe.id, type)">

@@ -70,7 +70,7 @@ export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderM
 				const inputs: { name: string; uniform: any; texture: any }[] = [];
 				for (const [name, param] of Object.entries(definition.paramDefs) as [string, any][]) {
 					if (!param.canNode) {
-						params[name] = param.defaultValue.inputSource === 'literal' ? param.defaultValue.value : 0;
+						params[name] = param.defaultValue;
 						continue;
 					}
 					const value = param.dataType.kind === 'color' ? [0.5, 0.25, 0.125, 0.5] : param.dataType.kind === 'vector' ? [0.5, 0.25] : param.dataType.kind === 'any' ? null : name.endsWith('Min') ? 0 : name.endsWith('Max') ? 1 : 0.25;

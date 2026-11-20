@@ -42,12 +42,10 @@ export function validateCustomShaderEffectDefinition(definition: CustomShaderEff
 	validateNames(definition.outputDefs, 'duplicateOutput');
 	for (const parameter of Object.values(definition.paramDefs)) {
 		const kind = parameter.dataType.kind;
-		const defaultValue = parameter.defaultValue;
-		if (!['scalar', 'vector', 'color', 'any'].includes(kind) || parameter.canNode !== true
-			|| defaultValue == null || defaultValue.inputSource !== 'literal' || !('value' in defaultValue) || defaultValue.expressionModifier != null) {
+		if (!['scalar', 'vector', 'color', 'any'].includes(kind) || parameter.canNode !== true) {
 			throw new CustomShaderEffectDefinitionError('invalidParameter', parameter.nameForReference);
 		}
-		const value = defaultValue.value;
+		const value = parameter.defaultValue;
 		const isValidValue = kind === 'scalar' ? typeof value === 'number' && Number.isFinite(value)
 			: kind === 'any' && value === null ? true
 			: Array.isArray(value) && value.length === (kind === 'vector' ? 2 : 4) && value.every(component => typeof component === 'number' && Number.isFinite(component));

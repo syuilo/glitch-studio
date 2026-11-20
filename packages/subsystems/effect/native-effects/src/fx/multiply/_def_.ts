@@ -14,7 +14,7 @@ export default defineNativeEffect({
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Input', control: { controlType: 'number' } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		v: {
 			dataType: { kind: 'scalar' },
@@ -27,7 +27,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 2 },
+			defaultValue: 2,
 		},
 	},
 	primaryInputParameter: 'input',

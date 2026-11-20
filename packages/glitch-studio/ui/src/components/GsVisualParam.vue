@@ -231,6 +231,7 @@
 </template>
 
 <script lang="ts">
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import GsTextarea from './common/GsTextarea.vue';
 import GsNodePort from './GsNodePort.vue';
@@ -368,7 +369,7 @@ function updateTimelinePublicParameterReference(key: string | null) {
 const rowEl = useTemplateRef('rowEl');
 const portEl = shallowRef<HTMLElement | null>(null);
 const collapsedPortEl = shallowRef<HTMLElement | null>(null);
-const defaultBinding = computed(() => props.defaultBinding ?? props.paramDef.defaultValue);
+const defaultBinding = computed(() => props.defaultBinding ?? createDefaultParameterBinding(props.paramDef));
 const isVisible = computed(() => isParameterVisible(props.paramDef, props.paramValue, defaultBinding.value, preferences.r.showAdvancedParameters.value));
 const arrayDefaultValues = computed<ParameterArrayElement<EditableParameterBinding>[] | null>(() => props.paramDef.dataType.kind === 'array' && defaultBinding.value.inputSource === 'literal' ? defaultBinding.value.value : null);
 const structDefaultValues = computed<Record<string, EditableParameterBinding> | null>(() => props.paramDef.dataType.kind === 'struct' && defaultBinding.value.inputSource === 'literal' ? defaultBinding.value.value : null);

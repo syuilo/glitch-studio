@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
@@ -20,15 +21,15 @@ export function createImageLayer(assetId: string, startMs: number, name = 'Image
 		isIncludedInComposite: true,
 		coordinateSpace: 'screen',
 		compositingParamValues: deepClone({
-			depth: timelineCompositingParamDefs.depth.defaultValue,
-			clipToFrame: timelineCompositingParamDefs.clipToFrame.defaultValue,
-			fitMode: timelineCompositingParamDefs.fitMode.defaultValue,
-			blendMode: timelineCompositingParamDefs.blendMode.defaultValue,
-			opacity: timelineCompositingParamDefs.opacity.defaultValue,
-			position: timelineCompositingParamDefs.position.defaultValue,
-			origin: timelineCompositingParamDefs.origin.defaultValue,
-			scale: timelineCompositingParamDefs.scale.defaultValue,
-			rotation: timelineCompositingParamDefs.rotation.defaultValue,
+			depth: createDefaultParameterBinding(timelineCompositingParamDefs.depth),
+			clipToFrame: createDefaultParameterBinding(timelineCompositingParamDefs.clipToFrame),
+			fitMode: createDefaultParameterBinding(timelineCompositingParamDefs.fitMode),
+			blendMode: createDefaultParameterBinding(timelineCompositingParamDefs.blendMode),
+			opacity: createDefaultParameterBinding(timelineCompositingParamDefs.opacity),
+			position: createDefaultParameterBinding(timelineCompositingParamDefs.position),
+			origin: createDefaultParameterBinding(timelineCompositingParamDefs.origin),
+			scale: createDefaultParameterBinding(timelineCompositingParamDefs.scale),
+			rotation: createDefaultParameterBinding(timelineCompositingParamDefs.rotation),
 		}),
 	};
 }

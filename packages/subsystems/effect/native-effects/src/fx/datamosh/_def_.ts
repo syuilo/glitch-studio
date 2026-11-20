@@ -10,23 +10,23 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: true,
 	tags: ['glitch', 'temporal', 'distortion'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		motionSource: {
 			dataType: { kind: 'enum', options: ['input', 'separate'] },
 			ui: { label: 'Motion Source', control: { labels: { input: 'Input', separate: 'Separate Motion Input' } } },
-			defaultValue: { inputSource: 'literal', value: 'input' },
+			defaultValue: 'input',
 		},
 		motionInput: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Motion Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		blockSize: {
 			dataType: { kind: 'scalar' },
@@ -39,12 +39,12 @@ export default defineNativeEffect({
 					step: 0.1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 4 },
+			defaultValue: 4,
 		},
 		blockOrigin: {
 			dataType: { kind: 'enum', options: ['topLeft', 'center'] },
 			ui: { label: 'Block Origin', control: { labels: { topLeft: 'Top Left', center: 'Image Center' } } },
-			defaultValue: { inputSource: 'literal', value: 'center' },
+			defaultValue: 'center',
 		},
 		searchRange: {
 			dataType: { kind: 'scalar' },
@@ -57,7 +57,7 @@ export default defineNativeEffect({
 					step: 0.1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 8 },
+			defaultValue: 8,
 		},
 		motionStrength: {
 			dataType: { kind: 'scalar' },
@@ -70,7 +70,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		motionThreshold: {
 			dataType: { kind: 'scalar' },
@@ -83,7 +83,7 @@ export default defineNativeEffect({
 					step: 0.001,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.001 },
+			defaultValue: 0.001,
 		},
 		matchThreshold: {
 			dataType: { kind: 'scalar' },
@@ -96,7 +96,7 @@ export default defineNativeEffect({
 					step: 0.001,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.15 },
+			defaultValue: 0.15,
 		},
 		motionSmoothing: {
 			dataType: { kind: 'scalar' },
@@ -109,9 +109,9 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
-		blockyMotion: { dataType: { kind: 'bool' }, ui: { label: 'Blocky Motion', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		blockyMotion: { dataType: { kind: 'bool' }, ui: { label: 'Blocky Motion', control: {} }, defaultValue: true },
 		recoveryRate: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -123,7 +123,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.15 },
+			defaultValue: 0.15,
 		},
 		recoveryMask: {
 			dataType: { kind: 'scalar' },
@@ -137,7 +137,7 @@ export default defineNativeEffect({
 				},
 			},
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		blockRefreshRate: {
 			dataType: { kind: 'scalar' },
@@ -150,7 +150,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.1 },
+			defaultValue: 0.1,
 		},
 		resetInterval: {
 			dataType: { kind: 'scalar' },
@@ -163,11 +163,11 @@ export default defineNativeEffect({
 					step: 0.1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
-		reset: { dataType: { kind: 'bool' }, ui: { label: 'Reset', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
-		historyWrap: { dataType: { kind: 'wrapMode' }, ui: { label: 'History Wrap Mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'clamp' } },
-		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		reset: { dataType: { kind: 'bool' }, ui: { label: 'Reset', control: {} }, defaultValue: false },
+		historyWrap: { dataType: { kind: 'wrapMode' }, ui: { label: 'History Wrap Mode', control: {} }, defaultValue: 'clamp' },
+		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: 0 },
 	},
 	primaryInputParameter: 'input',
 	resolutionInputParameters: ['input'],

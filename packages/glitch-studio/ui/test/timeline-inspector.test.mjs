@@ -936,7 +936,7 @@ test('creates and connects a layer public parameter through the Inspector in one
 	const before = JSON.parse(JSON.stringify(f.scene.layers));
 	f.control('GsVisualParam', 'layer-volume').props.onEdit({ kind: 'createPublicParameter', paramPath: ['volume'] });
 	const layer = f.scene.layers[1];
-	assert.deepEqual(layer.publicParameterDefs[0].defaultValue, { inputSource: 'literal', value: 0.5 });
+	assert.deepEqual(layer.publicParameterDefs[0].defaultValue, 0.5);
 	assert.deepEqual(layer.audioParamValues.volume, { inputSource: 'timelineLayerPublicParameterReference', layerId: 'b', parameterId: layer.publicParameterDefs[0].id });
 	assert.equal(f.scene.layers[0].publicParameterDefs, undefined);
 	assert.equal(f.history.undoStack.value.length, 1);
@@ -1000,7 +1000,7 @@ test('exposes public primary image bindings and routes their edits through histo
 	const f = await fixture(t);
 	const layer = createInlineCustomNodeGraphEffectLayer(0);
 	layer.effectSource.customNodeGraphEffect.paramDefs = { image: { nameForReference: 'image', dataType: { kind: 'color' }, canNode: true,
-		ui: { label: 'Image', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } } };
+		ui: { label: 'Image', control: {} }, defaultValue: [0, 0, 0, 0] } };
 	layer.effectSource.customNodeGraphEffect.primaryInputParameter = 'image';
 	const source = { id: 'source', name: 'Source', layerType: 'group', layers: [], isDisabled: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: {} };
 	f.scene.layers.push(layer, source);

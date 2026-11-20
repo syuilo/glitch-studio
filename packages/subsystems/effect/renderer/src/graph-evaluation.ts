@@ -55,11 +55,11 @@ export function createGraphEvaluation(graph: Pick<CustomNodeGraphEffect, 'paramD
 			const selected = values?.[id];
 			if (customReaders.has(id) && deepEqual(previousCustomParameterValues?.[id], selected)) continue;
 			changed = true;
-			const binding = selected == null || isUnselectedGraphParameterReference(selected) ? def.defaultValue : selected;
-			if (binding.inputSource === 'customNodeGraphEffectPublicParameterReference') customReaders.set(id, frame => readPublic(binding.parameterId, frame));
-			else if (binding.inputSource === 'customNodeGraphEffectCustomParameterValueReference') customReaders.set(id, frame => readCustom(binding.parameterId, frame));
+			if (selected == null || isUnselectedGraphParameterReference(selected)) customReaders.set(id, () => def.defaultValue);
+			else if (selected.inputSource === 'customNodeGraphEffectPublicParameterReference') customReaders.set(id, frame => readPublic(selected.parameterId, frame));
+			else if (selected.inputSource === 'customNodeGraphEffectCustomParameterValueReference') customReaders.set(id, frame => readCustom(selected.parameterId, frame));
 			else {
-				const read = evaluator.bind(binding, def.defaultValue.value, def, graph.automationGraphs ?? []);
+				const read = evaluator.bind(selected, def.defaultValue, def, graph.automationGraphs ?? []);
 				customReaders.set(id, frame => {
 					if (customScopeFrame !== frame) {
 						customScope = scope(frame);

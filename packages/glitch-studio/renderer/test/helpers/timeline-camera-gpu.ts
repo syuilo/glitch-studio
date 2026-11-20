@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { createSolidTimelineImage } from './solid-timeline-image.ts';
 import { createTransformTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/transform/transform-timeline-layer.ts';
 import { createTimelineTransformParameterValues } from '@gs/subsystems_timeline_shared/layers/transform/transform.ts';
@@ -38,7 +39,7 @@ export async function run() {
 	const output = createSceneOutput(options);
 	const cameraParameters = new TimelineSceneCamera();
 	const literal = (value: any) => ({ inputSource: 'literal' as const, value });
-	const composite = (values = {}) => ({ ...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])), ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, literal(value)])) } as TimelineGroupLayer['compositingParamValues']);
+	const composite = (values = {}) => ({ ...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])), ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, literal(value)])) } as TimelineGroupLayer['compositingParamValues']);
 	const base = {
 		isDisabled: false,
 		forceDisableMotionBlur: false,

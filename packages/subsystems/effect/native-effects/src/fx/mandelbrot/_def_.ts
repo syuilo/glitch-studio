@@ -23,12 +23,12 @@ export default defineNativeEffect({
 				real: { label: 'Real', control: {} }, imaginary: { label: 'Imaginary', control: {} },
 			} } },
 			fields: {
-				real: { defaultValue: { inputSource: 'literal', value: '-0.5' } },
-				imaginary: { defaultValue: { inputSource: 'literal', value: '0' } },
+				real: { defaultValue: '-0.5' },
+				imaginary: { defaultValue: '0' },
 			},
-			defaultValue: { inputSource: 'literal', value: {
-				real: { inputSource: 'literal', value: '-0.5' }, imaginary: { inputSource: 'literal', value: '0' },
-			} },
+			defaultValue: {
+				real: '-0.5', imaginary: '0',
+			},
 		},
 		view: {
 			dataType: { kind: 'struct', fields: {
@@ -46,26 +46,26 @@ export default defineNativeEffect({
 				},
 			} },
 			fields: {
-				center: { defaultValue: { inputSource: 'literal', value: [0, 0] } },
-				zoom: { defaultValue: { inputSource: 'literal', value: 1 } },
-				rotation: { defaultValue: { inputSource: 'literal', value: 0 } },
+				center: { defaultValue: [0, 0] },
+				zoom: { defaultValue: 1 },
+				rotation: { defaultValue: 0 },
 			},
-			defaultValue: { inputSource: 'literal', value: {
-				center: { inputSource: 'literal', value: [0, 0] },
-				zoom: { inputSource: 'literal', value: 1 },
-				rotation: { inputSource: 'literal', value: 0 },
-			} },
+			defaultValue: {
+				center: [0, 0],
+				zoom: 1,
+				rotation: 0,
+			},
 		},
 		coordinateOffset: {
 			dataType: { kind: 'vector' },
 			ui: { label: 'Coordinate Offset', control: { controlType: 'vector', min: -0.5, max: 0.5, step: 0.01 } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0] },
+			defaultValue: [0, 0],
 		},
 		maximumIterations: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Maximum Iterations', control: { controlType: 'range', min: 1, max: MANDELBROT_MAXIMUM_ITERATIONS, step: 1 } },
-			defaultValue: { inputSource: 'literal', value: 512 },
+			defaultValue: 512,
 		},
 		coloringMethod: {
 			dataType: { kind: 'enum', options: ['escapeIterations', 'smoothEscapeIterations', 'triangleInequalityAverage'] },
@@ -79,12 +79,12 @@ export default defineNativeEffect({
 					},
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 'smoothEscapeIterations' },
+			defaultValue: 'smoothEscapeIterations',
 		},
 		ramp: {
 			dataType: { kind: 'colorRamp' },
 			ui: { label: 'Color Ramp', control: {} },
-			defaultValue: { inputSource: 'literal', value: {
+			defaultValue: {
 				interpolation: 'linear', colorSpace: 'srgb', repeatCount: 1, repeatMode: 'wrap', stops: [
 					{ id: 'start', position: 0, color: srgbToLinearSrgb([0.025, 0.04, 0.14, 1]) },
 					{ id: 'blue', position: 0.25, color: srgbToLinearSrgb([0.05, 0.3, 0.85, 1]) },
@@ -92,40 +92,40 @@ export default defineNativeEffect({
 					{ id: 'orange', position: 0.75, color: srgbToLinearSrgb([1, 0.3, 0.04, 1]) },
 					{ id: 'end', position: 1, color: srgbToLinearSrgb([0.025, 0.04, 0.14, 1]) },
 				],
-			} },
+			},
 		},
 		iterationColorPeriod: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Iteration Color Period', control: { controlType: 'range', min: 1, max: 256, logarithmic: true } },
-			defaultValue: { inputSource: 'literal', value: 32 },
+			defaultValue: 32,
 		},
 		triangleColorDensity: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'TIA Color Density', control: { controlType: 'range', min: 0.1, max: 100, logarithmic: true } },
-			defaultValue: { inputSource: 'literal', value: 10 },
+			defaultValue: 10,
 		},
 		colorPhase: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Color Phase', control: { controlType: 'range', min: 0, max: 1, step: 0.001 } },
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		unescapedColor: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Unescaped Color', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] },
+			defaultValue: [0, 0, 0, 1],
 		},
 		bailoutRadius: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Bailout Radius', control: { controlType: 'range', min: 2, max: 1e12, logarithmic: true } },
 			// 参考実装の「二乗ノルムの閾値1e20」に相当する半径。
 			// 全彩色モードで同じ値を使い、反復回数・未発散判定の意味を切り替えない。
-			defaultValue: { inputSource: 'literal', value: 1e10 },
+			defaultValue: 1e10,
 		},
 		antialiasing: {
 			dataType: { kind: 'bool' },
 			ui: { label: 'Antialiasing', control: {} },
-			defaultValue: { inputSource: 'literal', value: false },
+			defaultValue: false,
 		},
 	},
 	primaryInputParameter: null,

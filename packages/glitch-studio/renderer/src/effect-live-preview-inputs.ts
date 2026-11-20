@@ -3,6 +3,7 @@ import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.
 import { getArrayElementDefinition, getStructFieldDefinitions, validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { constantShaderInputComponents } from '@gs/shared/gpu/shader-input.ts';
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { EffectParameterInput } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
@@ -42,15 +43,15 @@ export function createEffectLivePreviewInputs(definition: EffectDefinition, init
 			return { kind: 'struct', fields: Object.fromEntries(Object.entries(getStructFieldDefinitions(def)).map(([id, field]) =>
 				[id, bind(field, () => (read() as typeof source).value[id])])) };
 		}
-		let evaluate = evaluator.bind(source, def.defaultValue.value, def, automationGraphs);
-		refresh.push(() => { evaluate = evaluator.bind(read(), def.defaultValue.value, def, automationGraphs); });
+		let evaluate = evaluator.bind(source, def.defaultValue, def, automationGraphs);
+		refresh.push(() => { evaluate = evaluator.bind(read(), def.defaultValue, def, automationGraphs); });
 		const readValue = (scope: ParameterEvaluationScope) => coerceParameterValue(def, validateEnumParameterValue(def, evaluate(scope)));
 		if (def.canNode === true) {
-			let value = constantShaderInputComponents(def.dataType.kind, def.defaultValue.value);
+			let value = constantShaderInputComponents(def.dataType.kind, def.defaultValue);
 			update.push(scope => { value = constantShaderInputComponents(def.dataType.kind, readValue(scope)); });
 			return { kind: 'uniform', get value() { return value; } };
 		}
-		let value: unknown = def.defaultValue.value;
+		let value: unknown = def.defaultValue;
 		update.push(def.dataType.kind === 'audioSource' ? scope => { value = resolveAudio(readValue(scope)); } : scope => { value = readValue(scope); });
 		return { kind: 'value', get value() { return value; } };
 	}
@@ -58,7 +59,8 @@ export function createEffectLivePreviewInputs(definition: EffectDefinition, init
 	// 計画が読むパラメータだけを評価対象にする。未使用の音声入力はPCMのコピーを起動しない。
 	for (const [id, def] of Object.entries(definition.paramDefs)) {
 		let bound: EffectParameterInput | null = null;
-		Object.defineProperty(inputs, id, { enumerable: true, get: () => bound ??= bind(def, () => parameters[id] ?? def.defaultValue) });
+		let defaultBinding: ReturnType<typeof createDefaultParameterBinding> | null = null;
+		Object.defineProperty(inputs, id, { enumerable: true, get: () => bound ??= bind(def, () => parameters[id] ?? (defaultBinding ??= createDefaultParameterBinding(def))) });
 	}
 	return {
 		inputs,

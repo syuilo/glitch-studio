@@ -10,7 +10,7 @@ import type { EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts
 import { acquireTransparentTimelineImage, type TimelineImage } from '../../src/timeline-image.ts';
 
 const literal = <T>(value: T) => ({ inputSource: 'literal' as const, value });
-const color = { dataType: { kind: 'color' }, canNode: true, ui: { label: 'Color', control: {} }, defaultValue: literal([0, 0, 0, 0] as [number, number, number, number]) } as const;
+const color = { dataType: { kind: 'color' }, canNode: true, ui: { label: 'Color', control: {} }, defaultValue: [0, 0, 0, 0] as [number, number, number, number] } as const;
 const output = { dataType: { kind: 'color' }, nameForReference: 'image' } as const;
 const common = { kind: 'generate', primaryInputParameter: null, primaryOutput: 'out', resolutionInputParameters: [], outputDefs: { out: output } } as const;
 const shader: CustomShaderEffect = {

@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { testGraph } from './helpers/effect-graph.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -34,10 +35,11 @@ new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(create
 const { createParameterClipboard, parseParameterClipboard, prepareParameterBindingPaste, prepareProjectParameterPaste, resolveProjectClipboardTarget,
 	handleProjectParameterClipboard, handlePreviewParameterClipboard, createCustomNodeGraphEffectClipboardSource, clipboardText,
 	COMMAND_DEFS, UndoRedo, definition, createShapeTimelineLayer, createInlineKeyframesTimeline } = compiled.exports;
+const defaultBuzzId = createDefaultParameterBinding(definition.paramDefs.buzzs).value[0].id;
 const clone = value => structuredClone(value);
 
 function fixture(projectSessionId = 'session') {
-	const makeNode = id => ({ id, type: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, clone(def.defaultValue)])) });
+	const makeNode = id => ({ id, type: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])) });
 	const node = makeNode('destination');
 	const upstream = makeNode('upstream');
 	const customNodeGraphEffect = { id: 'customNodeGraphEffect', definition: testGraph({ customParameterValues: {}, nodes: [node, upstream], automationGraphs: [] }) };
@@ -62,7 +64,7 @@ const sampling = { fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nea
 const connected = { inputSource: 'node', nodeId: 'upstream', outputPort: 'output', ...sampling };
 const storedConnection = { inputSource: 'node', source: { nodeId: 'upstream', outputPort: 'output' }, sampling };
 const playback = { trimmedDurationMs: null, offsetMode: 'start', wrapMode: 'clamp' };
-const scalarDefinition = { dataType: { kind: 'scalar' }, ui: { label: 'Scalar', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } };
+const scalarDefinition = { dataType: { kind: 'scalar' }, ui: { label: 'Scalar', control: { controlType: 'number' } }, defaultValue: 0 };
 
 // 【保存ファイル内のIDが一致する別セッションへノード参照を貼り付けない】
 // 同じプロジェクトのコピーを同時に開くと、プロジェクト・Custom Node Graph Effect・ノードのIDが
@@ -113,7 +115,7 @@ test('preserves references in the same session across Save As during a pending p
 test('scopes live preview player references to their source session', async () => {
 	const from = fixture('source-session');
 	const to = fixture('destination-session');
-	const definition = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: { inputSource: 'literal', value: null } };
+	const definition = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null };
 	const binding = { inputSource: 'literal', value: { type: 'player', playerId: 'player' } };
 	for (const f of [from, to]) {
 		f.customNodeGraphEffect.definition.paramDefs = { arg: { ...definition, nameForReference: 'arg' } };
@@ -265,7 +267,7 @@ test('validates timeline references, relative sampling and absolute keyframe tim
 	}
 	const relative = f.copy({ inputSource: 'lowerLayerOutput', ...sampling }, f.timelineTarget);
 	assert.ok(prepareProjectParameterPaste(f.state, 'other', f.timelineTarget, relative));
-	const scalarTarget = { ...f.timelineTarget, paramPath: ['buzzs', 'first', 'x'] };
+	const scalarTarget = { ...f.timelineTarget, paramPath: ['buzzs', defaultBuzzId, 'x'] };
 	const keys = createInlineKeyframesTimeline(scalarDefinition);
 	keys.keyframesTimeline.keyframes[0].x = 100;
 	assert.ok(prepareProjectParameterPaste(f.state, f.projectSessionId, scalarTarget, f.copy(keys, scalarTarget)));
@@ -310,7 +312,7 @@ test('validates public parameter references against their destination types and 
 // 音声は同じaudioSource型でもCustom Node Graph EffectとTimelineで取得元の契約が異なる。
 test('validates player and timeline audio inputs without transferring project resources', () => {
 	const f = fixture();
-	const definition = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: { inputSource: 'literal', value: null } };
+	const definition = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null };
 	const nodeContext = f.resolve().context;
 	f.state.players.value.push({ id: 'player' });
 	const player = createParameterClipboard(definition, { inputSource: 'literal', value: { type: 'player', playerId: 'player' } }, nodeContext.source);
@@ -355,7 +357,7 @@ test('replaces modifiers and restores absent roots and stable IDs through undo a
 	assert.equal(f.node.params.foo.value.node.expressionModifier.code, 'VALUE * 9');
 	f.history.redo();
 	assert.deepEqual(f.node.params.foo.value.node, clipboard.binding);
-	const target = { ...f.timelineTarget, paramPath: ['buzzs', 'first', 'y'] };
+	const target = { ...f.timelineTarget, paramPath: ['buzzs', defaultBuzzId, 'y'] };
 	const keys = createInlineKeyframesTimeline(scalarDefinition);
 	const keyClipboard = f.copy(keys, target);
 	await handleProjectParameterClipboard(f.context, f.projectSessionId, target, 'paste', () => true, { async readText() { return JSON.stringify(keyClipboard); } });

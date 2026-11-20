@@ -13,39 +13,36 @@ export default defineNativeEffect({
 		inputs: {
 			dataType: { kind: 'array', elementType: { kind: 'color' } },
 			ui: { label: 'Inputs', control: { element: {} } },
-			defaultValue: {
-				inputSource: 'literal',
-				value: [
-					{ id: 'first', binding: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-					{ id: 'second', binding: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-				],
-			},
-			element: { canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+			defaultValue: [
+				[0, 0, 0, 0],
+				[0, 0, 0, 0],
+			],
+			element: { canNode: true, defaultValue: [0, 0, 0, 0] },
 		},
 		center: {
 			dataType: { kind: 'vector' },
 			ui: { label: 'Center', control: { controlType: 'xy', min: -0.5, max: 0.5, step: 0.01 } },
-			defaultValue: { inputSource: 'literal', value: [0, 0] },
+			defaultValue: [0, 0],
 		},
 		startAngle: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Start Angle', control: { controlType: 'angle' } },
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		direction: {
 			dataType: { kind: 'enum', options: ['clockwise', 'counterclockwise'] },
 			ui: { label: 'Direction', control: { labels: { clockwise: 'Clockwise', counterclockwise: 'Counterclockwise' } } },
-			defaultValue: { inputSource: 'literal', value: 'clockwise' },
+			defaultValue: 'clockwise',
 		},
 		gap: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Gap', control: { controlType: 'range', min: 0, max: 0.5, step: 0.001 } },
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
 		sizeReference: {
 			dataType: { kind: 'sizeReference' },
 			ui: { label: 'Size Reference', isAdvanced: true, control: {} },
-			defaultValue: { inputSource: 'literal', value: 'longSide' },
+			defaultValue: 'longSide',
 		},
 	},
 	primaryInputParameter: null,

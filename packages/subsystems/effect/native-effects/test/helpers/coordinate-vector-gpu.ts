@@ -46,7 +46,7 @@ export async function run() {
 		const resolution = { width, height };
 		const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: precise };
 		const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]: [string, any]) => [name,
-			parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value,
+			parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue) : parameter.defaultValue,
 		]));
 		const output: GPUTexture = implementation.createTexture('output', { wgpu, resolution });
 		const components = definition.outputDefs.output.dataType.kind === 'vector' ? 2 : 1;

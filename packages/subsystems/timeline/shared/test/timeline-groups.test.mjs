@@ -23,7 +23,7 @@ test('retains distinct public parameter ancestors for lower audio across Transfo
 	const inside = sound('inside');
 	const outside = sound('outside');
 	const visual = { id: 'visual', layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'graph' }, name: '', clips: [], automationGraphs: [] };
-	const definition = { id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: { controlType: 'number' } }, defaultValue: literal(1) };
+	const definition = { id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: { controlType: 'number' } }, defaultValue: 1 };
 	const parent = { id: 'parent', name: 'Parent', layerType: 'transform', isDisabled: false, automationGraphs: [], layers: [visual, inside], publicParameterDefs: [definition] };
 	outside.publicParameterDefs = [definition];
 	const root = scene('root', [parent, outside]);

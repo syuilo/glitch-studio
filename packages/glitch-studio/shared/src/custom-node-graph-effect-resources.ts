@@ -1,4 +1,3 @@
-import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
 import { walkParameterLeaves } from '@gs/shared/parameter/parameter-tree.ts';
 import { resolveEffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
 import { validateEffectSource } from '@gs/subsystems_effect_shared/validate-effect-source.ts';
@@ -115,17 +114,10 @@ export function collectCustomNodeGraphEffectResources(input: CustomNodeGraphEffe
 		}
 	}
 
-	function mapParameterDefaults(definition: ParameterDefinition): void {
-		mapAudioBinding(definition, definition.defaultValue);
-		if (definition.dataType.kind === 'array') mapParameterDefaults(getArrayElementDefinition(definition));
-		if (definition.dataType.kind === 'struct') for (const field of Object.values(getStructFieldDefinitions(definition))) mapParameterDefaults(field);
-	}
-
 	function mapDefinitionDefaults(definition: EffectDefinition): void {
 		for (const setting of Object.values(definition.staticSettingDefs ?? {})) {
 			if (typeof setting.defaultValue === 'string') setting.defaultValue = mapSetting(setting, setting.defaultValue);
 		}
-		for (const parameter of Object.values(definition.paramDefs)) mapParameterDefaults(parameter);
 	}
 
 	function mapSource(source: EffectSource): EffectSource {

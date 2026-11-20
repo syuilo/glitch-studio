@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 import { getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
@@ -32,13 +33,13 @@ export function createEffectTimelineLayer(definition: EffectChoice, startMs: num
 		compositingParamValues: {
 			depth: { inputSource: 'literal', value: 0 },
 			clipToFrame: { inputSource: 'literal', value: false },
-			fitMode: deepClone(timelineCompositingParamDefs.fitMode.defaultValue),
+			fitMode: createDefaultParameterBinding(timelineCompositingParamDefs.fitMode),
 			blendMode: { inputSource: 'literal', value: definition.kind === 'modify' ? 'replace' : 'normal' },
-			opacity: deepClone(timelineCompositingParamDefs.opacity.defaultValue),
-			position: deepClone(timelineCompositingParamDefs.position.defaultValue),
-			origin: deepClone(timelineCompositingParamDefs.origin.defaultValue),
-			scale: deepClone(timelineCompositingParamDefs.scale.defaultValue),
-			rotation: deepClone(timelineCompositingParamDefs.rotation.defaultValue),
+			opacity: createDefaultParameterBinding(timelineCompositingParamDefs.opacity),
+			position: createDefaultParameterBinding(timelineCompositingParamDefs.position),
+			origin: createDefaultParameterBinding(timelineCompositingParamDefs.origin),
+			scale: createDefaultParameterBinding(timelineCompositingParamDefs.scale),
+			rotation: createDefaultParameterBinding(timelineCompositingParamDefs.rotation),
 		},
 	};
 }

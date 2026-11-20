@@ -32,7 +32,7 @@ export async function run() {
 		},
 	});
 	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name,
-		parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value,
+		parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue) : parameter.defaultValue,
 	])) as Parameters;
 	const checks: string[] = [];
 	const disposables: (() => void)[] = [];

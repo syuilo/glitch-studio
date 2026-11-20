@@ -452,7 +452,7 @@ test('exposes planned output dimensions independently of preparation status', as
 test('borrows the scene texture through a public graph input', async t => {
 	let received;
 	const layer = createTimelineEffectProbe({ primaryInputParameter: 'image',
-		paramDefs: { image: { canNode: true, dataType: { kind: 'color' }, defaultValue: literal([0, 0, 0, 0]) } },
+		paramDefs: { image: { canNode: true, dataType: { kind: 'color' }, defaultValue: [0, 0, 0, 0] } },
 		render(frame, inputs) { received = inputs.image; } });
 	t.after(() => layer.destroy());
 	const image = layer.texture();
@@ -497,7 +497,7 @@ test('resolves nested array inputs and invalidates sampling changes', async t =>
 	const { device, encoder } = gpuFixture(), texture = device.createTexture({ size: [4, 2] });
 	const candidate = definition.paramDefs.inputA;
 	const array = { dataType: { kind: 'array', elementType: candidate.dataType }, ui: { label: 'Items', control: { element: {} } },
-		element: { canNode: true, defaultValue: candidate.defaultValue }, defaultValue: literal([]) };
+		element: { canNode: true, defaultValue: candidate.defaultValue }, defaultValue: [] };
 	const defaultSampling = { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
 	const upstreamSampling = { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' };
 	for (const sampling of [undefined, { fitMode: 'contain', wrapMode: 'transparent', filterMode: 'linear' },

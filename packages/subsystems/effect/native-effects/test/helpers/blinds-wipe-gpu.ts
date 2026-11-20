@@ -69,8 +69,8 @@ export async function run() {
 		const defaults = {
 			...Object.fromEntries(Object.entries(definition.paramDefs).map(([key, parameter]) => [key,
 				'canNode' in parameter && parameter.canNode === true
-					? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value)
-					: structuredClone(parameter.defaultValue.value),
+					? constantShaderInput(parameter.dataType.kind, parameter.defaultValue)
+					: structuredClone(parameter.defaultValue),
 			])),
 			inputA, inputB, progress: scalar(0.5),
 		};

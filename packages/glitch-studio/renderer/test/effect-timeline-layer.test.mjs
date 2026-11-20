@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { snapshotNativeInputs } from './helpers/manager-gpu.mjs';
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
@@ -29,8 +30,8 @@ const { default: nested } = await load('@gs/subsystems_effect_native-effects/fx/
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const input = { inputSource: 'lowerLayerOutput', sampling: { fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' } };
-const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: literal(0) };
-const color = { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, canNode: true, defaultValue: literal([1, 0, 0, 0.5]) };
+const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: 0 };
+const color = { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, canNode: true, defaultValue: [1, 0, 0, 0.5] };
 const definition = {
 	id: 'probe', displayName: 'Probe', kind: 'modify', tags: [],
 	summary: { 'ja-JP': 'エフェクトレイヤーの動作を検証します。', 'en-US': 'Verifies effect layer behavior.' },
@@ -39,12 +40,12 @@ const definition = {
 	primaryInputParameter: 'input', resolutionInputParameters: ['input'], primaryOutput: 'output',
 	outputDefs: { output: { dataType: { kind: 'color' } }, unused: { dataType: { kind: 'color' } } },
 };
-const compositing = () => ({ ...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])), blendMode: literal('replace') });
+const compositing = () => ({ ...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])), blendMode: literal('replace') });
 const clip = (id, startMs, durationMs, contentOffsetMs = 0) => ({ id, startMs, durationMs, contentOffsetMs });
 const layer = (id, values = {}, overrides = {}) => ({
 	id, name: id, layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'probe' }, resolution: { mode: 'auto', scale: 1 },
 	clips: [clip('clip', 100, 1000, 20.5)], automationGraphs: [], compositingParamValues: compositing(),
-	effectStaticSettings: {}, effectParamValues: { ...Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])), ...values }, ...overrides,
+	effectStaticSettings: {}, effectParamValues: { ...Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])), ...values }, ...overrides,
 });
 
 async function fixture(t, options = {}) {
@@ -149,7 +150,7 @@ test('routes region transforms through both Custom Node Graph Effect layer rende
 // トリムしたエフェクトの内容時刻を使うと、見えている音声と波形の位置がずれる。
 // 音量編集・並び替えでは上位エフェクトを作り直さず、入力だけが最新の定義を使う必要がある。
 test('refreshes lower audio inputs after timeline edits without recreating the receiver', async t => {
-	const audioDef = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, canNode: false, defaultValue: literal(null) };
+	const audioDef = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, canNode: false, defaultValue: null };
 	definition.paramDefs.audio = audioDef;
 	t.after(() => { delete definition.paramDefs.audio; });
 	const f = await fixture(t);
@@ -182,12 +183,12 @@ test('refreshes lower audio inputs after timeline edits without recreating the r
 // audioSourceは配列・構造体内にも置けるため、最初に取得した入力を全末端へ使い回してはいけない。
 // 未選択や欠落参照はnullにし、下層・異なるレイヤー・同じ参照の共有を実際の評価経路で確認する。
 test('resolves distinct anotherLayerAudio inputs in nested effect parameters', async t => {
-	const audioDef = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, canNode: false, defaultValue: literal(null) };
+	const audioDef = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, canNode: false, defaultValue: null };
 	definition.paramDefs.audio = audioDef;
 	definition.paramDefs.sounds = { dataType: { kind: 'struct', fields: { first: audioDef.dataType, again: audioDef.dataType, second: audioDef.dataType, none: audioDef.dataType } },
 		ui: { label: 'Sounds', control: { fields: Object.fromEntries(['first', 'again', 'second', 'none'].map(key => [key, audioDef.ui])) } },
-		fields: Object.fromEntries(['first', 'again', 'second', 'none'].map(key => [key, { canNode: false, defaultValue: literal(null) }])),
-		defaultValue: literal({ first: literal(null), again: literal(null), second: literal(null), none: literal(null) }) };
+		fields: Object.fromEntries(['first', 'again', 'second', 'none'].map(key => [key, { canNode: false, defaultValue: null }])),
+		defaultValue: { first: null, again: null, second: null, none: null } };
 	t.after(() => { delete definition.paramDefs.audio; delete definition.paramDefs.sounds; });
 	const f = await fixture(t);
 	const calls = [];
@@ -493,7 +494,7 @@ test('publishes effect layer states with clip identities and suppresses disposed
 test('snapshots evaluated leaf arrays before asynchronous preparation', async t => {
 	const f = await fixture(t, { initialize: instance => instance.reportStatus({ type: 'loading' }) });
 	const vectors = { dataType: { kind: 'array', elementType: { kind: 'vector' } },
-		ui: { label: 'Vectors', control: { element: {} } }, element: { defaultValue: literal([0, 0]) }, defaultValue: literal([]) };
+		ui: { label: 'Vectors', control: { element: {} } }, element: { defaultValue: [0, 0] }, defaultValue: [] };
 	const def = { ...definition, paramDefs: { ...definition.paramDefs, vectors } };
 	const entry = layer('effect', { vectors: literal([{ id: 'vector', binding: literal([1, 2]) }]) });
 	const renderer = createEffectTimelineLayer(entry, { ...f.directOptions, definitions: { getNativeEffect: () => def }, getNativeEffectImplementation: () => f.implementation });

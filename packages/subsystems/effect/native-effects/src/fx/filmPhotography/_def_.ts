@@ -7,16 +7,14 @@ type ScalarControl = { label: string; min: number; max: number; step: number };
 
 function scalarGroup<T extends Record<string, number>>(label: string, defaults: T, controls: Record<keyof T, ScalarControl>) {
 	type Fields = { [K in keyof T]: { kind: 'scalar' } };
-	const literal = (value: number) => ({ inputSource: 'literal' as const, value });
-	const definition: ParameterDefinition_Struct<Fields> = {
+	return {
 		dataType: { kind: 'struct', fields: Object.fromEntries(Object.keys(defaults).map(key => [key, { kind: 'scalar' }])) as Fields },
 		ui: { label, control: { fields: Object.fromEntries(Object.entries(controls).map(([key, control]) => [key, {
 			label: control.label, control: { controlType: 'range', min: control.min, max: control.max, step: control.step },
 		}])) as ParameterDefinition_Struct<Fields>['ui']['control']['fields'] } },
-		fields: Object.fromEntries(Object.entries(defaults).map(([key, value]) => [key, { defaultValue: literal(value) }])) as ParameterDefinition_Struct<Fields>['fields'],
-		defaultValue: { inputSource: 'literal', value: Object.fromEntries(Object.entries(defaults).map(([key, value]) => [key, literal(value)])) as ParameterDefinition_Struct<Fields>['defaultValue']['value'] },
-	};
-	return definition;
+		fields: Object.fromEntries(Object.entries(defaults).map(([key, value]) => [key, { defaultValue: value }])) as ParameterDefinition_Struct<Fields>['fields'],
+		defaultValue: defaults,
+	} as const satisfies ParameterDefinition_Struct;
 }
 
 const layerControls: Record<keyof FilmLayer, ScalarControl> = {
@@ -37,7 +35,7 @@ const layerControls: Record<keyof FilmLayer, ScalarControl> = {
 
 const exposureParameter = (label: string): ParameterDefinition_Scalar & { canNode: true } => ({
 	dataType: { kind: 'scalar' }, ui: { label, control: { controlType: 'range', min: -8, max: 8, step: 0.01 } },
-	canNode: true, defaultValue: { inputSource: 'literal', value: 0 },
+	canNode: true, defaultValue: 0,
 });
 
 export default defineNativeEffect({
@@ -48,7 +46,7 @@ export default defineNativeEffect({
 	},
 	kind: 'modify', dependsOnRenderHistory: false, tags: ['color', 'light', 'simulation'],
 	paramDefs: {
-		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: [0, 0, 0, 0] },
 		exposure: exposureParameter('Film Exposure (EV)'),
 		printExposure: exposureParameter('Print Exposure (EV)'),
 		redLayer: scalarGroup('Red-sensitive / Cyan-forming Layer', DEFAULT_FILM_LAYERS[0], layerControls),

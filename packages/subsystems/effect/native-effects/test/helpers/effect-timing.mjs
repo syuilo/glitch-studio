@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { createTestInputs } from './native-inputs.ts';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
@@ -63,7 +64,7 @@ export async function createEffectTimingHarness(effectId, overrides = {}) {
 	};
 	const resolution = { width: 64, height: 64 };
 	const params = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => {
-		const value = structuredClone(parameter.defaultValue.value);
+		const value = createDefaultParameterBinding(parameter);
 		return [name, parameter.canNode === true ? { kind: 'uniform', value } : value];
 	}));
 	Object.assign(params, overrides);

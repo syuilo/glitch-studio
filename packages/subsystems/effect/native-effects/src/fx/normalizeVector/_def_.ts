@@ -14,7 +14,7 @@ export default defineNativeEffect({
 			dataType: { kind: 'vector' },
 			ui: { label: 'Input', control: { controlType: 'vector' } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0] },
+			defaultValue: [0, 0],
 		},
 	},
 	primaryInputParameter: 'input',

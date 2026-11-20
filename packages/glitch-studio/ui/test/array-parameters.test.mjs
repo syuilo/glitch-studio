@@ -1,3 +1,6 @@
+import { getArrayElementDefinition } from '@gs/shared/parameter/parameter-definition.ts';
+import { createDefaultColorRamp } from '@gs/shared/color-ramp.ts';
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { testGraph } from './helpers/effect-graph.mjs';
 import { nodeParameterTarget } from './helpers/command-inputs.mjs';
 import { prepareTestCommand } from './helpers/prepared-command.mjs';
@@ -37,12 +40,13 @@ const bundled = await build({
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { COMMAND_DEFS, UndoRedo, commitCustomNodeGraphEffectEdit, definition, resolveNodeParam, walkNodeParams, createResetParameterBinding } = module.exports;
+const defaultBuzzId = createDefaultParameterBinding(definition.paramDefs.buzzs).value[0].id;
 const literal = value => ({ inputSource: 'literal', value });
 
 function fixture() {
 	const node = {
 		id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' },
-		params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
+		params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])),
 	};
 	const state = { customNodeGraphEffects: { value: [{ id: 'customNodeGraphEffect', definition: testGraph({ nodes: [node] }) }] } };
 	return { state, node, target: { customNodeGraphEffectId: 'customNodeGraphEffect', nodeId: node.id, paramPath: ['buzzs'] } };
@@ -56,13 +60,13 @@ function fixtureWithRemovedPublicInput() {
 	customNodeGraphEffect.definition.primaryInputParameter = null;
 	customNodeGraphEffect.definition.primaryAudioInputParameter = null;
 
-	node.params.buzzs.value.push({ id: 'second', binding: structuredClone(definition.paramDefs.buzzs.element.defaultValue) });
+	node.params.buzzs.value.push({ id: 'second', binding: createDefaultParameterBinding(getArrayElementDefinition(definition.paramDefs.buzzs)) });
 	const manager = new UndoRedo(state, COMMAND_DEFS);
 	const publicParameter = manager.commit('createCustomNodeGraphEffectPublicParameter', {
 		customNodeGraphEffect: { customNodeGraphEffectId: customNodeGraphEffect.id },
-		definition: { dataType: { kind: 'color' }, canNode: true, nameForReference: 'image', ui: { label: 'Image', control: {} }, defaultValue: literal([0, 0, 0, 0]) },
+		definition: { dataType: { kind: 'color' }, canNode: true, nameForReference: 'image', ui: { label: 'Image', control: {} }, defaultValue: [0, 0, 0, 0] },
 	});
-	const imageParameter = nodeParameterTarget({ ...target, paramPath: ['buzzs', 'first', 'image'] });
+	const imageParameter = nodeParameterTarget({ ...target, paramPath: ['buzzs', defaultBuzzId, 'image'] });
 	manager.commit('setCustomNodeGraphEffectNodeParameterSource', {
 		...imageParameter, source: { inputSource: 'node', nodeId: 'globalIn', outputPort: publicParameter.parameterId, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' },
 	});
@@ -75,12 +79,12 @@ function fixtureWithRemovedPublicInput() {
 // UIの接続・削除経路を通し、ネストした要素IDごとに既存接続を認識できることを確認する。
 test('removes sibling array elements while preserving existing mismatched connections', () => {
 	const { state, node } = fixture();
-	node.params.buzzs.value.push({ id: 'second', binding: structuredClone(definition.paramDefs.buzzs.element.defaultValue) });
+	node.params.buzzs.value.push({ id: 'second', binding: createDefaultParameterBinding(getArrayElementDefinition(definition.paramDefs.buzzs)) });
 	state.customNodeGraphEffects.value[0].definition.nodes.push({ ...structuredClone(node), id: 'scalar-source' });
 	const manager = new UndoRedo(state, COMMAND_DEFS);
 	const customNodeGraphEffect = { customNodeGraphEffectId: 'customNodeGraphEffect' };
 	commitCustomNodeGraphEffectEdit(manager, customNodeGraphEffect, { kind: 'editNodeParam', nodeId: node.id, edit: {
-		kind: 'node', paramPath: ['buzzs', 'first', 'image'], value: { nodeId: 'scalar-source', outputPort: 'output' }, preserveSampling: false,
+		kind: 'node', paramPath: ['buzzs', defaultBuzzId, 'image'], value: { nodeId: 'scalar-source', outputPort: 'output' }, preserveSampling: false,
 	} });
 	const connected = structuredClone(node.params.buzzs);
 	commitCustomNodeGraphEffectEdit(manager, customNodeGraphEffect, { kind: 'editNodeParam', nodeId: node.id, edit: {
@@ -100,7 +104,7 @@ test('still rejects new mismatched connections when another connection is retain
 	const { state, node, target } = fixture();
 	state.customNodeGraphEffects.value[0].definition.nodes.push(...['scalar-source', 'another-source'].map(id => ({ ...structuredClone(node), id })));
 	const manager = new UndoRedo(state, COMMAND_DEFS);
-	const parameter = nodeParameterTarget({ ...target, paramPath: ['buzzs', 'first', 'image'] });
+	const parameter = nodeParameterTarget({ ...target, paramPath: ['buzzs', defaultBuzzId, 'image'] });
 	manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...parameter, source: { inputSource: 'node', nodeId: 'scalar-source', outputPort: 'output' } });
 	const before = structuredClone(node.params.buzzs);
 	assert.throws(() => manager.commit('setCustomNodeGraphEffectNodeParameterSource', {
@@ -178,7 +182,7 @@ test('rejects new missing connections even when an unresolved connection is reta
 // リセットだけは全体を既定値へ戻し、Undoで元の基準値と加工式を一緒に復元する。
 test('preserves modifiers through node source edits and independent undo and redo', () => {
 	const { state, node, target } = fixture();
-	target.paramPath = ['buzzs', 'first', 'x'];
+	target.paramPath = ['buzzs', defaultBuzzId, 'x'];
 	const modifier = { enabled: true, code: 'VALUE + 1' };
 	const add = prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterExpressionModifier, { ...nodeParameterTarget({ ...target }), expressionModifier: modifier });
 	add.execute(state);
@@ -216,34 +220,34 @@ test('targets element IDs across insertions and reordering', () => {
 	const { state, node, target } = fixture();
 	const otherNode = { ...structuredClone(node), id: 'other' };
 	state.customNodeGraphEffects.value[0].definition.nodes.push(otherNode);
-	const edit = prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target, paramPath: ['buzzs', 'first', 'x'] }), source: { inputSource: 'literal', value: 0.75 } });
-	const remove = prepareTestCommand(COMMAND_DEFS.removeCustomNodeGraphEffectNodeParameterArrayElements, { ...nodeParameterTarget({ ...target }), elementIds: ['first'] });
-	const inserted = { id: 'inserted', binding: structuredClone(definition.paramDefs.buzzs.element.defaultValue) };
+	const edit = prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target, paramPath: ['buzzs', defaultBuzzId, 'x'] }), source: { inputSource: 'literal', value: 0.75 } });
+	const remove = prepareTestCommand(COMMAND_DEFS.removeCustomNodeGraphEffectNodeParameterArrayElements, { ...nodeParameterTarget({ ...target }), elementIds: [defaultBuzzId] });
+	const inserted = { id: 'inserted', binding: createDefaultParameterBinding(getArrayElementDefinition(definition.paramDefs.buzzs)) };
 	node.params.buzzs.value.unshift(inserted);
 	edit.execute(state);
-	assert.equal(resolveNodeParam(node, ['buzzs', 'first', 'x']).value.value, 0.75);
+	assert.equal(resolveNodeParam(node, ['buzzs', defaultBuzzId, 'x']).value.value, 0.75);
 	assert.equal(inserted.binding.value.x.value, 0);
-	assert.equal(resolveNodeParam(otherNode, ['buzzs', 'first', 'x']).value.value, 0);
-	assert.ok([...walkNodeParams(node)].some(({ path }) => JSON.stringify(path) === JSON.stringify(['buzzs', 'first', 'image'])));
+	assert.equal(resolveNodeParam(otherNode, ['buzzs', defaultBuzzId, 'x']).value.value, 0);
+	assert.ok([...walkNodeParams(node)].some(({ path }) => JSON.stringify(path) === JSON.stringify(['buzzs', defaultBuzzId, 'image'])));
 	node.params.buzzs.value.reverse();
 	edit.undo(state);
-	assert.equal(resolveNodeParam(node, ['buzzs', 'first', 'x']).value.value, 0);
+	assert.equal(resolveNodeParam(node, ['buzzs', defaultBuzzId, 'x']).value.value, 0);
 	edit.execute(state);
 	remove.execute(state);
 	assert.deepEqual(node.params.buzzs.value.map(element => element.id), ['inserted']);
 	remove.undo(state);
-	assert.equal(resolveNodeParam(node, ['buzzs', 'first', 'x']).value.value, 0.75);
+	assert.equal(resolveNodeParam(node, ['buzzs', defaultBuzzId, 'x']).value.value, 0.75);
 });
 
 // 【削除済みIDへの操作は、残っている要素を変更せず失敗する】
 // 遅れて届いた編集や削除を、以前のindexへフォールバックして適用しない。
 test('rejects stale element targets without changing another element', () => {
 	const { state, node, target } = fixture();
-	const edit = prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target, paramPath: ['buzzs', 'first', 'x'] }), source: { inputSource: 'literal', value: 1 } });
-	node.params.buzzs.value = [{ id: 'replacement', binding: structuredClone(definition.paramDefs.buzzs.element.defaultValue) }];
+	const edit = prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target, paramPath: ['buzzs', defaultBuzzId, 'x'] }), source: { inputSource: 'literal', value: 1 } });
+	node.params.buzzs.value = [{ id: 'replacement', binding: createDefaultParameterBinding(getArrayElementDefinition(definition.paramDefs.buzzs)) }];
 	const before = structuredClone(node.params);
 	assert.throws(() => edit.execute(state), /Unknown array element/);
-	assert.throws(() => prepareTestCommand(COMMAND_DEFS.removeCustomNodeGraphEffectNodeParameterArrayElements, { ...nodeParameterTarget({ ...target }), elementIds: ['first'] }).execute(state), /Array element not found/);
+	assert.throws(() => prepareTestCommand(COMMAND_DEFS.removeCustomNodeGraphEffectNodeParameterArrayElements, { ...nodeParameterTarget({ ...target }), elementIds: [defaultBuzzId] }).execute(state), /Array element not found/);
 	assert.deepEqual(node.params, before);
 });
 
@@ -257,7 +261,7 @@ test('preserves generated IDs through undo and redo of additions and resets', ()
 	add.execute(state);
 	const added = structuredClone(node.params.buzzs);
 	assert.notEqual(added.value[1].id, added.value[0].id);
-	assert.deepEqual(added.value[1].binding, definition.paramDefs.buzzs.element.defaultValue);
+	assert.deepEqual(added.value[1].binding, createDefaultParameterBinding(getArrayElementDefinition(definition.paramDefs.buzzs)));
 	add.undo(state);
 	assert.deepEqual(node.params.buzzs, original);
 	add.execute(state);
@@ -273,7 +277,7 @@ test('preserves generated IDs through undo and redo of additions and resets', ()
 	assert.deepEqual(node.params.buzzs, added);
 	reset.execute(state);
 	assert.deepEqual(node.params.buzzs, resetValue);
-	assert.equal(definition.paramDefs.buzzs.defaultValue.value[0].id, 'first');
+	assert.deepEqual(createDefaultParameterBinding(definition.paramDefs.buzzs), original);
 
 	const path = ['buzzs', resetValue.value[0].id];
 	prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target, paramPath: [...path, 'x'] }), source: { inputSource: 'literal', value: 1 } }).execute(state);
@@ -283,28 +287,28 @@ test('preserves generated IDs through undo and redo of additions and resets', ()
 });
 
 // 【構造体・配列が入れ子でも内部の要素IDだけを再発行する】
-// color/vectorの成分配列やアニメーションのIDは別の概念なので変更しない。
+// color/vectorの成分とColor Rampのstopは型固有の値なので、その内容を保つ。
 // 同じローカルIDを持つ別配列にも再帰し、定義そのものは書き換えない。
-test('renews nested array IDs without rewriting colors or automation graph identities', () => {
-	const graph = { inputSource: 'automationGraphInline', automationGraph: { isNormalized: true, points: [{ id: 'point', x: 0, y: 1 }] }, trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' };
+test('renews nested array IDs while preserving colors and Color Ramp stops', () => {
+	const ramp = createDefaultColorRamp();
 	const scalarArray = { kind: 'array', elementType: { kind: 'scalar' } };
-	const itemType = { kind: 'struct', fields: { samples: scalarArray, color: { kind: 'color' }, vector: { kind: 'vector' }, graph: { kind: 'scalar' } } };
-	const sample = { id: 'first', binding: literal(2) };
+	const itemType = { kind: 'struct', fields: { samples: scalarArray, color: { kind: 'color' }, vector: { kind: 'vector' }, ramp: { kind: 'colorRamp' } } };
 	const def = {
 		dataType: { kind: 'struct', fields: { groups: { kind: 'array', elementType: itemType }, samples: scalarArray } },
-		defaultValue: literal({
-			groups: literal([{ id: 'first', binding: literal({ samples: literal([structuredClone(sample)]), color: literal([1, 0, 0, 0.5]), vector: literal([0, 1]), graph }) }]),
-			samples: literal([sample]),
-		}),
+		defaultValue: {
+			groups: [{ samples: [2], color: [1, 0, 0, 0.5], vector: [0, 1], ramp }],
+			samples: [2],
+		},
 	};
 	const before = structuredClone(def);
+	const initial = createDefaultParameterBinding(def);
 	const reset = createResetParameterBinding(def);
 	const group = reset.value.groups.value[0];
-	assert.notEqual(group.id, 'first');
-	assert.notEqual(group.binding.value.samples.value[0].id, 'first');
-	assert.notEqual(reset.value.samples.value[0].id, 'first');
+	assert.notEqual(group.id, initial.value.groups.value[0].id);
+	assert.notEqual(group.binding.value.samples.value[0].id, initial.value.groups.value[0].binding.value.samples.value[0].id);
+	assert.notEqual(reset.value.samples.value[0].id, initial.value.samples.value[0].id);
 	assert.deepEqual(group.binding.value.color, literal([1, 0, 0, 0.5]));
 	assert.deepEqual(group.binding.value.vector, literal([0, 1]));
-	assert.deepEqual(group.binding.value.graph, graph);
+	assert.deepEqual(group.binding.value.ramp, literal(ramp));
 	assert.deepEqual(def, before);
 });

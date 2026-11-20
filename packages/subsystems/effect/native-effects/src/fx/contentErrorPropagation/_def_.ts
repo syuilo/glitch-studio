@@ -10,12 +10,12 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	tags: ['glitch', 'color', 'stylized'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		sourceProbability: {
 			dataType: { kind: 'scalar' },
@@ -28,7 +28,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.12 },
+			defaultValue: 0.12,
 		},
 		sourceSpacing: {
 			dataType: { kind: 'scalar' },
@@ -41,7 +41,7 @@ export default defineNativeEffect({
 					step: 0.1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 4 },
+			defaultValue: 4,
 		},
 		sourceSize: {
 			dataType: { kind: 'scalar' },
@@ -54,17 +54,17 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.2 },
+			defaultValue: 0.2,
 		},
 		errorMode: {
 			dataType: { kind: 'enum', options: ['rgb', 'luminance', 'chroma'] },
 			ui: { label: 'Error Mode', control: { labels: { rgb: 'RGB', luminance: 'Luminance', chroma: 'Chroma' } } },
-			defaultValue: { inputSource: 'literal', value: 'chroma' },
+			defaultValue: 'chroma',
 		},
 		flowMode: {
 			dataType: { kind: 'enum', options: ['contour', 'gradient', 'fixed'] },
 			ui: { label: 'Propagation Path', control: { labels: { contour: 'Along Contours', gradient: 'Across Contours', fixed: 'Fixed Direction' } } },
-			defaultValue: { inputSource: 'literal', value: 'contour' },
+			defaultValue: 'contour',
 		},
 		following: {
 			dataType: { kind: 'scalar' },
@@ -77,9 +77,9 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
-		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Fallback Direction', control: { controlType: 'angle' } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Fallback Direction', control: { controlType: 'angle' } }, defaultValue: 0 },
 		guidanceRadius: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -91,7 +91,7 @@ export default defineNativeEffect({
 					step: 0.1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.8 },
+			defaultValue: 0.8,
 		},
 		propagationLength: {
 			dataType: { kind: 'scalar' },
@@ -104,7 +104,7 @@ export default defineNativeEffect({
 					step: 0.5,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 20 },
+			defaultValue: 20,
 		},
 		retention: {
 			dataType: { kind: 'scalar' },
@@ -117,7 +117,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.2 },
+			defaultValue: 0.2,
 		},
 		boundaryThreshold: {
 			dataType: { kind: 'scalar' },
@@ -130,7 +130,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.12 },
+			defaultValue: 0.12,
 		},
 		boundaryStrength: {
 			dataType: { kind: 'scalar' },
@@ -143,7 +143,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		steps: {
 			dataType: { kind: 'scalar' },
@@ -156,7 +156,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 64 },
+			defaultValue: 64,
 		},
 		analysisResolution: {
 			dataType: { kind: 'scalar' },
@@ -169,9 +169,9 @@ export default defineNativeEffect({
 					step: 128,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 512 },
+			defaultValue: 512,
 		},
-		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: 0 },
 	},
 	primaryInputParameter: 'input',
 	resolutionInputParameters: ['input'],

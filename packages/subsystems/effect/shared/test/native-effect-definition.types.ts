@@ -2,7 +2,7 @@ import { defineNativeEffect } from '../src/effect-definition.ts';
 
 const definition = {
 	displayName: 'Test', summary: { 'en-US': '', 'ja-JP': '' }, tags: [], kind: 'generate', dependsOnRenderHistory: false,
-	paramDefs: { gain: { dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0 } } },
+	paramDefs: { gain: { dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: { controlType: 'number' } }, defaultValue: 0 } },
 	outputDefs: { image: { dataType: { kind: 'color' }, inputParameters: ['gain'] } }, primaryInputParameter: null, primaryOutput: 'image', resolutionInputParameters: [],
 } as const;
 defineNativeEffect({ ...definition, ui: { parameterLayout: ['gain'] } });

@@ -50,7 +50,7 @@ const { ProjectRenderValidation, COMMAND_DEFS, getEffectDefinitions, createEffec
 function usageFixture() {
 	const definition = createProjectCustomShaderEffect([]);
 	definition.summary = 'Adds a mask output.';
-	definition.definition.paramDefs.amount = { nameForReference: 'amount', canNode: true, dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: { inputSource: 'literal', value: 0.25 } };
+	definition.definition.paramDefs.amount = { nameForReference: 'amount', canNode: true, dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: 0.25 };
 	definition.definition.outputDefs.mask = { nameForReference: 'mask', label: 'Mask', dataType: { kind: 'scalar' } };
 	const customNodeGraphEffect = { id: 'customNodeGraphEffect', name: 'Custom Node Graph Effect', definition: testGraph({ nodes: [], outputDefs: { "out": { name: 'out', label: 'Out', dataType: { kind: 'scalar' } } }, primaryInputParameter: null, primaryOutput: null, customParameterValues: {}, automationGraphs: [] }) };
 	const state = { customShaderEffects: ref([definition]), customNodeGraphEffects: ref([customNodeGraphEffect]), timelineScenes: ref([{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }]), resolution: ref({ width: 16, height: 8 }), assets: ref([]), players: ref([]), timelineFps: ref(60), timelineMotionBlur: ref({ enabled: false, shutterAngle: 180, samples: 0 }) };
@@ -95,7 +95,7 @@ test('creates project shader nodes and layers with stable parameter IDs and inde
 	assert.equal(layer.transformTarget, 'region');
 	node.params.amount.value = 0.75;
 	assert.equal(layer.effectParamValues.amount.value, 0.25);
-	assert.equal(state.customShaderEffects.value[0].definition.paramDefs.amount.defaultValue.value, 0.25);
+	assert.equal(state.customShaderEffects.value[0].definition.paramDefs.amount.defaultValue, 0.25);
 	assert.throws(() => manager.commit('removeCustomShaderEffect', { customShaderEffectId: definition.id }), /in use/);
 	manager.undo();
 	assert.equal(state.customNodeGraphEffects.value[0].definition.nodes.length, 0);
@@ -114,7 +114,7 @@ test('preserves compatible values and disconnects removed outputs atomically acr
 	const updated = structuredClone(definition);
 	updated.name = 'Renamed';
 	updated.definition.paramDefs.amount.nameForReference = 'strength';
-	updated.definition.paramDefs.amount.defaultValue.value = 0.1;
+	updated.definition.paramDefs.amount.defaultValue = 0.1;
 	delete updated.definition.outputDefs.mask;
 	manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: (updated).id, definition: updated });
 	for (const current of [state.customNodeGraphEffects.value[0].definition, state.timelineScenes.value[0].layers[1].effectSource.customNodeGraphEffect]) {
@@ -130,7 +130,7 @@ test('preserves compatible values and disconnects removed outputs atomically acr
 	const changedType = structuredClone(updated);
 	changedType.definition.paramDefs.amount.dataType = { kind: 'vector' };
 	changedType.definition.paramDefs.amount.ui.control = { controlType: 'vector' };
-	changedType.definition.paramDefs.amount.defaultValue.value = [0.2, 0.4];
+	changedType.definition.paramDefs.amount.defaultValue = [0.2, 0.4];
 	manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: (changedType).id, definition: changedType });
 	assert.deepEqual(JSON.parse(JSON.stringify(state.customNodeGraphEffects.value[0].definition.nodes[0].params.amount.value)), [0.2, 0.4]);
 	assert.deepEqual(JSON.parse(JSON.stringify(state.timelineScenes.value[0].layers[0].effectParamValues.amount.value)), [0.2, 0.4]);
@@ -270,8 +270,8 @@ test('duplicates definitions with independent identities and correctly remapped 
 	assert.equal(copy.definition.primaryOutput, output);
 	assert.deepEqual(copy.definition.resolutionInputParameters, [input]);
 	assert.equal(copy.definition.code, original.definition.code);
-	copy.definition.paramDefs[input].defaultValue.value[0] = 1;
-	assert.equal(original.definition.paramDefs[original.definition.primaryInputParameter].defaultValue.value[0], 0);
+	copy.definition.paramDefs[input].defaultValue[0] = 1;
+	assert.equal(original.definition.paramDefs[original.definition.primaryInputParameter].defaultValue[0], 0);
 });
 
 // 【複製した Custom Shader Effect のレイアウトが新しい入力 ID を参照する】
@@ -302,7 +302,7 @@ test('accepts unfinished WGSL while rejecting invalid interface definitions with
 	original.definition.code = 'not valid WGSL';
 	original.definition.paramDefs.signal = {
 		nameForReference: 'signal', canNode: true, dataType: { kind: 'any' },
-		ui: { label: 'Signal', control: {} }, defaultValue: { inputSource: 'literal', value: null },
+		ui: { label: 'Signal', control: {} }, defaultValue: null,
 	};
 	assert.doesNotThrow(() => validateCustomShaderEffectDefinition(original.definition));
 	const manager = new UndoRedo({ customShaderEffects: ref([]), timelineScenes: ref([]), customNodeGraphEffects: ref([]) }, CUSTOM_SHADER_EFFECT_COMMAND_DEFS);
@@ -310,9 +310,9 @@ test('accepts unfinished WGSL while rejecting invalid interface definitions with
 		['duplicateParameter', definition => definition.paramDefs.another = structuredClone(definition.paramDefs[definition.primaryInputParameter])],
 		['duplicateOutput', definition => definition.outputDefs.another = { ...definition.outputDefs[definition.primaryOutput] }],
 		['invalidReferenceName', definition => { definition.outputDefs[definition.primaryOutput].nameForReference = 'gs_internal'; }],
-		['invalidParameter', definition => { definition.paramDefs[definition.primaryInputParameter].defaultValue.value = [1, 2]; }],
-		['invalidParameter', definition => { delete definition.paramDefs.signal.defaultValue.value; }],
-		['invalidParameter', definition => { definition.paramDefs.signal.defaultValue.expressionModifier = { enabled: false, code: 'VALUE' }; }],
+		['invalidParameter', definition => { definition.paramDefs[definition.primaryInputParameter].defaultValue = [1, 2]; }],
+		['invalidParameter', definition => { delete definition.paramDefs.signal.defaultValue; }],
+		['invalidParameter', definition => { definition.paramDefs.signal.defaultValue = { inputSource: 'literal', value: null, expressionModifier: { enabled: false, code: 'VALUE' } }; }],
 		['invalidPrimaryOutput', definition => { definition.primaryOutput = 'missing'; }],
 		['invalidResolutionInput', definition => { definition.resolutionInputParameters = ['missing']; }],
 		['missingOutput', definition => { definition.outputDefs = {}; }],

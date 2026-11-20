@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
@@ -7,7 +8,7 @@ import { createGraphEvaluation } from '../src/graph-evaluation.ts';
 
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
-const def = (id, value = 7, kind = 'scalar') => ({ id, nameForReference: id.toLowerCase().replaceAll('-', '_'), dataType: { kind }, ui: { label: id, control: kind === 'scalar' ? { controlType: 'number' } : {} }, defaultValue: literal(value), canNode: false });
+const def = (id, value = 7, kind = 'scalar') => ({ id, nameForReference: id.toLowerCase().replaceAll('-', '_'), dataType: { kind }, ui: { label: id, control: kind === 'scalar' ? { controlType: 'number' } : {} }, defaultValue: value, canNode: false });
 // ノード側の評価にも期待する型を渡し、スコープの検証で戻り値の型検証を迂回しない。
 const nodeParameterDefinitions = {
 	customNodeGraphEffectOnly: def('customNodeGraphEffectOnly', false, 'bool'), layer: def('layer', false, 'bool'), export: def('export', false, 'bool'),
@@ -33,9 +34,9 @@ function nodes(evaluator, params, scope = customNodeGraphEffectScope, external =
 function externalValues(evaluator, defs, params, scope) {
 	return new Map(defs.map(def => {
 		const value = params[def.id];
-		return [def.id, value == null ? structuredClone(def.defaultValue.value) : evaluator.evaluate(value,
+		return [def.id, value == null ? createDefaultParameterBinding(def) : evaluator.evaluate(value,
 			scope,
-			value.inputSource === 'automationGraphReference' ? structuredClone(def.defaultValue.value) : genEmptyValue(def), def)];
+			value.inputSource === 'automationGraphReference' ? createDefaultParameterBinding(def) : genEmptyValue(def), def)];
 	}));
 }
 

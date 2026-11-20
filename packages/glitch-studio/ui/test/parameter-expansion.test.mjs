@@ -1,3 +1,5 @@
+import { getArrayElementDefinition } from '@gs/shared/parameter/parameter-definition.ts';
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -68,6 +70,7 @@ new Function('require', 'module', 'exports', 'HTMLElement', 'Element', 'ResizeOb
 	createRequire(import.meta.url), module, module.exports, TestElement, TestElement, TestResizeObserver, new TestWindow());
 const { NodeSettings, LayerSettings, Wires, Port, provideCustomNodeGraphEffectWires, parameterExpansionScopeKey, projectSession, effectDefinitions, preferences } = module.exports;
 const originalDefinition = structuredClone(effectDefinitions.testStructArray);
+const defaultBuzzId = createDefaultParameterBinding(originalDefinition.paramDefs.buzzs).value[0].id;
 const element = tag => markRaw(new TestElement(tag));
 const renderer = createRenderer({
 	createElement: element, createText: () => element('text'), createComment: () => element('comment'), querySelector: () => element('body'),
@@ -102,7 +105,7 @@ async function fixture(t, { target = 'node', defaultCollapsed = false, elementCo
 	if (elementCollapsed) definition.paramDefs.buzzs.ui.control.element.defaultExpanded = false;
 	effectDefinitions.testStructArray = definition;
 	const createOwner = id => {
-		const params = Object.fromEntries(Object.entries(definition.paramDefs).map(([key, parameter]) => [key, structuredClone(parameter.defaultValue)]));
+		const params = Object.fromEntries(Object.entries(definition.paramDefs).map(([key, parameter]) => [key, createDefaultParameterBinding(parameter)]));
 		if (connected) params.buzzs.value[0].binding.value.image = { inputSource: 'node', nodeId: 'source', outputPort: 'output' };
 		return { id, type: 'effect', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, resolution: { mode: 'auto', scale: 1 },
 			isBypass: false, automationGraphs: [], params, effectParamValues: params, staticSettings: {}, effectStaticSettings: {} };
@@ -193,19 +196,19 @@ for (const target of ['node', 'layer']) {
 		assert.deepEqual(topLevelPaths, [['bars'], ['foo'], ['buzzs']]);
 		assert.equal(f.sectionExpanded('outer'), true);
 		assert.equal(f.sectionExpanded('inner'), false);
-		const child = f.row(['buzzs', 'first', 'x']);
+		const child = f.row(['buzzs', defaultBuzzId, 'x']);
 		child.draftValue = 'unfinished';
 		assert.equal(isVisible(child), false);
 		await f.toggleSection('outer');
 		await f.toggleSection('outer');
 		assert.equal(f.sectionExpanded('inner'), false);
 		await f.toggleSection('inner');
-		assert.equal(f.row(['buzzs', 'first', 'x']), child);
+		assert.equal(f.row(['buzzs', defaultBuzzId, 'x']), child);
 		assert.equal(child.draftValue, 'unfinished');
 		assert.equal(isVisible(child), true);
 		assert.deepEqual(f.edits, []);
 		findAll(child, hasAttribute('data-test-parameter-value-control'))[0].props.onInput(4.5);
-		assert.deepEqual(f.edits, [{ kind: 'literal', paramPath: ['buzzs', 'first', 'x'], value: 4.5 }]);
+		assert.deepEqual(f.edits, [{ kind: 'literal', paramPath: ['buzzs', defaultBuzzId, 'x'], value: 4.5 }]);
 		assert.deepEqual(f.owner.value.params, saved);
 	});
 
@@ -254,8 +257,8 @@ for (const target of ['node', 'layer']) {
 		assert.ok(f.section('outer') != null);
 		assert.equal(f.sectionExpanded('inner'), false);
 		await f.toggleSection('inner');
-		assert.equal(isVisible(f.row(['buzzs', 'first', 'x'])), true);
-		f.owner.value.params.buzzs = structuredClone(originalDefinition.paramDefs.buzzs.defaultValue);
+		assert.equal(isVisible(f.row(['buzzs', defaultBuzzId, 'x'])), true);
+		f.owner.value.params.buzzs = createDefaultParameterBinding(originalDefinition.paramDefs.buzzs);
 		await nextTick();
 		assert.equal(f.section('outer'), undefined);
 	});
@@ -266,11 +269,11 @@ for (const target of ['node', 'layer']) {
 // 再展開・切断・再接続・出力の消失でも追従し、集約先を編集可能な入力として登録しない。
 test('routes wires through nested sections alongside parameter containers and node collapse', async t => {
 	const f = await fixture(t, { connected: true, layout: nestedLayout() });
-	const leaf = f.wireMap.in['first-owner'][JSON.stringify(['buzzs', 'first', 'image'])];
+	const leaf = f.wireMap.in['first-owner'][JSON.stringify(['buzzs', defaultBuzzId, 'image'])];
 	await f.measure();
 	assert.deepEqual(f.destination(), f.position(leaf));
-	await f.toggle(['buzzs', 'first']); await f.measure();
-	assert.deepEqual(f.destination(), f.position(f.collapsedPort(['buzzs', 'first'])));
+	await f.toggle(['buzzs', defaultBuzzId]); await f.measure();
+	assert.deepEqual(f.destination(), f.position(f.collapsedPort(['buzzs', defaultBuzzId])));
 	await f.toggle(['buzzs']); await f.measure();
 	assert.deepEqual(f.destination(), f.position(f.collapsedPort(['buzzs'])));
 	await f.toggleSection('inner'); await f.measure();
@@ -285,8 +288,8 @@ test('routes wires through nested sections alongside parameter containers and no
 	await f.toggleSection('inner'); await f.measure();
 	assert.deepEqual(f.destination(), f.position(f.collapsedPort(['buzzs'])));
 	await f.toggle(['buzzs']); await f.measure();
-	assert.deepEqual(f.destination(), f.position(f.collapsedPort(['buzzs', 'first'])));
-	await f.toggle(['buzzs', 'first']); await f.measure();
+	assert.deepEqual(f.destination(), f.position(f.collapsedPort(['buzzs', defaultBuzzId])));
+	await f.toggle(['buzzs', defaultBuzzId]); await f.measure();
 	assert.deepEqual(f.destination(), f.position(leaf));
 	assert.equal(f.wireMap.in['first-owner'][JSON.stringify(['inner'])], undefined);
 	await f.toggleSection('inner');
@@ -309,18 +312,18 @@ for (const target of ['node', 'layer']) {
 	test(`collapses ${target} structs and arrays without losing descendants or editing bindings`, async t => {
 		const f = await fixture(t, { target });
 		const saved = structuredClone(toRaw(f.owner.value.params));
-		const child = f.row(['buzzs', 'first', 'x']);
+		const child = f.row(['buzzs', defaultBuzzId, 'x']);
 		child.draftValue = 'unfinished';
 		assert.equal(f.expanded(['foo']), true);
 		assert.equal(f.expanded(['buzzs']), true);
-		await f.toggle(['buzzs', 'first']);
+		await f.toggle(['buzzs', defaultBuzzId]);
 		assert.equal(isVisible(child), false);
 		assert.equal(f.expanded(['foo']), true);
 		await f.toggle(['buzzs']);
 		await f.toggle(['buzzs']);
-		assert.equal(f.expanded(['buzzs', 'first']), false);
-		await f.toggle(['buzzs', 'first']);
-		assert.equal(f.row(['buzzs', 'first', 'x']), child);
+		assert.equal(f.expanded(['buzzs', defaultBuzzId]), false);
+		await f.toggle(['buzzs', defaultBuzzId]);
+		assert.equal(f.row(['buzzs', defaultBuzzId, 'x']), child);
 		assert.equal(child.draftValue, 'unfinished');
 		assert.equal(isVisible(child), true);
 		assert.deepEqual(f.edits, []);
@@ -333,10 +336,10 @@ for (const target of ['node', 'layer']) {
 		assert.equal(f.expanded(['foo']), false);
 		assert.equal(f.expanded(['buzzs']), false);
 		await f.toggle(['buzzs']);
-		assert.equal(f.expanded(['buzzs', 'first']), false);
-		assert.equal(isVisible(f.row(['buzzs', 'first', 'x'])), false);
-		await f.toggle(['buzzs', 'first']);
-		assert.equal(isVisible(f.row(['buzzs', 'first', 'x'])), true);
+		assert.equal(f.expanded(['buzzs', defaultBuzzId]), false);
+		assert.equal(isVisible(f.row(['buzzs', defaultBuzzId, 'x'])), false);
+		await f.toggle(['buzzs', defaultBuzzId]);
+		assert.equal(isVisible(f.row(['buzzs', defaultBuzzId, 'x'])), true);
 	});
 }
 
@@ -367,14 +370,14 @@ for (const target of ['node', 'layer']) {
 test('keeps expansion attached to array element IDs through reorder, removal and insertion', async t => {
 	const f = await fixture(t);
 	const values = f.owner.value.params.buzzs.value;
-	values.push({ id: 'second', binding: structuredClone(originalDefinition.paramDefs.buzzs.element.defaultValue) });
+	values.push({ id: 'second', binding: createDefaultParameterBinding(getArrayElementDefinition(originalDefinition.paramDefs.buzzs)) });
 	await nextTick();
-	await f.toggle(['buzzs', 'first']);
+	await f.toggle(['buzzs', defaultBuzzId]);
 	values.reverse(); await nextTick();
-	assert.equal(f.expanded(['buzzs', 'first']), false);
+	assert.equal(f.expanded(['buzzs', defaultBuzzId]), false);
 	assert.equal(f.expanded(['buzzs', 'second']), true);
 	values.splice(1, 1);
-	values.push({ id: 'third', binding: structuredClone(originalDefinition.paramDefs.buzzs.element.defaultValue) });
+	values.push({ id: 'third', binding: createDefaultParameterBinding(getArrayElementDefinition(originalDefinition.paramDefs.buzzs)) });
 	await nextTick();
 	assert.equal(f.expanded(['buzzs', 'second']), true);
 	assert.equal(f.expanded(['buzzs', 'third']), true);
@@ -385,19 +388,19 @@ test('keeps expansion attached to array element IDs through reorder, removal and
 // 再展開後には本来の入力へ戻し、描画用の仮想ポートを新規接続先として登録しないことも確認する。
 test('routes connected wires through visible collapsed ancestors and restores the original input', async t => {
 	const f = await fixture(t, { connected: true });
-	const leaf = f.wireMap.in['first-owner'][JSON.stringify(['buzzs', 'first', 'image'])];
-	const structPort = f.collapsedPort(['buzzs', 'first']);
+	const leaf = f.wireMap.in['first-owner'][JSON.stringify(['buzzs', defaultBuzzId, 'image'])];
+	const structPort = f.collapsedPort(['buzzs', defaultBuzzId]);
 	const arrayPort = f.collapsedPort(['buzzs']);
-	assert.notEqual(structPort, f.toggleButton(['buzzs', 'first']));
+	assert.notEqual(structPort, f.toggleButton(['buzzs', defaultBuzzId]));
 	assert.equal(isVisible(structPort), false);
 	assert.equal(isVisible(arrayPort), false);
 	await f.measure();
 	assert.deepEqual(f.destination(), f.position(leaf));
-	await f.toggle(['buzzs', 'first']); await f.measure();
+	await f.toggle(['buzzs', defaultBuzzId]); await f.measure();
 	assert.equal(isVisible(structPort), true);
 	assert.equal(structPort.props['data-type'], 'any');
 	assert.deepEqual(f.destination(), f.position(structPort));
-	assert.equal(f.wireMap.in['first-owner'][JSON.stringify(['buzzs', 'first'])], undefined);
+	assert.equal(f.wireMap.in['first-owner'][JSON.stringify(['buzzs', defaultBuzzId])], undefined);
 	await f.toggle(['buzzs']); await f.measure();
 	assert.equal(isVisible(structPort), false);
 	assert.equal(isVisible(arrayPort), true);
@@ -407,7 +410,7 @@ test('routes connected wires through visible collapsed ancestors and restores th
 	click(findAll(f.root, hasAttribute('data-test-node-toggle'))[0]);
 	await f.toggle(['buzzs']); await f.measure();
 	assert.deepEqual(f.destination(), f.position(structPort));
-	await f.toggle(['buzzs', 'first']); await f.measure();
+	await f.toggle(['buzzs', defaultBuzzId]); await f.measure();
 	assert.equal(isVisible(structPort), false);
 	assert.equal(isVisible(arrayPort), false);
 	assert.deepEqual(f.destination(), f.position(leaf));
@@ -421,9 +424,9 @@ test('shows virtual ports only while their descendants have connected wires', as
 	const nodePort = findAll(f.root, hasAttribute('data-test-node-collapsed-port'))[0];
 	await f.toggle(['foo']);
 	await f.toggle(['bars']);
-	await f.toggle(['buzzs', 'first']);
+	await f.toggle(['buzzs', defaultBuzzId]);
 	await f.toggle(['buzzs']);
-	for (const path of [['foo'], ['bars'], ['buzzs'], ['buzzs', 'first']]) {
+	for (const path of [['foo'], ['bars'], ['buzzs'], ['buzzs', defaultBuzzId]]) {
 		assert.equal(isVisible(f.collapsedPort(path)), false);
 	}
 	const nodeToggle = findAll(f.root, hasAttribute('data-test-node-toggle'))[0];
@@ -438,10 +441,10 @@ test('shows virtual ports only while their descendants have connected wires', as
 	assert.equal(isVisible(f.collapsedPort(['foo'])), false);
 	assert.equal(isVisible(f.collapsedPort(['bars'])), false);
 	await f.toggle(['buzzs']);
-	assert.equal(isVisible(f.collapsedPort(['buzzs', 'first'])), true);
+	assert.equal(isVisible(f.collapsedPort(['buzzs', defaultBuzzId])), true);
 	fields.image = { inputSource: 'literal', value: [0, 0, 0, 0] };
 	await nextTick();
-	assert.equal(isVisible(f.collapsedPort(['buzzs', 'first'])), false);
+	assert.equal(isVisible(f.collapsedPort(['buzzs', defaultBuzzId])), false);
 	await f.toggle(['buzzs']);
 	assert.equal(isVisible(f.collapsedPort(['buzzs'])), false);
 	click(nodeToggle); await nextTick();
@@ -455,11 +458,11 @@ test('keeps a parent virtual port until the last descendant is disconnected', as
 	const values = f.owner.value.params.buzzs.value;
 	values.push({ id: 'second', binding: structuredClone(toRaw(values[0].binding)) });
 	await nextTick();
-	await f.toggle(['buzzs', 'first']);
+	await f.toggle(['buzzs', defaultBuzzId]);
 	await f.toggle(['buzzs', 'second']);
 	values[0].binding.value.image = { inputSource: 'node', nodeId: null, outputPort: 'output' };
 	await nextTick();
-	assert.equal(isVisible(f.collapsedPort(['buzzs', 'first'])), false);
+	assert.equal(isVisible(f.collapsedPort(['buzzs', defaultBuzzId])), false);
 	assert.equal(isVisible(f.collapsedPort(['buzzs', 'second'])), true);
 	await f.toggle(['buzzs']);
 	assert.equal(isVisible(f.collapsedPort(['buzzs'])), true);

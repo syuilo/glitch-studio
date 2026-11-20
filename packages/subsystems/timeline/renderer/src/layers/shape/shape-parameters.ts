@@ -17,9 +17,10 @@ export class ShapeParameters {
 		const bindings: Record<string, TimelineParameterBinding> = shape.paramValues;
 		const values: Record<string, unknown> = {};
 		for (const [key, def] of Object.entries(definitions)) {
-			const binding = bindings[key] ?? def.defaultValue;
-			const fallback = binding.inputSource === 'automationGraphReference' || def.dataType.kind === 'enum' ? def.defaultValue.value : genEmptyValue(def);
-			values[key] = coerceParameterValue(def, this.evaluator.evaluate(binding, scope, fallback, def));
+			const binding = bindings[key];
+			const fallback = binding?.inputSource === 'automationGraphReference' || def.dataType.kind === 'enum' ? def.defaultValue : genEmptyValue(def);
+			const value = binding == null ? def.defaultValue : this.evaluator.evaluate(binding, scope, fallback, def);
+			values[key] = coerceParameterValue(def, value);
 		}
 		// 式は任意の型を返せる。保存値は変更せず、GPUへ渡す境界で有限なf32だけを採用する。
 		const number = (value: unknown, fallback = 0) => typeof value === 'number' && Number.isFinite(Math.fround(value)) ? value : fallback;

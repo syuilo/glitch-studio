@@ -10,7 +10,7 @@ const { createTimelineLayerPublicParameterContextIndex, getTimelineLayerPublicPa
 const { validateTimelineParameterTree } = await load('parameter-binding.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
-const scalar = (id, nameForReference = id) => ({ id, nameForReference, dataType: { kind: 'scalar' }, ui: { label: id, control: { controlType: 'number' } }, defaultValue: literal(0), canNode: false });
+const scalar = (id, nameForReference = id) => ({ id, nameForReference, dataType: { kind: 'scalar' }, ui: { label: id, control: { controlType: 'number' } }, defaultValue: 0, canNode: false });
 const layer = (id, publicParameterDefs = [], publicParameterValues = {}, layers = []) => ({ id, name: id, layerType: 'group', layers, automationGraphs: [], publicParameterDefs, publicParameterValues });
 const reference = (layerId, parameterId) => ({ inputSource: 'timelineLayerPublicParameterReference', layerId, parameterId });
 const evaluator = new TimelineParameterBindingEvaluator();
@@ -104,10 +104,10 @@ test('uses owner graphs and scene time and does not retain values across seeks',
 // 【名前参照から得た配列を式で変更しても保存値へ漏らさない】
 // 複数の利用者が同じ色を参照する際に、先の式の変更が後の利用者へ影響することを防ぐ。
 test('copies referenced values and validates explicit reference types', () => {
-	const definition = { ...scalar('color'), dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: literal([1, 0, 0, 1]) };
+	const definition = { ...scalar('color'), dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: [1, 0, 0, 1] };
 	const owner = layer('owner', [definition]);
 	assert.deepEqual(evaluate([owner], owner, expression('let color = PUBLIC("color")\ncolor[0] = 0\ncolor'), 0, definition), [0, 0, 0, 1]);
-	assert.deepEqual(definition.defaultValue.value, [1, 0, 0, 1]);
+	assert.deepEqual(definition.defaultValue, [1, 0, 0, 1]);
 	assert.throws(() => evaluate([owner], owner, reference('owner', 'color')), /type mismatch/);
 });
 
@@ -127,7 +127,7 @@ test('validates local definitions and keeps timeline references separate from Cu
 // 参照方式へ切り替えてから候補を選ぶまでの正常な未設定状態でプレビューを失敗させない。
 test('uses definition defaults for unselected references including enum values', () => {
 	const owner = layer('owner');
-	const definition = { ...scalar('direction'), dataType: { kind: 'enum', options: ['left', 'right'] }, ui: { label: 'Direction', control: { labels: {} } }, defaultValue: literal('right') };
+	const definition = { ...scalar('direction'), dataType: { kind: 'enum', options: ['left', 'right'] }, ui: { label: 'Direction', control: { labels: {} } }, defaultValue: 'right' };
 	assert.equal(evaluate([owner], owner, reference(null, null), 0, definition), 'right');
 	assert.equal(evaluate([owner], owner, reference('removed', 'direction'), 0, definition), 'right');
 	assert.throws(() => validateTimelineLayerPublicParameterDefinitions([{ ...definition, dataType: { kind: 'enum', options: ['left', 'left'] } }]), /non-empty and unique/);

@@ -20,7 +20,7 @@ export async function run() {
 	const device = await adapter.requestDevice();
 	device.pushErrorScope('validation');
 	const vertex = device.createShaderModule({ code: vertexCode });
-	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value])) as Parameters;
+	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue) : parameter.defaultValue])) as Parameters;
 	const owned: (() => void)[] = [];
 	const checks: string[] = [];
 	const assert = (condition: boolean, message: string) => { if (!condition) throw new Error(message); };
@@ -176,7 +176,7 @@ export async function run() {
 		// 同じ屈折率の膜と下地は界面反射がなく、透過は全波長で1になる既知のケースを使う。
 		const resolution = { width: 1, height: 1 };
 		const wgpu = { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false };
-		const thinFilmDefaults = Object.fromEntries(Object.entries(thinFilmDefinition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value])) as NativeParameterValues<typeof thinFilmDefinition.paramDefs>;
+		const thinFilmDefaults = Object.fromEntries(Object.entries(thinFilmDefinition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue) : parameter.defaultValue])) as NativeParameterValues<typeof thinFilmDefinition.paramDefs>;
 		const output = thinFilmImplementation.createTexture('output', { wgpu, resolution });
 		const thinFilm = thinFilmImplementation.place(wgpu, resolution);
 		owned.push(() => { thinFilm.dispose(); output.destroy(); });

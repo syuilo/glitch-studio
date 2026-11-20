@@ -32,7 +32,7 @@ export async function run() {
 	const width = 64;
 	const repeat = (color: Color) => Array.from({ length: width }, () => color).flat();
 	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name,
-		constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value)])) as FilmColorParameters;
+		constantShaderInput(parameter.dataType.kind, parameter.defaultValue)])) as FilmColorParameters;
 	const reader = device.createRenderPipeline({ layout: 'auto', vertex: { module: vertex }, fragment: {
 		module: device.createShaderModule({ code: `@group(0) @binding(0) var image: texture_2d<f32>;
 @fragment fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f { return textureLoad(image, vec2i(position.xy), 0); }` }),
@@ -188,7 +188,7 @@ export async function run() {
 
 		// 【全ノード入力が同時に空間変化しても、各画素は同じ定数指定と一致する】
 		// バイパスの分岐が混在する2x2画素群でもimplicit derivativeが有効であることを確認する。
-		const numericDefaults = Object.fromEntries(Object.entries(definition.paramDefs).filter(([name]) => name !== 'input').map(([name, parameter]) => [name, parameter.defaultValue.value])) as Record<Exclude<keyof FilmColorParameters, 'input'>, number>;
+		const numericDefaults = Object.fromEntries(Object.entries(definition.paramDefs).filter(([name]) => name !== 'input').map(([name, parameter]) => [name, parameter.defaultValue])) as Record<Exclude<keyof FilmColorParameters, 'input'>, number>;
 		const neutralValues = { contrast: 1, shadowSoftness: 0, highlightSoftness: 0, fade: 0, chromaCompression: 0, shadowTintAmount: 0, highlightTintAmount: 0 };
 		const cases = [
 			{ ...numericDefaults, amount: 0 }, { ...numericDefaults, ...neutralValues }, numericDefaults,

@@ -42,6 +42,7 @@
 </template>
 
 <script lang="ts" setup>
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { getCustomNodeGraphEffectView } from '@/utility/custom-node-graph-effect-view.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
@@ -156,7 +157,7 @@ watch(customNodeGraphEffect, currentCustomNodeGraphEffect => {
 			values[def.id] = value;
 		} else {
 			editedPreviewParamIds.delete(def.id);
-			values[def.id] = deepClone(def.defaultValue);
+			values[def.id] = createDefaultParameterBinding(def);
 		}
 	}
 	for (const id of editedPreviewParamIds) if (!(id in values)) editedPreviewParamIds.delete(id);
@@ -186,7 +187,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 	const id = rootDefinition.id;
 	// Viewの数値欄も、プレビュー上の一括操作も、同じ引数ツリーへ反映する。
 	// 子の編集で親を作り直す際は、別フィールドの式やキーを維持する。
-	const draft = { [id]: deepClone(previewParamValues.value[id] ?? rootDefinition.defaultValue) };
+	const draft = { [id]: previewParamValues.value[id] == null ? createDefaultParameterBinding(rootDefinition) : deepClone(previewParamValues.value[id]) };
 	const parameter = resolveParameter<ValueParameterBinding>({ [id]: rootDefinition }, draft, event.paramPath);
 	const { def, value: current } = parameter;
 	let next = current;
@@ -222,7 +223,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 				case 'literal': next = reset(); break;
 				case 'expression': next = {
 					inputSource: 'expression',
-					expression: AiSON.stringify(current?.inputSource === 'literal' ? current.value : def.defaultValue.value),
+					expression: AiSON.stringify(current?.inputSource === 'literal' ? current.value : def.defaultValue),
 				}; break;
 				case 'automationGraphReference': next = {
 					inputSource: 'automationGraphReference',

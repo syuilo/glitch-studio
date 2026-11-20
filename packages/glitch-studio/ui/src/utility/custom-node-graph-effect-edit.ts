@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { preferences } from '@/preferences.ts';
 import type { ProjectState, AppStateChange } from '../Project.ts';
 import type { COMMAND_DEFS } from '../commands.ts';
@@ -37,7 +38,7 @@ export function commitCustomNodeGraphEffectEdit(manager: ProjectCommands, target
 			else {
 				const definition = customNodeGraphEffect.customParameterDefs.find(candidate => candidate.id === event.parameterId);
 				if (definition == null) throw new Error('Custom Node Graph Effect custom parameter not found');
-				const current: CustomNodeGraphEffectValueParameterBinding = customNodeGraphEffect.customParameterValues[event.parameterId] ?? definition.defaultValue;
+				const current: CustomNodeGraphEffectValueParameterBinding = customNodeGraphEffect.customParameterValues[event.parameterId] ?? createDefaultParameterBinding(definition);
 				const source = editCustomNodeGraphEffectCustomParameterBinding(definition, current, event.edit);
 				manager.commit('setCustomNodeGraphEffectCustomParameterSource', { target: parameterTarget, source }, event.mergeKey);
 			}

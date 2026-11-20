@@ -4,11 +4,33 @@ import { createDefaultColorRamp } from '../color-ramp.ts';
 import { isLiteralParameterBinding } from './parameter-binding.ts';
 import type { DataType } from '../data-type/data-type.ts';
 import type { ParameterArrayElement, ParameterBindingBase } from './parameter-binding.ts';
-import type { ParameterDefinition, ParameterSettings } from './parameter-definition.ts';
-import type { ParameterExpressionModifier } from './value-parameter-binding.ts';
+import type { ParameterDefaultValue, ParameterDefinition, ParameterSettings } from './parameter-definition.ts';
+import type { ParameterExpressionModifier, ValueParameterBinding } from './value-parameter-binding.ts';
+
+type LiteralBinding = Extract<ValueParameterBinding, { inputSource: 'literal' }>;
+
+/**
+ * 未設定の配列を表示したパスでそのまま初回編集できるよう、既定のIDは配列内の位置から作る。
+ * リセットや要素追加で配列を作り直すときは、呼び出し側が新しいIDの発行方法を渡す。
+ */
+export function createDefaultParameterBinding(definition: Pick<ParameterDefinition, 'dataType' | 'defaultValue'>,
+	createArrayElementId: (index: number) => string = index => `default-${index}`): LiteralBinding {
+	function bind(dataType: DataType, value: ParameterDefaultValue): LiteralBinding {
+		if (dataType.kind === 'array') {
+			const elements = (value as ParameterDefaultValue[]).map((element, index) => ({ id: createArrayElementId(index), binding: bind(dataType.elementType, element) }));
+			return { inputSource: 'literal', value: elements };
+		}
+		if (dataType.kind === 'struct') {
+			const fields = value as Record<string, ParameterDefaultValue>;
+			return { inputSource: 'literal', value: Object.fromEntries(Object.entries(dataType.fields).map(([key, fieldType]) => [key, bind(fieldType, fields[key])])) };
+		}
+		return { inputSource: 'literal', value: deepClone(value) };
+	}
+	return bind(definition.dataType, definition.defaultValue);
+}
 
 // 型変更時にも利用するため、完成済みのUIや最上位の初期値は要求しない。
-// structの空値には各フィールドのBindingの初期値を使う。
+// structの空値には各フィールドの初期値を使う。
 type EmptyValueDefinition =
 	| { dataType: Exclude<DataType, { kind: 'struct' }> }
 	| { dataType: Extract<DataType, { kind: 'struct' }>; fields: Record<string, ParameterSettings<DataType>> };
@@ -43,7 +65,7 @@ export function genEmptyValue(paramDef: EmptyValueDefinition): any {
 export function isParameterBindingDefault(
 	definition: Pick<ParameterDefinition, 'dataType' | 'defaultValue'>,
 	binding: ParameterBindingBase,
-	defaultBinding: ParameterBindingBase = definition.defaultValue,
+	defaultBinding: ParameterBindingBase = createDefaultParameterBinding(definition),
 ): boolean {
 	return areBindingsEqual(definition.dataType, binding, defaultBinding);
 }

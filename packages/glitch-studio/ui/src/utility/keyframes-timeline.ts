@@ -31,7 +31,7 @@ function createTimelineData(dataType: KeyframesDataType, keyframes: KeyframeDraf
 
 export function createInlineKeyframesTimeline(definition: ParameterDefinition, current?: ParameterBindingBase): InlineKeyframesTimeline {
 	if (!isKeyframesDataType(definition.dataType)) throw new Error('Parameter does not support keyframes');
-	const value = current != null && isLiteralParameterBinding(current) ? current.value : definition.defaultValue.value;
+	const value = current != null && isLiteralParameterBinding(current) ? current.value : definition.defaultValue;
 	return {
 		inputSource: 'keyframesTimelineInline',
 		keyframesTimeline: createTimelineData(definition.dataType, [{
@@ -71,7 +71,7 @@ export function insertInlineKeyframe(input: InlineKeyframesTimeline, definition:
 	const keyframes: KeyframeDraft[] = input.keyframesTimeline.keyframes.toSorted((a, b) => a.x - b.x);
 	const previous = keyframes.findLast(point => point.x <= x);
 	if (previous?.x === x) return { value: input, keyframeId: previous.id };
-	const fallback = definition.dataType.kind === 'enum' ? definition.defaultValue.value : genEmptyValue(definition);
+	const fallback = definition.dataType.kind === 'enum' ? definition.defaultValue : genEmptyValue(definition);
 	// 挿入は既存区間の分割なので、区間外では繰り返しを適用しない。
 	const evaluated = evaluateKeyframesTimeline(input.keyframesTimeline, { ...input, wrapMode: 'clamp' }, x, endTime, fallback);
 	const keyframeId = genId();

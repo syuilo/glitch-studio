@@ -1,3 +1,4 @@
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
@@ -41,8 +42,8 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	await add('modified', modified);
 	const defaults = fixture();
 	defaults.customNodeGraphEffect.paramDefs = { pointsId: { ...parameter('array', [], 'values'), dataType: { kind: 'array', elementType: { kind: 'scalar' } },
-		element: { defaultValue: { inputSource: 'literal', value: 0 } }, ui: { label: 'Values', control: { element: {} } },
-		defaultValue: { inputSource: 'literal', value: [{ id: 'child', binding: { inputSource: 'literal', value: 0.25 } }] } } };
+		element: { defaultValue: 0 }, ui: { label: 'Values', control: { element: {} } },
+		defaultValue: [0.25] } };
 	defaults.customNodeGraphEffect.nodes[0].params.color.expression = '[PUBLIC("values")[0], 0, 0, 1]';
 	await add('defaults', defaults);
 	const pointer = fixture();
@@ -62,12 +63,12 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	imageInput.assets = [{ id: 'image', name: 'Image', width: 2, height: 2, fileDataType: 'image/png',
 		fileData: new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAE0lEQVR4nGP4z8DQAMIMDP8hEAA55Ab7GrcJWQAAAABJRU5ErkJggg==', 'base64')]) }];
 	imageInput.customNodeGraphEffect.nodes[0] = { ...imageInput.customNodeGraphEffect.nodes[0], effectSource: { type: 'nativeEffect', id: 'image' }, resolution: { mode: 'auto', scale: 1 },
-		staticSettings: { [Object.keys(image.staticSettingDefs)[0]]: 'image' }, params: Object.fromEntries(Object.entries(image.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) };
+		staticSettings: { [Object.keys(image.staticSettingDefs)[0]]: 'image' }, params: Object.fromEntries(Object.entries(image.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])) };
 	await add('image', imageInput);
 	const symbolInput = fixture();
 	symbolInput.customNodeGraphEffect.paramDefs = { iconset: { ...parameter('enum', 'symbols', 'iconset'), dataType: symbols.paramDefs.iconset.dataType } };
 	symbolInput.customNodeGraphEffect.nodes[0] = { ...symbolInput.customNodeGraphEffect.nodes[0], effectSource: { type: 'nativeEffect', id: 'symbols' },
-		params: { ...Object.fromEntries(Object.entries(symbols.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
+		params: { ...Object.fromEntries(Object.entries(symbols.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])),
 			input: { inputSource: 'literal', value: [0.5, 0.5, 0.5, 1] }, density: { inputSource: 'literal', value: 8 },
 			iconset: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'iconset' } } };
 	await add('symbols', symbolInput);
@@ -91,7 +92,7 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	const player = fixture();
 	player.players = [{ id: 'camera', name: 'Camera', sourceType: 'webcam' }];
 	player.customNodeGraphEffect.nodes[0] = { ...player.customNodeGraphEffect.nodes[0], effectSource: { type: 'nativeEffect', id: 'video' },
-		staticSettings: { [Object.keys(video.staticSettingDefs)[0]]: 'camera' }, params: Object.fromEntries(Object.entries(video.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) };
+		staticSettings: { [Object.keys(video.staticSettingDefs)[0]]: 'camera' }, params: Object.fromEntries(Object.entries(video.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])) };
 	await add('player', player);
 	const dangerous = fixture();
 	dangerous.name = '<!--<script></script><script>throw new Error("injected")</script>';

@@ -14,9 +14,9 @@ export default defineNativeEffect({
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
-		inputBlendMode: { dataType: { kind: 'blendMode' }, ui: { label: 'Input Blend', control: {} }, defaultValue: { inputSource: 'literal', value: 'emission' } },
+		inputBlendMode: { dataType: { kind: 'blendMode' }, ui: { label: 'Input Blend', control: {} }, defaultValue: 'emission' },
 		strength: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -28,7 +28,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		threshold: {
 			dataType: { kind: 'scalar' },
@@ -41,7 +41,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.7 },
+			defaultValue: 0.7,
 		},
 		softKnee: {
 			dataType: { kind: 'scalar' },
@@ -54,7 +54,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.5 },
+			defaultValue: 0.5,
 		},
 		radius: {
 			dataType: { kind: 'vector' },
@@ -67,7 +67,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: [0.7, 0.7] },
+			defaultValue: [0.7, 0.7],
 		},
 		quality: {
 			dataType: { kind: 'scalar' },
@@ -80,7 +80,7 @@ export default defineNativeEffect({
 					step: 0.05,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.5 },
+			defaultValue: 0.5,
 		},
 	},
 	primaryInputParameter: 'input',

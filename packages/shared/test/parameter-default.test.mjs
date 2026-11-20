@@ -4,9 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const bundle = await build({ entryPoints: [fileURLToPath(new URL('../src/parameter/parameter-default.ts', import.meta.url))], bundle: true, platform: 'node', format: 'esm', write: false });
-const { isParameterBindingDefault } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
+const { createDefaultParameterBinding, isParameterBindingDefault } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
 const literal = value => ({ inputSource: 'literal', value });
-const scalar = { dataType: { kind: 'scalar' }, defaultValue: literal(0) };
+const scalar = { dataType: { kind: 'scalar' }, defaultValue: 0 };
 
 // 【既定状態の判定は評価値ではなく入力方式と保存した設定を比較する】
 // 現在は同じ値を返す式やキーも、別時刻の結果や編集意図を失わないよう変更として扱う。
@@ -43,8 +43,8 @@ test('normalizes absent modifiers but preserves disabled modifier settings', () 
 // リセットでIDが変わっても既定状態へ戻せる一方、実際の設定の変化は見逃さない。
 test('compares nested array contents in order independently of element IDs', () => {
 	const definition = { dataType: { kind: 'array', elementType: { kind: 'struct', fields: { amount: scalar.dataType } } },
-		defaultValue: literal([0, 2].map((amount, index) => ({ id: String(index), binding: literal({ amount: literal(amount) }) }))) };
-	const binding = structuredClone(definition.defaultValue);
+		defaultValue: [{ amount: 0 }, { amount: 2 }] };
+	const binding = createDefaultParameterBinding(definition);
 	binding.value.forEach(element => { element.id += '-reset'; });
 	const before = structuredClone(binding);
 	assert.equal(isParameterBindingDefault(definition, binding), true);
@@ -55,11 +55,10 @@ test('compares nested array contents in order independently of element IDs', () 
 	assert.equal(isParameterBindingDefault(definition, binding), false);
 });
 
-// 【親の既定Bindingを基準に比較し、要素追加用の既定値と混同しない】
-// 配列全体の既定要素は、追加用のelement.defaultValueと異なる値や入力方式を持てる。
-test('uses the parent default contents including nonliteral child defaults', () => {
-	const baseline = literal({ amount: { inputSource: 'expression', expression: 'TIME' } });
-	const definition = { dataType: { kind: 'struct', fields: { amount: scalar.dataType } }, fields: { amount: { defaultValue: literal(0) } }, defaultValue: baseline };
-	assert.equal(isParameterBindingDefault(definition, structuredClone(baseline)), true);
+// 【コンテナ全体の既定値を子の単独の既定値から区別する】
+// 親を初期化した場合、子を単体でリセットした場合と異なる値を持てる。
+test('uses the parent default contents when comparing children', () => {
+	const definition = { dataType: { kind: 'struct', fields: { amount: scalar.dataType } }, fields: { amount: { defaultValue: 0 } }, defaultValue: { amount: 2 } };
+	assert.equal(isParameterBindingDefault(definition, literal({ amount: literal(2) })), true);
 	assert.equal(isParameterBindingDefault(definition, literal({ amount: literal(0) })), false);
 });

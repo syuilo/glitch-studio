@@ -1,7 +1,7 @@
 export const literal = value => ({ inputSource: 'literal', value });
 export const parameter = (kind, value, name = kind) => ({
 	nameForReference: name, canNode: false, dataType: { kind },
-	ui: { label: name, control: {} }, defaultValue: literal(value),
+	ui: { label: name, control: {} }, defaultValue: value,
 });
 
 export function shaderDefinition(code) {

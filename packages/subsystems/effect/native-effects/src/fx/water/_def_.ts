@@ -12,14 +12,14 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	tags: ['distortion', 'liquid', 'stylized'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
-		colorHighlight: { dataType: { kind: 'color' }, ui: { label: 'Highlight Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
+		colorHighlight: { dataType: { kind: 'color' }, ui: { label: 'Highlight Color', control: {} }, defaultValue: [1, 1, 1, 1] },
 		colorHighlightAlpha: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -31,7 +31,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		highlights: {
 			dataType: { kind: 'scalar' },
@@ -44,7 +44,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.07 },
+			defaultValue: 0.07,
 		},
 		layering: {
 			dataType: { kind: 'scalar' },
@@ -57,7 +57,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.5 },
+			defaultValue: 0.5,
 		},
 		edges: {
 			dataType: { kind: 'scalar' },
@@ -70,7 +70,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.8 },
+			defaultValue: 0.8,
 		},
 		waves: {
 			dataType: { kind: 'scalar' },
@@ -83,7 +83,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.3 },
+			defaultValue: 0.3,
 		},
 		caustic: {
 			dataType: { kind: 'scalar' },
@@ -96,7 +96,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.1 },
+			defaultValue: 0.1,
 		},
 		density: {
 			dataType: { kind: 'scalar' },
@@ -109,11 +109,11 @@ export default defineNativeEffect({
 					logarithmic: true,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 20 },
+			defaultValue: 20,
 		},
-		time: { dataType: { kind: 'scalar' }, ui: { label: 'Time', control: { controlType: 'number', step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
-		speed: { dataType: { kind: 'scalar' }, ui: { label: 'Speed', control: { controlType: 'number', step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
-		frame: { dataType: { kind: 'scalar' }, ui: { label: 'Frame Offset (ms)', control: { controlType: 'number', step: 1 } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		time: { dataType: { kind: 'scalar' }, ui: { label: 'Time', control: { controlType: 'number', step: 0.01 } }, defaultValue: 0 },
+		speed: { dataType: { kind: 'scalar' }, ui: { label: 'Speed', control: { controlType: 'number', step: 0.01 } }, defaultValue: 1 },
+		frame: { dataType: { kind: 'scalar' }, ui: { label: 'Frame Offset (ms)', control: { controlType: 'number', step: 1 } }, defaultValue: 0 },
 	},
 	primaryInputParameter: 'input',
 	resolutionInputParameters: ['input'],

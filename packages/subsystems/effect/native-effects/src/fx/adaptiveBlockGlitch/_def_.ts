@@ -10,12 +10,12 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	tags: ['glitch', 'color', 'stylized'],
 	paramDefs: {
-		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: {
 			dataType: { kind: 'color' },
 			ui: { label: 'Input', control: {} },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+			defaultValue: [0, 0, 0, 0],
 		},
 		maxBlockSize: {
 			dataType: { kind: 'scalar' },
@@ -28,7 +28,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 25 },
+			defaultValue: 25,
 		},
 		subdivisions: {
 			dataType: { kind: 'scalar' },
@@ -41,7 +41,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 5 },
+			defaultValue: 5,
 		},
 		threshold: {
 			dataType: { kind: 'scalar' },
@@ -54,7 +54,7 @@ export default defineNativeEffect({
 					step: 0.001,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.06 },
+			defaultValue: 0.06,
 		},
 		analysisSamples: {
 			dataType: { kind: 'scalar' },
@@ -67,7 +67,7 @@ export default defineNativeEffect({
 					step: 1,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 4 },
+			defaultValue: 4,
 		},
 		amount: {
 			dataType: { kind: 'scalar' },
@@ -80,7 +80,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.6 },
+			defaultValue: 0.6,
 		},
 		strength: {
 			dataType: { kind: 'scalar' },
@@ -93,7 +93,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
 		displacement: {
 			dataType: { kind: 'scalar' },
@@ -106,9 +106,9 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 1 },
+			defaultValue: 1,
 		},
-		snapToBlocks: { dataType: { kind: 'bool' }, ui: { label: 'Snap Displacement to Blocks', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		snapToBlocks: { dataType: { kind: 'bool' }, ui: { label: 'Snap Displacement to Blocks', control: {} }, defaultValue: false },
 		colorShift: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -120,7 +120,7 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.2 },
+			defaultValue: 0.2,
 		},
 		channelShift: {
 			dataType: { kind: 'scalar' },
@@ -133,10 +133,10 @@ export default defineNativeEffect({
 					step: 0.01,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0.1 },
+			defaultValue: 0.1,
 		},
-		flattenBlocks: { dataType: { kind: 'bool' }, ui: { label: 'Flatten Blocks', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
-		preserveAlpha: { dataType: { kind: 'bool' }, ui: { label: 'Preserve Alpha', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+		flattenBlocks: { dataType: { kind: 'bool' }, ui: { label: 'Flatten Blocks', control: {} }, defaultValue: false },
+		preserveAlpha: { dataType: { kind: 'bool' }, ui: { label: 'Preserve Alpha', control: {} }, defaultValue: true },
 		outline: {
 			dataType: { kind: 'scalar' },
 			ui: {
@@ -148,9 +148,9 @@ export default defineNativeEffect({
 					step: 0.001,
 				},
 			},
-			defaultValue: { inputSource: 'literal', value: 0 },
+			defaultValue: 0,
 		},
-		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, defaultValue: 0 },
 	},
 	primaryInputParameter: 'input',
 	resolutionInputParameters: ['input'],

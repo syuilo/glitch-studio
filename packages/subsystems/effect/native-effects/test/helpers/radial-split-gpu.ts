@@ -27,12 +27,12 @@ export async function run() {
 	const disposers: (() => void)[] = [];
 	const checks: string[] = [];
 	const defaults: RadialSplitParameters = {
-		inputs: definition.paramDefs.inputs.defaultValue.value.map(input => constantShaderInput('color', input.binding.value)),
-		direction: definition.paramDefs.direction.defaultValue.value,
-		gap: definition.paramDefs.gap.defaultValue.value,
-		center: definition.paramDefs.center.defaultValue.value,
-		startAngle: definition.paramDefs.startAngle.defaultValue.value,
-		sizeReference: definition.paramDefs.sizeReference.defaultValue.value,
+		inputs: definition.paramDefs.inputs.defaultValue.map(input => constantShaderInput('color', input)),
+		direction: definition.paramDefs.direction.defaultValue,
+		gap: definition.paramDefs.gap.defaultValue,
+		center: definition.paramDefs.center.defaultValue,
+		startAngle: definition.paramDefs.startAngle.defaultValue,
+		sizeReference: definition.paramDefs.sizeReference.defaultValue,
 	};
 	const sampling: ShaderInputSampling = { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' };
 	const reader = device.createRenderPipeline({ layout: 'auto', vertex: { module: vertex }, fragment: {

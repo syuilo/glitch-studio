@@ -1,4 +1,4 @@
-import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParameterBindingBase } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
@@ -17,37 +17,37 @@ const commonShapeParamDefs = {
 				step: 0.01,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: [0, 0] },
+		defaultValue: [0, 0],
 		canNode: false,
 	},
 	rotation: {
 		dataType: { kind: 'scalar' },
 		ui: { label: 'Rotation', control: { controlType: 'angle' } },
-		defaultValue: { inputSource: 'literal', value: 0 },
+		defaultValue: 0,
 		canNode: false,
 	},
 	fillEnabled: {
 		dataType: { kind: 'bool' },
 		ui: { label: 'Fill', control: {} },
-		defaultValue: { inputSource: 'literal', value: true },
+		defaultValue: true,
 		canNode: false,
 	},
 	fillColor: {
 		dataType: { kind: 'color' },
 		ui: { label: 'Fill color', control: {} },
-		defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] },
+		defaultValue: [1, 1, 1, 1],
 		canNode: false,
 	},
 	strokeEnabled: {
 		dataType: { kind: 'bool' },
 		ui: { label: 'Stroke', control: {} },
-		defaultValue: { inputSource: 'literal', value: false },
+		defaultValue: false,
 		canNode: false,
 	},
 	strokeColor: {
 		dataType: { kind: 'color' },
 		ui: { label: 'Stroke color', control: {} },
-		defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] },
+		defaultValue: [0, 0, 0, 1],
 		canNode: false,
 	},
 	strokeWidth: {
@@ -61,7 +61,7 @@ const commonShapeParamDefs = {
 				step: 0.001,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: 0.01 },
+		defaultValue: 0.01,
 		canNode: false,
 	},
 	strokeProgress: {
@@ -75,7 +75,7 @@ const commonShapeParamDefs = {
 				step: 0.01,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: 1 },
+		defaultValue: 1,
 		canNode: false,
 	},
 	strokeStart: {
@@ -89,13 +89,13 @@ const commonShapeParamDefs = {
 				step: 0.01,
 			},
 		},
-		defaultValue: { inputSource: 'literal', value: 0 },
+		defaultValue: 0,
 		canNode: false,
 	},
 	strokeAlignment: {
 		dataType: { kind: 'enum', options: ['inside', 'center', 'outside'] },
 		ui: { label: 'Stroke alignment', control: { labels: { inside: 'Inside', center: 'Center', outside: 'Outside' } } },
-		defaultValue: { inputSource: 'literal', value: 'center' },
+		defaultValue: 'center',
 		canNode: false,
 	},
 } as const satisfies Record<string, ParameterDefinition>;
@@ -113,7 +113,7 @@ const sizeParamDef = {
 			step: 0.01,
 		},
 	},
-	defaultValue: { inputSource: 'literal', value: [0.5, 0.5] },
+	defaultValue: [0.5, 0.5],
 	canNode: false,
 } as const satisfies ParameterDefinition;
 
@@ -134,7 +134,7 @@ export const shapeDefinitions = {
 						step: 0.001,
 					},
 				},
-				defaultValue: { inputSource: 'literal', value: 0 },
+				defaultValue: 0,
 				canNode: false,
 			},
 			...commonShapeParamDefs,
@@ -156,7 +156,7 @@ export function getShapeParameterDefinitions(type: ShapeType): Record<string, Pa
 export function createShape(type: ShapeType): Shape {
 	const defs = getShapeParameterDefinitions(type);
 	// キーは種類別の定義から生成する。既定値の配列を別のシェイプと共有しない。
-	return { type, paramValues: Object.fromEntries(Object.entries(defs).map(([key, def]) => [key, deepClone(def.defaultValue)])) } as Shape;
+	return { type, paramValues: Object.fromEntries(Object.entries(defs).map(([key, def]) => [key, createDefaultParameterBinding(def)])) } as Shape;
 }
 
 type EvaluatedShapeBase = {

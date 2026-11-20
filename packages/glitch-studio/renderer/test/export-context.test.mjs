@@ -24,7 +24,7 @@ test('passes export context through timeline layers and resets it for preview', 
 
 // 単独参照と複合式の両方で真偽値を評価し、繰り返し評価しても値が残らない。
 test('evaluates IS_EXPORT in public parameters and node expressions without leaking state', async t => {
-	const flag = { dataType: { kind: 'bool' }, defaultValue: { inputSource: 'literal', value: false }, ui: { label: 'Export', control: {} } };
+	const flag = { dataType: { kind: 'bool' }, defaultValue: false, ui: { label: 'Export', control: {} } };
 	const metadata = { primaryInputParameter: null, primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } }, resolutionInputParameters: [] };
 	const graph = { ...metadata, paramDefs: { external: flag }, nodes: [{ id: 'draw', effectSource: { type: 'nativeEffect', id: 'probe' },
 		params: { direct: { inputSource: 'expression', expression: 'IS_EXPORT' }, public: { inputSource: 'expression', expression: 'PUBLIC("external")' } } }],
