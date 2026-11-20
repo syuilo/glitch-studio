@@ -1,8 +1,8 @@
 import { createShaderInputBindings, generateShaderInputs, type FixedShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { toFixedShaderInput, type EffectImageInput, type EffectInitContext, type EffectRenderOperation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
-import shader from './selector.wgsl?raw';
+import shader from './interpolator.wgsl?raw';
 
-type SelectorInputs = {
+type InterpolatorInputs = {
 	inputs: { readonly kind: 'array'; readonly elements: readonly EffectImageInput[] };
 	index: { readonly value: number };
 };
@@ -13,7 +13,7 @@ function selectionPipelineKey(first: FixedShaderInput, second: FixedShaderInput)
 	return `${first.kind}:${second.kind}`;
 }
 
-export async function createInputSelector(context: EffectInitContext<SelectorInputs>, type: 'color' | 'scalar' | 'vector'): Promise<EffectRenderOperation> {
+export async function createInputInterpolator(context: EffectInitContext<InterpolatorInputs>, type: 'color' | 'scalar' | 'vector'): Promise<EffectRenderOperation> {
 	const { device, resolution, defaultVertexShaderModule, outputTextures, signal } = context;
 	const { inputs, index } = context.inputs;
 	const candidates = inputs.elements.map(toFixedShaderInput);
@@ -55,7 +55,7 @@ export async function createInputSelector(context: EffectInitContext<SelectorInp
 					layout: device.createPipelineLayout({ bindGroupLayouts: [bindings.layout] }),
 					vertex: { module: defaultVertexShaderModule },
 					fragment: {
-						module: device.createShaderModule({ code: generated.code + '\nalias SelectedValue = ' + resultType + ';\n' + shader }),
+					module: device.createShaderModule({ code: generated.code + '\nalias InterpolatedValue = ' + resultType + ';\n' + shader }),
 						targets: [{ format: output.format }],
 					},
 				});

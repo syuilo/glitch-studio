@@ -1,9 +1,9 @@
 import type { NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
-import { createInputSelector } from '../../selector/create-input-selector.ts';
+import { createInputInterpolator } from '../../interpolator/create-input-interpolator.ts';
 import type definition from './_def_.ts';
 
 const implementation: NativeEffectImplementation<typeof definition.paramDefs> = {
-	init: context => createInputSelector(context, 'vector'),
+	init: context => createInputInterpolator(context, 'color'),
 };
 
 export default implementation;

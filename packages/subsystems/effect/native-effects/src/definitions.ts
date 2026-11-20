@@ -26,9 +26,9 @@ import cliffordDeJongAttractor from './fx/cliffordDeJongAttractor/_def_.ts';
 import colorBlend from './fx/colorBlend/_def_.ts';
 import colorBlocks from './fx/colorBlocks/_def_.ts';
 import colorClamp from './fx/colorClamp/_def_.ts';
+import colorInterpolator from './fx/colorInterpolator/_def_.ts';
 import colorMix from './fx/colorMix/_def_.ts';
 import colorRamp from './fx/colorRamp/_def_.ts';
-import colorSelector from './fx/colorSelector/_def_.ts';
 import composeColor from './fx/composeColor/_def_.ts';
 import composeColorHsl from './fx/composeColorHsl/_def_.ts';
 import composeVector from './fx/composeVector/_def_.ts';
@@ -129,9 +129,9 @@ import rgbOffset from './fx/rgbOffset/_def_.ts';
 import rgbTo from './fx/rgbTo/_def_.ts';
 import sampleImage from './fx/sampleImage/_def_.ts';
 import scalarGradient from './fx/scalarGradient/_def_.ts';
+import scalarInterpolator from './fx/scalarInterpolator/_def_.ts';
 import scalarMath from './fx/scalarMath/_def_.ts';
 import scalarRangeLimit from './fx/scalarRangeLimit/_def_.ts';
-import scalarSelector from './fx/scalarSelector/_def_.ts';
 import scanlineReplace from './fx/scanlineReplace/_def_.ts';
 import sdfBoolean from './fx/sdfBoolean/_def_.ts';
 import sdfToMask from './fx/sdfToMask/_def_.ts';
@@ -161,9 +161,9 @@ import vectorChromaticAberration from './fx/vectorChromaticAberration/_def_.ts';
 import vectorDisplacement from './fx/vectorDisplacement/_def_.ts';
 import vectorDotProduct from './fx/vectorDotProduct/_def_.ts';
 import vectorFieldVisualization from './fx/vectorFieldVisualization/_def_.ts';
+import vectorInterpolator from './fx/vectorInterpolator/_def_.ts';
 import vectorLength from './fx/vectorLength/_def_.ts';
 import vectorMath from './fx/vectorMath/_def_.ts';
-import vectorSelector from './fx/vectorSelector/_def_.ts';
 import vectorSmear from './fx/vectorSmear/_def_.ts';
 import vhsPlayback from './fx/vhsPlayback/_def_.ts';
 import video from './fx/video/_def_.ts';
@@ -204,9 +204,9 @@ export const nativeEffectDefinitions = {
 	colorBlend,
 	colorBlocks,
 	colorClamp,
+	colorInterpolator,
 	colorMix,
 	colorRamp,
-	colorSelector,
 	composeColor,
 	composeColorHsl,
 	composeVector,
@@ -307,9 +307,9 @@ export const nativeEffectDefinitions = {
 	rgbTo,
 	sampleImage,
 	scalarGradient,
+	scalarInterpolator,
 	scalarMath,
 	scalarRangeLimit,
-	scalarSelector,
 	scanlineReplace,
 	sdfBoolean,
 	sdfToMask,
@@ -339,9 +339,9 @@ export const nativeEffectDefinitions = {
 	vectorDisplacement,
 	vectorDotProduct,
 	vectorFieldVisualization,
+	vectorInterpolator,
 	vectorLength,
 	vectorMath,
-	vectorSelector,
 	vectorSmear,
 	vhsPlayback,
 	video,

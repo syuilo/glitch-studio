@@ -1,5 +1,5 @@
 @fragment
-fn fs(@location(0) position: vec2f) -> @location(0) SelectedValue {
+fn fs(@location(0) position: vec2f) -> @location(0) InterpolatedValue {
 	let amount = read_blendWeight(position);
 	let first = read_first(position);
 	if (amount == 0.0) { return first; }

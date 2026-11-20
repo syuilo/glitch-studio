@@ -8,13 +8,13 @@ function stripeInput(device) {
 	return { kind: 'texture', texture, resolution, version: 0, sampling: { fitMode: 'cover', filterMode: 'nearest', wrapMode: 'clamp' } };
 }
 
-export async function selectors() {
+export async function interpolators() {
 	await withGpu(async ({ gpu, create, render, read, pipelines }) => {
 		const stripe = stripeInput(gpu.device);
 		const constant = { kind: 'uniform', value: [-2, 2, 1, 0.5] };
 		const last = { kind: 'uniform', value: [4, -4, 3, 0.25] };
 		const elements = [constant, stripe, last];
-		for (const [id, channels] of [['scalarSelector', 1], ['vectorSelector', 2], ['colorSelector', 4]]) {
+		for (const [id, channels] of [['scalarInterpolator', 1], ['vectorInterpolator', 2], ['colorInterpolator', 4]]) {
 			let index = 0;
 			const instance = await create({ type: 'nativeEffect', id }, ['output'], {
 				inputs: { kind: 'array', elements }, index: { kind: 'value', get value() { return index; } },
@@ -33,7 +33,7 @@ export async function selectors() {
 						near(pixels[4 + c], expected[c], id + ' index ' + index);
 					}
 				}
-				check(compiled === pipelines(), 'selector index changes reuse the pipeline');
+				check(compiled === pipelines(), 'Interpolator index changes reuse the pipeline');
 			} finally { instance.dispose(); }
 
 			const empty = await create({ type: 'nativeEffect', id }, ['output'], { inputs: { kind: 'array', elements: [] } }, { resolution });
@@ -47,7 +47,7 @@ export async function selectors() {
 	});
 }
 
-export async function selectorTextureBindings() {
+export async function interpolatorTextureBindings() {
 	await withGpu(async ({ gpu, create, render, read, pipelines }) => {
 		const { device } = gpu;
 		const elements = Array.from({ length: device.limits.maxSampledTexturesPerShaderStage }, () => stripeInput(device));
@@ -59,7 +59,7 @@ export async function selectorTextureBindings() {
 
 		const last = elements.length - 1;
 		let index = 0;
-		const instance = await create({ type: 'nativeEffect', id: 'colorSelector' }, ['output'], {
+		const instance = await create({ type: 'nativeEffect', id: 'colorInterpolator' }, ['output'], {
 			inputs: { kind: 'array', elements }, index: { kind: 'value', get value() { return index; } },
 		}, { resolution });
 		const createBindGroup = device.createBindGroup;
@@ -81,7 +81,7 @@ export async function selectorTextureBindings() {
 				const pixels = await read(instance.outputs.get('output').texture);
 				for (const [pixel, red] of expected.entries()) near(pixels[pixel * 4], red, 'index ' + index + ' pixel ' + pixel);
 			}
-			check(compiled === pipelines(), 'selector texture switches reuse pipelines');
+			check(compiled === pipelines(), 'Interpolator texture switches reuse pipelines');
 		} finally {
 			device.createBindGroup = createBindGroup;
 			instance.dispose();
