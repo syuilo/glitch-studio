@@ -909,9 +909,10 @@ for (const enableStats of [false, true]) {
 	});
 }
 
-// 【GPU計測は非同期のパス結果をフレーム当たりのマイクロ秒で通知する】
-// TimingHelperがGPUから遅れて読み戻す経路を使い、次の描画や停止後の遅延完了と競合させる。
-test('reports delayed pass durations and ignores disposed placement readbacks', async t => {
+// 【Effect Live PreviewのGPU時間は通知間隔にかかわらず1フレームずつ集計する】
+// 逆順の読み戻しでも描画順で加算し、キャッシュ再利用を0、計測失敗をサンプルなしとして扱う。
+// リセット・停止前の結果が遅れて返っても、その後の集計へ混ぜない。
+test('averages asynchronous GPU results per frame in presentation order', async t => {
 	t.mock.timers.enable({ apis: ['setInterval'] });
 	const f = await fixture(t, { enableStats: true, effectRenderTiling: { mode: 'disabled' } });
 	const device = f.renderer.gpuDevice;
@@ -921,30 +922,65 @@ test('reports delayed pass durations and ignores disposed placement readbacks', 
 	const reads = [];
 	device.createQuerySet = () => ({ destroy() {} });
 	const buffer = device.createBuffer.bind(device);
-	device.createBuffer = descriptor => ({ ...buffer(descriptor), mapAsync() {
-		const gate = Promise.withResolvers(); reads.push(gate); return gate.promise;
-	}, getMappedRange() { return new BigInt64Array([0n, 2000000n]).buffer; }, unmap() {} });
+	device.createBuffer = descriptor => {
+		let duration = 0n;
+		return { ...buffer(descriptor), mapAsync() {
+			const readback = Promise.withResolvers();
+			reads.push(readback);
+			return readback.promise.then(time => { duration = time; });
+		}, getMappedRange() { return new BigInt64Array([0n, duration]).buffer; }, unmap() {} };
+	};
 	const encoder = device.createCommandEncoder.bind(device);
 	device.createCommandEncoder = () => ({ ...encoder(), resolveQuerySet() {}, copyBufferToBuffer() {} });
 	f.renderer.nativeEffectDefinitions.pass = fillDefinition;
 	f.renderer.nativeEffectImplementations.pass = fillImplementation;
 	const samples = t.mock.method(f.renderer.gpuAverageFast, 'addSample');
+	const sampleValues = () => samples.mock.calls.map(call => call.arguments[0]);
+	const telemetry = [];
+	f.renderer.on('ev', event => { if (event.type === 'telemetry') telemetry.push(event.ctx.gpuAverageFast); });
 	f.renderer.startEffectLivePreview({ effectSource: { type: 'nativeEffect', id: 'pass' } });
 	await f.frame(16);
 	f.renderer.updateEffectLivePreviewParamValues({ color: { inputSource: 'literal', value: [0, 1, 0, 1] } });
 	await f.frame(32);
 	assert.equal(reads.length, 2);
-	for (const gate of reads) gate.resolve();
+	reads[1].resolve(8_000_000n);
 	await new Promise(resolve => setImmediate(resolve));
 	t.mock.timers.tick(100);
-	assert.deepEqual(samples.mock.calls.map(call => call.arguments[0]), [2000]);
-	f.renderer.updateEffectLivePreviewParamValues({ color: { inputSource: 'literal', value: [1, 0, 0, 1] } });
+	assert.deepEqual(sampleValues(), []);
+	reads[0].resolve(2_000_000n);
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(sampleValues(), [2000, 8000]);
+	assert.equal(telemetry.length, 1);
+	t.mock.timers.tick(100);
+	assert.equal(telemetry.at(-1), 5000);
+
 	await f.frame(48);
+	assert.equal(reads.length, 2);
+	assert.deepEqual(sampleValues(), [2000, 8000, 0]);
+	f.renderer.updateEffectLivePreviewParamValues({ color: { inputSource: 'literal', value: [1, 0, 0, 1] } });
+	await f.frame(64);
+	reads[2].reject(new Error('timestamp readback failed'));
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(sampleValues(), [2000, 8000, 0]);
+
+	f.renderer.updateEffectLivePreviewParamValues({ color: { inputSource: 'literal', value: [0, 0, 1, 1] } });
+	await f.frame(80);
+	f.renderer.resetRenderHistory();
+	await f.frame(96);
+	reads[4].resolve(4_000_000n);
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(sampleValues(), [2000, 8000, 0, 4000]);
+	reads[3].resolve(32_000_000n);
+	await new Promise(resolve => setImmediate(resolve));
+
+	f.renderer.updateEffectLivePreviewParamValues({ color: { inputSource: 'literal', value: [1, 1, 0, 1] } });
+	await f.frame(112);
 	f.renderer.stopRenderLoop();
-	reads[2].resolve();
+	reads[5].resolve(64_000_000n);
 	await new Promise(resolve => setImmediate(resolve));
 	t.mock.timers.tick(100);
-	assert.equal(samples.mock.callCount(), 1);
+	assert.deepEqual(sampleValues(), [2000, 8000, 0, 4000]);
+	assert.equal(telemetry.at(-1), 3500);
 	assert.deepEqual(f.errors, []);
 });
 

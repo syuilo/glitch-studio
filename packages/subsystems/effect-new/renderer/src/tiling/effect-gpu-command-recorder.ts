@@ -115,6 +115,8 @@ export class EffectGpuCommandRecorder {
 	private passCount = 0;
 	readonly encoder: GPUCommandEncoder;
 
+	public get hasPasses(): boolean { return this.passCount > 0; }
+
 	constructor() {
 		this.encoder = new Proxy({ label: '' }, {
 			get: (target, property) => {
@@ -152,7 +154,7 @@ export class EffectGpuCommandRecorder {
 	}
 
 	/** 通常描画の定期計測。submit・readback・GPU完了を待たず、呼び出し側のencoderへ一度だけ再生する。 */
-	public replayUntiled(encoder: GPUCommandEncoder, timingHelper: TimingHelper | null, onRenderPassTime: EffectRenderPassGpuTimeObserver) {
+	public replayUntiled(encoder: GPUCommandEncoder, timingHelper: TimingHelper | null, onRenderPassTime?: EffectRenderPassGpuTimeObserver) {
 		if (this.openPass) throw new Error('Effect render returned with an open pass.');
 		for (const operation of this.operations) {
 			if (operation.kind === 'command') {
@@ -161,7 +163,11 @@ export class EffectGpuCommandRecorder {
 			}
 			const index = operation.passIndex;
 			let pass: GPURenderPassEncoder | GPUComputePassEncoder;
-			if (operation.kind === 'compute') {
+			if (onRenderPassTime == null) {
+				pass = operation.kind === 'compute'
+					? timingHelper?.beginComputePass(encoder, operation.descriptor) ?? encoder.beginComputePass(operation.descriptor)
+					: timingHelper?.beginRenderPass(encoder, operation.descriptor) ?? encoder.beginRenderPass(operation.descriptor);
+			} else if (operation.kind === 'compute') {
 				if (timingHelper == null) onRenderPassTime(index, [], 0, 0, null);
 				pass = timingHelper?.beginComputePass(encoder, operation.descriptor,
 					duration => onRenderPassTime(index, [], 0, 0, duration == null ? null : duration / 1_000_000)) ?? encoder.beginComputePass(operation.descriptor);
@@ -221,13 +227,11 @@ export class EffectGpuCommandRecorder {
 		let currentPass = 0;
 		const readbacks = new Set<Promise<number | null>>();
 		const submissions = new Set<Promise<unknown>>();
-		let readbackError: unknown = null;
 		const submit = async (encode: (encoder: GPUCommandEncoder, measuredTimingHelper: TimingHelper | null) => void, measureGpuTime = false) => {
 			const passIndex = currentPass;
 			// readbackだけが遅い場合にもバッファを無制限に増やさない。GPU完了を待った後の
 			// 統計は次の描画と重ね、同時に保持する結果は最大三つに制限する。
 			while (readbacks.size >= 3) await readbacks.values().next().value;
-			if (readbackError != null) throw readbackError;
 			signal.throwIfAborted();
 			const encoder = device.createCommandEncoder();
 			const measuredTimingHelper = passIndex >= 0 && (collectStatistics || measureGpuTime) ? timingHelper : null;
@@ -237,12 +241,14 @@ export class EffectGpuCommandRecorder {
 			device.queue.submit([commandBuffer]);
 			let result: Promise<number | null> | null = null;
 			if (measuredTimingHelper != null) {
-				result = measuredTimingHelper.getResult().then(duration => {
+				// タイムスタンプを読み取れなくても、GPUで完了した描画は利用できる。
+				result = measuredTimingHelper.getResult().catch(() => null).then(duration => {
+					const validDuration = duration != null && duration >= 0 ? duration : null;
 					if (options.onPassTime != null && passTimes.has(passIndex) && passTimes.get(passIndex) !== null) {
-						passTimes.set(passIndex, duration < 0 ? null : passTimes.get(passIndex)! + duration / 1_000_000);
+						passTimes.set(passIndex, validDuration == null ? null : passTimes.get(passIndex)! + validDuration / 1_000_000);
 					}
-					return duration;
-				}, error => { readbackError ??= error; return null; });
+					return validDuration;
+				});
 				readbacks.add(result);
 				const pending = result;
 				void result.then(() => readbacks.delete(pending));
@@ -251,7 +257,6 @@ export class EffectGpuCommandRecorder {
 			// 次のタイルを送信するまでの空白へ加えない。
 			const completed = waitForEffectGpuWork(device).then(() => performance.now() - startTime);
 			const [elapsedMs, duration] = await Promise.all([completed, measureGpuTime ? result : null]);
-			if (readbackError != null) throw readbackError;
 			signal.throwIfAborted();
 			return { elapsedMs, gpuTimeMs: usesGpuTiming && duration != null ? duration / 1_000_000 : null };
 		};
@@ -339,7 +344,6 @@ export class EffectGpuCommandRecorder {
 			// readback枠の空きを待っていたsubmitも、結果を登録し終えてから回収する。
 			await Promise.allSettled(readbacks);
 		}
-		if (readbackError != null) throw readbackError;
 		signal.throwIfAborted();
 		for (const [index, duration] of passTimes) options.onPassTime?.(index, duration);
 	}

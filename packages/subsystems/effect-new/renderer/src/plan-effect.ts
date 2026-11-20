@@ -34,6 +34,8 @@ export interface EffectPlacement {
 	readonly tiling?: EffectRenderTiling;
 	/** 配置ID列とGPU時間（ms）。timestamp-query非対応時はnull。 */
 	readonly onGpuTime?: (nodePath: readonly string[], passIndex: number, milliseconds: number | null) => void;
+	/** フレームの全Effectパスの合計（ms）。パスがなければ0、計測できなかったパスがあればnull。 */
+	readonly onFrameGpuTime?: (frame: EffectFrameContext, result: Promise<number | null>) => void;
 	readonly onPreparationStatus?: (status: EffectPreparationStatus) => void;
 	readonly usedOutputPorts: ReadonlySet<string>;
 	readonly params?: Readonly<Record<string, ValueParameterBinding>>;

@@ -157,6 +157,10 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		instance: EffectInstance | null;
 		port: string | null;
 		inputs: ReturnType<typeof createEffectLivePreviewInputs>;
+		gpuTiming: {
+			frameTimes: WeakMap<EffectFrameContext, Promise<number | null>>;
+			pending: Promise<void>;
+		} | null;
 	} | null = null;
 	private readonly previewRenderDelayMonitor = new PreviewRenderDelayMonitor((isDelayed, tilingProgress) => {
 		this.emit('ev', { type: 'renderDelay', ctx: { instanceId: this.effectLivePreviewStatusInstanceId, isDelayed, tilingProgress } });
@@ -173,9 +177,6 @@ export class EffectLivePreviewManager extends EventEmitter<{
 	private definitions: EffectDefinitions;
 	private readonly nativeEffectDefinitions: NativeEffectDefinitions;
 	private readonly nativeEffectImplementations: Readonly<Record<string, NativeEffectImplementation>>;
-	private gpuMilliseconds = 0;
-	private measuredPasses = 0;
-	private renderedFrames = 0;
 	private gpuAverageFast = new NonNegativeRollingAverage(10);
 	private gpuAverageMedium = new NonNegativeRollingAverage(100);
 	private gpuAverageSlow = new NonNegativeRollingAverage(1000);
@@ -258,14 +259,6 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		});
 
 		if (this.staticOptions.enableStats) this.telemetryReportIntervalId = setInterval(() => {
-			if (this.renderedFrames > 0 && this.measuredPasses > 0) {
-				// telemetryは従来から1フレームあたりのマイクロ秒を公開する。
-				const frameMicroseconds = 1000 * this.gpuMilliseconds / this.renderedFrames;
-				this.gpuAverageFast.addSample(frameMicroseconds);
-				this.gpuAverageMedium.addSample(frameMicroseconds);
-				this.gpuAverageSlow.addSample(frameMicroseconds);
-				this.gpuMilliseconds = this.measuredPasses = this.renderedFrames = 0;
-			}
 			this.emit('ev', {
 				type: 'telemetry',
 				ctx: {
@@ -443,7 +436,6 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		this.activeEffect = null;
 		active.lifetime.abort();
 		active.instance?.dispose();
-		this.gpuMilliseconds = this.measuredPasses = this.renderedFrames = 0;
 		this.emit('ev', { type: 'effectState', ctx: { source: { type: 'effectLivePreview', instanceId: this.effectLivePreviewStatusInstanceId! }, status: null } });
 	}
 
@@ -464,6 +456,9 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		const lifetime = new AbortController();
 		const resolveAudio = (selection: unknown) => this.playerAudioInputs.resolve(selection);
 		const inputs = createEffectLivePreviewInputs(definition, placement.params ?? {}, this.dynamicOptions.automationGraphs, resolveAudio);
+		const gpuTiming = this.staticOptions.enableStats ? {
+			frameTimes: new WeakMap<EffectFrameContext, Promise<number | null>>(), pending: Promise.resolve(),
+		} : null;
 		let previousStatus: EffectPreparationStatus | null = null;
 		const ready = createEffectInstance({
 			effectSource: placement.effectSource, definitions: this.definitions, inputs: inputs.inputs, staticSettings: placement.staticSettings,
@@ -477,14 +472,10 @@ export class EffectLivePreviewManager extends EventEmitter<{
 				previousStatus = status;
 				this.emit('ev', { type: 'effectState', ctx: { source, status } });
 			},
-			onGpuTime: this.staticOptions.enableStats ? (_path, _pass, milliseconds) => {
-				if (milliseconds == null || lifetime.signal.aborted) return;
-				this.gpuMilliseconds += milliseconds;
-				this.measuredPasses++;
-			} : undefined,
+			onFrameGpuTime: gpuTiming == null ? undefined : (frame, result) => { gpuTiming.frameTimes.set(frame, result); },
 		}, { device: this.gpuDevice, defaultVertexShaderModule: this.vertex, enable32bitDataTextures: this.staticOptions.enable32bitDataTextures },
 		id => this.nativeEffectImplementations[id], lifetime.signal);
-		const active: NonNullable<EffectLivePreviewManager['activeEffect']> = { lifetime, inputs, ready, port, instance: null };
+		const active: NonNullable<EffectLivePreviewManager['activeEffect']> = { lifetime, inputs, ready, port, instance: null, gpuTiming };
 		this.activeEffect = active;
 		void ready.then(instance => {
 			if (lifetime.signal.aborted) instance.dispose();
@@ -535,9 +526,21 @@ export class EffectLivePreviewManager extends EventEmitter<{
 			cpuFrame?.prepareReadback(encoder);
 			this.gpuDevice.queue.submit([encoder.finish()]);
 			this.pointerPositionPrev = pointer;
-			if (this.staticOptions.enableStats) {
-				this.renderedFrames++;
+			const gpuTiming = active.gpuTiming;
+			if (gpuTiming != null) {
 				if (realTimeDelta > 0) this.fpsAverage.addSample(1000 / realTimeDelta);
+				const result = gpuTiming.frameTimes.get(frame);
+				if (result != null) {
+					// readbackの到着順に関係なく、表示へ送信した順で移動平均を更新する。
+					gpuTiming.pending = gpuTiming.pending.then(async () => {
+						const milliseconds = await result;
+						if (milliseconds == null || signal.aborted || historyGeneration !== this.historyGeneration) return;
+						const microseconds = milliseconds * 1000;
+						this.gpuAverageFast.addSample(microseconds);
+						this.gpuAverageMedium.addSample(microseconds);
+						this.gpuAverageSlow.addSample(microseconds);
+					});
+				}
 			}
 			const complete = cpuFrame?.complete() ?? this.gpuDevice.queue.onSubmittedWorkDone();
 			void complete.catch(error => {
@@ -567,6 +570,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 
 	public resetRenderHistory() {
 		this.historyGeneration++;
+		if (this.activeEffect?.gpuTiming != null) this.activeEffect.gpuTiming.pending = Promise.resolve();
 		this.previewTiledFrameController?.abort();
 		this.previewRenderDelayMonitor.clear();
 		this.previewRenderGeneration++;

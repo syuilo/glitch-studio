@@ -47,12 +47,16 @@ function enableAsynchronousTimestampGpu(t, g) {
 		else delete globalThis[name];
 	} });
 	const pending = [];
-	const control = { pending, holdReadbacks: false, gpuTimeMs: 1, queueWaits: 0, queries: 0 };
+	const control = { pending, holdReadbacks: false, failNextReadback: false, gpuTimeMs: 1, queueWaits: 0, queries: 0 };
 	g.device.features = new Set(['timestamp-query']);
 	g.device.queue = { submit() {}, onSubmittedWorkDone() { control.queueWaits++; return Promise.resolve(); } };
 	g.device.createQuerySet = ({ count }) => ({ timestamps: new BigUint64Array(count), destroy() {} });
 	g.device.createBuffer = ({ size }) => ({ size, data: new ArrayBuffer(size), destroyed: false, readback: null,
 		mapAsync() {
+			if (control.failNextReadback) {
+				control.failNextReadback = false;
+				return Promise.reject(new Error('timestamp readback failed'));
+			}
 			if (!control.holdReadbacks) return Promise.resolve();
 			this.readback = Promise.withResolvers(); pending.push(this.readback); return this.readback.promise;
 		},
@@ -156,14 +160,14 @@ const image = { dataType: { kind: 'color' }, ui: { label: 'Image', control: {} }
 const sampling = { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
 const wire = nodeId => ({ inputSource: 'node', source: { nodeId, outputPort: 'output' }, sampling });
 const node = (id, params = {}) => ({ id, params, effectSource: { type: 'nativeEffect', id } });
-async function tiledGraph(g, nodes, tiling, { heavy, init, onGpuTime } = {}) {
+async function tiledGraph(g, nodes, tiling, { heavy, init, onGpuTime, onFrameGpuTime } = {}) {
 	const metadata = { paramDefs: { left: image, right: image }, resolutionInputParameters: [], primaryInputParameter: 'left',
 		primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } } };
 	const graph = { ...metadata, nodes, outputSources: { output: { nodeId: nodes.at(-1).id, outputPort: 'output' } } };
 	const renders = [], hints = [];
 	const instance = await createEffectInstance({ effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph },
 		definitions: { getNativeEffect: id => ({ ...metadata, canHaveLongRunningRenderPass: id === heavy }) }, resolution: { width: 16, height: 9 },
-		usedOutputPorts: new Set(['output']), tiling, onGpuTime }, g.wgpu, id => ({
+		usedOutputPorts: new Set(['output']), tiling, onGpuTime, onFrameGpuTime }, g.wgpu, id => ({
 			createOutputTexture: (port, size, { device }) => device.createTexture({ size, port, format: 'rgba16float' }),
 			init(context, publishers) {
 				const view = context.outputTextures.get('output').createView();
@@ -181,14 +185,64 @@ async function tiledGraph(g, nodes, tiling, { heavy, init, onGpuTime } = {}) {
 // 【統計の読み戻しが終わる前に通常描画を返す】
 // プレビューの応答時間をGPUのタイムスタンプ読み出しへ結び付けない。
 test('finishes an untiled graph frame before its GPU statistics readback completes', async t => {
-	const g = gpu(), control = enableAsynchronousTimestampGpu(t, g), reports = [];
-	const f = await tiledGraph(g, [node('effect')], { mode: 'disabled' }, { onGpuTime: (...args) => reports.push(args) });
+	const g = gpu(), control = enableAsynchronousTimestampGpu(t, g), reports = [], frameReports = [];
+	const f = await tiledGraph(g, [node('effect')], { mode: 'disabled' }, {
+		onGpuTime: (...args) => reports.push(args), onFrameGpuTime: (...args) => frameReports.push(args),
+	});
 	t.after(() => f.instance.dispose());
 	control.holdReadbacks = true;
 	await f.instance.renderTiled(frame);
 	assert.equal(control.pending.length, 1); assert.deepEqual(reports, []);
+	assert.equal(frameReports.length, 1);
+	assert.equal(frameReports[0][0], frame);
 	control.pending[0].resolve(); await tick();
 	assert.deepEqual(reports, [[['effect'], 0, 1]]);
+	assert.equal(await frameReports[0][1], 1);
+});
+
+// 【通常パスとタイルのGPU時間を同じフレームに合計する】
+// 途中の送信境界でフレームが分かれたり、同じ描画で計測用Queryが二重に発行されたりしない。
+test('sums ordinary and tiled passes into one GPU time per frame', async t => {
+	const g = gpu(), control = enableAsynchronousTimestampGpu(t, g);
+	const frameReports = [], passReports = [];
+	const f = await tiledGraph(g, [node('first'), node('heavy', { left: wire('first') }), node('last', { left: wire('heavy') })], { mode: 'auto' }, {
+		heavy: 'heavy',
+		onGpuTime: (path, index, milliseconds) => passReports.push([path[0], index, milliseconds]),
+		onFrameGpuTime: (...args) => frameReports.push(args),
+	});
+	t.after(() => f.instance.dispose());
+	await f.instance.renderTiled(frame);
+	assert.equal(frameReports.length, 1);
+	assert.equal(await frameReports[0][1], 3);
+	assert.deepEqual(passReports.toSorted((a, b) => a[0].localeCompare(b[0])), [['first', 0, 1], ['heavy', 0, 1], ['last', 0, 1]]);
+	assert.equal(control.queries, 3);
+
+	const cachedFrame = { ...frame, time: 1 };
+	await f.instance.renderTiled(cachedFrame);
+	assert.equal(frameReports.length, 2);
+	assert.equal(frameReports[1][0], cachedFrame);
+	assert.equal(await frameReports[1][1], 0);
+	assert.equal(control.queries, 3);
+});
+
+// 【タイルの計測失敗で完成画像を破棄しない】
+// 一部のQueryを読み戻せなければ合計値は不明として扱う。次のキャッシュ再利用は0として記録する。
+test('reports an unavailable frame time when one tile timestamp readback fails', async t => {
+	const g = gpu(), control = enableAsynchronousTimestampGpu(t, g);
+	const frameReports = [];
+	const f = await tiledGraph(g, [node('effect')], { mode: 'manual', tileSize: 8 }, {
+		onFrameGpuTime: (_frame, result) => frameReports.push(result),
+	});
+	t.after(() => f.instance.dispose());
+	control.failNextReadback = true;
+	await f.instance.renderTiled(frame);
+	assert.equal(frameReports.length, 1);
+	assert.equal(await frameReports[0], null);
+	assert.equal(control.queries, 4);
+	await f.instance.renderTiled({ ...frame, time: 1 });
+	assert.equal(frameReports.length, 2);
+	assert.equal(await frameReports[1], 0);
+	assert.deepEqual(f.renders, ['effect']);
 });
 
 // 【共有された上流ツリーは全タイルの完了後に一度だけ公開する】
