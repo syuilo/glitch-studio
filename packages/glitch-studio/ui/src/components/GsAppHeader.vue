@@ -205,7 +205,7 @@ function openHeaderFileMenu(ev: PointerEvent) {
 		children: [{
 			disabled: projectSession == null,
 			text: i18n.ts._App.ImportCustomNodeGraphEffect,
-			icon: 'ti ti-box-multiple',
+			icon: 'ti ti-binary-tree-2',
 			action: () => { if (projectSession != null) void importCustomNodeGraphEffectFile(projectSession.projectContext); },
 		}],
 	}, {

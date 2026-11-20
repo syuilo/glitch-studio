@@ -33,7 +33,7 @@ const panelDefinitions = {
 	waveformVertical: { label: i18n.ts._Workspace.WaveformY, icon: 'ti ti-chart-column', component: XWaveform },
 	preview: { label: i18n.ts.Preview, icon: 'ti ti-device-desktop', component: XPreview },
 	players: { label: i18n.ts.Players, icon: 'ti ti-player-play', component: XPlayers },
-	customNodeGraphEffectEditor: { label: i18n.ts._Workspace.CustomNodeGraphEffectEditor, icon: 'ti ti-chart-dots-3', component: XCustomNodeGraphEffectEditor },
+	customNodeGraphEffectEditor: { label: i18n.ts._Workspace.CustomNodeGraphEffectEditor, icon: 'ti ti-binary-tree-2', component: XCustomNodeGraphEffectEditor },
 	stats: { label: i18n.ts._Workspace.Stats, icon: 'ti ti-activity', component: XStats },
 	commandLog: { label: i18n.ts._Workspace.CommandLog, icon: 'ti ti-logs', component: XCommandLog },
 	scripting: { label: i18n.ts._Scripting.Title, icon: 'ti ti-code', component: XScripting },

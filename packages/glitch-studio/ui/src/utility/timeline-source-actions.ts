@@ -240,12 +240,12 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 			action: () => addMediaLayer('audio'),
 		}, {
 			text: i18n.ts._Timeline.InlineCustomNodeGraphEffect,
-			icon: 'ti ti-chart-dots-3',
+			icon: 'ti ti-binary-tree-2',
 			action: () => addLayer({ layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: createCustomNodeGraphEffectDefinition() } }, true, true),
 		}, {
 			id: 'referenceCustomNodeGraphEffect',
 			text: i18n.ts._Timeline.ReferenceCustomNodeGraphEffect,
-			icon: 'ti ti-chart-dots-3',
+			icon: 'ti ti-binary-tree-2',
 			action: addReferencedCustomNodeGraphEffectLayer,
 		}, {
 			text: desktopAvailable() ? 'VOICEVOX' : i18n.ts._Timeline.VoicevoxUnavailable,

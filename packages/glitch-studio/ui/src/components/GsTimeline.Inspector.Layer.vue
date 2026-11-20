@@ -74,7 +74,7 @@
 		/>
 
 		<GsFolder v-if="(layer.layerType === 'effect' && layer.effectSource.type === 'inlineCustomNodeGraphEffect')" :asSection="true" defaultOpen :withSpacer="false">
-			<template #icon><i class="ti ti-chart-dots-3"></i></template>
+			<template #icon><i class="ti ti-binary-tree-2"></i></template>
 			<template #label>{{ i18n.ts.CustomNodeGraphEffect }}</template>
 			<div>
 				<GsCustomNodeGraphEffectEditor
@@ -196,7 +196,6 @@
 
 <script lang="ts" setup>
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
-import { getCustomNodeGraphEffectView } from '@/utility/custom-node-graph-effect-view.ts';
 import { srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 import { computed, ref, onBeforeUnmount, provide } from 'vue';
 import { isTimelineVisualLayer, isTimelineContainerLayer, hasTimelineLayerParameters, getTimelineLayerTransformTarget } from '@gs/subsystems_timeline_shared/types.ts';
@@ -232,6 +231,7 @@ import type { ParamEdit } from './GsVisualParam.vue';
 import type { TimelineParameterTarget } from '@/utility/timeline-scene.ts';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
+import { getCustomNodeGraphEffectView } from '@/utility/custom-node-graph-effect-view.ts';
 import { timelineParameterEditorContextKey } from '@/utility/timeline-parameter-editor-context.ts';
 import { getTimelineContainerTypeLabel } from '@/utility/container-timeline-layer.ts';
 import { commitTimelineParameterEdit } from '@/utility/timeline-parameter-command-actions.ts';

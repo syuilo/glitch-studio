@@ -9,7 +9,7 @@
 			</div>
 			<div :class="$style.center">
 				<button v-if="previewTargetName" :class="$style.previewTargetName" class="_button" @click="showPreviewTargetMenu">
-					<i v-if="previewPlayback.state.value.mode === 'timeline'" class="ti ti-memory"></i><i v-else-if="previewPlayback.state.value.mode === 'customNodeGraphEffectLivePreview'" class="ti ti-chart-dots-3"></i> {{ previewTargetName }} <i class="ti ti-chevron-down"></i>
+					<i v-if="previewPlayback.state.value.mode === 'timeline'" class="ti ti-memory"></i><i v-else-if="previewPlayback.state.value.mode === 'customNodeGraphEffectLivePreview'" class="ti ti-binary-tree-2"></i> {{ previewTargetName }} <i class="ti ti-chevron-down"></i>
 				</button>
 			</div>
 			<div :class="$style.right">
