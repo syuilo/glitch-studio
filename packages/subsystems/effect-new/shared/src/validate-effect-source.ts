@@ -11,7 +11,7 @@ import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { resolveEffectSource } from './effect-source.ts';
 import type { EffectDefinitions, EffectSource } from './effect-source.ts';
 import type { EffectDefinition } from './effect-definition.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectParameterBinding, CustomNodeGraphEffectOutputSource, NodeOutputReference } from './custom-node-graph-effect.ts';
+import { isUnselectedGraphParameterReference, type CustomNodeGraphEffect, type CustomNodeGraphEffectParameterBinding, type CustomNodeGraphEffectOutputSource, type NodeOutputReference } from './custom-node-graph-effect.ts';
 
 type InputSettings = { canNode?: boolean; element?: InputSettings; fields?: Record<string, InputSettings> };
 
@@ -88,6 +88,7 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 				const parameter = id == null ? graph.customParameterDefs?.[key] : nodeDefinitions.get(id)!.paramDefs[key];
 				if (parameter == null) throw new Error('Unknown node parameter: ' + id + '.' + key);
 				inspectStaticParameter<CustomNodeGraphEffectParameterBinding>(parameter, binding, (def, leaf) => {
+					if (isUnselectedGraphParameterReference(leaf)) return;
 					if (!isValueParameterBinding(leaf) && leaf.inputSource !== 'node' && leaf.inputSource !== 'customNodeGraphEffectCustomParameterValueReference'
 						&& leaf.inputSource !== 'customNodeGraphEffectPublicParameterReference') throw new Error('Unsupported parameter binding: ' + key);
 					if (leaf.inputSource === 'node' && (def.canNode !== true || id == null)) throw new Error('Parameter does not accept node input: ' + key);
@@ -133,7 +134,7 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 				const binding = graph.customParameterValues?.[key];
 				if (binding != null) {
 					checkBinding(null, key, binding);
-					if (binding.inputSource === 'customNodeGraphEffectCustomParameterValueReference') checkCustom(binding.parameterId);
+					if (binding.inputSource === 'customNodeGraphEffectCustomParameterValueReference' && binding.parameterId !== '') checkCustom(binding.parameterId);
 				}
 				checkingCustom.delete(key);
 				checkedCustom.add(key);

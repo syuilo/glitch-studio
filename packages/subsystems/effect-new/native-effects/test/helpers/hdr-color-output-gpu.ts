@@ -154,6 +154,9 @@ struct Colors { background: vec4f, foreground: vec4f, mode: u32 };
 		checkPixels('HSL color retains its normalized color domain', await blend('color', [0.5, 0.5, 0.5, 1], [2, -1, -1, 1]), [1, 2 / 7, 2 / 7, 1]);
 		checkPixels('color dodge retains its intrinsic saturation', await blend('colorDodge', [0.5, 0.5, 0.5, 1], [2, -1, 0.5, 1]), [1, 0.25, 1, 1]);
 
+		const blackTexture = device.createTexture({ size: [1, 1], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING });
+		disposers.push(() => blackTexture.destroy());
+
 		for (const enable32bitDataTextures of supports32bit ? [false, true] : [false]) {
 			const label = `${enable32bitDataTextures ? 32 : 16}bit data`;
 			for (const [inputKind, emissionInput] of emissionInputs) {
@@ -170,7 +173,7 @@ struct Colors { background: vec4f, foreground: vec4f, mode: u32 };
 					input: emissionInput, reset: true, recoveryRate: 0, blockRefreshRate: 0, motionStrength: 0,
 				});
 				checkPixels(`${label} datamosh reset preserves zero-alpha ${inputKind} emission`, await datamoshed(), emissionColor);
-				checkPixels(`${label} datamosh history preserves zero-alpha ${inputKind} emission`, await datamoshed({ reset: false, input: constantShaderInput('color', [0, 0, 0, 0]) }), emissionColor);
+				checkPixels(`${label} datamosh history preserves zero-alpha ${inputKind} emission`, await datamoshed({ reset: false, input: emissionInput.kind === 'texture' ? { ...emissionInput, texture: blackTexture } : constantShaderInput('color', [0, 0, 0, 0]) }), emissionColor);
 			}
 			const input = constantShaderInput('color', [4, -3, 2, 0.5]);
 			const expected = [2, -1.5, 1, 0.5];

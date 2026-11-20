@@ -61,6 +61,7 @@ test('overlaps statistics readbacks and two measured tiles while bounding pendin
 	const pass = recorder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
 	pass.draw(3); pass.end();
 	let measurements = 0;
+	const passTimes = [];
 	const readbacks = [];
 	const helper = {
 		beginRenderPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
@@ -73,7 +74,7 @@ test('overlaps statistics readbacks and two measured tiles while bounding pendin
 	const progress = [];
 	let finished = false;
 	const running = recorder.execute(g.device, { mode: 'manual', tileSize: 128 }, new AbortController().signal,
-		{ timingHelper: helper, collectStatistics: true, onProgress: value => progress.push(value) });
+		{ timingHelper: helper, collectStatistics: true, onPassTime: (index, ms) => passTimes.push([index, ms]), onProgress: value => progress.push(value) });
 	void running.then(() => { finished = true; });
 	for (let index = 0; index < 5; index++) { g.waits.shift()(); await tick(); }
 	assert.equal(g.submitted.length, 7, 'only two tiles are sent ahead after five actual GPU samples');
@@ -92,7 +93,8 @@ test('overlaps statistics readbacks and two measured tiles while bounding pendin
 		if (readbacks.length > 0) readbacks.shift().resolve(1_000_000);
 		await tick();
 	}
-	assert.equal(await running, 12_000_000);
+	await running;
+	assert.deepEqual(passTimes, [[0, 12]]);
 	assert.equal(g.submitted.length, 12);
 	assert.deepEqual(progress.at(-1), { completedTiles: 12, totalTiles: 12 });
 	assert.ok(progress.every((value, index) => value.completedTiles === index && value.totalTiles === 12));
@@ -197,7 +199,7 @@ test('replays ordinary commands once and reports asynchronous timing for the ori
 	assert.equal(g.waits.length, 0);
 	assert.deepEqual(results, []);
 	callbacks[0](2_500_000); callbacks[1](null);
-	assert.deepEqual(results, [[1, [pipeline], 128, 128, 2.5], [3, [pipeline], 7, 5, null]]);
+	assert.deepEqual(results, [[0, [pipeline], 128, 128, 2.5], [2, [pipeline], 7, 5, null]]);
 });
 
 // 【事前計測を完成タイルへ数えず、最初の本描画のclearで試し描きの結果を消す】
@@ -430,7 +432,7 @@ test('serializes tiles and preserves clears, scissors, mutable offsets and compu
 		g.waits.shift()();
 		await tick();
 	}
-	assert.equal(await running, 0);
+	await running;
 	assert.equal(g.submitted[0][0].descriptor.colorAttachments[0].loadOp, 'clear');
 	for (const commands of g.submitted.slice(1, 4)) assert.equal(commands[0].descriptor.colorAttachments[0].loadOp, 'load');
 	assert.deepEqual(g.submitted[0].filter(command => command.method === 'setScissorRect').at(-1).args, [2, 1, 2, 3]);
@@ -502,13 +504,14 @@ test('adapts remaining tiles using completion time while preserving clears', asy
 	const tileController = new EffectRenderTileController();
 	const workloadHint = { key: 'same input', workPerPixel: 1 };
 	const progress = [];
+	const passTimes = [];
 	for (let passIndex = 0; passIndex < 2; passIndex++) {
 		const plan = tileController.beginPass(0, [], 1025, 513, workloadHint);
 		for (let index = 0; index < 4; index++) plan.observe(plan.maximumTilePixels, 1);
 		plan.finish();
 	}
 	const running = recorder.execute(g.device, { mode: 'auto' }, new AbortController().signal, {
-		tileController, workloadHint, onProgress: value => progress.push(value),
+		tileController, workloadHint, onProgress: value => progress.push(value), onPassTime: (index, ms) => passTimes.push([index, ms]),
 	});
 	assert.equal(g.submitted.length, 0);
 	await tick();
@@ -534,7 +537,8 @@ test('adapts remaining tiles using completion time while preserving clears', asy
 		await tick();
 	}
 	assert.equal(completed, true);
-	assert.equal(await running, 0, 'elapsed time is not reported as GPU timestamp statistics');
+	await running;
+	assert.deepEqual(passTimes, [[0, null]], 'elapsed time is not reported as GPU timestamp statistics');
 	assert.deepEqual(progress.at(-1), { completedTiles: g.submitted.length, totalTiles: g.submitted.length });
 	assert.ok(progress.every((value, index) => value.completedTiles === index && value.completedTiles <= value.totalTiles));
 	assert.equal(g.submitted[0][0].descriptor.colorAttachments[0].loadOp, 'clear');

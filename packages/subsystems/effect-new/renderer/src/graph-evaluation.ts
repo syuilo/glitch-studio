@@ -3,7 +3,7 @@ import { prepareExpressionParameterValue } from '@gs/shared/parameter/expression
 import type { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 import type { ParameterEvaluationScope } from '@gs/shared/parameter/parameter-evaluation-scope.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import { isUnselectedGraphParameterReference, type CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
 import type { EffectFrameContext } from './effect-instance.ts';
 
 export type ReadFrameValue = (frame: EffectFrameContext) => unknown;
@@ -44,7 +44,8 @@ export function createGraphEvaluation(graph: Pick<CustomNodeGraphEffect, 'paramD
 	}
 	for (const [id, def] of Object.entries(graph.customParameterDefs ?? {})) {
 		customIds.set(def.nameForReference, id);
-		const binding = graph.customParameterValues?.[id] ?? def.defaultValue;
+		const selected = graph.customParameterValues?.[id];
+		const binding = selected == null || isUnselectedGraphParameterReference(selected) ? def.defaultValue : selected;
 		if (binding.inputSource === 'customNodeGraphEffectPublicParameterReference') customReaders.set(id, frame => readPublic(binding.parameterId, frame));
 		else if (binding.inputSource === 'customNodeGraphEffectCustomParameterValueReference') customReaders.set(id, frame => readCustom(binding.parameterId, frame));
 		else {

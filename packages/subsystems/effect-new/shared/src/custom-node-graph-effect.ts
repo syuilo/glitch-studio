@@ -16,6 +16,11 @@ export type CustomNodeGraphEffectValueBinding = ValueParameterBinding
 export type CustomNodeGraphEffectParameterBinding = CustomNodeGraphEffectValueBinding
 	| { inputSource: 'node'; source: NodeOutputReference | null; sampling: ShaderInputSampling };
 
+// 編集画面で参照方式を選んでから参照先を指定するまで、配置にはパラメータの既定値を渡す。
+export function isUnselectedGraphParameterReference(binding: CustomNodeGraphEffectParameterBinding): boolean {
+	return (binding.inputSource === 'customNodeGraphEffectPublicParameterReference' || binding.inputSource === 'customNodeGraphEffectCustomParameterValueReference') && binding.parameterId === '';
+}
+
 export interface CustomNodeGraphEffectEffectNode {
 	readonly id: string;
 	readonly type?: 'effect';

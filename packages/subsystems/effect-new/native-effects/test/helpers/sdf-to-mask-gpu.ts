@@ -63,7 +63,7 @@ export async function run() {
 		disposables.push(() => { effect.dispose(); output.destroy(); copyTarget.destroy(); buffer.destroy(); });
 		return async (overrides: Partial<Parameters> = {}, time = 0) => {
 			const encoder = device.createCommandEncoder();
-			effect.render(renderContext(encoder, output, { ...defaults, ...overrides }, time));
+			await effect.draw(renderContext(encoder, output, { ...defaults, ...overrides }, time));
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: copyTarget.createView(), loadOp: 'clear', storeOp: 'store' }] });
 			pass.setPipeline(reader); pass.setBindGroup(0, group); pass.draw(3); pass.end();
 			encoder.copyTextureToBuffer({ texture: copyTarget }, { buffer, bytesPerRow }, resolution);
@@ -204,7 +204,7 @@ export async function run() {
 			const shapeEffect = shapeImplementation.place(wgpu, resolution);
 			disposables.push(() => { shapeEffect.dispose(); shapeOutput.destroy(); });
 			const shapeEncoder = device.createCommandEncoder();
-			shapeEffect.render(renderContext(shapeEncoder, shapeOutput, shapeParams));
+			await shapeEffect.draw(renderContext(shapeEncoder, shapeOutput, shapeParams));
 			device.queue.submit([shapeEncoder.finish()]);
 			const chain = createEffect(65, 65, precise);
 			const fromShape = await chain({ input: textureShaderInput(shapeOutput, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' }), antiAlias: false });
@@ -215,7 +215,7 @@ export async function run() {
 			const maskEffect = maskToSdfImplementation.place(wgpu, resolution);
 			disposables.push(() => { maskEffect.dispose(); maskOutput.destroy(); });
 			const maskEncoder = device.createCommandEncoder();
-			maskEffect.render(renderContext(maskEncoder, maskOutput, maskParams));
+			await maskEffect.draw(renderContext(maskEncoder, maskOutput, maskParams));
 			device.queue.submit([maskEncoder.finish()]);
 			const fromMask = await chain({ input: textureShaderInput(maskOutput, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' }), antiAlias: false });
 			assert(fromMask.every((value, index) => value === circleMask[index]), 'Mask to SDF connection');

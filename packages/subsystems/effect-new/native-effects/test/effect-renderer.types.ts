@@ -14,7 +14,7 @@ const gpu: EffectGpuContext = { device, defaultVertexShaderModule, enable32bitDa
 export async function checksPlacementRendering() {
 	const instance = await createEffectInstance(placement, gpu, native);
 	await instance.prepare(frame);
-	const result: void = instance.render(frame);
+	const result: void = instance.render(frame, device.createCommandEncoder());
 	// @ts-expect-error 使用ポートは初期化済みの配置では変更できない。
 	instance.outputs.set('other', instance.outputs.get('output'));
 	instance.dispose();

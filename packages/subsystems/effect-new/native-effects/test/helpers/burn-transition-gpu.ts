@@ -1,3 +1,4 @@
+import { createEffectInstance } from '@gs/subsystems_effect-new_renderer/create-effect-instance.ts';
 import { nativeEffectProbe } from './native-effect-probe.ts';
 import definition from '../../src/fx/burnTransition/_def_.ts';
 import implementationNative from '../../src/fx/burnTransition/_impl_.ts';
@@ -172,7 +173,17 @@ export async function run() {
 				const isolated = await createEffect(8, 4, precise)({ map }, keys, 100);
 				for (const key of keys) equal(isolated[key], result[key], 'independent ' + key);
 			}
-			await render({}, []);
+			const unused = await createEffectInstance({ effectSource: { type: 'nativeEffect', id: 'burnTransition' },
+				definitions: {
+					getNativeEffect: () => definition,
+					getCustomShaderEffect() { throw new Error('Unexpected shader reference'); },
+					getCustomNodeGraphEffect() { throw new Error('Unexpected graph reference'); },
+				}, usedOutputPorts: new Set(), resolution: { width: 8, height: 4 } },
+				{ device, defaultVertexShaderModule: vertex, enable32bitDataTextures: precise }, () => { throw new Error('Unused effect was initialized'); });
+			try {
+				unused.render({ time: 0, timeDelta: 0 }, device.createCommandEncoder());
+				assert(unused.outputs.size === 0, 'no ports requested');
+			} finally { unused.dispose(); }
 			checks.push(label + ' independent lazy outputs');
 
 			// 【完全透明なAから発光を作らず、透明Bへ切り替わった部分にも残さない】

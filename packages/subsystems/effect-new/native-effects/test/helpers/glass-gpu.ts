@@ -99,7 +99,7 @@ export async function run() {
 		disposables.push(() => { effect.dispose(); output.destroy(); copyTarget.destroy(); buffer.destroy(); });
 		return async (overrides: Partial<Parameters> = {}, time = 0) => {
 			const encoder = device.createCommandEncoder();
-			effect.render(renderContext(encoder, output, { ...defaults, ...overrides }, time));
+			await effect.draw(renderContext(encoder, output, { ...defaults, ...overrides }, time));
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: copyTarget.createView(), loadOp: 'clear', storeOp: 'store' }] });
 			pass.setPipeline(reader); pass.setBindGroup(0, readGroup); pass.draw(3); pass.end();
 			encoder.copyTextureToBuffer({ texture: copyTarget }, { buffer, bytesPerRow }, resolution);
@@ -118,40 +118,40 @@ export async function run() {
 		};
 	}
 
-	function shape(size: [number, number], precise: boolean) {
+	async function shape(size: [number, number], precise: boolean) {
 		const resolution = { width: 64, height: 64 };
 		const wgpu = gpuContext(precise);
 		const params = { sizeReference: 'height' as const, shape: 'ellipse' as const, position: [0, 0] as const, size, rotation: 0, cornerRadius: 0 };
 		const output = shapeImplementation.createTexture('output', { wgpu, resolution });
 		const effect = shapeImplementation.place(wgpu, resolution);
 		const encoder = device.createCommandEncoder();
-		effect.render(renderContext(encoder, output, params));
+		await effect.draw(renderContext(encoder, output, params));
 		device.queue.submit([encoder.finish()]);
 		disposables.push(() => { effect.dispose(); output.destroy(); });
 		return textureShaderInput(output, sampling());
 	}
 
-	function subtract(a: ShaderInput, b: ShaderInput, precise: boolean) {
+	async function subtract(a: ShaderInput, b: ShaderInput, precise: boolean) {
 		const resolution = { width: 64, height: 64 };
 		const wgpu = gpuContext(precise);
 		const params = { sizeReference: 'height' as const, inputA: a, inputB: b, operation: 'difference' as const, smoothing: 0 };
 		const output = booleanImplementation.createTexture('output', { wgpu, resolution });
 		const effect = booleanImplementation.place(wgpu, resolution);
 		const encoder = device.createCommandEncoder();
-		effect.render(renderContext(encoder, output, params));
+		await effect.draw(renderContext(encoder, output, params));
 		device.queue.submit([encoder.finish()]);
 		disposables.push(() => { effect.dispose(); output.destroy(); });
 		return textureShaderInput(output, sampling());
 	}
 
-	function maskDistance(precise: boolean, maskInput: ShaderInput | null = null) {
+	async function maskDistance(precise: boolean, maskInput: ShaderInput | null = null) {
 		const resolution = { width: 64, height: 64 };
 		const wgpu = gpuContext(precise);
 		const params = { input: maskInput ?? field(64, 64, precise, (u, v) => Math.abs(u - 0.5) < 0.25 && Math.abs(v - 0.5) < 0.25 ? 1 : 0), threshold: 0.5, invert: false };
 		const output = maskImplementation.createTexture('output', { wgpu, resolution });
 		const effect = maskImplementation.place(wgpu, resolution);
 		const encoder = device.createCommandEncoder();
-		effect.render(renderContext(encoder, output, params));
+		await effect.draw(renderContext(encoder, output, params));
 		device.queue.submit([encoder.finish()]);
 		disposables.push(() => { effect.dispose(); output.destroy(); });
 		return textureShaderInput(output, sampling());
@@ -210,7 +210,7 @@ export async function run() {
 			near(centered[1], 0.50390625, 'zoom around screen center Y');
 			near(shifted[0], 0.62890625, 'independent center moves X');
 			near(shifted[1], 0.62890625, 'negative screen Y moves down in image');
-			const circle = shape([0.6, 0.6], precise);
+			const circle = await shape([0.6, 0.6], precise);
 			const firstShape = await render({ ...zoomBase, sdf: circle, cutout: true });
 			const secondShape = await render({ ...zoomBase, sdf: circle, cutout: true, innerZoomCenter: [0.25, -0.25] });
 			assert(firstShape.every((value, index) => index % 4 !== 3 || value === secondShape[index]), 'zoom center must not move shape coverage');
@@ -351,7 +351,7 @@ export async function run() {
 			// 【画像由来の円形マスクで、輪郭を変えずに法線の揺れを抑える】
 			// Mask to SDFを実際に経由し、屈折後の色勾配から参照位置の変位方向を読み戻す。
 			// 距離誤差による強度差を除くため方向を正規化して、既知の円の半径方向と比較する。
-			const rasterCircle = maskDistance(precise, field(64, 64, precise, (u, v) => Math.max(0, Math.min(1, 0.5 - (Math.hypot(u - 0.5, v - 0.5) - 0.3) * 64))));
+			const rasterCircle = await maskDistance(precise, field(64, 64, precise, (u, v) => Math.max(0, Math.min(1, 0.5 - (Math.hypot(u - 0.5, v - 0.5) - 0.3) * 64))));
 			const meanNormalError = (values: Float32Array) => {
 				let totalAngle = 0;
 				let count = 0;
@@ -568,12 +568,12 @@ export async function run() {
 
 			// 【既存の3種のSDFからガラス形状を構成できる】
 			// 型の整合だけでなく、Booleanの穴と画像由来の輪郭が実際の被覆率になることを確認する。
-			const ring = subtract(shape([0.8, 0.8], precise), shape([0.2, 0.2], precise), precise);
+			const ring = await subtract(await shape([0.8, 0.8], precise), await shape([0.2, 0.2], precise), precise);
 			const ringResult = await render({ ...full, sdf: ring, cutout: true });
 			near(pixel(ringResult, 64, 32, 32)[3], 0, 'boolean hole is transparent');
 			near(pixel(ringResult, 64, 45, 32)[3], 1, 'boolean ring is glass');
 			near(pixel(ringResult, 64, 0, 0)[3], 0, 'outside shape is transparent');
-			const maskResult = await render({ ...full, sdf: maskDistance(precise), cutout: true });
+			const maskResult = await render({ ...full, sdf: await maskDistance(precise), cutout: true });
 			near(pixel(maskResult, 64, 32, 32)[3], 1, 'mask-derived SDF interior');
 			near(pixel(maskResult, 64, 0, 0)[3], 0, 'mask-derived SDF exterior');
 			checks.push(`${label}: Shape SDF Mask to SDF and SDF Boolean connections`);
@@ -582,7 +582,7 @@ export async function run() {
 			// 屈折モデルの変更が形状のマスク処理や画像の乗算済みRGBAを変えてしまわないことを確認する。
 			const curvedRing = await render({ ...neutral, refractionModel: 'curvedSurface', input: image, sdf: ring, refraction: 1, blur: 0.01, aberration: 1, innerZoom: 2, innerZoomCenter: [0.25, -0.25], cutout: true });
 			assert(curvedRing.every((value, index) => index % 4 !== 3 || value === ringResult[index]), 'curved mode preserves the boolean silhouette');
-			const curvedMask = await render({ ...full, sdf: maskDistance(precise), refractionModel: 'curvedSurface', cutout: true });
+			const curvedMask = await render({ ...full, sdf: await maskDistance(precise), refractionModel: 'curvedSurface', cutout: true });
 			assert(curvedMask.every((value, index) => value === maskResult[index]), 'curved mode supports mask-derived distances');
 			const curvedMargin = await render({ ...containedParams, refractionModel: 'curvedSurface', cutout: true });
 			rgbaNear(pixel(curvedMargin, 64, 32, 3), [0, 0, 0, 0], 'curved mode leaves SDF margin transparent');

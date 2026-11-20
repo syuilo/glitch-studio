@@ -1,6 +1,6 @@
 import type { DataType, TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { CheckedParameterDefinition, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import type { StaticSettingDefinitions } from '@gs/shared/static-setting.ts';
+import type { CheckedStaticSettingDefinition, StaticSettingDefinitions } from '@gs/shared/static-setting.ts';
 import type { CheckedEffectParameterLayout, EffectParameterLayoutItem } from './effect-parameter-layout.ts';
 
 /** 配置のBindingは式や接続を持てるが、定義の初期値・追加用の要素は末端までliteralにする。 */
@@ -44,6 +44,7 @@ type NativeEffectLayout<D extends NativeEffectDefinition> = D extends { ui: { pa
 
 /** 開発者が定義するNative Effectの参照IDとレイアウトは型検査で確定する。 */
 export function defineNativeEffect<const D extends NativeEffectDefinition>(definition: D & NoInfer<NativeEffectLayout<D> & {
+	staticSettingDefs?: { [K in keyof NonNullable<D['staticSettingDefs']>]: CheckedStaticSettingDefinition<NonNullable<D['staticSettingDefs']>[K]> };
 	paramDefs: { [K in keyof D['paramDefs']]: CheckedParameterDefinition<D['paramDefs'][K]> };
 	primaryInputParameter: MatchingKeys<D['paramDefs'], { canNode: true }> | null;
 	primaryAudioInputParameter?: MatchingKeys<D['paramDefs'], { dataType: { kind: 'audioSource' } }> | null;

@@ -19,7 +19,7 @@ import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definit
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { EffectSource, EffectDefinitions, ResolvedEffect } from '@gs/subsystems_effect-new_shared/effect-source.ts';
-import type { CustomNodeGraphEffectParameterBinding, NodeOutputReference } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import { isUnselectedGraphParameterReference, type CustomNodeGraphEffectParameterBinding, type NodeOutputReference } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
 import type { EffectParameterInput, EffectImageInput, EffectFrameContext, EffectPreparationStatus } from './effect-instance.ts';
 
 export interface EffectPlacement {
@@ -114,6 +114,10 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 	function planBinding(definition: ParameterDefinition, binding: CustomNodeGraphEffectParameterBinding,
 		publicInput: (id: string) => PlannedInput, nodeOutput: (reference: NodeOutputReference) => PlannedInput | null,
 		path: readonly string[], evaluation: Evaluation, isDefault = binding === definition.defaultValue): PlannedInput {
+		if (isUnselectedGraphParameterReference(binding)) {
+			binding = definition.defaultValue;
+			isDefault = true;
+		}
 		if (binding.inputSource === 'customNodeGraphEffectPublicParameterReference') {
 			const source = publicInput(binding.parameterId);
 			const input = source.input;

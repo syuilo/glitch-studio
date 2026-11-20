@@ -10,9 +10,12 @@ const expression = expression => ({ inputSource: 'expression', expression });
 const customReference = parameterId => ({ inputSource: 'customNodeGraphEffectCustomParameterValueReference', parameterId });
 const scalar = (id, nameForReference = id) => ({ id, nameForReference, canNode: false, dataType: { kind: 'scalar' }, ui: { label: nameForReference, control: { controlType: 'number' } }, defaultValue: literal(0) });
 const scope = (time = 500, publicValue = 3) => ({ time, publicValue, automationGraphs: [] });
-function fixture(definitions, values = {}, environment = scope()) {
-	const graph = { paramDefs: { 'public-speed': scalar('public-speed', 'speed') }, customParameterDefs: Object.fromEntries(definitions.map(def => [def.id, def])),
+function graphDefinition(definitions, values = {}, environment = scope()) {
+	return { paramDefs: { 'public-speed': scalar('public-speed', 'speed') }, customParameterDefs: Object.fromEntries(definitions.map(def => [def.id, def])),
 		customParameterValues: values, automationGraphs: environment.automationGraphs, nodes: [], outputDefs: {}, outputSources: {}, resolutionInputParameters: [], primaryInputParameter: null, primaryOutput: null };
+}
+function fixture(definitions, values = {}, environment = scope()) {
+	const graph = graphDefinition(definitions, values, environment);
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const evaluation = createGraphEvaluation(graph, evaluator, () => () => environment.publicValue);
 	evaluation.bindPublicValues();
@@ -113,20 +116,25 @@ test('excludes node-specific variables and defaults unavailable environment bind
 // 型変換が必要な場合は式で明示させ、削除された値や型違いを既定値で隠さない。
 test('rejects missing and mismatched direct references without falling back', () => {
 	const text = { ...scalar('text'), dataType: { kind: 'string' }, defaultValue: literal('') };
-	assert.throws(() => validate(fixture([text], { text: customReference('deleted') }).graph), /Incompatible custom parameter/);
-	assert.throws(() => validate(fixture([text, scalar('speed')], { text: customReference('speed') }).graph), /Incompatible custom parameter/);
+	assert.throws(() => validate(graphDefinition([text], { text: customReference('deleted') })), /Incompatible custom parameter/);
+	assert.throws(() => validate(graphDefinition([text, scalar('speed')], { text: customReference('speed') })), /Incompatible custom parameter/);
 	const reference = parameterId => ({ inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId });
-	assert.throws(() => validate(fixture([text], { text: reference('public-speed') }).graph), /Incompatible public parameter/);
-	assert.throws(() => validate(fixture([text], { text: reference('deleted') }).graph), /Unknown public parameter/);
+	assert.throws(() => validate(graphDefinition([text], { text: reference('public-speed') })), /Incompatible public parameter/);
+	assert.throws(() => validate(graphDefinition([text], { text: reference('deleted') })), /Unknown public parameter/);
 });
 
 // 【参照名の一意性は種類ごとに検査し、公開入力やノード接続へカスタムを流さない】
 // 同名の公開定義は利用できる一方、同種内の重複やサポート外の型・入力は設定の入口で拒否する。
 test('validates custom definitions independently of public names', () => {
-	validate(fixture([scalar('custom-speed', 'speed')]).graph);
-	assert.throws(() => validate(fixture([scalar('one', 'same'), scalar('two', 'same')]).graph), /Invalid parameter reference name/);
-	assert.throws(() => validate(fixture([{ ...scalar('a'), dataType: { kind: 'audioSource' } }]).graph), /Unsupported custom parameter type/);
-	assert.throws(() => validate(fixture([scalar('a')], { a: { inputSource: 'node', source: null } }).graph), /does not accept node input/);
+	validate(graphDefinition([scalar('custom-speed', 'speed')]));
+	for (const inputSource of ['customNodeGraphEffectPublicParameterReference', 'customNodeGraphEffectCustomParameterValueReference']) {
+		const defs = [scalar('pending')], values = { pending: { inputSource, parameterId: '' } };
+		validate(graphDefinition(defs, values));
+		assert.equal(fixture(defs, values).read(customReference('pending')), 0);
+	}
+	assert.throws(() => validate(graphDefinition([scalar('one', 'same'), scalar('two', 'same')])), /Invalid parameter reference name/);
+	assert.throws(() => validate(graphDefinition([{ ...scalar('a'), dataType: { kind: 'audioSource' } }])), /Unsupported custom parameter type/);
+	assert.throws(() => validate(graphDefinition([scalar('a')], { a: { inputSource: 'node', source: null } })), /does not accept node input/);
 });
 
 // 【公開パラメータをseedとして共通の乱数関数・ノイズ関数を評価する】

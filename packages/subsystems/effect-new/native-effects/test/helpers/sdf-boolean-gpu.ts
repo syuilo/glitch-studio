@@ -65,7 +65,7 @@ export async function run() {
 		disposables.push(() => { effect.dispose(); output.destroy(); copyTarget.destroy(); buffer.destroy(); });
 		return Object.assign(async (overrides: Partial<Parameters> = {}, time = 0) => {
 			const encoder = device.createCommandEncoder();
-			effect.render(renderContext(encoder, output, { ...defaults, ...overrides }, time));
+			await effect.draw(renderContext(encoder, output, { ...defaults, ...overrides }, time));
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: copyTarget.createView(), loadOp: 'clear', storeOp: 'store' }] });
 			pass.setPipeline(reader); pass.setBindGroup(0, readGroup); pass.draw(3); pass.end();
 			encoder.copyTextureToBuffer({ texture: copyTarget }, { buffer, bytesPerRow }, resolution);
@@ -228,7 +228,7 @@ export async function run() {
 				const effect = shapeImplementation.place(wgpu, resolution);
 				disposables.push(() => { effect.dispose(); output.destroy(); });
 				const encoder = device.createCommandEncoder();
-				effect.render(renderContext(encoder, output, params));
+				await effect.draw(renderContext(encoder, output, params));
 				device.queue.submit([encoder.finish()]);
 				shapeInputs.push(textureShaderInput(output, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' }));
 			}
@@ -243,7 +243,7 @@ export async function run() {
 			const maskEffect = maskImplementation.place(wgpu, resolution);
 			disposables.push(() => { maskEffect.dispose(); maskOutput.destroy(); });
 			const encoder = device.createCommandEncoder();
-			maskEffect.render(renderContext(encoder, maskOutput, maskParams));
+			await maskEffect.draw(renderContext(encoder, maskOutput, maskParams));
 			device.queue.submit([encoder.finish()]);
 			const masked = await combineShapes({ inputA: textureShaderInput(maskOutput, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' }) });
 			near(masked[centerIndex], 1, 'combined SDF converts to mask');

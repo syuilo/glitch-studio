@@ -301,8 +301,8 @@ export async function run(includePreview = false, includeVariationsPreview = fal
 		assert(zeroTrace.every((value, index) => value === (index % 4 === 3 ? 1 : 0)), 'zero distance is opaque black');
 		equal(await render({ maximumTraceDistance: -1 }), zeroTrace, 'negative distance is clamped to zero');
 		assert((await render({ maximumTraceDistance: 0, compositing: 'emission' })).every(value => value === 0), 'zero distance emission is transparent black');
-		const shortSheetTrace = await renderCenter({ ...planeSettings, maximumTraceDistance: 0.02, exposure: 20 });
-		const halfSheetTrace = await renderCenter({ ...planeSettings, maximumTraceDistance: 0.01, exposure: 20 });
+		const shortSheetTrace = await renderCenter({ ...planeSettings, nearEmissionFadeDistance: 1, maximumTraceDistance: 0.02, exposure: 20 });
+		const halfSheetTrace = await renderCenter({ ...planeSettings, nearEmissionFadeDistance: 1, maximumTraceDistance: 0.01, exposure: 20 });
 		assert(shortSheetTrace[0] > 0 && halfSheetTrace[0] < shortSheetTrace[0] * 0.25, 'sheet emission fades continuously at short range');
 		checks.push('trace distance clipping and zero range');
 
@@ -349,11 +349,12 @@ export async function run(includePreview = false, includeVariationsPreview = fal
 		const unfoldedFirstSample = await renderCenter({ ...firstSampleSettings, foldAmount: 0 });
 		const fadedFirstSample = await renderCenter({ ...firstSampleSettings, nearFoldFadeDistance: 1 });
 		equal(fadedFirstSample, unfoldedFirstSample, 'fold fade starts at translated camera and preserves tilt');
-		const fullFirstSample = await renderCenter(firstSampleSettings);
+		const fullFirstSample = await renderCenter({ ...firstSampleSettings, nearFoldFadeDistance: 0 });
 		assert(Math.abs(fullFirstSample[0] - unfoldedFirstSample[0]) > 0.00001, 'zero fold fade distance keeps local folds');
 		equal(await render({ ...planeSettings, nearFoldFadeDistance: 2 }), plane, 'fold fade has no effect when folds are disabled');
 		const foldFadeImage = await render({ nearFoldFadeDistance: 1 });
-		assert(foldFadeImage.some((value, index) => Math.abs(value - original[index]) > 0.01), 'fold fade changes sheet geometry');
+		const unfoldedImage = await render({ nearFoldFadeDistance: 0 });
+		assert(foldFadeImage.some((value, index) => Math.abs(value - unfoldedImage[index]) > 0.01), 'fold fade changes sheet geometry');
 		assert((await render({ nearFoldFadeDistance: 2 })).some((value, index) => Math.abs(value - foldFadeImage[index]) > 0.01), 'fold fade distance changes its extent');
 		equal(await render({ nearFoldFadeDistance: 1 }, 123), foldFadeImage, 'near fades remain deterministic after parameter edits');
 		checks.push('camera-relative fold suppression and independent tilt');
