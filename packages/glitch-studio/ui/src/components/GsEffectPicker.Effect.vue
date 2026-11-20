@@ -23,11 +23,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import GsNodePort from './GsNodePort.vue';
-import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import type { EffectChoice } from '@/utility/project-effects.ts';
 import { getEffectInputPorts, getEffectOutputPorts } from '@/utility/effect-ports.ts';
 
 const props = withDefaults(defineProps<{
-	effect: Pick<EffectDefinition, 'displayName' | 'summary' | 'paramDefs' | 'outputDefs' | 'primaryInputParameter' | 'primaryOutput'>;
+	effect: Pick<EffectChoice, 'displayName' | 'summary' | 'paramDefs' | 'outputDefs' | 'primaryInputParameter' | 'primaryOutput'>;
 	detailed?: boolean;
 }>(), {
 	detailed: false,

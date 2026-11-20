@@ -1,8 +1,8 @@
 import { LinearImageReadback } from '../../src/linear-image-readback.ts';
 import { SrgbImageReadback } from '../../src/srgb-image-readback.ts';
 import { TimelineRendererManager } from '../../src/timeline-renderer-manager.ts';
-import fillDefinition from '@gs/subsystems_effect_shared/fx/fill/_def_.ts';
-import fillImplementation from '@gs/subsystems_effect_shared/fx/fill/_impl_.ts';
+import fillDefinition from '@gs/subsystems_effect-new_native-effects/fx/fill/_def_.ts';
+import fillImplementation from '@gs/subsystems_effect-new_native-effects/fx/fill/_impl_.ts';
 
 export async function run() {
 	const adapter = await navigator.gpu.requestAdapter();
@@ -64,7 +64,7 @@ export async function run() {
 		const canvas = new OffscreenCanvas(width, height);
 		const context = canvas.getContext('webgpu')!;
 		const manager = await TimelineRendererManager.create({ gpuDevice: device, gpuContext: context,
-			effectDefinitions: { fill: fillDefinition }, effectImplementations: { fill: fillImplementation } }, {
+			nativeEffectDefinitions: { fill: fillDefinition }, nativeEffectImplementations: { fill: fillImplementation } }, {
 			timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 },
 			enable32bitDataTextures: false, enableStats: false, enableWaveformAndHistogram: false,
 		}, { assets: [] });
@@ -75,7 +75,7 @@ export async function run() {
 				previewGamutWarning: { enabled: true, referenceGamut: 'acescg', bounds: 'nonNegative' },
 				previewGamutCompression: { mode: 'custom', customAmount: 1 },
 				timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{
-					id: 'fill', name: 'Fill', layerType: 'effect', effectId: 'fill', resolution: { mode: 'auto', scale: 1 },
+					id: 'fill', name: 'Fill', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'fill' }, resolution: { mode: 'auto', scale: 1 },
 					effectParamValues: { color: { inputSource: 'literal', value: [4, -1, 0.5, 0.5] } },
 					compositingParamValues: {}, automationGraphs: [], clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }],
 				}] }],

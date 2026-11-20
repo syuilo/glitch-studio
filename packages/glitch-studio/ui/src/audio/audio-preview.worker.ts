@@ -1,6 +1,6 @@
 import { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
-import { createAudioSpectrogram } from '@gs/subsystems_effect_shared/audio-spectrogram/audio-spectrogram.ts';
+import { createAudioSpectrogram } from '@gs/subsystems_effect-new_native-effects/fx/audioSpectrogram/audio-spectrogram.ts';
 import { createPreviewSpectrum } from './audio-preview-spectrum.ts';
 import { createPreviewWaveform } from './audio-preview-waveform.ts';
 import type { AudioCaptureMessage } from '@gs/subsystems_audio_shared/audio-capture.ts';

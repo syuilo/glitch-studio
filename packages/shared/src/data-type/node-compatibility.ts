@@ -10,3 +10,10 @@ export function areNodeDataTypesCompatible(output: TextureDataType | null | unde
 	if (output == null || input == null) return false;
 	return output.kind === input.kind || output.kind === 'any' || input.kind === 'any';
 }
+
+export type ConnectionTypePolicy = 'strict' | 'allowMismatch';
+
+export function canConnectNodeDataTypes(output: TextureDataType | null | undefined, input: TextureDataType | null | undefined, policy: ConnectionTypePolicy): boolean {
+	if (output == null || input == null) return false;
+	return policy === 'allowMismatch' || areNodeDataTypesCompatible(output, input);
+}

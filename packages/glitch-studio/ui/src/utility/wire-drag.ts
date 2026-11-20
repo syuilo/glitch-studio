@@ -1,6 +1,6 @@
 import { shallowRef } from 'vue';
-import type { NodeOutputReference } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import { preferences } from '@/preferences.ts';
+import type { NodeOutputReference } from '@/types/custom-node-graph-effect-view.ts';
 
 export const wireDrag = shallowRef<{
 	source: HTMLElement;

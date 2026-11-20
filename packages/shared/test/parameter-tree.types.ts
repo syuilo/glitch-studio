@@ -7,14 +7,23 @@ import type { ValueParameterBinding } from '../src/parameter/value-parameter-bin
 // 【加工設定は利用箇所のBindingにだけ保持する】
 // 広いBinding型を経由した代入でも、既定値とコンテナの子へ加工式を持ち込ませない。
 declare const modifiedLiteral: Extract<ValueParameterBinding, { inputSource: 'literal' }>;
-declare const modifiedExpression: Extract<ValueParameterBinding, { inputSource: 'expression' }>;
 // @ts-expect-error 通常のBindingは加工設定を持ち得るため既定値として代入しない
 const scalarDefault: ParameterDefaultValue<{ kind: 'scalar' }> = modifiedLiteral;
-const arrayDefault: ParameterDefaultValue<{ kind: 'array'; elementType: { kind: 'scalar' } }> = {
-	inputSource: 'literal',
-	// @ts-expect-error 子が非literalでも既定値では加工設定を禁止する
-	value: [{ id: 'first', binding: modifiedExpression }],
-};
+
+// 【配列内の構造体も、要素の追加用設定も、末端までliteralのみを許可する】
+// 既定値を利用箇所から独立させ、参照解決や式評価をせずに初期状態を作れるようにする。
+type NestedParameter = ParameterDefinition<{ kind: 'array'; elementType: { kind: 'struct'; fields: { amount: { kind: 'scalar' } } } }>;
+type ArrayField = NestedParameter['defaultValue']['value'][number]['binding']['value']['amount'];
+type NewElementField = NestedParameter['element']['defaultValue']['value']['amount'];
+type FieldDefault = NestedParameter['element']['fields']['amount']['defaultValue'];
+const literal: ArrayField = { inputSource: 'literal', value: 2 };
+const expression = { inputSource: 'expression', expression: 'TIME' } as const;
+// @ts-expect-error 配列全体の既定値に埋め込んだフィールドにも式は指定できない
+const arrayField: ArrayField = expression;
+// @ts-expect-error 要素追加時の構造体に埋め込んだフィールドにも式は指定できない
+const elementField: NewElementField = expression;
+// @ts-expect-error フィールド自体の既定値にも式は指定できない
+const fieldDefault: FieldDefault = expression;
 
 // 【評価には必ずパラメータの型を渡す】
 // 定義を渡し忘れた呼び出しで、基準値や式の結果の型検証が省略されないようにする。
@@ -40,10 +49,10 @@ mapParameterTree(structDefinition, structDefinition.defaultValue, [], (_def, _bi
 walkParameterLeaves(definitions, literalParents);
 // @ts-expect-error IDパスの解決でも子のBinding型を親から推論しない
 resolveParameter(definitions, literalParents, ['array', 'first']);
-// @ts-expect-error 既定値を補完する走査でもドメインのBinding型を明示する
+// @ts-expect-error IDパスを使う走査でもドメインのBinding型を明示する
 walkParameters(definitions, literalParents);
 
-// 共通方式だけのツリーでも、literalの初期値から式の末端を取り出せる。
+// 共通方式だけのBindingを持つ配置では、literalの親の下にも式を指定できる。
 mapParameterTree<ValueParameterBinding>(arrayDefinition, arrayDefinition.defaultValue, [], (_def, binding) => {
 	// @ts-expect-error literalの親でも末端のvalueを無条件に読むことはできない
 	binding.value;
@@ -96,9 +105,7 @@ const common = resolveParameter<ValueParameterBinding>(definitions, literalParen
 // @ts-expect-error 共通方式だけのツリーには固有方式を書き込めない
 common.setValue({ inputSource: 'testReference', referenceId: 'source' });
 
-// 保存値が未設定なら、指定した方式に加えて定義側の共通方式も走査される。
+// 走査結果は利用ドメインのBinding型に一致する。
 for (const { value } of walkParameters<ReferenceBinding>(definitions, {})) {
-	if (value.inputSource === 'expression') {
-		const expression: string = value.expression;
-	}
+	const binding: ReferenceBinding = value;
 }

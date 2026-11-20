@@ -1,0 +1,35 @@
+{
+	"type": "module",
+	"name": "@gs/subsystems_effect-new_native-effects",
+	"private": true,
+	"scripts": {
+		"typecheck": "tsc6 --noEmit",
+		"eslint": "eslint --quiet './**/*.{js,ts}'",
+		"lint": "pnpm typecheck && pnpm eslint",
+		"test": "node --test test/*.test.mjs"
+	},
+	"exports": {
+		"./test/native-effect-probe.ts": "./test/helpers/native-effect-probe.ts",
+		"./*": "./src/*"
+	},
+	"dependencies": {
+		"seedrandom": "3.0.5",
+		"@gs/shared": "workspace:*",
+		"@gs/subsystems_effect-new_shared": "workspace:*",
+		"@gs/subsystems_effect-new_renderer": "workspace:*",
+		"@gs/subsystems_audio_renderer": "workspace:*",
+		"@gs/subsystems_audio_shared": "workspace:*",
+		"mediabunny": "1.65.0",
+		"uqr": "0.1.3"
+	},
+	"devDependencies": {
+		"@types/seedrandom": "3.0.8",
+		"@types/web": "0.0.359",
+		"@typescript-eslint/parser": "8.72.1",
+		"@webgpu/types": "0.1.74",
+		"jsqr": "1.4.0",
+		"webgpu-utils": "2.1.1",
+		"vite": "8.3.5",
+		"esbuild": "0.28.2"
+	}
+}

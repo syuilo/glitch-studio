@@ -20,6 +20,7 @@ const bundle = await build({
 		build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ loader: 'ts', contents: `
 			export function createTimelineCompositor() {
 				return {
+					transparentImage: { kind: 'texture', texture: {} },
 					evaluate(context, source, settings, projected) {
 						return { output: { source, settings, projected }, gpuTime: 0 };
 					},
@@ -32,7 +33,7 @@ const bundle = await build({
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { createGroupTimelineLayer, TimelineCompositingParameters, TimelineEvaluationSession, createTimelineContainerLayer } = module.exports;
-const fallback = { kind: 'uniform', value: [0, 0, 0, 0] };
+const fallback = { kind: 'texture', texture: {} };
 
 function fixture(t, { empty = false, waitForChild = async () => {} } = {}) {
 	const group = createTimelineContainerLayer('group', 'group', 'Group');
@@ -50,7 +51,7 @@ function fixture(t, { empty = false, waitForChild = async () => {} } = {}) {
 		createLayer: () => ({
 			async evaluate(context) {
 				await waitForChild(context);
-				return { output: { kind: 'uniform', value: [1, 1, 1, 1] }, gpuTime: 0 };
+				return { output: { kind: 'texture', texture: {} }, gpuTime: 0 };
 			},
 			destroy() {},
 		}),

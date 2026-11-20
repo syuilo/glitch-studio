@@ -1,3 +1,4 @@
+import { gpuFixture } from './helpers/manager-gpu.mjs';
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -19,32 +20,28 @@ after(() => {
 	if (gpu) Object.defineProperty(navigator, 'gpu', gpu);
 	else delete navigator.gpu;
 });
-const { CustomNodeGraphEffectRendererManager, createManager: createCustomNodeGraphEffectLivePreviewManager } = await loadShaderSource(fileURLToPath(new URL('../src/custom-node-graph-effect-renderer-manager.ts', import.meta.url)));
+const { EffectLivePreviewManager, createManager: createEffectLivePreviewManager } = await loadShaderSource(fileURLToPath(new URL('../src/effect-live-preview-manager.ts', import.meta.url)));
 const { TimelineRendererManager, createManager: createTimelineManager } = await loadShaderSource(fileURLToPath(new URL('../src/timeline-renderer-manager.ts', import.meta.url)));
-const { default: fillDefinition } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_effect_shared/fx/fill/_def_.ts')));
-const { default: fillImplementation } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_effect_shared/fx/fill/_impl_.ts')));
+const { default: fillDefinition } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_effect-new_native-effects/fx/fill/_def_.ts')));
+const { default: fillImplementation } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_effect-new_native-effects/fx/fill/_impl_.ts')));
 
-function customNodeGraphEffect(circular) {
+const referenceSource = { type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' };
+const registration = (definition, id = definition.id ?? referenceSource.id) => ({ id, name: 'Test', definition });
+function customNodeGraphEffect() {
 	return {
-		customParameterDefs: [],
-		customParameterValues: {},
-		id: 'customNodeGraphEffect', name: 'Test', automationGraphs: [],
-		paramDefs: [],
-		outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'output',
-		nodes: [
-			{ id: 'a', type: 'effect', resolution: { mode: 'context', scale: 1 }, effectId: 'pass', isBypass: true, params: { input: { inputSource: 'node', nodeId: circular ? 'b' : null, outputPort: 'output' } } },
-			{ id: 'b', type: 'effect', resolution: { mode: 'context', scale: 1 }, effectId: 'pass', isBypass: true, params: { input: { inputSource: 'node', nodeId: 'a', outputPort: 'output' } } },
-			{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'a', outputPort: 'output' } } },
-		],
+		kind: 'generate', paramDefs: {}, resolutionInputParameters: [], primaryInputParameter: null, primaryOutput: 'output',
+		outputDefs: { output: { dataType: { kind: 'color' } } }, outputSources: { output: { nodeId: 'a', outputPort: 'output' } },
+		nodes: [{ id: 'a', type: 'effect', effectSource: { type: 'nativeEffect', id: 'pass' }, isBypass: true, params: {} }],
 	};
 }
 
 function constantCustomNodeGraphEffect() {
-	return { ...customNodeGraphEffect(false), paramDefs: [{ id: 'color', nameForReference: 'color', dataType: { kind: 'color' },
-		ui: { label: 'Color', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] } }], nodes: [
-		{ id: 'in', type: 'globalIn' },
-		{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'color' } } },
-	] };
+	return {
+		...customNodeGraphEffect(),
+		paramDefs: { color: { ...fillDefinition.paramDefs.color, nameForReference: 'color', defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] } } },
+		nodes: [{ id: 'a', effectSource: { type: 'nativeEffect', id: 'fill' },
+			params: { color: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'color' } } }],
+	};
 }
 
 for (const framesAhead of [undefined, 0, 1, 2, 3]) {
@@ -81,7 +78,7 @@ test('keeps out-of-order frame results and starts new previews before older cach
 	const { renderer, errors } = await fixture(t, { frameCacheMaxBytes: 64, enableStats: true }, TimelineRendererManager);
 	const scenes = structuredClone(renderer.dynamicOptions.timelineScenes);
 	scenes[0].layers[0].compositingParamValues.rotation = { inputSource: 'expression', expression: 'TIME_MS / 1000' };
-	await renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()], timelineScenes: scenes, previewFps: 30,
+	await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())], timelineScenes: scenes, previewFps: 30,
 		transformObserver: { sceneId: 'scene', layerId: 'layer', requestId: 1 } });
 	const firstGpu = Promise.withResolvers();
 	const secondGpu = Promise.withResolvers();
@@ -141,7 +138,7 @@ for (const options of [{}, { frameCacheMaxBytes: 0 }, { frameCacheMaxBytes: 8, f
 	// 省略時と明示的な容量0では複製も定期通知も開始せず、書き出し用Managerの既定動作を保つ。
 	test(`applies static cache settings without quantizing rendering or export: ${JSON.stringify(options)}`, async t => {
 		const { renderer, errors } = await fixture(t, options, TimelineRendererManager);
-		await renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()], previewFps: 30 });
+		await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())], previewFps: 30 });
 		const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
 		const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
 		await renderer.renderTimelineAt(0);
@@ -157,26 +154,7 @@ for (const options of [{}, { frameCacheMaxBytes: 0 }, { frameCacheMaxBytes: 8, f
 	});
 }
 
-function gpuFixture() {
-	const texture = ({ size = [1, 1], format = 'rgba8unorm' } = {}) => ({
-		width: size.width ?? size[0], height: size.height ?? size[1], depthOrArrayLayers: 1, mipLevelCount: 1, sampleCount: 1,
-		format, dimension: '2d', createView: () => ({}), destroy() {},
-	});
-	const device = {
-		limits: { maxTextureDimension2D: 8192 },
-		features: new Set(), lost: new Promise(() => {}), destroy() {},
-		createTexture: texture, createBuffer: ({ size }) => ({ size, destroy() {} }),
-		createShaderModule: () => ({}), createSampler: () => ({}), createBindGroup: () => ({}),
-		createBindGroupLayout: () => ({}), createPipelineLayout: () => ({}),
-		createRenderPipeline: () => ({ getBindGroupLayout: () => ({}) }),
-		createRenderBundleEncoder: () => ({ setPipeline() {}, setBindGroup() {}, draw() {}, finish: () => ({}) }),
-		createComputePipeline: () => ({ getBindGroupLayout: () => ({}) }),
-		pushErrorScope() {}, async popErrorScope() { return null; },
-		createCommandEncoder: () => ({ finish: () => ({}), beginRenderPass: () => ({ setPipeline() {}, setBindGroup() {}, draw() {}, executeBundles() {}, end() {} }) }),
-		queue: { submit() {}, async onSubmittedWorkDone() {}, writeBuffer() {}, writeTexture() {}, copyExternalImageToTexture() {} },
-	};
-	return { device, texture };
-}
+
 
 // 【キャッシュヒットでは評価を省き、精密シークと書き出しでは必ず通常評価する】
 // 最終画像の保存をpresentだけへ追加すると、精密シークや書き出しまで既存画像を使い回し得る。
@@ -184,7 +162,7 @@ function gpuFixture() {
 // rgba16floatは1画素8byteなので、16byteの上限で2フレームだけ保持する。
 test('reuses timeline frames with LRU while bypassing the cache for precise seeks and export', async t => {
 	const { renderer, errors } = await fixture(t, { frameCacheMaxBytes: 16 }, TimelineRendererManager);
-	await renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()], previewFps: 30 });
+	await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())], previewFps: 30 });
 	const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
 	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
 	const states = [];
@@ -209,7 +187,7 @@ test('reuses timeline frames with LRU while bypassing the cache for precise seek
 // 選択変更だけで全フレームを捨てたり、画像だけを再利用して枠を消したりしてはならない。
 test('restores transform metadata on cache hits after changing the observation', async t => {
 	const { renderer, errors } = await fixture(t, { frameCacheMaxBytes: 16 }, TimelineRendererManager);
-	await renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()], previewFps: 30 });
+	await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())], previewFps: 30 });
 	const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
 	await renderer.renderTimelineAt(0);
 	const transforms = [];
@@ -219,8 +197,8 @@ test('restores transform metadata on cache hits after changing the observation',
 	assert.equal(evaluations.mock.callCount(), 1);
 	assert.equal(transforms.at(-1).request.requestId, 2);
 	assert.notEqual(transforms.at(-1).geometry, null);
-	// 定数をそのまま返すCustom Node Graph Effectなので、素材はテクスチャではない。
-	assert.equal(transforms.at(-1).outputResolution, null);
+	// 一様色もTimelineの境界でScene寸法のtextureになる。
+	assert.deepEqual(transforms.at(-1).outputResolution, { width: 1, height: 1 });
 	assert.deepEqual(transforms.at(-1).geometry.sourceSize, { width: 1, height: 1 });
 	assert.deepEqual(errors, []);
 });
@@ -229,7 +207,7 @@ test('restores transform metadata on cache hits after changing the observation',
 // 表示補正を作品の編集と扱うと、ドラッグのたびにキャッシュを全消去して再評価してしまう。
 test('reuses cached frames while applying updated preview exposure and gamut compression', async t => {
 	const { renderer, errors } = await fixture(t, { frameCacheMaxBytes: 16 }, TimelineRendererManager);
-	await renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()], previewFps: 30 });
+	await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())], previewFps: 30 });
 	const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
 	await renderer.renderTimelineAt(0);
 	const cached = renderer.frameCache.get(0);
@@ -279,7 +257,7 @@ test('reuses cached frames while applying updated preview exposure and gamut com
 // GPUへ送ったコピーの完了を待つ間にも編集RPCが届くため、世代確認は登録直前に必要となる。
 test('invalidates cached frames and rejects snapshots completed after an edit', async t => {
 	const { renderer, errors } = await fixture(t, { frameCacheMaxBytes: 16 }, TimelineRendererManager);
-	await renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()], previewFps: 30 });
+	await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())], previewFps: 30 });
 	await renderer.renderTimelineAt(0);
 	const gate = Promise.withResolvers();
 	const entered = Promise.withResolvers();
@@ -304,7 +282,7 @@ test('invalidates cached frames and rejects snapshots completed after an edit', 
 // 空き容量の推定だけで確保成功は保証できない。失敗した画像を採用せず、通常再生を維持する。
 test('keeps rendering when a cache allocation reports out of memory', async t => {
 	const { renderer, errors } = await fixture(t, { frameCacheMaxBytes: 16 }, TimelineRendererManager);
-	await renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()], previewFps: 30 });
+	await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())], previewFps: 30 });
 	renderer.gpuDevice.pushErrorScope = () => {};
 	renderer.gpuDevice.popErrorScope = async () => ({ message: 'out of memory' });
 	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
@@ -320,7 +298,7 @@ for (const failure of ['out-of-memory', 'exception']) {
 	// 非同期OOMに伴うvalidation errorと同期例外の両方で、表示用command bufferの送信を確認する。
 	test(`isolates ${failure} in frame capture from submitted preview work`, async t => {
 		const { renderer, errors } = await fixture(t, { frameCacheMaxBytes: 16 }, TimelineRendererManager);
-		await renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()], previewFps: 30 });
+		await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())], previewFps: 30 });
 		const device = renderer.gpuDevice;
 		const scopes = [];
 		let failCapture = true;
@@ -376,7 +354,7 @@ for (const hasCamera of [false, true]) {
 		scene.layers = ['a', 'b', 'c'].map(id => ({ ...structuredClone(scene.layers[0]), id }));
 		if (hasCamera) scene.layers.unshift({ id: 'camera', layerType: 'camera', isDisabled: false, forceDisableMotionBlur: false,
 			automationGraphs: [], cameraParamValues: {}, clips: [{ id: 'camera-clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }] });
-		await renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()], timelineScenes: [scene], previewFps: 30 });
+		await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())], timelineScenes: [scene], previewFps: 30 });
 		const camera = t.mock.method(renderer.transformPreviewCamera, 'evaluate');
 		const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
 		await renderer.renderTimelineAt(200);
@@ -417,7 +395,7 @@ test('publishes only the observed transform and deduplicates unchanged redraws',
 	const events = [];
 	renderer.on('ev', event => { if (event.type === 'layerTransform') events.push(structuredClone(event.ctx)); });
 	const source = constantCustomNodeGraphEffect();
-	await renderer.updateDynamicOptions({ customNodeGraphEffects: [source] });
+	await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(source)] });
 	await renderer.renderTimelineAt(0);
 	assert.equal(events.length, 0);
 	await renderer.updateDynamicOptions({ transformObserver: { sceneId: 'scene', layerId: 'layer', requestId: 1 } });
@@ -443,7 +421,7 @@ test('discards transform notifications for an obsolete selection', async t => {
 	const { renderer } = await fixture(t, {}, TimelineRendererManager);
 	const events = [];
 	renderer.on('ev', event => { if (event.type === 'layerTransform') events.push(event.ctx); });
-	await renderer.updateDynamicOptions({ customNodeGraphEffects: [customNodeGraphEffect(false)], transformObserver: { sceneId: 'scene', layerId: 'layer', requestId: 1 } });
+	await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(customNodeGraphEffect(false))], transformObserver: { sceneId: 'scene', layerId: 'layer', requestId: 1 } });
 	const gate = Promise.withResolvers();
 	renderer.gpuDevice.queue.onSubmittedWorkDone = () => gate.promise;
 	const pending = renderer.renderTimelineAt(0);
@@ -467,7 +445,7 @@ test('publishes one base-time transform for a motion-blurred frame', async t => 
 	const scenes = structuredClone(renderer.dynamicOptions.timelineScenes);
 	scenes[0].layers[0].compositingParamValues.rotation = { inputSource: 'expression', expression: 'TIME_MS / 1000' };
 	const source = constantCustomNodeGraphEffect();
-	await renderer.updateDynamicOptions({ customNodeGraphEffects: [source], timelineScenes: scenes,
+	await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(source)], timelineScenes: scenes,
 		transformObserver: { sceneId: 'scene', layerId: 'layer', requestId: 1 } });
 	let evaluations = 0;
 	const evaluate = renderer.timelineRenderer.evaluateAt.bind(renderer.timelineRenderer);
@@ -481,23 +459,22 @@ test('publishes one base-time transform for a motion-blurred frame', async t => 
 
 function installRenderHistoryEffect(renderer) {
 	const instances = [];
-	renderer.effectDefinitions.history = { dependsOnRenderHistory: true, kind: 'generate', paramDefs: {},
+	renderer.nativeEffectDefinitions.history = { dependsOnRenderHistory: true, kind: 'generate', paramDefs: {},
 		primaryInputParameter: null, resolutionInputParameters: [], primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } } };
-	renderer.effectImplementations.history = {
-		disableCache: true, needsPreviousFrame: true,
-		outputTextureFactories: { output: ({ resolution }) => renderer.gpuDevice.createTexture({ size: [resolution.width, resolution.height] }) },
+	renderer.nativeEffectImplementations.history = {
+
 		init() {
-			const instance = { disposed: 0, frames: [] };
+			const instance = { disposed: 0, resets: 0, frames: [] };
 			instances.push(instance);
 			return {
 				render(context) { instance.frames.push({ time: context.time, timeDelta: context.timeDelta }); },
+				resetRenderHistory() { instance.resets++; },
 				dispose() { instance.disposed++; },
 			};
 		},
 	};
-	const customNodeGraphEffect = { ...constantCustomNodeGraphEffect(), paramDefs: [], nodes: [
-		{ id: 'history', type: 'effect', effectId: 'history', params: {}, isBypass: false, resolution: { mode: 'context', scale: 1 } },
-		{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'history', outputPort: 'output' } } },
+	const customNodeGraphEffect = { ...constantCustomNodeGraphEffect(), paramDefs: {}, outputSources: { output: { nodeId: 'history', outputPort: 'output' } }, nodes: [
+		{ id: 'history', type: 'effect', effectSource: { type: 'nativeEffect', id: 'history' }, params: {}, isBypass: false, resolution: { mode: 'context', scale: 1 } },
 	] };
 	return { instances, customNodeGraphEffect };
 }
@@ -511,13 +488,13 @@ for (const placement of ['effect', 'customNodeGraphEffect', 'inlineCustomNodeGra
 		const { instances, customNodeGraphEffect } = installRenderHistoryEffect(renderer);
 		const scene = structuredClone(renderer.dynamicOptions.timelineScenes[0]);
 		const base = scene.layers[0];
-		const effect = { ...base, id: 'effect', layerType: 'effect', effectId: 'history', effectParamValues: {}, effectStaticSettings: {}, resolution: { mode: 'context', scale: 1 } };
+		const effect = { ...base, id: 'effect', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'history' }, effectParamValues: {}, effectStaticSettings: {}, resolution: { mode: 'context', scale: 1 } };
 		const { clips, ...containerBase } = base;
 		let layer;
 		switch (placement) {
 			case 'effect': layer = effect; break;
 			case 'customNodeGraphEffect': layer = base; break;
-			case 'inlineCustomNodeGraphEffect': layer = { ...base, layerType: 'inlineCustomNodeGraphEffect', customNodeGraphEffect }; break;
+			case 'inlineCustomNodeGraphEffect': layer = { ...base, layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect } }; break;
 			case 'group': layer = { ...containerBase, layerType: 'group', layers: [effect], compositingMode: 'flat' }; break;
 			case 'transform': layer = { ...containerBase, layerType: 'transform', layers: [effect], transformParamValues: {
 				position: { inputSource: 'literal', value: [0, 0] }, z: { inputSource: 'literal', value: 0 },
@@ -526,7 +503,7 @@ for (const placement of ['effect', 'customNodeGraphEffect', 'inlineCustomNodeGra
 			case 'scene': layer = { ...base, layerType: 'scene', clips: clips.map(clip => ({ ...clip, sceneId: 'child' })) }; break;
 		}
 		scene.layers = [layer];
-		await renderer.updateDynamicOptions({ customNodeGraphEffects: [customNodeGraphEffect], timelineScenes: [scene,
+		await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(customNodeGraphEffect)], timelineScenes: [scene,
 			...(placement === 'scene' ? [{ ...scene, id: 'child', layers: [effect] }] : []),
 		] });
 		await renderer.renderTimelineAt(0);
@@ -535,11 +512,11 @@ for (const placement of ['effect', 'customNodeGraphEffect', 'inlineCustomNodeGra
 		assert.equal(instances.length, 1);
 		assert.equal(instances[0].frames.length, 2);
 		renderer.resetRenderHistory();
-		assert.equal(instances[0].disposed, 1);
+		assert.equal(instances[0].resets, 1);
 		await renderer.renderTimelineAt(100);
 		assert.deepEqual(errors, []);
-		assert.equal(instances.length, 2);
-		assert.deepEqual(instances[1].frames, [{ time: 0.1, timeDelta: 0 }]);
+		assert.equal(instances.length, 1);
+		assert.deepEqual(instances[0].frames.slice(-1), [{ time: 0.1, timeDelta: 0 }]);
 	});
 }
 
@@ -549,18 +526,18 @@ for (const placement of ['effect', 'customNodeGraphEffect', 'inlineCustomNodeGra
 test('resets Live Preview history without restarting its clock or frame loop', async t => {
 	const { renderer, errors, frames, frame } = await fixture(t);
 	const { instances, customNodeGraphEffect } = installRenderHistoryEffect(renderer);
-	await renderer.updateDynamicOptions({ customNodeGraphEffects: [customNodeGraphEffect] });
-	renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
-	frame(16);
-	frame(32);
+	await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(customNodeGraphEffect)] });
+	renderer.startEffectLivePreview({ effectSource: referenceSource });
+	await frame(16);
+	await frame(32);
 	const reservations = [...frames.keys()];
 	renderer.resetRenderHistory();
-	assert.equal(instances[0].disposed, 1);
+	assert.equal(instances[0].resets, 1);
 	assert.deepEqual([...frames.keys()], reservations);
-	frame(48);
-	frame(64);
-	assert.equal(instances.length, 2);
-	assert.deepEqual(instances[1].frames, [{ time: 0.048, timeDelta: 0 }, { time: 0.064, timeDelta: 16 }]);
+	await frame(48);
+	await frame(64);
+	assert.equal(instances.length, 1);
+	assert.deepEqual(instances[0].frames.slice(-2), [{ time: 0.048, timeDelta: 0 }, { time: 0.064, timeDelta: 16 }]);
 	assert.deepEqual(errors, []);
 });
 
@@ -569,7 +546,7 @@ test('resets Live Preview history without restarting its clock or frame loop', a
 // キャッシュされていた同じ位置の再表示で、新しい評価が必要になることを確認する。
 test('clears cached images and rejects in-flight snapshots after resetting history', async t => {
 	const { renderer, errors } = await fixture(t, { frameCacheMaxBytes: 16 }, TimelineRendererManager);
-	await renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()], previewFps: 30 });
+	await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())], previewFps: 30 });
 	const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
 	await renderer.renderTimelineAt(0);
 	assert.equal(renderer.frameCache.snapshot().estimatedBytes, 8);
@@ -595,7 +572,7 @@ test('clears cached images and rejects in-flight snapshots after resetting histo
 	assert.deepEqual(errors, []);
 });
 
-async function fixture(t, staticOptions = {}, Manager = CustomNodeGraphEffectRendererManager, waveformAndHistogramCanvases = {}) {
+async function fixture(t, staticOptions = {}, Manager = EffectLivePreviewManager, waveformAndHistogramCanvases = {}) {
 	const errors = [];
 	const frames = new Map();
 	let frameId = 0;
@@ -605,10 +582,10 @@ async function fixture(t, staticOptions = {}, Manager = CustomNodeGraphEffectRen
 		gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
 		...waveformAndHistogramCanvases,
 		frameScheduler: { now: () => 0, requestFrame: callback => { frames.set(++frameId, callback); return frameId; }, cancelFrame: id => frames.delete(id) },
-		effectDefinitions: { pass: { paramDefs: {
-			input: { dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+		nativeEffectDefinitions: { fill: fillDefinition, pass: { kind: 'modify', paramDefs: {
+			input: { dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] }, ui: { label: 'Input', control: {} } },
 		}, primaryInputParameter: 'input', resolutionInputParameters: ['input'], outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output' } },
-		effectImplementations: { pass: { outputTextureFactories: {} } },
+		nativeEffectImplementations: { fill: fillImplementation, pass: { init: () => ({ render() {}, dispose() {} }) } },
 	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: true, enable32bitDataTextures: false, ...staticOptions }, { assets: [], players: [] });
 	renderer.on('ev', event => {
 		if (event.type === 'renderError') errors.push(event.ctx.message);
@@ -616,44 +593,41 @@ async function fixture(t, staticOptions = {}, Manager = CustomNodeGraphEffectRen
 	t.after(() => renderer.destroy());
 	await renderer.updateDynamicOptions({
 		resolution: { width: 1, height: 1 },
-		customNodeGraphEffects: [customNodeGraphEffect(true)],
-		...(Manager === TimelineRendererManager ? { timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], customNodeGraphEffectParamValues: {}, compositingParamValues: {}, automationGraphs: [] }] }], sceneId: 'scene' } : {}),
+		customNodeGraphEffects: [registration(customNodeGraphEffect(true))],
+		...(Manager === TimelineRendererManager ? { timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectSource: referenceSource, effectStaticSettings: {}, resolution: { mode: 'context', scale: 1 }, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], effectParamValues: {}, compositingParamValues: {}, automationGraphs: [] }] }], sceneId: 'scene' } : {}),
 	});
-	return { renderer, errors, frames, originalGpuMethods, frame(timestamp) {
+	return { renderer, errors, frames, originalGpuMethods, async frame(timestamp) {
 		const [id, callback] = frames.entries().next().value;
 		frames.delete(id);
 		callback(timestamp);
+		await new Promise(resolve => setImmediate(resolve));
 	} };
 }
 
-for (const Manager of [CustomNodeGraphEffectRendererManager, TimelineRendererManager]) for (const enable32bitDataTextures of [false, true]) {
+for (const Manager of [EffectLivePreviewManager, TimelineRendererManager]) for (const enable32bitDataTextures of [false, true]) {
 	// 【Canvasの推奨形式やデータ精度にかかわらず、画像出力は16bit floatに固定する】
 	// UIだけを変更するとManagerやCustom Node Graph Effectの生成経路に8bit形式が残り得るため、
 	// エフェクトの出力確保・初期化からCanvasへ渡す画像まで、両プレビューの実経路を確認する。
 	test(`${Manager.name} uses rgba16float images with 32bit data=${enable32bitDataTextures}`, async t => {
 		const f = await fixture(t, { enableWaveformAndHistogram: false, enable32bitDataTextures }, Manager);
 		const gpuContexts = [];
-		f.renderer.effectDefinitions.pass = fillDefinition;
-		f.renderer.effectImplementations.pass = {
-			outputTextureFactories: { output: ({ wgpu, resolution }) => {
-				gpuContexts.push(wgpu);
-				return fillImplementation.outputTextureFactories.output({ wgpu, resolution });
-			} },
-			init(args) { gpuContexts.push(args.wgpu); return fillImplementation.init(args); },
+		f.renderer.nativeEffectDefinitions.pass = fillDefinition;
+		f.renderer.nativeEffectImplementations.pass = {
+			init(args, outputs) { gpuContexts.push(args); return fillImplementation.init(args, outputs); },
 		};
 		const definition = customNodeGraphEffect(false);
 		definition.nodes = [
 			{ ...definition.nodes[0], isBypass: false, params: { color: { inputSource: 'literal', value: [2, -0.5, 0, 1] } } },
-			definition.nodes[2],
+
 		];
-		await f.renderer.updateDynamicOptions({ customNodeGraphEffects: [definition] });
+		await f.renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(definition)] });
 		const present = t.mock.method(f.renderer.canvasRenderer, 'renderToCanvas');
 		if (Manager === TimelineRendererManager) await f.renderer.renderTimelineAt(0);
 		else {
-			f.renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
-			f.frame(16);
+			f.renderer.startEffectLivePreview({ effectSource: referenceSource });
+			await f.frame(16);
 		}
-		assert.equal(gpuContexts.length, 2);
+		assert.equal(gpuContexts.length, 1);
 		for (const wgpu of gpuContexts) {
 			assert.equal(wgpu.enable32bitDataTextures, enable32bitDataTextures);
 		}
@@ -663,18 +637,18 @@ for (const Manager of [CustomNodeGraphEffectRendererManager, TimelineRendererMan
 	});
 }
 
-async function deferredCustomNodeGraphEffectLivePreview(t) {
+async function deferredEffectLivePreview(t) {
 	const f = await fixture(t, { enableWaveformAndHistogram: false });
 	const instances = [];
-	f.renderer.effectImplementations.pass = {
-		disableCache: true,
-		outputTextureFactories: { output: ({ resolution }) => f.renderer.gpuDevice.createTexture({ size: resolution }) },
-		init(args) {
-			const instance = { args, prepares: 0, renders: [], disposed: false };
+	f.renderer.nativeEffectImplementations.pass = {
+
+		init() {
+			const gate = Promise.withResolvers();
+			const instance = { ready: () => gate.resolve(), fail: message => gate.reject(new Error(message)), prepares: 0, renders: [], disposed: false };
 			instances.push(instance);
-			args.reportStatus({ type: 'loading' });
+
 			return {
-				prepare() { instance.prepares++; },
+				prepare(frame, signal) { instance.prepares++; return Promise.race([gate.promise, new Promise(resolve => signal.addEventListener('abort', resolve, { once: true }))]); },
 				render(context) { instance.renders.push(context); },
 				dispose() { instance.disposed = true; },
 			};
@@ -683,10 +657,10 @@ async function deferredCustomNodeGraphEffectLivePreview(t) {
 	const definition = customNodeGraphEffect(false);
 	definition.nodes = [
 		{ ...definition.nodes[0], isBypass: false, params: { input: { inputSource: 'literal', value: [1, 0, 1, 1] } } },
-		definition.nodes[2],
+
 	];
-	f.renderer.updateDynamicOptions({ customNodeGraphEffects: [definition] });
-	f.renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
+	f.renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(definition)] });
+	f.renderer.startEffectLivePreview({ effectSource: referenceSource });
 	return { ...f, instances, definition };
 }
 
@@ -701,21 +675,21 @@ function renderDelayClock(t) {
 // 関数のreturnや描画命令のsubmitはフレームの完了ではない。
 // エフェクトの準備から最終出力までを一つのフレームとして追跡する必要がある。
 test('monitors Live Preview preparation retries through final GPU completion', async t => {
-	const f = await deferredCustomNodeGraphEffectLivePreview(t);
+	const f = await deferredEffectLivePreview(t);
 	const advance = renderDelayClock(t);
 	const completed = Promise.withResolvers();
 	const delays = [];
 	f.renderer.on('ev', event => { if (event.type === 'renderDelay') delays.push(event.ctx.isDelayed); });
 	t.mock.method(f.renderer.gpuDevice.queue, 'onSubmittedWorkDone', () => completed.promise);
-	f.frame(16);
+	await f.frame(16);
 	advance(200);
-	f.frame(216);
+	await f.frame(216);
 	advance(99);
 	assert.deepEqual(delays, []);
 	advance(1);
 	assert.deepEqual(delays, [true]);
-	f.instances[0].args.reportStatus({ type: 'ready' });
-	f.frame(316);
+	f.instances[0].ready();
+	await f.frame(316);
 	advance(100);
 	assert.equal(f.instances[0].prepares, 1);
 	assert.equal(f.instances[0].renders.length, 1);
@@ -731,17 +705,17 @@ test('monitors Live Preview preparation retries through final GPU completion', a
 // 完了順に依存した単一フラグでも、先に終わったフレームが待機表示を消してしまう。
 test('keeps submitting Live Preview frames while monitoring outstanding GPU work', async t => {
 	const f = await fixture(t, { enableWaveformAndHistogram: false });
-	f.renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()] });
-	f.renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
+	f.renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())] });
+	f.renderer.startEffectLivePreview({ effectSource: referenceSource });
 	const advance = renderDelayClock(t);
 	const first = Promise.withResolvers(), second = Promise.withResolvers();
 	const delays = [];
 	f.renderer.on('ev', event => { if (event.type === 'renderDelay') delays.push(event.ctx.isDelayed); });
 	let submitted = 0;
 	t.mock.method(f.renderer.gpuDevice.queue, 'onSubmittedWorkDone', () => ++submitted === 1 ? first.promise : second.promise);
-	f.frame(16);
+	await f.frame(16);
 	advance(100);
-	f.frame(116);
+	await f.frame(116);
 	assert.equal(submitted, 2);
 	advance(200);
 	assert.deepEqual(delays, [true]);
@@ -806,13 +780,13 @@ test('does not restart timeline delay monitoring for requests after deactivation
 	assert.deepEqual(f.errors, []);
 });
 
-for (const Manager of [CustomNodeGraphEffectRendererManager, TimelineRendererManager]) {
+for (const Manager of [EffectLivePreviewManager, TimelineRendererManager]) {
 	// 【CPU表示ではGPUの完了だけで解除せず、読み戻した画像の送信まで監視する】
 	// GPU表示とCPU表示ではフレームの完了境界が異なる。
 	// 画像がまだUIへ送られていないのにスピナーだけを先に消してはいけない。
 	test(`${Manager.name} keeps the delay visible until CPU presentation completes`, async t => {
 		const f = await fixture(t, { enableWaveformAndHistogram: false }, Manager);
-		f.renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()], previewActive: true });
+		f.renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())], previewActive: true });
 		const advance = renderDelayClock(t);
 		const completed = Promise.withResolvers(), readbackStarted = Promise.withResolvers();
 		const delays = [];
@@ -822,9 +796,9 @@ for (const Manager of [CustomNodeGraphEffectRendererManager, TimelineRendererMan
 		t.mock.method(f.renderer.canvasRenderer, 'tryReserveCpuPreviewFrame', () => frame);
 		t.mock.method(f.renderer.canvasRenderer, 'reserveCpuPreviewFrame', async () => frame);
 		let pending = null;
-		if (Manager === CustomNodeGraphEffectRendererManager) {
-			f.renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
-			f.frame(16);
+		if (Manager === EffectLivePreviewManager) {
+			f.renderer.startEffectLivePreview({ effectSource: referenceSource });
+			await f.frame(16);
 		} else pending = f.renderer.renderTimelineAt(0);
 		await readbackStarted.promise;
 		advance(300);
@@ -837,240 +811,56 @@ for (const Manager of [CustomNodeGraphEffectRendererManager, TimelineRendererMan
 	});
 }
 
-for (const Manager of [CustomNodeGraphEffectRendererManager, TimelineRendererManager]) {
-	// 【Custom Shader Effectの一括更新で描画配置だけを作り直し、GPU・素材・ライブ入力を維持する】
-	// 同じManagerへ定義の追加・変更・削除を反映し、旧配置やTimelineキャッシュを再利用しないことを確認する。
-	test(`${Manager.name} replaces shader definitions and placements while retaining fixed resources`, async t => {
-		const f = await fixture(t, { enableWaveformAndHistogram: false, frameCacheMaxBytes: 64 }, Manager);
-		const initial = constantCustomNodeGraphEffect();
-		f.renderer.updateDynamicOptions({ customNodeGraphEffects: [initial] });
-		if (Manager === CustomNodeGraphEffectRendererManager) {
-			f.renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect', {}, 'same-preview');
-			f.frame(16);
-		} else await f.renderer.renderTimelineAt(0);
-		const device = f.renderer.gpuDevice;
-		const assets = f.renderer.assetTextures;
-		const disposedAssets = t.mock.method(assets, 'dispose');
-		const destroyedDevice = t.mock.method(device, 'destroy');
-		const previous = Manager === CustomNodeGraphEffectRendererManager ? f.renderer.livePreviewCustomNodeGraphEffectRenderer
-			: f.renderer.timelineRenderer.layers.values().next().value.renderer;
-		const destroyedPlacement = t.mock.method(previous, 'destroy');
-		const updated = structuredClone(initial);
-		updated.paramDefs[0].defaultValue.value = [0, 1, 0, 1];
-		const customShaderEffect = { id: 'shader', name: 'Shader', summary: '', shaderApiVersion: 1, codeLanguage: 'wgsl', kind: 'generate',
-			paramDefs: [], outputDefs: [{ id: 'color', nameForReference: 'color', label: 'Color', dataType: { kind: 'color' } }],
-			primaryInputId: null, primaryOutputId: 'color', resolutionInputIds: [], code: '' };
-		const project = { automationGraphs: [], customNodeGraphEffects: [updated], timelineScenes: f.renderer.dynamicOptions.timelineScenes ?? [] };
-		f.renderer.applyProjectChanges([{ type: 'customShaderEffects', customShaderEffects: [customShaderEffect], project }]);
-		assert.equal(destroyedPlacement.mock.callCount(), 1);
-		assert.equal(f.renderer.effectDefinitions['customShaderEffect:shader'].displayName, 'Shader');
-		assert.equal(f.renderer.effectDefinitions.pass != null, true);
-		assert.equal(f.renderer.dynamicOptions.customNodeGraphEffects[0].paramDefs[0].defaultValue.value[1], 1);
-		if (Manager === CustomNodeGraphEffectRendererManager) {
-			assert.equal(f.renderer.customNodeGraphEffectLivePreviewStatusInstanceId, 'same-preview');
-			assert.notEqual(f.renderer.livePreviewCustomNodeGraphEffectRenderer, previous);
-			f.frame(32);
-		} else {
-			assert.equal(f.renderer.timelineRenderer.layers.size, 0);
-			assert.equal(f.renderer.frameCache.snapshot().estimatedBytes, 0);
-			await f.renderer.renderTimelineAt(0);
-		}
-		f.renderer.applyProjectChanges([{ type: 'customShaderEffects', customShaderEffects: [], project }]);
-		assert.equal(f.renderer.effectDefinitions['customShaderEffect:shader'], undefined);
-		assert.equal(f.renderer.gpuDevice, device);
-		assert.equal(f.renderer.assetTextures, assets);
-		assert.equal(destroyedDevice.mock.callCount(), 0);
-		assert.equal(disposedAssets.mock.callCount(), 0);
-		assert.deepEqual(f.errors, []);
-	});
-}
-
-// 【ライブプレビューは準備中の入力を維持し、そのフレームを描いてから最新の時刻へ進む】
-// Custom Shader Effectのpipelineは初期化後に完成するため、renderを直接呼ぶと未コンパイルで失敗する。
-// 準備中の再評価で要求を置き換えず、待機中の時間・ポインター移動も次の描画へ一度だけ引き継ぐ。
-test('skips Custom Node Graph Effect Live Preview frames synchronously while effects are preparing', async t => {
-	const f = await deferredCustomNodeGraphEffectLivePreview(t);
-	const encoders = t.mock.method(f.renderer.gpuDevice, 'createCommandEncoder');
-	f.renderer.updatePointerPosition({ x: 0, y: 0 });
-	assert.equal(f.frame(16), undefined);
-	assert.equal(f.instances.length, 1);
+// 【同じフレームの準備中は入力を固定し、次の描画へ待機時間を繰り越す】
+// 非同期デコード中のrAFは並列に準備を開始しない。完了時に開始時点のフレームを表示する。
+test('retains the prepared frame and accumulates skipped time', async t => {
+	const f = await deferredEffectLivePreview(t);
+	await f.frame(16);
+	await f.frame(32);
 	assert.equal(f.instances[0].prepares, 1);
-	assert.equal(f.instances[0].renders.length, 0);
-	f.frame(32);
-	f.renderer.updatePointerPosition({ x: 0.25, y: 0.5 });
-	assert.equal(f.instances[0].prepares, 1);
-	assert.equal(encoders.mock.callCount(), 0);
-	f.instances[0].args.reportStatus({ type: 'ready' });
-	assert.equal(f.instances[0].renders.length, 0);
-	f.frame(48);
-	assert.equal(f.instances[0].renders.length, 1);
-	assert.equal(f.instances[0].renders[0].timeDelta, 16);
-	assert.equal(f.instances[0].renders[0].time, 0.016);
-	assert.deepEqual(f.renderer.pointerPositionPrev, { x: 0, y: 0 });
-	f.frame(64);
-	assert.equal(f.instances[0].renders.length, 2);
-	assert.equal(f.instances[0].renders[1].timeDelta, 48);
-	assert.equal(f.instances[0].renders[1].time, 0.064);
-	assert.deepEqual(f.renderer.pointerPositionPrev, { x: 0.25, y: 0.5 });
-	f.instances[0].args.reportStatus({ type: 'loading' });
-	f.frame(80);
-	assert.equal(f.instances[0].renders.length, 2);
-	f.instances[0].args.reportStatus({ type: 'ready' });
-	f.frame(96);
-	assert.equal(f.instances[0].renders.length, 3);
-	assert.equal(f.instances[0].renders[2].timeDelta, 16);
-	assert.equal(f.instances[0].renders[2].time, 0.08);
-	f.frame(112);
-	assert.equal(f.instances[0].renders[3].timeDelta, 32);
-	assert.deepEqual(f.errors, []);
-});
-
-// 【時刻に連動する動画の非同期準備が完了したフレームを確実に描画する】
-// 実際のVideo Frame loaderを使い、毎RAFでTIMEが変化しても完了済みの要求を
-// 次の要求で上書きせず、待機時間を含めて次の評価時刻へ追いつくことを確認する。
-test('renders time-driven video frames after asynchronous preparation without starvation', async t => {
-	const f = await fixture(t, { enableWaveformAndHistogram: false });
-	const { createVideoFrameLoader } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_effect_shared/fx/videoFrame/frame-loader.ts')));
-	const requests = [];
-	const rendered = [];
-	f.renderer.effectImplementations.pass = {
-		disableCache: true,
-		outputTextureFactories: { output: ({ resolution }) => f.renderer.gpuDevice.createTexture({ size: resolution }) },
-		init(args) {
-			let sample = null;
-			const loader = createVideoFrameLoader({
-				fileSource: new Blob(),
-				open: () => ({
-					getSample(time) {
-						const request = { time, ...Promise.withResolvers() };
-						requests.push(request);
-						return request.promise;
-					},
-					dispose() {},
-				}),
-				publish(value) { sample = value; },
-				reportStatus: args.reportStatus,
-			});
-			const prepare = params => loader.prepare(params.input.value[0], 'loop');
-			prepare(args.params);
-			return {
-				prepare,
-				render(context) {
-					prepare(context.params);
-					rendered.push({ time: context.time, timeDelta: context.timeDelta, sampleTime: sample?.time ?? null });
-				},
-				dispose() { loader.dispose(); },
-			};
-		},
-	};
-	const definition = customNodeGraphEffect(false);
-	definition.nodes = [
-		{ ...definition.nodes[0], isBypass: false, params: { input: { inputSource: 'expression', expression: '[TIME, 0, 0, 1]' } } },
-		definition.nodes[2],
-	];
-	f.renderer.updateDynamicOptions({ customNodeGraphEffects: [definition] });
-	f.renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
-	f.frame(16); f.frame(32);
-	assert.deepEqual(requests.map(request => request.time), [0.016]);
-	assert.deepEqual(rendered, []);
-	requests[0].resolve({ time: requests[0].time, close() {} });
+	assert.deepEqual(f.instances[0].renders, []);
+	f.instances[0].ready();
 	await new Promise(resolve => setImmediate(resolve));
-	f.frame(48);
-	assert.deepEqual(rendered, [{ time: 0.016, timeDelta: 16, sampleTime: 0.016 }]);
-	f.frame(64); f.frame(80);
-	assert.deepEqual(requests.map(request => request.time), [0.016, 0.064]);
-	requests[1].resolve({ time: requests[1].time, close() {} });
-	await new Promise(resolve => setImmediate(resolve));
-	f.frame(96);
-	assert.deepEqual(rendered[1], { time: 0.064, timeDelta: 48, sampleTime: 0.064 });
+	await f.frame(64);
+	assert.deepEqual(f.instances[0].renders.map(({ time, timeDelta }) => [time, timeDelta]), [[0.016, 16], [0.064, 48]]);
 	assert.deepEqual(f.errors, []);
 });
 
-// 【準備中にCPU表示枠を返し、次の準備確認と描画を止めない】
-// スキップ時に表示枠を返し忘れると、2フレームで枠が尽きてコンパイル後も描画できなくなる。
-test('releases CPU Live Preview capacity when skipping frames during preparation', async t => {
-	const f = await deferredCustomNodeGraphEffectLivePreview(t);
-	Object.defineProperty(f.renderer.canvasRenderer, 'usesCpuDisplay', { value: true });
-	const { CpuPreviewFrameQueue } = await loadShaderSource(fileURLToPath(new URL('../src/cpu-preview-frame-queue.ts', import.meta.url)));
-	let readbacks = 0;
-	const queue = new CpuPreviewFrameQueue([{ prepareReadback(encoder, release) {
-		readbacks++;
-		return { async complete() {}, cancel: release };
-	} }]);
-	t.after(() => queue.destroy());
-	t.mock.method(f.renderer.canvasRenderer, 'tryReserveCpuPreviewFrame', () => queue.tryReserveFrame());
-	f.frame(16); f.frame(32); f.frame(48);
-	assert.equal(f.instances[0].prepares, 1);
-	assert.equal(readbacks, 0);
-	f.instances[0].args.reportStatus({ type: 'ready' });
-	f.frame(64);
-	assert.equal(f.instances[0].renders.length, 1);
-	assert.equal(f.instances[0].renders[0].timeDelta, 16);
-	assert.equal(readbacks, 1);
-	assert.deepEqual(f.errors, []);
-});
-
-// 【準備失敗は次のフレームで確認し、その診断のままライブプレビューへ通知する】
-// 準備失敗後に描画を始めると、具体的なコンパイル診断が汎用の未コンパイルエラーで隠れる。
-test('reports Live Preview preparation failures on the next frame without rendering', async t => {
-	const f = await deferredCustomNodeGraphEffectLivePreview(t);
-	f.frame(16);
-	f.instances[0].args.reportStatus({ type: 'error', message: '2:9: unresolved value' });
-	assert.deepEqual(f.errors, []);
-	f.frame(32);
-	assert.equal(f.instances[0].renders.length, 0);
-	assert.deepEqual(f.errors, ['2:9: unresolved value']);
-});
-
-// 【準備中に停止・編集しても旧インスタンスの完了では描画を再開しない】
-// 停止・編集時に保留中の評価結果も破棄し、次のフレームで現在のインスタンスだけを確認する。
-for (const operation of ['stop', 'edit']) {
-	test(`ignores obsolete Custom Node Graph Effect Live Preview preparation after ${operation}`, async t => {
-		const f = await deferredCustomNodeGraphEffectLivePreview(t);
-		f.frame(16);
+// 【停止・差し替え・解像度変更後は準備中だった配置の結果を捨てる】
+// 古いデコードの遅延完了で新しい配置へ描画したり、そのエラーを誤報しないようにする。
+for (const operation of ['stop', 'edit', 'resize']) {
+	test('cancels pending preparation on ' + operation, async t => {
+		const f = await deferredEffectLivePreview(t);
+		await f.frame(16);
 		const previous = f.instances[0];
 		if (operation === 'stop') f.renderer.stopRenderLoop();
-		else f.renderer.applyProjectChanges([{ type: 'customNodeGraphEffect', target: { customNodeGraphEffectId: 'customNodeGraphEffect' }, customNodeGraphEffect: f.definition }]);
-		previous.args.reportStatus({ type: 'error', message: 'obsolete compilation' });
-		assert.equal(previous.renders.length, 0);
+		if (operation === 'edit') f.renderer.applyProjectChanges([{ type: 'customNodeGraphEffect', customNodeGraphEffectId: referenceSource.id, customNodeGraphEffect: f.definition }]);
+		if (operation === 'resize') f.renderer.updateDynamicOptions({ resolution: { width: 4, height: 2 } });
+		previous.fail('obsolete decode');
+		await new Promise(resolve => setImmediate(resolve));
+		assert.deepEqual(previous.renders, []);
 		assert.equal(previous.disposed, true);
-		assert.deepEqual(f.errors, []);
-		if (operation === 'stop') f.renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
-		f.frame(32);
-		f.instances[1].args.reportStatus({ type: 'ready' });
-		assert.equal(f.instances[1].renders.length, 0);
-		f.frame(48);
+		if (operation === 'stop') f.renderer.startEffectLivePreview({ effectSource: referenceSource });
+		await f.frame(32);
+		f.instances[1].ready();
+		await new Promise(resolve => setImmediate(resolve));
 		assert.equal(f.instances[1].renders.length, 1);
-		if (operation === 'edit') assert.equal(f.instances[1].renders[0].timeDelta, 32);
 		assert.deepEqual(f.errors, []);
 	});
 }
 
-for (const operation of ['parameters', 'resolution', 'history reset']) {
-	// 【引数・解像度・履歴の変更では準備中の古いフレームを破棄する】
-	// 同じcontextを待ち続ける実装でも、明示的な編集やリセット後に変更前の
-	// 時刻・ポインター位置を描画したり、破棄済みの準備状態を使ったりしてはならない。
-	test(`discards the pending Live Preview frame after changing ${operation}`, async t => {
-		const f = await deferredCustomNodeGraphEffectLivePreview(t);
-		f.renderer.updatePointerPosition({ x: 0, y: 0 });
-		f.frame(16);
-		f.renderer.updatePointerPosition({ x: 0.25, y: 0.5 });
-		if (operation === 'parameters') f.renderer.updateCustomNodeGraphEffectLivePreviewParamValues({});
-		else if (operation === 'resolution') f.renderer.updateDynamicOptions({ resolution: { width: 2, height: 2 } });
-		else f.renderer.resetRenderHistory();
-		f.frame(32);
-		const current = f.instances.at(-1);
-		current.args.reportStatus({ type: 'ready' });
-		f.frame(48);
-		assert.equal(current.renders.length, 1);
-		assert.equal(current.renders[0].time, 0.032);
-		assert.equal(current.renders[0].timeDelta, operation === 'history reset' ? 16 : 32);
-		assert.deepEqual(f.renderer.pointerPositionPrev, { x: 0.25, y: 0.5 });
-		assert.deepEqual(f.errors, []);
-	});
-}
+// 【準備失敗の診断を保ち、失敗フレームを表示しない】
+// Shaderや素材のエラーを最終Canvasでの別の例外に置き換えないようにする。
+test('reports preparation errors without presenting a partial frame', async t => {
+	const f = await deferredEffectLivePreview(t);
+	await f.frame(16);
+	f.instances[0].fail('2:9: unresolved value');
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(f.errors, ['2:9: unresolved value']);
+	assert.deepEqual(f.instances[0].renders, []);
+});
 
-for (const Manager of [TimelineRendererManager, CustomNodeGraphEffectRendererManager]) {
+for (const Manager of [TimelineRendererManager, EffectLivePreviewManager]) {
 	for (const enableWaveformAndHistogram of [false, true]) {
 		// 【波形・ヒストグラムを無効にすると通常描画だけを残し、解析用のGPU処理を生成しない】
 		// パネルを隠すだけではGPU待ちの比較にならない。両ManagerでCanvasが渡されていても
@@ -1105,15 +895,15 @@ for (const enableStats of [false, true]) {
 	// 有効時との比較で、計測を止めるために通常の描画まで止めていないことも保証する。
 	test(`renders Live Preview while collecting statistics only when enabled: ${enableStats}`, async t => {
 		const f = await fixture(t, { enableStats });
-		await f.renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()] });
+		await f.renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())] });
 		const fpsSamples = t.mock.method(f.renderer.fpsAverage, 'addSample');
 		const presents = t.mock.method(f.renderer.canvasRenderer, 'renderToCanvas');
-		f.renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
-		f.frame(16);
-		f.frame(32);
+		f.renderer.startEffectLivePreview({ effectSource: referenceSource });
+		await f.frame(16);
+		await f.frame(32);
 		assert.equal(presents.mock.callCount(), 2);
 		assert.equal(fpsSamples.mock.callCount(), enableStats ? 2 : 0);
-		assert.equal(f.renderer.timingHelper != null, enableStats);
+
 		assert.equal(f.renderer.telemetryReportIntervalId != null, enableStats);
 		assert.equal(f.renderer.gpuMemoryReportIntervalId != null, enableStats);
 		assert.equal(f.renderer.gpuDevice.createTexture === f.originalGpuMethods.createTexture, !enableStats);
@@ -1122,110 +912,86 @@ for (const enableStats of [false, true]) {
 	});
 }
 
-for (const readbackSource of ['canvas', 'graph']) {
-	// 【次フレームの開始後に届くGPU計測結果も、描画を待たせず移動平均へ集計する】
-	// 読み戻しが毎回次フレームより遅いと、最新フレームだけを採用する実装では統計が止まる。
-	// 通常描画と、タイル経路で非同期に返るグラフ内の計測を確認し、完了順が逆でも
-	// 各フレームのCanvas・タイル・通常パスの合計を一度ずつ集計することを保証する。
-	test(`collects delayed Live Preview GPU statistics from ${readbackSource} after newer frames start`, async t => {
-		const f = await fixture(t, { enableStats: true });
-		f.renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()] });
-		f.renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
-		const pendingReadbacks = [];
-		const deferReadback = () => {
+// 【Effect Live PreviewのGPU時間は通知間隔にかかわらず1フレームずつ集計する】
+// 逆順の読み戻しでも描画順で加算し、キャッシュ再利用を0、計測失敗をサンプルなしとして扱う。
+// リセット・停止前の結果が遅れて返っても、その後の集計へ混ぜない。
+test('averages asynchronous GPU results per frame in presentation order', async t => {
+	t.mock.timers.enable({ apis: ['setInterval'] });
+	const f = await fixture(t, { enableStats: true, effectRenderTiling: { mode: 'disabled' } });
+	const device = f.renderer.gpuDevice;
+	device.features.add('timestamp-query');
+	globalThis.GPUMapMode = { READ: 1 };
+	t.after(() => { delete globalThis.GPUMapMode; });
+	const reads = [];
+	device.createQuerySet = () => ({ destroy() {} });
+	const buffer = device.createBuffer.bind(device);
+	device.createBuffer = descriptor => {
+		let duration = 0n;
+		return { ...buffer(descriptor), mapAsync() {
 			const readback = Promise.withResolvers();
-			pendingReadbacks.push(readback);
-			return readback.promise;
-		};
-		if (readbackSource === 'graph') {
-			const customNodeGraphEffectRenderer = f.renderer.livePreviewCustomNodeGraphEffectRenderer;
-			customNodeGraphEffectRenderer.requiresTiledRendering = true;
-			t.mock.method(customNodeGraphEffectRenderer, 'renderTiled', async () => {
-				customNodeGraphEffectRenderer.lastTiledGpuTime = 2_000_000;
-				customNodeGraphEffectRenderer.lastUntiledGpuTimeResult = deferReadback();
-				return null;
-			});
-			t.mock.method(f.renderer.timingHelper, 'getResult', async () => 1_000_000);
-		} else {
-			t.mock.method(f.renderer.timingHelper, 'getResult', deferReadback);
-		}
-		const averages = [f.renderer.gpuAverageFast, f.renderer.gpuAverageMedium, f.renderer.gpuAverageSlow];
-		const samples = averages.map(average => t.mock.method(average, 'addSample'));
-		const presents = t.mock.method(f.renderer.canvasRenderer, 'renderToCanvas');
-		const fpsSamples = t.mock.method(f.renderer.fpsAverage, 'addSample');
-		const tick = () => new Promise(resolve => setImmediate(resolve));
-		f.frame(16);
-		await tick();
-		pendingReadbacks[0].resolve(1_000_000);
-		await tick();
-		for (const time of [32, 48, 64]) {
-			f.frame(time);
-			await tick();
-		}
-		assert.equal(presents.mock.callCount(), 4);
-		assert.equal(fpsSamples.mock.callCount(), 4);
-		assert.equal(pendingReadbacks.length, 4);
-		pendingReadbacks[2].resolve(3_000_000);
-		await tick();
-		pendingReadbacks[1].resolve(2_000_000);
-		await tick();
-		const fixedGpuTime = readbackSource === 'graph' ? 3000 : 0;
-		for (const sample of samples) {
-			assert.deepEqual(sample.mock.calls.map(call => call.arguments[0]), [1000, 3000, 2000].map(value => value + fixedGpuTime));
-		}
-		pendingReadbacks[3].resolve(4_000_000);
-		await tick();
-		for (const average of averages) assert.equal(average.get(), 2500 + fixedGpuTime);
-		assert.deepEqual(f.errors, []);
-	});
-}
+			reads.push(readback);
+			return readback.promise.then(time => { duration = time; });
+		}, getMappedRange() { return new BigInt64Array([0n, duration]).buffer; }, unmap() {} };
+	};
+	const encoder = device.createCommandEncoder.bind(device);
+	device.createCommandEncoder = () => ({ ...encoder(), resolveQuerySet() {}, copyBufferToBuffer() {} });
+	f.renderer.nativeEffectDefinitions.pass = fillDefinition;
+	f.renderer.nativeEffectImplementations.pass = fillImplementation;
+	const samples = t.mock.method(f.renderer.gpuAverageFast, 'addSample');
+	const sampleValues = () => samples.mock.calls.map(call => call.arguments[0]);
+	const telemetry = [];
+	f.renderer.on('ev', event => { if (event.type === 'telemetry') telemetry.push(event.ctx.gpuAverageFast); });
+	f.renderer.startEffectLivePreview({ effectSource: { type: 'nativeEffect', id: 'pass' } });
+	await f.frame(16);
+	f.renderer.updateEffectLivePreviewParamValues({ color: { inputSource: 'literal', value: [0, 1, 0, 1] } });
+	await f.frame(32);
+	assert.equal(reads.length, 2);
+	reads[1].resolve(8_000_000n);
+	await new Promise(resolve => setImmediate(resolve));
+	t.mock.timers.tick(100);
+	assert.deepEqual(sampleValues(), []);
+	reads[0].resolve(2_000_000n);
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(sampleValues(), [2000, 8000]);
+	assert.equal(telemetry.length, 1);
+	t.mock.timers.tick(100);
+	assert.equal(telemetry.at(-1), 5000);
 
-for (const operation of ['stop', 'switch', 'history reset', 'cancel tiles', 'destroy']) {
-	// 【停止・対象切り替え・履歴リセット・タイル中断・破棄後に届く旧GPU計測結果は集計しない】
-	// 通常のフレーム進行で計測を捨てない修正でも、無効になったプレビューの結果を
-	// 新しい対象へ混ぜてはならない。再開可能な操作では、新しい描画の統計も確認する。
-	test(`ignores delayed Live Preview GPU statistics after ${operation}`, async t => {
-		const f = await fixture(t, { enableStats: true });
-		f.renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect(), { ...constantCustomNodeGraphEffect(), id: 'other' }] });
-		f.renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
-		const previousReadback = Promise.withResolvers();
-		t.mock.method(f.renderer.timingHelper, 'getResult', () => previousReadback.promise);
-		const averages = [f.renderer.gpuAverageFast, f.renderer.gpuAverageMedium, f.renderer.gpuAverageSlow];
-		const samples = averages.map(average => t.mock.method(average, 'addSample'));
-		f.frame(16);
-		if (operation === 'stop') f.renderer.stopRenderLoop();
-		else if (operation === 'switch') f.renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('other');
-		else if (operation === 'history reset') f.renderer.resetRenderHistory();
-		else if (operation === 'cancel tiles') {
-			const tiledRendering = Promise.withResolvers();
-			const customNodeGraphEffectRenderer = f.renderer.livePreviewCustomNodeGraphEffectRenderer;
-			customNodeGraphEffectRenderer.requiresTiledRendering = true;
-			t.mock.method(customNodeGraphEffectRenderer, 'renderTiled', () => tiledRendering.promise);
-			f.frame(32);
-			const controller = f.renderer.previewTiledFrameController;
-			f.renderer.updateDynamicOptions({ fpsLimit: null });
-			assert.equal(controller.signal.aborted, true);
-			tiledRendering.resolve(null);
-		} else f.renderer.destroy();
-		previousReadback.resolve(9_000_000);
-		await new Promise(resolve => setImmediate(resolve));
-		for (const sample of samples) assert.equal(sample.mock.callCount(), 0);
-		if (operation !== 'destroy') {
-			if (operation === 'stop') f.renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
-			t.mock.method(f.renderer.timingHelper, 'getResult', async () => 2_000_000);
-			f.frame(48);
-			await new Promise(resolve => setImmediate(resolve));
-			for (const average of averages) assert.equal(average.get(), 2000);
-		}
-		assert.deepEqual(f.errors, []);
-	});
-}
+	await f.frame(48);
+	assert.equal(reads.length, 2);
+	assert.deepEqual(sampleValues(), [2000, 8000, 0]);
+	f.renderer.updateEffectLivePreviewParamValues({ color: { inputSource: 'literal', value: [1, 0, 0, 1] } });
+	await f.frame(64);
+	reads[2].reject(new Error('timestamp readback failed'));
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(sampleValues(), [2000, 8000, 0]);
+
+	f.renderer.updateEffectLivePreviewParamValues({ color: { inputSource: 'literal', value: [0, 0, 1, 1] } });
+	await f.frame(80);
+	f.renderer.resetRenderHistory();
+	await f.frame(96);
+	reads[4].resolve(4_000_000n);
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(sampleValues(), [2000, 8000, 0, 4000]);
+	reads[3].resolve(32_000_000n);
+	await new Promise(resolve => setImmediate(resolve));
+
+	f.renderer.updateEffectLivePreviewParamValues({ color: { inputSource: 'literal', value: [1, 1, 0, 1] } });
+	await f.frame(112);
+	f.renderer.stopRenderLoop();
+	reads[5].resolve(64_000_000n);
+	await new Promise(resolve => setImmediate(resolve));
+	t.mock.timers.tick(100);
+	assert.deepEqual(sampleValues(), [2000, 8000, 0, 4000]);
+	assert.equal(telemetry.at(-1), 3500);
+	assert.deepEqual(f.errors, []);
+});
 
 // 【CPU表示が完了するまで手動シークの完了を通知しない】
 // GPU処理だけで待機表示を消すと、読み戻し中は古い画像が最新結果として扱われる。
 test('waits for CPU presentation before publishing timeline completion', async t => {
 	const { renderer } = await fixture(t, {}, TimelineRendererManager);
-	await renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()] });
+	await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())] });
 	const displayed = Promise.withResolvers();
 	const waiting = Promise.withResolvers();
 	const capacity = Promise.withResolvers();
@@ -1259,7 +1025,7 @@ test('waits for CPU presentation before publishing timeline completion', async t
 // 取り消された画像を描画済みとして扱ってはいけない。
 test('does not publish completion for a cancelled CPU presentation', async t => {
 	const { renderer } = await fixture(t, {}, TimelineRendererManager);
-	await renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()] });
+	await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())] });
 	const waiting = Promise.withResolvers(); const gpu = Promise.withResolvers();
 	const frame = { isCancelled: false, prepareReadback() {}, async complete() {}, cancel() { this.isCancelled = true; } };
 	Object.defineProperty(renderer.canvasRenderer, 'usesCpuDisplay', { value: true });
@@ -1277,7 +1043,7 @@ test('does not publish completion for a cancelled CPU presentation', async t => 
 // 時間まで止めてしまわないことを確認する。
 test('bounds CPU live preview readbacks and preserves skipped elapsed time', async t => {
 	const f = await fixture(t);
-	await f.renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()] });
+	await f.renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())] });
 	Object.defineProperty(f.renderer.canvasRenderer, 'usesCpuDisplay', { value: true });
 	const { CpuPreviewFrameQueue } = await loadShaderSource(fileURLToPath(new URL('../src/cpu-preview-frame-queue.ts', import.meta.url)));
 	const returned = []; const encoders = [];
@@ -1288,17 +1054,17 @@ test('bounds CPU live preview readbacks and preserves skipped elapsed time', asy
 	t.mock.method(f.renderer.canvasRenderer, 'tryReserveCpuPreviewFrame', () => queue.tryReserveFrame());
 	const submitted = t.mock.method(f.renderer.gpuDevice.queue, 'submit');
 	const drawing = t.mock.method(f.renderer.canvasRenderer, 'renderToCanvas');
-	f.renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
-	const frames = t.mock.method(f.renderer.livePreviewCustomNodeGraphEffectRenderer, 'render', () => ({ kind: 'uniform', value: [1, 0, 0, 1] }));
-	f.frame(16); f.frame(32);
+	f.renderer.startEffectLivePreview({ effectSource: referenceSource });
+	const frames = t.mock.method(await f.renderer.activeEffect.ready, 'renderTiled', () => ({ kind: 'uniform', value: [1, 0, 0, 1] }));
+	await f.frame(16); await f.frame(32);
 	await new Promise(resolve => setImmediate(resolve));
-	f.frame(48); f.frame(64);
+	await f.frame(48); await f.frame(64);
 	assert.equal(returned.length, 2);
 	assert.equal(frames.mock.callCount(), 2);
 	assert.equal(drawing.mock.callCount(), 2);
 	assert.equal(submitted.mock.callCount(), 2);
 	returned[0]();
-	f.frame(80);
+	await f.frame(80);
 	assert.equal(returned.length, 3);
 	assert.equal(frames.mock.calls[2].arguments[0].timeDelta, 48);
 	assert.equal(submitted.mock.callCount(), 3);
@@ -1313,7 +1079,7 @@ for (const failure of ['encoder', 'evaluation', 'finish', 'submit']) {
 	// 通常のGPU完了に到達しない例外でも、次の描画の表示枠を失って永久停止してはいけない。
 	test(`releases CPU live preview capacity after ${failure} failure`, async t => {
 		const f = await fixture(t);
-		await f.renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()] });
+		await f.renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())] });
 		const { CpuPreviewFrameQueue } = await loadShaderSource(fileURLToPath(new URL('../src/cpu-preview-frame-queue.ts', import.meta.url)));
 		let readbacks = 0;
 		const queue = new CpuPreviewFrameQueue([{ prepareReadback(encoder, release) {
@@ -1321,16 +1087,16 @@ for (const failure of ['encoder', 'evaluation', 'finish', 'submit']) {
 		} }]); t.after(() => queue.destroy());
 		Object.defineProperty(f.renderer.canvasRenderer, 'usesCpuDisplay', { value: true });
 		t.mock.method(f.renderer.canvasRenderer, 'tryReserveCpuPreviewFrame', () => queue.tryReserveFrame());
-		f.renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
+		f.renderer.startEffectLivePreview({ effectSource: referenceSource });
 		const fail = () => { throw new Error('Injected failure'); };
-		if (failure === 'evaluation') t.mock.method(f.renderer.livePreviewCustomNodeGraphEffectRenderer, 'render', fail);
+		if (failure === 'evaluation') t.mock.method(await f.renderer.activeEffect.ready, 'renderTiled', fail);
 		if (failure === 'encoder') t.mock.method(f.renderer.gpuDevice, 'createCommandEncoder', fail);
 		if (failure === 'finish') {
 			const create = f.renderer.gpuDevice.createCommandEncoder.bind(f.renderer.gpuDevice);
 			t.mock.method(f.renderer.gpuDevice, 'createCommandEncoder', () => ({ ...create(), finish: fail }));
 		}
 		if (failure === 'submit') t.mock.method(f.renderer.gpuDevice.queue, 'submit', fail);
-		f.frame(16);
+		await f.frame(16);
 		await new Promise(resolve => setImmediate(resolve));
 		assert.equal(readbacks, 0);
 		assert.notEqual(queue.tryReserveFrame(), null);
@@ -1346,7 +1112,7 @@ for (const motionBlur of [false, true]) {
 	// 通常再生には通知を追加せず、同時刻の再シークは別の要求として通知する。
 	test(`publishes requested frame completion after GPU work with motion blur ${motionBlur}`, async t => {
 		const { renderer, errors } = await fixture(t, { timelineMotionBlur: { enabled: motionBlur, shutterAngle: 180, samples: 4 } }, TimelineRendererManager);
-		await renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()], previewRevision: 7 });
+		await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())], previewRevision: 7 });
 		const events = [];
 		renderer.on('ev', event => { if (event.type === 'frameRendered') events.push(event.ctx); });
 		await renderer.renderTimelineAt(100);
@@ -1373,7 +1139,7 @@ for (const motionBlur of [false, true]) {
 // 同時刻への再シークも時刻比較だけで古い要求を採用しない。
 test('coalesces seek completion requests and only notifies the latest requested frame', async t => {
 	const { renderer } = await fixture(t, {}, TimelineRendererManager);
-	await renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()] });
+	await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())] });
 	const events = [];
 	renderer.on('ev', event => { if (event.type === 'frameRendered') events.push(event.ctx); });
 	const gpuFinished = Promise.withResolvers();
@@ -1394,7 +1160,7 @@ for (const invalidation of ['playback', 'edit', 'scene change', 'destroy', 'erro
 	// エラーは既存のrenderError経路だけへ流し、frameRenderedを成功通知として保つ。
 	test(`does not publish obsolete seek completion after ${invalidation}`, async t => {
 		const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-		await renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()] });
+		await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())] });
 		const events = [];
 		renderer.on('ev', event => { if (event.type === 'frameRendered') events.push(event.ctx); });
 		const gpuFinished = Promise.withResolvers();
@@ -1413,19 +1179,19 @@ for (const invalidation of ['playback', 'edit', 'scene change', 'destroy', 'erro
 	});
 }
 
-// 【PartialなCustom Node Graph Effect Live Preview設定の省略は維持し、明示的なnullではFPS制限を解除する】
+// 【PartialなEffect Live Preview設定の省略は維持し、明示的なnullではFPS制限を解除する】
 // 解除を値の存在判定で除外すると、設定画面では無制限でも描画ループには制限が残る。
 // prototype上の値は差分ではないため、解像度や描画速度の更新を発生させない。
-test('preserves omitted Custom Node Graph Effect Live Preview options and clears an explicit FPS limit', async t => {
+test('preserves omitted Effect Live Preview options and clears an explicit FPS limit', async t => {
 	const { renderer } = await fixture(t);
-	await renderer.updateDynamicOptions({ fpsLimit: 30, customNodeGraphEffectLivePreviewTimeFactor: 2 });
+	await renderer.updateDynamicOptions({ fpsLimit: 30, effectLivePreviewTimeFactor: 2 });
 	const resize = t.mock.method(renderer, 'updateCanvasResolution');
-	await renderer.updateDynamicOptions(Object.create({ resolution: { width: 99, height: 99 }, fpsLimit: null, customNodeGraphEffectLivePreviewTimeFactor: 9 }));
-	assert.equal(renderer.customNodeGraphEffectLivePreviewRenderLoop.fpsLimit, 30);
-	assert.equal(renderer.customNodeGraphEffectLivePreviewRenderLoop.timeFactor, 2);
+	await renderer.updateDynamicOptions(Object.create({ resolution: { width: 99, height: 99 }, fpsLimit: null, effectLivePreviewTimeFactor: 9 }));
+	assert.equal(renderer.effectLivePreviewRenderLoop.fpsLimit, 30);
+	assert.equal(renderer.effectLivePreviewRenderLoop.timeFactor, 2);
 	assert.equal(resize.mock.calls.length, 0);
 	await renderer.updateDynamicOptions({ fpsLimit: null });
-	assert.equal(renderer.customNodeGraphEffectLivePreviewRenderLoop.fpsLimit, null);
+	assert.equal(renderer.effectLivePreviewRenderLoop.fpsLimit, null);
 });
 
 // 【PartialなTimeline設定の省略と、Scene・出力解像度・監視対象の解除を区別する】
@@ -1447,20 +1213,20 @@ test('preserves omitted timeline options and applies explicit null resets', asyn
 	assert.equal(renderer.dynamicOptions.sceneId, null);
 });
 
-// 【取り込んだCustom Node Graph EffectをCustom Node Graph Effect Live Previewで使い、登録削除で実行インスタンスを解放する】
+// 【取り込んだCustom Node Graph EffectをEffect Live Previewで使い、登録削除で実行インスタンスを解放する】
 // UIの登録一覧だけを変更してもWorkerが定義を持っていなければ描画できない。
 // Undoに相当する削除の後に古い描画ループやGPUインスタンスが残らないことを確認する。
-test('renders a newly registered Custom Node Graph Effect and stops Custom Node Graph Effect Live Preview when it is removed', async t => {
+test('renders a newly registered Custom Node Graph Effect and stops Effect Live Preview when it is removed', async t => {
 	const { renderer, errors, frames, frame } = await fixture(t);
 	const imported = { ...constantCustomNodeGraphEffect(), id: 'imported', name: 'Imported Custom Node Graph Effect' };
-	renderer.applyProjectChanges([{ type: 'customNodeGraphEffectRegistration', customNodeGraphEffectId: imported.id, customNodeGraphEffect: imported }]);
-	renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor(imported.id);
-	frame(16);
+	renderer.applyProjectChanges([{ type: 'customNodeGraphEffectRegistration', customNodeGraphEffectId: imported.id, customNodeGraphEffect: registration(imported) }]);
+	renderer.startEffectLivePreview({ effectSource: { ...referenceSource, id: imported.id } });
+	await frame(16);
 	assert.deepEqual(errors, []);
 	assert.equal(frames.size, 1);
 	renderer.applyProjectChanges([{ type: 'customNodeGraphEffectRegistration', customNodeGraphEffectId: imported.id, customNodeGraphEffect: null }]);
-	assert.equal(renderer.livePreviewCustomNodeGraphEffectId, null);
-	assert.equal(renderer.livePreviewCustomNodeGraphEffectRenderer, null);
+	assert.equal(renderer.placement, null);
+	assert.equal(renderer.activeEffect, null);
 	assert.equal(frames.size, 0);
 	assert.ok(!renderer.dynamicOptions.customNodeGraphEffects.some(customNodeGraphEffect => customNodeGraphEffect.id === imported.id));
 });
@@ -1541,7 +1307,7 @@ for (const invalidation of ['edit', 'scene change', 'destroy']) {
 	// 待機要求を実行しない。編集・Scene切り替えでは新しい要求だけを実行する。
 	test(`keeps GPU backpressure and ignores stale errors after ${invalidation}`, async t => {
 		const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-		await renderer.updateDynamicOptions({ customNodeGraphEffects: [customNodeGraphEffect(false)] });
+		await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(customNodeGraphEffect(false))] });
 		const gpuFinished = Promise.withResolvers();
 		const waitingForGpu = Promise.withResolvers();
 		let waits = 0;
@@ -1559,7 +1325,7 @@ for (const invalidation of ['edit', 'scene change', 'destroy']) {
 		if (invalidation === 'edit') {
 			const updatedCustomNodeGraphEffect = customNodeGraphEffect(false);
 			updatedCustomNodeGraphEffect.nodes[0].params.input = { inputSource: 'literal', value: [1, 0, 0, 1] };
-			renderer.applyProjectChanges([{ type: 'customNodeGraphEffect', target: { customNodeGraphEffectId: 'customNodeGraphEffect' }, customNodeGraphEffect: updatedCustomNodeGraphEffect }]);
+			renderer.applyProjectChanges([{ type: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect', customNodeGraphEffect: updatedCustomNodeGraphEffect }]);
 		} else if (invalidation === 'scene change') await renderer.updateDynamicOptions({ sceneId: null });
 		else renderer.destroy();
 		if (invalidation !== 'destroy') await renderer.renderTimelineAt(20);
@@ -1591,7 +1357,7 @@ test('ignores obsolete frame results after edits and renders the updated state',
 		};
 		const pending = renderer.renderTimelineAt(0);
 		await renderer.renderTimelineAt(10);
-		renderer.applyProjectChanges([{ type: 'customNodeGraphEffect', target: { customNodeGraphEffectId: 'customNodeGraphEffect' }, customNodeGraphEffect: customNodeGraphEffect(false) }]);
+		renderer.applyProjectChanges([{ type: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect', customNodeGraphEffect: customNodeGraphEffect(false) }]);
 		await renderer.renderTimelineAt(20);
 		assert.deepEqual(times, [0]);
 		if (fails) gate.reject(new Error('obsolete failure'));
@@ -1606,123 +1372,85 @@ test('ignores obsolete frame results after edits and renders the updated state',
 	assert.deepEqual(errors, expectedErrors);
 });
 
-// 【Custom Node Graph Effect Live Preview描画の途中で例外が起きてもGPUコマンドと計測を終了する】
-// 循環参照のような描画前の失敗だけを確認すると、計測中の失敗でTimingHelperが
-// 前のencoderを保持し続け、原因を直しても描画できなくなる不具合を見逃す。
-test('finishes partial Custom Node Graph Effect Live Preview frames before retrying', async t => {
+// 【描画が途中で失敗した場合はCanvasへ提示せず、次のフレームから復旧する】
+// 過去の未完成画像を表示したり、失敗をきっかけに時計が停止したりしないようにする。
+test('finishes partial Effect Live Preview frames before retrying', async t => {
 	const { renderer, errors, frame } = await fixture(t, { enableStats: true });
-	let submitted = 0;
-	let collected = 0;
-	renderer.gpuDevice.queue.submit = () => { submitted++; };
-	renderer.timingHelper.getResult = async () => {
-		assert.equal(submitted, collected + 1);
-		collected++;
-		return 0;
-	};
-	renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()] });
-	renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
-	let fail = true;
-	renderer.livePreviewCustomNodeGraphEffectRenderer.render = () => {
-		if (fail) throw new Error('partial render failed');
-		return undefined;
-	};
-	frame(16);
-	assert.equal(errors.at(-1), 'partial render failed');
-	assert.equal(collected, 1);
-	fail = false;
-	frame(32);
+	renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())] });
+	renderer.startEffectLivePreview({ effectSource: referenceSource });
+	const effect = await renderer.activeEffect.ready;
+	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
+	t.mock.method(effect, 'renderTiled', () => { throw new Error('partial render failed'); }, { times: 1 });
+	await frame(16);
 	assert.deepEqual(errors, ['partial render failed']);
-	assert.equal(collected, 2);
-	await Promise.resolve();
+	assert.equal(present.mock.callCount(), 0);
+	await frame(32);
+	assert.equal(present.mock.callCount(), 1);
 });
 
-// 解像度を汎用の更新APIで変えても、Canvasと描画先の解像度を一致させる。
-// 専用のresizeメッセージだけにCanvas更新を残すと、呼び出し経路で出力サイズが変わる。
-test('resizes the canvas and Custom Node Graph Effect Live Preview renderer through dynamic options', async t => {
-	const { renderer } = await fixture(t);
-	renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
-	const resolutions = [];
-	const resize = renderer.livePreviewCustomNodeGraphEffectRenderer.resize.bind(renderer.livePreviewCustomNodeGraphEffectRenderer);
-	renderer.livePreviewCustomNodeGraphEffectRenderer.resize = resolution => { resolutions.push(resolution); resize(resolution); };
-	await renderer.updateDynamicOptions({ resolution: { width: 320, height: 180 } });
+// 【解像度変更でGPU出力とCanvasを揃える】
+// 新しい解像度は配置の初期化時に固定されるため、寸法を変えたフレームの実際の出力を調べる。
+test('resizes both the canvas and the live effect output', async t => {
+	const { renderer, frame } = await fixture(t);
+	renderer.startEffectLivePreview({ effectSource: { type: 'nativeEffect', id: 'pass' } });
+	renderer.updateDynamicOptions({ resolution: { width: 320, height: 180 } });
+	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
+	await frame(16);
 	assert.equal(renderer.gpuContext.canvas.width, 320);
 	assert.equal(renderer.gpuContext.canvas.height, 180);
-	assert.deepEqual(resolutions, [{ width: 320, height: 180 }]);
+	assert.deepEqual([present.mock.calls[0].arguments[0].width, present.mock.calls[0].arguments[0].height], [320, 180]);
 });
 
-// 【Custom Node Graph Effect Live PreviewのOutを切断したら透明な出力を描画し、再接続で復旧する】
+// 【Effect Live PreviewのOutを切断したら透明な出力を描画し、再接続で復旧する】
 // 出力なしで描画をスキップすると、接続中の最後の映像がCanvasに残ってしまう。
-// 実際のIn/Outの配線を差分更新し、透明RGBAの転送と最終描画が行われること、
-// 未接続のままでも描画ループが継続し、再接続した次のフレームで色が戻ることを確認する。
-test('renders transparent Custom Node Graph Effect Live Preview output after disconnecting Out and recovers on reconnection', async t => {
+// Outの配線を差分更新しても描画ループが継続し、未接続中は透明画像を再利用する。
+// 再接続した次のフレームではFillが出力した寸法の画像を表示する。
+test('renders transparent Effect Live Preview output after disconnecting Out and recovers on reconnection', async t => {
 	const { renderer, errors, frames, frame } = await fixture(t);
-	const out = { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'color' } } };
-	await renderer.updateDynamicOptions({
-		resolution: { width: 320, height: 180 }, resolutionScale: 0.5,
-		customNodeGraphEffects: [{
-			customParameterDefs: [],
-			customParameterValues: {},
-			id: 'customNodeGraphEffect', automationGraphs: [],
-			paramDefs: [{ id: 'color', dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] } }],
-			outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'output',
-			nodes: [{ id: 'in', type: 'globalIn' }, out],
-		}],
-	});
-	const writes = [];
-	t.mock.method(renderer.gpuDevice.queue, 'writeTexture', (destination, data) => writes.push(Array.from(data)));
+	const definition = constantCustomNodeGraphEffect();
+	const reconnect = outputSources => renderer.applyProjectChanges([{ type: 'customNodeGraphEffect', customNodeGraphEffectId: referenceSource.id, customNodeGraphEffect: { ...definition, outputSources } }]);
+	renderer.updateDynamicOptions({ resolution: { width: 320, height: 180 }, resolutionScale: 0.5, customNodeGraphEffects: [registration(definition)] });
 	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
-	renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
-	frame(16);
-	assert.deepEqual(writes.at(-1), [0x3c00, 0, 0, 0x3c00]);
+	const textureAt = index => present.mock.calls[index].arguments[0];
+	renderer.startEffectLivePreview({ effectSource: referenceSource });
+	await frame(16);
+	assert.deepEqual([textureAt(0).width, textureAt(0).height], [160, 90]);
 	assert.equal(present.mock.callCount(), 1);
 
-	renderer.applyProjectChanges([{
-		type: 'node', target: { customNodeGraphEffectId: 'customNodeGraphEffect' },
-		node: { ...out, inputs: { output: { nodeId: null, outputPort: null } } },
-		changes: [{ type: 'parameter', kind: 'connection' }],
-	}]);
-	frame(32);
-	assert.deepEqual(writes.at(-1), [0, 0, 0, 0]);
+	reconnect({});
+	await frame(32);
+	assert.deepEqual([textureAt(1).width, textureAt(1).height], [1, 1]);
 	assert.equal(present.mock.callCount(), 2);
 	assert.equal(renderer.gpuContext.canvas.width, 160);
 	assert.equal(renderer.gpuContext.canvas.height, 90);
-	frame(48);
+	await frame(48);
 	assert.equal(present.mock.callCount(), 3);
+	assert.equal(textureAt(2), textureAt(1));
 	assert.equal(frames.size, 1);
 
-	renderer.applyProjectChanges([{
-		type: 'node', target: { customNodeGraphEffectId: 'customNodeGraphEffect' }, node: out,
-		changes: [{ type: 'parameter', kind: 'connection' }],
-	}]);
-	frame(64);
-	assert.deepEqual(writes.at(-1), [0x3c00, 0, 0, 0x3c00]);
+	reconnect(definition.outputSources);
+	await frame(64);
 	assert.equal(present.mock.callCount(), 4);
+	assert.deepEqual([textureAt(3).width, textureAt(3).height], [160, 90]);
 	assert.deepEqual(errors, []);
 });
 
-for (const Manager of [CustomNodeGraphEffectRendererManager, TimelineRendererManager]) {
+for (const Manager of [EffectLivePreviewManager, TimelineRendererManager]) {
 	// 【最終表示とCanvasの透過設定をGPUへ反映する】
 	// uniformだけの変更ではブラウザーの合成設定は変わらない。背景合成済みのプレビューは
 	// 不透明にし、透明書き出しではalphaを保持する。設定が同じ間は再configureして画像を消さない。
 	test(`${Manager.name} applies and resets canvas output settings`, async t => {
 		const { renderer, frame } = await fixture(t, {}, Manager);
-		await renderer.updateDynamicOptions({ customNodeGraphEffects: [{
-			customParameterDefs: [],
-			customParameterValues: {},
-			id: 'customNodeGraphEffect', automationGraphs: [],
-			paramDefs: [{ id: 'color', dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 0, 0, 0.5] } }],
-			outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'output',
-			nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'color' } } }],
-		}] });
+		await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())] });
 		const writes = [];
 		const configurations = t.mock.method(renderer.gpuContext, 'configure');
 		// 解析にも独立したuniformがあるので、書き込み順ではなく主表示のバッファを観測する。
 		renderer.gpuDevice.queue.writeBuffer = (buffer, offset, data) => {
 			if (buffer === renderer.canvasRenderer.finalRenderUniformBuffer) writes.push(Array.from(new Uint32Array(data.slice(0))));
 		};
-		if (Manager === CustomNodeGraphEffectRendererManager) renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
+		if (Manager === EffectLivePreviewManager) renderer.startEffectLivePreview({ effectSource: referenceSource });
 		let timestamp = 0;
-		const render = () => Manager === CustomNodeGraphEffectRendererManager ? frame(timestamp += 16) : renderer.renderTimelineAt(0);
+		const render = () => Manager === EffectLivePreviewManager ? frame(timestamp += 16) : renderer.renderTimelineAt(0);
 		await renderer.updateDynamicOptions({ highlightClipping: true, opaqueOutput: true, previewExposure: 2, previewBackground: 'black', analysisImageSource: 'previewAdjusted', analysisValueScale: 'ev', analysisTarget: 'vectorLength', analysisValueRange: { minimum: 4, maximum: -1 } });
 		await render();
 		assert.deepEqual(writes.at(-1).slice(0, 6), [1, 1, 0x40000000, 0, 1, 0]);
@@ -1786,7 +1514,7 @@ for (const Manager of [CustomNodeGraphEffectRendererManager, TimelineRendererMan
 	});
 }
 
-for (const Manager of [CustomNodeGraphEffectRendererManager, TimelineRendererManager]) {
+for (const Manager of [EffectLivePreviewManager, TimelineRendererManager]) {
 	// 【GPUを注入する生成経路でも、画像準備前のManagerを返さない】
 	// 書き出しとプレビューで同じ不変条件を持たせ、呼び出し側のready待機に依存しないことを確認する。
 	test(`${Manager.name} returns a prepared manager without exposing a ready promise`, async t => {
@@ -1795,7 +1523,7 @@ for (const Manager of [CustomNodeGraphEffectRendererManager, TimelineRendererMan
 		let returned = false;
 		const starting = Manager.create({
 			gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
-			effectDefinitions: {}, effectImplementations: {},
+			nativeEffectDefinitions: {}, nativeEffectImplementations: {},
 		}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false, },
 		{ assets: [imageAsset('image')], players: [] }).then(manager => { returned = true; return manager; });
 		await new Promise(resolve => setImmediate(resolve));
@@ -1820,7 +1548,7 @@ for (const Manager of [CustomNodeGraphEffectRendererManager, TimelineRendererMan
 		const controller = new AbortController();
 		const starting = Manager.create({
 			gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
-			effectDefinitions: {}, effectImplementations: {},
+			nativeEffectDefinitions: {}, nativeEffectImplementations: {},
 		}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false, },
 		{ assets: [imageAsset('image')], players: [] }, controller.signal);
 		assert.equal(requests.length, 1);
@@ -1838,7 +1566,7 @@ for (const Manager of [CustomNodeGraphEffectRendererManager, TimelineRendererMan
 	});
 }
 
-for (const [name, createManager] of [['customNodeGraphEffectLivePreview', createCustomNodeGraphEffectLivePreviewManager], ['timeline', createTimelineManager]]) {
+for (const [name, createManager] of [['effectLivePreview', createEffectLivePreviewManager], ['timeline', createTimelineManager]]) {
 	// 【Factoryは固定素材のGPU準備が完了してからManagerを公開する】
 	// 描画側の素材待機を廃止しても、初期化メッセージの完了時点で全画像が使える必要がある。
 	// 通常の設定適用とは別に素材の準備を待ち、素材を動的オプションへ混ぜないことを確認する。
@@ -1871,7 +1599,7 @@ for (const [name, createManager] of [['customNodeGraphEffectLivePreview', create
 				canvas, histogramCanvas: canvas, waveformHorizontalCanvas: canvas, waveformVerticalCanvas: canvas,
 				staticOptions: { previewDisplayMode: displayMode, timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enable32bitDataTextures: false, },
 				dynamicOptions: { highlightClipping: true }, resources: { assets: [imageAsset('image')], players: [] },
-				effectDefinitions: {}, effectImplementations: {},
+				nativeEffectDefinitions: {}, nativeEffectImplementations: {},
 			}).then(manager => { ready = true; return manager; });
 			await new Promise(resolve => setImmediate(resolve));
 			assert.equal(ready, false);
@@ -1926,7 +1654,7 @@ for (const [name, createManager] of [['customNodeGraphEffectLivePreview', create
 				staticOptions: { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enable32bitDataTextures: false, },
 				dynamicOptions: {},
 				resources: { assets: [{ id: 'broken', fileDataType: 'image/png', fileData: new Blob() }], players: [] },
-				effectDefinitions: {}, effectImplementations: {},
+				nativeEffectDefinitions: {}, nativeEffectImplementations: {},
 			}), failure === 'context' ? /cannot get webgpu context/ : failure === 'constructor' ? /pipeline failed/ : /asset decode failed/);
 			assert.equal(destroyed.mock.callCount(), 1);
 			assert.equal(timers.size, 0);
@@ -1937,34 +1665,41 @@ for (const [name, createManager] of [['customNodeGraphEffectLivePreview', create
 // 【共通定義の差分を両プレビューへ反映し、Custom Node Graph Effect内部の定義は独立に保つ】
 // Live Previewの公開引数とTimelineのレイヤー引数は別の評価経路を通るため、
 // 片方だけ同期したり、同一時刻での再描画に古い曲線を使い続けたりする不具合を防ぐ。
-for (const Manager of [CustomNodeGraphEffectRendererManager, TimelineRendererManager]) {
+for (const Manager of [EffectLivePreviewManager, TimelineRendererManager]) {
 	test(`${Manager.name} refreshes project curves without exposing them inside Custom Node Graph Effects`, async t => {
 		const { renderer, frame, errors } = await fixture(t, {}, Manager);
 		const graph = value => ({ id: 'shared-curve', nameForReference: 'Curve', isNormalized: false,
 			points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
 		const expression = { inputSource: 'expression', expression: '[GRAPH("Curve", TIME_MS, "clamp"), 0, 0, 1]' };
 		const observedColors = [];
-		if (Manager === TimelineRendererManager) t.mock.method(renderer, 'createCompositingObserver', () => source => observedColors.push(source.value));
+		const create = renderer.gpuDevice.createCommandEncoder.bind(renderer.gpuDevice);
+		renderer.gpuDevice.createCommandEncoder = () => {
+			const encoder = create();
+			const begin = encoder.beginRenderPass.bind(encoder);
+			encoder.beginRenderPass = descriptor => {
+				const color = descriptor.colorAttachments[0].clearValue;
+				if (color?.a === 1 && color.r > 0) observedColors.push([color.r, color.g, color.b, color.a]);
+				return begin(descriptor);
+			};
+			return encoder;
+		};
 		const definition = constantCustomNodeGraphEffect();
-		await renderer.updateDynamicOptions({ customNodeGraphEffects: [definition], automationGraphs: [graph(0.5)] });
-		if (Manager === CustomNodeGraphEffectRendererManager) renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect', { color: expression });
+		await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(definition)], automationGraphs: [graph(0.5)] });
+		if (Manager === EffectLivePreviewManager) renderer.startEffectLivePreview({ effectSource: referenceSource, params: { color: expression } });
 		else {
 			const scene = structuredClone(renderer.dynamicOptions.timelineScenes[0]);
-			scene.layers[0].customNodeGraphEffectParamValues = { color: expression };
+			scene.layers[0].effectParamValues = { color: expression };
 			renderer.applyProjectChanges([{ type: 'scene', sceneId: scene.id, scene }]);
 		}
-		const writes = [];
-		const writeTexture = renderer.gpuDevice.queue.writeTexture;
-		renderer.gpuDevice.queue.writeTexture = (...args) => { writes.push(Array.from(new Uint16Array(args[1].buffer, args[1].byteOffset, 4))); writeTexture(...args); };
 		let timestamp = 0;
-		const render = async () => Manager === CustomNodeGraphEffectRendererManager ? frame(timestamp += 16) : renderer.renderTimelineAt(100);
+		const render = async () => Manager === EffectLivePreviewManager ? frame(timestamp += 16) : renderer.renderTimelineAt(100);
 		await render();
 		assert.deepEqual(errors, []);
-		assert.deepEqual(Manager === TimelineRendererManager ? observedColors.at(-1) : writes.at(-1), Manager === TimelineRendererManager ? [0.5, 0, 0, 1] : [0x3800, 0, 0, 0x3c00]);
+		assert.deepEqual(observedColors.at(-1), [0.5, 0, 0, 1]);
 		renderer.applyProjectChanges([{ type: 'automationGraphs', automationGraphs: [graph(0.25)] }]);
 		await render();
-		assert.deepEqual(Manager === TimelineRendererManager ? observedColors.at(-1) : writes.at(-1), Manager === TimelineRendererManager ? [0.25, 0, 0, 1] : [0x3400, 0, 0, 0x3c00]);
-		assert.deepEqual(renderer.dynamicOptions.customNodeGraphEffects[0].automationGraphs, []);
+		assert.deepEqual(observedColors.at(-1), [0.25, 0, 0, 1]);
+		assert.deepEqual(renderer.dynamicOptions.customNodeGraphEffects[0].definition.automationGraphs ?? [], []);
 		renderer.applyProjectChanges([{ type: 'automationGraphs', automationGraphs: [] }]);
 		await render();
 		assert.match(errors.at(-1), /Unknown automation graph/);
@@ -1980,7 +1715,7 @@ for (const stage of ['base', 'modifier']) {
 		scene.layers[0].compositingParamValues.opacity = stage === 'base'
 			? { inputSource: 'expression', expression: '' }
 			: { inputSource: 'literal', value: 1, expressionModifier: { enabled: true, code: '' } };
-		await renderer.updateDynamicOptions({ customNodeGraphEffects: [constantCustomNodeGraphEffect()], timelineScenes: [scene] });
+		await renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(constantCustomNodeGraphEffect())], timelineScenes: [scene] });
 		await renderer.renderTimelineAt(0);
 		assert.match(errors.at(-1), new RegExp(`${stage === 'base' ? 'Base' : 'Modifier'} expression.*empty`));
 		await assert.rejects(renderer.renderTimelineFrame(0, 0), /Expression is empty/);
@@ -1999,17 +1734,16 @@ function installTiledEffect(f) {
 		encoder.beginRenderPass = descriptor => ({ ...begin(descriptor), setScissorRect() {} });
 		return encoder;
 	};
-	f.renderer.effectImplementations.pass = {
-		disableCache: true,
-		outputTextureFactories: { output: ({ resolution, wgpu }) => wgpu.device.createTexture({ size: resolution }) },
-		init: () => ({ render(context) {
-			renders.push({ time: context.time, timeDelta: context.timeDelta, input: context.params.input });
-			const pass = context.createPassEncoderFor(context.commandEncoder, context.outputDataMap.output.textureView);
+	f.renderer.nativeEffectImplementations.pass = {
+
+		init: ({ inputs, outputTextures }) => ({ render(context) {
+			renders.push({ time: context.time, timeDelta: context.timeDelta, input: { kind: inputs.input.kind, value: inputs.input.value } });
+			const pass = context.commandEncoder.beginRenderPass({ colorAttachments: [{ view: outputTextures.get('output').createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] });
 			pass.draw(3); pass.end();
 		}, dispose() {} }),
 	};
 	const definition = customNodeGraphEffect(false);
-	definition.nodes = [{ ...definition.nodes[0], isBypass: false, params: { input: { inputSource: 'expression', expression: '[TIME, 0, 0, 1]' } } }, definition.nodes[2]];
+	definition.nodes = [{ ...definition.nodes[0], isBypass: false, params: { input: { inputSource: 'expression', expression: '[TIME, 0, 0, 1]' } } }];
 	return { definition, renders };
 }
 
@@ -2022,15 +1756,15 @@ test('serializes tiled Live Preview frames and retains borrowed video frames unt
 	const delays = [];
 	f.renderer.on('ev', event => { if (event.type === 'renderDelay') delays.push(event.ctx.isDelayed); });
 	const { definition, renders } = installTiledEffect(f);
-	f.renderer.updateDynamicOptions({ resolution: { width: 4, height: 4 }, customNodeGraphEffects: [definition] });
-	f.renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
+	f.renderer.updateDynamicOptions({ resolution: { width: 4, height: 4 }, customNodeGraphEffects: [registration(definition)] });
+	f.renderer.startEffectLivePreview({ effectSource: referenceSource });
 	const waits = [];
 	f.renderer.gpuDevice.queue.onSubmittedWorkDone = () => new Promise(resolve => waits.push(resolve));
 	const present = t.mock.method(f.renderer.canvasRenderer, 'renderToCanvas');
 	const frame = () => ({ closed: 0, close() { this.closed++; } });
 	const old = frame(), replaced = frame(), latest = frame();
 	f.renderer.updateVideoFrame('player', old);
-	f.frame(16); f.frame(32); f.frame(64);
+	await f.frame(16); await f.frame(32); f.frame(64);
 	f.renderer.updateVideoFrame('player', replaced);
 	f.renderer.updateVideoFrame('player', latest);
 	assert.equal(old.closed, 0);
@@ -2049,7 +1783,7 @@ test('serializes tiled Live Preview frames and retains borrowed video frames unt
 	assert.equal(old.closed, 1);
 	assert.equal(latest.closed, 0);
 	assert.equal(f.renderer.playerVideoTextures.frameVersions.get('player'), 2);
-	f.frame(96);
+	await f.frame(96);
 	assert.equal(renders.length, 2);
 	assert.equal(renders[1].time, 0.096);
 	assert.equal(renders[1].timeDelta, 80);
@@ -2068,9 +1802,9 @@ for (const kind of ['effect', 'customNodeGraphEffect']) {
 		const f = await fixture(t, { effectRenderTiling: { mode: 'manual', tileSize: 2 }, enableWaveformAndHistogram: false }, TimelineRendererManager);
 		const { definition, renders } = installTiledEffect(f);
 		const scenes = structuredClone(f.renderer.dynamicOptions.timelineScenes);
-		if (kind === 'effect') scenes[0].layers[0] = { ...scenes[0].layers[0], layerType: 'effect', effectId: 'pass', effectStaticSettings: {},
+		if (kind === 'effect') scenes[0].layers[0] = { ...scenes[0].layers[0], layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'pass' }, effectStaticSettings: {},
 			resolution: { mode: 'context', scale: 1 }, effectParamValues: { input: { inputSource: 'literal', value: [1, 0, 0, 1] } } };
-		f.renderer.updateDynamicOptions({ resolution: { width: 4, height: 4 }, customNodeGraphEffects: [definition], timelineScenes: scenes });
+		f.renderer.updateDynamicOptions({ resolution: { width: 4, height: 4 }, customNodeGraphEffects: [registration(definition)], timelineScenes: scenes });
 		const submitted = t.mock.method(f.renderer.gpuDevice.queue, 'submit');
 		await f.renderer.renderTimelineFrame(0, 0);
 		assert.equal(renders.length, 1);
@@ -2081,16 +1815,16 @@ for (const kind of ['effect', 'customNodeGraphEffect']) {
 
 function editTiledCustomNodeGraphEffectValue(renderer, value, kind = 'node') {
 	if (kind === 'public') {
-		renderer.updateCustomNodeGraphEffectLivePreviewParamValues({ gain: { inputSource: 'literal', value } });
+		renderer.updateEffectLivePreviewParamValues({ gain: { inputSource: 'literal', value } });
 		return;
 	}
-	const customNodeGraphEffect = renderer.dynamicOptions.customNodeGraphEffects.find(entry => entry.id === 'customNodeGraphEffect');
+	const customNodeGraphEffect = renderer.dynamicOptions.customNodeGraphEffects.find(entry => entry.id === 'customNodeGraphEffect').definition;
 	if (kind === 'custom') {
-		renderer.applyProjectChanges([{ type: 'customNodeGraphEffect', target: { customNodeGraphEffectId: 'customNodeGraphEffect' }, customParameterValuesOnly: true,
+		renderer.applyProjectChanges([{ type: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect', customParameterValuesOnly: true,
 			customNodeGraphEffect: { ...customNodeGraphEffect, customParameterValues: { gain: { inputSource: 'literal', value } } } }]);
 	} else {
 		const node = customNodeGraphEffect.nodes.find(entry => entry.id === 'a');
-		renderer.applyProjectChanges([{ type: 'node', target: { customNodeGraphEffectId: 'customNodeGraphEffect' }, changes: [{ type: 'parameter', kind: 'value' }],
+		renderer.applyProjectChanges([{ type: 'node', customNodeGraphEffectId: 'customNodeGraphEffect', changes: [{ type: 'parameter', kind: 'value' }],
 			node: { ...node, params: { ...node.params, input: { inputSource: 'literal', value: [value, 0, 0, 1] } } } }]);
 	}
 }
@@ -2104,22 +1838,22 @@ async function finishTiledWork(waits, count) {
 	await new Promise(resolve => setImmediate(resolve));
 }
 
-async function tiledValueFixture(t, kind = 'node', Manager = CustomNodeGraphEffectRendererManager) {
+async function tiledValueFixture(t, kind = 'node', Manager = EffectLivePreviewManager) {
 	const f = await fixture(t, { effectRenderTiling: { mode: 'manual', tileSize: 2 }, enableWaveformAndHistogram: false }, Manager);
 	const { definition, renders } = installTiledEffect(f);
-	f.renderer.effectDefinitions.pass.dependsOnRenderHistory = true;
-	f.renderer.effectImplementations.pass.needsPreviousFrame = true;
-	const init = t.mock.method(f.renderer.effectImplementations.pass, 'init');
+	f.renderer.nativeEffectDefinitions.pass.dependsOnRenderHistory = true;
+
+	const init = t.mock.method(f.renderer.nativeEffectImplementations.pass, 'init');
 	definition.nodes[0].params.input = { inputSource: 'literal', value: [0.1, 0, 0, 1] };
 	if (kind !== 'node') {
 		const parameter = { id: 'gain', nameForReference: 'gain', canNode: false, dataType: { kind: 'scalar' },
 			ui: { label: 'Gain', control: {} }, defaultValue: { inputSource: 'literal', value: 0.1 } };
-		if (kind === 'public') definition.paramDefs = [parameter];
-		else { definition.customParameterDefs = [parameter]; definition.customParameterValues = { gain: parameter.defaultValue }; }
+		if (kind === 'public') definition.paramDefs = { gain: parameter };
+		else { definition.customParameterDefs = { gain: parameter }; definition.customParameterValues = { gain: parameter.defaultValue }; }
 		definition.nodes[0].params.input = { inputSource: 'expression', expression: `[${kind === 'public' ? 'PUBLIC' : 'CUSTOM'}("gain"), 0, 0, 1]` };
 	}
-	f.renderer.updateDynamicOptions({ resolution: { width: 4, height: 4 }, customNodeGraphEffects: [definition] });
-	if (Manager === CustomNodeGraphEffectRendererManager) f.renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
+	f.renderer.updateDynamicOptions({ resolution: { width: 4, height: 4 }, customNodeGraphEffects: [registration(definition)] });
+	if (Manager === EffectLivePreviewManager) f.renderer.startEffectLivePreview({ effectSource: referenceSource });
 	const waits = [];
 	f.renderer.gpuDevice.queue.onSubmittedWorkDone = () => new Promise(resolve => waits.push(resolve));
 	const states = [];
@@ -2133,10 +1867,10 @@ for (const path of ['Live Preview', 'Timeline Custom Node Graph Effect', 'Timeli
 	// 最終Canvasの待機中はスピナーを残し、完了したエフェクトの数値は表示し続けない。
 	test(`reports tile progress through the ${path} preview and clears it at completion`, async t => {
 		const isTimeline = path !== 'Live Preview';
-		const f = await tiledValueFixture(t, 'node', isTimeline ? TimelineRendererManager : CustomNodeGraphEffectRendererManager);
+		const f = await tiledValueFixture(t, 'node', isTimeline ? TimelineRendererManager : EffectLivePreviewManager);
 		if (path === 'Timeline Effect') {
 			const scenes = structuredClone(f.renderer.dynamicOptions.timelineScenes);
-			scenes[0].layers[0] = { ...scenes[0].layers[0], layerType: 'effect', effectId: 'pass', effectStaticSettings: {},
+			scenes[0].layers[0] = { ...scenes[0].layers[0], layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'pass' }, effectStaticSettings: {},
 				resolution: { mode: 'context', scale: 1 }, effectParamValues: { input: { inputSource: 'literal', value: [1, 0, 0, 1] } } };
 			f.renderer.updateDynamicOptions({ timelineScenes: scenes });
 		}
@@ -2164,32 +1898,32 @@ for (const path of ['Live Preview', 'Timeline Custom Node Graph Effect', 'Timeli
 	});
 }
 
-for (const kind of ['node', 'custom', 'public']) {
+for (const kind of ['public', 'node', 'custom']) {
 	// 【値だけの連続変更ではタイル描画を完成させ、最新値だけを次フレームへ渡す】
 	// 中断による再初期化は、解像度表示の点滅だけでなくGPU資源の再確保と履歴消失も起こす。
-	// ノード・カスタムパラメータ・公開入力の各入口で、同じインスタンスと履歴を維持する。
+	// 公開引数、内部ノードとカスタムパラメータのどこを編集しても、次のフレームには最新値が届く。
 	test(`coalesces ${kind} values after a tiled Live Preview frame without clearing resolution or history`, async t => {
 		const f = await tiledValueFixture(t, kind);
-		f.frame(16);
+		await f.frame(16);
 		await finishTiledWork(f.waits, 5);
-		const effect = f.renderer.livePreviewCustomNodeGraphEffectRenderer.effectRenderers.get('a');
-		const destroyOutput = t.mock.method(effect.getOutputTexture('output'), 'destroy');
+		const effect = await f.renderer.activeEffect.ready;
+		const destroyOutput = t.mock.method(effect.outputs.get('output').texture, 'destroy');
 		f.states.length = 0;
-		f.frame(32);
+		await f.frame(32);
 		editTiledCustomNodeGraphEffectValue(f.renderer, 0.3, kind);
 		editTiledCustomNodeGraphEffectValue(f.renderer, 0.7, kind);
-		f.frame(48);
+		await f.frame(48);
 		await finishTiledWork(f.waits, 5);
 		assert.equal(f.renders.length, 2);
 		assert.equal(f.renders[1].input.value[0], 0.1);
-		f.frame(64);
+		await f.frame(64);
 		await finishTiledWork(f.waits, 5);
 		assert.equal(f.renders.length, 3);
 		assert.equal(f.renders[2].input.value[0], 0.7);
 		assert.equal(f.renders[2].timeDelta, 32);
 		assert.equal(f.init.mock.callCount(), 1);
 		assert.equal(destroyOutput.mock.callCount(), 0);
-		assert.ok(f.states.every(state => state?.outputs.output != null));
+		assert.ok(f.states.every(state => state?.type === 'ready'));
 		assert.deepEqual(f.errors, []);
 	});
 }
@@ -2198,20 +1932,20 @@ for (const kind of ['node', 'custom', 'public']) {
 // 構造変更では中断が必要だが、その前に受け取った値を古いノード設定へ戻してはならない。
 test('retains queued values when resizing a tiled Live Preview', async t => {
 	const f = await tiledValueFixture(t);
-	f.frame(16);
+	await f.frame(16);
 	editTiledCustomNodeGraphEffectValue(f.renderer, 0.7);
 	f.renderer.updateDynamicOptions({ resolution: { width: 8, height: 4 } });
 	await finishTiledWork(f.waits, 1);
-	f.frame(32);
+	await f.frame(32);
 	// 最大寸法2pxを維持するため、8×4への変更後は8タイルとCanvas完了を待つ。
 	await finishTiledWork(f.waits, 9);
 	assert.equal(f.renders.at(-1).input.value[0], 0.7);
-	assert.deepEqual(f.states.at(-1).outputs.output, { width: 8, height: 4 });
+	assert.deepEqual(f.renderer.displayedResolution, { width: 8, height: 4 });
 	assert.deepEqual(f.errors, []);
 });
 
 for (const kind of ['node', 'custom']) {
-	// 【Timelineでもノードの値変更で履歴を消さず、待機中の最新シークを実行する】
+	// 【Timelineでは定義変更を描画の境界で反映し、待機中の最新シークを実行する】
 	// 旧フレーム完了時にScheduler.clearを呼ぶと、UIが既に送った再描画要求まで消えてしまう。
 	// 複数の編集をまとめても最新の編集世代と値で完了通知が届くことを確認する。
 	test(`coalesces tiled Timeline ${kind} values without losing the pending seek or effect state`, async t => {
@@ -2234,7 +1968,6 @@ for (const kind of ['node', 'custom']) {
 		assert.equal(f.renders[1].input.value[0], 0.1);
 		assert.equal(f.renders[2].input.value[0], 0.7);
 		assert.equal(f.init.mock.callCount(), 1);
-		assert.ok(f.states.every(state => state?.outputs.output != null));
 		assert.deepEqual(completed.map(frame => frame.requestId), [3]);
 		assert.equal(completed[0].revision, f.renderer.dynamicOptions.previewRevision);
 		assert.deepEqual(f.errors, []);
@@ -2245,19 +1978,19 @@ for (const kind of ['node', 'custom']) {
 // GPUの待機Promiseはstop後にも完了するため、保留した更新にもプレビューの寿命が必要になる。
 test('does not replay queued values into another Live Preview after stopping', async t => {
 	const f = await tiledValueFixture(t);
-	f.frame(16);
+	await f.frame(16);
 	editTiledCustomNodeGraphEffectValue(f.renderer, 0.7);
 	f.renderer.stopRenderLoop();
 	const other = structuredClone(f.definition);
 	other.id = 'other';
 	other.nodes[0].params.input = { inputSource: 'literal', value: [0.9, 0, 0, 1] };
-	f.renderer.updateDynamicOptions({ customNodeGraphEffects: [...f.renderer.dynamicOptions.customNodeGraphEffects, other] });
-	f.renderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor('other');
+	f.renderer.updateDynamicOptions({ customNodeGraphEffects: [...f.renderer.dynamicOptions.customNodeGraphEffects, registration(other)] });
+	f.renderer.startEffectLivePreview({ effectSource: { ...referenceSource, id: 'other' } });
 	await finishTiledWork(f.waits, 1);
-	f.frame(32);
+	await f.frame(32);
 	await finishTiledWork(f.waits, 5);
 	assert.equal(f.renders.at(-1).input.value[0], 0.9);
-	assert.equal(f.renderer.livePreviewCustomNodeGraphEffectId, 'other');
+	assert.equal(f.renderer.placement.effectSource.id, 'other');
 	assert.deepEqual(f.errors, []);
 });
 
@@ -2268,17 +2001,17 @@ test('preserves the order of coalesced node and custom parameter changes in Time
 	const definition = structuredClone(f.definition);
 	definition.customParameterValues.gain.value = 0.25;
 	definition.nodes[0].params.input.expression = '[CUSTOM("gain") + 0.25, 0, 0, 1]';
-	f.renderer.updateDynamicOptions({ customNodeGraphEffects: [definition] });
+	f.renderer.updateDynamicOptions({ customNodeGraphEffects: [registration(definition)] });
 	const initial = f.renderer.renderTimelineAt(0);
 	await finishTiledWork(f.waits, 5);
 	await initial;
 	const drawing = f.renderer.renderTimelineAt(100);
 	await new Promise(resolve => setImmediate(resolve));
-	const nodeChange = node => ({ type: 'node', target: { customNodeGraphEffectId: 'customNodeGraphEffect' }, node, changes: [{ type: 'parameter', kind: 'value' }] });
+	const nodeChange = node => ({ type: 'node', customNodeGraphEffectId: 'customNodeGraphEffect', node, changes: [{ type: 'parameter', kind: 'value' }] });
 	const first = { ...definition.nodes[0], params: { input: { inputSource: 'expression', expression: '[CUSTOM("gain") + 0.125, 0, 0, 1]' } } };
 	f.renderer.applyProjectChanges([nodeChange(first)]);
-	const snapshot = { ...definition, nodes: [first, definition.nodes[1]], customParameterValues: { gain: { inputSource: 'literal', value: 0.5 } } };
-	f.renderer.applyProjectChanges([{ type: 'customNodeGraphEffect', target: { customNodeGraphEffectId: 'customNodeGraphEffect' }, customNodeGraphEffect: snapshot, customParameterValuesOnly: true }]);
+	const snapshot = { ...definition, nodes: [first, ], customParameterValues: { gain: { inputSource: 'literal', value: 0.5 } } };
+	f.renderer.applyProjectChanges([{ type: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect', customNodeGraphEffect: snapshot, customParameterValuesOnly: true }]);
 	f.renderer.applyProjectChanges([nodeChange({ ...first, params: definition.nodes[0].params })]);
 	await f.renderer.renderTimelineAt(100);
 	await finishTiledWork(f.waits, 10);

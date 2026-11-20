@@ -73,55 +73,24 @@
 			@edit="event => onTimelineLayerParamEdit(event, 'shape')"
 		/>
 
-		<GsFolder v-if="layer.layerType === 'inlineCustomNodeGraphEffect'" :asSection="true" defaultOpen :withSpacer="false">
+		<GsFolder v-if="(layer.layerType === 'effect' && layer.effectSource.type === 'inlineCustomNodeGraphEffect')" :asSection="true" defaultOpen :withSpacer="false">
 			<template #icon><i class="ti ti-chart-dots-3"></i></template>
 			<template #label>{{ i18n.ts.CustomNodeGraphEffect }}</template>
 			<div>
 				<GsCustomNodeGraphEffectEditor
 					:key="layer.id"
+					data-test-inline-custom-node-graph-effect-editor
 					:class="$style.inlineCustomNodeGraphEffectEditor"
-					:customNodeGraphEffect="layer.customNodeGraphEffect"
+					:customNodeGraphEffect="getCustomNodeGraphEffectView(layer.effectSource, stateManager.state)"
 					:customNodeGraphEffectName="layer.name"
-					:previewTarget="{ sceneId, inlineCustomNodeGraphEffectLayerId: layer.id }"
+					:previewTarget="{ sceneId, layerId: layer.id }"
 					:assetDropActions="inlineAssetDropActions"
-					:effectStates="inlineEffectStates"
 					:exporting="exportingCustomNodeGraphEffect"
 					@edit="onInlineCustomNodeGraphEffectEdit"
 					@rename="renameInlineCustomNodeGraphEffect"
 					@requestAddEffectNode="emit('requestAddInlineEffectNode', layer.id)"
 					@requestExport="exportInlineCustomNodeGraphEffect"
 				/>
-			</div>
-		</GsFolder>
-
-		<GsFolder v-if="customNodeGraphEffect != null" :asSection="true" defaultOpen :withSpacer="false">
-			<template #icon><i class="ti ti-adjustments-horizontal"></i></template>
-			<template #label>{{ i18n.ts._TimelineLayer.CustomNodeGraphEffectParameters }}</template>
-			<div style="padding: 8px 0;">
-				<!-- TODO: struct / arrayの公開パラメータ編集UI。型定義では許可するが、子の編集や配列操作は未対応。 -->
-				<template
-					v-for="paramDef of customNodeGraphEffect?.paramDefs ?? []"
-					:key="`${layer.id}:${paramDef.id}`"
-				>
-					<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array'">{{ paramDef.ui.label }}{{ i18n.ts._TimelineLayer.EditingUnsupported }}</div>
-					<GsVisualParam
-						v-else
-						keyframesEnabled
-						:automationGraphEndEnabled="false"
-						:availableVariables="LAYER_VAR_DEFS"
-						:automationGraphs="hasTimelineLayerParameters(layer) ? layer.automationGraphs : []"
-						:projectAutomationGraphs="projectSession.projectContext.stateManager.state.automationGraphs.value"
-						:data-test-custom-node-graph-effect-argument="paramDef.id"
-						previewParameterGroup="customNodeGraphEffect"
-						:paramPath="[paramDef.id]"
-						:paramDef="paramDef"
-						imageInputEnabled
-						:anotherLayerAudioOptions="anotherLayerAudioOptions"
-						:imageLayerOptions="imageLayerOptions"
-						:paramValue="getLayerParameterValues(layer, 'customNodeGraphEffect')[paramDef.id] ?? getTimelineCustomNodeGraphEffectArgumentDefault(customNodeGraphEffect!, paramDef)"
-						@edit="event => onTimelineLayerParamEdit(event, 'customNodeGraphEffect')"
-					/>
-				</template>
 			</div>
 		</GsFolder>
 
@@ -150,7 +119,7 @@
 				<GsSwitch data-test-timeline-composite-inclusion :modelValue="layer.isIncludedInComposite" :helpText="i18n.ts._TimelineLayer.IncludeInCompositeHint" @update:modelValue="isIncludedInComposite => stateManager.commit('setTimelineLayerCompositeInclusion', { sceneId, layerId: layer.id, isIncludedInComposite })">
 					<template #label>{{ i18n.ts._TimelineLayer.IncludeInComposite }}</template>
 				</GsSwitch>
-				<template v-if="isTimelineEffectOrCustomNodeGraphEffectLayer(layer)">
+				<template v-if="layer.layerType === 'effect'">
 					<GsSelect large data-test-timeline-transform-target :modelValue="layer.transformTarget ?? 'image'" :items="transformTargets" @update:modelValue="transformTarget => stateManager.commit('setTimelineLayerTransformTarget', { sceneId, layerId: layer.id, transformTarget })">
 						<template #label>{{ i18n.ts._TimelineLayer.TransformTarget }}</template>
 					</GsSelect>
@@ -226,16 +195,16 @@
 </template>
 
 <script lang="ts" setup>
+import { getCustomNodeGraphEffectView } from '@/utility/custom-node-graph-effect-view.ts';
 import { srgbToLinearSrgb } from '@gs/shared/color-space.ts';
 import { computed, ref, onBeforeUnmount, provide } from 'vue';
-import { isTimelineVisualLayer, isTimelineContainerLayer, hasTimelineLayerParameters, isTimelineEffectOrCustomNodeGraphEffectLayer, getTimelineLayerTransformTarget } from '@gs/subsystems_timeline_shared/types.ts';
+import { isTimelineVisualLayer, isTimelineContainerLayer, hasTimelineLayerParameters, getTimelineLayerTransformTarget } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getTimelineLayerMaskSources } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
 import { timelineAudioParamDefs, isTimelineAudioOutputLayer } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { getTimelineCompositingParameterDefinitions } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
-import { getTimelineCustomNodeGraphEffectArgumentDefault } from '@gs/subsystems_timeline_shared/layers/custom-node-graph-effect/custom-node-graph-effect-arguments.ts';
 import { getTimelineContainerConversionTargets } from '@gs/subsystems_timeline_shared/container-layer.ts';
 import { getTimelineLayerPublicParameterContext } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import GsFolder from './common/GsFolder.vue';
@@ -254,6 +223,7 @@ import GsTimelineTextSettings from './GsTimeline.TextSettings.vue';
 import GsTimelineShapeSettings from './GsTimeline.ShapeSettings.vue';
 import GsTimelineTransformSettings from './GsTimeline.TransformSettings.vue';
 import GsTimelineCameraSettings from './GsTimeline.CameraSettings.vue';
+import type { CustomNodeGraphEffectEditorMetadata } from '@gs/glitch-studio_shared/project/types.ts';
 import type { TimelineContainerLayerType } from '@gs/subsystems_timeline_shared/container-layer.ts';
 import type { TimelineMask, TimelineLayerMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import type { CustomNodeGraphEffectEdit } from '@/types/custom-node-graph-effect-editor.ts';
@@ -271,7 +241,6 @@ import { exportCustomNodeGraphEffectFile } from '@/utility/custom-node-graph-eff
 import { commitCustomNodeGraphEffectEdit } from '@/utility/custom-node-graph-effect-edit.ts';
 import { handleProjectParameterClipboard } from '@/utility/parameter-clipboard-actions.ts';
 import * as ui from '@/ui.ts';
-import { getLayerParameterValues, resolveLayerParameter } from '@/utility/timeline-scene.ts';
 import { previewParameterContextKey } from '@/utility/preview-parameter-editing.ts';
 import { parameterExpansionScopeKey } from '@/composables/useParameterExpansion.ts';
 import { createCustomNodeGraphEffectDropActions } from '@/utility/custom-node-graph-effect-drop-actions.ts';
@@ -314,10 +283,10 @@ let disposed = false;
 onBeforeUnmount(() => { disposed = true; });
 const inlineAssetDropActions = computed(() => {
 	const layer = props.layer;
-	return layer.layerType !== 'inlineCustomNodeGraphEffect' ? null : createCustomNodeGraphEffectDropActions({
+	return (layer.layerType !== 'effect' || layer.effectSource.type !== 'inlineCustomNodeGraphEffect') ? null : createCustomNodeGraphEffectDropActions({
 		context: projectSession.projectContext,
 		projectSessionId: projectSession.id,
-		target: { sceneId: props.scene.id, inlineCustomNodeGraphEffectLayerId: layer.id },
+		target: { sceneId: props.scene.id, layerId: layer.id },
 		isActive: () => !disposed && props.layer === layer,
 		revealAssets: () => emit('revealAssets'),
 	});
@@ -348,13 +317,7 @@ const layerMaskSourceOptions = computed(() => {
 	if (id != null && !sources.has(id)) items.push({ value: id, label: i18n.tsx._Parameter.MissingLayer({ id }) });
 	return items;
 });
-const customNodeGraphEffect = computed(() => {
-	const layer = props.layer;
-	return layer.layerType === 'inlineCustomNodeGraphEffect' ? layer.customNodeGraphEffect
-		: layer.layerType === 'customNodeGraphEffect' ? projectSession.projectContext.getCustomNodeGraphEffectById(layer.customNodeGraphEffectId) : null;
-});
-const inlineEffectStates = computed(() => previewPlayback.state.value.mode === 'timeline'
-	? timelineRendererManagerController.getLayerEffectStates(props.scene.id, props.layer.id) : null);
+
 const effectLayerState = computed(() => previewPlayback.state.value.mode === 'timeline' && props.layer.layerType === 'effect'
 	? timelineRendererManagerController.getEffectLayerState(props.scene.id, props.layer.id) : null);
 
@@ -395,11 +358,12 @@ function updateMask(change: Partial<TimelineMask>) {
 
 async function exportInlineCustomNodeGraphEffect(format: 'gscnge' | 'web' = 'gscnge') {
 	const layer = props.layer;
-	if (layer.layerType !== 'inlineCustomNodeGraphEffect' || exportingCustomNodeGraphEffect.value) return;
+	if ((layer.layerType !== 'effect' || layer.effectSource.type !== 'inlineCustomNodeGraphEffect') || exportingCustomNodeGraphEffect.value) return;
 	exportingCustomNodeGraphEffect.value = true;
 	try {
-		if (format === 'web') await exportPortableCustomNodeGraphEffectFile(projectSession, layer.customNodeGraphEffect, layer.name);
-		else await exportCustomNodeGraphEffectFile(projectSession.projectContext, layer.customNodeGraphEffect, layer.name);
+		const { nodeMetadata } = layer.effectSource as typeof layer.effectSource & CustomNodeGraphEffectEditorMetadata;
+		if (format === 'web') await exportPortableCustomNodeGraphEffectFile(projectSession, layer.effectSource.customNodeGraphEffect, layer.name, nodeMetadata);
+		else await exportCustomNodeGraphEffectFile(projectSession.projectContext, layer.effectSource.customNodeGraphEffect, layer.name, nodeMetadata);
 	} finally {
 		exportingCustomNodeGraphEffect.value = false;
 	}
@@ -407,29 +371,29 @@ async function exportInlineCustomNodeGraphEffect(format: 'gscnge' | 'web' = 'gsc
 
 function renameInlineCustomNodeGraphEffect(name: string) {
 	const layer = props.layer;
-	if (layer.layerType !== 'inlineCustomNodeGraphEffect' || layer.name === name) return;
+	if ((layer.layerType !== 'effect' || layer.effectSource.type !== 'inlineCustomNodeGraphEffect') || layer.name === name) return;
 	// インラインCustom Node Graph Effectの表示名は所属レイヤーが所有し、書き出し時にもその名前を使う。
 	stateManager.commit('setTimelineLayerName', { sceneId: props.scene.id, layerId: layer.id, name });
 }
 
 function onInlineCustomNodeGraphEffectEdit(event: CustomNodeGraphEffectEdit) {
 	const layer = props.layer;
-	if (layer.layerType !== 'inlineCustomNodeGraphEffect') return;
+	if ((layer.layerType !== 'effect' || layer.effectSource.type !== 'inlineCustomNodeGraphEffect')) return;
 	if (event.kind === 'customParameterClipboard') {
 		const scene = props.scene;
 		void handleProjectParameterClipboard(projectSession.projectContext, projectSession.id,
-			{ kind: 'customParameter', customNodeGraphEffectTarget: { sceneId: scene.id, inlineCustomNodeGraphEffectLayerId: layer.id }, paramPath: [event.parameterId] },
+			{ kind: 'customParameter', customNodeGraphEffectTarget: { sceneId: scene.id, layerId: layer.id }, paramPath: [event.parameterId] },
 			event.operation, () => !disposed && props.scene === scene && props.layer === layer).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;
 	}
 	if (event.kind === 'editNodeParam' && (event.edit.kind === 'copy' || event.edit.kind === 'paste')) {
 		const scene = props.scene;
 		void handleProjectParameterClipboard(projectSession.projectContext, projectSession.id,
-			{ kind: 'node', customNodeGraphEffectTarget: { sceneId: scene.id, inlineCustomNodeGraphEffectLayerId: layer.id }, nodeId: event.nodeId, paramPath: event.edit.paramPath },
+			{ kind: 'node', customNodeGraphEffectTarget: { sceneId: scene.id, layerId: layer.id }, nodeId: event.nodeId, paramPath: event.edit.paramPath },
 			event.edit.kind, () => !disposed && props.scene === scene && props.layer === layer).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;
 	}
-	commitCustomNodeGraphEffectEdit(stateManager, { sceneId: props.scene.id, inlineCustomNodeGraphEffectLayerId: layer.id }, event);
+	commitCustomNodeGraphEffectEdit(stateManager, { sceneId: props.scene.id, layerId: layer.id }, event);
 }
 
 function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTarget) {
@@ -452,7 +416,7 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'customNodeGraphEffectPublicParameterReference' || event.inputSource === 'customNodeGraphEffectCustomParameterValueReference')) return;
 	const mergeKey = event.mergeKey != null ? JSON.stringify([layer.id, target, event.paramPath, event.mergeKey]) : null;
 	if (event.kind === 'anotherLayerAudio' || (event.kind === 'inputSource' && (event.inputSource === 'lowerLayerAudio' || event.inputSource === 'anotherLayerAudio'))) {
-		if (target === 'effect' || target === 'customNodeGraphEffect') commitTimelineParameterEdit(stateManager, {
+		if (target === 'effect') commitTimelineParameterEdit(stateManager, {
 			sceneId: props.scene.id,
 			layerId: layer.id,
 			target,
@@ -462,7 +426,7 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 		return;
 	}
 	if (event.kind === 'lowerLayerOutput' || event.kind === 'anotherLayerOutput' || (event.kind === 'inputSource' && (event.inputSource === 'lowerLayerOutput' || event.inputSource === 'anotherLayerOutput'))) {
-		if (target !== 'effect' && target !== 'customNodeGraphEffect') return;
+		if (target !== 'effect') return;
 		commitTimelineParameterEdit(stateManager, {
 			sceneId: props.scene.id,
 			layerId: layer.id,

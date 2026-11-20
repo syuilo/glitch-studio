@@ -1,5 +1,5 @@
 import { clipboardText } from './clipboard-text.ts';
-import type { CustomNodeGraphEffectEffectNode, CustomNodeGraphEffectRelayNode } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffectEffectNode, CustomNodeGraphEffectRelayNode } from '@/types/custom-node-graph-effect-view.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import { i18n } from '@/i18n.ts';
 import { inputText } from '@/ui.ts';
@@ -25,12 +25,13 @@ export function getCustomNodeGraphEffectNodeHeaderMenuItems(
 		icon: 'ti ti-hash',
 		action: () => clipboardText.writeText(node.id),
 	}];
-	if (node.type === 'effect') {
+	if (node.type === 'effect' && 'id' in node.effectSource) {
+		const id = node.effectSource.id;
 		items.push({
 			id: 'copyEffectId',
 			text: i18n.ts._Node.CopyEffectId,
 			icon: 'ti ti-hash',
-			action: () => clipboardText.writeText(node.effectId),
+			action: () => clipboardText.writeText(id),
 		});
 	}
 	return items;

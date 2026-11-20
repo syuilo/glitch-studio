@@ -1,6 +1,6 @@
 import { getEffectDefinitions } from './project-effects.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
-import { areNodeDataTypesCompatible, getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
+import { canConnectNodeDataTypes, getNodeInputDataType, type ConnectionTypePolicy } from '@gs/shared/data-type/node-compatibility.ts';
 import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
@@ -11,9 +11,9 @@ import { validateColorRamp } from '@gs/shared/color-ramp.ts';
 import { isKeyframesDataType, supportsKeyframeInterpolation } from '@gs/shared/keyframes/keyframes-timeline.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
-import { getNodeOutputs } from '@gs/subsystems_custom-node-graph-effect_shared/node-outputs.ts';
-import { validateCustomNodeGraphEffectAudioBinding } from '@gs/subsystems_custom-node-graph-effect_shared/audio-parameters.ts';
-import { validateCustomNodeGraphEffectCustomParameterBinding } from '@gs/subsystems_custom-node-graph-effect_shared/custom-parameters.ts';
+import { getNodeOutputs } from '@/utility/custom-node-graph-effect-node-outputs.ts';
+import { validateCustomNodeGraphEffectAudioBinding } from '@/utility/custom-node-graph-effect-audio-parameters.ts';
+import { validateCustomNodeGraphEffectCustomParameterBinding } from '@/utility/custom-node-graph-effect-view-parameters.ts';
 import { validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { resolveTimelineImageLayerReference } from '@gs/subsystems_timeline_shared/layer-output.ts';
@@ -28,7 +28,7 @@ import type { DataType } from '@gs/shared/data-type/data-type.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectValueParameterBinding } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectValueParameterBinding } from '@/types/custom-node-graph-effect-view.ts';
 import type { TimelineScene, TimelineLayer, TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
 import type { CustomNodeGraphEffectTarget } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
 import type { EditableParameterBinding } from '../types/parameter-edit.ts';
@@ -60,7 +60,7 @@ export type ProjectParameterClipboardTarget = { paramPath: ParamPath } & (
 	| { kind: 'timeline'; sceneId: string; layerId: string; parameterTarget: TimelineParameterTarget }
 );
 
-export type ParameterPasteContext = { state: ProjectState; source: ParameterClipboardSource } & (
+export type ParameterPasteContext = { state: ProjectState; source: ParameterClipboardSource; connectionTypePolicy?: ConnectionTypePolicy } & (
 	| { kind: 'node'; customNodeGraphEffect: CustomNodeGraphEffect; nodeId: string }
 	| { kind: 'customParameter'; customNodeGraphEffect: CustomNodeGraphEffect }
 	| { kind: 'preview'; customNodeGraphEffect: CustomNodeGraphEffect }
@@ -223,7 +223,7 @@ export function parseParameterClipboard(text: string): ParameterClipboardData | 
 		if (owner.kind === 'customNodeGraphEffect') {
 			const target = object(owner.target);
 			requireValid(Object.hasOwn(target, 'customNodeGraphEffectId') ? nonemptyString(target.customNodeGraphEffectId)
-				: nonemptyString(target.sceneId) && nonemptyString(target.inlineCustomNodeGraphEffectLayerId));
+				: nonemptyString(target.sceneId) && nonemptyString(target.layerId));
 		} else requireValid(owner.kind === 'timelineLayer' && nonemptyString(owner.sceneId) && nonemptyString(owner.layerId));
 		return data as unknown as ParameterClipboardData;
 	} catch { return null; }
@@ -251,7 +251,7 @@ function sameScene(a: ParameterClipboardSource, b: ParameterClipboardSource): bo
 function validateLeafDestination(definition: ParameterDefinition, binding: EditableParameterBinding, source: ParameterClipboardSource, context: ParameterPasteContext): void {
 	const sameProjectSession = source.projectSessionId === context.source.projectSessionId;
 	if (context.kind === 'timeline') {
-		const allowInputs = context.parameterTarget === 'effect' || context.parameterTarget === 'customNodeGraphEffect';
+		const allowInputs = context.parameterTarget === 'effect';
 		validateTimelineParameterTree(definition, binding, allowInputs, allowInputs);
 	} else {
 		requireValid(isValueParameterBinding(binding) || binding.inputSource === 'node' || binding.inputSource === 'customNodeGraphEffectPublicParameterReference' || binding.inputSource === 'customNodeGraphEffectCustomParameterValueReference');
@@ -281,7 +281,7 @@ function validateLeafDestination(definition: ParameterDefinition, binding: Edita
 			requireValid(sameOwner(source, context.source) && binding.nodeId !== context.nodeId);
 			const node = context.customNodeGraphEffect.nodes.find(candidate => candidate.id === binding.nodeId);
 			const output = node == null ? null : getNodeOutputs(node, context.customNodeGraphEffect.paramDefs, getEffectDefinitions(context.state))[binding.outputPort];
-			requireValid(output != null && areNodeDataTypesCompatible(output.dataType, getNodeInputDataType(definition)));
+			requireValid(canConnectNodeDataTypes(output?.dataType, getNodeInputDataType(definition), context.connectionTypePolicy ?? 'strict'));
 			break;
 		}
 		case 'customNodeGraphEffectPublicParameterReference': {
@@ -308,7 +308,7 @@ function validateLeafDestination(definition: ParameterDefinition, binding: Edita
 		}
 		case 'anotherLayerOutput':
 		case 'lowerLayerOutput': {
-			requireValid(context.kind === 'timeline' && definition.canNode === true && areNodeDataTypesCompatible({ kind: 'color' }, getNodeInputDataType(definition)));
+			requireValid(context.kind === 'timeline' && definition.canNode === true && canConnectNodeDataTypes({ kind: 'color' }, getNodeInputDataType(definition), context.connectionTypePolicy ?? 'strict'));
 			// 公開入力とEffectではサンプリング設定の所有者が違う。設定を暗黙に捨てたり補わない。
 			requireValid(context.parameterTarget === 'effect' ? 'fitMode' in binding : !('fitMode' in binding));
 			if (binding.inputSource === 'anotherLayerOutput' && binding.layerId != null) {
@@ -389,10 +389,10 @@ export function resolveProjectClipboardTarget(state: ProjectState, projectSessio
 }
 
 /** CommandとUIの事前確認で同じ検査を使う。未設定のルートはUndo用にnullのまま保持する。 */
-export function prepareProjectParameterPaste(state: ProjectState, projectSessionId: string, target: ProjectParameterClipboardTarget, clipboard: ParameterClipboardData) {
+export function prepareProjectParameterPaste(state: ProjectState, projectSessionId: string, target: ProjectParameterClipboardTarget, clipboard: ParameterClipboardData, connectionTypePolicy?: ConnectionTypePolicy) {
 	try {
 		const resolved = resolveProjectClipboardTarget(state, projectSessionId, target);
-		const binding = prepareParameterBindingPaste(resolved.def, clipboard, resolved.context);
+		const binding = prepareParameterBindingPaste(resolved.def, clipboard, { ...resolved.context, connectionTypePolicy });
 		if (binding == null) return null;
 		resolved.setValue(binding);
 		return { before: resolved.before, after: resolved.draft[target.paramPath[0]] };

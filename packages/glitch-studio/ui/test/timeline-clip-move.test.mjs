@@ -1,3 +1,4 @@
+import { testGraph } from './helpers/effect-graph.mjs';
 import { createDragActionsFixture } from './helpers/timeline-drag-actions.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -21,15 +22,15 @@ const bundled = await build({
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { getTimelineClipMoveBounds, getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
 		export { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
-		export { default as arrayDefinition } from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
+		export { default as arrayDefinition } from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts';
 	` },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'clip-move-dependencies', setup(build) {
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', resolveDir: uiDirectory,
 			contents: path === 'effects'
-				? "import definition from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts'; export const effectDefinitions = { [definition.id]: definition };"
+				? "import definition from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };"
 				: 'export const preferences = { s: { forceTypeSafety: true } };',
 		}));
 	} }],
@@ -164,21 +165,21 @@ test('moves speech and empty stop keys with parameters while preserving speech s
 	f.history.redo(); assert.deepEqual(f.scene, after);
 });
 
-// 【未設定のCustom Node Graph Effect引数とネストしたレーンは独立したルートへ保存する】
-// 既定値を直接変更すると別レイヤーまで動き、単なるコピーを変更すると結果が保存されない。
-// 同じ配列要素の複数パラメータを追従させても上書きし合わず、Undoで未設定へ戻す。
-test('materializes default arguments and nested lanes without modifying shared definitions', t => {
+// 【保存済みのCustom Node Graph Effect引数のキーをクリップと一緒に移動する】
+// 同じ配列要素の複数フィールドを追従させても互いの編集を保持し、共有定義や未編集の配置に波及させない。
+// ドラッグの履歴をマージしても、クリップと全レーンを同じUndo/Redoで復元する。
+test('moves saved scalar and nested lanes with clips through merged undo and redo', t => {
 	for (const nested of [false, true]) {
 		const f = fixture(t, []);
 		const def = nested ? { ...structuredClone(arrayDefinition.paramDefs.buzzs), id: 'value' }
-			: { id: 'value', dataType: { kind: 'scalar' }, ui: { label: 'Value', control: {} }, defaultValue: keys([100, 200]) };
+			: { id: 'value', dataType: { kind: 'scalar' }, ui: { label: 'Value', control: {} }, defaultValue: { inputSource: 'literal', value: 0 } };
+		const placement = nested ? structuredClone(def.defaultValue) : keys([100, 200]);
 		if (nested) {
-			def.defaultValue.value[0].binding.value.x = keys([100, 200]);
-			def.defaultValue.value[0].binding.value.y = keys([100, 200]);
+			placement.value[0].binding.value.x = keys([100, 200]);
+			placement.value[0].binding.value.y = keys([100, 200]);
 		}
-		f.state.customNodeGraphEffects.value.push({ id: 'customNodeGraphEffect', paramDefs: [def] });
-		for (const id of ['edited', 'untouched']) f.scene.layers.push({ id, layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect',
-			customNodeGraphEffectParamValues: {}, clips: [clip('clip', 100, 200)], compositingParamValues: {} });
+		f.state.customNodeGraphEffects.value.push({ id: 'customNodeGraphEffect', definition: testGraph({ paramDefs: { [def.id]: def } }) });
+		for (const id of ['edited', 'untouched']) f.scene.layers.push({ id, layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' }, effectParamValues: id === 'edited' ? { value: placement } : {}, clips: [clip('clip', 100, 200)], compositingParamValues: {} });
 		const before = structuredClone(f.scene);
 		const defaultBefore = structuredClone(def.defaultValue);
 		const targets = [{ layerId: 'edited', clipId: 'clip' }];
@@ -187,7 +188,7 @@ test('materializes default arguments and nested lanes without modifying shared d
 		for (const deltaMs of [20, 60, 0, 100]) f.history.commit('setTimelinePositions', {
 			sceneId: 'scene', clips: initial.clips.map(clip => ({ ...clip, startMs: clip.startMs + deltaMs })), keyframes: initial.keyframes.map(point => ({ ...point, x: point.x + deltaMs })),
 		}, 'defaults');
-		for (const path of paths) assert.deepEqual(resolveLayerParameter(f.state, f.scene.layers[0], 'customNodeGraphEffect', path).value.keyframesTimeline.keyframes.map(point => point.x), [200, 300]);
+		for (const path of paths) assert.deepEqual(resolveLayerParameter(f.state, f.scene.layers[0], 'effect', path).value.keyframesTimeline.keyframes.map(point => point.x), [200, 300]);
 		assert.deepEqual(def.defaultValue, defaultBefore);
 		assert.deepEqual(f.scene.layers[1], before.layers[1]);
 		const after = structuredClone(f.scene);
@@ -200,7 +201,7 @@ test('materializes default arguments and nested lanes without modifying shared d
 
 // 【後半のキー検証が失敗してもクリップや前半のキーを変更しない】
 // 発話の指定終端が安全な整数範囲を超えるとき、履歴に残らない部分更新を防ぐ。
-// ドラッグ中に追従対象を削除した場合も、別のキーで置き換えたり黙って無視したりしない。
+// ドラッグ中に追従対象のキーやBindingを削除しても、確定時に元のIDとパスで照合して操作全体を拒否する。
 test('rejects invalid speech endpoints and missing captured keys atomically', t => {
 	const audio = audioLayer('audio', [clip('a', 1000, 1000)], [1100]);
 	const speech = createVoicevoxTimelineLayer(1000);
@@ -211,10 +212,17 @@ test('rejects invalid speech endpoints and missing captured keys atomically', t 
 	assert.throws(() => f.history.commit('moveTimelineClips', { sceneId: 'scene', clips: f.targets, deltaMs: 100 }), /Invalid VOICEVOX subtitle duration/);
 	assert.deepEqual(f.scene, before);
 	const initial = prepareTimelineClipMove(f.state, f.scene, [f.targets[0]]);
+	const edit = { sceneId: 'scene', clips: initial.clips.map(clip => ({ ...clip, startMs: clip.startMs + 100 })),
+		keyframes: initial.keyframes.map(point => ({ ...point, x: point.x + 100 })) };
+	const assertMissingKeyframe = () => {
+		const beforeFailedEdit = structuredClone(f.scene);
+		assert.throws(() => f.history.commit('setTimelinePositions', edit), /Timeline keyframe not found/);
+		assert.deepEqual(f.scene, beforeFailedEdit);
+	};
 	audio.audioParamValues.volume.keyframesTimeline.keyframes = [];
-	const deleted = structuredClone(f.scene);
-	assert.throws(() => f.history.commit('setTimelinePositions', { sceneId: 'scene', clips: initial.clips.map(clip => ({ ...clip, startMs: clip.startMs + 100 })), keyframes: initial.keyframes.map(point => ({ ...point, x: point.x + 100 })) }), /Timeline keyframe not found/);
-	assert.deepEqual(f.scene, deleted);
+	assertMissingKeyframe();
+	delete audio.audioParamValues.volume;
+	assertMissingKeyframe();
 	assert.equal(f.changes.length, 0);
 	assert.equal(f.history.undoStack.value.length, 0);
 });

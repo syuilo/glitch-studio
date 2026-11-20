@@ -42,8 +42,29 @@ function asynchronousTimingFixture() {
 		copyBufferToBuffer(source, sourceOffset, target, targetOffset, size) { new Uint8Array(target.data, targetOffset, size).set(new Uint8Array(source.data, sourceOffset, size)); },
 		finish: () => ({}),
 	});
-	return { helper: new TimingHelper(device), device, encoder, buffers, pending, submitted, duration: value => { duration = value; } };
+	return { helper: new TimingHelper(device), createHelper: () => new TimingHelper(device), device, encoder, buffers, pending, submitted, duration: value => { duration = value; } };
 }
+
+// 【同じencoderへ記録した複数の配置が、それぞれのGPU時間を取得する】
+// 後から登録した配置が先のreadbackを上書きすると、通常描画で統計が失われ、計測資源も再利用できない。
+test('delivers all placement timings after submitting one command buffer', async () => {
+	const f = asynchronousTimingFixture();
+	const helpers = [f.helper, f.createHelper()];
+	const encoder = f.encoder();
+	const results = [];
+	for (const [index, helper] of helpers.entries()) {
+		f.duration(BigInt(index + 1));
+		helper.beginRenderPass(encoder, { colorAttachments: [] }, value => { results[index] = value; }).end();
+		helper.readResultAfterSubmission();
+	}
+	const commands = encoder.finish();
+	f.device.queue.submit([commands]);
+	assert.equal(f.pending.length, 2);
+	for (const read of f.pending) read.resolve();
+	await tick();
+	assert.deepEqual(results, [1, 2]);
+	for (const helper of helpers) helper.dispose();
+});
 
 // 【送信後にだけ自動readbackを始め、結果待ち中にも次の描画を送信できる】
 // GPU完了待ちを定期計測へ残すと、軽い描画も一定間隔で引っ掛かる。結果の合計と

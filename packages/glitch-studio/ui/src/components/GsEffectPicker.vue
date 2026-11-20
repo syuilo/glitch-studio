@@ -55,7 +55,11 @@
 					<template #icon><i class="ti ti-history"></i></template>
 					<template #label>{{ i18n.ts._EffectPicker.RecentEffects }}</template>
 					<div v-if="recentEffects.length > 0" :class="$style.recentEffects">
-						<GsEffectPickerEffect v-for="[key, effect] in recentEffects" :key="key" :effect="effect" :detailed="false" @click="choose(key, effect)"/>
+						<GsEffectPickerEffect
+							v-for="[key, effect] in recentEffects" :key="key"
+							:data-test-recent-effect="key" :effect="effect" :detailed="false"
+							@click="choose(key, effect)"
+						/>
 					</div>
 				</GsFolder>
 			</div>
@@ -64,7 +68,11 @@
 					<GsFolder v-for="section in effectSections" :key="section.id" defaultOpen asSection>
 						<template #label>{{ section.label }}</template>
 						<div :class="$style.effects">
-							<GsEffectPickerEffect v-for="[key, effect] in section.effects" :key="key" :effect="effect" detailed @click="choose(key, effect)"/>
+							<GsEffectPickerEffect
+								v-for="[key, effect] in section.effects" :key="key"
+								:data-test-effect-picker-effect="key" :effect="effect" detailed
+								@click="choose(key, effect)"
+							/>
 						</div>
 					</GsFolder>
 				</template>
@@ -85,16 +93,17 @@
 
 <script setup lang="ts">
 import { computed, ref, useTemplateRef } from 'vue';
-import { EFFECT_TAGS } from '@gs/subsystems_effect_shared/effect-definition.ts';
-import { isCustomShaderEffectReference } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
+import { findTimelineEffectOutput } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
+import { EFFECT_TAGS } from '@/utility/effect-tags.ts';
 import GsEffectPickerEffect from './GsEffectPicker.Effect.vue';
 import GsNodePort from './GsNodePort.vue';
 import GsModal from './common/GsModal.vue';
 import GsInput from './common/GsInput.vue';
 import GsFolder from './common/GsFolder.vue';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { EffectDefinition, EffectTags } from '@gs/subsystems_effect_shared/effect-definition.ts';
-import { getEffectDefinitions } from '@/utility/project-effects.ts';
+import type { EffectChoice } from '@/utility/project-effects.ts';
+import type { EffectTags } from '@/utility/effect-tags.ts';
+import { createEffectNodeCycleCheck, listSelectableEffects } from '@/utility/project-effects.ts';
 import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import { getEffectInputPorts, getEffectOutputPorts } from '@/utility/effect-ports.ts';
@@ -102,15 +111,16 @@ import { createEffectSearchQuery, matchEffectName, compareEffectNameSearchMatche
 
 const projectSession = useProjectSession();
 
-const effectDefinitions = computed(() => getEffectDefinitions(projectSession.projectContext.stateManager.state));
+const effectDefinitions = computed(() => Object.fromEntries(listSelectableEffects(projectSession.projectContext.stateManager.state).map(choice => [JSON.stringify(choice.effectSource), choice])));
 
 const props = defineProps<{
 	selectedOutputType?: TextureDataType['kind'] | null;
 	requirePrimaryColorOutput?: boolean;
+	parentCustomNodeGraphEffectId?: string;
 }>();
 
 const emit = defineEmits<{
-	(ev: 'chosen', effect: EffectDefinition): void;
+	(ev: 'chosen', effect: EffectChoice): void;
 	(ev: 'closed'): void;
 }>();
 
@@ -129,7 +139,13 @@ const dataTypeItems: { value: TextureDataType['kind'] | null; label: string }[] 
 	{ value: 'vector', label: i18n.ts._EffectPicker._DataTypes.vector },
 	{ value: 'any', label: i18n.ts._EffectPicker._DataTypes.any },
 ];
-const effects = computed(() => Object.entries(effectDefinitions.value).filter(([, definition]) => !props.requirePrimaryColorOutput || definition.primaryOutput != null && definition.outputDefs[definition.primaryOutput]?.dataType.kind === 'color'));
+const effects = computed(() => {
+	const wouldCreateCycle = props.parentCustomNodeGraphEffectId == null ? null : createEffectNodeCycleCheck(
+		projectSession.projectContext.stateManager.state.customNodeGraphEffects.value, props.parentCustomNodeGraphEffectId);
+	return Object.entries(effectDefinitions.value).filter(([, effect]) =>
+		(!props.requirePrimaryColorOutput || findTimelineEffectOutput(effect) != null)
+		&& (wouldCreateCycle == null || !wouldCreateCycle(effect.effectSource)));
+});
 const searchableEffects = computed(() => effects.value.map(([key, effect]) => ({
 	key,
 	effect,
@@ -176,8 +192,9 @@ const isInitialView = computed(() => effectSearchQuery.value.terms.length === 0 
 	&& selectedInputType.value == null && selectedOutputType.value === (props.selectedOutputType ?? null));
 
 const effectSections = computed(() => [
-	{ id: 'customShaderEffects', label: i18n.ts._CustomShaderEffect.Title, effects: results.value.filter(([key]) => isCustomShaderEffectReference(key)) },
-	{ id: 'builtin', label: i18n.ts._EffectPicker.BuiltinEffects, effects: results.value.filter(([key]) => !isCustomShaderEffectReference(key)) },
+	{ id: 'customShaderEffects', label: i18n.ts._CustomShaderEffect.Title, effects: results.value.filter(([, effect]) => effect.effectSource.type === 'customShaderEffectReference') },
+	{ id: 'customNodeGraphEffects', label: i18n.ts.CustomNodeGraphEffect, effects: results.value.filter(([, effect]) => effect.effectSource.type === 'customNodeGraphEffectReference') },
+	{ id: 'builtin', label: i18n.ts._EffectPicker.BuiltinEffects, effects: results.value.filter(([, effect]) => effect.effectSource.type === 'nativeEffect') },
 ].filter(section => section.effects.length > 0));
 
 function toggleTag(tag: EffectTags) {
@@ -208,7 +225,7 @@ function chooseFirstResult(event: KeyboardEvent) {
 	if (firstResult) choose(firstResult[0], firstResult[1]);
 }
 
-function choose(key: string, effect: EffectDefinition) {
+function choose(key: string, effect: EffectChoice) {
 	recentEffectKeys.value = [key, ...recentEffectKeys.value.filter(value => value !== key)].slice(0, maxRecentEffects);
 	try {
 		localStorage.setItem(recentEffectsStorageKey, JSON.stringify(recentEffectKeys.value));

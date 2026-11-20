@@ -1,3 +1,4 @@
+import { testGraph } from './helpers/effect-graph.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -14,17 +15,17 @@ const bundled = await build({ absWorkingDir: directory, bundle: true, platform: 
 		export * from './src/utility/preview-parameter-editing.ts';
 		export * from './src/utility/preview-parameter-position.ts';
 		export * from './src/utility/preview-viewport.ts';
-		export { default as mandelbrot } from '@gs/subsystems_effect_shared/fx/mandelbrot/_def_.ts';
-		export { default as magneticPendulum } from '@gs/subsystems_effect_shared/fx/magneticPendulum/_def_.ts';
+		export { default as mandelbrot } from '@gs/subsystems_effect-new_native-effects/fx/mandelbrot/_def_.ts';
+		export { default as magneticPendulum } from '@gs/subsystems_effect-new_native-effects/fx/magneticPendulum/_def_.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { createInlineKeyframesTimeline } from './src/utility/keyframes-timeline.ts';
 	` },
 	plugins: [{ name: 'preview-parameter-test', setup(build) {
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'stub' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'stub' }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'stub' }));
 		build.onLoad({ filter: /.*/, namespace: 'stub' }, ({ path }) => ({ resolveDir: directory, contents: path === 'effects'
-			? `import mandelbrot from '@gs/subsystems_effect_shared/fx/mandelbrot/_def_.ts'; export const effectDefinitions = { test: { ...mandelbrot, ...${JSON.stringify(effect)}, paramDefs: { ...${JSON.stringify(effect.paramDefs)}, view: mandelbrot.paramDefs.view } } };`
+			? `import mandelbrot from '@gs/subsystems_effect-new_native-effects/fx/mandelbrot/_def_.ts'; export const nativeEffectDefinitions = { test: { ...mandelbrot, ...${JSON.stringify(effect)}, paramDefs: { ...${JSON.stringify(effect.paramDefs)}, view: mandelbrot.paramDefs.view } } };`
 			: 'export const preferences = { s: { forceTypeSafety: false } };' }));
 	} }],
 });
@@ -36,10 +37,10 @@ const { PreviewParameterEditingController, getPreviewParameterPosition, beginPre
 const close = (actual, expected) => actual.forEach((value, axis) => assert.ok(Math.abs(value - expected[axis]) < 1e-12, `${actual} != ${expected}`));
 
 function fixture() {
-	const customNodeGraphEffect = { id: 'customNodeGraphEffect', nodes: [{ id: 'node', type: 'effect', effectId: 'test', params: { first: literal([0, 0]), second: literal([0.2, 0.1]) } }] };
+	const customNodeGraphEffect = { id: 'customNodeGraphEffect', definition: testGraph({ nodes: [{ id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, params: { first: literal([0, 0]), second: literal([0.2, 0.1]) } }] }) };
 	const state = { customNodeGraphEffects: ref([customNodeGraphEffect]), timelineScenes: ref([]), resolution: ref({ width: 1920, height: 1080 }) };
 	const manager = new UndoRedo(state, COMMAND_DEFS);
-	const node = state.customNodeGraphEffects.value[0].nodes[0];
+	const node = state.customNodeGraphEffects.value[0].definition.nodes[0];
 	const scope = { kind: 'customNodeGraphEffect', target: { customNodeGraphEffectId: customNodeGraphEffect.id } };
 	const begin = () => {
 		const binding = node.params.first;
@@ -227,7 +228,7 @@ test('maps viewport navigation independently of preview aspect ratio and display
 // 中心と倍率の中間状態を通知せず、プレビューで既定値を見ただけの保存値を増やさない。
 test('updates viewport fields atomically on an effect layer and restores omitted values', () => {
 	const f = fixture();
-	f.state.timelineScenes.value = [{ id: 'scene', layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', effectParamValues: {} }] }];
+	f.state.timelineScenes.value = [{ id: 'scene', layers: [{ id: 'layer', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, effectParamValues: {} }] }];
 	const layer = f.state.timelineScenes.value[0].layers[0];
 	const notifications = [];
 	f.manager.onChange(() => notifications.push(structuredClone(JSON.parse(JSON.stringify(layer.effectParamValues)))));
@@ -280,7 +281,7 @@ test('rejects normalized timeline viewport bindings without changing state or hi
 		view.value[key].keyframesTimeline.keyframes[0].x = 0.25;
 		view.value[key].trimmedDurationMs = 1000;
 	}
-	f.state.timelineScenes.value = [{ id: 'scene', layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', effectParamValues: { view } }] }];
+	f.state.timelineScenes.value = [{ id: 'scene', layers: [{ id: 'layer', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, effectParamValues: { view } }] }];
 	const layer = f.state.timelineScenes.value[0].layers[0];
 	const command = beginPreviewViewportBindingEdit(f.manager, { kind: 'timelineLayer', sceneId: 'scene', layerId: 'layer' }, null, 'effect', ['view']);
 	const drag = preparePreviewViewportDrag(def, view, 500, 1000, command);

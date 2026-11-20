@@ -6,7 +6,7 @@ export function assetSource(asset) {
 
 export function customNodeGraphEffectTarget(input) {
 	return input.customNodeGraphEffectId != null ? { customNodeGraphEffectId: input.customNodeGraphEffectId }
-		: { sceneId: input.sceneId, inlineCustomNodeGraphEffectLayerId: input.inlineCustomNodeGraphEffectLayerId };
+		: { sceneId: input.sceneId, layerId: input.layerId };
 }
 
 export function nodeTarget(input) {
@@ -23,6 +23,6 @@ export function customParameterTarget(input) {
 
 export function timelineParameterTarget(input) {
 	return { sceneId: input.sceneId, layerId: input.layerId,
-		parameterGroup: input.target ?? 'customNodeGraphEffect',
+		parameterGroup: input.target ?? 'effect',
 		parameterPath: input.paramPath };
 }

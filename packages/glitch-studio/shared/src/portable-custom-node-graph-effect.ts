@@ -1,6 +1,6 @@
 import type { Asset } from '@gs/shared/types.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
-import type { ProjectCustomShaderEffect } from './project/types.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import type { ProjectEffectRegistrations } from './project/types.ts';
 
 export type PortableCustomNodeGraphEffectSettings = {
 	resolutionScale: number;
@@ -15,11 +15,10 @@ export const DEFAULT_PORTABLE_CUSTOM_NODE_GRAPH_EFFECT_SETTINGS: PortableCustomN
 	fpsLimit: null,
 };
 
-export type PortableCustomNodeGraphEffect = {
+export type PortableCustomNodeGraphEffect = ProjectEffectRegistrations & {
 	name: string;
 	gsVersion: string;
 	customNodeGraphEffect: CustomNodeGraphEffect;
-	customShaderEffects: ProjectCustomShaderEffect[];
 	assets: (Omit<Asset, 'fileData'> & { fileDataBase64: string })[];
 	/** CSSで高さが指定されない場合だけ使う。描画解像度は保存しない。 */
 	aspectRatio: number;

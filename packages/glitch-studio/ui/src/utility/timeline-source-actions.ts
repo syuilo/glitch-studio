@@ -1,12 +1,14 @@
+import { createCustomNodeGraphEffectDefinition } from './project-custom-node-graph-effect.ts';
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { createTimelineClipTiming, getTimelineClipInsertionDuration } from '@gs/subsystems_timeline_shared/timing.ts';
 import { createTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { canReferenceScene } from '@gs/subsystems_timeline_shared/scenes.ts';
+import { findTimelineEffectOutput } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import { shapeDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import type { TimelineLayerRecipe } from '../commands/timeline-creation.ts';
 import type { Ref } from 'vue';
-import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import type { EffectChoice } from '@/utility/project-effects.ts';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { ShapeType } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import type { ProjectState, AppStateChange } from '@/Project.ts';
@@ -27,7 +29,7 @@ type TimelineSourceActionsOptions = {
 	ui: Pick<typeof import('@/ui.ts'), 'select' | 'confirm' | 'popupMenu' | 'alert'> & {
 		selectAsset: (options: Parameters<typeof import('@/ui.ts').selectAsset>[1]) => ReturnType<typeof import('@/ui.ts').selectAsset>;
 	};
-	pickEffect: (chosen: (definition: EffectDefinition) => void) => void;
+	pickEffect: (chosen: (definition: EffectChoice) => void) => void;
 	desktopAvailable: () => boolean;
 	selectLayer: (layer: TimelineLayer) => void;
 	selectClip: (target: TimelineClipSelection) => void;
@@ -192,15 +194,15 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 
 	async function addReferencedCustomNodeGraphEffectLayer() {
 		const initialLayers = sceneLayers.value;
-		const { canceled, result: id } = await ui.select({ title: i18n.ts._Timeline.SelectCustomNodeGraphEffect, items: stateManager.state.customNodeGraphEffects.value.map(customNodeGraphEffect => ({ label: customNodeGraphEffect.name, value: customNodeGraphEffect.id })) });
+		const { canceled, result: id } = await ui.select({ title: i18n.ts._Timeline.SelectCustomNodeGraphEffect, items: stateManager.state.customNodeGraphEffects.value.filter(({ definition }) => findTimelineEffectOutput(definition) != null).map(customNodeGraphEffect => ({ label: customNodeGraphEffect.name, value: customNodeGraphEffect.id })) });
 		const customNodeGraphEffect = stateManager.state.customNodeGraphEffects.value.find(customNodeGraphEffect => customNodeGraphEffect.id === id);
 		if (canceled || customNodeGraphEffect == null || !isActive() || sceneLayers.value !== initialLayers) return;
-		addLayer({ layerType: 'customNodeGraphEffect', customNodeGraphEffectId: customNodeGraphEffect.id });
+		addLayer({ layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: customNodeGraphEffect.id } });
 	}
 
 	function showAddEffectLayerMenu() {
 		pickEffect(definition => {
-			if (isActive()) addLayer({ layerType: 'effect', effectId: definition.id }, true, true);
+			if (isActive()) addLayer({ layerType: 'effect', effectSource: definition.effectSource }, true, true);
 		});
 	}
 
@@ -239,7 +241,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		}, {
 			text: i18n.ts._Timeline.InlineCustomNodeGraphEffect,
 			icon: 'ti ti-chart-dots-3',
-			action: () => addLayer({ layerType: 'inlineCustomNodeGraphEffect' }, true, true),
+			action: () => addLayer({ layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: createCustomNodeGraphEffectDefinition() } }, true, true),
 		}, {
 			id: 'referenceCustomNodeGraphEffect',
 			text: i18n.ts._Timeline.ReferenceCustomNodeGraphEffect,

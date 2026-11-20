@@ -8,11 +8,12 @@ export function validateColorRampParameterInputSource(definition: Pick<Parameter
 	if (definition.dataType.kind === 'colorRamp' && ['keyframesTimelineInline', 'automationGraphReference', 'automationGraphInline'].includes(binding.inputSource)) throw new Error('Color Ramp does not support keyframes or Automation Graph input');
 }
 
-/** 定義の初期状態には加工式を保存しない。加工は各利用箇所のBindingで設定する。 */
+/** 定義の初期状態は末端までliteralに限定する。式や加工は各利用箇所のBindingで設定する。 */
 export function validateParameterDefaultValues(definition: ParameterDefinition): void {
 	if (!['scalar', 'bool', 'string', 'color', 'colorRamp', 'vector', 'blendMode', 'fitMode', 'sizeReference', 'wrapMode', 'enum', 'audioSource', 'any', 'array', 'struct'].includes(definition.dataType.kind)) throw new Error('Unsupported parameter data type');
 	inspectStaticParameter(definition, definition.defaultValue, (_definition, binding) => {
 		if (binding.expressionModifier != null) throw new Error('Expression modifier is not allowed on parameter default values');
+		if (binding.inputSource !== 'literal' || !('value' in binding)) throw new Error('Parameter defaults must be literal and provide a value');
 	});
 	// 配列全体が空でも、新しい要素・フィールドの初期値には独立した既定値がある。
 	if (definition.dataType.kind === 'array') {

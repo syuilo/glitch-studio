@@ -1,3 +1,4 @@
+import { testGraph } from './helpers/effect-graph.mjs';
 import { nodeParameterTarget, assetSource } from './helpers/command-inputs.mjs';
 import { prepareTestCommand } from './helpers/prepared-command.mjs';
 import assert from 'node:assert/strict';
@@ -18,12 +19,12 @@ const bundled = await build({
 	plugins: [{
 		name: 'inline-graph-test-dependencies',
 		setup(build) {
-			build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'inline-graph-test' }));
+			build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'inline-graph-test' }));
 			build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'inline-graph-test' }));
 			build.onLoad({ filter: /.*/, namespace: 'inline-graph-test' }, ({ path }) => ({
 				contents: path === 'preferences'
 					? 'export const preferences = { s: { forceTypeSafety: false } };'
-					: `export const effectDefinitions = { test: { paramDefs: {
+					: `export const nativeEffectDefinitions = { test: { paramDefs: {
 						values: { dataType: { kind: 'array', elementType: { kind: 'scalar' } }, ui: { label: 'Values', control: { element: { controlType: 'number' } } }, element: { defaultValue: { inputSource: 'literal', value: 0 } }, defaultValue: { inputSource: 'literal', value: [] } }
 					} } };`,
 				loader: 'ts',
@@ -143,13 +144,13 @@ test('round-trips and undoes discrete keyframe creation insertion and editing on
 		for (const [dataType, first, second] of [[{ kind: 'string' }, 'Hello\n世界', ''], [{ kind: 'bool' }, true, false], [{ kind: 'enum', options: ['a', 'b'] }, 'a', 'b']]) {
 			const { state } = fixture();
 			const definition = { ...keyframeDefinition(dataType, first), id: 'gain', nameForReference: 'gain' };
-			state.customNodeGraphEffects.value[0].paramDefs = [definition];
+			state.customNodeGraphEffects.value[0].definition.paramDefs = { [definition.id]: definition };
 			const layer = state.timelineScenes.value[0].layers[0];
-			if (inline) { layer.layerType = 'inlineCustomNodeGraphEffect'; layer.customNodeGraphEffect = state.customNodeGraphEffects.value[0]; delete layer.customNodeGraphEffectId; }
+			if (inline) { layer.effectSource = { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: state.customNodeGraphEffects.value[0].definition }; }
 			const target = { sceneId: 'scene', layerId: layer.id, paramPath: ['gain'] };
 			const create = prepareTestCommand(uiParameterEdit, { ...target, edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } });
 			create.execute(state);
-			const initial = structuredClone(layer.customNodeGraphEffectParamValues.gain);
+			const initial = structuredClone(layer.effectParamValues.gain);
 			const inserted = insertInlineKeyframe(initial, definition, 10000, 20000);
 			const value = updateInlineKeyframe(inserted.value, definition, inserted.keyframeId, { value: second });
 			const edit = prepareTestCommand(uiParameterEdit, { ...target, edit: { kind: 'keyframesTimelineInline', value } });
@@ -158,13 +159,13 @@ test('round-trips and undoes discrete keyframe creation insertion and editing on
 			assert.deepEqual(restored.timelineScenes, state.timelineScenes.value);
 			value.keyframesTimeline.keyframes[0].value = 'mutated';
 			edit.undo(state);
-			assert.deepEqual(layer.customNodeGraphEffectParamValues.gain, initial);
+			assert.deepEqual(layer.effectParamValues.gain, initial);
 			create.undo(state);
-			assert.equal(Object.hasOwn(layer.customNodeGraphEffectParamValues, 'gain'), false);
+			assert.equal(Object.hasOwn(layer.effectParamValues, 'gain'), false);
 			create.execute(state);
 			edit.execute(state);
-			assert.equal(layer.customNodeGraphEffectParamValues.gain.keyframesTimeline.keyframes[0].value, first);
-			assert.equal(layer.customNodeGraphEffectParamValues.gain.keyframesTimeline.keyframes[1].value, second);
+			assert.equal(layer.effectParamValues.gain.keyframesTimeline.keyframes[0].value, first);
+			assert.equal(layer.effectParamValues.gain.keyframesTimeline.keyframes[1].value, second);
 		}
 	}
 });
@@ -174,28 +175,28 @@ test('round-trips and undoes discrete keyframe creation insertion and editing on
 // 既存コマンドを通して変更し、選択したキー以外の設定や時刻を変更しないことも確認する。
 test('round-trips easing family and direction and restores interpolation edits with undo and redo', async () => {
 	const { state } = fixture();
-	const definition = state.customNodeGraphEffects.value[0].paramDefs[0];
+	const definition = state.customNodeGraphEffects.value[0].definition.paramDefs.gain;
 	const layer = state.timelineScenes.value[0].layers[0];
 	const initial = createInlineKeyframesTimeline(definition);
 	const keyframeId = initial.keyframesTimeline.keyframes[0].id;
 	initial.keyframesTimeline.keyframes.push({ id: 'last', x: 1000, value: 10, interpolation: { type: 'hold' } });
-	layer.customNodeGraphEffectParamValues.gain = structuredClone(initial);
+	layer.effectParamValues.gain = structuredClone(initial);
 	const target = { sceneId: 'scene', layerId: layer.id, paramPath: ['gain'] };
 	for (const interpolation of [{ type: 'ease:back', direction: 'inOut' }, { type: 'ease:elastic', direction: 'out' }, { type: 'linear' }, { type: 'hold' }]) {
-		const before = structuredClone(layer.customNodeGraphEffectParamValues.gain);
+		const before = structuredClone(layer.effectParamValues.gain);
 		const value = updateInlineKeyframe(before, definition, keyframeId, { interpolation });
 		assert.notEqual(value, null);
 		const edit = prepareTestCommand(uiParameterEdit, { ...target, edit: { kind: 'keyframesTimelineInline', value } });
 		edit.execute(state);
-		assert.deepEqual(layer.customNodeGraphEffectParamValues.gain.keyframesTimeline.keyframes[0].interpolation, interpolation);
-		assert.deepEqual(layer.customNodeGraphEffectParamValues.gain.keyframesTimeline.keyframes[1], initial.keyframesTimeline.keyframes[1]);
-		const after = structuredClone(layer.customNodeGraphEffectParamValues.gain);
+		assert.deepEqual(layer.effectParamValues.gain.keyframesTimeline.keyframes[0].interpolation, interpolation);
+		assert.deepEqual(layer.effectParamValues.gain.keyframesTimeline.keyframes[1], initial.keyframesTimeline.keyframes[1]);
+		const after = structuredClone(layer.effectParamValues.gain);
 		const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: [], customNodeGraphEffects: state.customNodeGraphEffects.value, timelineScenes: state.timelineScenes.value }));
 		assert.deepEqual(restored.timelineScenes, state.timelineScenes.value);
 		edit.undo(state);
-		assert.deepEqual(layer.customNodeGraphEffectParamValues.gain, before);
+		assert.deepEqual(layer.effectParamValues.gain, before);
 		edit.execute(state);
-		assert.deepEqual(layer.customNodeGraphEffectParamValues.gain, after);
+		assert.deepEqual(layer.effectParamValues.gain, after);
 	}
 });
 
@@ -377,7 +378,7 @@ test('round-trips audio layers and undoes timing, volume and removal', async () 
 test('undoes and redoes compositing expressions without changing Custom Node Graph Effect parameters', () => {
 	const { state } = fixture();
 	const layer = state.timelineScenes.value[0].layers[0];
-	layer.customNodeGraphEffectParamValues.opacity = { inputSource: 'literal', value: 0.8 };
+	layer.effectParamValues.opacity = { inputSource: 'literal', value: 0.8 };
 	const command = prepareTestCommand(uiParameterEdit, { sceneId: 'scene',
 		layerId: layer.id, target: 'compositing', paramPath: ['opacity'], edit: { kind: 'expression', value: 'TIME_MS / 1000' },
 	});
@@ -387,7 +388,7 @@ test('undoes and redoes compositing expressions without changing Custom Node Gra
 	assert.deepEqual(layer.compositingParamValues, defaultCompositing());
 	command.execute(state);
 	assert.equal(layer.compositingParamValues.opacity.expression, 'TIME_MS / 1000');
-	assert.equal(layer.customNodeGraphEffectParamValues.opacity.value, 0.8);
+	assert.equal(layer.effectParamValues.opacity.value, 0.8);
 });
 
 // inlineグラフの編集データをコピーし、保存・読み込み後にも参照グラフや合成方法を保持する。
@@ -453,10 +454,10 @@ test('provides normalized endpoints for empty and single-point inline graphs', (
 
 function fixture() {
 	const initial = { inputSource: 'literal', value: 3 };
-	const node = { id: 'node', type: 'effect', resolution: { mode: 'context', scale: 1 }, staticSettings: {}, effectId: 'test', params: { values: { inputSource: 'literal', value: [{ id: 'first', binding: initial }] } } };
+	const node = { id: 'node', type: 'effect', resolution: { mode: 'context', scale: 1 }, staticSettings: {}, effectSource: { type: 'nativeEffect', id: 'test' }, params: { values: { inputSource: 'literal', value: [{ id: 'first', binding: initial }] } } };
 	const state = {
-		customNodeGraphEffects: { value: [{ customParameterDefs: [], customParameterValues: {}, id: 'customNodeGraphEffect', nodes: [node], primaryInputId: null, paramDefs: [{ ...keyframeDefinition({ kind: 'scalar' }, initial.value), id: 'gain' }] }] },
-		timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], customNodeGraphEffectParamValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] }] },
+		customNodeGraphEffects: { value: [{ id: 'customNodeGraphEffect', definition: testGraph({ customParameterValues: {}, nodes: [node], primaryInputParameter: null, paramDefs: { "gain": { ...keyframeDefinition({ kind: 'scalar' }, initial.value) } } }) }] },
+		timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' }, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], effectParamValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] }] },
 	};
 	return { state, node, target: { customNodeGraphEffectId: 'customNodeGraphEffect', nodeId: 'node', paramPath: ['values', 'first'] } };
 }
@@ -509,7 +510,7 @@ test('undoes inline graph edits and creation on timeline layers', () => {
 	const layer = state.timelineScenes.value[0].layers[0];
 	const create = prepareTestCommand(uiParameterEdit, { sceneId: 'scene', ...target, edit: { kind: 'inputSource', inputSource: 'automationGraphInline' } });
 	create.execute(state);
-	const before = structuredClone(layer.customNodeGraphEffectParamValues.gain);
+	const before = structuredClone(layer.effectParamValues.gain);
 	const after = structuredClone(before);
 	after.automationGraph.isNormalized = false;
 	after.trimmedDurationMs = 2500;
@@ -518,14 +519,14 @@ test('undoes inline graph edits and creation on timeline layers', () => {
 	after.automationGraph.points[0].y = -2;
 	const edit = prepareTestCommand(uiParameterEdit, { sceneId: 'scene', ...target, edit: { kind: 'automationGraphInline', value: after } });
 	edit.execute(state);
-	assert.deepEqual(layer.customNodeGraphEffectParamValues.gain, after);
+	assert.deepEqual(layer.effectParamValues.gain, after);
 	edit.undo(state);
-	assert.deepEqual(layer.customNodeGraphEffectParamValues.gain, before);
+	assert.deepEqual(layer.effectParamValues.gain, before);
 	create.undo(state);
-	assert.equal(Object.hasOwn(layer.customNodeGraphEffectParamValues, 'gain'), false);
+	assert.equal(Object.hasOwn(layer.effectParamValues, 'gain'), false);
 	create.execute(state);
 	edit.execute(state);
-	assert.deepEqual(layer.customNodeGraphEffectParamValues.gain, after);
+	assert.deepEqual(layer.effectParamValues.gain, after);
 });
 
 // 【Sceneを切り替えてもレイヤー編集のUndoは元の定義へ戻る】

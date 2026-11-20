@@ -9,13 +9,13 @@ const bundled = await build({
 	entryPoints: [fileURLToPath(new URL('../src/export/timeline-export.worker.ts', import.meta.url))],
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'export-worker-platform', setup(build) {
-		build.onResolve({ filter: /^@gs\/glitch-studio_renderer\/|^@gs\/subsystems_effect_shared\/effect-(?:definitions|implementations)\.ts$|\/mp4-writer\.ts$|\/still-(?:webp|openexr)\.ts$|\/timeline-audio-export\.ts$/ }, args =>
+		build.onResolve({ filter: /^@gs\/glitch-studio_renderer\/|^@gs\/subsystems_effect-new_native-effects\/(?:definitions|implementations)\.ts$|\/mp4-writer\.ts$|\/still-(?:webp|openexr)\.ts$|\/timeline-audio-export\.ts$/ }, args =>
 			['@gs/glitch-studio_renderer/canvas-output.ts', '@gs/glitch-studio_renderer/renderer-gpu-features.ts'].includes(args.path)
 				? null : { path: args.path, namespace: 'platform' });
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, () => ({ contents: `
 			export const TimelineRendererManager = dependencies.TimelineRendererManager;
 			export const TimelineAudioExport = dependencies.TimelineAudioExport;
-			export const effectDefinitions = {}, effectImplementations = {};
+			export const nativeEffectDefinitions = {}, nativeEffectImplementations = {};
 			export const createMp4Writer = dependencies.createMp4Writer;
 			export const prepareStillWebp = dependencies.prepareStillWebp;
 			export const encodeStillOpenExr = dependencies.encodeStillOpenExr;
@@ -222,15 +222,15 @@ for (const format of ['mp4', 'webp']) {
 			settings: { format, quality: 'high', width: 3, height: 5, positionMs: 1000,
 				...(format === 'mp4' ? { fps: 30, endTimeMs: 1010 } : {}) },
 			renderer: { enable32bitDataTextures: true, enableStats: true },
-			project: { customShaderEffects: [], automationGraphs: [], timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, resolution: { width: 3, height: 5 }, assets: [{ id: 'image' }], customNodeGraphEffects: [{ id: 'customNodeGraphEffect' }], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto', scale: 1 }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
+			project: { customShaderEffects: [], automationGraphs: [], timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, resolution: { width: 3, height: 5 }, assets: [{ id: 'image' }], customNodeGraphEffects: [{ id: 'customNodeGraphEffect' }], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, resolution: { mode: 'auto', scale: 1 }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
 		};
 		const job = f.run(request);
 		await f.preparing.promise;
 		assert.deepEqual(f.frames, []);
 		assert.deepEqual(structuredClone(f.deviceSettings.requiredFeatures), ['float32-filterable', 'timestamp-query']);
-		const { timelineFps, timelineMotionBlur, assets, customShaderEffects, ...dynamicProjectOptions } = request.project;
+		const { timelineFps, timelineMotionBlur, assets, ...dynamicProjectOptions } = request.project;
 		assert.deepEqual(structuredClone(f.instance.core.canvasOutput), { format: 'bgra8unorm', colorSpace: 'srgb' });
-		assert.deepEqual(structuredClone(f.instance.resources), { assets, customShaderEffects });
+		assert.deepEqual(structuredClone(f.instance.resources), { assets });
 		assert.deepEqual(structuredClone(f.instance.staticOptions), { ...request.renderer, timelineFps, timelineMotionBlur, enableStats: false, enableWaveformAndHistogram: false });
 		const resolution = format === 'mp4' ? { width: 4, height: 6 } : { width: 3, height: 5 };
 		assert.equal(f.instance.dynamicOptions, undefined);
@@ -258,7 +258,7 @@ test('reports asset preparation failures without rendering export frames', { tim
 		resolutionScale: 1,
 		settings: { format: 'webp', quality: 'lossless', width: 2, height: 2, positionMs: 0 },
 		renderer: { enable32bitDataTextures: false, },
-		project: { customShaderEffects: [], automationGraphs: [], timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, resolution: { width: 2, height: 2 }, assets: [], customNodeGraphEffects: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto', scale: 1 }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
+		project: { customShaderEffects: [], automationGraphs: [], timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, resolution: { width: 2, height: 2 }, assets: [], customNodeGraphEffects: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, resolution: { mode: 'auto', scale: 1 }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
 	});
 	await f.preparing.promise;
 	assert.deepEqual(structuredClone(f.deviceSettings.requiredFeatures), []);
@@ -276,7 +276,6 @@ test('reports asset preparation failures without rendering export frames', { tim
 // ノードを持たないエフェクトレイヤーも失敗を検出し、原因となったレイヤーとクリップを通知する。
 // 通知を失うと、不完全な出力を正常な動画として保存してしまう。
 for (const [type, source, label] of [
-	['effectState', { nodeId: 'broken' }, 'Node broken'],
 	['effectLayerState', { source: { layerId: 'broken-layer', clipId: 'broken-clip' } }, 'Effect layer broken-layer (clip broken-clip)'],
 ]) {
 	test(`aborts export on ${type} errors and identifies their source`, async () => {
@@ -285,10 +284,10 @@ for (const [type, source, label] of [
 			resolutionScale: 1,
 			settings: { format: 'webp', quality: 'lossless', width: 2, height: 2, positionMs: 0 },
 			renderer: { enable32bitDataTextures: false, },
-			project: { customShaderEffects: [], automationGraphs: [], timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, resolution: { width: 2, height: 2 }, assets: [], customNodeGraphEffects: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto', scale: 1 }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
+			project: { customShaderEffects: [], automationGraphs: [], timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, resolution: { width: 2, height: 2 }, assets: [], customNodeGraphEffects: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, resolution: { mode: 'auto', scale: 1 }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
 		});
 		await f.preparing.promise;
-		f.instance.renderErrorEvent = { type, ctx: { ...source, status: { status: { type: 'error', message: 'Invalid expression' } } } };
+		f.instance.renderErrorEvent = { type, ctx: { ...source, status: { type: 'error', error: 'Invalid expression' } } };
 		f.prepared.resolve();
 		await job;
 		assert.deepEqual(f.frames, []);

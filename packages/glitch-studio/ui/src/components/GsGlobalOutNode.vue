@@ -24,7 +24,7 @@
 
 <script lang="ts" setup>
 import GsCustomNodeGraphEffectNodeInput from './GsCustomNodeGraphEffectNodeInput.vue';
-import type { NodeOutputReference, CustomNodeGraphEffect, CustomNodeGraphEffectGlobalOutNode } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { NodeOutputReference, CustomNodeGraphEffect, CustomNodeGraphEffectGlobalOutNode } from '@/types/custom-node-graph-effect-view.ts';
 
 defineProps<{
 	customNodeGraphEffect: CustomNodeGraphEffect;

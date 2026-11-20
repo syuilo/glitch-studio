@@ -2,7 +2,6 @@ import { getReferencedGeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.
 import * as msgpack from '@msgpack/msgpack';
 import semverGt from 'semver/functions/gt.js';
 import { readFileSource } from '@gs/shared/file-source.ts';
-import { migrateProjectFile } from './project-file-migration.ts';
 import { writeFileSystemFile } from './utility/write-file-system-file.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
@@ -104,7 +103,6 @@ export function decodeProjectFile(bin: Uint8Array, currentVersion?: string): Pro
 	if (currentVersion != null && semverGt(project.gsVersion, currentVersion)) {
 		throw new Error(`未来のバージョンのプロジェクトファイルの読み込みはサポートしていません。（ファイル: ${project.gsVersion} / 現在: ${currentVersion}）`);
 	}
-	migrateProjectFile(project);
 	return {
 		...project,
 		generatedSpeech: project.generatedSpeech.map(speech => ({ ...speech, fileData: new Blob([new Uint8Array(speech.fileData)], { type: 'audio/wav' }) })),

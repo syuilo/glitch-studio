@@ -47,7 +47,7 @@ import { i18n } from '@/i18n.ts';
 
 const projectSession = useProjectSession();
 
-const { customNodeGraphEffectRendererManagerController, timelineRendererManagerController, previewPlayback } = projectSession;
+const { effectLivePreviewManagerController, timelineRendererManagerController, previewPlayback } = projectSession;
 const renderingStatsEnabled = preferences.r.renderingStatsEnabled;
 
 type SeriesKey = 'fast' | 'medium' | 'slow' | keyof TimelinePreviewFrameTiming;
@@ -161,9 +161,9 @@ function recordSample() {
 		maximum.value = statistics.maximum;
 	} else {
 		current.value = {
-			fast: toMs(customNodeGraphEffectRendererManagerController.gpuAverageDisplayFast.value),
-			medium: toMs(customNodeGraphEffectRendererManagerController.gpuAverageDisplayMedium.value),
-			slow: toMs(customNodeGraphEffectRendererManagerController.gpuAverageDisplaySlow.value),
+			fast: toMs(effectLivePreviewManagerController.gpuAverageDisplayFast.value),
+			medium: toMs(effectLivePreviewManagerController.gpuAverageDisplayMedium.value),
+			slow: toMs(effectLivePreviewManagerController.gpuAverageDisplaySlow.value),
 		};
 	}
 	samples.value.push({ ...current.value, timestamp });

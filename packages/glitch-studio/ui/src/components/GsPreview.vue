@@ -126,7 +126,7 @@ import * as ui from '@/ui.ts';
 
 const projectSession = useProjectSession();
 
-const { activePreviewRenderer, customNodeGraphEffectRendererManagerController, previewPlayback, highlightClipping, previewWarningImageSource, previewGamutWarning, previewExposure, resolutionFactor, customNodeGraphEffectLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = projectSession;
+const { activePreviewRenderer, effectLivePreviewManagerController, previewPlayback, highlightClipping, previewWarningImageSource, previewGamutWarning, previewExposure, resolutionFactor, customNodeGraphEffectLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = projectSession;
 const renderTilingProgressText = computed(() => {
 	const progress = activePreviewRenderer.value.renderTilingProgress.value;
 	if (progress == null || progress.totalTiles === 0) return null;
@@ -157,7 +157,7 @@ const renderValidationErrorMessage = renderValidation.errorMessage;
 const renderFailureLocation = computed(() => {
 	const origin = renderEngine.runtimeDiagnostic.value?.origin;
 	return origin && renderValidation.errorMessage.value == null
-		? formatRenderFailureOrigin(origin, stateManager.state.customNodeGraphEffects.value, stateManager.state.timelineScenes.value) : null;
+		? formatRenderFailureOrigin(origin, stateManager.state.timelineScenes.value) : null;
 });
 
 const canvasContainer = useTemplateRef('canvasContainer');
@@ -220,7 +220,7 @@ const previewTargetName = computed(() => {
 		: stateManager.state.customNodeGraphEffects.value.find(customNodeGraphEffect => customNodeGraphEffect.id === state.customNodeGraphEffectId)?.name ?? null;
 });
 const previewResolution = computed(() => {
-	if (previewPlayback.state.value.mode === 'customNodeGraphEffectLivePreview') return customNodeGraphEffectRendererManagerController.outputResolution.value;
+	if (previewPlayback.state.value.mode === 'customNodeGraphEffectLivePreview') return effectLivePreviewManagerController.outputResolution.value;
 	const scene = activeScene.value;
 	if (scene == null) return null;
 	return scaleResolution(getSceneBaseResolution(scene.resolution, stateManager.state.resolution.value), resolutionFactor.value);
@@ -436,7 +436,7 @@ function clearRulerPointer() {
 function onPointermove(ev: PointerEvent) {
 	if (canvasContainer.value == null || previewPlayback.state.value.mode !== 'customNodeGraphEffectLivePreview') return;
 	const rect = canvasContainer.value.getBoundingClientRect();
-	customNodeGraphEffectRendererManagerController.updatePointerPosition({
+	effectLivePreviewManagerController.updatePointerPosition({
 		x: (((ev.clientX - rect.left) / rect.width) - 0.5) * 2,
 		y: -(((ev.clientY - rect.top) / rect.height) - 0.5) * 2,
 	});
@@ -519,7 +519,7 @@ function showPreviewTargetMenu(ev: PointerEvent) {
 			text: customNodeGraphEffect.name,
 			active: previewPlayback.livePreviewCustomNodeGraphEffectId.value === customNodeGraphEffect.id,
 			action: () => {
-				// 同じCustom Node Graph Effect Live Preview対象の再選択では、Preview Paramsで設定した値を初期化しない。
+				// 同じEffect Live Preview対象の再選択では、Preview Paramsで設定した値を初期化しない。
 				if (previewPlayback.livePreviewCustomNodeGraphEffectId.value !== customNodeGraphEffect.id) previewPlayback.startCustomNodeGraphEffectLivePreview(customNodeGraphEffect.id);
 			},
 		})),

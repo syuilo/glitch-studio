@@ -1,3 +1,4 @@
+import { testGraph } from './helpers/effect-graph.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -16,9 +17,9 @@ const bundled = await build({
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 	` },
 	plugins: [{ name: 'script-query-effects', setup(build) {
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ loader: 'ts', contents: `
-			export const effectDefinitions = {
+			export const nativeEffectDefinitions = {
 				fill: {
 					id: 'fill', displayName: 'Fill', summary: { 'ja-JP': '塗りつぶし', 'en-US': 'Fill' },
 					kind: 'generate', dependsOnRenderHistory: false, tags: ['color'],
@@ -52,13 +53,13 @@ test('queries registered and inline Custom Node Graph Effects using references a
 	const { state, manager, query } = fixture();
 	const registeredTarget = manager.commit('createCustomNodeGraphEffect', { name: 'Registered' });
 	const sceneTarget = manager.commit('createTimelineScene', { name: 'Scene' });
-	const layerTarget = manager.commit('createTimelineLayer', { ...sceneTarget, layer: { layerType: 'inlineCustomNodeGraphEffect', name: 'Inline' } });
-	const inlineTarget = { sceneId: sceneTarget.sceneId, inlineCustomNodeGraphEffectLayerId: layerTarget.layerId };
+	const layerTarget = manager.commit('createTimelineLayer', { ...sceneTarget, layer: { layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: testGraph() }, name: 'Inline' } });
+	const inlineTarget = { sceneId: sceneTarget.sceneId, layerId: layerTarget.layerId };
 	assert.deepEqual(query['Query:listCustomNodeGraphEffects'](), [
 		{ target: registeredTarget, name: 'Registered' }, { target: inlineTarget, name: 'Inline' },
 	]);
 	for (const customNodeGraphEffectTarget of [registeredTarget, inlineTarget]) {
-		const nodeTarget = manager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect: customNodeGraphEffectTarget, effectId: 'fill' });
+		const nodeTarget = manager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect: customNodeGraphEffectTarget, effectSource: { type: 'nativeEffect', id: 'fill' } });
 		const listedNode = query['Query:listNodes'](customNodeGraphEffectTarget).find(node => node.type === 'effect');
 		assert.deepEqual(listedNode.target, nodeTarget);
 		const node = query['Query:getNode'](listedNode.target);
@@ -84,7 +85,7 @@ test('lists nested Timeline layers and exposes clip timing and parameter groups'
 		...scene, layer: { layerType: 'text', name: 'Caption' }, clips: [{ startMs: 100, durationMs: 900, contentOffsetMs: 0 }],
 	});
 	const container = manager.commit('wrapTimelineLayers', { ...scene, layerIds: [textLayer.layerId], containerType: 'folder', name: 'Folder' });
-	const customNodeGraphEffectLayer = manager.commit('createTimelineLayer', { ...scene, layer: { layerType: 'inlineCustomNodeGraphEffect' } });
+	const customNodeGraphEffectLayer = manager.commit('createTimelineLayer', { ...scene, layer: { layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: testGraph() } } });
 	const listedLayers = query['Query:listTimelineLayers'](scene);
 	assert.equal(listedLayers.find(layer => layer.target.layerId === textLayer.layerId).parentLayerId, container.layerId);
 	assert.equal(listedLayers.find(layer => layer.target.layerId === container.layerId).parentLayerId, null);
@@ -95,7 +96,7 @@ test('lists nested Timeline layers and exposes clip timing and parameter groups'
 	clip.startMs = 999;
 	assert.equal(query['Query:getTimelineClip'](clip.target).startMs, 100);
 	const layerParameters = query['Query:getTimelineLayerParameters'](customNodeGraphEffectLayer);
-	assert.ok(Object.hasOwn(layerParameters, 'customNodeGraphEffect'));
+	assert.ok(Object.hasOwn(layerParameters, 'effect'));
 	assert.ok(Object.hasOwn(layerParameters.compositing, 'definitions'));
 	assert.deepEqual(query['Query:getTimelineLayer'](textLayer).target, textLayer);
 	assert.deepEqual(query['Query:getTimelineScene'](scene).target, scene);
@@ -126,6 +127,22 @@ test('returns asset metadata without binary data and detached effect definitions
 	assert.equal(state.resolution.value.width, 1920);
 });
 
+// 【3 種類の登録済み Effect を同じ ID でも個別に列挙し、返された target で定義を取得できる】
+// 配置先を持たない一覧では、主出力のないグラフもスクリプトから発見できる必要がある。
+test('lists all three registered Effect sources and resolves each returned target', () => {
+	const { state, query } = fixture();
+	state.customShaderEffects.value.push({ id: 'fill', name: 'My Shader', summary: 'Shader',
+		definition: { kind: 'generate', primaryOutput: 'color', primaryInputParameter: null, resolutionInputParameters: [],
+			paramDefs: {}, outputDefs: { color: { nameForReference: 'color', dataType: { kind: 'color' } } }, shaderApiVersion: 1, code: '' } });
+	state.customNodeGraphEffects.value.push({ id: 'fill', name: 'My Graph', definition: testGraph({ primaryOutput: null }) });
+	const effects = query['Query:listEffects']();
+	assert.deepEqual(effects.map(effect => effect.effectSource), [
+		{ type: 'nativeEffect', id: 'fill' }, { type: 'customShaderEffectReference', id: 'fill' }, { type: 'customNodeGraphEffectReference', id: 'fill' },
+	]);
+	assert.deepEqual(effects.map(effect => query['Query:getEffect'](effect.target).displayName), ['Fill', 'My Shader', 'My Graph']);
+	assert.equal(query['Query:getEffect'](effects[2].target).primaryOutput, null);
+});
+
 // 【不正・削除済みの対象は明示的に失敗し、偶然一致する別の対象へ読み替えない】
 // スクリプトでは対象の取り違えを後続の編集前に発見する必要がある。Effectの予約的な
 // プロパティ名も定義として受け入れず、prototype由来の値を返さない。
@@ -137,8 +154,8 @@ test('rejects malformed and missing query targets', () => {
 	assert.throws(() => query['Query:getTimelineScene']({ sceneId: 'missing' }), /not found/);
 	assert.throws(() => query['Query:getAsset']({ assetId: 'missing' }), /not found/);
 	assert.throws(() => query['Query:getPlayer']({ playerId: 'missing' }), /not found/);
-	assert.throws(() => query['Query:getEffect']({ effectId: 'toString' }), /not found/);
-	assert.throws(() => query['Query:getEffect']({ effectId: '__proto__' }), /not found/);
+	assert.throws(() => query['Query:getEffect']({ effectSource: { type: 'nativeEffect', id: 'toString' } }), /Unknown Native Effect/);
+	assert.throws(() => query['Query:getEffect']({ effectSource: { type: 'nativeEffect', id: '__proto__' } }), /Unknown Native Effect/);
 });
 
 // 【公開Queryの資料をJSONとして取得しても定義や呼び出し規約を失わない】
@@ -158,6 +175,25 @@ test('describes every Query with serializable schemas and the actual argument co
 		reference.examples.length = 0;
 		assert.ok(definition.examples.length > 0, name);
 	}
+});
+
+// 【公開資料は統合されたEffect Layerと現在の出力ポート属性を案内する】
+// 実際のQueryが正しい値を返しても、資料だけに旧仕様が残ると、利用者は配置できないLayerや
+// 効果のない出力設定を選んでしまう。ScriptingとMCPへ渡すJSON Schemaそのものを検査する。
+test('documents the current Effect Layer type and output port fields', () => {
+	function resultSchema(name) {
+		const definition = PROJECT_SCRIPT_QUERY_DEFINITIONS[name];
+		return describeProjectApi(name, 'query', definition.argumentCount, definition).resultSchema;
+	}
+	const layerTypes = resultSchema('Query:listTimelineLayers').items.properties.layerType.enum;
+	assert.ok(layerTypes.includes('effect'));
+	assert.ok(!layerTypes.includes('customNodeGraphEffect'));
+	assert.ok(!layerTypes.includes('inlineCustomNodeGraphEffect'));
+
+	const output = resultSchema('Query:getEffect').properties.outputDefs.additionalProperties.properties;
+	assert.equal(output.inputParameters.items.type, 'string');
+	assert.equal(output.nameForReference.type, 'string');
+	assert.ok(!Object.hasOwn(output, 'canLazyAllocation'));
 });
 
 // 【資料のAiScript例を実際の公開APIで実行できる】
@@ -192,8 +228,8 @@ test('executes every documented Query example against the public Command and Que
 test('validates Query results without stripping stored data', () => {
 	const { state, manager, query } = fixture();
 	const customNodeGraphEffect = manager.commit('createCustomNodeGraphEffect', {});
-	const node = manager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect, effectId: 'fill' });
-	state.customNodeGraphEffects.value[0].nodes.find(candidate => candidate.id === node.nodeId).editorExtension = { note: 'keep' };
+	const node = manager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect, effectSource: { type: 'nativeEffect', id: 'fill' } });
+	state.customNodeGraphEffects.value[0].definition.nodes.find(candidate => candidate.id === node.nodeId).editorExtension = { note: 'keep' };
 	const result = query['Query:getNode'](node);
 	assert.deepEqual(result.editorExtension, { note: 'keep' });
 	result.editorExtension.note = 'local';

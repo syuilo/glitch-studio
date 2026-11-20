@@ -1,21 +1,16 @@
-import type { ExpressionEngine } from '@gs/shared/expression/expression-engine.ts';
-import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
-import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.ts';
+import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
+import { createProjectEffectDefinitions, type NativeEffectDefinitions } from '@gs/glitch-studio_shared/project/effects.ts';
+import { createEffectInstance } from '@gs/subsystems_effect-new_renderer/create-effect-instance.ts';
+import type { EffectInstance, EffectFrameContext, NativeEffectImplementation } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
+import { createPortableEffectInputs } from './effect-inputs.ts';
 import { AssetTextures } from '@gs/glitch-studio_renderer/asset-textures.ts';
 import { PortableCanvasRenderer } from '@gs/glitch-studio_renderer/portable-canvas-renderer.ts';
-import { CustomNodeGraphEffectRenderer } from '@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-renderer.ts';
-import { UniformOrTextureToTextureResolver } from '@gs/shared/gpu/uniform-or-texture-to-texture-resolver.ts';
-import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { getPortableRenderResolution, getPortablePointerPosition } from './protocol.ts';
 import type { PortableCustomNodeGraphEffectRequest, PortableCustomNodeGraphEffectResponse, PortableCustomNodeGraphEffectFrame } from './protocol.ts';
 import type { PortableCustomNodeGraphEffect } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
-import type { CustomNodeGraphEffectRenderContext } from '@gs/subsystems_custom-node-graph-effect_renderer/custom-node-graph-effect-renderer.ts';
 
-/** 必要なエフェクト・式エンジンだけを生成された入口から注入する。 */
-export function startPortableCustomNodeGraphEffectWorker(options: {
-	expressionEvaluator: ExpressionEngine | null;
-	createEffects: (artwork: PortableCustomNodeGraphEffect) => { definitions: Record<string, EffectDefinition>; implementations: Record<string, EffectImplementation> };
-}) {
+/** 作品に配置されたNative Effectだけをカタログから受け取る。 */
+export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffectDefinitions, implementations: Readonly<Record<string, NativeEffectImplementation>>) {
 	const worker = globalThis as unknown as {
 		onmessage: (event: MessageEvent<PortableCustomNodeGraphEffectRequest>) => void;
 		postMessage: (message: PortableCustomNodeGraphEffectResponse) => void;
@@ -23,25 +18,19 @@ export function startPortableCustomNodeGraphEffectWorker(options: {
 	const controller = new AbortController();
 	let device: GPUDevice | null = null;
 	let assetTextures: AssetTextures | null = null;
-	let renderer: CustomNodeGraphEffectRenderer | null = null;
+	let effect: EffectInstance | null = null;
 	let presenter: PortableCanvasRenderer | null = null;
-	let outputTextures: UniformOrTextureToTextureResolver | null = null;
-	let fallbackTexture: GPUTexture | null = null;
-	let canvas: OffscreenCanvas | null = null;
-	let artwork: PortableCustomNodeGraphEffect | null = null;
-	let previousTime = 0;
-	let previousPointer = { x: -99999, y: -99999 };
+	let renderFrame: ((frame: PortableCustomNodeGraphEffectFrame) => Promise<void>) | null = null;
 	let processingFrame = false;
 
 	function dispose() {
 		controller.abort();
-		renderer?.destroy();
+		effect?.dispose();
 		assetTextures?.dispose();
-		outputTextures?.dispose();
 		presenter?.destroy();
-		fallbackTexture?.destroy();
 		device?.destroy();
-		renderer = null;
+		effect = null;
+		renderFrame = null;
 		device = null;
 	}
 
@@ -51,9 +40,7 @@ export function startPortableCustomNodeGraphEffectWorker(options: {
 		dispose();
 	}
 
-	async function initialize(offscreenCanvas: OffscreenCanvas, data: PortableCustomNodeGraphEffect) {
-		artwork = data;
-		canvas = offscreenCanvas;
+	async function initialize(canvas: OffscreenCanvas, data: PortableCustomNodeGraphEffect) {
 		if (navigator.gpu == null) throw new Error('WebGPU requires a supported browser and a secure context (HTTPS or localhost)');
 		const adapter = await navigator.gpu.requestAdapter();
 		controller.signal.throwIfAborted();
@@ -69,69 +56,67 @@ export function startPortableCustomNodeGraphEffectWorker(options: {
 		assetTextures = new AssetTextures(device, assets);
 		await assetTextures.waitUntilReady(controller.signal);
 		controller.signal.throwIfAborted();
-		fallbackTexture = device.createTexture({ size: [1, 1], format: INTERMEDIATE_TEXTURE_FORMAT, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
-		const effects = options.createEffects(data);
-		// 実寸の初回通知で生成する。1pxの仮寸法で履歴や重いエフェクトを準備しない。
-		const createRenderer = (resolution: { width: number; height: number }) => new CustomNodeGraphEffectRenderer({
-			expressionEvaluator: options.expressionEvaluator,
-			gpuDevice: device!, fallbackTexture: fallbackTexture!, resolution, resolutionScale: 1,
-			assets, assetTextures: assetTextures!.textures, customNodeGraphEffect: data.customNodeGraphEffect,
-			effectDefinitions: effects.definitions, effectImplementations: effects.implementations,
-			enableStats: false, timingHelper: null, enable32bitDataTextures: false,
-			effectRenderTiling: { mode: 'disabled' }, videoFrameVersions: new Map(),
-			// Playerの権限取得・再生・音声履歴を持たない。未入力の既存動作を使う。
-			getPlayerVideoTexture: () => null, resolveAudioSource: () => null,
-		});
-		createCustomNodeGraphEffectRenderer = createRenderer;
-		outputTextures = new UniformOrTextureToTextureResolver(device, false);
+		const customNodeGraphEffect = data.customNodeGraphEffect;
+		const port = customNodeGraphEffect.primaryOutput!;
+		const effectDefinitions = createProjectEffectDefinitions(data, definitions);
+		const gpu = { device, defaultVertexShaderModule: device.createShaderModule({ code: vertexCode }), enable32bitDataTextures: false };
+		const resources = { assets, assetTextures: assetTextures.textures };
 		presenter = new PortableCanvasRenderer(device, canvas);
-		worker.postMessage({ type: 'ready' });
-	}
-
-	let createCustomNodeGraphEffectRenderer: ((resolution: { width: number; height: number }) => CustomNodeGraphEffectRenderer) | null = null;
-
-	async function renderFrame(frame: PortableCustomNodeGraphEffectFrame) {
-		if (device == null || canvas == null || artwork == null || createCustomNodeGraphEffectRenderer == null || processingFrame) return;
-		processingFrame = true;
-		try {
+		let inputs: ReturnType<typeof createPortableEffectInputs> | null = null;
+		let previousTime = 0;
+		let previousPointer: [number, number] | null = null;
+		renderFrame = async frame => {
 			const resolution = getPortableRenderResolution(frame.resolution.width, frame.resolution.height,
-				{ resolutionScale: 1, maxPixels: Number.MAX_SAFE_INTEGER, fpsLimit: null }, device.limits.maxTextureDimension2D)!;
+				{ resolutionScale: 1, maxPixels: Number.MAX_SAFE_INTEGER, fpsLimit: null }, createdDevice.limits.maxTextureDimension2D)!;
 			const resized = canvas.width !== resolution.width || canvas.height !== resolution.height;
 			if (resized) { canvas.width = resolution.width; canvas.height = resolution.height; }
-			if (renderer == null) renderer = createCustomNodeGraphEffectRenderer(resolution);
-			else if (resized) renderer.resize(resolution);
-			// 前フレームの出力寸法を使わず、リサイズ後の最初の描画からポインターを正しく評価する。
-			const outputResolution = renderer.getOutputResolution(artwork.customNodeGraphEffect.primaryOutputId!) ?? resolution;
-			const pointerPosition = getPortablePointerPosition(frame.pointerElementPosition, resolution, outputResolution);
-			if (frame.resetHistory) { renderer.resetRenderHistory(); previousTime = frame.time; }
-			if (resized || frame.resetHistory) previousPointer = { ...pointerPosition };
-			const context: CustomNodeGraphEffectRenderContext = {
-				time: frame.time, timeDelta: Math.max(0, frame.time - previousTime), endTime: Infinity, progress: 0, isExport: false,
-				pointerPosition, pointerPositionPrev: previousPointer,
-				evaluatedParamValues: new Map(artwork.customNodeGraphEffect.paramDefs.map(definition => [definition.id, frame.parameters[definition.nameForReference]])),
+			const layoutChanged = frame.parameters != null && inputs != null && !inputs.update(frame.parameters);
+			if (inputs == null || layoutChanged) inputs = createPortableEffectInputs(customNodeGraphEffect.paramDefs, frame.parameters!);
+			// 実際の表示寸法と公開配列の構造が確定してから配置を生成する。値だけの更新では履歴を保つ。
+			if (effect == null || resized || layoutChanged) {
+				effect?.dispose();
+				effect = await createEffectInstance({
+					effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect }, definitions: effectDefinitions,
+					resolution, resources, inputs: inputs.inputs, usedOutputPorts: new Set([port]),
+				}, gpu, id => implementations[id], controller.signal);
+				previousPointer = null;
+				previousTime = frame.time;
+			} else if (frame.resetHistory) {
+				effect.resetRenderHistory();
+				previousPointer = null;
+				previousTime = frame.time;
+			}
+			const output = effect.outputs.get(port);
+			const outputResolution = output?.resolution ?? resolution;
+			const position = getPortablePointerPosition(frame.pointerElementPosition, resolution, outputResolution);
+			const context: EffectFrameContext = {
+				time: frame.time / 1000, timeDelta: Math.max(0, frame.time - previousTime), endTime: Infinity, progress: 0, isExport: false,
+				pointerPosition: position ?? [-99999, -99999], pointerVector: position == null || previousPointer == null
+					? [0, 0] : [position[0] - previousPointer[0], position[1] - previousPointer[1]],
 			};
-			// 素材準備中も同じContextを保持する。新しい時刻で置き換え続けると動画の準備が完了しない。
-			await renderer.prepare(context, controller.signal);
+			await effect.prepare(context, controller.signal);
 			controller.signal.throwIfAborted();
-			const encoder = device.createCommandEncoder();
-			const output = renderer.render(context, encoder) ?? { kind: 'uniform' as const, value: [0, 0, 0, 0] as [number, number, number, number] };
-			const texture = outputTextures!.resolve(output);
-			presenter!.render(texture, encoder, output.kind === 'texture' ? texture.width / texture.height : resolution.width / resolution.height);
-			device.queue.submit([encoder.finish()]);
-			// 送信済みフレームを一つに制限し、重い作品でGPUキューや入力遅延が積み上がるのを防ぐ。
-			await device.queue.onSubmittedWorkDone();
+			const encoder = createdDevice.createCommandEncoder();
+			effect.render(context, encoder);
+			presenter!.render(output?.texture ?? null, encoder, outputResolution.width / outputResolution.height);
+			createdDevice.queue.submit([encoder.finish()]);
+			await createdDevice.queue.onSubmittedWorkDone();
 			controller.signal.throwIfAborted();
 			previousTime = frame.time;
-			previousPointer = { ...pointerPosition };
+			previousPointer = position;
 			worker.postMessage({ type: 'frame', resolution, time: frame.time });
-		} finally { processingFrame = false; }
+		};
+		worker.postMessage({ type: 'ready' });
 	}
 
 	worker.onmessage = event => {
 		if (controller.signal.aborted) return;
 		const message = event.data;
 		if (message.type === 'initialize') void initialize(message.canvas, message.artwork).catch(fail);
-		else if (message.type === 'frame') void renderFrame(message.frame).catch(fail);
-		else dispose();
+		else if (message.type === 'frame') {
+			if (renderFrame == null || processingFrame) return;
+			processingFrame = true;
+			void renderFrame(message.frame).catch(fail).finally(() => { processingFrame = false; });
+		} else dispose();
 	};
 }

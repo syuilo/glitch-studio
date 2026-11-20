@@ -69,7 +69,7 @@ async function fixture(t, staticOptions = {}) {
 	};
 	const manager = await TimelineRendererManager.create({
 		gpuDevice: device, gpuContext: { canvas: { width: 16, height: 16 }, configure() {}, getCurrentTexture: texture },
-		effectDefinitions: {}, effectImplementations: {},
+		nativeEffectDefinitions: {}, nativeEffectImplementations: {},
 	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enable32bitDataTextures: false, ...staticOptions }, { assets: [] });
 	const createLayer = manager.createTimelineLayer.bind(manager);
 	manager.createTimelineLayer = (...args) => {
@@ -280,7 +280,7 @@ test('preserves transparent replace output and releases resources across clip ga
 	assert.equal(f.calls.draws.length, 2);
 	await f.manager.renderTimelineFrame(200, 50);
 	assert.equal(first.texture.destroyed, true);
-	assert.equal(f.calls.outputs.at(-1).kind, 'uniform');
+	assert.equal(f.calls.outputs.at(-1).kind, 'texture');
 	await f.manager.renderTimelineFrame(450, 250);
 	const second = f.shapeDraws()[1];
 	assert.notEqual(second.texture, first.texture);

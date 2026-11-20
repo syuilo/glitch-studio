@@ -1,3 +1,4 @@
+import { testGraph } from './helpers/effect-graph.mjs';
 import { i18nPlugin } from './helpers/i18n.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -20,10 +21,10 @@ const bundled = await build({
 	` },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [i18nPlugin, { name: 'source-actions-dependencies', setup(build) {
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', contents: path === 'effects'
-			? 'export const effectDefinitions = {};'
+			? 'export const nativeEffectDefinitions = {};'
 			: 'export const preferences = { s: { forceTypeSafety: true } };',
 		}));
 	} }],
@@ -302,7 +303,7 @@ test('changes only the original clip source and restores its timing on undo', as
 test('adds referenced Custom Node Graph Effect layers and rejects results after scene replacement', async t => {
 	for (const restoredScene of [false, true]) {
 		const f = fixture(t, []);
-		f.state.customNodeGraphEffects.value = [{ id: 'custom-node-graph-effect', name: 'Custom Node Graph Effect', paramDefs: [] }];
+		f.state.customNodeGraphEffects.value = [{ id: 'custom-node-graph-effect', name: 'Custom Node Graph Effect', definition: testGraph() }];
 		const choice = deferred();
 		f.options.ui.select = () => choice.promise;
 		addLayerMenu(f.create());
@@ -312,7 +313,7 @@ test('adds referenced Custom Node Graph Effect layers and rejects results after 
 		await pending;
 		assert.equal(f.history.undoStack.value.length, restoredScene ? 0 : 1);
 		if (!restoredScene) {
-			assert.equal(f.scene.layers[0].customNodeGraphEffectId, 'custom-node-graph-effect');
+			assert.equal(f.scene.layers[0].effectSource.id, 'custom-node-graph-effect');
 			assert.equal(f.scene.layers[0].coordinateSpace, 'screen');
 			assert.deepEqual(f.selection.value.ids, [f.scene.layers[0].id]);
 		}

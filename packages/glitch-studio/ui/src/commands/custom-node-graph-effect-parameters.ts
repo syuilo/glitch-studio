@@ -1,17 +1,19 @@
+import { canConnectNodeDataTypes } from '@gs/shared/data-type/node-compatibility.ts';
 import { AiSON } from '@syuilo/aiscript';
 import { validateStaticSettingValue } from '@gs/shared/static-setting.ts';
 import { preserveParameterExpressionModifier, supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
 import { validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
 import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
 import { getArrayElementDefinition, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
+import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter-path.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { customNodeGraphEffectTargetKey } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
-import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
-import { validateCustomNodeGraphEffectCustomParameterDefinition, validateCustomNodeGraphEffectCustomParameterBinding } from '@gs/subsystems_custom-node-graph-effect_shared/custom-parameters.ts';
-import { customNodeGraphEffectPublicParameterId, customNodeGraphEffectPublicParameterName, customNodeGraphEffectCustomParameterId, customNodeGraphEffectCustomParameterName } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
-import { getNodeOutputs } from '@gs/subsystems_custom-node-graph-effect_shared/node-outputs.ts';
+import { validateEffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
+import { resolveEffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
+import { validateCustomNodeGraphEffectCustomParameterDefinition, validateCustomNodeGraphEffectCustomParameterBinding } from '@/utility/custom-node-graph-effect-view-parameters.ts';
+import { getNodeOutputs } from '@/utility/custom-node-graph-effect-node-outputs.ts';
 import { updateStructParameterFields } from '../utility/struct-parameter-edit.ts';
 import { getEffectDefinitions } from '../utility/project-effects.ts';
 import { getCustomNodeGraphEffect } from '../utility/custom-node-graph-effect-target.ts';
@@ -22,25 +24,34 @@ import { resolveNodeParam } from '../utility/node-params.ts';
 import { createNamedParameterFromLiteral } from '../utility/named-parameter-creation.ts';
 import { editCustomNodeGraphEffectCustomParameterBinding } from '../utility/custom-node-graph-effect-custom-parameter-edit.ts';
 import { validateCustomNodeGraphEffectNodeParameterBinding } from './custom-node-graph-effect-parameter-validation.ts';
+import { includeCustomNodeGraphEffectPublicArgumentChanges } from './custom-node-graph-effect-public-arguments.ts';
 import { getParameterBindingChangeKind } from './parameter-change.ts';
+import { prepareProjectEffectPlacementChanges } from './project-effect-placements.ts';
 import { defineCommand, withCommandContract } from './definition.ts';
 import { CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS } from './custom-node-graph-effect-parameter-contracts.ts';
-import { canConnectCustomNodeGraphEffectTypes, stateUtility } from './custom-node-graph-effect.ts';
+import { stateUtility } from './custom-node-graph-effect.ts';
 import { getCustomNodeGraphEffectEffectNode, prepareCustomNodeGraphEffectFields, prepareCustomNodeGraphEffectValue } from './custom-node-graph-effect-change.ts';
 import type { StructParameterFieldBindings } from '../utility/struct-parameter-edit.ts';
+import type { ConnectionTypePolicy } from '@gs/shared/data-type/node-compatibility.ts';
 import type { ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParameterChangeKind } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
-import type { CustomNodeGraphEffectCustomParameterDefinition, CustomNodeGraphEffectCustomParameterId, CustomNodeGraphEffectPublicParameterId, CustomNodeGraphEffectValueParameterBinding, CustomNodeGraphEffectParameterBinding, CustomNodeGraphEffectEffectNode, CustomNodeGraphEffect, CustomNodeGraphEffectParamDef, CustomNodeGraphEffectOutputDef } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffectCustomParameterDefinition, CustomNodeGraphEffectValueParameterBinding, CustomNodeGraphEffectParameterBinding, CustomNodeGraphEffectEffectNode, CustomNodeGraphEffect, CustomNodeGraphEffectParamDef, CustomNodeGraphEffectOutputDef } from '@/types/custom-node-graph-effect-view.ts';
 import type { CustomNodeGraphEffectTarget } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
+import type {
+	CustomNodeGraphEffectOutputSource,
+	CustomNodeGraphEffectEffectNode as StoredCustomNodeGraphEffectEffectNode,
+	CustomNodeGraphEffectParameterBinding as StoredCustomNodeGraphEffectParameterBinding,
+	NodeOutputReference,
+} from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
 import type { CustomNodeGraphEffectNodeReference } from './custom-node-graph-effect-change.ts';
-import type { ConnectionTypePolicy } from './custom-node-graph-effect.ts';
+
 import type { ProjectState, AppStateChange } from '../Project.ts';
 
 export type CustomNodeGraphEffectNodeParameterReference = { target: CustomNodeGraphEffectNodeReference; parameterPath: ParamPath };
-export type CustomNodeGraphEffectPublicParameterReference = { customNodeGraphEffect: CustomNodeGraphEffectTarget; parameterId: CustomNodeGraphEffectPublicParameterId };
-export type CustomNodeGraphEffectCustomParameterReference = { customNodeGraphEffect: CustomNodeGraphEffectTarget; parameterId: CustomNodeGraphEffectCustomParameterId };
+export type CustomNodeGraphEffectPublicParameterReference = { customNodeGraphEffect: CustomNodeGraphEffectTarget; parameterId: string };
+export type CustomNodeGraphEffectCustomParameterReference = { customNodeGraphEffect: CustomNodeGraphEffectTarget; parameterId: string };
 export type CustomNodeGraphEffectOutputReference = { customNodeGraphEffect: CustomNodeGraphEffectTarget; outputId: string };
 type WithoutExpressionModifier<Value> = Value extends unknown ? Omit<Value, 'expressionModifier'> : never;
 export type CustomNodeGraphEffectParameterSource = WithoutExpressionModifier<CustomNodeGraphEffectParameterBinding>;
@@ -50,7 +61,7 @@ function parameterChanges(input: CustomNodeGraphEffectNodeParameterReference, ki
 	return [{ type: 'node', target: input.target.customNodeGraphEffect, nodeId: input.target.nodeId, changes: [{ type: 'parameter', kind }] }];
 }
 
-function defineNodeParameterCommand<Input extends CustomNodeGraphEffectNodeParameterReference>(
+function defineNodeParameterCommand<Input extends CustomNodeGraphEffectNodeParameterReference & { connectionTypePolicy?: ConnectionTypePolicy | null }>(
 	label: string,
 	update: (parameter: ReturnType<typeof resolveNodeParam>, input: Input) => CustomNodeGraphEffectParameterBinding,
 	options: { kind?: ParameterChangeKind; preserveModifier?: boolean; autoMerge?: boolean } = {},
@@ -68,8 +79,8 @@ function defineNodeParameterCommand<Input extends CustomNodeGraphEffectNodeParam
 			const draftParameter = { ...parameter, value: deepClone(parameter.value) };
 			const updated = update(draftParameter, input);
 			const after = options.preserveModifier === true ? preserveParameterExpressionModifier(parameter.value, updated) : updated;
-			const policy = 'connectionTypePolicy' in input ? input.connectionTypePolicy as ConnectionTypePolicy : 'strict';
-			validateCustomNodeGraphEffectNodeParameterBinding(state, getCustomNodeGraphEffect(state, input.target.customNodeGraphEffect), parameter.def, after, policy, parameter.value);
+
+			validateCustomNodeGraphEffectNodeParameterBinding(state, getCustomNodeGraphEffect(state, input.target.customNodeGraphEffect), parameter.def, after, parameter.value, input.connectionTypePolicy ?? 'strict');
 			return prepareCustomNodeGraphEffectValue(parameter.value, after, (currentState, value) => {
 				resolveNodeParam(getCustomNodeGraphEffectEffectNode(currentState, input.target), input.parameterPath, getEffectDefinitions(currentState)).setValue(value);
 			}, parameterChanges(input, options.kind ?? getParameterBindingChangeKind(parameter.def, parameter.value, after)));
@@ -82,7 +93,7 @@ function assertLeafParameter(parameter: ReturnType<typeof resolveNodeParam>) {
 }
 
 const setCustomNodeGraphEffectNodeParameterSource = defineNodeParameterCommand<CustomNodeGraphEffectNodeParameterReference & {
-	source: CustomNodeGraphEffectParameterSource; preserveNodeSampling?: boolean; connectionTypePolicy?: ConnectionTypePolicy;
+	source: CustomNodeGraphEffectParameterSource; preserveNodeSampling?: boolean; connectionTypePolicy?: ConnectionTypePolicy | null;
 }>(
 	'Set Custom Node Graph Effect node parameter source',
 	(parameter, input) => {
@@ -109,8 +120,8 @@ const switchCustomNodeGraphEffectNodeParameterInputSource = defineNodeParameterC
 			case 'automationGraphReference': return { inputSource: 'automationGraphReference', automationGraphId: null, trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' };
 			case 'automationGraphInline': return createInlineAutomationGraph();
 			case 'keyframesTimelineInline': return createInlineKeyframesTimeline(parameter.def, parameter.value);
-			case 'customNodeGraphEffectPublicParameterReference': return { inputSource: input.inputSource, parameterId: customNodeGraphEffectPublicParameterId('') };
-			case 'customNodeGraphEffectCustomParameterValueReference': return { inputSource: input.inputSource, parameterId: customNodeGraphEffectCustomParameterId('') };
+			case 'customNodeGraphEffectPublicParameterReference': return { inputSource: input.inputSource, parameterId: '' };
+			case 'customNodeGraphEffectCustomParameterValueReference': return { inputSource: input.inputSource, parameterId: '' };
 			case 'node': return { inputSource: 'node', nodeId: null, outputPort: null };
 			default: throw new Error('Unsupported Custom Node Graph Effect parameter input source');
 		}
@@ -124,7 +135,7 @@ const setCustomNodeGraphEffectNodeParameterExpressionModifier = defineNodeParame
 		return { ...parameter.value, expressionModifier: deepClone(input.expressionModifier) };
 	},
 );
-const replaceCustomNodeGraphEffectNodeParameterBinding = defineNodeParameterCommand<CustomNodeGraphEffectNodeParameterReference & { binding: CustomNodeGraphEffectParameterBinding; connectionTypePolicy?: ConnectionTypePolicy }>(
+const replaceCustomNodeGraphEffectNodeParameterBinding = defineNodeParameterCommand<CustomNodeGraphEffectNodeParameterReference & { binding: CustomNodeGraphEffectParameterBinding; connectionTypePolicy?: ConnectionTypePolicy | null }>(
 	'Replace Custom Node Graph Effect node parameter binding', (_parameter, input) => deepClone(input.binding),
 );
 const resetCustomNodeGraphEffectNodeParameter = defineNodeParameterCommand<CustomNodeGraphEffectNodeParameterReference>(
@@ -195,7 +206,7 @@ const setCustomNodeGraphEffectNodeStaticSetting = defineCommand<{ target: Custom
 	label: 'Set Custom Node Graph Effect node static setting',
 	prepare(state, input) {
 		const node = getCustomNodeGraphEffectEffectNode(state, input.target);
-		const definition = getEffectDefinitions(state)[node.effectId].staticSettingDefs?.[input.key];
+		const definition = getEffectDefinitions(state).describe(node.effectSource).staticSettingDefs?.[input.key];
 		if (definition == null) throw new Error('Static setting not found');
 		validateStaticSettingValue(definition, input.value);
 		return prepareCustomNodeGraphEffectValue(node.staticSettings, { ...node.staticSettings, [input.key]: input.value },
@@ -212,11 +223,9 @@ const setCustomNodeGraphEffectNodeResolution = defineCommand<{ target: CustomNod
 			[{ type: 'node', target: input.target.customNodeGraphEffect, nodeId: input.target.nodeId, changes: [{ type: 'resolution' }] }]);
 	},
 });
-const setCustomNodeGraphEffectOutputConnection = defineCommand<{ target: CustomNodeGraphEffectOutputReference; source: { nodeId: string; outputPort: string } | null; connectionTypePolicy?: ConnectionTypePolicy }>({
+const setCustomNodeGraphEffectOutputConnection = defineCommand<{ target: CustomNodeGraphEffectOutputReference; source: { nodeId: string; outputPort: string } | null; connectionTypePolicy?: ConnectionTypePolicy | null }>({
 	label: 'Set Custom Node Graph Effect output connection',
 	prepare(state, input) {
-		const policy = input.connectionTypePolicy ?? 'strict';
-		if (policy !== 'strict' && policy !== 'allowMismatch') throw new Error('Invalid connection type policy');
 		const customNodeGraphEffect = getCustomNodeGraphEffect(state, input.target.customNodeGraphEffect);
 		const outputDefinition = customNodeGraphEffect.outputDefs.find(definition => definition.id === input.target.outputId);
 		if (outputDefinition == null) throw new Error('Custom Node Graph Effect output not found');
@@ -229,7 +238,7 @@ const setCustomNodeGraphEffectOutputConnection = defineCommand<{ target: CustomN
 			const source = customNodeGraphEffect.nodes.find(candidate => candidate.id === input.source!.nodeId);
 			const output = getNodeOutputs(source, customNodeGraphEffect.paramDefs, getEffectDefinitions(state))[input.source.outputPort];
 			if (output == null) throw new Error('Node output not found in this Custom Node Graph Effect');
-			if (!canConnectCustomNodeGraphEffectTypes(output.dataType, outputDefinition.dataType, policy)) throw new Error('Node output type does not match the Custom Node Graph Effect output');
+			if (!canConnectNodeDataTypes(output.dataType, outputDefinition.dataType, input.connectionTypePolicy ?? 'strict')) throw new Error('Node output type does not match the Custom Node Graph Effect output');
 		}
 		const before = getOutputNode(state).inputs[input.target.outputId] ?? null;
 		const after = input.source ?? (before?.nodeId == null ? before : { nodeId: null, outputPort: null });
@@ -241,7 +250,7 @@ const setCustomNodeGraphEffectOutputConnection = defineCommand<{ target: CustomN
 	},
 });
 
-function validateCustomNodeGraphEffectPublicParameterDefinition(customNodeGraphEffect: CustomNodeGraphEffect, definition: CustomNodeGraphEffectParamDef, previousId?: CustomNodeGraphEffectPublicParameterId) {
+function validateCustomNodeGraphEffectPublicParameterDefinition(customNodeGraphEffect: CustomNodeGraphEffect, definition: CustomNodeGraphEffectParamDef, previousId?: string) {
 	validateParameterDefaultValues(definition);
 	if (definition.dataType.kind === 'audioSource') {
 		validateLiteralAudioSourceBinding(definition.defaultValue);
@@ -256,7 +265,7 @@ function validateCustomNodeGraphEffectPublicParameterDefinition(customNodeGraphE
 	if (customNodeGraphEffect.paramDefs.some(item => item.id !== previousId && (item.id === definition.id || item.nameForReference === definition.nameForReference))) throw new Error('Parameter ID and name must be unique');
 }
 
-function validateCustomParameterDefinition(customNodeGraphEffect: CustomNodeGraphEffect, definition: CustomNodeGraphEffectCustomParameterDefinition, previousId?: CustomNodeGraphEffectCustomParameterId) {
+function validateCustomParameterDefinition(customNodeGraphEffect: CustomNodeGraphEffect, definition: CustomNodeGraphEffectCustomParameterDefinition, previousId?: string) {
 	validateCustomNodeGraphEffectCustomParameterDefinition(definition);
 	if (customNodeGraphEffect.customParameterDefs.some(candidate => candidate.id !== previousId && (candidate.id === definition.id || candidate.nameForReference === definition.nameForReference))) throw new Error('Custom parameter ID and name must be unique');
 }
@@ -266,14 +275,14 @@ function validateOutputDefinition(customNodeGraphEffect: CustomNodeGraphEffect, 
 	if (customNodeGraphEffect.outputDefs.some(item => item.id !== previousId && (item.id === definition.id || item.name === definition.name))) throw new Error('Output ID and name must be unique');
 }
 
-const setCustomNodeGraphEffectPrimaryInput = defineCommand<{ target: CustomNodeGraphEffectTarget; primaryInputId: CustomNodeGraphEffectPublicParameterId | null }>({
+const setCustomNodeGraphEffectPrimaryInput = defineCommand<{ target: CustomNodeGraphEffectTarget; primaryInputId: string | null }>({
 	label: 'Set Custom Node Graph Effect primary input',
 	prepare: (state, input) => prepareCustomNodeGraphEffectFields(state, input.target, ['primaryInputId'], customNodeGraphEffect => {
 		if (input.primaryInputId !== null && !customNodeGraphEffect.paramDefs.some(definition => definition.id === input.primaryInputId && definition.canNode && definition.dataType.kind === 'color')) throw new Error('Primary input must reference a node-capable color parameter');
 		customNodeGraphEffect.primaryInputId = input.primaryInputId;
 	}),
 });
-const setCustomNodeGraphEffectPrimaryAudioInput = defineCommand<{ target: CustomNodeGraphEffectTarget; primaryAudioInputId: CustomNodeGraphEffectPublicParameterId | null }>({
+const setCustomNodeGraphEffectPrimaryAudioInput = defineCommand<{ target: CustomNodeGraphEffectTarget; primaryAudioInputId: string | null }>({
 	label: 'Set Custom Node Graph Effect primary audio input',
 	prepare: (state, input) => prepareCustomNodeGraphEffectFields(state, input.target, ['primaryAudioInputId'], customNodeGraphEffect => {
 		if (input.primaryAudioInputId !== null && !customNodeGraphEffect.paramDefs.some(definition => definition.id === input.primaryAudioInputId && !definition.canNode && definition.dataType.kind === 'audioSource')) throw new Error('Primary audio input must reference an audio parameter');
@@ -291,7 +300,7 @@ const setCustomNodeGraphEffectPrimaryOutput = defineCommand<{ target: CustomNode
 const createCustomNodeGraphEffectPublicParameter = defineCommand<{ customNodeGraphEffect: CustomNodeGraphEffectTarget; definition: Omit<CustomNodeGraphEffectParamDef, 'id'> }, CustomNodeGraphEffectPublicParameterReference>({
 	label: 'Create Custom Node Graph Effect public parameter',
 	prepare: (state, input) => prepareCustomNodeGraphEffectFields(state, input.customNodeGraphEffect, ['paramDefs'], customNodeGraphEffect => {
-		const definition = { ...deepClone(input.definition), id: customNodeGraphEffectPublicParameterId(genId()) } as CustomNodeGraphEffectParamDef;
+		const definition = { ...deepClone(input.definition), id: genId() } as CustomNodeGraphEffectParamDef;
 		validateCustomNodeGraphEffectPublicParameterDefinition(customNodeGraphEffect, definition);
 		customNodeGraphEffect.paramDefs.push(definition);
 		return { customNodeGraphEffect: input.customNodeGraphEffect, parameterId: definition.id };
@@ -299,31 +308,39 @@ const createCustomNodeGraphEffectPublicParameter = defineCommand<{ customNodeGra
 });
 const replaceCustomNodeGraphEffectPublicParameterDefinition = defineCommand<{ target: CustomNodeGraphEffectPublicParameterReference; definition: Omit<CustomNodeGraphEffectParamDef, 'id'> }>({
 	label: 'Replace Custom Node Graph Effect public parameter definition',
-	prepare: (state, input) => prepareCustomNodeGraphEffectFields(state, input.target.customNodeGraphEffect, ['paramDefs', 'primaryInputId', 'primaryAudioInputId'], customNodeGraphEffect => {
-		const index = customNodeGraphEffect.paramDefs.findIndex(definition => definition.id === input.target.parameterId);
+	prepare(state, { target: { customNodeGraphEffect: target, parameterId }, definition: replacement }) {
+		const { paramDefs } = getCustomNodeGraphEffect(state, target);
+		const index = paramDefs.findIndex(definition => definition.id === parameterId);
 		if (index < 0) throw new Error('Custom Node Graph Effect public parameter not found');
-		const definition = { ...deepClone(input.definition), id: input.target.parameterId } as CustomNodeGraphEffectParamDef;
-		validateCustomNodeGraphEffectPublicParameterDefinition(customNodeGraphEffect, definition, input.target.parameterId);
-		customNodeGraphEffect.paramDefs[index] = definition;
-		if (customNodeGraphEffect.primaryInputId === definition.id && (!definition.canNode || definition.dataType.kind !== 'color')) customNodeGraphEffect.primaryInputId = null;
-		if (customNodeGraphEffect.primaryAudioInputId === definition.id && (definition.canNode || definition.dataType.kind !== 'audioSource')) customNodeGraphEffect.primaryAudioInputId = null;
-	}),
+		const definition = { ...deepClone(replacement), id: parameterId } as CustomNodeGraphEffectParamDef;
+		const prepared = prepareCustomNodeGraphEffectFields(state, target, ['paramDefs', 'primaryInputId', 'primaryAudioInputId', 'resolutionInputParameters'], customNodeGraphEffect => {
+			validateCustomNodeGraphEffectPublicParameterDefinition(customNodeGraphEffect, definition, parameterId);
+			customNodeGraphEffect.paramDefs[index] = definition;
+			if (customNodeGraphEffect.primaryInputId === parameterId && (!definition.canNode || definition.dataType.kind !== 'color')) customNodeGraphEffect.primaryInputId = null;
+			if (customNodeGraphEffect.primaryAudioInputId === parameterId && (definition.canNode || definition.dataType.kind !== 'audioSource')) customNodeGraphEffect.primaryAudioInputId = null;
+		});
+		return includeCustomNodeGraphEffectPublicArgumentChanges(state, target, parameterId, prepared, { previous: paramDefs[index], next: definition });
+	},
 });
+
 const removeCustomNodeGraphEffectPublicParameter = defineCommand<{ target: CustomNodeGraphEffectPublicParameterReference }>({
 	label: 'Remove Custom Node Graph Effect public parameter',
-	prepare: (state, input) => prepareCustomNodeGraphEffectFields(state, input.target.customNodeGraphEffect, ['paramDefs', 'primaryInputId', 'primaryAudioInputId'], customNodeGraphEffect => {
-		const index = customNodeGraphEffect.paramDefs.findIndex(definition => definition.id === input.target.parameterId);
-		if (index < 0) throw new Error('Custom Node Graph Effect public parameter not found');
-		customNodeGraphEffect.paramDefs.splice(index, 1);
-		if (customNodeGraphEffect.primaryInputId === input.target.parameterId) customNodeGraphEffect.primaryInputId = null;
-		if (customNodeGraphEffect.primaryAudioInputId === input.target.parameterId) customNodeGraphEffect.primaryAudioInputId = null;
-		// 参照IDは保持する。未解決になったノードの参照はUndoで再び有効になる。
-	}),
+	prepare(state, { target: { customNodeGraphEffect: target, parameterId } }) {
+		const prepared = prepareCustomNodeGraphEffectFields(state, target, ['paramDefs', 'primaryInputId', 'primaryAudioInputId', 'resolutionInputParameters'], customNodeGraphEffect => {
+			const index = customNodeGraphEffect.paramDefs.findIndex(definition => definition.id === parameterId);
+			if (index < 0) throw new Error('Custom Node Graph Effect public parameter not found');
+			customNodeGraphEffect.paramDefs.splice(index, 1);
+			if (customNodeGraphEffect.primaryInputId === parameterId) customNodeGraphEffect.primaryInputId = null;
+			if (customNodeGraphEffect.primaryAudioInputId === parameterId) customNodeGraphEffect.primaryAudioInputId = null;
+			// 定義内部から公開入力への配線は未解決のまま保持する。取り除くのは配置側が渡す引数だけ。
+		});
+		return includeCustomNodeGraphEffectPublicArgumentChanges(state, target, parameterId, prepared, null);
+	},
 });
 const createCustomNodeGraphEffectCustomParameter = defineCommand<{ customNodeGraphEffect: CustomNodeGraphEffectTarget; definition: Omit<CustomNodeGraphEffectCustomParameterDefinition, 'id'> }, CustomNodeGraphEffectCustomParameterReference>({
 	label: 'Create Custom Node Graph Effect custom parameter',
 	prepare: (state, input) => prepareCustomNodeGraphEffectFields(state, input.customNodeGraphEffect, ['customParameterDefs'], customNodeGraphEffect => {
-		const definition = { ...deepClone(input.definition), id: customNodeGraphEffectCustomParameterId(genId()) } as CustomNodeGraphEffectCustomParameterDefinition;
+		const definition = { ...deepClone(input.definition), id: genId() } as CustomNodeGraphEffectCustomParameterDefinition;
 		validateCustomParameterDefinition(customNodeGraphEffect, definition);
 		customNodeGraphEffect.customParameterDefs.push(definition);
 		return { customNodeGraphEffect: input.customNodeGraphEffect, parameterId: definition.id };
@@ -358,7 +375,7 @@ const createCustomNodeGraphEffectPublicParameterFromParameter = defineCommand<Cu
 		if (node?.type !== 'effect') throw new Error('Effect node not found');
 		const parameter = resolveNodeParam(node, input.parameterPath, getEffectDefinitions(state));
 		const named = createNamedParameterFromLiteral(parameter.def, parameter.value, customNodeGraphEffect.paramDefs);
-		const definition: CustomNodeGraphEffectParamDef = { ...named, id: customNodeGraphEffectPublicParameterId(genId()), nameForReference: customNodeGraphEffectPublicParameterName(named.nameForReference) };
+		const definition: CustomNodeGraphEffectParamDef = { ...named, id: genId(), nameForReference: named.nameForReference };
 		validateCustomNodeGraphEffectPublicParameterDefinition(customNodeGraphEffect, definition);
 		customNodeGraphEffect.paramDefs.push(definition);
 		parameter.setValue({ inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: definition.id });
@@ -372,7 +389,7 @@ const createCustomNodeGraphEffectCustomParameterFromParameter = defineCommand<Cu
 		if (node?.type !== 'effect') throw new Error('Effect node not found');
 		const parameter = resolveNodeParam(node, input.parameterPath, getEffectDefinitions(state));
 		const named = createNamedParameterFromLiteral(parameter.def, parameter.value, customNodeGraphEffect.customParameterDefs);
-		const definition: CustomNodeGraphEffectCustomParameterDefinition = { ...named, id: customNodeGraphEffectCustomParameterId(genId()), nameForReference: customNodeGraphEffectCustomParameterName(named.nameForReference) };
+		const definition: CustomNodeGraphEffectCustomParameterDefinition = { ...named, id: genId(), nameForReference: named.nameForReference };
 		validateCustomParameterDefinition(customNodeGraphEffect, definition);
 		customNodeGraphEffect.customParameterDefs.push(definition);
 		parameter.setValue({ inputSource: 'customNodeGraphEffectCustomParameterValueReference', parameterId: definition.id });
@@ -398,11 +415,12 @@ function defineCustomParameterCommand<Input extends { target: CustomNodeGraphEff
 			const before = customNodeGraphEffect.customParameterValues[input.target.parameterId] ?? null;
 			const after = update(definition, deepClone(before ?? definition.defaultValue), input);
 			validateCustomNodeGraphEffectCustomParameterBinding(definition, after ?? definition.defaultValue);
+			const customParameterValuesOnly = getParameterBindingChangeKind(definition, before ?? definition.defaultValue, after ?? definition.defaultValue) === 'value';
 			return prepareCustomNodeGraphEffectValue(before, after, (currentState, value) => {
 				const current = getCustomNodeGraphEffect(currentState, input.target.customNodeGraphEffect);
 				if (value == null) delete current.customParameterValues[input.target.parameterId];
 				else current.customParameterValues[input.target.parameterId] = value;
-			}, [{ type: 'customNodeGraphEffect', target: input.target.customNodeGraphEffect, customParameterValuesOnly: true }]);
+			}, [{ type: 'customNodeGraphEffect', target: input.target.customNodeGraphEffect, customParameterValuesOnly }]);
 		},
 	});
 }
@@ -451,15 +469,88 @@ const replaceCustomNodeGraphEffectOutputDefinition = defineCommand<{ target: Cus
 		if (customNodeGraphEffect.primaryOutputId === definition.id && definition.dataType.kind !== 'color') customNodeGraphEffect.primaryOutputId = null;
 	}),
 });
+
+function prepareRegisteredCustomNodeGraphEffectOutputDisconnections(state: ProjectState, customNodeGraphEffectId: string, outputId: string) {
+	const definitions = getEffectDefinitions(state);
+	return prepareProjectEffectPlacementChanges(state, {
+		customNodeGraphEffect(customNodeGraphEffect) {
+			const sourceNodeIds = new Set(customNodeGraphEffect.nodes.flatMap(node => node.type !== 'relay'
+				&& node.effectSource.type === 'customNodeGraphEffectReference' && node.effectSource.id === customNodeGraphEffectId ? [node.id] : []));
+			if (sourceNodeIds.size === 0) return null;
+			// ノードIDはグラフ内だけで有効。残る出力やRelayの出力自体への配線は切断しない。
+			const usesRemovedOutput = (source: CustomNodeGraphEffectOutputSource | null | undefined): source is NodeOutputReference =>
+				source != null && 'nodeId' in source && source.outputPort === outputId && sourceNodeIds.has(source.nodeId);
+			const outputConnections = Object.entries(customNodeGraphEffect.outputSources).flatMap(([id, source]) => usesRemovedOutput(source) ? [[id, { ...source }] as const] : []);
+			const relayInputs = new Map<string, NodeOutputReference>();
+			const parameterEdits = new Map<string, (params: StoredCustomNodeGraphEffectEffectNode['params'], restore: boolean) => void>();
+			for (const node of customNodeGraphEffect.nodes) {
+				if (node.type === 'relay') {
+					if (usesRemovedOutput(node.input)) relayInputs.set(node.id, { ...node.input });
+					continue;
+				}
+				if (Object.keys(node.params).length === 0) continue;
+				const { paramDefs } = resolveEffectSource(node.effectSource, definitions).definition;
+				const parameterConnections: { path: ParamPath; binding: Extract<StoredCustomNodeGraphEffectParameterBinding, { inputSource: 'node' }> }[] = [];
+				for (const { path, value } of walkParameters<StoredCustomNodeGraphEffectParameterBinding>(paramDefs, node.params)) {
+					if (value.inputSource === 'node' && usesRemovedOutput(value.source)) parameterConnections.push({ path, binding: deepClone(value) });
+				}
+				if (parameterConnections.length === 0) continue;
+				parameterEdits.set(node.id, (params, restore) => {
+					for (const { path, binding } of parameterConnections) {
+						resolveParameter<StoredCustomNodeGraphEffectParameterBinding>(paramDefs, params, path).setValue(deepClone(restore ? binding : { ...binding, source: null }));
+					}
+				});
+			}
+			if (outputConnections.length === 0 && relayInputs.size === 0 && parameterEdits.size === 0) return null;
+			return (current, restore) => {
+				if (outputConnections.length > 0) {
+					const outputSources = new Map(Object.entries(current.outputSources));
+					for (const [id, source] of outputConnections) {
+						if (restore) outputSources.set(id, { ...source });
+						else outputSources.delete(id);
+					}
+					Object.assign(current, { outputSources: Object.fromEntries(outputSources) });
+				}
+				for (const node of current.nodes) {
+					if (node.type !== 'relay') parameterEdits.get(node.id)?.(node.params, restore);
+					else {
+						const input = relayInputs.get(node.id);
+						if (input != null) Object.assign(node, { input: restore ? { ...input } : null });
+					}
+				}
+			};
+		},
+	});
+}
+
 const removeCustomNodeGraphEffectOutput = defineCommand<{ target: CustomNodeGraphEffectOutputReference }>({
 	label: 'Remove Custom Node Graph Effect output',
-	prepare: (state, input) => prepareCustomNodeGraphEffectFields(state, input.target.customNodeGraphEffect, ['outputDefs', 'primaryOutputId'], customNodeGraphEffect => {
-		const index = customNodeGraphEffect.outputDefs.findIndex(definition => definition.id === input.target.outputId);
-		if (index < 0) throw new Error('Custom Node Graph Effect output not found');
-		customNodeGraphEffect.outputDefs.splice(index, 1);
-		if (customNodeGraphEffect.primaryOutputId === input.target.outputId) customNodeGraphEffect.primaryOutputId = null;
-		// Outの接続を残し、定義をUndoすると同じ配線が再び有効になる。
-	}),
+	prepare(state, { target }) {
+		const graph = getCustomNodeGraphEffect(state, target.customNodeGraphEffect);
+		if (!graph.outputDefs.some(output => output.id === target.outputId)) throw new Error('Custom Node Graph Effect output not found');
+		const out = graph.nodes.find(node => node.type === 'globalOut')!;
+		const before = { outputDefs: graph.outputDefs, primaryOutputId: graph.primaryOutputId, source: Object.hasOwn(out.inputs, target.outputId) ? out.inputs[target.outputId] : null };
+		const after = { outputDefs: graph.outputDefs.filter(output => output.id !== target.outputId),
+			primaryOutputId: graph.primaryOutputId === target.outputId ? null : graph.primaryOutputId, source: null };
+		// 削除した出力の配線だけを定義と一緒に履歴へ残し、Undoで同じポートに戻す。
+		const prepared = prepareCustomNodeGraphEffectValue(before, after, (currentState, value) => {
+			const current = getCustomNodeGraphEffect(currentState, target.customNodeGraphEffect);
+			current.outputDefs = value.outputDefs;
+			current.primaryOutputId = value.primaryOutputId;
+			const outputNode = current.nodes.find(node => node.type === 'globalOut')!;
+			if (value.source == null) delete outputNode.inputs[target.outputId];
+			else outputNode.inputs = { ...outputNode.inputs, [target.outputId]: value.source };
+		}, [{ type: 'customNodeGraphEffect', target: target.customNodeGraphEffect }]);
+		const { change } = prepared;
+		if (change == null || !('customNodeGraphEffectId' in target.customNodeGraphEffect)) return prepared;
+		const disconnections = prepareRegisteredCustomNodeGraphEffectOutputDisconnections(state, target.customNodeGraphEffect.customNodeGraphEffectId, target.outputId);
+		return { result: prepared.result, change: {
+			changes: [...disconnections.changes, ...change.changes],
+			// 削除時は配線から先に外し、Undo時はポートが存在する状態へ戻してから配線し直す。
+			apply(current) { disconnections.apply(current); change.apply(current); },
+			revert(current) { change.revert(current); disconnections.revert(current); },
+		} };
+	},
 });
 
 export const CUSTOM_NODE_GRAPH_EFFECT_PARAMETERS_COMMAND_DEFS = {

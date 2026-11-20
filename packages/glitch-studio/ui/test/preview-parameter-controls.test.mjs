@@ -1,3 +1,4 @@
+import { testGraph } from './helpers/effect-graph.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -24,7 +25,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		export * from './src/utility/preview-parameter-editing.ts';
 		export * from './src/utility/preview-viewport.ts';
 		export { createInlineKeyframesTimeline } from './src/utility/keyframes-timeline.ts';
-		import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+		import { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
 		export const testedEffect = effectDefinitions.test;
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
@@ -33,15 +34,15 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 	` },
 	plugins: [i18nPlugin, { name: 'preview-parameter-controls', setup(build) {
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'platform' }));
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'platform' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'platform' }));
 		build.onResolve({ filter: /(?:^@\/|\/src\/)(app|project-session|ui)\.ts$/ }, ({ path }) => ({ path: (path.endsWith('app.ts') || path.endsWith('project-session.ts')) ? 'app' : 'ui', namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', resolveDir: directory, contents: {
 			preferences: "import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false) } };",
-			effects: `import mandelbrot from '@gs/subsystems_effect_shared/fx/mandelbrot/_def_.ts';
-				import imageTrap from '@gs/subsystems_effect_shared/fx/imageTrap/_def_.ts';
-				import magneticPendulum from '@gs/subsystems_effect_shared/fx/magneticPendulum/_def_.ts';
-				import doublePendulumFractal from '@gs/subsystems_effect_shared/fx/doublePendulumFractal/_def_.ts';
-				export const effectDefinitions = { test: { ...${JSON.stringify(effect)}, paramDefs: { ...${JSON.stringify(effect.paramDefs)},
+			effects: `import mandelbrot from '@gs/subsystems_effect-new_native-effects/fx/mandelbrot/_def_.ts';
+				import imageTrap from '@gs/subsystems_effect-new_native-effects/fx/imageTrap/_def_.ts';
+				import magneticPendulum from '@gs/subsystems_effect-new_native-effects/fx/magneticPendulum/_def_.ts';
+				import doublePendulumFractal from '@gs/subsystems_effect-new_native-effects/fx/doublePendulumFractal/_def_.ts';
+				export const nativeEffectDefinitions = { test: { ...${JSON.stringify(effect)}, paramDefs: { ...${JSON.stringify(effect.paramDefs)},
 					view: mandelbrot.paramDefs.view, otherView: mandelbrot.paramDefs.view, imageTrapView: imageTrap.paramDefs.view,
 					magneticPendulumView: magneticPendulum.paramDefs.view, doublePendulumView: doublePendulumFractal.paramDefs.view } } };`,
 			app: 'export function useProjectSession() { return projectSession; } export const projectSession = {};',
@@ -115,8 +116,8 @@ async function fixture(t, { showGrid = false, viewport = false, viewportParamete
 		remove(node) { node.parent.children.splice(node.parent.children.indexOf(node), 1); node.parent = null; },
 		parentNode: node => node.parent, nextSibling: node => node.parent?.children[node.parent.children.indexOf(node) + 1] ?? null,
 	});
-	const customNodeGraphEffect = { id: 'customNodeGraphEffect', name: 'Custom Node Graph Effect', nodes: [{ id: 'node', type: 'effect', effectId: 'test', isBypass: false,
-		params: { ...Object.fromEntries(Object.entries(testedEffect.paramDefs).map(([key, definition]) => [key, structuredClone(definition.defaultValue)])), scale: literal([1, 1]) } }] };
+	const customNodeGraphEffect = { id: 'customNodeGraphEffect', name: 'Custom Node Graph Effect', definition: testGraph({ nodes: [{ id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, isBypass: false,
+		params: { ...Object.fromEntries(Object.entries(testedEffect.paramDefs).map(([key, definition]) => [key, structuredClone(definition.defaultValue)])), scale: literal([1, 1]) } }] }) };
 	const state = { customNodeGraphEffects: ref([customNodeGraphEffect]), timelineScenes: ref([]), automationGraphs: ref([]), resolution: ref({ width: 800, height: 400 }) };
 	const manager = new UndoRedo(state, COMMAND_DEFS);
 	const editing = new PreviewParameterEditingController();
@@ -124,7 +125,7 @@ async function fixture(t, { showGrid = false, viewport = false, viewportParamete
 		previewPlayback: { state: ref({ mode: 'customNodeGraphEffectLivePreview', customNodeGraphEffectId: 'customNodeGraphEffect' }),
 			livePreviewCustomNodeGraphEffectId: ref('customNodeGraphEffect'), currentTimelineTime: ref(0), isTimelinePlaying: ref(false), isTimelineBaking: ref(false) },
 		renderEngine: { isSuspended: ref(false) }, activeSceneId: ref(null) });
-	const node = state.customNodeGraphEffects.value[0].nodes[0];
+	const node = state.customNodeGraphEffects.value[0].definition.nodes[0];
 	const scope = ref({ kind: 'customNodeGraphEffect', target: { customNodeGraphEffectId: 'customNodeGraphEffect' } });
 	const showParameters = ref(true);
 	const root = element('root');

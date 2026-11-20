@@ -18,9 +18,9 @@ const bundled = await build({
 		export { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 	`, resolveDir: directory, loader: 'ts' }, bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'preview-test', setup(build) {
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'stub' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'stub' }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'stub' }));
-		build.onLoad({ filter: /.*/, namespace: 'stub' }, ({ path }) => ({ contents: path === 'effects' ? 'export const effectDefinitions = {};'
+		build.onLoad({ filter: /.*/, namespace: 'stub' }, ({ path }) => ({ contents: path === 'effects' ? 'export const nativeEffectDefinitions = {};'
 			: 'export const preferences = { s: { forceTypeSafety: true } };', loader: 'ts' }));
 	} }],
 });

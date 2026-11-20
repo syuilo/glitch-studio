@@ -1,3 +1,4 @@
+import { preferences } from '@/preferences.ts';
 import { getTimelineParameterEditBinding } from '../commands/timeline-parameter-api.ts';
 import type { TimelineParameterReference } from '../commands/timeline-parameter-api.ts';
 import type { ProjectContext } from '../Project.ts';
@@ -15,9 +16,10 @@ export function commitTimelineParameterEdit(
 	const target: TimelineParameterReference = {
 		sceneId: input.sceneId,
 		layerId: input.layerId,
-		parameterGroup: input.target ?? 'customNodeGraphEffect',
+		parameterGroup: input.target ?? 'effect',
 		parameterPath: input.paramPath,
 	};
+	const connectionTypePolicy = preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch';
 	switch (input.edit.kind) {
 		case 'reset': manager.commit('resetTimelineLayerParameter', target); return;
 		case 'expressionModifier': manager.commit('setTimelineLayerParameterExpressionModifier', { ...target, expressionModifier: input.edit.value }, mergeKey); return;
@@ -27,11 +29,11 @@ export function commitTimelineParameterEdit(
 		case 'structFields':
 			// 入力方式の切替を、続く固定値・式の入力へ自動で統合しない。
 			// structの一括更新は、プレビュー操作等の明示されたmergeKeyだけでまとめる。
-			manager.commit('replaceTimelineLayerParameterBinding', getTimelineParameterEditBinding(manager.state, input), mergeKey);
+			manager.commit('replaceTimelineLayerParameterBinding', { ...getTimelineParameterEditBinding(manager.state, input), connectionTypePolicy }, mergeKey);
 			return;
 		default: {
 			const { binding, ...reference } = getTimelineParameterEditBinding(manager.state, input);
-			manager.commit('setTimelineLayerParameterSource', { ...reference, source: binding }, mergeKey);
+			manager.commit('setTimelineLayerParameterSource', { ...reference, source: binding, connectionTypePolicy }, mergeKey);
 		}
 	}
 }

@@ -5,10 +5,10 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
-const effectDirectory = new URL(import.meta.resolve('@gs/subsystems_effect_shared/fx/'));
+const effectDirectory = new URL('../', import.meta.resolve('@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts'));
 const definitions = await Promise.all((await readdir(effectDirectory, { withFileTypes: true }))
 	.filter(entry => entry.isDirectory() && existsSync(new URL(`${entry.name}/_def_.ts`, effectDirectory)))
-	.map(async entry => (await import(new URL(`${entry.name}/_def_.ts`, effectDirectory))).default));
+	.map(async entry => ({ id: entry.name, ...(await import(new URL(`${entry.name}/_def_.ts`, effectDirectory))).default })));
 
 function checkParameter(dataType, settings, control) {
 	assert.equal(typeof dataType.kind, 'string');
@@ -18,7 +18,7 @@ function checkParameter(dataType, settings, control) {
 		assert.equal(new Set(settings.defaultValue.value.map(element => element.id)).size, settings.defaultValue.value.length);
 		for (const element of settings.defaultValue.value) {
 			assert.equal(typeof element.id, 'string');
-			assert.equal(typeof element.binding.inputSource, 'string');
+			assert.equal(element.binding.inputSource, 'literal');
 		}
 		checkParameter(dataType.elementType, settings.element, control.element);
 	} else if (dataType.kind === 'struct') {
@@ -58,6 +58,7 @@ test('keeps all effect schemas and string enum defaults consistent', () => {
 	}
 });
 
+// 【選択肢を文字列で保持する】
 // 数値を表す選択肢も文字列で保存し、モード番号は意味のある名前へ置き換える。
 test('uses string sizes and named processing modes', () => {
 	const find = id => definitions.find(definition => definition.id === id).paramDefs;
@@ -72,15 +73,16 @@ test('uses string sizes and named processing modes', () => {
 	assert.deepEqual(find('rgbTo').mode.dataType.options, ['intensity', 'luminance']);
 });
 
+// 【実装向けの型推論を保つ】
 // 実定義から実行時の型を導き、enumの候補と子のcanNodeが失われないことを確認する。
 test('infers string enums and nested shader inputs from migrated definitions', () => {
 	const fileName = fileURLToPath(new URL('./effect-definition-migration.fixture.ts', import.meta.url)).replaceAll('\\', '/');
 	const source = `
-import type spectrum from '@gs/subsystems_effect_shared/fx/audioSpectrum/_def_.ts';
-import type nested from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
-import type { EffectInstance } from '@gs/subsystems_effect_shared/effect-implementation.ts';
-type Spectrum = Parameters<EffectInstance<typeof spectrum.paramDefs>['render']>[0]['params'];
-type Nested = Parameters<EffectInstance<typeof nested.paramDefs>['render']>[0]['params'];
+import type spectrum from '@gs/subsystems_effect-new_native-effects/fx/audioSpectrum/_def_.ts';
+import type nested from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts';
+import type { NativeParameterValues } from '@gs/subsystems_effect-new_native-effects/multipass.ts';
+type Spectrum = NativeParameterValues<typeof spectrum.paramDefs>;
+type Nested = NativeParameterValues<typeof nested.paramDefs>;
 const fftSize: Spectrum['fftSize'] = '2048';
 // @ts-expect-error FFTサイズは数値ではなく文字列。
 const numericFftSize: Spectrum['fftSize'] = 2048;
@@ -115,40 +117,40 @@ function assertTypeChecks(fileName, source) {
 	}));
 }
 
+// 【構造体のフィールドを過不足なく検査する】
 // 変数やスプレッドを経由しても、dataTypeにないキーがUI・初期値・子設定へ混入しない。
 // 必須キーの欠落と配列内の構造体も確認し、汎用Recordへの推論の後退を検出する。
 test('rejects unknown and missing struct fields in effect definitions', () => {
 	const fileName = fileURLToPath(new URL('./exact-effect-definition.fixture.ts', import.meta.url)).replaceAll('\\', '/');
 	const source = `
-import { defineEffect } from '@gs/subsystems_effect_shared/effect-definition.ts';
-import definition from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
-// テスト用のparamDefsに差し替えるため、元のパラメータ名に結び付くUIレイアウトは除く。
-const { paramDefs: { foo: struct, buzzs: array }, ui: _ui, ...definitionMetadata } = definition;
+import { defineNativeEffect } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import definition from '@gs/subsystems_effect-new_native-effects/fx/testStructArray/_def_.ts';
+const { paramDefs: { foo: struct, buzzs: array }, ...definitionMetadata } = definition;
 const base = { ...definitionMetadata, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameters: [] };
 const uiField = struct.ui.control.fields.node;
 const fieldSettings = struct.fields.node;
 const binding = struct.defaultValue.value.node;
 // 正しいフィールドと既存のBindingは受け入れる。
-const valid = defineEffect({ ...base, paramDefs: { struct, array } });
+const valid = defineNativeEffect({ ...base, paramDefs: { struct, array } });
 const preserved: true = valid.paramDefs.struct.fields.node.canNode;
 // @ts-expect-error UIに存在しないfieldを追加できない。
-defineEffect({ ...base, paramDefs: { struct: { ...struct, ui: { ...struct.ui, control: { fields: { ...struct.ui.control.fields, typo: uiField } } } } } });
+defineNativeEffect({ ...base, paramDefs: { struct: { ...struct, ui: { ...struct.ui, control: { fields: { ...struct.ui.control.fields, typo: uiField } } } } } });
 // @ts-expect-error 初期値に存在しないfieldを追加できない。
-defineEffect({ ...base, paramDefs: { struct: { ...struct, defaultValue: { inputSource: 'literal', value: { node: binding, typo: binding } } } } });
+defineNativeEffect({ ...base, paramDefs: { struct: { ...struct, defaultValue: { inputSource: 'literal', value: { node: binding, typo: binding } } } } });
 // @ts-expect-error 子設定に存在しないfieldを追加できない。
-defineEffect({ ...base, paramDefs: { struct: { ...struct, fields: { ...struct.fields, typo: fieldSettings } } } });
+defineNativeEffect({ ...base, paramDefs: { struct: { ...struct, fields: { ...struct.fields, typo: fieldSettings } } } });
 // @ts-expect-error UIの必須fieldを省略できない。
-defineEffect({ ...base, paramDefs: { struct: { ...struct, ui: { ...struct.ui, control: { fields: {} } } } } });
+defineNativeEffect({ ...base, paramDefs: { struct: { ...struct, ui: { ...struct.ui, control: { fields: {} } } } } });
 // @ts-expect-error 初期値の必須fieldを省略できない。
-defineEffect({ ...base, paramDefs: { struct: { ...struct, defaultValue: { inputSource: 'literal', value: {} } } } });
+defineNativeEffect({ ...base, paramDefs: { struct: { ...struct, defaultValue: { inputSource: 'literal', value: {} } } } });
 // @ts-expect-error 配列の要素UIに存在しないfieldを追加できない。
-defineEffect({ ...base, paramDefs: { array: { ...array, ui: { ...array.ui, control: { element: { fields: { ...array.ui.control.element.fields, typo: uiField } } } } } } });
+defineNativeEffect({ ...base, paramDefs: { array: { ...array, ui: { ...array.ui, control: { element: { fields: { ...array.ui.control.element.fields, typo: uiField } } } } } } });
 // @ts-expect-error 配列内の構造体初期値にも存在しないfieldを追加できない。
-defineEffect({ ...base, paramDefs: { array: { ...array, defaultValue: { inputSource: 'literal', value: [{ id: 'first', binding: { inputSource: 'literal', value: { ...array.element.defaultValue.value, typo: binding } } }] } } } });
+defineNativeEffect({ ...base, paramDefs: { array: { ...array, defaultValue: { inputSource: 'literal', value: [{ id: 'first', binding: { inputSource: 'literal', value: { ...array.element.defaultValue.value, typo: binding } } }] } } } });
 // @ts-expect-error 要素追加時の初期値にも存在しないfieldを追加できない。
-defineEffect({ ...base, paramDefs: { array: { ...array, element: { ...array.element, defaultValue: { inputSource: 'literal', value: { ...array.element.defaultValue.value, typo: binding } } } } } });
+defineNativeEffect({ ...base, paramDefs: { array: { ...array, element: { ...array.element, defaultValue: { inputSource: 'literal', value: { ...array.element.defaultValue.value, typo: binding } } } } } });
 // @ts-expect-error 正しいfield名でもリテラルの型は一致する必要がある。
-defineEffect({ ...base, paramDefs: { array: { ...array, element: { ...array.element, defaultValue: { inputSource: 'literal', value: { ...array.element.defaultValue.value, x: { inputSource: 'literal', value: 'bad' } } } } } } });
+defineNativeEffect({ ...base, paramDefs: { array: { ...array, element: { ...array.element, defaultValue: { inputSource: 'literal', value: { ...array.element.defaultValue.value, x: { inputSource: 'literal', value: 'bad' } } } } } } });
 `;
 	assertTypeChecks(fileName, source);
 });

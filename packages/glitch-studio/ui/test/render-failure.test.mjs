@@ -208,10 +208,10 @@ test('retains failure locations independently of disposed execution state and cl
 	const engine = new PreviewRenderEngine({ create: async () => {}, dispose: error => { states.clear(); reason = error; } });
 	await engine.enable();
 	const failure = new Error('decode failed');
-	engine.fail(failure, { source, nodeId: 'node' });
+	engine.fail(failure, { source });
 	assert.equal(states.size, 0);
 	assert.equal(reason, failure);
-	assert.deepEqual(engine.runtimeDiagnostic.value, { message: 'decode failed', origin: { source, nodeId: 'node' } });
+	assert.deepEqual(engine.runtimeDiagnostic.value, { message: 'decode failed', origin: { source } });
 	assert.equal(engine.canRender.value, false);
 	await engine.retry();
 	assert.equal(engine.runtimeDiagnostic.value, null);
@@ -221,12 +221,11 @@ test('retains failure locations independently of disposed execution state and cl
 	assert.equal(engine.errorMessage.value, 'GPU device lost');
 });
 
-// 【Custom Node Graph Effect Live Previewの発生元をプレビューの現在の選択から独立して表示する】
+// 【Effect Live Previewの発生元をプレビューの現在の選択から独立して表示する】
 // 停止後に別のCustom Node Graph Effectを選択しても、元の失敗通知のIDから場所を表示する。
-test('describes the failing Custom Node Graph Effect Live Preview Custom Node Graph Effect and node by their own identities', () => {
-	const origin = { source: { type: 'customNodeGraphEffectLivePreview', instanceId: 'instance', customNodeGraphEffectId: 'customNodeGraphEffect' }, nodeId: 'node' };
-	const customNodeGraphEffects = [{ id: 'customNodeGraphEffect', name: 'Source', nodes: [{ id: 'node', type: 'effect', displayName: 'Blur' }] }];
-	assert.equal(formatRenderFailureOrigin(origin, customNodeGraphEffects, []), 'Custom Node Graph Effect Live Preview / Custom Node Graph Effect "Source" (customNodeGraphEffect) / Node "Blur" (node)');
+test('identifies an Effect Live Preview failure after stopping its instance', () => {
+	const origin = { source: { type: 'effectLivePreview', instanceId: 'instance' } };
+	assert.equal(formatRenderFailureOrigin(origin, []), 'Effect Live Preview');
 });
 
 // 【子Scene内のノードの発生元を配置クリップまで区別する】
@@ -242,9 +241,9 @@ for (const layerType of ['customNodeGraphEffect', 'inlineCustomNodeGraphEffect']
 		{ id: 'child', layers: [{ id: 'group', layerType: 'group', layers: [childLayer] }] }];
 		const source = { type: 'timelineLayer', rootSceneId: 'root', layerId: 'childLayer', clipId: 'childClip',
 			layerPath: ['sceneLayer', 'second', 'childLayer'], instanceId: 'instance' };
-		assert.equal(formatRenderFailureOrigin({ source, nodeId: 'node' }, [customNodeGraphEffect], scenes),
-			'Scene "Main" (root) / Layer "Child scene" (sceneLayer) / Clip at 2s (second) / Layer "Effects" (childLayer) / Clip at 0.5s (childClip) / Node "Noise" (node)');
-		assert.equal(formatRenderFailureOrigin({ source, nodeId: 'node' }, [customNodeGraphEffect], scenes).includes('Clip at 0s (first)'), false);
+		assert.equal(formatRenderFailureOrigin({ source }, scenes),
+			'Scene "Main" (root) / Layer "Child scene" (sceneLayer) / Clip at 2s (second) / Layer "Effects" (childLayer) / Clip at 0.5s (childClip)');
+		assert.equal(formatRenderFailureOrigin({ source }, scenes).includes('Clip at 0s (first)'), false);
 	});
 }
 
@@ -254,6 +253,5 @@ for (const layerType of ['customNodeGraphEffect', 'inlineCustomNodeGraphEffect']
 test('falls back to retained IDs for missing targets and handles layer failures without node IDs', () => {
 	const source = { type: 'timelineLayer', rootSceneId: 'root', layerId: 'effectLayer', clipId: 'clip',
 		layerPath: ['effectLayer'], instanceId: 'instance' };
-	assert.equal(formatRenderFailureOrigin({ source }, [], []), 'Scene "root" / Layer "effectLayer" / Clip "clip"');
-	assert.equal(formatRenderFailureOrigin({ source, nodeId: 'node' }, [], []), 'Scene "root" / Layer "effectLayer" / Clip "clip" / Node "node"');
+	assert.equal(formatRenderFailureOrigin({ source }, []), 'Scene "root" / Layer "effectLayer" / Clip "clip"');
 });

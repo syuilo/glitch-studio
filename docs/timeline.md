@@ -32,7 +32,7 @@ VOICEVOXの発話は`subtitleDuration`に字幕長のモードを保持する。
 - 全クリップの配置は `startMs >= 0`・`durationMs >= 1` です。開始・長さ・終了は安全な整数ミリ秒です。通常再生の動画・音声素材は有限の素材範囲 `[sourceInMs, sourceOutMs)`、符号付きの `playbackRate`、`loop: boolean` を持ちます。固定表示の動画は `sourceTimeMs >= 0`、その他の種類は `contentOffsetMs >= 0` を持ち、素材範囲・内容オフセットは有限な小数ミリ秒を保持します。表示区間は `[startMs, startMs + durationMs)` です。同じレイヤー内で接触は許可し、重複は許可しません。未使用の素材範囲は衝突判定に含めません。
 - 配置位置・キーの位置・共通移動量は最寄りの整数msに丸め、長さの上限は素材や空き区間を超えない整数msに制限します。ドラッグは開始時の状態と累積移動量から計算します。小数の内容オフセットを整数化したり、再生・評価時刻や素材の時間情報にこの丸めを適用したりしません。素材終端の演算誤差は素材長制限の共通処理だけで扱い、表示区間の重複判定には許容誤差を設けません。
 - レイヤー設定・音量・Custom Node Graph Effect引数のキーと式は、所属Sceneの時刻で評価します。式には `TIME` / `TIME_MS` を公開し、`PROGRESS` や `END_TIME` / `END_TIME_MS` は公開しません。タイムラインのキーはScene上の絶対時刻で、正規化・終端基準・繰り返し・時間伸縮に対応しません。
-- キーフレームのコピー＆ペーストはコピー元と同じScene・レイヤー・パラメータのIDパスに対して行います。先頭をシーク位置（最寄りの整数ms）に合わせて全キーの間隔・値・補間を維持し、新しいIDを発行します。同じレーンの同時刻キーが一つでもある場合は全体を貼り付けず、既存キーを上書きしません。配列・構造体内の別レーンも同じルートの変更案へまとめ、一回のUndo/Redoで扱います。未設定のCustom Node Graph Effect引数は貼り付け時に既定Bindingを独立して保存し、共有定義を変更せず、Undoで未設定へ戻します。
+- キーフレームのコピー＆ペーストはコピー元と同じScene・レイヤー・パラメータのIDパスに対して行います。貼り付け先にはキー入力のBindingが保存されている必要があります。先頭をシーク位置（最寄りの整数ms）に合わせて全キーの間隔・値・補間を維持し、新しいIDを発行します。同じレーンの同時刻キーが一つでもある場合は全体を貼り付けず、既存キーを上書きしません。配列・構造体内の別レーンも同じルートの変更案へまとめ、一回のUndo/Redoで扱います。
 - 生成系・画像・Scene参照の内容時刻は `contentOffsetMs + sceneTime - startMs` です。子Sceneに渡す時刻、Custom Node Graph Effect内部の `TIME_MS` に使います。通常再生の動画・音声の素材時刻は、正方向では `sourceInMs`、逆方向では排他的な `sourceOutMs` を原点に、経過時間と符号付き倍率の積を加えます。ループ周期は `(sourceOutMs - sourceInMs) / abs(playbackRate)` で導出し、丸めずに経過時間を折り返します。Custom Node Graph Effect内部の `END_TIME_MS` は `contentOffsetMs + durationMs`、`PROGRESS` は `(sceneTime - startMs) / durationMs` です。子Scene内のレイヤーは子Sceneの時刻で評価します。
 - ローカルX軸目盛りは各クリップの表示区間に内容時刻で表示します。キーフレームのローカルスナップは、所属レイヤーの各クリップの目盛りをScene時刻に変換し、最寄りの整数msを使います。空白区間にはローカル目盛りを表示せず、キー自体はScene上の絶対時刻を保ちます。
 - Custom Node Graph Effectの定義・参照はレイヤー所有で、動画・画像・音声のAsset参照とScene参照、動画の `audioEnabled`、動画・音声の素材範囲・倍率・ループ設定 はクリップ所有です。同じCustom Node Graph Effectや子Sceneを参照していても実行状態をクリップごとに分離し、区間外では評価せず破棄します。
@@ -41,7 +41,7 @@ VOICEVOXの発話は`subtitleDuration`に字幕長のモードを保持する。
 - 動画・音声の倍率変更は素材範囲と配置開始を保ち、全体長を倍率比で伸縮します。非ループでは素材範囲から長さを再計算し、整数msに収まらない端数だけを切り捨てます。素材範囲自体は削りません。ループでは全体長も同じ比率で伸縮します。隣のクリップとの衝突・1ms未満の配置は操作全体を拒否し、キーは動かしません。UIは百分率と逆再生スイッチで入力し、変更後の長さを確認してから一回のCommandで適用します。
 - クリップ移動には所属レイヤーの区間内のキー（配列・構造体内のキーとVOICEVOXの空本文を含む発話キーも対象）が追従します。所属は操作開始時の半開区間を優先し、どの区間にも入らないキーだけは終了時刻が一致するクリップに追従します。ドラッグ中に接触・離脱しても対象は変えません。トリムやクリップ削除ではキーを動かさず、トリムで区間外になったキーも特別扱いしません。
 - 追従と通常キー・発話キーのドラッグや時刻入力は、同じレーンの非移動キーに対して100msの間隔を残し、追い越しを禁止します。操作開始時から100ms未満なら元の間隔を下限にし、開始位置へ戻せるようにします。全クリップ・キーの制約を交差させて同じ移動量を適用し、選択キー同士の間隔は維持します。部分選択の時間伸縮も非選択キーへの同じ制約を使います。追加・貼り付け時に100ms間隔を強制する仕様ではありません。
-- UIの`timeline-clip-move.ts`が追従対象と移動範囲を計算し、`timeline-keyframe-move.ts`がルートBinding・発話の更新案を作ります。Commandは全件検証後にクリップとキーを適用し、未設定の引数を独立したBindingとして保存します。履歴は元の未設定状態と計算済みの最終値を保持し、マージ後のUndo/Redoでもクリップと変更したパラメータ・発話を通知します。評価はScene時刻のままで、区間外のキーとの補間や区間前から続く発話の再生位置は保持しません。
+- UIの`timeline-clip-move.ts`が追従対象と移動範囲を計算し、`timeline-keyframe-move.ts`が編集用Scene上のキーと発話を移動します。Commandはクリップとキーの検証にすべて成功した時点でSceneに反映します。履歴は編集前と編集後の値を保持し、マージ後のUndo/Redoでもクリップと変更したパラメータ・発話を通知します。評価はScene時刻のままで、区間外のキーとの補間や区間前から続く発話の再生位置は保持しません。
 - Sceneの長さはグループの子孫を含む全クリップの終了時刻の最大値、空なら0です。子Scene編集で親クリップの長さは変えず、子の終了後は透明・無音です。キーだけではSceneの長さを延長しません。
 - 背景ダブルクリックで追加するクリップは標準5秒で、次のクリップと動画・音声の素材長までに制限します。素材変更は同じ種類に限り、開始を保ちます。動画・音声は素材範囲を先頭からに戻し、倍率を1、ループをfalseへ戻し、動画の固定表示も解除します。その他の種類は内容オフセットを0に戻します。動画・音声の長さは新素材長を次のクリップまでで制限し、画像・Sceneの表示長は維持します。
 - Asset一覧から素材自体を短く差し替えた場合も、トリム後の区間が新しい素材長に収まれば修復を許可します。変更前の区間が素材長を超えていることだけではトリムを拒否しません。
@@ -55,7 +55,7 @@ VOICEVOXの発話は`subtitleDuration`に字幕長のモードを保持する。
 - 初期値は通常合成、不透明度1、無変形です。通常合成ではCustom Node Graph Effectは透明背景の素材を出力し、タイムライン側で背景に重ねます。どの合成方法でもInから背景を参照できます。
 - `replace` は背景を含めた完成結果を出力するCustom Node Graph Effect向けです。変形後の出力で透明部分も含めて置き換えます。opacityは背景からその出力へのRGBAの補間量で、0なら背景、1なら出力そのものです。
 - transformはレイヤーの出力全体に適用します。背景を加工する処理の中心・作用範囲だけを動かす機能ではありません。素材内のoriginを支点にfit後の素材を拡縮→回転し、その支点を画面上のpositionへ配置します。範囲外は透明です。positionの1は配置先のSceneの長辺全体。originは透明余白を含む素材全体の長辺を1とする座標、回転の1は時計回り360度（1周）です。position・origin・scaleはvectorで、負の倍率は反転、0は透明化として扱います。
-- originは透明な余白を含む入力テクスチャ全体を基準とし、中央が[0, 0]で、素材の長辺全体を1とします。正方形の端は各軸±0.5です。範囲外も許容します。Custom Node Graph Effectなども出力テクスチャの寸法を使い、uniform出力にはタイムラインの画面サイズを仮想的な素材寸法として与えます。originとpositionの初期値は[0, 0]です。無回転・等倍でもoriginを変えると配置が変わります。Transformエフェクトのtranslationも長辺全体=1の移動量です。
+- originは透明な余白を含む入力テクスチャ全体を基準とし、中央が[0, 0]で、素材の長辺全体を1とします。正方形の端は各軸±0.5です。範囲外も許容します。Effectには出力テクスチャの寸法を使います。originとpositionの初期値は[0, 0]です。無回転・等倍でもoriginを変えると配置が変わります。Transformエフェクトのtranslationも長辺全体=1の移動量です。
 - 変形と合成はタイムライン専用の1パスで行い、CustomNodeGraphEffectRendererは合成設定を扱いません。無変形・opacity=1の置き換えは元のUniformOrTextureをそのまま受け渡します。
 
 ## レイヤーの識別色
@@ -92,19 +92,19 @@ InspectorのHold current frameは、操作時のScene時刻を速度・逆方向
 
 ## エフェクトレイヤー
 
-- `TimelineEffectLayer` はエフェクトの種類・通常パラメータ・`effectStaticSettings`・解像度を所有し、クリップは時間情報だけを所有します。作成後のエフェクト種別変更は扱いません。Custom Node Graph Effectを経由せず `EffectRenderer` をクリップごとに使用し、区間外では破棄します。
+- Native Effect・Custom Shader Effect・Custom Node Graph Effectはいずれも `layerType: "effect"` の `TimelineEffectLayer` として配置します。`effectSource` はNative EffectのID、またはCustom Shader Effect・Custom Node Graph Effectの登録ID参照かインライン定義を持ちます。Layerが通常パラメータ・`effectStaticSettings`・解像度を所有し、時間情報を持つクリップごとに `EffectInstance` を使用します。
 - `EffectDefinition.kind` は `modify` / `generate` を明示します。作成時、modifyは主入力を `lowerLayerOutput`、合成を `replace` にし、generateは定義の入力初期値と `normal` を使います。主入力がnullなら自動割当を行いません。modifyの主入力のリセットも `lowerLayerOutput` に戻しますが、手動の入力・合成変更は互いに連動しません。
 - `lowerLayerOutput` は同じ親の下層レイヤーの合成結果です。グループ内部から外側の背景は参照しません。下層がなければ透明黒です。配列・構造体内を含め `canNode: true` の末端にだけ指定でき、主入力以外にも指定できます。サンプリング設定の既定値は `cover` / `repeatMirrored` / `linear` です。入力型はcolorとして既存のノード互換性判定を使い、UIの型安全設定が有効なら不一致の接続を禁止、無効なら警告付きで許可します。
-- `anotherLayerOutput`は同じScene内の映像レイヤーをIDで参照します。Group・Transform配下も選べますが、Sceneレイヤーの参照先Scene内部には踏み込みません。音声・Camera・Transform自身は対象外です。エフェクトでは`lowerLayerOutput`と同じ末端へ指定でき、Custom Node Graph Effectレイヤーでは`canNode: true`の公開画像入力へ指定できます。Custom Node Graph Effect内部のBindingには追加しません。
-- `outputStage`は`source`（素材出力・既定）、`rendered`（単独描画結果）、`composited`（下層との合成結果）です。通常の素材出力はレイヤー自身の配置・合成前。単独描画は配置・投影・opacity・clipToFrame・`layerMask`を反映し、blendModeと下層切り抜き用の`mask`は適用しません。合成結果は参照先と同じ合成境界内で、そのレイヤーまで合成した画像です。Transformは境界を作りません。エフェクトとCustom Node Graph Effectはレイヤーとしてのprimary出力を使います。
+- `anotherLayerOutput`は同じScene内の映像レイヤーをIDで参照します。Group・Transform配下も選べますが、Sceneレイヤーの参照先Scene内部には踏み込みません。音声・Camera・Transform自身は対象外です。どのEffect Layerでも`lowerLayerOutput`と同じ末端へ指定でき、Custom Node Graph Effectの公開画像入力も対象です。参照はLayerのBindingに保存します。
+- `outputStage`は`source`（素材出力・既定）、`rendered`（単独描画結果）、`composited`（下層との合成結果）です。通常の素材出力はレイヤー自身の配置・合成前。単独描画は配置・投影・opacity・clipToFrame・`layerMask`を反映し、blendModeと下層切り抜き用の`mask`は適用しません。合成結果は参照先と同じ合成境界内で、そのレイヤーまで合成した画像です。Transformは境界を作りません。
 - `preserveDepth` Groupの素材出力は、通常描画と同じ空間で子のZ・Groupや祖先の変形・カメラを反映して合成した中間画像です。Group自身のopacity・blendMode・マスク・clipToFrameはまだ適用しません。2D画像として渡し、後段で変形・投影を二重適用しません。Groupの配置やカメラを変えると素材出力も変わります。
 - 配置を持つ出力は参照先の合成空間のScene基準枠で確定して画像入力へ渡し、位置と透明余白を維持します。画面外領域はこの境界で切り取ります。`source`を含むすべての出力段階を、受け取るエフェクト・Custom Node Graph Effectの所属Sceneの寸法へ揃えます。素材出力そのものの寸法は変更せず、入力境界で変換します。
 - 未選択・参照切れ・無効・祖先無効・クリップ区間外・映像出力なしは、どの段階でも入力として透明黒を渡します。参照IDは保持し、削除のUndoで復旧できます。Group・Sceneの複製では、複製範囲内への画像参照も新しいIDへ付け替えます。
 - 画像の依存は素材・単独描画・合成結果を区別し、`lowerLayerOutput`・公開主入力・Groupの内部合成も含めて静的に循環を検出します。無効化やクリップ期間が重ならないことによる例外は設けません。配線・出力段階・並び順・階層・公開入力の変更時に再検証します。
 - 通常描画と画像参照は同じScene配置・サブサンプルの評価結果を共有し、素材の履歴を二重に進めません。参照する側だけがモーションブラー無効でも、取得先は自身と祖先の設定に従った通常描画の時刻・空間で評価します。参照する側の基準時刻で取得先を再評価しません。
-- Custom Node Graph Effectの公開主入力も編集でき、既定値とリセットは`lowerLayerOutput`です。明示Bindingは自動割当より優先します。公開入力にはfit・wrap・filterを保存せず、サンプリングは内部接続で指定します。エフェクト側の画像Bindingは従来どおりこれらの設定を持ちます。
+- Custom Node Graph Effectの公開入力もEffect Layerのパラメータとして編集できます。加工系の主入力の既定値とリセット先は`lowerLayerOutput`です。Layerに保存した明示Bindingが既定値より優先されます。
 - 直接のパラメータ編集・選択・キー操作は `['items', 'item-id', 'color']` のようなIDパスを使います。配列要素の削除で内部のキーも消え、UndoでIDごと復元します。キー・式の評価時刻とスコープは通常のレイヤー引数と同じです。`EffectRenderContext.time` だけはクリップの内容時刻を秒で渡します。
-- 出力は `primaryOutput` だけを使用し、nullの場合は合成をスキップします。タイムラインに不向きなエフェクトも候補から除外しません。Playerは管理・解決せず、Player入力には対応しません。シーク前の履歴再現などは保証しません。
+- Timelineに配置できるのは、`primaryOutput` に `color` 型の出力ポートを指定したEffectです。Layerはそのポートだけを要求し、結果をテクスチャとして合成に渡します。Player入力には対応しません。シーク前の履歴再現などは保証しません。
 - 解像度はノードと共通の `EffectResolution`（`auto` / `context` / `customAbsolute`）で、初期値は`{ mode: 'auto', scale: 1 }`です。autoは静的設定の素材メタデータ・解像度用入力の宣言寸法・所属Sceneの順で、初回評価前に解決します。フレームや式の評価値では変わりません。
 - `auto` / `context`では正の有限数の倍率`scale`を数値で自由入力でき、基準となる幅・高さの両方に掛けます。両モード間では倍率を維持し、`customAbsolute`から戻すと1になります。保存・Undo/Redoの対象で、式・アニメーションには対応しません。
 - 全体のプレビュー・書き出し倍率で計算用寸法を求めた後にレイヤー自身の倍率を掛け、四捨五入して各辺を最低1pxにします。入力テクスチャに全体倍率を重ねて適用しません。autoで入力に追従する場合は入力側の倍率も引き継ぎ、contextは所属Sceneの寸法だけを基準にします。GPUの上限超過はエラーにし、`customAbsolute`は全体倍率だけを適用します。

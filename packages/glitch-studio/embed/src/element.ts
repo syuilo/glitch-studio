@@ -1,16 +1,16 @@
-import type { ExpressionEngine } from '@gs/shared/expression/expression-engine.ts';
 import { validatePortableCustomNodeGraphEffectSettings } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
-import { getPortableParameterDefaults, validatePortableParameters } from './parameters.ts';
+import { getPortableParameterDefinitions, getPortableParameterDefaults, validatePortableParameters } from './parameters.ts';
 import { getPortableRenderResolution } from './protocol.ts';
 import { PortableCustomNodeGraphEffectFrameRateLimiter } from './frame-rate-limiter.ts';
 import type { PortableCustomNodeGraphEffect, PortableCustomNodeGraphEffectSettings } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
 import type { PortableCustomNodeGraphEffectRequest, PortableCustomNodeGraphEffectResponse } from './protocol.ts';
 
-export function registerCustomNodeGraphEffectElement(tagName: string, artwork: PortableCustomNodeGraphEffect, workerSource: string, expressionEvaluator: ExpressionEngine | null) {
+export function registerCustomNodeGraphEffectElement(tagName: string, artwork: PortableCustomNodeGraphEffect, workerSource: string) {
 	// 同じ成果物を複数回読み込んでも登録済みのクラスを使う。タグは書き出しごとに一意にする。
 	if (customElements.get(tagName) != null) return;
-	const defaults = getPortableParameterDefaults(artwork.customNodeGraphEffect.paramDefs, expressionEvaluator);
-	const initial = validatePortableParameters(artwork.customNodeGraphEffect.paramDefs, artwork.initialParameters);
+	const definitions = getPortableParameterDefinitions(artwork.customNodeGraphEffect);
+	const defaults = getPortableParameterDefaults(definitions);
+	const initial = validatePortableParameters(definitions, artwork.initialParameters);
 	validatePortableCustomNodeGraphEffectSettings(artwork.settings);
 
 	class PortableCustomNodeGraphEffectElement extends HTMLElement {
@@ -33,6 +33,7 @@ export function registerCustomNodeGraphEffectElement(tagName: string, artwork: P
 		private settings = { ...artwork.settings };
 		private attributeParameters: Record<string, unknown> = {};
 		private apiParameters: Record<string, unknown> = {};
+		private parametersChanged = true;
 		private frameId: number | null = null;
 		private frameInFlight = false;
 		private dirty = true;
@@ -68,8 +69,9 @@ div:empty { display: none; }`;
 		}
 		public setParameter(name: string, value: unknown) { this.setParameters({ [name]: value }); }
 		public setParameters(values: Record<string, unknown>) {
-			const validated = validatePortableParameters(artwork.customNodeGraphEffect.paramDefs, values);
+			const validated = validatePortableParameters(definitions, values);
 			this.apiParameters = { ...this.apiParameters, ...validated };
+			this.parametersChanged = true;
 			this.requestRender();
 		}
 		public getParameter(name: string): unknown {
@@ -79,6 +81,7 @@ div:empty { display: none; }`;
 		public resetParameter(name: string) {
 			if (!Object.hasOwn(defaults, name)) throw new Error(`Unknown public parameter: ${name}`);
 			delete this.apiParameters[name];
+			this.parametersChanged = true;
 			this.requestRender();
 		}
 		private parameters() { return { ...defaults, ...initial, ...this.attributeParameters, ...this.apiParameters }; }
@@ -86,7 +89,8 @@ div:empty { display: none; }`;
 		public attributeChangedCallback(name: string) {
 			try {
 				if (name === 'parameters') {
-					this.attributeParameters = validatePortableParameters(artwork.customNodeGraphEffect.paramDefs, JSON.parse(this.getAttribute(name) ?? '{}'));
+					this.attributeParameters = validatePortableParameters(definitions, JSON.parse(this.getAttribute(name) ?? '{}'));
+					this.parametersChanged = true;
 				} else if (name !== 'paused') {
 					const fpsLimitAttribute = this.getAttribute('fps-limit');
 					const settings: PortableCustomNodeGraphEffectSettings = {
@@ -109,6 +113,7 @@ div:empty { display: none; }`;
 				void this.ready.catch(() => {});
 			}
 			this.connectedOnce = true;
+			this.parametersChanged = true;
 			this.failed = false;
 			this.status.textContent = '';
 			this.canvas?.remove();
@@ -222,10 +227,11 @@ div:empty { display: none; }`;
 			if (!this.frameInFlight && (!this.paused || this.dirty) && this.frameRateLimiter.takeFrame(timestamp, this.settings.fpsLimit)) {
 				const resolution = getPortableRenderResolution(this.physicalSize.width, this.physicalSize.height, this.settings)!;
 				const message: PortableCustomNodeGraphEffectRequest = { type: 'frame', frame: {
-					resolution, time: this.time, pointerElementPosition: this.pointerElementPosition, parameters: this.parameters(), resetHistory: this.resetHistory,
+					resolution, time: this.time, pointerElementPosition: this.pointerElementPosition, parameters: this.parametersChanged ? this.parameters() : null, resetHistory: this.resetHistory,
 				} };
 				this.worker!.postMessage(message);
 				this.dirty = false;
+				this.parametersChanged = false;
 				this.resetHistory = false;
 				this.frameInFlight = true;
 			}

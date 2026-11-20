@@ -8,9 +8,10 @@ function assert(cond: unknown, msg = ''): asserts cond {
 
 // We track command buffers so we can generate an error if
 // we try to read the result before the command buffer has been executed.
-const s_unsubmittedCommandBuffer = new Set<GPUCommandBuffer>();
+const s_unsubmittedCommandBuffer = new WeakSet<GPUCommandBuffer>();
 const trackedQueues = new WeakSet<GPUQueue>();
-const submittedReadbacks = new WeakMap<GPUCommandBuffer, () => void>();
+// 同じencoderには複数の配置が記録できる。送信は一度でも、各配置の計測結果を個別に回収する。
+const submittedReadbacks = new WeakMap<GPUCommandBuffer, Set<() => void>>();
 
 type TimingResultObserver = (nanoseconds: number | null) => void;
 
@@ -30,6 +31,7 @@ export default class TimingHelper {
 	#passObservers: (TimingResultObserver | null)[] = [];
 	#resultObservers: TimingResultObserver[] = [];
 	#readAfterSubmission = false;
+	#readSubmittedResult = () => { void this.getResult().catch(() => {}); };
 	#disposed = false;
 	#state: 'free' | 'recording' | 'need finish' | 'wait for result' = 'free';
 
@@ -47,9 +49,9 @@ export default class TimingHelper {
 				submit.call(this, buffers);
 				for (const buffer of buffers) {
 					s_unsubmittedCommandBuffer.delete(buffer);
-					const read = submittedReadbacks.get(buffer);
+					const reads = submittedReadbacks.get(buffer);
 					submittedReadbacks.delete(buffer);
-					read?.();
+					if (reads != null) for (const read of reads) read();
 				}
 			};
 		}
@@ -107,8 +109,8 @@ export default class TimingHelper {
 		return encoder.beginRenderPass(this.#withTimestampWrites(encoder, descriptor, onResult));
 	}
 
-	beginComputePass(encoder: GPUCommandEncoder, descriptor: GPUComputePassDescriptor = {}): GPUComputePassEncoder {
-		return encoder.beginComputePass(this.#withTimestampWrites(encoder, descriptor));
+	beginComputePass(encoder: GPUCommandEncoder, descriptor: GPUComputePassDescriptor = {}, onResult: TimingResultObserver | null = null): GPUComputePassEncoder {
+		return encoder.beginComputePass(this.#withTimestampWrites(encoder, descriptor, onResult));
 	}
 
 	#trackCommandBuffer(cb: GPUCommandBuffer) {
@@ -141,9 +143,10 @@ export default class TimingHelper {
 	}
 
 	#scheduleReadback(commandBuffer: GPUCommandBuffer) {
-		const read = () => { void this.getResult().catch(() => {}); };
-		if (s_unsubmittedCommandBuffer.has(commandBuffer)) submittedReadbacks.set(commandBuffer, read);
-		else read();
+		if (!s_unsubmittedCommandBuffer.has(commandBuffer)) { this.#readSubmittedResult(); return; }
+		let reads = submittedReadbacks.get(commandBuffer);
+		if (reads == null) submittedReadbacks.set(commandBuffer, reads = new Set());
+		reads.add(this.#readSubmittedResult);
 	}
 
 	#resolveTiming(encoder: GPUCommandEncoder) {
@@ -194,7 +197,6 @@ export default class TimingHelper {
 		const resultObservers = this.#resultObservers;
 		this.#passObservers = [];
 		this.#resultObservers = [];
-		submittedReadbacks.delete(this.#commandBuffer);
 		this.#readAfterSubmission = false;
 		this.#commandBuffer = null;
 		this.#commandEncoder = null;
@@ -243,8 +245,7 @@ export default class TimingHelper {
 		this.#passObservers = [];
 		this.#resultObservers = [];
 		if (this.#commandBuffer != null) {
-			s_unsubmittedCommandBuffer.delete(this.#commandBuffer);
-			submittedReadbacks.delete(this.#commandBuffer);
+			submittedReadbacks.get(this.#commandBuffer)?.delete(this.#readSubmittedResult);
 		}
 		this.#commandBuffer = null;
 		this.#commandEncoder = null;

@@ -1,15 +1,15 @@
+import { preferences } from '@/preferences.ts';
 import type { ProjectState, AppStateChange } from '../Project.ts';
 import type { COMMAND_DEFS } from '../commands.ts';
 import type { UndoRedo } from './undo-redo.ts';
 import type { CustomNodeGraphEffectEdit } from '../types/custom-node-graph-effect-editor.ts';
 import type { ParamEdit } from '../components/GsVisualParam.vue';
 import type { CustomNodeGraphEffectTarget } from './custom-node-graph-effect-target.ts';
-import type { CustomNodeGraphEffectParamDef, CustomNodeGraphEffectValueParameterBinding } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffectParamDef, CustomNodeGraphEffectValueParameterBinding } from '@/types/custom-node-graph-effect-view.ts';
 import { findCustomNodeGraphEffect } from './custom-node-graph-effect-target.ts';
 import { resolveNodeParam } from './node-params.ts';
 import { getEffectDefinitions } from './project-effects.ts';
 import { editCustomNodeGraphEffectCustomParameterBinding } from './custom-node-graph-effect-custom-parameter-edit.ts';
-import { preferences } from '../preferences.ts';
 
 type ProjectCommands = Pick<UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>, 'state' | 'commit'>;
 
@@ -17,6 +17,7 @@ export function commitCustomNodeGraphEffectEdit(manager: ProjectCommands, target
 	const customNodeGraphEffect = findCustomNodeGraphEffect(manager.state, target);
 	if (customNodeGraphEffect == null) return;
 	const connectionTypePolicy = preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch';
+
 	switch (event.kind) {
 		case 'customParameterClipboard': return; // 非同期のクリップボード操作は所有者が処理する。
 		case 'updateCustomParameter': {

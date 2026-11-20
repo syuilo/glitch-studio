@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { effectResolutionSchema, parameterExpressionModifierSchema, staticSettingValueSchema, structParameterFieldBindingsSchema } from './parameter-contract-schemas.ts';
-import { connectionTypePolicySchema, customNodeGraphEffectCustomParameterInputSchema, customNodeGraphEffectCustomParameterReferenceSchema, customNodeGraphEffectNodeParameterReferenceSchema, customNodeGraphEffectNodeReferenceSchema, customNodeGraphEffectOutputInputSchema, customNodeGraphEffectOutputReferenceSchema, customNodeGraphEffectParameterBindingSchema, customNodeGraphEffectParameterInputSourceSchema, customNodeGraphEffectParameterSourceSchema, customNodeGraphEffectPublicParameterIdSchema, customNodeGraphEffectPublicParameterInputSchema, customNodeGraphEffectPublicParameterReferenceSchema, customNodeGraphEffectTargetSchema, customNodeGraphEffectValueParameterBindingSchema, customNodeGraphEffectValueParameterInputSourceSchema, customNodeGraphEffectValueParameterSourceSchema } from './custom-node-graph-effect-contract-schemas.ts';
+import { connectionTypePolicySchema, effectResolutionSchema, parameterExpressionModifierSchema, staticSettingValueSchema, structParameterFieldBindingsSchema } from './parameter-contract-schemas.ts';
+import { customNodeGraphEffectCustomParameterInputSchema, customNodeGraphEffectCustomParameterReferenceSchema, customNodeGraphEffectNodeParameterReferenceSchema, customNodeGraphEffectNodeReferenceSchema, customNodeGraphEffectOutputInputSchema, customNodeGraphEffectOutputReferenceSchema, customNodeGraphEffectParameterBindingSchema, customNodeGraphEffectParameterInputSourceSchema, customNodeGraphEffectParameterSourceSchema, customNodeGraphEffectPublicParameterIdSchema, customNodeGraphEffectPublicParameterInputSchema, customNodeGraphEffectPublicParameterReferenceSchema, customNodeGraphEffectTargetSchema, customNodeGraphEffectValueParameterBindingSchema, customNodeGraphEffectValueParameterInputSourceSchema, customNodeGraphEffectValueParameterSourceSchema } from './custom-node-graph-effect-contract-schemas.ts';
 
-const nodeSetup = 'let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\nlet node = Command:createCustomNodeGraphEffectEffectNode({ customNodeGraphEffect: customNodeGraphEffect, effectId: "fill" })\n';
+const nodeSetup = 'let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\nlet node = Command:createCustomNodeGraphEffectEffectNode({ customNodeGraphEffect: customNodeGraphEffect, effectSource: { type: "nativeEffect", id: "fill" } })\n';
 const customParameterSetup = nodeSetup + 'let parameter = Command:createCustomNodeGraphEffectCustomParameterFromParameter({ target: node, parameterPath: ["color"] })\n';
 const publicParameterSetup = nodeSetup + 'let parameter = Command:createCustomNodeGraphEffectPublicParameterFromParameter({ target: node, parameterPath: ["color"] })\n';
 const outputSetup = 'let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})\nlet output = Command:createCustomNodeGraphEffectOutput({ customNodeGraphEffect: customNodeGraphEffect, definition: { name: "auxiliary", label: "Auxiliary", dataType: { kind: "color" } } })\n';
@@ -52,7 +52,7 @@ export const CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS = {
 		inputSchema: customNodeGraphEffectNodeParameterReferenceSchema.extend({ elementIds: z.array(z.string()) }), resultSchema: z.null(),
 	},
 	setCustomNodeGraphEffectNodeBypass: {
-		description: 'Enable or disable bypass on an effect node without deleting its definition, bindings, or connections.',
+		description: 'Enable or disable bypass on an effect node. A bypassed node forwards a texture from its primary input to a compatible primary output. Other outputs are absent.',
 		examples: [nodeSetup + 'Command:setCustomNodeGraphEffectNodeBypass({ target: node, bypass: true })'],
 		inputSchema: z.object({ target: customNodeGraphEffectNodeReferenceSchema, bypass: z.boolean() }), resultSchema: z.null(),
 	},
@@ -72,7 +72,7 @@ export const CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS = {
 		inputSchema: z.object({ target: customNodeGraphEffectNodeReferenceSchema, resolution: effectResolutionSchema }), resultSchema: z.null(),
 	},
 	setCustomNodeGraphEffectOutputConnection: {
-		description: 'Connect a Custom Node Graph Effect output to an output port on a node in the same Custom Node Graph Effect. source: null disconnects it. Output port identifiers come from the node\'s effect definition. connectionTypePolicy defaults to strict.',
+		description: 'Connect a Custom Node Graph Effect output to an output port in the same graph. Pass null as source to disconnect it. An In connection, including through a relay, produces output only when the placement supplies a texture. connectionTypePolicy defaults to strict.',
 		examples: [nodeSetup + 'let customNodeGraphEffectState = Query:getCustomNodeGraphEffect(customNodeGraphEffect)\nCommand:setCustomNodeGraphEffectOutputConnection({ target: { customNodeGraphEffect: customNodeGraphEffect, outputId: customNodeGraphEffectState.primaryOutputId }, source: { nodeId: node.nodeId, outputPort: "output" } })'],
 		inputSchema: z.object({ target: customNodeGraphEffectOutputReferenceSchema, source: z.object({ nodeId: z.string(), outputPort: z.string() }).nullable(), connectionTypePolicy: connectionTypePolicySchema.nullish() }), resultSchema: z.null(),
 	},
@@ -97,12 +97,12 @@ export const CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS = {
 		inputSchema: z.object({ customNodeGraphEffect: customNodeGraphEffectTargetSchema, definition: customNodeGraphEffectPublicParameterInputSchema }), resultSchema: customNodeGraphEffectPublicParameterReferenceSchema,
 	},
 	replaceCustomNodeGraphEffectPublicParameterDefinition: {
-		description: 'Replace a public parameter definition while retaining its ID. The name must stay unique. Primary image/audio input designations are cleared if the new type no longer supports them.',
+		description: 'Replace a public parameter definition while retaining its ID. The name must stay unique. Clears unsupported primary input designations and resets incompatible arguments on affected Nodes and Timeline Layers. Undo restores the previous definition and arguments together.',
 		examples: [publicParameterSetup + 'Command:replaceCustomNodeGraphEffectPublicParameterDefinition({ target: parameter, definition: ' + scalarDefinition + ' })'],
 		inputSchema: z.object({ target: customNodeGraphEffectPublicParameterReferenceSchema, definition: customNodeGraphEffectPublicParameterInputSchema }), resultSchema: z.null(),
 	},
 	removeCustomNodeGraphEffectPublicParameter: {
-		description: 'Remove a public parameter and clear any primary input designation that references it. Existing references are retained as unresolved so Undo can restore their meaning.',
+		description: 'Remove a public parameter, its primary input designation, and the corresponding arguments on Nodes and Layers. Connections inside the definition retain their IDs as unresolved references. Undo restores the definition and arguments.',
 		examples: [publicParameterSetup + 'Command:removeCustomNodeGraphEffectPublicParameter({ target: parameter })'],
 		inputSchema: z.object({ target: customNodeGraphEffectPublicParameterReferenceSchema }), resultSchema: z.null(),
 	},
@@ -164,7 +164,7 @@ export const CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS = {
 		inputSchema: z.object({ target: customNodeGraphEffectOutputReferenceSchema, definition: customNodeGraphEffectOutputInputSchema }), resultSchema: z.null(),
 	},
 	removeCustomNodeGraphEffectOutput: {
-		description: 'Remove an output definition and clear its primary designation if necessary. The Out node connection is retained so Undo restores the original wiring.',
+		description: 'Remove an output definition, clear its primary designation if necessary, and disconnect wires to that port in all graph placements of the registered definition. Undo restores the output and its original wiring.',
 		examples: [outputSetup + 'Command:removeCustomNodeGraphEffectOutput({ target: output })'],
 		inputSchema: z.object({ target: customNodeGraphEffectOutputReferenceSchema }), resultSchema: z.null(),
 	},

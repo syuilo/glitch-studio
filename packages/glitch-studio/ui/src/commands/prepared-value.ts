@@ -12,13 +12,14 @@ import type { PreparedCommand } from '../utility/undo-redo.ts';
 export function prepareProjectValueChange<Value extends Cloneable, Result = void>(options: {
 	before: Value;
 	after: Value;
+	equals?: (before: Value, after: Value) => boolean;
 	write: (state: ProjectState, value: Value) => void;
 	changes: AppStateChange[];
 	result: Result;
 }): PreparedCommand<ProjectState, AppStateChange, Result> {
 	const before = deepClone(options.before);
 	const after = deepClone(options.after);
-	if (deepEqual(before as Parameters<typeof deepEqual>[0], after as Parameters<typeof deepEqual>[0])) {
+	if ((options.equals ?? deepEqual)(before, after)) {
 		return { result: options.result, change: null };
 	}
 	return {

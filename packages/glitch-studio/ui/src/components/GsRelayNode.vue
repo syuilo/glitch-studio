@@ -74,7 +74,7 @@ import GsSelect from './common/GsSelect.vue';
 import GsNodeOutputs from './GsNodeOutputs.vue';
 import GsCustomNodeGraphEffectNodeInput from './GsCustomNodeGraphEffectNodeInput.vue';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { NodeOutputReference, CustomNodeGraphEffect, CustomNodeGraphEffectRelayNode } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { NodeOutputReference, CustomNodeGraphEffect, CustomNodeGraphEffectRelayNode } from '@/types/custom-node-graph-effect-view.ts';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
 import { getCustomNodeGraphEffectNodeHeaderMenuItems } from '@/utility/custom-node-graph-effect-node-menu.ts';

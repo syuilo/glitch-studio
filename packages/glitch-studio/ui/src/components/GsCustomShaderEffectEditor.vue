@@ -20,9 +20,14 @@
 		<GsFolder v-for="(parameter, index) in draft.paramDefs" :key="parameter.id" defaultOpen>
 			<template #label>{{ parameter.ui.label }}</template>
 			<XPublicParameterDefinitionEditor :def="parameter" :supportedTypes="supportedTypes" :data-test-custom-shader-effect-parameter="parameter.id" @update="updateParameter(parameter.id, $event)" @remove="removeParameter(parameter.id)"/>
-			<GsSwitch :modelValue="draft.resolutionInputIds.includes(parameter.id)" @update:modelValue="setResolutionInput(parameter.id, $event)">{{ i18n.ts._CustomShaderEffect.ResolutionInput }}</GsSwitch>
+			<GsSwitch :modelValue="draft.resolutionInputParameters.includes(parameter.id)" @update:modelValue="setResolutionInput(parameter.id, $event)">{{ i18n.ts._CustomShaderEffect.ResolutionInput }}</GsSwitch>
 			<div :class="$style.actions">
-				<GsButton :disabled="index === 0" icon="ti ti-arrow-up" @click="move(draft.paramDefs, index, -1)">{{ i18n.ts._CustomShaderEffect.MoveUp }}</GsButton>
+				<GsButton
+					:data-test-move-custom-shader-effect-parameter-up="parameter.id"
+					:disabled="index === 0"
+					icon="ti ti-arrow-up"
+					@click="move(draft.paramDefs, index, -1)"
+				>{{ i18n.ts._CustomShaderEffect.MoveUp }}</GsButton>
 				<GsButton :disabled="index === draft.paramDefs.length - 1" icon="ti ti-arrow-down" @click="move(draft.paramDefs, index, 1)">{{ i18n.ts._CustomShaderEffect.MoveDown }}</GsButton>
 			</div>
 		</GsFolder>
@@ -31,13 +36,22 @@
 	<template v-else-if="tab === 'outputs'">
 		<div>{{ i18n.ts._CustomShaderEffect.ReferenceNames }}</div>
 		<GsFolder v-for="(output, index) in draft.outputDefs" :key="output.id" defaultOpen>
-			<template #label>{{ output.label }}</template>
+			<template #label>{{ output.label ?? output.nameForReference }}</template>
 			<div class="_gaps_m">
-				<GsInput v-model="output.label" :data-test-custom-shader-effect-output-label="output.id"><template #label>{{ i18n.ts.Label }}</template></GsInput>
+				<GsInput
+					:modelValue="output.label ?? output.nameForReference"
+					:data-test-custom-shader-effect-output-label="output.id"
+					@update:modelValue="output.label = $event"
+				><template #label>{{ i18n.ts.Label }}</template></GsInput>
 				<GsInput v-model="output.nameForReference" monospace :data-test-custom-shader-effect-output-name="output.id"><template #label>{{ i18n.ts._ParameterEditor.ReferenceName }}</template></GsInput>
 				<GsSelect :modelValue="output.dataType.kind" :items="dataTypeItems" :data-test-custom-shader-effect-output-type="output.id" @update:modelValue="updateOutputType(output.id, $event)"><template #label>{{ i18n.ts._ParameterEditor.DataType }}</template></GsSelect>
 				<div :class="$style.actions">
-					<GsButton :disabled="index === 0" icon="ti ti-arrow-up" @click="move(draft.outputDefs, index, -1)">{{ i18n.ts._CustomShaderEffect.MoveUp }}</GsButton>
+					<GsButton
+						:data-test-move-custom-shader-effect-output-up="output.id"
+						:disabled="index === 0"
+						icon="ti ti-arrow-up"
+						@click="move(draft.outputDefs, index, -1)"
+					>{{ i18n.ts._CustomShaderEffect.MoveUp }}</GsButton>
 					<GsButton :disabled="index === draft.outputDefs.length - 1" icon="ti ti-arrow-down" @click="move(draft.outputDefs, index, 1)">{{ i18n.ts._CustomShaderEffect.MoveDown }}</GsButton>
 					<GsButton :data-test-remove-custom-shader-effect-output="output.id" danger icon="ti ti-trash" @click="removeOutput(output.id)">{{ i18n.ts.Delete }}</GsButton>
 				</div>
@@ -49,8 +63,8 @@
 		<GsInput v-model="draft.name" data-test-custom-shader-effect-name><template #label>{{ i18n.ts.Name }}</template></GsInput>
 		<GsTextarea v-model="draft.summary"><template #label>{{ i18n.ts._Project.Description }}</template></GsTextarea>
 		<GsSelect v-model="draft.kind" :items="kindItems"><template #label>{{ i18n.ts._CustomShaderEffect.Kind }}</template></GsSelect>
-		<GsSelect v-model="draft.primaryInputId" :items="primaryInputItems" data-test-custom-shader-effect-primary-input><template #label>{{ i18n.ts._ParameterEditor.PrimaryInput }}</template></GsSelect>
-		<GsSelect v-model="draft.primaryOutputId" :items="primaryOutputItems" data-test-custom-shader-effect-primary-output><template #label>{{ i18n.ts._CustomNodeGraphEffect.PrimaryOutput }}</template></GsSelect>
+		<GsSelect v-model="draft.primaryInputParameter" :items="primaryInputItems" data-test-custom-shader-effect-primary-input><template #label>{{ i18n.ts._ParameterEditor.PrimaryInput }}</template></GsSelect>
+		<GsSelect v-model="draft.primaryOutput" :items="primaryOutputItems" data-test-custom-shader-effect-primary-output><template #label>{{ i18n.ts._CustomNodeGraphEffect.PrimaryOutput }}</template></GsSelect>
 	</template>
 </div>
 </template>
@@ -58,9 +72,8 @@
 <script lang="ts" setup>
 import { computed, ref, watch } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { genId } from '@gs/shared/utility/id.ts';
-import { CustomShaderEffectDefinitionError, describeCustomShaderEffectInterface, validateCustomShaderEffectDefinition } from '@gs/subsystems_effect_shared/custom-shader-effect-definition.ts';
+import { CustomShaderEffectDefinitionError, describeCustomShaderEffectInterface, validateCustomShaderEffectDefinition } from '@gs/subsystems_effect-new_shared/custom-shader-effect.ts';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsTextarea from './common/GsTextarea.vue';
@@ -72,12 +85,32 @@ import XPublicParameterDefinitionEditor from './XPublicParameterDefinitionEditor
 import type { PublicParameterDefinitionEdit } from '@/types/parameter-edit.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { CustomShaderEffectParameterDefinition } from '@gs/subsystems_effect_shared/custom-shader-effect-definition.ts';
+import type { CustomShaderEffect } from '@gs/subsystems_effect-new_shared/custom-shader-effect.ts';
 import { i18n } from '@/i18n.ts';
+import { areProjectCustomShaderEffectsEqual } from '@/utility/custom-shader-effect.ts';
 
 const props = defineProps<{ customShaderEffect: ProjectCustomShaderEffect }>();
 const emit = defineEmits<{ apply: [definition: ProjectCustomShaderEffect] }>();
-const draft = ref(deepClone(props.customShaderEffect));
+type CustomShaderEffectParameterDefinition = CustomShaderEffect['paramDefs'][string] & { id: string };
+
+function rows<T extends object>(record: Readonly<Record<string, T>>) {
+	return Object.entries(record).map(([id, value]) => ({ ...value, id }));
+}
+
+function toDraft(entry: ProjectCustomShaderEffect) {
+	const { definition, ...registration } = deepClone(entry);
+	return { ...registration, ...definition, paramDefs: rows(definition.paramDefs), outputDefs: rows(definition.outputDefs),
+		resolutionInputParameters: [...definition.resolutionInputParameters] };
+}
+
+const draft = ref(toDraft(props.customShaderEffect));
+const registration = computed((): ProjectCustomShaderEffect => {
+	const { id, name, summary, paramDefs, outputDefs, ...definition } = draft.value;
+	return { id, name, summary, definition: { ...definition,
+		paramDefs: Object.fromEntries(paramDefs.map(({ id, ...parameter }) => [id, parameter])),
+		outputDefs: Object.fromEntries(outputDefs.map(({ id, ...output }) => [id, output])),
+	} };
+});
 const tab = ref('code');
 const supportedTypes = ['scalar', 'vector', 'color', 'any'] as const;
 const dataTypeItems = supportedTypes.map(kind => ({ value: kind, label: i18n.ts._EffectPicker._DataTypes[kind] }));
@@ -87,23 +120,23 @@ const tabs = [
 	{ id: 'outputs', label: i18n.ts._CustomShaderEffect.Outputs },
 	{ id: 'settings', label: i18n.ts.Settings },
 ];
-const kindItems: { value: ProjectCustomShaderEffect['kind']; label: string }[] = [
+const kindItems: { value: CustomShaderEffect['kind']; label: string }[] = [
 	{ value: 'modify', label: i18n.ts._CustomShaderEffect.Modify },
 	{ value: 'generate', label: i18n.ts._CustomShaderEffect.Generate },
 ];
 const noneItem = { value: null, label: i18n.ts._CustomShaderEffect.None };
 const primaryInputItems = computed(() => [noneItem, ...draft.value.paramDefs.filter(parameter => parameter.dataType.kind === 'color').map(parameter => ({ value: parameter.id, label: parameter.ui.label }))]);
-const primaryOutputItems = computed(() => [noneItem, ...draft.value.outputDefs.filter(output => output.dataType.kind === 'color').map(output => ({ value: output.id, label: output.label }))]);
-const changed = computed(() => !deepEqual(draft.value, props.customShaderEffect));
-const interfaceDescription = computed(() => describeCustomShaderEffectInterface(draft.value));
+const primaryOutputItems = computed(() => [noneItem, ...draft.value.outputDefs.filter(output => output.dataType.kind === 'color').map(output => ({ value: output.id, label: output.label ?? output.nameForReference }))]);
+const changed = computed(() => !areProjectCustomShaderEffectsEqual(registration.value, props.customShaderEffect));
+const interfaceDescription = computed(() => describeCustomShaderEffectInterface(registration.value.definition));
 const validationError = computed(() => {
 	if (draft.value.name.trim().length === 0) return i18n.ts._CustomShaderEffect.EmptyName;
 	try {
-		validateCustomShaderEffectDefinition(draft.value);
+		validateCustomShaderEffectDefinition(registration.value.definition);
 		return null;
 	} catch (error) {
 		return error instanceof CustomShaderEffectDefinitionError
-			? `${i18n.ts._CustomShaderEffect.Errors[error.reason]}${error.referenceName.length > 0 ? ` (${error.referenceName})` : ''}`
+			? `${(Reflect.get(i18n.ts._CustomShaderEffect.Errors, error.reason) ?? error.reason)}${error.referenceName.length > 0 ? ` (${error.referenceName})` : ''}`
 			: String(error);
 	}
 });
@@ -112,11 +145,11 @@ const validationError = computed(() => {
 watch(() => props.customShaderEffect, resetDraft);
 
 function resetDraft() {
-	draft.value = deepClone(props.customShaderEffect);
+	draft.value = toDraft(props.customShaderEffect);
 }
 
 function apply() {
-	if (changed.value && validationError.value == null) emit('apply', deepClone(draft.value));
+	if (changed.value && validationError.value == null) emit('apply', deepClone(registration.value));
 }
 
 function nextReferenceName(base: string, definitions: { nameForReference: string }[]) {
@@ -133,18 +166,18 @@ function updateParameter(id: string, changes: PublicParameterDefinitionEdit) {
 	const index = draft.value.paramDefs.findIndex(parameter => parameter.id === id);
 	const next = { ...draft.value.paramDefs[index], ...changes, id, canNode: true } as CustomShaderEffectParameterDefinition;
 	draft.value.paramDefs[index] = next;
-	if (draft.value.primaryInputId === id && next.dataType.kind !== 'color') draft.value.primaryInputId = null;
+	if (draft.value.primaryInputParameter === id && next.dataType.kind !== 'color') draft.value.primaryInputParameter = null;
 }
 
 function removeParameter(id: string) {
 	draft.value.paramDefs = draft.value.paramDefs.filter(parameter => parameter.id !== id);
-	draft.value.resolutionInputIds = draft.value.resolutionInputIds.filter(inputId => inputId !== id);
-	if (draft.value.primaryInputId === id) draft.value.primaryInputId = null;
+	draft.value.resolutionInputParameters = draft.value.resolutionInputParameters.filter(inputId => inputId !== id);
+	if (draft.value.primaryInputParameter === id) draft.value.primaryInputParameter = null;
 }
 
 function setResolutionInput(id: string, enabled: boolean) {
-	draft.value.resolutionInputIds = draft.value.resolutionInputIds.filter(inputId => inputId !== id);
-	if (enabled) draft.value.resolutionInputIds.push(id);
+	draft.value.resolutionInputParameters = draft.value.resolutionInputParameters.filter(inputId => inputId !== id);
+	if (enabled) draft.value.resolutionInputParameters.push(id);
 }
 
 function addOutput() {
@@ -154,12 +187,12 @@ function addOutput() {
 function updateOutputType(id: string, kind: TextureDataType['kind']) {
 	const output = draft.value.outputDefs.find(definition => definition.id === id)!;
 	output.dataType = { kind };
-	if (draft.value.primaryOutputId === id && kind !== 'color') draft.value.primaryOutputId = null;
+	if (draft.value.primaryOutput === id && kind !== 'color') draft.value.primaryOutput = null;
 }
 
 function removeOutput(id: string) {
 	draft.value.outputDefs = draft.value.outputDefs.filter(output => output.id !== id);
-	if (draft.value.primaryOutputId === id) draft.value.primaryOutputId = null;
+	if (draft.value.primaryOutput === id) draft.value.primaryOutput = null;
 }
 
 function move<T>(items: T[], index: number, direction: -1 | 1) {

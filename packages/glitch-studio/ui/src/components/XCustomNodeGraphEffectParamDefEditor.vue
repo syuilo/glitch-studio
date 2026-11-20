@@ -6,22 +6,21 @@
 </template>
 
 <script lang="ts" setup>
-import { customNodeGraphEffectPublicParameterName } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
-import type { CustomNodeGraphEffectPublicParameterId, CustomNodeGraphEffectParamDef } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffectParamDef } from '@/types/custom-node-graph-effect-view.ts';
 import type { PublicParameterDefinitionEdit } from '@/types/parameter-edit.ts';
 import XPublicParameterDefinitionEditor from './XPublicParameterDefinitionEditor.vue';
 import GsSwitch from './common/GsSwitch.vue';
 import { i18n } from '@/i18n.ts';
 
-defineProps<{ primaryInputId: CustomNodeGraphEffectPublicParameterId | null; primaryAudioInputId?: CustomNodeGraphEffectPublicParameterId | null; def: CustomNodeGraphEffectParamDef }>();
+defineProps<{ primaryInputId: string | null; primaryAudioInputId?: string | null; def: CustomNodeGraphEffectParamDef }>();
 const emit = defineEmits<{
 	update: [changes: Partial<Omit<CustomNodeGraphEffectParamDef, 'id'>>, mergeKey?: string | null];
 	remove: [];
-	setPrimaryInput: [inputId: CustomNodeGraphEffectPublicParameterId | null];
-	setPrimaryAudioInput: [inputId: CustomNodeGraphEffectPublicParameterId | null];
+	setPrimaryInput: [inputId: string | null];
+	setPrimaryAudioInput: [inputId: string | null];
 }>();
 
 function update(changes: PublicParameterDefinitionEdit, mergeKey?: string | null) {
-	emit('update', { ...changes, ...changes.nameForReference == null ? {} : { nameForReference: customNodeGraphEffectPublicParameterName(changes.nameForReference) } } as Partial<Omit<CustomNodeGraphEffectParamDef, 'id'>>, mergeKey);
+	emit('update', { ...changes, ...changes.nameForReference == null ? {} : { nameForReference: changes.nameForReference } } as Partial<Omit<CustomNodeGraphEffectParamDef, 'id'>>, mergeKey);
 }
 </script>

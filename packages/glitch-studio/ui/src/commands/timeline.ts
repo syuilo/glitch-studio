@@ -1,12 +1,12 @@
 import { validateStaticSettingValue } from '@gs/shared/static-setting.ts';
 import { getTimelineLayerStaticSettings } from '@gs/subsystems_timeline_shared/layer-static-settings.ts';
 import { convertTimelineContainerLayer } from '@gs/subsystems_timeline_shared/container-layer.ts';
-import { isTimelineContainerLayer, isTimelineVisualLayer, isTimelineEffectOrCustomNodeGraphEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { isTimelineContainerLayer, isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation, getTimelineClipLayers, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { validateVoicevoxLayer } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
 import { validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
-import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
+import { validateEffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
 import { canReferenceScene, validateTimelineLayer } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getTimelineClipTrimBounds, getTimelineClipInsertionDuration, validateTimelineClips } from '@gs/subsystems_timeline_shared/timing.ts';
 import { changeTimelineMediaPlaybackRate, createTimelineMediaClipTiming, getTimelineMediaLoopBounds, getTimelineMediaSingleDuration, getTimelineMediaTrimBounds, trimTimelineMediaClip, validateTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
@@ -16,7 +16,7 @@ import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-re
 import { validateTimelineMask, validateTimelineLayerMask, isTimelineLayerTransformTarget } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { getTimelineLayerMaskSources } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import { getEffectDefinitions } from '../utility/project-effects.ts';
-import { getScene, getLayerParameterTargets, getLayerParameterDefinitions, resolveLayerParameter } from '../utility/timeline-scene.ts';
+import { getScene, getLayerParameterTargets, getLayerParameterDefinitions, getLayerParameterValues } from '../utility/timeline-scene.ts';
 import { prepareTimelineContainerMove } from '../utility/timeline-container.ts';
 import { setTimelineLayerParameterRoot } from '../utility/timeline-parameter-edit.ts';
 import { defineTimelineCommand } from './timeline-preparation.ts';
@@ -30,19 +30,18 @@ import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from '@gs/subsystems_timeline_shared/clip.ts';
 import type { TimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import type { TimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
-import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
+import type { EffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
 import type { VoicevoxSettings, VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import type { AppStateChange, ProjectState } from '../Project.ts';
 import type { EditableTimelineParameterBinding } from '../types/parameter-edit.ts';
 import type { TimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineContainerLayerType } from '@gs/subsystems_timeline_shared/container-layer.ts';
 import type { TimelineKeyframeSelection, TimelineKeyframePosition } from '@/utility/timeline-selection.ts';
-import type { TimelineKeyframeMoveUpdate } from '@/utility/timeline-keyframe-move.ts';
 import type { TimelineClipPaste } from '@/utility/timeline-clip-clipboard.ts';
 import type { TimelineClipSourceDurations } from '@/utility/timeline-clip-media.ts';
 import type { TimelineKeyframePaste } from '@/utility/timeline-keyframe-clipboard.ts';
 import { getTimelineKeyframePasteUpdates } from '@/utility/timeline-keyframe-clipboard.ts';
-import { prepareTimelineKeyframeMove } from '@/utility/timeline-keyframe-move.ts';
+import { moveTimelineKeyframesInDraft } from '@/utility/timeline-keyframe-move.ts';
 import { prepareTimelineClipMove } from '@/utility/timeline-clip-move.ts';
 
 export const setTimelineGroupCompositingModeCommandDef = defineTimelineCommand<{ sceneId: string; layerId: string; mode: 'flat' | 'preserveDepth' }>({
@@ -68,7 +67,7 @@ export const setTimelineLayerStaticSettingCommandDef = defineTimelineCommand<{ s
 	scope: payload => ({ sceneId: payload.sceneId, layerIds: [payload.layerId] }),
 	edit: (state, payload) => {
 		const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
-		const { definitions, values } = getTimelineLayerStaticSettings(layer, layer.layerType === 'effect' ? getEffectDefinitions(state)[layer.effectId] : null);
+		const { definitions, values } = getTimelineLayerStaticSettings(layer, layer.layerType === 'effect' ? getEffectDefinitions(state).describe(layer.effectSource) : null);
 		const definition = definitions[payload.key];
 		if (definition == null) throw new Error('Static setting not found');
 		validateStaticSettingValue(definition, payload.value);
@@ -151,7 +150,7 @@ export function validateAddedTimelineLayer(state: ProjectState, sceneId: string,
 	}
 	validateTimelineLayer(layer);
 	for (const child of getTimelineClipLayers([layer])) {
-		if (child.layerType === 'effect') validateTimelineEffectLayer(child, getEffectDefinitions(state)[child.effectId]);
+		if (child.layerType === 'effect') validateTimelineEffectLayer(child, getEffectDefinitions(state));
 		if ((child.layerType === 'video' || child.layerType === 'audio') && child.clips.length > 0 && !sourceDurationsMs) throw new Error('Media duration is required');
 		validateLayerClips(state, sceneId, child, child.clips, sourceDurationsMs);
 	}
@@ -316,7 +315,7 @@ export const setTimelineLayerTransformTargetCommandDef = defineTimelineCommand<{
 	edit: (state, payload) => {
 		const getLayer = (state: ProjectState) => {
 			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
-			if (!isTimelineEffectOrCustomNodeGraphEffectLayer(layer)) throw new Error('Transform target requires an effect or Custom Node Graph Effect layer');
+			if (layer.layerType !== 'effect') throw new Error('Transform target requires an effect or Custom Node Graph Effect layer');
 			return layer;
 		};
 		if (!isTimelineLayerTransformTarget(payload.transformTarget)) throw new Error('Invalid timeline layer transform target');
@@ -594,15 +593,6 @@ export const setTimelineMediaClipPlaybackRateCommandDef = defineTimelineCommand<
 	},
 });
 
-export function applyTimelineKeyframeMove(state: ProjectState, sceneId: string, updates: TimelineKeyframeMoveUpdate[], side: 'before' | 'after') {
-	for (const update of updates) {
-		const layer = getTimelineLayer(state, sceneId, update.layerId);
-		if (update.target === 'utterance') {
-			if (layer.layerType === 'voicevox') layer.utterances = deepClone(update[side]);
-		} else setTimelineLayerParameterRoot(layer, update.target, update.paramId, update[side]);
-	}
-}
-
 export const moveTimelineClipsCommandDef = defineTimelineCommand<{ sceneId: string; clips: TimelineClipTarget[]; deltaMs: number }>({
 	label: 'Move timeline clips',
 	changes: (state, payload) => [...new Set(payload.clips.map(clip => clip.layerId))].map(layerId => ({
@@ -622,9 +612,8 @@ export const moveTimelineClipsCommandDef = defineTimelineCommand<{ sceneId: stri
 		const scene = getScene(state, payload.sceneId);
 		const move = prepareTimelineClipMove(state, scene, payload.clips);
 		if (payload.deltaMs < move.minDelta || payload.deltaMs > move.maxDelta) throw new Error('Timeline edit is outside the valid range');
-		const updates = prepareTimelineKeyframeMove(state, scene, move.keyframes.map(point => ({ ...point, x: point.x + payload.deltaMs })));
+		moveTimelineKeyframesInDraft(state, scene, move.keyframes.map(point => ({ ...point, x: point.x + payload.deltaMs })));
 		for (const target of move.clips) getTimelineClip(state, payload.sceneId, target).clip.startMs = target.startMs + payload.deltaMs;
-		applyTimelineKeyframeMove(state, payload.sceneId, updates, 'after');
 	},
 });
 
@@ -882,8 +871,7 @@ export const moveTimelineKeyframesCommandDef = defineTimelineCommand<{ sceneId: 
 	})),
 	scope: payload => ({ sceneId: payload.sceneId }),
 	edit: (state, payload) => {
-		const updates = prepareTimelineKeyframeMove(state, getScene(state, payload.sceneId), payload.positions);
-		applyTimelineKeyframeMove(state, payload.sceneId, updates, 'after');
+		moveTimelineKeyframesInDraft(state, getScene(state, payload.sceneId), payload.positions);
 	},
 });
 
@@ -920,27 +908,26 @@ export const removeTimelineKeyframesCommandDef = defineTimelineCommand<{ sceneId
 	scope: payload => ({ sceneId: payload.sceneId }),
 	edit: (state, payload) => {
 		const scene = getScene(state, payload.sceneId);
-		const ids = new Set(payload.keyframes.map(point => point.layerId));
-		const proposed = deepClone(flattenTimelineLayers(scene.layers).filter(layer => ids.has(layer.id)));
+		const layersById = new Map(flattenTimelineLayers(scene.layers).map(layer => [layer.id, layer]));
+		// 編集用に分離済みのSceneを変更する。全件の削除に成功してからCommandが反映する。
 		for (const point of payload.keyframes) {
-			const layer = proposed.find(layer => layer.id === point.layerId);
-			if (!layer) throw new Error('Timeline layer not found');
+			const layer = layersById.get(point.layerId);
+			if (layer == null) throw new Error('Timeline layer not found');
 			if (point.target === 'utterance') {
 				if (layer.layerType !== 'voicevox' || (point.paramPath.length !== 1 || point.paramPath[0] !== 'utterances') || !layer.utterances.some(utterance => utterance.id === point.keyframeId)) throw new Error('Utterance not found');
 				layer.utterances = layer.utterances.filter(utterance => utterance.id !== point.keyframeId);
 			} else {
-				// 未設定の引数は既定値のコピーを返すため、ルートから独立した編集案を作る。
-				// 入れ子のIDパスもこの案で解決し、次の削除には保存済みの案を引き継ぐ。
-				// レイヤー全体を確定する前の変更なので、後続の失敗時も元の未設定状態を保つ。
-				const rootKey = point.paramPath[0];
-				const draft = { [rootKey]: deepClone(resolveLayerParameter(state, layer, point.target, [rootKey]).value) };
-				const binding = resolveParameter<EditableTimelineParameterBinding>(getLayerParameterDefinitions(state, layer, point.target), draft, point.paramPath).value;
-				if (binding.inputSource !== 'keyframesTimelineInline' || !binding.keyframesTimeline.keyframes.some(keyframe => keyframe.id === point.keyframeId)) throw new Error('Timeline keyframe not found');
-				binding.keyframesTimeline.keyframes.splice(binding.keyframesTimeline.keyframes.findIndex(keyframe => keyframe.id === point.keyframeId), 1);
-				setTimelineLayerParameterRoot(layer, point.target, rootKey, draft[rootKey]);
+				const values = getLayerParameterValues(layer, point.target);
+				if (values[point.paramPath[0]] == null) throw new Error('Timeline keyframe not found');
+				const defs = getLayerParameterDefinitions(state, layer, point.target);
+				const binding = resolveParameter<EditableTimelineParameterBinding>(defs, values, point.paramPath).value;
+				if (binding.inputSource !== 'keyframesTimelineInline') throw new Error('Timeline keyframe not found');
+				const keyframes = binding.keyframesTimeline.keyframes;
+				const keyframeIndex = keyframes.findIndex(keyframe => keyframe.id === point.keyframeId);
+				if (keyframeIndex < 0) throw new Error('Timeline keyframe not found');
+				keyframes.splice(keyframeIndex, 1);
 			}
 		}
-		for (const layer of proposed) scene.layers = updateTimelineLayer(scene.layers, layer.id, () => layer);
 	},
 });
 
@@ -1053,9 +1040,8 @@ export const moveTimelineContainerInTimeCommandDef = defineTimelineCommand<{ sce
 		if (!isTimelineContainerLayer(container) || !Number.isSafeInteger(payload.deltaMs)) throw new Error('Invalid container move');
 		const initial = prepareTimelineContainerMove(state, container);
 		if (payload.deltaMs < initial.minDelta || payload.deltaMs > initial.maxDelta) throw new Error('Timeline edit is outside the valid range');
-		const updates = prepareTimelineKeyframeMove(state, getScene(state, payload.sceneId), initial.keyframes.map(point => ({ ...point, x: point.x + payload.deltaMs })));
+		moveTimelineKeyframesInDraft(state, getScene(state, payload.sceneId), initial.keyframes.map(point => ({ ...point, x: point.x + payload.deltaMs })));
 		for (const clip of initial.clips) getTimelineClip(state, payload.sceneId, clip).clip.startMs = clip.startMs + payload.deltaMs;
-		applyTimelineKeyframeMove(state, payload.sceneId, updates, 'after');
 	},
 });
 
@@ -1082,10 +1068,9 @@ export const setTimelinePositionsCommandDef = defineTimelineCommand<{ sceneId: s
 	})),
 	edit: (state, input) => {
 		if (new Set(input.clips.map(clip => JSON.stringify([clip.layerId, clip.clipId]))).size !== input.clips.length) throw new Error('Duplicate clip target');
-		const updates = prepareTimelineKeyframeMove(state, getScene(state, input.sceneId), input.keyframes);
+		moveTimelineKeyframesInDraft(state, getScene(state, input.sceneId), input.keyframes);
 		for (const position of input.clips) getTimelineClip(state, input.sceneId, position).clip.startMs = position.startMs;
 		for (const layerId of new Set(input.clips.map(clip => clip.layerId))) validateTimelineClips(getTimelineClipLayer(state, input.sceneId, layerId).clips);
-		applyTimelineKeyframeMove(state, input.sceneId, updates, 'after');
 	},
 });
 

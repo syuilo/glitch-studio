@@ -85,14 +85,14 @@
 						v-else-if="paramValue.inputSource === 'customNodeGraphEffectPublicParameterReference'"
 						data-test-custom-node-graph-effect-public-parameter-reference
 						:modelValue="paramValue.parameterId"
-						:items="[{ label: i18n.ts.None, value: customNodeGraphEffectPublicParameterId('') }, ...customNodeGraphEffectPublicParameterReferenceItems]"
+						:items="[{ label: i18n.ts.None, value: '' }, ...customNodeGraphEffectPublicParameterReferenceItems]"
 						@update:modelValue="value => emit('edit', { kind: 'customNodeGraphEffectPublicParameterReference', ...target(), value })"
 					/>
 					<GsSelect
 						v-else-if="paramValue.inputSource === 'customNodeGraphEffectCustomParameterValueReference'"
 						data-test-custom-node-graph-effect-custom-parameter-reference
 						:modelValue="paramValue.parameterId"
-						:items="[{ label: i18n.ts.None, value: customNodeGraphEffectCustomParameterId('') }, ...customNodeGraphEffectCustomParameterValueReferenceItems]"
+						:items="[{ label: i18n.ts.None, value: '' }, ...customNodeGraphEffectCustomParameterValueReferenceItems]"
 						@update:modelValue="value => emit('edit', { kind: 'customNodeGraphEffectCustomParameterValueReference', ...target(), value })"
 					/>
 					<div v-else-if="paramValue.inputSource === 'node'" style="display: flex; gap: 4px;">
@@ -240,7 +240,7 @@ import GsInput from './common/GsInput.vue';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsAutomationGraphPointsEditorWindow from './GsAutomationGraphPointsEditorWindow.vue';
-import type { TimelineLowerLayerOutputBinding, TimelineAnotherLayerOutputBinding, TimelineEffectAnotherLayerOutputBinding, TimelineLayerOutputStage } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import type { TimelineLowerLayerOutputBinding, TimelineAnotherLayerOutputBinding, TimelineLayerOutputStage } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 
 export type AnotherLayerAudioOption = { value: string; label: string };
@@ -254,8 +254,8 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'anotherLayerOutput'; value: Extract<EditableParameterBinding, { inputSource: 'anotherLayerOutput' }> }
 	| { kind: 'anotherLayerAudio'; value: string | null }
 	| { kind: 'timelineLayerPublicParameterReference'; value: TimelineLayerPublicParameterReferenceBinding }
-	| { kind: 'customNodeGraphEffectPublicParameterReference'; value: CustomNodeGraphEffectPublicParameterId }
-	| { kind: 'customNodeGraphEffectCustomParameterValueReference'; value: CustomNodeGraphEffectCustomParameterId }
+	| { kind: 'customNodeGraphEffectPublicParameterReference'; value: string }
+	| { kind: 'customNodeGraphEffectCustomParameterValueReference'; value: string }
 	| { kind: 'createPublicParameter' }
 	| { kind: 'createCustomParameter' }
 	| ParameterInputSourceEdit<'timelineLayerPublicParameterReference' | 'node' | 'anotherLayerOutput' | 'lowerLayerOutput' | 'lowerLayerAudio' | 'anotherLayerAudio' | 'customNodeGraphEffectPublicParameterReference' | 'customNodeGraphEffectCustomParameterValueReference'>
@@ -266,7 +266,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 import type { ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { Ref } from 'vue';
-import type { NodeOutputReference, CustomNodeGraphEffect, CustomNodeGraphEffectPublicParameterId, CustomNodeGraphEffectCustomParameterId, CustomNodeGraphEffectEffectNode } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { NodeOutputReference, CustomNodeGraphEffect, CustomNodeGraphEffectEffectNode } from '@/types/custom-node-graph-effect-view.ts';
 import type { ExpressionVariableName } from '@gs/shared/expression/expression-environment.ts';
 import type { ParamPath } from '@/utility/node-params.ts';
 import type { AutomationGraphPlaybackOptions, AutomationGraph, BezierAnchorPoint } from '@gs/shared/automation-graph/automation-graph.ts';
@@ -280,8 +280,7 @@ import { isKeyframesDataType } from '@gs/shared/keyframes/keyframes-timeline.ts'
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import { supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
 import { isParameterVisible } from '@/utility/parameter-visibility.ts';
-import { customNodeGraphEffectPublicParameterId, customNodeGraphEffectCustomParameterId } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
-import { CUSTOM_NODE_GRAPH_EFFECT_CUSTOM_PARAMETER_TYPES } from '@gs/subsystems_custom-node-graph-effect_shared/custom-parameters.ts';
+import { CUSTOM_NODE_GRAPH_EFFECT_CUSTOM_PARAMETER_TYPES } from '@/utility/custom-node-graph-effect-view-parameters.ts';
 import { computed, inject, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch, watchEffect } from 'vue';
 import { getNodeInputDataType, areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
@@ -400,8 +399,8 @@ const visibleFields = computed(() => {
 const canNode = computed(() => props.paramDef.canNode);
 const inputDataType = computed(() => getNodeInputDataType(props.paramDef));
 const imageInputTypeCompatible = computed(() => areNodeDataTypesCompatible({ kind: 'color' }, inputDataType.value));
-const lowerLayerOutputConnection = computed<TimelineLowerLayerOutputBinding | null>(() => props.paramValue.inputSource === 'lowerLayerOutput' && 'fitMode' in props.paramValue ? props.paramValue as TimelineLowerLayerOutputBinding : null);
-const anotherLayerOutputConnection = computed(() => props.paramValue.inputSource === 'anotherLayerOutput' && 'fitMode' in props.paramValue ? props.paramValue : null);
+const lowerLayerOutputConnection = computed<TimelineLowerLayerOutputBinding | null>(() => props.paramValue.inputSource === 'lowerLayerOutput' ? props.paramValue as TimelineLowerLayerOutputBinding : null);
+const anotherLayerOutputConnection = computed(() => props.paramValue.inputSource === 'anotherLayerOutput' ? props.paramValue : null);
 const outputStageItems: { value: TimelineLayerOutputStage; label: string }[] = [
 	{ value: 'source', label: i18n.ts._Parameter.LayerSourceOutput },
 	{ value: 'rendered', label: i18n.ts._Parameter.LayerRenderedOutput },
@@ -729,14 +728,14 @@ function showNodeInputMenu(ev: PointerEvent) {
 
 function showAnotherLayerOutputSamplingMenu(ev: PointerEvent) {
 	if (anotherLayerOutputConnection.value == null) return;
-	ui.popupMenu(getNodeInputSamplingMenuItems(anotherLayerOutputConnection as Ref<TimelineEffectAnotherLayerOutputBinding>,
-		value => emit('edit', { kind: 'anotherLayerOutput', ...target(), value })), ev.currentTarget ?? ev.target);
+	ui.popupMenu(getNodeInputSamplingMenuItems(computed(() => anotherLayerOutputConnection.value?.sampling ?? { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }),
+		sampling => emit('edit', { kind: 'anotherLayerOutput', ...target(), value: { ...anotherLayerOutputConnection.value!, sampling } })), ev.currentTarget ?? ev.target);
 }
 
 function showLowerLayerOutputSamplingMenu(ev: PointerEvent) {
 	if (lowerLayerOutputConnection.value == null) return;
-	ui.popupMenu(getNodeInputSamplingMenuItems(lowerLayerOutputConnection as Ref<TimelineLowerLayerOutputBinding>,
-		value => emit('edit', { kind: 'lowerLayerOutput', ...target(), value })), ev.currentTarget ?? ev.target);
+	ui.popupMenu(getNodeInputSamplingMenuItems(computed(() => lowerLayerOutputConnection.value?.sampling ?? { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }),
+		sampling => emit('edit', { kind: 'lowerLayerOutput', ...target(), value: { ...lowerLayerOutputConnection.value!, sampling } })), ev.currentTarget ?? ev.target);
 }
 
 function onRowContextmenu(ev: PointerEvent) {

@@ -1,0 +1,92 @@
+import { defineNativeEffect } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+
+export default defineNativeEffect({
+	displayName: 'Zoom Lines',
+	summary: {
+		'ja-JP': '入力画像に、指定した位置を中心とする集中線を加えます。',
+		'en-US': 'Adds radial speed lines around a specified point on the input image.',
+	},
+	kind: 'modify',
+	dependsOnRenderHistory: false,
+	tags: ['pattern', 'stylized'],
+	paramDefs: {
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		input: {
+			dataType: { kind: 'color' },
+			ui: { label: 'Input', control: {} },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
+		},
+		position: {
+			dataType: { kind: 'vector' },
+			ui: {
+				label: 'Position',
+				control: {
+					controlType: 'vector',
+					min: -0.5,
+					max: 0.5,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: [0, 0] },
+		},
+		frequency: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Frequency',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 15,
+					step: 0.1,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 5 },
+		},
+		density: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Density',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.5 },
+		},
+		outlineThickness: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Outline Thickness',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.25 },
+		},
+		maskSize: {
+			dataType: { kind: 'scalar' },
+			ui: {
+				label: 'Mask Size',
+				control: {
+					controlType: 'range',
+					min: 0,
+					max: 1,
+					step: 0.01,
+				},
+			},
+			defaultValue: { inputSource: 'literal', value: 0.5 },
+		},
+	},
+	primaryInputParameter: 'input',
+	resolutionInputParameters: ['input'],
+	outputDefs: {
+		output: { dataType: { kind: 'color' } },
+	},
+	primaryOutput: 'output',
+});

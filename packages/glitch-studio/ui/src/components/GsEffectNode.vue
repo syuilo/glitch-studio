@@ -1,7 +1,7 @@
 <template>
 <div :class="[$style.root, { [$style.isBypass]: node.isBypass }]">
 	<div
-		:class="[$style.header, { [$style.hasStatus]: effectStatus?.type === 'loading' || effectStatus?.type === 'error' }]"
+		:class="$style.header"
 		:draggable="true"
 		@dragstart.stop="emit('dragStart', $event)"
 		@contextmenu.prevent.stop="onHeaderContextmenu"
@@ -15,8 +15,6 @@
 				@update:element="allInPortEl = $event"
 			/>
 			<div :class="$style.effectName">{{ name }}</div>
-			<div v-if="effectStatus?.type === 'loading'" :class="$style.headerButton" inline small iconOnly><i class="ti ti-loader-2" :class="$style.loading"></i></div>
-			<div v-else-if="effectStatus?.type === 'error'" :class="[$style.headerButton, $style.error]" inline small iconOnly :v-tooltip="effectStatus.message" @click.stop="showEffectError"><i class="ti ti-alert-triangle"></i></div>
 		</div>
 		<div :class="$style.headerRight">
 			<div :class="$style.nodeId" class="_monospace">{{ prettyId(node.id) }}</div>
@@ -54,10 +52,10 @@
 			</GsFolder>
 		</div>
 
-		<GsStaticSettings :definitions="effectDefinitions[node.effectId].staticSettingDefs ?? {}" :values="node.staticSettings" @change="emit('staticSetting', $event)"/>
+		<GsStaticSettings :definitions="effectDefinitions.describe(node.effectSource).staticSettingDefs ?? {}" :values="node.staticSettings" @change="emit('staticSetting', $event)"/>
 
 		<GsEffectParameterLayout
-			:definition="effectDefinitions[node.effectId]"
+			:definition="effectDefinitions.describe(node.effectSource)"
 			:values="node.params"
 			:node="node"
 		>
@@ -68,7 +66,7 @@
 					:automationGraphs="customNodeGraphEffect.automationGraphs"
 					:node="node"
 					:paramPath="[parameterKey]"
-					:paramDef="effectDefinitions[node.effectId].paramDefs[parameterKey]"
+					:paramDef="effectDefinitions.describe(node.effectSource).paramDefs[parameterKey]"
 					:paramValue="node.params[parameterKey]"
 					@edit="emit('editParam', $event)"
 				/>
@@ -76,12 +74,12 @@
 		</GsEffectParameterLayout>
 	</div>
 
-	<GsNodeOutputs style="margin-top: 4px;" :node="node" :outputResolutions="node.isBypass ? null : effectState?.outputs"/>
+	<GsNodeOutputs style="margin-top: 4px;" :node="node" />
 </div>
 </template>
 
 <script lang="ts" setup>
-import { IN_CUSTOM_NODE_GRAPH_EFFECT_VAR_DEFS } from '@gs/subsystems_custom-node-graph-effect_shared/expression.ts';
+import { IN_CUSTOM_NODE_GRAPH_EFFECT_VAR_DEFS } from '@/utility/custom-node-graph-effect-expression.ts';
 import { ref, computed, provide, shallowRef, watchEffect } from 'vue';
 import { prettyId } from '@gs/shared/utility/id.ts';
 import { getEffectDefinitions } from '@/utility/project-effects.ts';
@@ -94,10 +92,9 @@ import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsFolder from './common/GsFolder.vue';
-import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
+import type { EffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectEffectNode } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
-import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectEffectNode } from '@/types/custom-node-graph-effect-view.ts';
 import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import { connectedNodeParameterPathKeysKey, useCustomNodeGraphEffectWires } from '@/utility/custom-node-graph-effect-wires.ts';
@@ -117,7 +114,6 @@ const wireMap = useCustomNodeGraphEffectWires();
 const props = defineProps<{
 	customNodeGraphEffect: CustomNodeGraphEffect;
 	node: CustomNodeGraphEffectEffectNode;
-	effectState?: EffectInstanceState | null;
 }>();
 
 const emit = defineEmits<{
@@ -134,7 +130,6 @@ const name = computed(() => getEffectNodeName(props.node, effectDefinitions.valu
 const expanded = ref(true);
 const showSettings = ref(false);
 const allInPortEl = shallowRef<HTMLElement | null>(null);
-const effectStatus = computed(() => props.effectState?.status);
 const connectedParameterPathKeys = computed(() => {
 	const paths = new Set<string>();
 	// 未選択のnode入力や削除済みの出力への参照はワイヤーが描画されない。
@@ -169,11 +164,6 @@ function setResolutionScale(scale: number | null) {
 function setDimension(axis: 'width' | 'height', value: number | null) {
 	if (props.node.resolution.mode !== 'customAbsolute' || value == null || !Number.isSafeInteger(value) || value < 1) return;
 	emit('setResolution', { ...props.node.resolution, [axis]: value });
-}
-
-function showEffectError() {
-	if (effectStatus.value?.type !== 'error') return;
-	ui.alert({ type: 'error', title: name.value, text: effectStatus.value.message });
 }
 
 function onHeaderContextmenu(ev: PointerEvent) {

@@ -10,6 +10,8 @@ import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 
 // Project APIの境界で使う保存形式の説明。対象の存在、型同士の対応、利用可能な入力方式は
 // 各ドメインの検証に任せる。特にUIのmin/maxを数値そのものの制限に読み替えない。
+export const connectionTypePolicySchema = z.enum(['strict', 'allowMismatch']).describe('strict rejects incompatible port data types. allowMismatch permits the connection without converting the data.');
+
 export const identifierSchema = z.string().min(1).describe('Existing or newly returned identifier. Names and array indexes are not identifiers.');
 export const parameterPathSchema: z.ZodType<ParamPath> = z.tuple([z.string()], z.string()).describe('Nonempty parameter path. Array entries are addressed by element IDs, not numeric indexes.');
 export const vectorValueSchema = z.tuple([z.number(), z.number()]);
@@ -94,14 +96,13 @@ const scalarControlSchema = z.union([
 	z.object({ controlType: z.literal('seed') }),
 ]);
 const vectorControlSchema = z.object({ controlType: z.enum(['vector', 'xy', 'dimension']), min: z.number().optional(), max: z.number().optional(), step: z.number().optional(), logarithmic: z.boolean().optional() });
-const parameterDefaultSchema = z.object({ inputSource: z.literal('literal'), value: literalParameterValueSchema });
-// コンテナの外側の形はdataTypeによらず固定されている。末端値は型定義から解決するが、
-// 配列のIDと子Binding、構造体のフィールドBindingは資料にも明示する。
-const arrayParameterDefaultSchema = z.object({
+const parameterDefaultSchema = z.object({
 	inputSource: z.literal('literal'),
-	value: z.array(z.object({ id: z.string(), binding: valueParameterSourceSchema })),
+	value: z.json().describe('Literal default matching the dataType. All nested child bindings must also be literal.'),
 });
-const structParameterDefaultSchema = z.object({ inputSource: z.literal('literal'), value: z.record(z.string(), valueParameterSourceSchema) });
+// 配列の要素IDと構造体のフィールドは契約に明示する。その内側はCommand側でdataTypeに沿って検証する。
+const arrayParameterDefaultSchema = parameterDefaultSchema.extend({ value: z.array(z.object({ id: z.string(), binding: parameterDefaultSchema })) });
+const structParameterDefaultSchema = parameterDefaultSchema.extend({ value: z.record(z.string(), parameterDefaultSchema) });
 type ParameterSettingsData = { defaultValue: { inputSource: 'literal'; value: z.infer<ReturnType<typeof z.json>> }; canNode?: boolean; maxElements?: number; element?: ParameterSettingsData; fields?: Record<string, ParameterSettingsData> };
 const parameterSettingsSchema: z.ZodType<ParameterSettingsData> = z.lazy(() => z.object({
 	defaultValue: parameterDefaultSchema, canNode: z.boolean().optional(), maxElements: z.number().optional(),
@@ -126,7 +127,7 @@ function leafParameterDefinition(kind: string, control: z.ZodType, value: z.ZodT
 	return z.object({
 		dataType: z.object({ kind: z.literal(kind) }),
 		ui: z.object({ label: z.string(), isAdvanced: z.boolean().optional(), control }),
-		defaultValue: z.object({ inputSource: z.literal('literal'), value }), canNode,
+		defaultValue: parameterDefaultSchema.extend({ value }), canNode,
 	});
 }
 
@@ -143,7 +144,7 @@ export const parameterDefinitionSchema = z.union([
 	z.object({
 		dataType: z.object({ kind: z.literal('enum'), options: z.array(z.string()) }),
 		ui: z.object({ label: z.string(), isAdvanced: z.boolean().optional(), control: z.object({ labels: z.record(z.string(), z.string()) }) }),
-		defaultValue: z.object({ inputSource: z.literal('literal'), value: z.string() }), canNode: z.literal(false).optional(),
+		defaultValue: parameterDefaultSchema.extend({ value: z.string() }), canNode: z.literal(false).optional(),
 	}),
 	z.object({
 		dataType: z.object({ kind: z.literal('array'), elementType: dataTypeSchema }),

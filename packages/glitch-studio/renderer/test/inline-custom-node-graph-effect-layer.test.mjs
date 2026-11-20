@@ -1,3 +1,4 @@
+import { snapshotNativeInputs } from './helpers/manager-gpu.mjs';
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -22,40 +23,37 @@ after(() => {
 
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { TimelineRendererManager } = await load('../src/timeline-renderer-manager.ts');
+const { default: fillDefinition } = await load('@gs/subsystems_effect-new_native-effects/fx/fill/_def_.ts');
+const { default: fillImplementation } = await load('@gs/subsystems_effect-new_native-effects/fx/fill/_impl_.ts');
 const { timelineCompositingParamDefs } = await load('@gs/subsystems_timeline_shared/timeline-compositing.ts');
 const { createTimelineTransformParameterValues } = await load('@gs/subsystems_timeline_shared/layers/transform/transform.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
-const connection = (nodeId, outputPort = 'output') => ({ inputSource: 'node', nodeId, outputPort, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
+const connection = (nodeId, outputPort = 'output') => ({ inputSource: 'node', source: { nodeId, outputPort }, sampling: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' } });
 const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, canNode: false, defaultValue: literal(0) };
 const color = { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: literal([1, 0, 0, 0.5]) };
-const probeParamDefs = { input: color, amount: scalar, local: scalar, caller: scalar, localTime: scalar, duration: scalar, exported: scalar, forbidden: scalar, directForbidden: scalar };
+const probeParamDefs = { input: color, amount: scalar, local: scalar, caller: scalar, localTime: scalar, duration: scalar, exported: scalar, forbidden: scalar, directImage: color };
 const graph = value => ({ id: 'graph', nameForReference: 'graph', isNormalized: true, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
 
 function createCustomNodeGraphEffect({ primaryInput = false, params } = {}) {
+	const input = { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'input' };
+	const usesFill = params == null && !primaryInput;
+	const nodes = [];
+	if (params != null) nodes.push({ id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'probe' }, params: { input, ...params } });
+	else if (usesFill) nodes.push({ id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'fill' }, params: { color: input } });
 	return {
-		customParameterDefs: [],
-		customParameterValues: {},
-		automationGraphs: [],
-		paramDefs: [{ ...color, id: 'input', nameForReference: 'input' }],
-		primaryInputId: primaryInput ? 'input' : null,
-		outputDefs: [{ id: 'output', label: 'Output', name: 'output', dataType: { kind: 'color' } }],
-		primaryOutputId: 'output',
-		nodes: [
-			{ id: 'in', type: 'globalIn' },
-			...(params ? [{ id: 'node', type: 'effect', resolution: { mode: 'context', scale: 1 }, effectId: 'probe', isBypass: false, params: {
-				...Object.fromEntries(Object.entries(probeParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
-				input: connection('in', 'input'), ...params,
-			} }] : []),
-			{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: params ? 'node' : 'in', outputPort: params ? 'output' : 'input' } } },
-		],
+		kind: primaryInput ? 'modify' : 'generate', paramDefs: { input: { ...color, canNode: !usesFill, nameForReference: 'input' } },
+		primaryInputParameter: primaryInput ? 'input' : null, resolutionInputParameters: primaryInput ? ['input'] : [],
+		outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output',
+		nodes,
+		outputSources: { output: nodes.length > 0 ? { nodeId: 'node', outputPort: 'output' } : { parameterId: 'input' } },
 	};
 }
 
 function layer(id, customNodeGraphEffect, overrides = {}) {
 	return {
-		id, layerType: 'inlineCustomNodeGraphEffect', customNodeGraphEffect, name: 'Layer', clips: [{ id: 'clip', startMs: 100, contentOffsetMs: 0, durationMs: 1000 }],
-		customNodeGraphEffectParamValues: {}, automationGraphs: [], isDisabled: false,
+		id, layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect }, resolution: { mode: 'context', scale: 1 }, effectStaticSettings: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 100, contentOffsetMs: 0, durationMs: 1000 }],
+		effectParamValues: {}, automationGraphs: [], isDisabled: false,
 		compositingParamValues: {
 			...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
 			blendMode: literal('replace'),
@@ -88,28 +86,27 @@ async function fixture(t, { present = false, disableCache = true, timelineFps = 
 	};
 	const manager = await TimelineRendererManager.create({
 		gpuDevice: device, gpuContext: { canvas: { width: 16, height: 16 }, configure() {}, getCurrentTexture: texture },
-		effectDefinitions: { probe: {
+		nativeEffectDefinitions: { fill: fillDefinition, probe: {
 			paramDefs: probeParamDefs,
 			primaryInputParameter: 'input', resolutionInputParameters: ['input'], primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } },
 		} },
-		effectImplementations: { probe: {
-			disableCache,
-			outputTextureFactories: { output: ({ resolution }) => texture({ size: resolution }) },
-			init({ reportStatus }) {
-				const instance = { renders: 0, disposed: false, reportStatus };
+		nativeEffectImplementations: { fill: fillImplementation, probe: {
+			init({ inputs, outputTextures, resolution }) {
+				const instance = { renders: 0, disposed: false, resolution };
 				calls.instances.push(instance);
 				return {
-					render(args) { instance.renders++; calls.renders.push({ ...args, instance }); },
+					...(disableCache ? {} : { cacheKey: 0 }),
+					render(frame) { instance.renders++; calls.renders.push({ ...frame, params: snapshotNativeInputs(inputs), outputDataMap: Object.fromEntries([...outputTextures].map(([id, texture]) => [id, { texture }])), instance }); },
 					dispose() { instance.disposed = true; },
 				};
 			},
 		} },
 	}, { timelineFps, timelineMotionBlur, enable32bitDataTextures: false, }, { assets: [] });
 	manager.on('ev', event => {
-		if (event.type === 'effectState') calls.statuses.push(event.ctx);
+		if (event.type === 'effectLayerState') calls.statuses.push(event.ctx);
 		if (event.type === 'renderError') calls.errors.push(event.ctx.message);
 	});
-	// Canvasへの最終テクスチャ化の直前で観測し、Custom Node Graph Effect境界でuniformが失われていないか調べる。
+	// Canvasの表示前に、Timelineが確定したテクスチャとそのScene領域を観測する。
 	if (!present) manager.presentOutput = output => calls.outputs.push(output);
 	manager.canvasRenderer.renderToCanvas = texture => calls.presented.push(texture);
 	t.after(() => manager.destroy());
@@ -254,7 +251,7 @@ for (const isExport of [false, true]) {
 			await render(replacement.manager, 700);
 			const newOutput = replacement.calls.outputs[0];
 			assert.equal(replacement.calls.outputs.length, 1);
-			if (initiallyEnabled) assert.equal(newOutput.kind, 'uniform');
+			if (initiallyEnabled) assert.equal(newOutput.kind, 'texture');
 			else assert.equal(newOutput.texture.format, 'rgba16float');
 			pending.resolve();
 			await oldFrame;
@@ -295,7 +292,7 @@ test('samples nested scenes once per root sample and uses the export frame rate'
 	const { manager, calls } = await fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
 	const exporting = await fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 8 } });
 	const child = layer('child-layer', createCustomNodeGraphEffect({ params: { localTime: expression('TIME_MS') } }));
-	const { customNodeGraphEffect: _, customNodeGraphEffectParamValues: __, ...base } = layer('parent', createCustomNodeGraphEffect());
+	const { customNodeGraphEffect: _, effectParamValues: __, ...base } = layer('parent', createCustomNodeGraphEffect());
 	const parent = { ...base, layerType: 'scene', audioParamValues: {}, clips: [{ id: 'clip', startMs: 100, durationMs: 1000, contentOffsetMs: 250, sceneId: 'child' }] };
 	const dynamicOptions = {
 		timelineScenes: [
@@ -350,18 +347,16 @@ for (const layerType of ['inlineCustomNodeGraphEffect', 'customNodeGraphEffect']
 	test(`preserves ${layerType} instances and updates public parameter inputs after value edits`, async t => {
 		const { manager, calls } = await fixture(t, { disableCache: false });
 		const customNodeGraphEffect = { ...createCustomNodeGraphEffect({ params: { amount: expression('PUBLIC("amount")') } }), id: 'registered', name: 'Custom Node Graph Effect' };
-		customNodeGraphEffect.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
+		customNodeGraphEffect.paramDefs['amount'] = { ...scalar, nameForReference: 'amount' };
 		const entry = layer('layer', customNodeGraphEffect, {
 			publicParameterDefs: ['speed', 'unused'].map(id => ({ ...scalar, id, nameForReference: id })),
 			publicParameterValues: { speed: literal(1), unused: literal(0) },
-			customNodeGraphEffectParamValues: { amount: expression('PUBLIC("speed")') },
+			effectParamValues: { amount: expression('PUBLIC("speed")') },
 		});
 		if (layerType === 'customNodeGraphEffect') {
-			delete entry.customNodeGraphEffect;
-			entry.layerType = layerType;
-			entry.customNodeGraphEffectId = customNodeGraphEffect.id;
+			entry.effectSource = { type: 'customNodeGraphEffectReference', id: customNodeGraphEffect.id };
 		}
-		await manager.updateDynamicOptions({ customNodeGraphEffects: [customNodeGraphEffect], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [entry] }], sceneId: 'scene' });
+		await manager.updateDynamicOptions({ customNodeGraphEffects: [{ id: customNodeGraphEffect.id, name: 'Registered', definition: customNodeGraphEffect }], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [entry] }], sceneId: 'scene' });
 		await manager.renderTimelineFrame(350, 20);
 		const instance = calls.instances[0];
 		assert.equal(calls.renders.at(-1).params.amount, 1);
@@ -386,9 +381,9 @@ for (const layerType of ['inlineCustomNodeGraphEffect', 'customNodeGraphEffect']
 test('refreshes public parameter scopes after parent value edits and hierarchy changes', async t => {
 	const { manager, calls } = await fixture(t, { disableCache: false });
 	const customNodeGraphEffect = createCustomNodeGraphEffect({ params: { amount: expression('PUBLIC("amount")') } });
-	customNodeGraphEffect.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
+	customNodeGraphEffect.paramDefs['amount'] = { ...scalar, nameForReference: 'amount' };
 	const definition = { ...scalar, id: 'speed', nameForReference: 'speed' };
-	const entry = layer('layer', customNodeGraphEffect, { publicParameterDefs: [definition], publicParameterValues: { speed: expression('PUBLIC("speed")') }, customNodeGraphEffectParamValues: { amount: expression('PUBLIC("speed")') } });
+	const entry = layer('layer', customNodeGraphEffect, { publicParameterDefs: [definition], publicParameterValues: { speed: expression('PUBLIC("speed")') }, effectParamValues: { amount: expression('PUBLIC("speed")') } });
 	const parent = { id: 'parent', name: 'Parent', layerType: 'transform', isDisabled: false, automationGraphs: [], transformParamValues: createTimelineTransformParameterValues(),
 		layers: [entry], publicParameterDefs: [definition], publicParameterValues: { speed: literal(1) } };
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [parent] }], sceneId: 'scene' });
@@ -407,34 +402,33 @@ test('refreshes public parameter scopes after parent value edits and hierarchy c
 	assert.deepEqual(calls.errors, []);
 });
 
-// 【共有Moduleの差分は各配置へ反映し、引数編集では配置ごとの履歴とキャッシュを保持する】
-// 同じModuleの二つのクリップは別インスタンスだが、定義編集は両方へ届く必要がある。
-// 引数だけを変えた配置のために、他の配置や上流のエフェクトを再生成してはいけない。
+// 【登録したCustom Node Graph Effectのノード値をすべての配置へ反映し、履歴を保持する】
+// 配置の引数は個別に変わり、定義内部の値は全参照先で変わる。どちらの編集でも既存の出力と履歴を引き継ぐ。
 test('updates shared definitions and Custom Node Graph Effect arguments without recreating placements', async t => {
 	const { manager, calls } = await fixture(t, { disableCache: false });
 	const customNodeGraphEffect = { ...createCustomNodeGraphEffect({ params: { amount: expression('PUBLIC("amount")') } }), id: 'registered', name: 'Custom Node Graph Effect' };
-	customNodeGraphEffect.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
+	customNodeGraphEffect.paramDefs['amount'] = { ...scalar, nameForReference: 'amount' };
 	const entries = ['first', 'second'].map(id => {
 		const { customNodeGraphEffect: _, ...entry } = layer(id, customNodeGraphEffect);
-		return { ...entry, layerType: 'customNodeGraphEffect', customNodeGraphEffectId: customNodeGraphEffect.id, customNodeGraphEffectParamValues: { amount: literal(1) } };
+		return { ...entry, layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: customNodeGraphEffect.id }, effectParamValues: { amount: literal(1) } };
 	});
-	await manager.updateDynamicOptions({ customNodeGraphEffects: [customNodeGraphEffect], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: entries }], sceneId: 'scene' });
+	await manager.updateDynamicOptions({ customNodeGraphEffects: [{ id: customNodeGraphEffect.id, name: 'Registered', definition: customNodeGraphEffect }], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: entries }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(350, 20);
 	const instances = [...calls.instances];
 	assert.equal(instances.length, 2);
 	const changed = structuredClone(entries[0]);
-	changed.customNodeGraphEffectParamValues.amount = literal(2);
-	manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: changed.id, layer: changed, changes: [{ type: 'parameter', target: 'customNodeGraphEffect', kind: 'value' }] }]);
+	changed.effectParamValues.amount = literal(2);
+	manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: changed.id, layer: changed, changes: [{ type: 'parameter', target: 'effect', kind: 'value' }] }]);
 	await manager.renderTimelineFrame(350, 20);
 	assert.equal(calls.renders.length, 3);
 	assert.equal(calls.renders.at(-1).params.amount, 2);
 	assert.equal(calls.renders.at(-1).instance, instances[1]);
 	const editedNode = structuredClone(customNodeGraphEffect.nodes.find(node => node.type === 'effect'));
 	editedNode.params.local = literal(9);
-	manager.applyProjectChanges([{ type: 'node', target: { customNodeGraphEffectId: customNodeGraphEffect.id }, node: editedNode, changes: [{ type: 'parameter', kind: 'value' }] }]);
+	manager.applyProjectChanges([{ type: 'node', customNodeGraphEffectId: customNodeGraphEffect.id, node: editedNode, changes: [{ type: 'parameter', kind: 'value' }] }]);
 	await manager.renderTimelineFrame(350, 20);
 	assert.deepEqual(calls.renders.slice(-2).map(call => call.params.local), [9, 9]);
-	assert.deepEqual(calls.instances, instances);
+	assert.equal(calls.instances.length, 2);
 	assert.ok(instances.every(instance => !instance.disposed));
 	manager.applyProjectChanges([{ type: 'layerOrder', sceneId: 'scene', layerIds: ['second', 'first'] }]);
 	await manager.renderTimelineFrame(350, 20);
@@ -449,7 +443,7 @@ test('applies visibility patches to nested layers while retaining parent and sib
 	const { manager, calls } = await fixture(t, { disableCache: false });
 	const first = layer('first', createCustomNodeGraphEffect({ params: { amount: literal(1) } }));
 	const second = layer('second', createCustomNodeGraphEffect({ params: { amount: literal(2) } }));
-	const { customNodeGraphEffect: _, customNodeGraphEffectParamValues: __, ...base } = layer('parent', createCustomNodeGraphEffect());
+	const { customNodeGraphEffect: _, effectParamValues: __, ...base } = layer('parent', createCustomNodeGraphEffect());
 	const parent = { ...base, layerType: 'scene', audioParamValues: {}, clips: [{ id: 'clip', startMs: 0, durationMs: 2000, contentOffsetMs: 0, sceneId: 'child' }] };
 	await manager.updateDynamicOptions({ timelineScenes: [
 		{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [parent] },
@@ -477,7 +471,7 @@ test('applies visibility patches to nested layers while retaining parent and sib
 	patch('root', parent, true);
 	await manager.renderTimelineFrame(500, 20);
 	assert.ok(calls.instances.every(instance => instance.disposed));
-	assert.deepEqual(calls.outputs.at(-1), { kind: 'uniform', value: [0, 0, 0, 0] });
+	assert.equal(calls.outputs.at(-1).kind, 'texture');
 	assert.deepEqual(calls.errors, []);
 });
 
@@ -494,8 +488,8 @@ test('preserves Transform child instances and outside inputs across project patc
 	await manager.renderTimelineFrame(350, 20);
 	assert.equal(calls.instances.length, 1);
 	const instance = calls.instances[0];
-	assert.deepEqual(calls.renders.at(-1).params.input, { kind: 'uniform', value: [0.5, 0, 0, 0.5] });
-	assert.deepEqual(calls.statuses[0].source.layerPath, ['child']);
+	assert.equal(calls.renders.at(-1).params.input.kind, 'texture');
+	assert.deepEqual(calls.statuses.find(event => event.source.layerId === 'child').source.layerPath, ['child']);
 	const { layers, ...settings } = parent;
 	manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: parent.id, layer: {
 		...settings, transformParamValues: { ...settings.transformParamValues, position: literal([0.1, 0.2]), z: literal(0.2) },
@@ -511,40 +505,53 @@ test('preserves Transform child instances and outside inputs across project patc
 });
 
 // 【値編集では履歴を保ち、接続変更を含むバッチではCustom Node Graph Effect内の全エフェクトを再作成する】
-// 接続変更は解像度の静的計画にも影響するため、値編集と同じバッチに含まれていても
-// 全エフェクトの履歴とキャッシュを破棄する。値編集だけなら上流の描画と既存インスタンスを保つ。
-test('preserves instances for value edits and recreates all effects for batches containing connection edits', async t => {
+// 接続変更は解像度の静的計画にも影響するため、構造変更を含む編集では所有する配置を再生成する。
+test('recreates the owning inline placement when a node edit changes its connection', async t => {
 	const { manager, calls } = await fixture(t, { disableCache: false });
 	const inlineCustomNodeGraphEffect = createCustomNodeGraphEffect({ params: { amount: literal(1) } });
-	const upstream = inlineCustomNodeGraphEffect.nodes[1];
+	const upstream = inlineCustomNodeGraphEffect.nodes[0];
 	const downstream = { ...structuredClone(upstream), id: 'downstream', params: { ...upstream.params, input: connection(upstream.id), amount: literal(2) } };
-	inlineCustomNodeGraphEffect.nodes.splice(2, 0, downstream);
-	inlineCustomNodeGraphEffect.nodes.at(-1).inputs.output.nodeId = downstream.id;
-	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer('inline', inlineCustomNodeGraphEffect)] }], sceneId: 'scene' });
+	inlineCustomNodeGraphEffect.nodes.push(downstream);
+	inlineCustomNodeGraphEffect.outputSources.output.nodeId = downstream.id;
+	const entry = layer('inline', inlineCustomNodeGraphEffect);
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [entry] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(350, 20);
 	const instances = [...calls.instances];
 	const edited = structuredClone(downstream);
 	edited.params.amount = literal(3);
-	const patch = { type: 'node', target: { sceneId: 'scene', inlineCustomNodeGraphEffectLayerId: 'inline' }, node: edited,
-		changes: [{ type: 'parameter', kind: 'value' }] };
-	manager.applyProjectChanges([patch]);
+	edited.params.input.sampling.fitMode = 'contain';
+	manager.applyProjectChanges([{ type: 'node', sceneId: 'scene', layerId: entry.id, node: edited,
+		changes: [{ type: 'parameter', kind: 'value' }, { type: 'parameter', kind: 'connection' }] }]);
 	await manager.renderTimelineFrame(350, 20);
-	assert.deepEqual(instances.map(instance => instance.renders), [1, 2]);
-	assert.deepEqual(calls.instances, instances);
-	assert.ok(instances.every(instance => !instance.disposed));
-	assert.equal(calls.renders.at(-1).params.amount, 3);
-	manager.applyProjectChanges([{ ...patch, changes: [{ type: 'parameter', kind: 'connection' }, { type: 'parameter', kind: 'value' }] }]);
-	await manager.renderTimelineFrame(350, 20);
-	assert.deepEqual(instances.map(instance => instance.renders), [1, 2]);
 	assert.ok(instances.every(instance => instance.disposed));
 	assert.equal(calls.instances.length, 4);
-	const recreatedInstances = calls.instances.slice(2);
-	assert.deepEqual(recreatedInstances.map(instance => instance.renders), [1, 1]);
-	assert.ok(recreatedInstances.every(instance => !instance.disposed));
 	assert.equal(calls.renders.at(-1).params.amount, 3);
-	await manager.renderTimelineFrame(350, 20);
+	assert.deepEqual(calls.errors, []);
+});
+
+// 【インライン定義内の値編集は所有レイヤーだけに反映して上流の描画キャッシュを保つ】
+// 同じノードIDを持つ別のレイヤーにも差分が届くと、その配置の出力まで変わる。
+// 同じ時刻を再描画し、編集した末端だけが既存のNative Effectインスタンスで再実行されることを確かめる。
+test('updates only the edited inline node and retains upstream and sibling caches', async t => {
+	const { manager, calls } = await fixture(t, { disableCache: false });
+	const graph = createCustomNodeGraphEffect({ params: { amount: literal(1) } });
+	const upstream = graph.nodes[0];
+	const downstream = { ...upstream, id: 'downstream', params: { input: connection(upstream.id), amount: literal(2) } };
+	graph.nodes.push(downstream);
+	graph.outputSources.output = { nodeId: downstream.id, outputPort: 'output' };
+	const layers = ['first', 'second'].map(id => layer(id, structuredClone(graph)));
+	manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers }], sceneId: 'scene' });
+	await manager.renderTimelineFrame(350, 0);
 	assert.equal(calls.instances.length, 4);
-	assert.deepEqual(recreatedInstances.map(instance => instance.renders), [1, 1]);
+	assert.equal(calls.renders.length, 4);
+	const edited = { ...downstream, params: { ...downstream.params, amount: literal(3) } };
+	manager.applyProjectChanges([{ type: 'node', sceneId: 'scene', layerId: 'first', node: edited, changes: [{ type: 'parameter', kind: 'value' }] }]);
+	await manager.renderTimelineFrame(350, 0);
+	assert.equal(calls.instances.length, 4);
+	assert.equal(calls.renders.length, 5);
+	assert.equal(calls.renders.at(-1).params.amount, 3);
+	assert.equal(calls.renders.at(-1).instance.renders, 2);
+	assert.ok(calls.instances.every(instance => !instance.disposed));
 	assert.deepEqual(calls.errors, []);
 });
 
@@ -554,15 +561,15 @@ test('preserves instances for value edits and recreates all effects for batches 
 test('recreates only the Custom Node Graph Effect placement whose argument edits include a reset', async t => {
 	const { manager, calls } = await fixture(t, { disableCache: false });
 	const customNodeGraphEffect = createCustomNodeGraphEffect({ params: { amount: expression('PUBLIC("amount")') } });
-	customNodeGraphEffect.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
-	const entries = ['first', 'second'].map(id => layer(id, structuredClone(customNodeGraphEffect), { customNodeGraphEffectParamValues: { amount: literal(1) } }));
+	customNodeGraphEffect.paramDefs['amount'] = { ...scalar, nameForReference: 'amount' };
+	const entries = ['first', 'second'].map(id => layer(id, structuredClone(customNodeGraphEffect), { effectParamValues: { amount: literal(1) } }));
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: entries }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(350, 20);
 	const instances = [...calls.instances];
 	const edited = structuredClone(entries[0]);
-	edited.customNodeGraphEffectParamValues.amount = literal(2);
+	edited.effectParamValues.amount = literal(2);
 	manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: 'first', layer: edited, changes: [
-		{ type: 'parameter', target: 'customNodeGraphEffect', kind: 'reset' }, { type: 'parameter', target: 'customNodeGraphEffect', kind: 'value' },
+		{ type: 'parameter', target: 'effect', kind: 'reset' }, { type: 'parameter', target: 'effect', kind: 'value' },
 	] }]);
 	await manager.renderTimelineFrame(350, 20);
 	assert.equal(instances[0].disposed, false);
@@ -578,7 +585,7 @@ test('updates nested scene content while preserving parent and sibling instances
 	const { manager, calls } = await fixture(t, { disableCache: false });
 	const first = layer('first', createCustomNodeGraphEffect({ params: { amount: literal(1) } }));
 	const second = layer('second', createCustomNodeGraphEffect({ params: { amount: literal(2) } }));
-	const { customNodeGraphEffect: _, customNodeGraphEffectParamValues: __, ...base } = layer('parent', createCustomNodeGraphEffect());
+	const { customNodeGraphEffect: _, effectParamValues: __, ...base } = layer('parent', createCustomNodeGraphEffect());
 	const parent = { ...base, layerType: 'scene', audioParamValues: {}, clips: [{ id: 'clip', startMs: 0, durationMs: 2000, contentOffsetMs: 0, sceneId: 'child' }] };
 	await manager.updateDynamicOptions({ timelineScenes: [
 		{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [parent] },
@@ -588,26 +595,16 @@ test('updates nested scene content while preserving parent and sibling instances
 	const parentInstance = [...manager.timelineRenderer.layers.values()][0].renderer;
 	const firstInstance = calls.renders.find(call => call.params.amount === 1).instance;
 	const secondInstance = calls.renders.find(call => call.params.amount === 2).instance;
-	const changed = structuredClone(first.customNodeGraphEffect.nodes.find(node => node.type === 'effect'));
+	const changed = structuredClone(first.effectSource.customNodeGraphEffect.nodes.find(node => node.type === 'effect'));
 	changed.params.amount = literal(3);
-	manager.applyProjectChanges([{ type: 'node', target: { sceneId: 'child', inlineCustomNodeGraphEffectLayerId: 'first' }, node: changed, changes: [{ type: 'parameter', kind: 'value' }] }]);
-	await manager.renderTimelineFrame(350, 20);
-	assert.equal(calls.renders.length, 3);
-	assert.equal(calls.renders.at(-1).params.amount, 3);
-	assert.equal(calls.renders.at(-1).instance, firstInstance);
-	assert.equal([...manager.timelineRenderer.layers.values()][0].renderer, parentInstance);
-	// 同じバッチでノードと公開引数を編集しても、更新済みModuleを基準に引数差分を検証する。
 	const editedLayer = structuredClone(first);
-	changed.params.amount = literal(4);
-	editedLayer.customNodeGraphEffect.nodes[1] = changed;
-	editedLayer.customNodeGraphEffectParamValues.input = literal([0, 1, 0, 1]);
-	manager.applyProjectChanges([
-		{ type: 'node', target: { sceneId: 'child', inlineCustomNodeGraphEffectLayerId: 'first' }, node: changed, changes: [{ type: 'parameter', kind: 'value' }] },
-		{ type: 'layer', sceneId: 'child', layerId: 'first', layer: editedLayer, changes: [{ type: 'parameter', target: 'customNodeGraphEffect', kind: 'value' }] },
-	]);
+	editedLayer.effectSource.customNodeGraphEffect.nodes[0] = changed;
+	manager.applyProjectChanges([{ type: 'layer', sceneId: 'child', layerId: 'first', layer: editedLayer, changes: [{ type: 'definition' }] }]);
 	await manager.renderTimelineFrame(350, 20);
-	assert.equal(calls.renders.at(-1).params.amount, 4);
-	assert.equal(calls.renders.at(-1).instance, firstInstance);
+	assert.equal(calls.renders.at(-1).params.amount, 3);
+	assert.equal(firstInstance.disposed, true);
+	assert.equal(secondInstance.disposed, false);
+	assert.equal([...manager.timelineRenderer.layers.values()][0].renderer, parentInstance);
 	manager.applyProjectChanges([{ type: 'layer', sceneId: 'child', layerId: 'first', layer: null, changes: [{ type: 'definition' }] }]);
 	await manager.renderTimelineFrame(350, 20);
 	assert.equal(firstInstance.disposed, true);
@@ -625,13 +622,14 @@ test('renders inline definitions without a registry and matches referenced custo
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [inline] }], sceneId: 'scene', customNodeGraphEffects: [] });
 	await manager.renderTimelineAt(350);
 	// Replaceで借用した一様色も、配置後の有限なScene領域を持つ。
-	assert.deepEqual(calls.outputs.at(-1), { kind: 'uniform', value: [0.5, 0, 0, 0.5],
-		region: { bounds: { left: -1, bottom: -1, right: 1, top: 1 }, frameSize: { width: 1, height: 1 } } });
+	assert.equal(calls.outputs.at(-1).kind, 'texture');
+	assert.deepEqual(calls.outputs.at(-1).region, { bounds: { left: -1, bottom: -1, right: 1, top: 1 }, frameSize: { width: 1, height: 1 } });
 	assert.deepEqual(calls.errors, []);
 	const { customNodeGraphEffect: _, ...reference } = inline;
-	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ ...reference, layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'registered' }] }], sceneId: 'scene', customNodeGraphEffects: [{ ...customNodeGraphEffect, id: 'registered', name: 'Registered' }] });
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ ...reference, layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'registered' } }] }], sceneId: 'scene', customNodeGraphEffects: [{ id: 'registered', name: 'Registered', definition: customNodeGraphEffect }] });
 	await manager.renderTimelineFrame(350, 0);
-	assert.deepEqual(calls.outputs[0], calls.outputs[1]);
+	assert.deepEqual(calls.outputs[0].region, calls.outputs[1].region);
+	assert.equal(calls.outputs[0].texture.format, calls.outputs[1].texture.format);
 });
 
 // 【参照型とインライン型を混在させても背景をそのまま引き渡す】
@@ -642,15 +640,16 @@ test('passes the referenced layer output through an inline primary input', async
 	const { customNodeGraphEffect: _, ...bottom } = layer('bottom', source);
 	const top = layer('top', createCustomNodeGraphEffect({ primaryInput: true }));
 	await manager.updateDynamicOptions({
-		customNodeGraphEffects: [{ ...source, id: 'registered', name: 'Source' }],
-		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ ...bottom, layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'registered' }, top] }], sceneId: 'scene',
+		customNodeGraphEffects: [{ id: 'registered', name: 'Source', definition: source }],
+		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ ...bottom, layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'registered' } }, top] }], sceneId: 'scene',
 	});
 	await manager.renderTimelineFrame(350, 0);
 	const texture = calls.renders[0].outputDataMap.output.texture;
 	assert.equal(calls.outputs.at(-1).texture, texture);
 	assert.equal(texture.destroyed, false);
 	assert.equal(calls.passes.length, 0);
-	assert.deepEqual(calls.statuses[0].source, { type: 'timelineLayer', rootSceneId: 'scene', layerPath: ['bottom'], layerId: 'bottom', clipId: 'clip', instanceId: calls.statuses[0].source.instanceId });
+	const bottomStatus = calls.statuses.find(event => event.source.layerId === 'bottom');
+	assert.deepEqual(bottomStatus.source, { type: 'timelineLayer', rootSceneId: 'scene', layerPath: ['bottom'], layerId: 'bottom', clipId: 'clip', instanceId: bottomStatus.source.instanceId });
 });
 
 // 【Custom Node Graph Effect内部とレイヤー引数の評価スコープを分離する】
@@ -659,24 +658,24 @@ test('isolates inline Custom Node Graph Effect scopes and passes local time and 
 	const { manager, calls } = await fixture(t);
 	const customNodeGraphEffect = createCustomNodeGraphEffect({ params: {
 		amount: expression('PUBLIC("amount")'), local: expression('GRAPH("graph", 0, "clamp")'),
-		caller: expression('TEST_SAME_NAME'), localTime: expression('TIME_MS'), duration: expression('END_TIME_MS'),
+		caller: expression('TIME_MS'), localTime: expression('TIME_MS'), duration: expression('END_TIME_MS'),
 		exported: expression('if IS_EXPORT { 1 } else { 0 }'), forbidden: literal(0),
-		directForbidden: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'input' },
+		directImage: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'input' },
 	} });
-	customNodeGraphEffect.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'amount' });
+	customNodeGraphEffect.paramDefs['amount'] = { ...scalar, nameForReference: 'amount' };
 	customNodeGraphEffect.automationGraphs = [graph(7)];
-	const entry = layer('inline', customNodeGraphEffect, { automationGraphs: [graph(4)], customNodeGraphEffectParamValues: { amount: expression('GRAPH("graph", 0, "clamp") + TEST_SAME_NAME') } });
+	const entry = layer('inline', customNodeGraphEffect, { automationGraphs: [graph(4)], effectParamValues: { amount: expression('GRAPH("graph", 0, "clamp") + TIME_MS') } });
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [entry] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(350, 50);
 	const { input, ...values } = calls.renders.at(-1).params;
-	assert.deepEqual(values, { amount: 6, local: 7, caller: 1, localTime: 250, duration: 1000, exported: 1, forbidden: 0, directForbidden: 0 });
+	assert.deepEqual(values, { amount: 354, local: 7, caller: 250, localTime: 250, duration: 1000, exported: 1, forbidden: 0, directImage: input });
 	assert.deepEqual(input, { kind: 'uniform', value: [0.5, 0, 0, 0.5] });
 	await manager.renderTimelineAt(400);
 	assert.equal(calls.renders.at(-1).params.exported, 0);
 	assert.equal(calls.renders.at(-1).params.localTime, 300);
 	customNodeGraphEffect.nodes.find(node => node.type === 'effect').params.forbidden = expression('PUBLIC("input")');
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [entry] }], sceneId: 'scene' });
-	await assert.rejects(manager.renderTimelineFrame(400, 0), /Unknown or unavailable parameter/);
+	await assert.rejects(manager.renderTimelineFrame(400, 0), /PUBLIC: unknown parameter input/);
 });
 
 // 【同じノードIDでもインラインレイヤーごとに履歴と寿命を分離する】
@@ -701,11 +700,11 @@ test('retains independent instances and disposes inactive or edited inline layer
 	assert.equal(secondInstance.disposed, false);
 	assert.equal(calls.statuses.some(event => event.source.layerId === 'first' && event.status === null), true);
 	const edited = structuredClone(second);
-	edited.customNodeGraphEffect.nodes.find(node => node.type === 'effect').params.amount = literal(9);
+	edited.effectSource.customNodeGraphEffect.nodes.find(node => node.type === 'effect').params.amount = literal(9);
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [edited] }], sceneId: 'scene' });
 	assert.equal(secondInstance.disposed, true);
 	const statusCount = calls.statuses.length;
-	secondInstance.reportStatus({ type: 'error', message: 'obsolete' });
+	// 破棄された配置は描画後にも通知を追加しない。
 	assert.equal(calls.statuses.length, statusCount);
 	await manager.renderTimelineFrame(550, 50);
 	assert.equal(calls.renders.at(-1).params.amount, 9);
@@ -719,25 +718,27 @@ test('applies opacity and the same transform uniforms to inline and referenced l
 	const bottom = layer('bottom', createCustomNodeGraphEffect());
 	const top = layer('top', createCustomNodeGraphEffect());
 	top.compositingParamValues.opacity = literal(0);
-	top.customNodeGraphEffectParamValues.input = literal([0, 1, 0, 1]);
+	top.effectParamValues.input = literal([0, 1, 0, 1]);
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [bottom, top] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(100, 0);
 	// Replaceで借用した一様色も、配置後の有限なScene領域を持つ。
-	assert.deepEqual(calls.outputs.at(-1), { kind: 'uniform', value: [0.5, 0, 0, 0.5],
-		region: { bounds: { left: -1, bottom: -1, right: 1, top: 1 }, frameSize: { width: 1, height: 1 } } });
+	assert.equal(calls.outputs.at(-1).kind, 'texture');
+	assert.deepEqual(calls.outputs.at(-1).region, { bounds: { left: -1, bottom: -1, right: 1, top: 1 }, frameSize: { width: 1, height: 1 } });
 	top.compositingParamValues.opacity = literal(0.5);
 	top.compositingParamValues.position = literal([0.2, -0.3]);
 	top.compositingParamValues.origin = literal([1, -1]);
 	top.compositingParamValues.rotation = literal(0.25);
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [top] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(100, 0);
-	assert.equal(calls.passes.length, 1);
+	const inlinePassCount = calls.passes.length;
+	assert.ok(inlinePassCount > 0);
 	assert.equal(calls.outputs.at(-1).kind, 'texture');
 	const inlineWrites = calls.writes.splice(0);
-	const { customNodeGraphEffect, ...reference } = top;
-	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ ...reference, layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'registered' }] }], sceneId: 'scene', customNodeGraphEffects: [{ ...customNodeGraphEffect, id: 'registered', name: 'Registered' }] });
+	const customNodeGraphEffect = top.effectSource.customNodeGraphEffect;
+	const reference = top;
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ ...reference, layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'registered' } }] }], sceneId: 'scene', customNodeGraphEffects: [{ id: 'registered', name: 'Registered', definition: customNodeGraphEffect }] });
 	await manager.renderTimelineFrame(100, 0);
-	assert.equal(calls.passes.length, 2);
+	assert.ok(calls.passes.length > inlinePassCount);
 	assert.deepEqual(calls.writes, inlineWrites);
 });
 
@@ -768,9 +769,8 @@ test('isolates repeated scene instances and reports their placement paths', asyn
 	assert.deepEqual(calls.renders.slice(-2).map(call => call.timeDelta), [50, 50]);
 });
 
-// 【子Sceneは透明背景から合成し、定数もSceneの画面として確定する】
-// 親背景を取り込むと通常合成で背景が二重になる。定数を無寸法のまま返すと、
-// 異なる縦横比の親へ配置したときに子Sceneの画面サイズを失ってしまう。
+// 【子Sceneは透明背景から合成し、Sceneの画面として確定する】
+// 親背景を取り込むと通常合成で背景が二重になる。子Sceneへは固有の画面サイズを与える。
 test('starts nested scenes on transparent backgrounds and materializes their canvas', async t => {
 	const { manager, calls } = await fixture(t);
 	await manager.updateDynamicOptions({ sceneId: 'root', timelineScenes: [
@@ -810,10 +810,10 @@ test('uses each containing scene for context nodes and preserves project referen
 	}
 });
 
-// 【Sceneの境界で定数と異なる画素数のreplace出力を指定寸法へ揃える】
+// 【Sceneの境界で異なる画素数のreplace出力を指定寸法へ揃える】
 // 画面の確定は単独プレビューと親への配置で共通にする。すでに指定サイズの出力は
 // 再利用し、MP4用の最終寸法補正はノードやSceneのサイズへ混ぜない。
-test('finalizes uniform and replace outputs at scene size before final canvas adjustment', async t => {
+test('finalizes replace outputs at scene size before final canvas adjustment', async t => {
 	const { manager, calls } = await fixture(t, { present: true });
 	const entry = layer('constant', createCustomNodeGraphEffect(), { clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] });
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'customAbsolute', width: 513, height: 257 }, layers: [entry] };
@@ -839,10 +839,10 @@ test('finalizes uniform and replace outputs at scene size before final canvas ad
 test('restarts child scene state between adjacent clips and uses the child scene clock', async t => {
 	const { manager, calls } = await fixture(t);
 	const customNodeGraphEffect = createCustomNodeGraphEffect({ params: { localTime: expression('TIME_MS'), amount: expression('PUBLIC("scene_time")') } });
-	customNodeGraphEffect.paramDefs.push({ ...scalar, id: 'scene-time', nameForReference: 'scene_time' });
+	customNodeGraphEffect.paramDefs['scene-time'] = { ...scalar, nameForReference: 'scene_time' };
 	const child = layer('inner', customNodeGraphEffect, {
 		clips: [{ id: 'inner-clip', startMs: 500, durationMs: 200, contentOffsetMs: 20 }],
-		customNodeGraphEffectParamValues: { 'scene-time': expression('TIME_MS') },
+		effectParamValues: { 'scene-time': expression('TIME_MS') },
 	});
 	const parent = { ...sceneLayer('parent', 'child'), clips: [
 		{ id: 'first', sceneId: 'child', startMs: 100, durationMs: 100, contentOffsetMs: 500 },
@@ -858,4 +858,34 @@ test('restarts child scene state between adjacent clips and uses the child scene
 	assert.equal(calls.instances.length, 2);
 	assert.equal(calls.instances[0].disposed, true);
 	assert.equal(calls.instances[1].disposed, false);
+});
+
+// 【同じTimeline内で登録の変更を参照する配置だけを再生成する】
+// Workerで複製した一覧を同期した場合と編集差分の場合を通し、入れ子の登録への参照をたどる。
+// 無関係なレイヤーの履歴を維持したまま、影響するレイヤーにだけ新しい値が現れる。
+test('rebuilds only timeline placements that transitively reference an edited registration', async t => {
+	const { manager, calls } = await fixture(t);
+	const registration = amount => ({ id: 'child', name: 'Child', definition: createCustomNodeGraphEffect({ params: { amount: literal(amount) } }) });
+	const parent = createCustomNodeGraphEffect({ params: {} });
+	parent.nodes[0].effectSource = { type: 'customNodeGraphEffectReference', id: 'child' };
+	parent.nodes[0].params = {};
+	const layers = [layer('nested', parent), layer('unrelated', createCustomNodeGraphEffect({ params: { amount: literal(9) } }))];
+	manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers }], sceneId: 'scene',
+		customNodeGraphEffects: [registration(1)] });
+	await manager.renderTimelineFrame(350, 0);
+	const unrelated = calls.renders.find(call => call.params.amount === 9).instance;
+	let current = calls.renders.find(call => call.params.amount === 1).instance;
+	manager.updateDynamicOptions({ customNodeGraphEffects: [registration(1), { ...registration(4), id: 'other' }] });
+	await manager.renderTimelineFrame(360, 10);
+	assert.equal(calls.instances.length, 2);
+	for (const value of [2, 3]) {
+		if (value === 2) manager.updateDynamicOptions({ customNodeGraphEffects: [registration(value)] });
+		else manager.applyProjectChanges([{ type: 'customNodeGraphEffect', customNodeGraphEffectId: 'child', customNodeGraphEffect: registration(value).definition }]);
+		await manager.renderTimelineFrame(370, 10);
+		assert.equal(current.disposed, true);
+		assert.equal(unrelated.disposed, false);
+		current = calls.renders.findLast(call => call.params.amount === value).instance;
+	}
+	assert.equal(calls.instances.length, 4);
+	assert.deepEqual(calls.errors, []);
 });

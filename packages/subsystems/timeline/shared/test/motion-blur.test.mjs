@@ -157,12 +157,11 @@ test('validates finite fps, angles and bounded integer sample counts', () => {
 // 履歴依存はノード自身の定義にあるため、直接レイヤーと内部ノードの両方を調べる必要がある。
 test('finds history effects in placed definitions only', () => {
 	const definitions = { feedback: { dependsOnRenderHistory: true }, flow: { dependsOnRenderHistory: true }, unused: { dependsOnRenderHistory: true }, fill: { dependsOnRenderHistory: false } };
-	const customNodeGraphEffects = new Map([['used', { nodes: [{ type: 'effect', effectId: 'flow' }] }], ['customNodeGraphEffectLivePreview', { nodes: [{ type: 'effect', effectId: 'unused' }] }]]);
-	const scenes = [scene('root', [
-		{ layerType: 'effect', effectId: 'feedback', clips: [clip(0, 100)] },
-		{ layerType: 'effect', effectId: 'unused', clips: [] },
-		{ layerType: 'customNodeGraphEffect', customNodeGraphEffectId: 'used', clips: [clip(0, 100)] },
-		{ layerType: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: { nodes: [{ type: 'effect', effectId: 'feedback' }, { type: 'effect', effectId: 'fill' }] }, clips: [clip(0, 100)] },
-	])];
-	assert.deepEqual(findTimelineHistoryEffects(scenes, id => customNodeGraphEffects.get(id), definitions), ['feedback', 'flow']);
+	const native = id => ({ type: 'nativeEffect', id });
+	const node = effectSource => ({ effectSource });
+	const graph = { nodes: [node(native('flow')), { ...node(native('unused')), isBypass: true }] };
+	const nested = { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: { nodes: [node({ type: 'customNodeGraphEffectReference', id: 'used' }), node(native('feedback'))] } };
+	const placed = effectSource => ({ layerType: 'effect', effectSource, clips: [clip(0, 100)] });
+	const scenes = [scene('root', [placed(native('feedback')), { ...placed(native('unused')), clips: [] }, placed(nested)])];
+	assert.deepEqual(findTimelineHistoryEffects(scenes, { getNativeEffect: id => definitions[id], getCustomNodeGraphEffect: () => graph }), ['feedback', 'flow']);
 });

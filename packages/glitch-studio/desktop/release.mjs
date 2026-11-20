@@ -161,7 +161,8 @@ export async function verifyPackagedPortableCustomNodeGraphEffect(resourcesDirec
 	if (JSON.parse(asar.extractFile(archive, path.normalize(`${nativePackage}/package.json`)).toString()).version !== version) throw new Error('Runtime bundler versions differ');
 	const catalog = path.join(resourcesDirectory, 'portable-custom-node-graph-effect-catalog');
 	const manifest = JSON.parse(await fs.readFile(path.join(catalog, 'manifest.json'), 'utf8'));
-	const entries = ['element.js', 'worker.js', 'expression.js', 'custom-shader-effects.js',
+	// package.jsonの条件付きimportsで、作品に応じてNative専用・Shader対応・式評価を切り替える。
+	const entries = ['package.json', 'element.js', 'worker.js', 'native-effect-instance.js', 'custom-shader-effects.js', 'expression.js', 'unused-features.js',
 		...manifest.effectIds.flatMap(id => [`effects/${id}/definition.js`, `effects/${id}/implementation.js`])];
 	for (const entry of entries) {
 		if (!(await fs.stat(path.join(catalog, entry))).isFile()) throw new Error(`Missing portable runtime entry: ${entry}`);

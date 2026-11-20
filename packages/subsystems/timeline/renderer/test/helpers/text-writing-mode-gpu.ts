@@ -1,10 +1,13 @@
-import definition from '@gs/subsystems_effect_shared/fx/text/_def_.ts';
-import implementation from '@gs/subsystems_effect_shared/fx/text/_impl_.ts';
-import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import { createTextureReader } from './read-texture.ts';
+import definition from '@gs/subsystems_effect-new_native-effects/fx/text/_def_.ts';
+import implementation from '@gs/subsystems_effect-new_native-effects/fx/text/_impl_.ts';
+import { createEffectTimelineLayer } from '../../src/layers/effect/effect-timeline-layer.ts';
+import { testEffectLayer, testLayerContext } from './effect-layer-fixture.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { createTextRenderer } from '../../src/text-rendering/text-renderer.ts';
 import type { TextRenderValues } from '../../src/text-rendering/text-render-values.ts';
-import type { RuntimeEffectParameters } from '@gs/subsystems_effect_shared/effect-implementation.ts';
+
+function unexpected(): never { throw new Error('Unexpected Effect reference'); }
 
 export async function run() {
 	const adapter = await navigator.gpu.requestAdapter();
@@ -15,45 +18,18 @@ export async function run() {
 	const checks: string[] = [];
 	const previews: OffscreenCanvas[] = [];
 	const assert = (condition: boolean, message: string) => { if (!condition) throw new Error(message); };
-	const readModule = device.createShaderModule({ code: `
-@group(0) @binding(0) var image: texture_2d<f32>;
-@vertex fn vs(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {
-	let points = array(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));
-	return vec4f(points[index], 0.0, 1.0);
-}
-@fragment fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f { return textureLoad(image, vec2i(position.xy), 0); }` });
-	const readPipeline = device.createRenderPipeline({ layout: 'auto', vertex: { module: readModule }, fragment: { module: readModule, targets: [{ format: 'rgba8unorm' }] } });
-	async function read(texture: GPUTexture) {
-		const { width, height } = texture;
-		const bytesPerRow = Math.ceil(width * 4 / 256) * 256;
-		const target = device.createTexture({ size: [width, height], format: 'rgba8unorm', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
-		const buffer = device.createBuffer({ size: bytesPerRow * height, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-		try {
-			const encoder = device.createCommandEncoder();
-			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: target.createView(), loadOp: 'clear', storeOp: 'store' }] });
-			pass.setPipeline(readPipeline);
-			pass.setBindGroup(0, device.createBindGroup({ layout: readPipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: texture.createView() }] }));
-			pass.draw(3);
-			pass.end();
-			encoder.copyTextureToBuffer({ texture: target }, { buffer, bytesPerRow }, [width, height]);
-			device.queue.submit([encoder.finish()]);
-			await buffer.mapAsync(GPUMapMode.READ);
-			const padded = new Uint8Array(buffer.getMappedRange());
-			const pixels = new Uint8ClampedArray(width * height * 4);
-			for (let y = 0; y < height; y++) pixels.set(padded.subarray(y * bytesPerRow, y * bytesPerRow + width * 4), y * width * 4);
-			return pixels;
-		} finally {
-			buffer.destroy();
-			target.destroy();
-		}
-	}
+	const read = createTextureReader(device);
 	try {
 		for (const [width, height] of [[480, 320], [320, 480]]) {
 			const resolution = { width, height };
 			const wgpu = { device, enable32bitDataTextures: false, defaultVertexShaderModule: vertex };
-			const output = implementation.outputTextureFactories.output({ wgpu, resolution });
-			const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, parameter.defaultValue.value) : parameter.defaultValue.value])) as RuntimeEffectParameters<typeof definition.paramDefs>;
-			const effect = implementation.init({ wgpu, resolution, params: defaults, resources: { font: null }, reportStatus: () => {}, fallbackTexture: output });
+			const layer = testEffectLayer({ type: 'nativeEffect', id: 'text' });
+			const effect = createEffectTimelineLayer(layer, {
+				wgpu, sceneBaseResolution: resolution, resolutionScale: 1,
+				definitions: { getNativeEffect: () => definition, getCustomNodeGraphEffect: unexpected, getCustomShaderEffect: unexpected },
+				getNativeEffectImplementation: () => implementation,
+			});
+			const signal = new AbortController().signal;
 			const timeline = createTextRenderer({ device, vertex, resolution, fontFileSource: null });
 			await timeline.waitUntilReady(new AbortController().signal);
 			try {
@@ -66,19 +42,15 @@ export async function run() {
 								position: [0.04, -0.02], color: [1, 1, 1, 0.7], outlineWidth: 0.08, outlineColor: [1, 0.2, 0.1, 0.8],
 								shadowEnabled: true, shadowColor: [0.3, 0.5, 1, 0.6], shadowOffset: [0.2, -0.15], shadowBlur: 0.06,
 							};
-							const params = { ...defaults, ...values, color: constantShaderInput('color', values.color), outlineColor: constantShaderInput('color', values.outlineColor), shadowColor: constantShaderInput('color', values.shadowColor) };
+							for (const [key, value] of Object.entries(values)) layer.effectParamValues[key] = { inputSource: 'literal', value };
+							const { source } = await effect.evaluate(testLayerContext(), signal);
+							if (source == null) throw new Error('Missing Native Effect texture');
 							const encoder = device.createCommandEncoder();
-							effect.render({ params, commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
-								outputDataMap: { output: { texture: output, textureView: output.createView(), previousFrameTexture: null, previousFrameTextureView: null } },
-								createPassEncoder: (commandEncoder, descriptor) => commandEncoder.beginRenderPass(descriptor),
-								createComputePassEncoder: commandEncoder => commandEncoder.beginComputePass(),
-								createPassEncoderFor: (commandEncoder, view) => commandEncoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
-							});
 							const image = timeline.render(encoder, values);
 							device.queue.submit([encoder.finish()]);
 							assert(image.kind === 'texture' && image.region != null, 'Timeline text must retain its crop region');
 							if (image.kind !== 'texture' || image.region == null) throw new Error('Missing Timeline texture');
-							const expected = await read(output);
+							const expected = await read(source.texture);
 							const cropped = new OffscreenCanvas(image.texture.width, image.texture.height);
 							cropped.getContext('2d')!.putImageData(new ImageData(await read(image.texture), image.texture.width, image.texture.height), 0, 0);
 							const restored = new OffscreenCanvas(width, height);
@@ -102,9 +74,8 @@ export async function run() {
 					}
 				}
 			} finally {
-				effect.dispose();
+				effect.destroy();
 				timeline.dispose();
-				output.destroy();
 			}
 		}
 		const preview = new OffscreenCanvas(640, 480);

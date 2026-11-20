@@ -1,14 +1,26 @@
-import { createCustomShaderEffectDefinition } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
-import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
-import type { ProjectCustomShaderEffect } from './types.ts';
+import type { EffectDefinitions } from '@gs/subsystems_effect-new_shared/effect-source.ts';
+import type { ProjectEffectRegistrations } from './types.ts';
 
-/** プロジェクトの定義は呼び出し側の一覧へ合成し、組み込みのグローバル登録を変更しない。 */
-export function getProjectEffectDefinitions(customShaderEffects: readonly ProjectCustomShaderEffect[], builtinDefinitions: Readonly<Record<string, EffectDefinition>>): Record<string, EffectDefinition> {
-	return Object.fromEntries([
-		...Object.entries(builtinDefinitions),
-		...customShaderEffects.map(customShaderEffect => {
-			const definition = createCustomShaderEffectDefinition(customShaderEffect, customShaderEffect);
-			return [definition.id, definition] as const;
-		}),
-	]);
+export type NativeEffectDefinitions = Readonly<Record<string, ReturnType<EffectDefinitions['getNativeEffect']>>>;
+
+function indexDefinitions<T>(entries: readonly { id: string; definition: T }[], kind: string): (id: string) => T {
+	const definitions = new Map(entries.map(entry => [entry.id, entry.definition]));
+	if (definitions.size !== entries.length) throw new Error('Duplicate ' + kind + ' ID');
+	return id => {
+		const definition = definitions.get(id);
+		if (definition == null) throw new Error('Unknown ' + kind + ': ' + id);
+		return definition;
+	};
+}
+
+/** 一つのスナップショットから索引を作る。同じ文字列IDでもEffectの種類ごとに独立して解決する。 */
+export function createProjectEffectDefinitions(project: ProjectEffectRegistrations, nativeDefinitions: NativeEffectDefinitions): EffectDefinitions {
+	return {
+		getNativeEffect(id) {
+			if (!Object.hasOwn(nativeDefinitions, id)) throw new Error('Unknown Native Effect: ' + id);
+			return nativeDefinitions[id];
+		},
+		getCustomShaderEffect: indexDefinitions(project.customShaderEffects, 'Custom Shader Effect'),
+		getCustomNodeGraphEffect: indexDefinitions(project.customNodeGraphEffects, 'Custom Node Graph Effect'),
+	};
 }

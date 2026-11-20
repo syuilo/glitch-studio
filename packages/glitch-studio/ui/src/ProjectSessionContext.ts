@@ -23,11 +23,11 @@ import type { Ref, ShallowRef } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.js';
 import { deepEqual } from '@gs/shared/utility/deep-equal.js';
-import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.js';
+import { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect-new_native-effects/definitions.ts';
 import { getSceneAudioClips } from '@gs/subsystems_timeline_shared/scene-audio.js';
 import { VoicevoxGeneration } from './audio/voicevox-generation.ts';
 import { AudioOutput } from './audio/audio-output.ts';
-import { CustomNodeGraphEffectRendererManagerController } from './CustomNodeGraphEffectRendererManagerController.ts';
+import { EffectLivePreviewManagerController } from './EffectLivePreviewManagerController.ts';
 import { preferences } from './preferences.ts';
 import { TimelineRendererManagerController } from './TimelineRendererManagerController.ts';
 import { TimelineAudioPreview } from './audio/timeline-audio-preview.ts';
@@ -53,7 +53,7 @@ import type { VoicevoxSpeaker } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { ProjectFileHandle } from './gsproj.ts';
 import type { ProjectContext } from './Project.ts';
 import type { TimelineRendererManagerDynamicOptions } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
-import type { CustomNodeGraphEffectRendererManagerDynamicOptions } from '@gs/glitch-studio_renderer/custom-node-graph-effect-renderer-manager.ts';
+import type { EffectLivePreviewManagerDynamicOptions } from '@gs/glitch-studio_renderer/effect-live-preview-manager.ts';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
 
@@ -114,7 +114,7 @@ export class ProjectSessionContext {
 	public analysisRangePreset = ref<ImageAnalysisRangePreset>('zeroToOne');
 	public analysisCustomRange = ref<ImageValueRange>({ minimum: 0, maximum: 1 });
 	public analysisValueRange = computed(() => getImageAnalysisValueRange(this.analysisRangePreset.value, this.analysisCustomRange.value));
-	public readonly highResolutionImageAnalysis: HighResolutionImageAnalysisController<CustomNodeGraphEffectRendererManagerController | TimelineRendererManagerController>;
+	public readonly highResolutionImageAnalysis: HighResolutionImageAnalysisController<EffectLivePreviewManagerController | TimelineRendererManagerController>;
 	public readonly analysisWaveformCanvasSizes = shallowRef<PreviewWaveformCanvasSizes | null>(null);
 	public readonly analysisWaveformViewports = shallowRef<PreviewWaveformViewports | null>(null);
 	public readonly analysisHistogramViewport = shallowRef<ImageValueRange | null>(null);
@@ -129,7 +129,7 @@ export class ProjectSessionContext {
 	public readonly imageAnalysisRenderer = computed(() => this.highResolutionImageAnalysis.source.value ?? this.activePreviewRenderer.value);
 	public readonly imageAnalysisAvailable = computed(() => preferences.r.analysisMonitorsEnabled.value && !this.renderEngine.isSuspended.value && this.activePreviewRenderer.value.isReady.value);
 	public audioOutput = markRaw(new AudioOutput());
-	public customNodeGraphEffectRendererManagerController: CustomNodeGraphEffectRendererManagerController;
+	public effectLivePreviewManagerController: EffectLivePreviewManagerController;
 	public timelineRendererManagerController: TimelineRendererManagerController;
 	public timelineAudioPreview: TimelineAudioPreview;
 	public previewPlayback: PreviewPlaybackController;
@@ -142,7 +142,7 @@ export class ProjectSessionContext {
 	public readonly renderEngine: PreviewRenderEngine;
 	private readonly rendererProjectSynchronizer: RendererProjectSynchronizer;
 	private readonly projectSaveController: ProjectSaveController;
-	public activePreviewRenderer = computed(() => this.previewPlayback.state.value.mode === 'customNodeGraphEffectLivePreview' ? this.customNodeGraphEffectRendererManagerController : this.timelineRendererManagerController);
+	public activePreviewRenderer = computed(() => this.previewPlayback.state.value.mode === 'customNodeGraphEffectLivePreview' ? this.effectLivePreviewManagerController : this.timelineRendererManagerController);
 	public get projectFileName() { return this.projectSaveController.projectFileName; }
 	public readonly projectDisplayName = computed(() => getProjectDisplayName(this.projectContext.stateManager.state.name.value, this.projectFileName.value));
 	public get projectFileHandle() { return this.projectSaveController.projectFileHandle; }
@@ -189,7 +189,7 @@ export class ProjectSessionContext {
 			if (this.activeSceneId.value == null || !ids.includes(this.activeSceneId.value)) this.activeSceneId.value = ids[0] ?? null;
 		}, { flush: 'sync' }));
 
-		this.customNodeGraphEffectRendererManagerController = markRaw(new CustomNodeGraphEffectRendererManagerController(this.audioOutput));
+		this.effectLivePreviewManagerController = markRaw(new EffectLivePreviewManagerController(this.audioOutput));
 		this.timelineRendererManagerController = markRaw(new TimelineRendererManagerController());
 
 		this.timelineAudioPreview = markRaw(new TimelineAudioPreview(
@@ -203,7 +203,7 @@ export class ProjectSessionContext {
 		));
 
 		this.previewPlayback = markRaw(new PreviewPlaybackController(
-			this.customNodeGraphEffectRendererManagerController,
+			this.effectLivePreviewManagerController,
 			this.timelineRendererManagerController,
 			() => this.projectContext.stateManager.state.timelineFps.value * this.timelinePreviewFpsFactor.value,
 			() => this.activeScene.value == null ? 0 : getSceneDuration(this.activeScene.value),
@@ -224,7 +224,7 @@ export class ProjectSessionContext {
 				this.displayedHistogramViewport.value = this.analysisHistogramViewport.value;
 				this.synchronizedPreviewDisplayMode = null;
 				this.previewPlayback.suspend();
-				this.customNodeGraphEffectRendererManagerController.disposeManager(reason);
+				this.effectLivePreviewManagerController.disposeManager(reason);
 				this.timelineRendererManagerController.disposeManager(reason);
 			},
 			create: async isCurrent => {
@@ -235,27 +235,27 @@ export class ProjectSessionContext {
 				const staticOptions = this.getPreviewStaticOptions();
 				const previewDisplayMode = this.previewPlayback.state.value.mode;
 				const snapshot = deepClone({
-					assets: getRendererAssets(state.assets.value), players: state.players.value, customShaderEffects: state.customShaderEffects.value,
-					project: { automationGraphs: state.automationGraphs.value, customNodeGraphEffects: state.customNodeGraphEffects.value, timelineScenes: state.timelineScenes.value },
+					assets: getRendererAssets(state.assets.value), players: state.players.value,
+					project: { customShaderEffects: state.customShaderEffects.value, automationGraphs: state.automationGraphs.value, customNodeGraphEffects: state.customNodeGraphEffects.value, timelineScenes: state.timelineScenes.value },
 					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value,
 						previewWarningImageSource: this.previewWarningImageSource.value, previewGamutWarning: { ...this.previewGamutWarning.value }, previewExposure: this.previewExposure.value, previewSrgbProof: this.previewSrgbProof.value, previewGamutCompression: { ...this.previewGamutCompression.value },
 						previewBackground: preferences.s.animatedBgInPreview ? 'checker' as const : 'black' as const, analysisValueScale: this.analysisValueScale.value, analysisTarget: this.analysisTarget.value, analysisImageSource: this.analysisImageSource.value, analysisValueRange: { ...this.analysisValueRange.value }, analysisWaveformCanvasSizes: this.analysisWaveformCanvasSizes.value, analysisWaveformViewports: this.analysisWaveformViewports.value, analysisHistogramViewport: this.analysisHistogramViewport.value },
-					customNodeGraphEffectOptions: { previewActive: previewDisplayMode === 'customNodeGraphEffectLivePreview', fpsLimit: this.customNodeGraphEffectLivePreviewFpsLimit.value, customNodeGraphEffectLivePreviewTimeFactor: this.customNodeGraphEffectLivePreviewTimeFactor.value },
+					customNodeGraphEffectOptions: { previewActive: previewDisplayMode === 'customNodeGraphEffectLivePreview', fpsLimit: this.customNodeGraphEffectLivePreviewFpsLimit.value, effectLivePreviewTimeFactor: this.customNodeGraphEffectLivePreviewTimeFactor.value },
 					timelineOptions: { previewActive: previewDisplayMode === 'timeline', sceneId: this.activeSceneId.value, generatedSpeech: this.previewSpeech.value,
 						previewFps: state.timelineFps.value * this.timelinePreviewFpsFactor.value },
 				});
 				this.synchronizedPreviewDisplayMode = previewDisplayMode;
 				const results = await Promise.allSettled([
-					this.customNodeGraphEffectRendererManagerController.initialize({
+					this.effectLivePreviewManagerController.initialize({
 						staticOptions: staticOptions.customNodeGraphEffect,
 						dynamicOptions: { ...snapshot.commonOptions, ...snapshot.customNodeGraphEffectOptions,
-							automationGraphs: snapshot.project.automationGraphs, customNodeGraphEffects: snapshot.project.customNodeGraphEffects },
-						resources: { assets: snapshot.assets, players: snapshot.players, customShaderEffects: snapshot.customShaderEffects },
+							automationGraphs: snapshot.project.automationGraphs, customNodeGraphEffects: snapshot.project.customNodeGraphEffects, customShaderEffects: snapshot.project.customShaderEffects },
+						resources: { assets: snapshot.assets, players: snapshot.players },
 					}),
 					isCurrent() ? this.timelineRendererManagerController.initialize({
 						staticOptions: staticOptions.timeline,
 						dynamicOptions: { ...snapshot.project, ...snapshot.commonOptions, ...snapshot.timelineOptions },
-						resources: { assets: snapshot.assets, customShaderEffects: snapshot.customShaderEffects },
+						resources: { assets: snapshot.assets },
 					}) : Promise.resolve(),
 				]);
 				const failure = results.find(result => result.status === 'rejected');
@@ -288,7 +288,7 @@ export class ProjectSessionContext {
 				const source = this.activePreviewRenderer.value;
 				const revision = source.canvasRevision.value;
 				await Promise.all([
-					this.customNodeGraphEffectRendererManagerController.setImageAnalysisDisplay(settings, source === this.customNodeGraphEffectRendererManagerController),
+					this.effectLivePreviewManagerController.setImageAnalysisDisplay(settings, source === this.effectLivePreviewManagerController),
 					this.timelineRendererManagerController.setImageAnalysisDisplay(settings, source === this.timelineRendererManagerController),
 				]);
 				if (!this.highResolutionImageAnalysis.active.value && source === this.activePreviewRenderer.value && revision === source.canvasRevision.value) {
@@ -300,14 +300,14 @@ export class ProjectSessionContext {
 		this.sessionDisposers.push(watch(() => this.previewPlayback.state.value.mode, () => {
 			void this.updatePreviewDisplayActivity();
 		}, { flush: 'sync' }));
-		for (const controller of [this.customNodeGraphEffectRendererManagerController, this.timelineRendererManagerController]) {
+		for (const controller of [this.effectLivePreviewManagerController, this.timelineRendererManagerController]) {
 			controller.onRenderFailure = (error, origin) => {
 				this.renderEngine.fail(error, origin);
 				void resolveExternalAssets(this.projectContext.stateManager.state.assets.value);
 			};
 		}
 		window.addEventListener?.('focus', this.onWindowFocus);
-		this.customNodeGraphEffectRendererManagerController.onAssetReadFailure = () => {
+		this.effectLivePreviewManagerController.onAssetReadFailure = () => {
 			void resolveExternalAssets(this.projectContext.stateManager.state.assets.value);
 		};
 		this.sessionDisposers.push(watch(this.previewPlayback.livePreviewCustomNodeGraphEffectId, id => {
@@ -324,10 +324,7 @@ export class ProjectSessionContext {
 		this.sessionDisposers.push(projectContext.stateManager.onChange(changes => {
 			this.renderValidation.update(changes);
 			this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
-			if (changes.some(change => change.type === 'customShaderEffect')) {
-				// 全量更新を起動後に送るため、初期化中でもWorkerを破棄しない。エラー中は従来どおり再生成する。
-				this.renderEngine.requestRetry();
-			} else if (changes.some(change => ['automationGraphs', 'node', 'customNodeGraphEffect', 'customNodeGraphEffectRegistration', 'layer', 'layerTree', 'layerOrder', 'scene'].includes(change.type))) {
+			if (changes.some(change => ['customShaderEffect', 'automationGraphs', 'node', 'customNodeGraphEffect', 'customNodeGraphEffectRegistration', 'layer', 'layerTree', 'layerOrder', 'scene'].includes(change.type))) {
 				this.renderEngine.notifyContentChange();
 			}
 		}));
@@ -439,7 +436,7 @@ export class ProjectSessionContext {
 		}, { flush: 'sync' }));
 
 		this.sessionDisposers.push(watch(this.customNodeGraphEffectLivePreviewTimeFactor, async value => {
-			await this.updateCustomNodeGraphEffectPreviewOptions({ customNodeGraphEffectLivePreviewTimeFactor: value });
+			await this.updateCustomNodeGraphEffectPreviewOptions({ effectLivePreviewTimeFactor: value });
 		}, { flush: 'sync' }));
 		this.sessionDisposers.push(watch([this.projectContext.stateManager.state.timelineFps, this.timelinePreviewFpsFactor], async () => {
 			await this.updateTimelinePreviewOptions({ previewFps: this.projectContext.stateManager.state.timelineFps.value * this.timelinePreviewFpsFactor.value });
@@ -519,7 +516,7 @@ export class ProjectSessionContext {
 			}
 		}, { flush: 'sync' }));
 
-		// UndoでCustom Node Graph Effect Live Preview対象が取り除かれたら、復旧や再初期化で存在しないCustom Node Graph Effectを再生しない。
+		// UndoでEffect Live Preview対象が取り除かれたら、復旧や再初期化で存在しないCustom Node Graph Effectを再生しない。
 		this.sessionDisposers.push(this.projectContext.stateManager.onChange(changes => {
 			this.previewPlayback.cancelTimelineBake();
 			const livePreviewCustomNodeGraphEffectId = this.previewPlayback.livePreviewCustomNodeGraphEffectId.value;
@@ -529,9 +526,9 @@ export class ProjectSessionContext {
 
 		this.rendererProjectSynchronizer = new RendererProjectSynchronizer(this.projectContext.stateManager, {
 			apply: changes => this.renderEngine.runRendererUpdate(() => Promise.all([
-				this.customNodeGraphEffectRendererManagerController.applyProjectChanges(changes),
+				this.effectLivePreviewManagerController.applyProjectChanges(changes),
 				this.timelineRendererManagerController.applyProjectChanges(changes),
-			]), { waitForInitialization: changes.some(change => change.type === 'customShaderEffects') }),
+			]), { waitForInitialization: changes.some(change => change.type === 'customShaderEffectRegistration') }),
 			onUpdated: () => this.previewPlayback.refresh(),
 			onError: error => {
 				if (this.renderEngine.canRender.value) this.renderEngine.fail(error);
@@ -624,7 +621,7 @@ export class ProjectSessionContext {
 	private updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'resolution' | 'resolutionScale' | 'highlightClipping' | 'previewWarningImageSource' | 'previewGamutWarning' | 'previewExposure' | 'previewSrgbProof' | 'previewGamutCompression' | 'previewBackground' | 'analysisValueScale' | 'analysisTarget' | 'analysisImageSource' | 'analysisValueRange' | 'analysisPaused' | 'analysisWaveformCanvasSizes' | 'analysisWaveformViewports' | 'analysisHistogramViewport'>>) {
 		this.renderEngine.notifyContentChange();
 		return this.renderEngine.runRendererUpdate(() => Promise.all([
-			this.customNodeGraphEffectRendererManagerController.updateDynamicOptions(options),
+			this.effectLivePreviewManagerController.updateDynamicOptions(options),
 			this.timelineRendererManagerController.updateDynamicOptions(options),
 		]));
 	}
@@ -639,7 +636,7 @@ export class ProjectSessionContext {
 			// 初期値は生成時に渡す。同じ表示先への復帰では追加RPCを送らず、
 			// 初期化中に切り替わった場合にもonReadyから最新の表示先へ同期する。
 			return Promise.all([
-				this.customNodeGraphEffectRendererManagerController.updateDynamicOptions({ previewActive: mode === 'customNodeGraphEffectLivePreview' }),
+				this.effectLivePreviewManagerController.updateDynamicOptions({ previewActive: mode === 'customNodeGraphEffectLivePreview' }),
 				this.timelineRendererManagerController.updateDynamicOptions({ previewActive: mode === 'timeline' }),
 			]);
 		});
@@ -650,9 +647,9 @@ export class ProjectSessionContext {
 		return this.renderEngine.runRendererUpdate(() => this.timelineRendererManagerController.updateDynamicOptions(options));
 	}
 
-	private updateCustomNodeGraphEffectPreviewOptions(options: Partial<CustomNodeGraphEffectRendererManagerDynamicOptions>) {
+	private updateCustomNodeGraphEffectPreviewOptions(options: Partial<EffectLivePreviewManagerDynamicOptions>) {
 		this.renderEngine.notifyContentChange();
-		return this.renderEngine.runRendererUpdate(() => this.customNodeGraphEffectRendererManagerController.updateDynamicOptions(options));
+		return this.renderEngine.runRendererUpdate(() => this.effectLivePreviewManagerController.updateDynamicOptions(options));
 	}
 
 	/** 再生要求を止めてからGPUリソースを解放し、復帰完了後にだけ再生を戻す。 */

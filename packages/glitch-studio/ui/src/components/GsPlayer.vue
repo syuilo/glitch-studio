@@ -5,9 +5,9 @@
 	<div :class="$style.body">
 		<GsVideoControls
 			v-if="videoEl != null" :video="videoEl" :class="$style.videoControl"
-			:play="() => customNodeGraphEffectRendererManagerController.playPlayer(player.id)"
+			:play="() => effectLivePreviewManagerController.playPlayer(player.id)"
 		/>
-		<div :class="$style.levelMeter"><GsAudioLevelMeter :orientation="'vertical'" :levels="customNodeGraphEffectRendererManagerController.getPlayerLevels(player.id)"/></div>
+		<div :class="$style.levelMeter"><GsAudioLevelMeter :orientation="'vertical'" :levels="effectLivePreviewManagerController.getPlayerLevels(player.id)"/></div>
 	</div>
 </div>
 </template>
@@ -26,14 +26,14 @@ import * as ui from '@/ui.ts';
 
 const projectSession = useProjectSession();
 
-const { customNodeGraphEffectRendererManagerController } = projectSession;
+const { effectLivePreviewManagerController } = projectSession;
 const { stateManager } = projectSession.projectContext;
 
 const props = defineProps<{
 	player: Player;
 }>();
 
-const videoEl = computed(() => customNodeGraphEffectRendererManagerController.getMediaElement(props.player.id));
+const videoEl = computed(() => effectLivePreviewManagerController.getMediaElement(props.player.id));
 
 function remove() {
 	//stateManager.commit('removePlayer', {

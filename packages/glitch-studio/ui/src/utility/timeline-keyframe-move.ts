@@ -1,66 +1,40 @@
 import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
-import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
 import { validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { validateVoicevoxLayer } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
-import { getLayerParameterDefinitions, getLayerParameterValues, resolveLayerParameter } from './timeline-scene.ts';
+import { getLayerParameterDefinitions, getLayerParameterValues } from './timeline-scene.ts';
 import { keyframeSelectionKey } from './timeline-selection.ts';
 import type { TimelineKeyframePosition } from './timeline-selection.ts';
 import type { EditableTimelineParameterBinding } from '../types/parameter-edit.ts';
-import type { TimelineScene, TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
-import type { VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
+import type { TimelineScene, TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { ProjectState } from '../Project.ts';
 
-type ParameterUpdate = { layerId: string; target: TimelineParameterTarget; paramId: string;
-	before: EditableTimelineParameterBinding | null; after: EditableTimelineParameterBinding };
-type UtteranceUpdate = { layerId: string; target: 'utterance'; before: VoicevoxUtterance[]; after: VoicevoxUtterance[] };
-export type TimelineKeyframeMoveUpdate = ParameterUpdate | UtteranceUpdate;
-
-/** クリップとキーをまとめて検証できるよう、保存先を変更せず更新案だけを作る。 */
-export function prepareTimelineKeyframeMove(state: Pick<ProjectState, 'customNodeGraphEffects'>, scene: TimelineScene,
-	positions: readonly TimelineKeyframePosition[]): TimelineKeyframeMoveUpdate[] {
+/** Commandが分離したSceneを編集する。クリップとキーに対する検証がすべて成功した時点で反映される。 */
+export function moveTimelineKeyframesInDraft(state: Pick<ProjectState, 'customNodeGraphEffects'>, draftScene: TimelineScene,
+	positions: readonly TimelineKeyframePosition[]): void {
 	if (new Set(positions.map(keyframeSelectionKey)).size !== positions.length) throw new Error('Duplicate keyframe move target');
-	const parameters = new Map<string, ParameterUpdate>();
-	const speeches = new Map<string, UtteranceUpdate>();
+	const movedUtteranceLayers = new Set<TimelineVoicevoxLayer>();
 	for (const position of positions) {
-		const layer = findTimelineLayer(scene.layers, position.layerId);
-		if (!layer || !Number.isSafeInteger(position.x) || position.x < 0) throw new Error('Invalid keyframe move');
+		const layer = findTimelineLayer(draftScene.layers, position.layerId);
+		if (layer == null || !Number.isSafeInteger(position.x) || position.x < 0) throw new Error('Invalid keyframe move');
 		if (position.target === 'utterance') {
 			if (layer.layerType !== 'voicevox' || position.paramPath.length !== 1 || position.paramPath[0] !== 'utterances') throw new Error('Invalid utterance target');
-			const update = speeches.get(layer.id) ?? {
-				layerId: layer.id,
-				target: 'utterance',
-				before: deepClone(layer.utterances),
-				after: deepClone(layer.utterances),
-			};
-			const utterance = update.after.find(utterance => utterance.id === position.keyframeId);
-			if (!utterance) throw new Error('Utterance not found');
+			const utterance = layer.utterances.find(utterance => utterance.id === position.keyframeId);
+			if (utterance == null) throw new Error('Utterance not found');
 			utterance.timeMs = position.x;
-			speeches.set(layer.id, update);
+			movedUtteranceLayers.add(layer);
 			continue;
 		}
-		const paramId = position.paramPath[0];
-		const rootKey = JSON.stringify([layer.id, position.target, paramId]);
-		const update = parameters.get(rootKey) ?? {
-			layerId: layer.id,
-			target: position.target,
-			paramId,
-			before: deepClone(getLayerParameterValues(layer, position.target)[paramId] ?? null),
-			after: deepClone(resolveLayerParameter(state, layer, position.target, [paramId]).value),
-		};
+		const values = getLayerParameterValues(layer, position.target);
+		const rootKey = position.paramPath[0];
+		const rootBinding = values[rootKey];
+		if (rootBinding == null) throw new Error('Timeline keyframe not found');
 		const definitions = getLayerParameterDefinitions(state, layer, position.target);
-		// 同じ配列・構造体の別レーンも一つの案にまとめる。未設定の引数は既定値の
-		// 独立したコピーへ書き込み、共有定義を変更せずUndoで未設定へ戻せるようにする。
-		const binding = resolveParameter<EditableTimelineParameterBinding>(definitions, { [paramId]: update.after }, position.paramPath).value;
-		const point = binding.inputSource === 'keyframesTimelineInline' ? binding.keyframesTimeline.keyframes.find(point => point.id === position.keyframeId) : null;
-		if (!point) throw new Error('Timeline keyframe not found');
-		point.x = position.x;
-		validateTimelineParameterTree(definitions[paramId], update.after, position.target === 'effect' || position.target === 'customNodeGraphEffect', position.target === 'effect' || position.target === 'customNodeGraphEffect');
-		parameters.set(rootKey, update);
+		const binding = resolveParameter<EditableTimelineParameterBinding>(definitions, values, position.paramPath).value;
+		const keyframe = binding.inputSource === 'keyframesTimelineInline' ? binding.keyframesTimeline.keyframes.find(keyframe => keyframe.id === position.keyframeId) : null;
+		if (keyframe == null) throw new Error('Timeline keyframe not found');
+		keyframe.x = position.x;
+		validateTimelineParameterTree(definitions[rootKey], rootBinding, position.target === 'effect');
 	}
-	for (const update of speeches.values()) {
-		const layer = findTimelineLayer(scene.layers, update.layerId)!;
-		if (layer.layerType === 'voicevox') validateVoicevoxLayer({ voicevox: layer.voicevox, utterances: update.after });
-	}
-	return [...parameters.values(), ...speeches.values()];
+	for (const layer of movedUtteranceLayers) validateVoicevoxLayer(layer);
 }

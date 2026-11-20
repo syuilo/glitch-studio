@@ -80,7 +80,7 @@
 import { computed, ref, useTemplateRef, onBeforeUnmount } from 'vue';
 import { createPortableCustomNodeGraphEffectFiles, encodePortableCustomNodeGraphEffect } from '@gs/glitch-studio_embed/export.ts';
 import { createPortableCustomNodeGraphEffectArchive } from '@gs/glitch-studio_embed/archive.ts';
-import { validatePortableParameters } from '@gs/glitch-studio_embed/parameters.ts';
+import { getPortableParameterDefinitions, validatePortableParameters } from '@gs/glitch-studio_embed/parameters.ts';
 import { validatePortableCustomNodeGraphEffectSettings } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
 import GsModal from './common/GsModal.vue';
 import GsSelect from './common/GsSelect.vue';
@@ -130,7 +130,7 @@ const settings = computed(() => ({
 const validationError = computed(() => {
 	try {
 		validatePortableCustomNodeGraphEffectSettings(settings.value);
-		validatePortableParameters(props.prepared.customNodeGraphEffect.paramDefs, JSON.parse(initialParameters.value));
+		validatePortableParameters(getPortableParameterDefinitions(props.prepared.customNodeGraphEffect), JSON.parse(initialParameters.value));
 		return null;
 	} catch (error) { return error instanceof Error ? error.message : String(error); }
 });
@@ -158,7 +158,7 @@ async function download() {
 		const snapshot = {
 			...props.prepared,
 			settings: { ...settings.value },
-			initialParameters: validatePortableParameters(props.prepared.customNodeGraphEffect.paramDefs, JSON.parse(initialParameters.value)),
+			initialParameters: validatePortableParameters(getPortableParameterDefinitions(props.prepared.customNodeGraphEffect), JSON.parse(initialParameters.value)),
 		};
 		const selectedFormat = format.value;
 		saveFile = await desktop.chooseExportSaveFile(`${snapshot.name}.${selectedFormat}`, selectedFormat);

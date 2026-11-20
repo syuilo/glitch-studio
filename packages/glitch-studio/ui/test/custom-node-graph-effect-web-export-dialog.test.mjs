@@ -22,10 +22,10 @@ const bundle = await build({
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	plugins: [i18nPlugin, { name: 'web-export-platform', setup(builder) {
 		// ダイアログの状態遷移と実際の成果物生成を通す。DOM・ビルド済みGPUランタイムだけを境界で差し替える。
-		builder.onResolve({ filter: /\.vue$|effect-definitions\.ts$/ }, ({ path }) => ({ path, namespace: 'web-export-platform' }));
+		builder.onResolve({ filter: /\.vue$|(?:effect-definitions|native-effects[\\/]definitions)\.ts$/ }, ({ path }) => ({ path, namespace: 'web-export-platform' }));
 		builder.onLoad({ filter: /.*/, namespace: 'web-export-platform' }, ({ path }) => ({ loader: 'ts', contents:
 			path.endsWith('.vue') ? 'export default {};'
-					: 'export const effectDefinitions = {};',
+					: 'export const nativeEffectDefinitions = {};',
 		}));
 	} }],
 });

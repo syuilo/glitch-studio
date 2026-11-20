@@ -1,11 +1,11 @@
 import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
-import imageEffect from '@gs/subsystems_effect_shared/fx/image/_def_.ts';
-import videoEffect from '@gs/subsystems_effect_shared/fx/video/_def_.ts';
-import audioWaveformEffect from '@gs/subsystems_effect_shared/fx/audioWaveform/_def_.ts';
+import imageEffect from '@gs/subsystems_effect-new_native-effects/fx/image/_def_.ts';
+import videoEffect from '@gs/subsystems_effect-new_native-effects/fx/video/_def_.ts';
+import audioWaveformEffect from '@gs/subsystems_effect-new_native-effects/fx/audioWaveform/_def_.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
-import type { CustomNodeGraphEffectEffectNode } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffectEffectNode } from '@/types/custom-node-graph-effect-view.ts';
 import type { CustomNodeGraphEffectTarget } from './custom-node-graph-effect-target.ts';
 import type { Asset, Player } from '@gs/shared/types.ts';
 
@@ -31,7 +31,7 @@ export function createCustomNodeGraphEffectAssetNode(asset: Asset, players: read
 		}
 	}
 	const params: CustomNodeGraphEffectEffectNode['params'] = deepClone(Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, def.defaultValue])));
-	const staticSettings: StaticSettingValues = createStaticSettingValues(definition.staticSettingDefs ?? {});
+	const staticSettings: StaticSettingValues = createStaticSettingValues('staticSettingDefs' in definition ? definition.staticSettingDefs : {});
 	if (definition === imageEffect) staticSettings.image = asset.id;
 	else if (definition === videoEffect) staticSettings.player = playerId;
 	else params.audio = { inputSource: 'literal', value: { type: 'player', playerId: playerId! } };
@@ -40,7 +40,7 @@ export function createCustomNodeGraphEffectAssetNode(asset: Asset, players: read
 		node: {
 			id: genId(),
 			type: 'effect',
-			effectId: definition.id,
+			effectSource: { type: 'nativeEffect', id: definition === imageEffect ? 'image' : definition === videoEffect ? 'video' : 'audioWaveform' },
 			displayName: '',
 			isBypass: false,
 			resolution: { mode: 'auto', scale: 1 },

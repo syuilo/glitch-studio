@@ -93,7 +93,7 @@ function fixture(t, savedSettings = null, preferredEffectRenderTiling = { mode: 
 	stateManager.state = Object.fromEntries(Object.entries({
 		exportSettings: savedSettings, name: 'Project', resolution: { width: 1920, height: 1080 }, timelineFps: 24,
 		generatedSpeech: [], timelineScenes: ['scene', 'other'].map((id, index) => ({ id, name: id, resolution: { mode: 'project' }, layers: [
-			{ id: 'layer', layerType: 'effect', effectId: 'fill', clips: [{ id: 'clip', startMs: 0, durationMs: (index + 1) * 10000, contentOffsetMs: 0 }] },
+			{ id: 'layer', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'fill' }, clips: [{ id: 'clip', startMs: 0, durationMs: (index + 1) * 10000, contentOffsetMs: 0 }] },
 		] })),
 	}).map(([key, value]) => [key, { value }]));
 	const open = () => {
@@ -232,7 +232,7 @@ test('resets the range when selecting a different or replacing a missing scene',
 });
 
 // 【書き出しSceneが未選択なら先頭のSceneとその全範囲を選ぶ】
-// Custom Node Graph Effect Live Previewから初めて開く場合や未選択の設定を復元する場合にも、毎回選び直す必要をなくす。
+// Effect Live Previewから初めて開く場合や未選択の設定を復元する場合にも、毎回選び直す必要をなくす。
 // 保存済みの有効な選択は優先し、Sceneが一つもない場合だけ未選択を維持する。
 test('selects the first scene when no export scene is selected', t => {
 	const f = fixture(t);

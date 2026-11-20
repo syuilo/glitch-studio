@@ -1,6 +1,6 @@
 import { importAssets } from './import-assets.ts';
 import { createCustomNodeGraphEffectAssetNode } from './custom-node-graph-effect-asset-node.ts';
-import { findCustomNodeGraphEffect } from './custom-node-graph-effect-target.ts';
+import { findCustomNodeGraphEffectOwner } from './custom-node-graph-effect-target.ts';
 import type { ProjectContext } from '../Project.ts';
 import type { Asset, Player } from '@gs/shared/types.ts';
 import type { CustomNodeGraphEffectTarget } from './custom-node-graph-effect-target.ts';
@@ -12,8 +12,8 @@ export function createCustomNodeGraphEffectDropActions(options: {
 	context: ProjectContext; projectSessionId: string; target: CustomNodeGraphEffectTarget; isActive: () => boolean; revealAssets: () => void;
 }): CustomNodeGraphEffectAssetDropActions {
 	const { context, target, isActive, revealAssets } = options;
-	const customNodeGraphEffect = findCustomNodeGraphEffect(context.stateManager.state, target);
-	const active = () => isActive() && customNodeGraphEffect != null && findCustomNodeGraphEffect(context.stateManager.state, target) === customNodeGraphEffect;
+	const customNodeGraphEffect = findCustomNodeGraphEffectOwner(context.stateManager.state, target);
+	const active = () => isActive() && customNodeGraphEffect != null && findCustomNodeGraphEffectOwner(context.stateManager.state, target) === customNodeGraphEffect;
 
 	function prepare(assets: readonly Asset[], availablePlayers: readonly Player[]) {
 		const placement: CustomNodeGraphEffectAssetPlacement = { target, nodes: [] };

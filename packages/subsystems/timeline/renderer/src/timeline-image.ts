@@ -1,5 +1,6 @@
 import { TIMELINE_FRAME } from '@gs/subsystems_timeline_shared/spatial.ts';
-import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
+import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
+import type { TextureValue } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { TimelineBounds } from '@gs/subsystems_timeline_shared/spatial.ts';
 
@@ -8,10 +9,41 @@ import type { TimelineBounds } from '@gs/subsystems_timeline_shared/spatial.ts';
  * regionのない素材はテクスチャ寸法を基準とする。合成後は画素を借用する場合も
  * Scene基準のregionを付け、親や後続レイヤーが素材としてFitし直すことを防ぐ。
  */
-export type TimelineImage = UniformOrTexture & { region?: { bounds: TimelineBounds; frameSize: Resolution } };
+export type TimelineImage = TextureValue & { region?: { bounds: TimelineBounds; frameSize: Resolution } };
 export function timelineImageBounds(image: TimelineImage): TimelineBounds { return image.region?.bounds ?? TIMELINE_FRAME; }
-export function timelineImageFrame(image: TimelineImage, fallback: Resolution): Resolution {
-	return image.region?.frameSize ?? (image.kind === 'texture' ? { width: image.texture.width, height: image.texture.height } : fallback);
+export function timelineImageFrame(image: TimelineImage): Resolution {
+	return image.region?.frameSize ?? { width: image.texture.width, height: image.texture.height };
+}
+
+const transparentImages = new WeakMap<GPUDevice, Map<string, { image: TimelineImage; users: number }>>();
+
+/** WebGPUの初期値が透明黒であることを利用し、同じScene寸法の読み取り専用画像を共有する。 */
+export function acquireTransparentTimelineImage(device: GPUDevice, resolution: Resolution) {
+	let sizes = transparentImages.get(device);
+	if (sizes == null) {
+		sizes = new Map();
+		transparentImages.set(device, sizes);
+	}
+	const key = resolution.width + 'x' + resolution.height;
+	let entry = sizes.get(key);
+	if (entry == null) {
+		const texture = device.createTexture({ size: resolution, format: INTERMEDIATE_TEXTURE_FORMAT, usage: GPUTextureUsage.TEXTURE_BINDING });
+		entry = { image: { kind: 'texture', texture }, users: 0 };
+		sizes.set(key, entry);
+	}
+	entry.users++;
+	let released = false;
+	return {
+		image: entry.image,
+		release() {
+			if (released) return;
+			released = true;
+			if (--entry.users === 0) {
+				sizes.delete(key);
+				entry.image.texture.destroy();
+			}
+		},
+	};
 }
 
 /** 巨大な空間をGPU寸法へ直結させず、座標範囲を保って画素密度を制限する。 */

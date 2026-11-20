@@ -1,0 +1,8 @@
+Powered by Paper Shaders:
+https://shaders.paper.design
+
+Neuro Noise adapted from Paper Design's shaders.
+https://github.com/paper-design/shaders
+Original algorithm: https://x.com/zozuar/status/1625182758745128981/
+Modified for Glitch Studio: WGSL, evolving per-layer time phases, node colors/background,
+resolution-independent sizing and alpha-safe foreground dithering.

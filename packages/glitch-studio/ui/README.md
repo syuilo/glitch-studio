@@ -1,5 +1,8 @@
 # Glitch Studio UI
 
+タイムラインの Effect レイヤーと Custom Node Graph Effect 内の Effect ノードは、`effectSource` で Native Effect・Custom Shader Effect・Custom Node Graph Effect を指定する。`utility/project-effects.ts` が各配置の定義と表示名を解決する。グラフエディターの In・Out は公開入力と `outputSources` の編集用表示で、保存するノード列には含めない。Effect Live Preview は登録済みの Custom Node Graph Effect を選んで起動する。
+
+
 ## 編集セッション
 
 起動時にはセッションを作らない。Dashboardは背景クリックやEscで閉じられ、ファイルメニューから再表示できる。`GsAppHeader`とDashboardはセッションなしでも動作し、保存・Undo・プロジェクト設定などは操作できない。新規作成やファイルを開く操作の成功時にセッションを追加し、タブは2件以上あるときだけ表示する。
@@ -66,7 +69,7 @@ API・参照形式・実行例・制限は[スクリプティング](../../../do
 
 ## プレビューでのXYパラメータ編集
 
-`controlType: 'xy'`のパラメータにはcursorボタンを表示する。対応するCustom Node Graph Effect Live Preview、または停止中の所属Sceneのプレビューで有効化でき、複数パラメータのハンドルを同時に表示できる。ドラッグは円形のハンドルからだけ開始できる。ラベルはハンドルの上側に中央揃えで、名前と現在のX/Y基準値を二行で表示し、ポインター操作は受け取らない。近い位置のハンドルはラベルを上方向にずらして表示する。再押下で個別解除、Escで全解除する。ドラッグ中のEsc・ウィンドウ離脱・対象変更はそのドラッグを取り消す。対象の編集UIを閉じた場合や、プロジェクト・プレビュー対象を切り替えた場合も解除する。有効状態は保存しない。
+`controlType: 'xy'`のパラメータにはcursorボタンを表示する。対応するEffect Live Preview、または停止中の所属Sceneのプレビューで有効化でき、複数パラメータのハンドルを同時に表示できる。ドラッグは円形のハンドルからだけ開始できる。ラベルはハンドルの上側に中央揃えで、名前と現在のX/Y基準値を二行で表示し、ポインター操作は受け取らない。近い位置のハンドルはラベルを上方向にずらして表示する。再押下で個別解除、Escで全解除する。ドラッグ中のEsc・ウィンドウ離脱・対象変更はそのドラッグを取り消す。対象の編集UIを閉じた場合や、プロジェクト・プレビュー対象を切り替えた場合も解除する。有効状態は保存しない。
 
 ハンドルは数値欄と同じ加工前の基準値を、表示中の画像領域に対応させて示す。座標は長辺全体を1、中央を原点、上を+Yとする。後段の変形・繰り返し・Timelineの合成変換・加工式は逆算しないため、最終画像中の図形とハンドルが一致するとは限らない。式・Automation Graph・ノード接続・パラメータ参照は直接編集しない。固定値とキーの基準値を編集し、加工式は保持する。キーは現在時刻へ追加・更新し、クリックだけではキーや履歴を作らない。
 
@@ -144,11 +147,11 @@ GPU処理を止めたCanvasも画面合成に影響するため、休止中は�
 
 `GsCustomNodeGraphEffectEditor`はファイル・Assetのドロップ受付と表示を担当し、親が渡す`CustomNodeGraphEffectAssetDropActions`で保存先へ反映する。登録済みとインラインの両方で`utility/custom-node-graph-effect-drop-actions.ts`を使い、画像・動画・音声からImage・Video・Audio Waveformノードを通常ノード一覧の末尾へ追加する。ノード生成は`custom-node-graph-effect-asset-node.ts`、Asset・Player・ノードの一括追加とUndo/RedoはCommandが担当する。既存の配線と出力接続は変更しない。
 
-`custom-node-graph-effect-file-codec.ts`は`.gscnge`（MessagePack）の依存収集・バイナリ変換・取り込み準備を担当する。ノードの値と公開パラメータの既定値・設定ツリーから静的な素材／Player参照を収集し、取り込み用のプロジェクト内IDを生成する。素材参照の加工式は無効化中や基準値がnullの場合も含めて転送を拒否する。元PCのパスや利用側のレイヤー／Custom Node Graph Effect Live Previewの状態は保存しない。
+`custom-node-graph-effect-file-codec.ts`は`.gscnge`（MessagePack・形式2）の依存収集・バイナリ変換・取り込み準備を担当する。参照される Custom Shader Effect と Custom Node Graph Effect の登録定義も同梱し、取り込み先で新しい ID に付け替える。ノードの値と公開パラメータの既定値・設定ツリーから静的な素材／Player参照を収集し、取り込み用のプロジェクト内IDを生成する。素材参照の加工式は無効化中や基準値がnullの場合も含めて転送を拒否する。元PCのパスや利用側のレイヤー／Effect Live Previewの状態は保存しない。
 
 `utility/custom-node-graph-effect-file.ts`が選択・ダウンロード・エラー表示を担当する。共通のCustom Node Graph EffectエディターはOtherタブから`requestExport`を通知し、登録済み／インラインそれぞれの親が対象名とプロジェクトを渡す。ImportはApp.vueのFile → Import → Custom Node Graph Effect (.gscnge)、または登録済みCustom Node Graph Effectの選択メニューから同じ処理を呼び出し、`importCustomNodeGraphEffect` Commandで依存リソースごと一括追加する。ファイル選択・読み出しの間に取り込み先のProjectContextが終了した場合は、その結果を破棄する。
 
-`customNodeGraphEffectRegistration`の通知は追加・削除後の最終値を両レンダラーへ送る。同じターンの内部編集は登録データへ吸収し、UndoでCustom Node Graph Effect Live Preview対象が消えたときはTimeline表示へ戻す。
+`customNodeGraphEffectRegistration`の通知は追加・削除後の最終値を両レンダラーへ送る。同じターンの内部編集は登録データへ吸収し、UndoでEffect Live Preview対象が消えたときはTimeline表示へ戻す。
 
 ## Workspaceのパネル表示
 
@@ -160,11 +163,11 @@ Electron版の通常の別ウィンドウは`GsDetachedWindowFrame.vue`でタイ
 
 計測設定`preferences.renderingStatsEnabled`の既定値はtrue。App.vueのフッターのStatsボタンから両プレビューの計測をまとめて切り替え、preferencesに保存して再起動後も復元する。GPUデバイスの計測機能とリソース追跡の有無を変更するため、既存のstatic options更新でWorkerを再生成する。計測無効時はStatsパネルの定期サンプリングも停止し、Live PreviewのフッターFPSは実測値の代わりに設定上限を表示する。プロジェクト・Undo履歴には保存しない。書き出しWorkerはプレビュー設定にかかわらず`enableStats: false`を指定する。
 
-設定の「レンダリング → プレビューの表示方式」で、完成画像をGPU経由またはCPU経由で表示する方式を選ぶ。`preferences.previewDisplayMode`の既定値は`gpu`。CPU方式も作品の計算はWebGPUで行い、プレビュー倍率を適用した完成画像を読み戻してCanvas 2Dへ表示する。Timeline・Custom Node Graph Effect Live Previewと映像解析Canvasに適用し、音声モニターの表示方式は変更しない。設定変更時はプレビューを再初期化するためフレームキャッシュもクリアする。書き出しには適用しない。
+設定の「レンダリング → プレビューの表示方式」で、完成画像をGPU経由またはCPU経由で表示する方式を選ぶ。`preferences.previewDisplayMode`の既定値は`gpu`。CPU方式も作品の計算はWebGPUで行い、プレビュー倍率を適用した完成画像を読み戻してCanvas 2Dへ表示する。Timeline・Effect Live Previewと映像解析Canvasに適用し、音声モニターの表示方式は変更しない。設定変更時はプレビューを再初期化するためフレームキャッシュもクリアする。書き出しには適用しない。
 
 CPU方式は画面合成との同期による待ちを抑えられる場合がある一方、CPU変換・メモリ転送のコストがある。UIでのフレーム要求・Canvas 2D表示やGPUデバイスは共有するため、UI負荷から完全に独立するわけではない。主映像の転送量は0.5xで1xの約1/4、0.25xで約1/16になるが、ヒストグラム・縦横の映像波形の寸法は主映像の倍率から独立しており、同じ比率では転送量が減らない。両方式の比較では解像度・FPS・Analyze・フレームキャッシュを揃える。TimelineのFrame totalは読み戻し・RGBA変換までの実経過時間であり、UIへ転送した後のCanvas描画時間は含まない。手動シーク・BAKEの完了通知はUIで画像を描いてから受け取る。
 
-解析モニターの設定`preferences.analysisMonitorsEnabled`の既定値はtrue。App.vueのフッターのAnalyzeから、TimelineとCustom Node Graph Effect Live Previewのヒストグラム・縦横の波形と、音声波形・スペクトラム・スペクトログラムの監視パネルをまとめて切り替える。Statsとは独立した設定で、preferencesに保存して再起動後も復元し、プロジェクト・Undo履歴には保存しない。
+解析モニターの設定`preferences.analysisMonitorsEnabled`の既定値はtrue。App.vueのフッターのAnalyzeから、TimelineとEffect Live Previewのヒストグラム・縦横の波形と、音声波形・スペクトラム・スペクトログラムの監視パネルをまとめて切り替える。Statsとは独立した設定で、preferencesに保存して再起動後も復元し、プロジェクト・Undo履歴には保存しない。
 
 映像側はstatic optionsの`enableWaveformAndHistogram`へ反映してWorkerを再生成し、無効時は解析用GPUリソースの生成・集計・描画を省く。書き出しWorkerでは常に無効にする。音声側は`AudioPreview.setAnalysisEnabled()`でFFT等の解析・GPU描画ループを止め、パネルに無効の案内を表示する。Canvas・設定・PCM履歴は維持し、再度有効にしたときは同じパネルで復帰する。音声再生・基本の音量メーター・作品内の音声解析エフェクト・通常のプレビュー描画は継続する。
 
@@ -180,7 +183,7 @@ Analyze設定と書き出し等の一時休止は別に保持し、音声モニ�
 
 `useWaveformViewport()`は縦横それぞれの波形のホイールズームとドラッグ移動を扱う。ポインターを支点に1〜100倍へズームし、左・中ボタンやタッチのドラッグで元のグラフ内を移動する。Home・0でリセットし、+ / −と矢印キーでも操作できる。Escape・フォーカス喪失・別ウィンドウへの移動・中断・破棄ではドラッグ開始位置へ戻す。通常時の更新は`CoalescedAsyncUpdate`で100ms単位に集約し、一つの解析が終わるまで次を送らない。終了・取消しでは最終設定を`flush()`する。目盛りは要求中の設定ではなく反映済みの表示領域に追従し、Canvasと一致させる。軸とポインターのラベルは有効数字2桁で表示し、目盛りの値・位置の計算には丸める前の値を使う。表示領域はProjectSessionContextの一時状態で、プロジェクト・preferences・Undo履歴へ保存しない。
 
-Statsパネルは表示中のプレビューに追従する。Timelineではフレーム全体・動画取得待ち・動画取り込み（CPU）・GPU完了待ちをmsで表示し、約100msごとの完了フレームの平均をグラフにする。凡例の括弧内は各項目の最大値で、同一フレームの値とは限らない。全体には個別の待ち時間が含まれるため、四項目を足し合わせない。凡例のツールチップで各計測範囲を確認できる。Custom Node Graph Effect Live Previewは従来のGPU移動平均を表示し、表示モード切り替え時にグラフの履歴を分ける。TimelineのScene変更・Worker破棄時には古い統計を消す。
+Statsパネルは表示中のプレビューに追従する。Timelineではフレーム全体・動画取得待ち・動画取り込み（CPU）・GPU完了待ちをmsで表示し、約100msごとの完了フレームの平均をグラフにする。凡例の括弧内は各項目の最大値で、同一フレームの値とは限らない。全体には個別の待ち時間が含まれるため、四項目を足し合わせない。凡例のツールチップで各計測範囲を確認できる。Effect Live Previewは従来のGPU移動平均を表示し、表示モード切り替え時にグラフの履歴を分ける。TimelineのScene変更・Worker破棄時には古い統計を消す。
 
 アプリ内のHTML Drag and Dropは`composables/useDragSession.ts`を使う。`utility/drag-and-drop.ts`が型付きデータのスナップショット・開始元の識別・終了処理を所有し、dragoverでも同じセッションのデータを参照できる。GsTimeline、GsDraggable、GsWorkspacePanel、GsWorkspaceDivider、GsAssetはドラッグ状態をこの仕組みへ委ねる。操作ごとの移動条件や配置計算、Command・preferencesへの反映は各コンポーネントが所有する。APIと寿命の詳細は[UIのドラッグセッション](../../../docs/drag-and-drop.md)を参照。
 

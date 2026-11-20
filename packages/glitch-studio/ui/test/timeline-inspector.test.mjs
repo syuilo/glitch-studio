@@ -26,33 +26,35 @@ const result = await build({
 		export { createInlineCustomNodeGraphEffectLayer } from './src/utility/inline-custom-node-graph-effect-layer.ts';
 		export { videoHoldTest } from '@/utility/timeline-video-hold.ts';
 		export { dropUiTest } from '@/ui.ts';
+		export { pickerTest } from '@/ui.ts';
 		export { startDragSession, finishDragSession } from './src/utility/drag-and-drop.ts';
 	`, resolveDir: directory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	plugins: [i18nPlugin, { name: 'timeline-inspector', setup(build) {
 		build.onResolve({ filter: /^@\/(?:app|project-session)\.ts$/ }, () => ({ path: 'app', namespace: 'test' }));
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 		build.onResolve({ filter: /ui\.ts$/ }, () => ({ path: 'ui', namespace: 'test' }));
 		build.onResolve({ filter: /(?:^|\/)(?:timeline-clip-media|custom-node-graph-effect-file)\.ts$/ }, () => ({ path: 'media', namespace: 'test' }));
 		build.onResolve({ filter: /^@\/utility\/timeline-video-hold\.ts$/ }, () => ({ path: 'video-hold', namespace: 'test' }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => {
-			if (/GsTimeline(?:\.Inspector(?:\.(?:Clip|Keyframe|Layer))?)?\.vue$|GsPreviewTransform\.vue$/.test(path)) return;
+			if (/GsTimeline(?:\.Inspector(?:\.(?:Clip|Keyframe|Layer))?|\.EffectSettings)?\.vue$|GsPreviewTransform\.vue$/.test(path)) return;
 			return { path: basename(path, '.vue'), namespace: 'control' };
 		});
-		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', contents: {
+		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', resolveDir: directory, contents: {
 			app: `import { ref } from 'vue'; export function useProjectSession() { return projectSession; } export const projectSession = {
 				id: 'test-session', projectContext: { stateManager: null, getCustomNodeGraphEffectById: () => null }, activeSceneId: ref('scene'), selectedTimelineLayer: ref(null),
 				previewPlayback: { state: ref({ mode: 'timeline' }), currentTimelineTime: ref(0), isTimelinePlaying: ref(false), isTimelineBaking: ref(false), toggleTimelineBake() {}, refresh() {} },
 				timelineAudioPreview: { buffering: ref(false), error: ref(null) },
 				timelineRendererManagerController: { errorMessage: ref(null), frameCacheState: ref(null), isReady: ref(true), isFrameCacheEnabled: ref(false), layerTransform: ref(null), async observeLayerTransform() {}, getLayerEffectStates() {}, getEffectLayerState() {} },
 			};`,
-			effects: 'export const effectDefinitions = {};',
+			effects: "import audioWaveform from '@gs/subsystems_effect-new_native-effects/fx/audioWaveform/_def_.ts'; export const nativeEffectDefinitions = { audioWaveform };",
 			preferences: `import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: true }, r: { showTransformInPreview: ref(true) },
 				model: key => ref(key === 'timelineTickMode' ? 'binary' : false) };`,
 			ui: `export const dropUiTest = { dialogs: 0 };
 				export function progress() { dropUiTest.dialogs++; return { setProgress() {}, setSubProgress() {}, setText() {}, done() {} }; }
-				export function popupMenu() {} export function contextMenu() {} export function popup() {} export function alert() {} export function select() {} export function selectAsset() {} export function confirm() {}`,
+				export const pickerTest = { open() { return { dispose() {} }; } };
+				export function popupMenu() {} export function contextMenu() {} export function popup(...args) { return pickerTest.open(...args); } export function alert() {} export function select() {} export function selectAsset() {} export function confirm() {}`,
 			media: 'export async function inspectTimelineClipMedia() { return { durationMs: 5000, audioAvailable: true, audioError: null }; } export const getTimelineClipMedia = inspectTimelineClipMedia; export async function exportCustomNodeGraphEffectFile() {}',
 			'video-hold': `export const videoHoldTest = { calls: [], read: null };
 				export async function readTimelineVideoHoldFrame(blob, sourceTimeMs, reverse) {
@@ -64,7 +66,7 @@ const result = await build({
 			import { h } from 'vue'; export default { inheritAttrs: false, setup(_, { attrs, slots }) {
 				return () => h(${JSON.stringify(path)}, attrs, ${path === 'GsVirtualScroll'
 					? '(attrs.items ?? []).flatMap((item, index) => slots.default({ item, index }))'
-					: 'Object.values(slots).flatMap(slot => slot())'});
+					: path === 'GsEffectParameterLayout' ? 'Object.keys(attrs.definition.paramDefs).flatMap(parameterKey => slots.default({ parameterKey }))' : 'Object.values(slots).flatMap(slot => slot())'});
 			} };` }));
 		build.onLoad({ filter: /\.vue$/ }, async ({ path }) => {
 			const source = await readFile(path, 'utf8');
@@ -80,7 +82,7 @@ const bundled = { exports: {} };
 const testWindow = { document: { getSelection: () => null } };
 new Function('require', 'module', 'exports', 'window', result.outputFiles[0].text)(createRequire(import.meta.url), bundled, bundled.exports,
 	testWindow);
-const { Timeline, Inspector, PreviewTransform, projectSession, COMMAND_DEFS, UndoRedo, getTimelineEditorState, createInlineCustomNodeGraphEffectLayer, videoHoldTest, dropUiTest } = bundled.exports;
+const { Timeline, Inspector, PreviewTransform, projectSession, COMMAND_DEFS, UndoRedo, getTimelineEditorState, createInlineCustomNodeGraphEffectLayer, videoHoldTest, dropUiTest, pickerTest } = bundled.exports;
 const { startDragSession, finishDragSession } = bundled.exports;
 let dragWindow = null;
 
@@ -439,8 +441,11 @@ test('edits image and region transform targets for both Custom Node Graph Effect
 	const f = await fixture(t);
 	for (const layerType of ['inlineCustomNodeGraphEffect', 'customNodeGraphEffect']) {
 		const layer = createInlineCustomNodeGraphEffectLayer(0);
-		layer.layerType = layerType;
-		if (layerType === 'customNodeGraphEffect') layer.customNodeGraphEffectId = 'visual';
+		layer.transformTarget = 'image';
+		if (layerType === 'customNodeGraphEffect') {
+			f.history.state.customNodeGraphEffects.value.push({ id: 'visual', name: 'Visual', definition: layer.effectSource.customNodeGraphEffect });
+			layer.effectSource = { type: 'customNodeGraphEffectReference', id: 'visual' };
+		}
 		layer.compositingParamValues.fitMode = { inputSource: 'literal', value: 'cover' };
 		layer.compositingParamValues.clipToFrame = { inputSource: 'literal', value: true };
 		f.scene.layers.push(layer);
@@ -467,7 +472,7 @@ test('edits image and region transform targets for both Custom Node Graph Effect
 	f.props.selection = { kind: 'layers', ids: ['a'] };
 	await nextTick();
 	assert.equal(descendants(f.root).some(node => 'data-test-timeline-transform-target' in node.props), false);
-	assert.throws(() => f.history.commit('setTimelineLayerTransformTarget', { sceneId: f.scene.id, layerId: 'a', transformTarget: 'region' }), /effect or Custom Node Graph Effect layer/);
+	assert.throws(() => f.history.commit('setTimelineLayerTransformTarget', { sceneId: f.scene.id, layerId: 'a', transformTarget: 'region' }), /Effect layer/i);
 });
 
 // 【画像を持たないレイヤーにはマスク設定を出さず、Commandからも適用させない】
@@ -872,6 +877,28 @@ test('edits layer parameters through commands and identifies the inline Custom N
 	assert.deepEqual(f.events, [['addEffect', layer.id]]);
 });
 
+// 【Timeline のインライングラフには主出力のない登録グラフもノードとして追加できる】
+// 同じピッカーをレイヤー追加と共有しても、グラフ内部に挿入するデータ処理まで色出力で絞らない。
+test('opens the unrestricted node picker for inline Timeline graphs and inserts the selected reference', async t => {
+	const f = await fixture(t, Timeline);
+	const layer = createInlineCustomNodeGraphEffectLayer(0);
+	f.scene.layers.push(layer);
+	const graph = { id: 'data', name: 'Data', definition: { ...layer.effectSource.customNodeGraphEffect, primaryOutput: null } };
+	f.history.state.customNodeGraphEffects.value.push(graph);
+	const inspector = markRaw(element());
+	f.props.inspectorPanelTarget = inspector;
+	getTimelineEditorState(f.scene).selection = { kind: 'layers', ids: [layer.id] };
+	await nextTick();
+	const popup = t.mock.method(pickerTest, 'open');
+	descendants(inspector).find(node => Object.hasOwn(node.props, 'data-test-inline-custom-node-graph-effect-editor')).props.onRequestAddEffectNode();
+	const [, props, events] = popup.mock.calls[0].arguments;
+	assert.notEqual(props.requirePrimaryColorOutput, true);
+	assert.equal(props.selectedOutputType ?? null, null);
+	const effectSource = { type: 'customNodeGraphEffectReference', id: graph.id };
+	events.chosen({ effectSource });
+	assert.deepEqual(layer.effectSource.customNodeGraphEffect.nodes.at(-1).effectSource, effectSource);
+});
+
 // 【Inspectorの値入力と加工式設定を別々にUndoできる】
 // UIが全イベントを完全Binding置換へ送ると、同じliteralの変更として加工式まで
 // 自動統合される。実際のSFCから専用Commandへ振り分けられることを確認する。
@@ -930,15 +957,15 @@ test('routes inline editor asset drops into the selected Custom Node Graph Effec
 	f.props.selection = { kind: 'layers', ids: [layer.id] };
 	await nextTick();
 	const editor = f.control('GsCustomNodeGraphEffectEditor');
-	const originalCount = layer.customNodeGraphEffect.nodes.length;
+	const originalCount = layer.effectSource.customNodeGraphEffect.nodes.length;
 	assert.equal(await editor.props.assetDropActions.dropAsset('sound'), true);
 	assert.equal(f.scene.layers.length, 3);
-	assert.equal(layer.customNodeGraphEffect.nodes.length, originalCount + 1);
-	const node = layer.customNodeGraphEffect.nodes.find(node => node.type === 'effect' && node.effectId === 'audioWaveform');
+	assert.equal(layer.effectSource.customNodeGraphEffect.nodes.length, originalCount + 1);
+	const node = layer.effectSource.customNodeGraphEffect.nodes.find(node => node.type === 'effect' && node.effectSource.id === 'audioWaveform');
 	assert.equal(node.params.audio.value.playerId, f.history.state.players.value[0].id);
 	assert.equal(f.history.state.players.value[0].assetId, 'sound');
 	f.history.undo();
-	assert.equal(layer.customNodeGraphEffect.nodes.length, originalCount);
+	assert.equal(layer.effectSource.customNodeGraphEffect.nodes.length, originalCount);
 	assert.equal(f.history.state.players.value.length, 0);
 });
 
@@ -972,27 +999,27 @@ test('preserves selection across inspector visibility changes and routes removal
 test('exposes public primary image bindings and routes their edits through history', async t => {
 	const f = await fixture(t);
 	const layer = createInlineCustomNodeGraphEffectLayer(0);
-	layer.customNodeGraphEffect.paramDefs = [{ id: 'image', nameForReference: 'image', dataType: { kind: 'color' }, canNode: true,
-		ui: { label: 'Image', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } }];
-	layer.customNodeGraphEffect.primaryInputId = 'image';
+	layer.effectSource.customNodeGraphEffect.paramDefs = { image: { nameForReference: 'image', dataType: { kind: 'color' }, canNode: true,
+		ui: { label: 'Image', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } } };
+	layer.effectSource.customNodeGraphEffect.primaryInputParameter = 'image';
 	const source = { id: 'source', name: 'Source', layerType: 'group', layers: [], isDisabled: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: {} };
 	f.scene.layers.push(layer, source);
 	f.props.selection = { kind: 'layers', ids: [layer.id] };
 	await nextTick();
-	const control = () => f.controls('GsVisualParam').find(node => node.props['data-test-custom-node-graph-effect-argument'] === 'image');
+	const control = () => f.controls('GsVisualParam').find(node => node.props['data-test-effect-layer-parameter'] === 'image');
 	assert.deepEqual(control().props.paramValue, { inputSource: 'lowerLayerOutput' });
 	assert.equal(control().props.paramDef.canNode, true);
-	assert.equal(control().props.imageInputSamplingEnabled === true, false);
+	assert.equal(Object.hasOwn(control().props, 'imageInputSamplingEnabled'), true);
 	assert.deepEqual(control().props.imageLayerOptions, [{ value: 'source', label: 'Source' }]);
 	const changes = [];
 	f.history.onChange(notifications => changes.push(notifications[0].changes[0].kind));
 	control().props.onEdit({ kind: 'inputSource', paramPath: ['image'], inputSource: 'anotherLayerOutput' });
 	await nextTick();
 	control().props.onEdit({ kind: 'anotherLayerOutput', paramPath: ['image'], value: { inputSource: 'anotherLayerOutput', layerId: 'source', outputStage: 'rendered' } });
-	assert.equal(layer.customNodeGraphEffectParamValues.image.layerId, 'source');
+	assert.equal(layer.effectParamValues.image.layerId, 'source');
 	f.history.undo();
-	assert.equal(layer.customNodeGraphEffectParamValues.image.layerId, null);
+	assert.equal(layer.effectParamValues.image.layerId, null);
 	f.history.undo();
-	assert.equal('image' in layer.customNodeGraphEffectParamValues, false);
+	assert.equal('image' in layer.effectParamValues, false);
 	assert.deepEqual(changes, ['inputSource', 'connection', 'connection', 'inputSource']);
 });

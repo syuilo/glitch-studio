@@ -8,7 +8,7 @@ import { join, resolve, dirname, basename } from 'node:path';
 import { buildPortableCustomNodeGraphEffectCatalog } from '../build/catalog.mjs';
 import { buildPortableCustomNodeGraphEffectRuntime } from '../build/runtime.mjs';
 import { implementation } from './helpers/load.mjs';
-import { fixture, parameter } from './helpers/fixture.mjs';
+import { fixture, parameter, shaderDefinition } from './helpers/fixture.mjs';
 
 const { preparePortableCustomNodeGraphEffect, encodePortableCustomNodeGraphEffect, createPortableCustomNodeGraphEffectFiles, fill, image, symbols, video } = implementation;
 
@@ -40,44 +40,57 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	modified.customNodeGraphEffect.nodes[0].params.color = { inputSource: 'literal', value: [0, 0, 0, 1], expressionModifier: { enabled: true, code: '[PUBLIC("level"), 0, 0, 1]' } };
 	await add('modified', modified);
 	const defaults = fixture();
-	defaults.customNodeGraphEffect.paramDefs = [{ ...parameter('array', [], 'values'), dataType: { kind: 'array', elementType: { kind: 'scalar' } },
+	defaults.customNodeGraphEffect.paramDefs = { pointsId: { ...parameter('array', [], 'values'), dataType: { kind: 'array', elementType: { kind: 'scalar' } },
 		element: { defaultValue: { inputSource: 'literal', value: 0 } }, ui: { label: 'Values', control: { element: {} } },
-		defaultValue: { inputSource: 'literal', value: [{ id: 'child', binding: { inputSource: 'expression', expression: '1 + 2' } }] } }];
-	defaults.customNodeGraphEffect.nodes[0].params.color = { inputSource: 'literal', value: [0.25, 0, 0, 1] };
+		defaultValue: { inputSource: 'literal', value: [{ id: 'child', binding: { inputSource: 'literal', value: 0.25 } }] } } };
+	defaults.customNodeGraphEffect.nodes[0].params.color.expression = '[PUBLIC("values")[0], 0, 0, 1]';
 	await add('defaults', defaults);
 	const pointer = fixture();
 	pointer.customNodeGraphEffect.nodes[0].params.color.expression = '[POINTER_POSITION[0] + 0.5, POINTER_POSITION[1] + 0.5, 0, 1]';
 	await add('pointer', pointer);
-	const uniform = fixture();
-	uniform.customNodeGraphEffect.paramDefs = [{ ...parameter('color', [0.5, 0, 0, 0.5], 'tint'), canNode: true }];
-	uniform.customNodeGraphEffect.primaryInputId = 'tint';
-	uniform.customNodeGraphEffect.nodes = [
-		{ id: 'input', type: 'globalIn' },
-		{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'input', outputPort: 'tint' } } },
-	];
-	await add('uniform', uniform);
+	const solid = fixture();
+	const tint = parameter('color', [0.5, 0, 0, 0.5], 'tint');
+	solid.customNodeGraphEffect.paramDefs = { tint };
+	solid.customNodeGraphEffect.nodes[0].params.color = { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'tint' };
+	await add('solid', solid);
+	const noOutput = fixture();
+	noOutput.customNodeGraphEffect.paramDefs = { tint: { ...tint, canNode: true } };
+	noOutput.customNodeGraphEffect.nodes = [];
+	noOutput.customNodeGraphEffect.outputSources = { output: { parameterId: 'tint' } };
+	await add('nooutput', noOutput);
 	const imageInput = fixture();
 	imageInput.assets = [{ id: 'image', name: 'Image', width: 2, height: 2, fileDataType: 'image/png',
 		fileData: new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAE0lEQVR4nGP4z8DQAMIMDP8hEAA55Ab7GrcJWQAAAABJRU5ErkJggg==', 'base64')]) }];
-	imageInput.customNodeGraphEffect.nodes[0] = { ...imageInput.customNodeGraphEffect.nodes[0], effectId: 'image', resolution: { mode: 'auto', scale: 1 },
+	imageInput.customNodeGraphEffect.nodes[0] = { ...imageInput.customNodeGraphEffect.nodes[0], effectSource: { type: 'nativeEffect', id: 'image' }, resolution: { mode: 'auto', scale: 1 },
 		staticSettings: { [Object.keys(image.staticSettingDefs)[0]]: 'image' }, params: Object.fromEntries(Object.entries(image.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) };
 	await add('image', imageInput);
 	const symbolInput = fixture();
-	symbolInput.customNodeGraphEffect.paramDefs = [{ ...parameter('enum', 'symbols', 'iconset'), dataType: symbols.paramDefs.iconset.dataType }];
-	symbolInput.customNodeGraphEffect.nodes[0] = { ...symbolInput.customNodeGraphEffect.nodes[0], effectId: 'symbols',
+	symbolInput.customNodeGraphEffect.paramDefs = { iconset: { ...parameter('enum', 'symbols', 'iconset'), dataType: symbols.paramDefs.iconset.dataType } };
+	symbolInput.customNodeGraphEffect.nodes[0] = { ...symbolInput.customNodeGraphEffect.nodes[0], effectSource: { type: 'nativeEffect', id: 'symbols' },
 		params: { ...Object.fromEntries(Object.entries(symbols.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
 			input: { inputSource: 'literal', value: [0.5, 0.5, 0.5, 1] }, density: { inputSource: 'literal', value: 8 },
 			iconset: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'iconset' } } };
 	await add('symbols', symbolInput);
 	const custom = fixture();
-	custom.customShaderEffects = [{ id: 'shader', name: 'Shader', summary: '', shaderApiVersion: 1, codeLanguage: 'wgsl', kind: 'generate', paramDefs: [],
-		outputDefs: [{ id: 'output', nameForReference: 'color', label: 'Color', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'output', resolutionInputIds: [],
-		code: 'fn main(position: vec2f) -> Output { var output: Output; output.color = vec4f(position.x + 0.5, position.y + 0.5, 0.0, 1.0); return output; }' }];
-	custom.customNodeGraphEffect.nodes[0] = { ...custom.customNodeGraphEffect.nodes[0], effectId: 'customShaderEffect:shader', params: {} };
+	const gradient = shaderDefinition('fn main(position: vec2f) -> Output { return Output(vec4f(position.x + 0.5, position.y + 0.5, 0.0, 1.0)); }');
+	const copy = shaderDefinition('fn main(position: vec2f) -> Output { return Output(read_image(position)); }');
+	copy.paramDefs = { input: { ...parameter('color', [0, 0, 0, 0], 'image'), canNode: true } };
+	custom.customShaderEffects = [{ id: 'shader', name: 'Copy', summary: '', definition: copy }];
+	const child = fixture().customNodeGraphEffect;
+	child.nodes = [
+		{ id: 'gradient', effectSource: { type: 'inlineCustomShaderEffect', customShaderEffect: gradient }, params: {} },
+		{ id: 'fill', effectSource: { type: 'customShaderEffectReference', id: 'shader' }, params: {
+			input: { inputSource: 'node', source: { nodeId: 'gradient', outputPort: 'output' }, sampling: { fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' } },
+		} },
+	];
+	custom.customNodeGraphEffects = [{ id: 'registered', name: 'Registered graph', definition: child }];
+	const wrapper = fixture().customNodeGraphEffect;
+	wrapper.nodes[0] = { id: 'fill', effectSource: { type: 'customNodeGraphEffectReference', id: 'registered' }, params: {} };
+	custom.customNodeGraphEffect.nodes[0] = { id: 'fill', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: wrapper }, params: {} };
 	await add('custom', custom);
 	const player = fixture();
 	player.players = [{ id: 'camera', name: 'Camera', sourceType: 'webcam' }];
-	player.customNodeGraphEffect.nodes[0] = { ...player.customNodeGraphEffect.nodes[0], effectId: 'video',
+	player.customNodeGraphEffect.nodes[0] = { ...player.customNodeGraphEffect.nodes[0], effectSource: { type: 'nativeEffect', id: 'video' },
 		staticSettings: { [Object.keys(video.staticSettingDefs)[0]]: 'camera' }, params: Object.fromEntries(Object.entries(video.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) };
 	await add('player', player);
 	const dangerous = fixture();

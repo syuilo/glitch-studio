@@ -2,9 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { TimelineRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
 import { getTimelineSoloState } from '@gs/subsystems_timeline_shared/solo.ts';
-import { fileURLToPath } from 'node:url';
-import { loadShaderSource } from './helpers/load-shader-source.mjs';
-const { createCustomNodeGraphEffectTimelineLayer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_renderer/layers/custom-node-graph-effect/custom-node-graph-effect-timeline-layer.ts')));
+import { createTimelineEffectProbe } from './helpers/timeline-effect-probe.mjs';
 
 const entry = (id, positionMs = 0, endTimeMs = 1000, type = 'test') => ({
 	id, isDisabled: false, clips: [{ id: 'clip', startMs: positionMs, contentOffsetMs: 0, durationMs: endTimeMs - positionMs }], layer: { type },
@@ -267,17 +265,12 @@ for (const outsideTime of [99, 200]) {
 			layer: { type: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect', customNodeGraphEffectParamValues: {} },
 		}];
 		const renderer = new TimelineRenderer({
-			fallbackOutput: 'transparent',
+			fallbackOutput: { kind: 'texture', texture: { width: 1, height: 1, createView: () => ({}) } },
 			createLayer(entry) {
 				// GPUを使わず、CustomNodeGraphEffectRendererとの境界で破棄回数を記録する。
-				const instance = {
-					destroyCount: 0,
-					async prepare() {},
-					async render() { return { output: 'frame', gpuTime: 0 }; },
-					destroy() { this.destroyCount++; },
-				};
+				const instance = { destroyCount: 0 };
 				instances.push(instance);
-				return createCustomNodeGraphEffectTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null }, entry.layer, instance);
+				return createTimelineEffectProbe({ dispose: () => instance.destroyCount++ });
 			},
 			present() {},
 		});
@@ -418,141 +411,42 @@ test('ignores stale failures without clearing the current layers', async () => {
 	f.renderer.clear();
 });
 
-// 【動画相当のレイヤーとCustom Node Graph Effectを混在させ、生成側だけで種類を解釈する】
-// 共通の評価契約にCustom Node Graph Effect固有のパラメータや準備手順を要求せず、下層の出力を引き渡す。
-test('chains different layer types without requiring Custom Node Graph Effect fields', async () => {
-	const inputFrame = { name: 'video frame' };
-	const finalFrame = { name: 'processed frame' };
-	const fallback = { name: 'transparent' };
-	const prepared = [];
-	const rendered = [];
-	const presented = [];
-	const destroyed = [];
-	const params = { gain: { inputSource: 'literal', value: 2 } };
-	const timeline = [
-		{ ...entry('effect', 200, 600), layer: { type: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect', customNodeGraphEffectParamValues: params, automationGraphs: [] } },
-		{ ...entry('video', 100, 900), layer: { type: 'video', assetId: 'asset' } },
-	];
-	const renderer = new TimelineRenderer({
-		fallbackOutput: fallback,
-		createLayer(entry) {
-			switch (entry.layer.type) {
-				case 'video':
-					assert.equal(entry.layer.assetId, 'asset');
-					return {
-						async evaluate(context) {
-							prepared.push(context);
-							assert.equal(context.contentTimeMs, 300);
-							assert.equal(context.contentEndTimeMs, 800);
-							assert.strictEqual(await context.getInput(), fallback);
-							assert.equal('paramValues' in context, false);
-							assert.equal('paramInputs' in context, false);
-							return { output: inputFrame, gpuTime: 1 };
-						},
-						destroy() { destroyed.push('video'); },
-					};
-				case 'customNodeGraphEffect':
-					return createCustomNodeGraphEffectTimelineLayer({ customParameterDefs: [], customParameterValues: {}, primaryInputId: 'main', paramDefs: [
-						{ id: 'main' },
-						{ id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, defaultValue: { inputSource: 'literal', value: 0 } },
-					] }, entry.layer, {
-						async prepare(context) { prepared.push(context); },
-						async render(context) { rendered.push(context); return { output: finalFrame, gpuTime: 2 }; },
-						destroy() { destroyed.push('effect'); },
-					});
-			}
-		},
-		present(output, gpuTime) { presented.push({ output, gpuTime }); },
-	});
-	await renderer.renderAt(400, timeline);
-	assert.strictEqual(prepared[1], rendered[0]);
-	assert.deepEqual([...rendered[0].evaluatedParamValues], [['gain', 2]]);
-	assert.deepEqual([...rendered[0].paramInputs], [['main', inputFrame]]);
-	assert.equal(rendered[0].time, 200);
-	assert.equal(rendered[0].endTime, 400);
-	assert.deepEqual(rendered[0].pointerPosition, { x: -99999, y: -99999 });
-	assert.deepEqual(presented, [{ output: finalFrame, gpuTime: 3 }]);
-	renderer.clear();
-	assert.deepEqual(destroyed, ['video', 'effect']);
-});
-
-// 【並行した評価でもCustom Node Graph Effectへの変換結果をシークごとに保持する】
-// 非同期の準備が逆順に完了しても、後から開始した評価の入力や時刻で古い評価を上書きしない。
-test('keeps Custom Node Graph Effect contexts separate across overlapping preparation', async () => {
-	const prepared = [];
-	const rendered = [];
-	const layerContexts = [];
+// 【同じ配置の準備と描画を直列化して時刻と入力の混在を防ぐ】
+// 一つのNative Effectが非同期準備中でも、次の要求で先行フレームの値を書き換えない。
+test('serializes overlapping effect layer requests and preserves frame time', async t => {
 	const pending = deferred();
-	const signals = [];
-	const layer = createCustomNodeGraphEffectTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [{ id: 'input' }], primaryInputId: 'input' }, { customNodeGraphEffectParamValues: {}, automationGraphs: [] }, {
-		async prepare(context, signal) {
-			prepared.push(context);
-			signals.push(signal);
-			if (context.time === 1) await pending.promise;
-		},
-		async render(context, layerContext) { rendered.push(context); layerContexts.push(layerContext); return { output: context.paramInputs.get('input'), gpuTime: 0 }; },
-		destroy() {},
-	});
-	const first = { sceneTimeMs: 5, contentTimeMs: 1, clipElapsedTimeMs: 1, clipDurationMs: 10, contentEndTimeMs: 10, timeDelta: 0, getInput: async () => 'first' };
-	const second = { ...first, sceneTimeMs: 6, contentTimeMs: 2, contentEndTimeMs: 20, getInput: async () => 'second' };
-	const controller = new AbortController();
-	const oldEvaluation = layer.evaluate(first, controller.signal);
-	await layer.evaluate(second, controller.signal);
+	const frames = [];
+	const probe = createTimelineEffectProbe({ prepare(frame) { if (frame.time === 0.001) return pending.promise; },
+		render(frame) { frames.push([frame.time, frame.endTime]); } });
+	t.after(() => probe.destroy());
+	const first = { sceneTimeMs: 5, contentTimeMs: 1, contentEndTimeMs: 10, clipElapsedTimeMs: 1, clipDurationMs: 10, timeDelta: 0 };
+	const firstRender = probe.evaluate(first, new AbortController().signal);
+	const secondRender = probe.evaluate({ ...first, contentTimeMs: 2, contentEndTimeMs: 20 }, new AbortController().signal);
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(frames, []);
 	pending.resolve();
-	await oldEvaluation;
-	assert.strictEqual(rendered[0], prepared[1]);
-	assert.strictEqual(rendered[1], prepared[0]);
-	assert.deepEqual(rendered.map(context => context.paramInputs.get('input')), ['second', 'first']);
-	assert.deepEqual(rendered.map(context => context.endTime), [20, 10]);
-	assert.strictEqual(layerContexts[0], second);
-	assert.strictEqual(layerContexts[1], first);
-	assert.ok(signals.every(signal => signal === controller.signal));
+	await Promise.all([firstRender, secondRender]);
+	assert.deepEqual(frames, [[0.001, 0.01], [0.002, 0.02]]);
 });
 
-// 【主入力を持たない素材Custom Node Graph Effectでも合成には元の背景を渡す】
-// Custom Node Graph Effect内部の入力とタイムライン合成の背景は別の責務なので、主入力の有無で背景を失わない。
-test('provides the background for compositing Custom Node Graph Effects without a primary input', async () => {
-	const background = { kind: 'uniform', value: [0, 0, 1, 1] };
-	const context = { sceneTimeMs: 800, contentTimeMs: 500, clipElapsedTimeMs: 500, clipDurationMs: 2000, contentEndTimeMs: 2000, timeDelta: 16, isExport: true, getInput: async () => background };
-	const graphs = [{ id: 'layer-graph', nameForReference: 'layer', isNormalized: true, points: [] }];
-	const layer = createCustomNodeGraphEffectTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null }, { customNodeGraphEffectParamValues: {}, automationGraphs: graphs }, {
-		async prepare() {},
-		async render(customNodeGraphEffectContext, layerContext) {
-			assert.deepEqual([...customNodeGraphEffectContext.evaluatedParamValues], []);
-			assert.equal(customNodeGraphEffectContext.paramInputs.size, 0);
-			assert.strictEqual(await layerContext.getInput(), background);
-			assert.equal(customNodeGraphEffectContext.time, 500);
-			assert.equal(customNodeGraphEffectContext.isExport, true);
-			return { output: background, gpuTime: 0 };
-		},
-		destroy() {},
-	});
-	await layer.evaluate(context, new AbortController().signal);
-});
-
-// 【Custom Node Graph Effectの準備中に中断された評価は描画を開始しない】
-// レイヤー共通のprepare/render分離がなくても、中断後に履歴やGPU出力を更新してはいけない。
-// 準備前に中断済みの場合は準備自体を始めず、まだ有効な次の評価は通常どおり描画する。
-test('skips Custom Node Graph Effect drawing when evaluation is aborted before or during preparation', async () => {
-	const pending = deferred();
-	const prepared = [];
-	const rendered = [];
-	const layer = createCustomNodeGraphEffectTimelineLayer({ customParameterDefs: [], customParameterValues: {}, paramDefs: [], primaryInputId: null }, { customNodeGraphEffectParamValues: {}, automationGraphs: [] }, {
-		async prepare(context) { prepared.push(context.time); await pending.promise; },
-		async render(context) { rendered.push(context.time); return { output: 'frame', gpuTime: 3 }; },
-		destroy() {},
-	});
+// 【準備前および準備中の中断後に古いフレームを描画しない】
+// 次の有効なシークだけが履歴を更新することを実際のEffect配置で確認する。
+test('aborts pending effect layer preparation and renders the current request', async t => {
+	const prepared = [], rendered = [];
+	const gate = deferred();
+	const probe = createTimelineEffectProbe({ prepare(frame) { prepared.push(frame.time); return gate.promise; }, render(frame) { rendered.push(frame.time); } });
+	t.after(() => probe.destroy());
+	const context = { sceneTimeMs: 20, contentTimeMs: 10, contentEndTimeMs: 100, clipElapsedTimeMs: 10, clipDurationMs: 100, timeDelta: 0 };
 	const controller = new AbortController();
-	const context = { sceneTimeMs: 20, contentTimeMs: 10, clipElapsedTimeMs: 10, clipDurationMs: 100, contentEndTimeMs: 100, timeDelta: 0, isExport: false, input: 'background' };
-	const evaluation = layer.evaluate(context, controller.signal);
+	const pending = probe.evaluate(context, controller.signal);
+	await new Promise(resolve => setImmediate(resolve));
 	controller.abort();
-	pending.resolve();
-	assert.deepEqual(await evaluation, { gpuTime: 0 });
-	assert.deepEqual(await layer.evaluate({ ...context, contentTimeMs: 20 }, controller.signal), { gpuTime: 0 });
-	assert.deepEqual(prepared, [10]);
-	assert.deepEqual(rendered, []);
-	assert.deepEqual(await layer.evaluate({ ...context, contentTimeMs: 30 }, new AbortController().signal), { output: 'frame', gpuTime: 3 });
-	assert.deepEqual(rendered, [30]);
+	gate.resolve();
+	await pending;
+	await probe.evaluate(context, controller.signal);
+	await probe.evaluate({ ...context, contentTimeMs: 30 }, new AbortController().signal);
+	assert.deepEqual(prepared, [0.01, 0.03]);
+	assert.deepEqual(rendered, [0.03]);
 });
 
 // 【子Sceneの評価は最終表示せず、親の中断を非同期準備へ伝える】
@@ -616,15 +510,13 @@ test('separates clip instances and distinguishes transparent output from a gap',
 // TIME / END_TIMEで進行率を再計算する実装へ戻さないための契約。
 test('passes clip progress separately from Custom Node Graph Effect content time and scene arguments', async () => {
 	const contexts = [];
-	const adapter = createCustomNodeGraphEffectTimelineLayer({ customParameterDefs: [], customParameterValues: {}, primaryInputId: null, paramDefs: [
-		{ id: 'time', nameForReference: 'time', dataType: { kind: 'scalar' }, defaultValue: { inputSource: 'literal', value: 0 }, canNode: false },
-	] }, { customNodeGraphEffectParamValues: { time: { inputSource: 'expression', expression: 'TIME_MS' } }, automationGraphs: [] }, {
-		async prepare(context) { contexts.push(context); }, async render() { return { gpuTime: 0 }; }, destroy() {},
-	});
+	const adapter = createTimelineEffectProbe({ paramDefs: { time: { dataType: { kind: 'scalar' }, defaultValue: { inputSource: 'literal', value: 0 } } },
+		params: { time: { inputSource: 'expression', expression: 'TIME_MS' } }, render(frame, values) { contexts.push([frame.time, frame.endTime, frame.progress, values.time]); } });
 	const context = { sceneTimeMs: 700, contentTimeMs: 600, contentEndTimeMs: 1000, clipElapsedTimeMs: 600, clipDurationMs: 1000, timeDelta: 0, isExport: false };
 	await adapter.evaluate(context, new AbortController().signal);
 	await adapter.evaluate({ ...context, clipElapsedTimeMs: 400, clipDurationMs: 800 }, new AbortController().signal);
-	assert.deepEqual(contexts.map(ctx => [ctx.time, ctx.endTime, ctx.progress, ctx.evaluatedParamValues.get('time')]), [[600, 1000, 0.6, 700], [600, 1000, 0.5, 700]]);
+	assert.deepEqual(contexts, [[0.6, 1, 0.6, 700], [0.6, 1, 0.5, 700]]);
+	adapter.destroy();
 });
 
 // 【参照する側のブラー無効化で参照先の通常描画時刻を変えない】

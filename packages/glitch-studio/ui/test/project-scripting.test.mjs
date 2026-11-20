@@ -15,10 +15,10 @@ const bundle = await build({
 		export { Interpreter, Parser } from '@syuilo/aiscript';
 	` },
 	plugins: [{ name: 'scripting-effects', setup(build) {
-		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ loader: 'ts', resolveDir: directory, contents: `
-			import fill from '@gs/subsystems_effect_shared/fx/fill/_def_.ts';
-			export const effectDefinitions = { fill };
+			import fill from '@gs/subsystems_effect-new_native-effects/fx/fill/_def_.ts';
+			export const nativeEffectDefinitions = { fill };
 		` }));
 	} }],
 });
@@ -53,9 +53,9 @@ test('runs the default named Command example and redoes its exact result', async
 	await controller.run();
 	assert.deepEqual(errors, []);
 	const customNodeGraphEffect = structuredClone(state.customNodeGraphEffects.value[0]);
-	const node = customNodeGraphEffect.nodes.find(node => node.type === 'effect');
+	const node = customNodeGraphEffect.definition.nodes.find(node => node.type === 'effect');
 	assert.deepEqual(node.params.color.value, [1, 0.2, 0.1, 1]);
-	assert.equal(customNodeGraphEffect.nodes.find(node => node.type === 'globalOut').inputs[customNodeGraphEffect.primaryOutputId].nodeId, node.id);
+	assert.equal(customNodeGraphEffect.definition.outputSources[customNodeGraphEffect.definition.primaryOutput].nodeId, node.id);
 	assert.equal(manager.undoStack.value.length, 1);
 	assert.match(controller.output.value[0], /Generated/);
 	manager.undo();
@@ -71,7 +71,7 @@ test('runs the default named Command example and redoes its exact result', async
 test('creates and rewires a relay node from AiScript', async () => {
 	const { controller, manager, state, errors } = fixture();
 	controller.source.value = `let customNodeGraphEffect = Command:createCustomNodeGraphEffect({})
-let source = Command:createCustomNodeGraphEffectEffectNode({ customNodeGraphEffect: customNodeGraphEffect, effectId: "fill" })
+let source = Command:createCustomNodeGraphEffectEffectNode({ customNodeGraphEffect: customNodeGraphEffect, effectSource: { type: "nativeEffect", id: "fill" } })
 let relay = Command:createCustomNodeGraphEffectRelayNode({ customNodeGraphEffect: customNodeGraphEffect })
 let connection = { nodeId: source.nodeId, outputPort: "output" }
 Command:setCustomNodeGraphEffectRelayInput({ target: relay, source: connection })
@@ -83,8 +83,8 @@ Command:setCustomNodeGraphEffectRelayInput({ target: relay, source: connection }
 	assert.deepEqual(errors, []);
 	assert.deepEqual(controller.output.value, ['output', 'true']);
 	const customNodeGraphEffect = structuredClone(state.customNodeGraphEffects.value[0]);
-	const source = customNodeGraphEffect.nodes.find(node => node.type === 'effect');
-	const relay = customNodeGraphEffect.nodes.find(node => node.type === 'relay');
+	const source = customNodeGraphEffect.definition.nodes.find(node => node.type === 'effect');
+	const relay = customNodeGraphEffect.definition.nodes.find(node => node.type === 'relay');
 	assert.deepEqual(relay.input, { nodeId: source.id, outputPort: 'output' });
 	assert.equal(manager.undoStack.value.length, 1);
 	manager.undo();

@@ -1,22 +1,25 @@
+import { resolveEffectSource, type EffectSource, type EffectDefinitions } from '@gs/subsystems_effect-new_shared/effect-source.ts';
 import { getTimelineClipLayers } from './layer-tree.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
 import type { TimelineScene } from './types.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
-import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 
-/** 配置された定義を検査する。未使用のCustom Node Graph EffectやCustom Node Graph Effect Live Previewだけの構成は対象にしない。 */
-export function findTimelineHistoryEffects(scenes: readonly TimelineScene[], getCustomNodeGraphEffect: (id: string) => CustomNodeGraphEffect | null, definitions: Record<string, EffectDefinition>): string[] {
+/** 配置されたEffectをたどる。同じCustom Node Graph Effectを複数箇所で参照しても検査は一度でよい。 */
+export function findTimelineHistoryEffects(scenes: readonly TimelineScene[], definitions: EffectDefinitions): string[] {
 	const result = new Set<string>();
-	const inspectEffect = (id: string) => {
-		if (definitions[id]?.dependsOnRenderHistory) result.add(id);
-	};
-	for (const scene of scenes) for (const layer of getTimelineClipLayers(scene.layers)) {
-		if (layer.clips.length === 0) continue;
-		if (layer.layerType === 'effect') inspectEffect(layer.effectId);
-		const customNodeGraphEffect = layer.layerType === 'inlineCustomNodeGraphEffect' ? layer.customNodeGraphEffect
-			: layer.layerType === 'customNodeGraphEffect' ? getCustomNodeGraphEffect(layer.customNodeGraphEffectId) : null;
-		if (customNodeGraphEffect) for (const node of customNodeGraphEffect.nodes) {
-			if (node.type === 'effect') inspectEffect(node.effectId);
+	const visited = new Set<CustomNodeGraphEffect>();
+
+	function inspect(source: EffectSource): void {
+		const effect = resolveEffectSource(source, definitions);
+		if (effect.type === 'nativeEffect' && effect.definition.dependsOnRenderHistory === true) result.add(effect.id);
+		if (effect.type !== 'customNodeGraphEffect' || visited.has(effect.definition)) return;
+		visited.add(effect.definition);
+		for (const node of effect.definition.nodes) {
+			if (node.type !== 'relay' && node.isBypass !== true) inspect(node.effectSource);
 		}
+	}
+
+	for (const scene of scenes) for (const layer of getTimelineClipLayers(scene.layers)) {
+		if (layer.layerType === 'effect' && layer.clips.length > 0) inspect(layer.effectSource);
 	}
 	return [...result];
 }

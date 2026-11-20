@@ -485,16 +485,16 @@ test('validates modifier shapes and rejects unsupported input kinds without pars
 	assert.notDeepEqual(staticParameterShape(scalarDefinition, first), staticParameterShape(scalarDefinition, { ...first, expressionModifier: { enabled: 1, code: 'VALUE' } }));
 });
 
-// 【既定値にはコンテナ内部や要素追加用の設定にも加工式を持たせない】
-// 既定値をそのまま読む利用箇所でも意味が変わらないように、定義側で加工式を拒否する。
-// 通常の基準式は子のBindingとして引き続き許可し、有効・無効にかかわらず加工設定を拒否する。
-test('rejects modifiers throughout parameter defaults while allowing nested base expressions', () => {
+// 【既定値は初期配列や要素追加用の設定も含めて、末端まで値のあるliteralに限定する】
+// 既定値から評価器なしで初期状態を作る利用箇所があるため、式や値の欠落を定義の検証時に拒否する。
+// 加工式は無効でも本文を保持するので、配置のBindingにだけ指定できるようにする。
+test('requires literal values without modifiers throughout parameter defaults', () => {
 	const scalar = { ...scalarDefinition, defaultValue: literal(1) };
 	const array = {
 		dataType: { kind: 'array', elementType: scalar.dataType },
 		ui: { label: 'Values', control: { element: {} } },
 		element: { defaultValue: literal(1) },
-		defaultValue: literal([{ id: 'first', binding: expression('TIME') }]),
+		defaultValue: literal([{ id: 'first', binding: scalar.defaultValue }]),
 	};
 	const struct = {
 		dataType: { kind: 'struct', fields: { values: array.dataType } },
@@ -503,10 +503,16 @@ test('rejects modifiers throughout parameter defaults while allowing nested base
 		defaultValue: literal({ values: array.defaultValue }),
 	};
 	assert.doesNotThrow(() => validateParameterDefaultValues(struct));
+	for (const binding of [expression('TIME'), { inputSource: 'literal' }]) {
+		for (const definition of [
+			{ ...struct, defaultValue: literal({ values: literal([{ id: 'first', binding }]) }) },
+			{ ...array, defaultValue: literal([]), element: { defaultValue: binding } },
+		]) assert.throws(() => validateParameterDefaultValues(definition), /must be literal and provide a value/);
+	}
 	for (const enabled of [true, false]) {
 		const cases = [
 			{ ...scalar, defaultValue: modified(scalar.defaultValue, 'VALUE', enabled) },
-			{ ...array, defaultValue: literal([{ id: 'first', binding: modified(expression('TIME'), 'VALUE', enabled) }]) },
+			{ ...array, defaultValue: literal([{ id: 'first', binding: modified(literal(1), 'VALUE', enabled) }]) },
 			{ ...array, defaultValue: literal([]), element: { defaultValue: modified(literal(1), 'VALUE', enabled) } },
 			{ ...struct, defaultValue: literal({ values: literal([{ id: 'first', binding: modified(literal(1), 'VALUE', enabled) }]) }) },
 			{ ...struct, fields: { values: { ...struct.fields.values, element: { defaultValue: modified(literal(1), 'VALUE', enabled) } } } },

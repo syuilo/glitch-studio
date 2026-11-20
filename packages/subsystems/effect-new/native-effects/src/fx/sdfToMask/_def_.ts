@@ -1,0 +1,60 @@
+import { defineNativeEffect } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+
+export default defineNativeEffect({
+	displayName: 'SDF to Mask',
+	summary: {
+		'ja-JP': '符号付き距離場から、形状の塗りや輪郭のマスクを生成します。',
+		'en-US': 'Generates a fill or outline mask from a signed distance field.',
+	},
+	kind: 'modify',
+	dependsOnRenderHistory: false,
+	tags: ['math', 'convert', 'sdf'],
+	paramDefs: {
+		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: { inputSource: 'literal', value: 'longSide' } },
+		input: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Input', control: { controlType: 'number', step: 0.01 } },
+			canNode: true,
+			defaultValue: { inputSource: 'literal', value: 65504 },
+		},
+		mode: {
+			dataType: { kind: 'enum', options: ['fill', 'stroke'] },
+			ui: { label: 'Mode', control: { labels: { fill: 'Fill', stroke: 'Stroke' } } },
+			defaultValue: { inputSource: 'literal', value: 'fill' },
+		},
+		offset: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Offset (Reference Ratio)', control: { controlType: 'number', step: 0.001 } },
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		strokeWidth: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Stroke Width (Reference Ratio)', control: { controlType: 'range', min: 0, max: 0.1, step: 0.001 } },
+			defaultValue: { inputSource: 'literal', value: 0.01 },
+		},
+		strokeAlignment: {
+			dataType: { kind: 'enum', options: ['inside', 'center', 'outside'] },
+			ui: { label: 'Stroke Alignment', control: { labels: { inside: 'Inside', center: 'Center', outside: 'Outside' } } },
+			defaultValue: { inputSource: 'literal', value: 'center' },
+		},
+		feather: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Feather (Reference Ratio)', control: { controlType: 'range', min: 0, max: 0.1, step: 0.001 } },
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		antiAlias: {
+			dataType: { kind: 'bool' },
+			ui: { label: 'Anti-alias', control: {} },
+			defaultValue: { inputSource: 'literal', value: true },
+		},
+		invert: {
+			dataType: { kind: 'bool' },
+			ui: { label: 'Invert', control: {} },
+			defaultValue: { inputSource: 'literal', value: false },
+		},
+	},
+	primaryInputParameter: 'input',
+	resolutionInputParameters: ['input'],
+	outputDefs: { output: { dataType: { kind: 'scalar' } } },
+	primaryOutput: 'output',
+});

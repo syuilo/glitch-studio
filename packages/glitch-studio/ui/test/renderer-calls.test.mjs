@@ -19,10 +19,10 @@ async function bundle(path) {
 					export const ref = value => ({ value });
 					export const shallowRef = ref;
 					export const shallowReactive = value => value;
-					export const createCustomNodeGraphEffectRendererManagerWorker = () => dependencies.createWorker();
-					export const CustomNodeGraphEffectRendererManager = dependencies.CustomNodeGraphEffectRendererManager;
+					export const createEffectLivePreviewManagerWorker = () => dependencies.createWorker();
+					export const EffectLivePreviewManager = dependencies.EffectLivePreviewManager;
 					export const createManager = options => dependencies.createManager(options);
-					export const effectDefinitions = {}, effectImplementations = {};
+					export const nativeEffectDefinitions = {}, nativeEffectImplementations = {};
 					export const deepClone = structuredClone, deepEqual = () => false;
 					export const projectAudioSourceId = 'project', genId = () => 'id';
 					export const isVideoFrameAvailable = () => false;
@@ -38,8 +38,8 @@ async function bundle(path) {
 	return result.outputFiles[0].text;
 }
 
-const controllerCode = await bundle('../src/CustomNodeGraphEffectRendererManagerController.ts');
-const workerCode = await bundle('../../renderer/src/custom-node-graph-effect-renderer-manager-worker.ts');
+const controllerCode = await bundle('../src/EffectLivePreviewManagerController.ts');
+const workerCode = await bundle('../../renderer/src/effect-live-preview-manager-worker.ts');
 
 async function fixture(t, options = {}) {
 	class GPUCanvasContext {}
@@ -50,7 +50,7 @@ async function fixture(t, options = {}) {
 	const pending = [];
 	const instances = [];
 	const notifications = [];
-	class CustomNodeGraphEffectRendererManager {
+	class EffectLivePreviewManager {
 		constructor(settings, staticOptions, resources) { this.settings = settings; this.staticOptions = staticOptions; this.resources = resources; instances.push(this); }
 		dynamicOptions = {};
 		async updateDynamicOptions(update) {
@@ -73,10 +73,10 @@ async function fixture(t, options = {}) {
 	}
 	const workers = [];
 	const dependencies = {
-		CustomNodeGraphEffectRendererManager,
+		EffectLivePreviewManager,
 		async createManager(settings) {
 			if (options.adapterError) throw options.adapterError;
-			const manager = new CustomNodeGraphEffectRendererManager({}, settings.staticOptions, settings.resources);
+			const manager = new EffectLivePreviewManager({}, settings.staticOptions, settings.resources);
 			try { await manager.updateDynamicOptions(settings.dynamicOptions); await options.prepareResources?.(settings.resources); } catch (error) { manager.destroy(); throw error; }
 			return manager;
 		},
@@ -120,7 +120,7 @@ async function fixture(t, options = {}) {
 		window: { document: { createElement: tag => tag === 'audio' && options.mediaElement != null ? new options.mediaElement() : canvas() } },
 	};
 	runInNewContext(controllerCode, context);
-	const controller = new context.module.exports.CustomNodeGraphEffectRendererManagerController({});
+	const controller = new context.module.exports.EffectLivePreviewManagerController({});
 	const initialOptions = {
 		staticOptions: { enable32bitDataTextures: false, enableStats: false },
 		dynamicOptions: { fpsLimit: null, resolution: { width: 1, height: 1 }, resolutionScale: 1 },

@@ -27,12 +27,11 @@
 
 <script lang="ts" setup>
 import { i18n } from '@/i18n.ts';
-import { customNodeGraphEffectPublicParameterId, customNodeGraphEffectPublicParameterName } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
 import { genId } from '@gs/shared/utility/id.js';
 import GsButton from './common/GsButton.vue';
 import XCustomNodeGraphEffectParamDefEditor from './XCustomNodeGraphEffectParamDefEditor.vue';
 import GsFolder from './common/GsFolder.vue';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectPublicParameterId, CustomNodeGraphEffectParamDef } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectParamDef } from '@/types/custom-node-graph-effect-view.ts';
 
 const props = defineProps<{
 	customNodeGraphEffect: CustomNodeGraphEffect;
@@ -40,18 +39,18 @@ const props = defineProps<{
 
 const emit = defineEmits<{
 	add: [def: CustomNodeGraphEffectParamDef];
-	update: [defId: CustomNodeGraphEffectPublicParameterId, changes: Partial<Omit<CustomNodeGraphEffectParamDef, 'id'>>, mergeKey?: string | null];
-	remove: [defId: CustomNodeGraphEffectPublicParameterId];
-	setPrimaryInput: [inputId: CustomNodeGraphEffectPublicParameterId | null];
-	setPrimaryAudioInput: [inputId: CustomNodeGraphEffectPublicParameterId | null];
+	update: [defId: string, changes: Partial<Omit<CustomNodeGraphEffectParamDef, 'id'>>, mergeKey?: string | null];
+	remove: [defId: string];
+	setPrimaryInput: [inputId: string | null];
+	setPrimaryAudioInput: [inputId: string | null];
 }>();
 
 function add() {
 	let nameForReference = 'my_param';
 	for (let suffix = 2; props.customNodeGraphEffect.paramDefs.some(def => def.nameForReference === nameForReference); suffix++) nameForReference = `my_param_${suffix}`;
 	emit('add', {
-		id: customNodeGraphEffectPublicParameterId(genId()),
-		nameForReference: customNodeGraphEffectPublicParameterName(nameForReference),
+		id: genId(),
+		nameForReference: nameForReference,
 		dataType: { kind: 'scalar' },
 		ui: {
 			label: 'My Parameter',

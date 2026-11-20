@@ -14,7 +14,7 @@ const INITIAL_SCRIPT = `// Create a Custom Node Graph Effect with a Fill node.
 let customNodeGraphEffect = Command:createCustomNodeGraphEffect({ name: "Generated" })
 let fillNode = Command:createCustomNodeGraphEffectEffectNode({
 	customNodeGraphEffect: customNodeGraphEffect
-	effectId: "fill"
+	effectSource: { type: "nativeEffect", id: "fill" }
 	connectionMode: "appendToPrimaryOutput"
 })
 Command:setCustomNodeGraphEffectNodeParameterSource({

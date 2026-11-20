@@ -9,8 +9,8 @@ import type { PreviewImageAnalysisSettings, PreviewImageAnalysisDisplaySettings 
 import type { TimelineTransformPreview } from '@gs/glitch-studio_shared/timeline-transform-preview.ts';
 import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { TimelineRendererManager, TimelineRendererManagerResources, TimelineRendererManagerStaticOptions, TimelineRendererManagerDynamicOptions, TimelinePreviewStatistics } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
-import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
-import type { EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
+import type { EffectPreparationStatus } from '@gs/subsystems_effect-new_renderer/effect-instance.ts';
+import type { EffectRenderTilingProgress } from '@gs/subsystems_effect-new_shared/effect-render-tiling.ts';
 import type { TimelinePreviewFrameCacheState, TimelinePreviewSeekMode } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 
 export type TimelineRendererManagerInitialOptions = {
@@ -53,11 +53,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 	public errorMessage = ref<string | null>(null);
 	private effectStates = new TimelineEffectStateStore();
 
-	public getLayerEffectStates(sceneId: string, layerId: string): ReadonlyMap<string, EffectInstanceState> | null {
-		return this.effectStates.getNodes(sceneId, layerId);
-	}
-
-	public getEffectLayerState(sceneId: string, layerId: string): EffectInstanceState | null {
+	public getEffectLayerState(sceneId: string, layerId: string): EffectPreparationStatus | null {
 		return this.effectStates.getLayer(sceneId, layerId);
 	}
 
@@ -105,12 +101,8 @@ export class TimelineRendererManagerController extends RendererManagerController
 					if (this.isReady.value && ctx.request.requestId === this.dynamicOptions.transformObserver?.requestId
 						&& ctx.revision === this.dynamicOptions.previewRevision) this.layerTransform.value = ctx;
 				},
-				effectState: (ctx) => {
-					if (ctx.status?.status.type === 'error') { this.reportRenderFailure(new Error(ctx.status.status.message), { source: ctx.source, nodeId: ctx.nodeId }); return; }
-					if (this.isReady.value) this.effectStates.updateNode(ctx.source, ctx.nodeId, ctx.status);
-				},
 				effectLayerState: (ctx) => {
-					if (ctx.status?.status.type === 'error') { this.reportRenderFailure(new Error(ctx.status.status.message), { source: ctx.source }); return; }
+					if (ctx.status?.type === 'error') { this.reportRenderFailure(new Error(String(ctx.status.error)), { source: ctx.source }); return; }
 					if (this.isReady.value) this.effectStates.updateLayer(ctx.source, ctx.status);
 				},
 				renderError: (ctx) => {

@@ -122,11 +122,11 @@ async function timelineFixture(t, { enableStats = false, timelineMotionBlur = { 
 	const input = { dataType: { kind: 'color' }, canNode: true, defaultValue: literal([0, 0, 0, 0]) };
 	const manager = await module.exports.TimelineRendererManager.create({
 		gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
-		effectDefinitions: { pass: { paramDefs: { input }, primaryInputParameter: 'input', resolutionInputParameters: ['input'],
+		nativeEffectDefinitions: { pass: { paramDefs: { input }, primaryInputParameter: 'input', resolutionInputParameters: ['input'],
 			primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } } } },
-		effectImplementations: { pass: {
+		nativeEffectImplementations: { pass: {
 			outputTextureFactories: { output: ({ resolution }) => texture({ size: resolution }) },
-			init: () => ({ render: ctx => calls.renders.push(ctx), dispose() {} }),
+			init: ({ outputTextures }) => ({ render: () => calls.renders.push(outputTextures.get('output')), dispose() {} }),
 		} },
 	}, { enableStats, timelineFps: 60, timelineMotionBlur, enable32bitDataTextures: false, }, { assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }] });
 	calls.compositing = [];
@@ -347,7 +347,7 @@ test('releases decoded video resources when disabling video and recreates them w
 	assert.equal(calls.sourcesDisposed, 1);
 	assert.deepEqual(calls.sampleTimes, [0.1]);
 	assert.equal(calls.compositing.length, 1);
-	assert.deepEqual(calls.outputs.at(-1), { kind: 'uniform', value: [0, 0, 0, 0] });
+	assert.equal(calls.outputs.at(-1).kind, 'texture');
 	manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: 'video', layer: video, changes: [{ type: 'clips' }] }]);
 	await manager.renderTimelineFrame(600, 0);
 	assert.equal(calls.sourcesOpened, 2);
@@ -462,8 +462,8 @@ test('refreshes composition at repeated video times and caches transparent foreg
 	assert.deepEqual(calls.sampleTimes, [0.5, 0.6, 0.5]);
 	assert.equal(calls.uploads.length, 2);
 	assert.deepEqual(calls.compositing.map(call => call.settings.opacity), [0.5, 1, 1, 1, 1]);
-	assert.deepEqual(calls.compositing.map(call => call.foreground.kind), ['texture', 'texture', 'uniform', 'uniform', 'texture']);
-	assert.deepEqual(calls.compositing[2].foreground.value, [0, 0, 0, 0]);
+	assert.deepEqual(calls.compositing.map(call => call.foreground.kind), Array(5).fill('texture'));
+	assert.equal(calls.compositing[2].foreground.texture, calls.compositing[3].foreground.texture);
 	assert.deepEqual(calls.errors, []);
 });
 
@@ -509,20 +509,17 @@ test('scales video sources once through replace composition and automatic proces
 	const { manager, calls } = await timelineFixture(t);
 	const timing = { name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], automationGraphs: [] };
 	const video = { ...timing, id: 'video', layerType: 'video', clips: [{ id: 'clip', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: false, assetId: 'asset', audioEnabled: false, videoEnabled: true }], audioParamValues: { volume: literal(1) }, compositingParamValues: { fitMode: { inputSource: 'literal', value: 'cover' } } };
-	const processing = { ...timing, id: 'processing', layerType: 'inlineCustomNodeGraphEffect', customNodeGraphEffectParamValues: {},
+	const processing = { ...timing, id: 'processing', layerType: 'effect', effectParamValues: {}, effectStaticSettings: {}, resolution: { mode: 'context', scale: 1 },
 		compositingParamValues: { blendMode: literal('replace') },
-		customNodeGraphEffect: {
-			customParameterDefs: [],
-			customParameterValues: {},
-			automationGraphs: [], paramDefs: [{ id: 'output', nameForReference: 'input', dataType: { kind: 'color' }, canNode: true, defaultValue: literal([0, 0, 0, 0]) }],
-			primaryInputId: 'output', primaryOutputId: 'output', outputDefs: [{ id: 'output', dataType: { kind: 'color' } }],
+		effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: {
+			kind: 'modify', paramDefs: { input: { dataType: { kind: 'color' }, canNode: true, defaultValue: literal([0, 0, 0, 0]) } },
+			primaryInputParameter: 'input', resolutionInputParameters: ['input'], primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } },
+			outputSources: { output: { nodeId: 'second', outputPort: 'output' } },
 			nodes: [
-				{ id: 'in', type: 'globalIn' },
-				{ id: 'first', type: 'effect', effectId: 'pass', resolution: { mode: 'auto', scale: 1 }, isBypass: false, params: { input: connection('in') } },
-				{ id: 'second', type: 'effect', effectId: 'pass', resolution: { mode: 'auto', scale: 1 }, isBypass: false, params: { input: connection('first') } },
-				{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'second', outputPort: 'output' } } },
+				{ id: 'first', effectSource: { type: 'nativeEffect', id: 'pass' }, params: { input: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'input' } } },
+				{ id: 'second', effectSource: { type: 'nativeEffect', id: 'pass' }, params: { input: { inputSource: 'node', source: { nodeId: 'first', outputPort: 'output' } } } },
 			],
-		},
+		} },
 	};
 	for (const [resolutionScale, blendMode, expectedOutput] of [
 		[0.5, 'replace', [960, 540]],
@@ -539,7 +536,7 @@ test('scales video sources once through replace composition and automatic proces
 		const expectedSource = [3840 * resolutionScale, 2160 * resolutionScale];
 		assert.deepEqual(calls.draws.at(-1), expectedSource);
 		assert.deepEqual(dimensions(calls.uploads.at(-1).destination.texture), [3840, 2160]);
-		assert.deepEqual(calls.renders.slice(-2).map(ctx => dimensions(ctx.outputDataMap.output.texture)), [expectedOutput, expectedOutput]);
+		assert.deepEqual(calls.renders.slice(-2).map(dimensions), [expectedOutput, expectedOutput]);
 		assert.deepEqual(dimensions(calls.outputs.at(-1).texture), expectedOutput);
 	}
 });

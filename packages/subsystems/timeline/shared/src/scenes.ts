@@ -1,11 +1,11 @@
-import { isTimelineContainerLayer, isTimelineVisualLayer, isTimelineEffectOrCustomNodeGraphEffectLayer } from './types.ts';
+import { isTimelineContainerLayer, isTimelineVisualLayer } from './types.ts';
 import { validateTimelineMask, validateTimelineLayerMask, isTimelineLayerTransformTarget } from './timeline-compositing.ts';
 import { validateTimelineTransform } from './layers/transform/transform.ts';
-import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.js';
+import { validateEffectResolution } from '@gs/subsystems_effect-new_shared/resolution.ts';
 import { validateTimelineCamera } from './layers/camera/camera.ts';
 import { flattenTimelineLayers, getTimelineClipLayers } from './layer-tree.ts';
 import { getTimelineClipEnd, validateTimelineClips } from './timing.ts';
-import { isTimelineImageInputBinding, validateTimelineParameterBinding } from './parameter-binding.ts';
+import { validateTimelineParameterBinding } from './parameter-binding.ts';
 import { validateVoicevoxSubtitle } from './layers/voicevox/voicevox-subtitle-validation.ts';
 import { validateTimelineText } from './layers/text/text-layer.ts';
 import { validateTimelineShape } from './layers/shape/shape-layer.ts';
@@ -31,7 +31,7 @@ export function validateTimelineLayerStructure(layer: TimelineLayer): void {
 		validateTimelineMask(layer.mask);
 		validateTimelineLayerMask(layer.layerMask);
 	}
-	if (isTimelineEffectOrCustomNodeGraphEffectLayer(layer) && layer.transformTarget != null && !isTimelineLayerTransformTarget(layer.transformTarget)) throw new Error('Invalid timeline layer transform target');
+	if (layer.layerType === 'effect' && layer.transformTarget != null && !isTimelineLayerTransformTarget(layer.transformTarget)) throw new Error('Invalid timeline layer transform target');
 	if (!isTimelineContainerLayer(layer)) validateTimelineClips(layer.clips);
 	if (layer.layerType === 'video' || layer.layerType === 'audio') {
 		for (const clip of layer.clips) {
@@ -69,14 +69,8 @@ export function validateTimelineLayer(layer: TimelineLayer): void {
 		...('compositingParamValues' in layer ? [layer.compositingParamValues] : []),
 	];
 	for (const values of parameterGroups) for (const binding of Object.values(values)) validateTimelineParameterBinding(binding);
-	if ('customNodeGraphEffectParamValues' in layer) {
-		for (const binding of Object.values(layer.customNodeGraphEffectParamValues)) validateTimelineParameterBinding(binding, true, true);
-	}
 	if (layer.layerType === 'effect') {
-		for (const binding of Object.values(layer.effectParamValues)) {
-			validateTimelineParameterBinding(binding, true);
-			if (isTimelineImageInputBinding(binding) && !('fitMode' in binding)) throw new Error('Effect image input requires sampling');
-		}
+		for (const binding of Object.values(layer.effectParamValues)) validateTimelineParameterBinding(binding, true, true);
 	}
 }
 

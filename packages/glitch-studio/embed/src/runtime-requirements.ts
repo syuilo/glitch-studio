@@ -1,40 +1,83 @@
 import { walkParameterLeaves } from '@gs/shared/parameter/parameter-tree.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
-import { isCustomShaderEffectReference } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectParameterBinding } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { NativeEffectDefinition } from '@gs/subsystems_effect-new_shared/effect-definition.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectParameterBinding } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import type { CustomNodeGraphEffectResources } from '@gs/glitch-studio_shared/custom-node-graph-effect-resources.ts';
+import type { CustomNodeGraphEffectEditorMetadata } from '@gs/glitch-studio_shared/project/types.ts';
 
 export type PortableCustomNodeGraphEffectRuntimeRequirements = {
 	effectIds: string[];
 	requiresExpressions: boolean;
-	requiresParameterDefaultExpressions: boolean;
 	requiresCustomShaderEffects: boolean;
 };
 
-function usesExpressions(definitions: Record<string, ParameterDefinition>, bindings: Record<string, CustomNodeGraphEffectParameterBinding>): boolean {
-	for (const { def, param } of walkParameterLeaves<CustomNodeGraphEffectParameterBinding>(definitions, bindings)) {
-		// 音声入力は配布先で未接続にする。通常の値と同様に式で読み替えることはない。
-		if (def.dataType.kind === 'audioSource' || !isValueParameterBinding(param)) continue;
-		if (param.inputSource === 'expression' || param.expressionModifier?.enabled === true) return true;
+function usesExpressions(definitions: Readonly<Record<string, ParameterDefinition>>, bindings: Readonly<Record<string, CustomNodeGraphEffectParameterBinding>>) {
+	// 省略された入力は末端までliteralの既定値なので、配置で指定されたBindingだけを調べる。
+	for (const [key, binding] of Object.entries(bindings)) {
+		for (const { param } of walkParameterLeaves<CustomNodeGraphEffectParameterBinding>({ value: definitions[key] }, { value: binding })) {
+			if (isValueParameterBinding(param) && (param.inputSource === 'expression' || param.expressionModifier?.enabled === true)) return true;
+		}
 	}
 	return false;
 }
 
-/** 検証済みのスナップショットを解析する。ノードや動的なCUSTOM参照を推測で削除しない。 */
-export function analyzePortableCustomNodeGraphEffectRuntime(customNodeGraphEffect: CustomNodeGraphEffect, definitions: Readonly<Record<string, EffectDefinition>>): PortableCustomNodeGraphEffectRuntimeRequirements {
+/** スナップショットに含む全配置を調べる。同じ登録グラフの内部は一度で十分だが、各配置の入力は個別に調べる。 */
+export function analyzePortableCustomNodeGraphEffectRuntime(resources: CustomNodeGraphEffectResources, nativeDefinitions: Readonly<Record<string, NativeEffectDefinition>>) {
+	const shaders = new Map(resources.customShaderEffects.map(entry => [entry.id, entry]));
+	const graphs = new Map(resources.customNodeGraphEffects.map(entry => [entry.id, entry]));
+	const visited = new Set<CustomNodeGraphEffect>();
 	const effectIds = new Set<string>();
+	const resolutionNodes: string[] = [];
 	let requiresExpressions = false;
 	let requiresCustomShaderEffects = false;
-	for (const node of customNodeGraphEffect.nodes) {
-		if (node.type !== 'effect') continue;
-		if (isCustomShaderEffectReference(node.effectId)) requiresCustomShaderEffects = true;
-		else effectIds.add(node.effectId);
-		requiresExpressions ||= usesExpressions(definitions[node.effectId].paramDefs, node.params);
+
+	function visit(graph: CustomNodeGraphEffect, metadata?: CustomNodeGraphEffectEditorMetadata) {
+		if (visited.has(graph)) return;
+		visited.add(graph);
+		requiresExpressions ||= usesExpressions(graph.customParameterDefs ?? {}, graph.customParameterValues ?? {});
+		for (const node of graph.nodes) {
+			if (node.type === 'relay') continue;
+			const source = node.effectSource;
+			const editor = metadata?.nodeMetadata?.[node.id];
+			let definition;
+			let name = node.id;
+			switch (source.type) {
+				case 'nativeEffect':
+					effectIds.add(source.id);
+					definition = nativeDefinitions[source.id];
+					name = definition.displayName;
+					break;
+				case 'inlineCustomShaderEffect':
+					requiresCustomShaderEffects = true;
+					definition = source.customShaderEffect;
+					break;
+				case 'customShaderEffectReference': {
+					requiresCustomShaderEffects = true;
+					const entry = shaders.get(source.id)!;
+					definition = entry.definition;
+					name = entry.name;
+					break;
+				}
+				case 'inlineCustomNodeGraphEffect':
+					definition = source.customNodeGraphEffect;
+					visit(definition, editor?.inlineCustomNodeGraphEffect);
+					break;
+				case 'customNodeGraphEffectReference': {
+					const entry = graphs.get(source.id)!;
+					definition = entry.definition;
+					name = entry.name;
+					visit(definition, entry);
+					break;
+				}
+			}
+			requiresExpressions ||= usesExpressions(definition.paramDefs, node.params);
+			const size = node.resolution;
+			if (size == null ? definition.intrinsicResolutionSetting != null || definition.resolutionInputParameters.length > 0
+				: !('mode' in size) || size.mode !== 'context' || size.scale !== 1) resolutionNodes.push(editor?.displayName || name);
+		}
 	}
-	for (const definition of customNodeGraphEffect.customParameterDefs) {
-		requiresExpressions ||= usesExpressions({ value: definition }, { value: customNodeGraphEffect.customParameterValues[definition.id] ?? definition.defaultValue });
-	}
-	const requiresParameterDefaultExpressions = customNodeGraphEffect.paramDefs.some(definition => usesExpressions({ value: definition }, { value: definition.defaultValue }));
-	return { effectIds: [...effectIds].sort(), requiresExpressions, requiresParameterDefaultExpressions, requiresCustomShaderEffects };
+
+	visit(resources.customNodeGraphEffect, resources);
+	return { runtimeRequirements: { effectIds: [...effectIds].sort(), requiresExpressions, requiresCustomShaderEffects }, resolutionNodes };
 }

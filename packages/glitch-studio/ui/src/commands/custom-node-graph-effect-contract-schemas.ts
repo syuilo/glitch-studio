@@ -1,23 +1,23 @@
+import { effectSourceSchema } from './effect-source-schema.ts';
 import { z } from 'zod';
 import { automationGraphSchema, effectResolutionSchema, fitModeSchema, identifierSchema, parameterDefinitionSchema, parameterPathSchema, staticSettingValuesSchema, textureDataTypeSchema, valueParameterBindingSchema, valueParameterSourceSchema, wrapModeSchema } from './parameter-contract-schemas.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectNode, CustomNodeGraphEffectParameterBinding, CustomNodeGraphEffectValueParameterBinding, CustomNodeGraphEffectNodeParameterBinding, CustomNodeGraphEffectParamDef, CustomNodeGraphEffectCustomParameterDefinition, CustomNodeGraphEffectPublicParameterId, CustomNodeGraphEffectCustomParameterId, CustomNodeGraphEffectPublicParameterName, CustomNodeGraphEffectCustomParameterName } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectNode, CustomNodeGraphEffectParameterBinding, CustomNodeGraphEffectValueParameterBinding, CustomNodeGraphEffectNodeParameterBinding, CustomNodeGraphEffectParamDef, CustomNodeGraphEffectCustomParameterDefinition } from '@/types/custom-node-graph-effect-view.ts';
 
 export const registeredCustomNodeGraphEffectTargetSchema = z.object({ customNodeGraphEffectId: identifierSchema });
 export const customNodeGraphEffectTargetSchema = z.union([
 	registeredCustomNodeGraphEffectTargetSchema,
-	z.object({ sceneId: identifierSchema, inlineCustomNodeGraphEffectLayerId: identifierSchema }),
+	z.object({ sceneId: identifierSchema, layerId: identifierSchema }),
 ]).describe('A registered Custom Node Graph Effect or an inline Custom Node Graph Effect owned by a Timeline layer. Pass the target returned by Query or Command.');
 export const customNodeGraphEffectNodeReferenceSchema = z.object({ customNodeGraphEffect: customNodeGraphEffectTargetSchema, nodeId: identifierSchema });
 export const customNodeGraphEffectNodeParameterReferenceSchema = z.object({ target: customNodeGraphEffectNodeReferenceSchema, parameterPath: parameterPathSchema });
-// branded IDはドメイン内部での取り違えを防ぐための型。外部との保存形式は文字列のまま。
-export const customNodeGraphEffectPublicParameterIdSchema = z.string() as unknown as z.ZodType<CustomNodeGraphEffectPublicParameterId>;
-export const customNodeGraphEffectCustomParameterIdSchema = z.string() as unknown as z.ZodType<CustomNodeGraphEffectCustomParameterId>;
-const customNodeGraphEffectPublicParameterNameSchema = z.string() as unknown as z.ZodType<CustomNodeGraphEffectPublicParameterName>;
-const customNodeGraphEffectCustomParameterNameSchema = z.string() as unknown as z.ZodType<CustomNodeGraphEffectCustomParameterName>;
+export const customNodeGraphEffectPublicParameterIdSchema = z.string();
+export const customNodeGraphEffectCustomParameterIdSchema = z.string();
+const customNodeGraphEffectPublicParameterNameSchema = z.string();
+const customNodeGraphEffectCustomParameterNameSchema = z.string();
 export const customNodeGraphEffectPublicParameterReferenceSchema = z.object({ customNodeGraphEffect: customNodeGraphEffectTargetSchema, parameterId: customNodeGraphEffectPublicParameterIdSchema });
 export const customNodeGraphEffectCustomParameterReferenceSchema = z.object({ customNodeGraphEffect: customNodeGraphEffectTargetSchema, parameterId: customNodeGraphEffectCustomParameterIdSchema });
 export const customNodeGraphEffectOutputReferenceSchema = z.object({ customNodeGraphEffect: customNodeGraphEffectTargetSchema, outputId: identifierSchema });
-export const connectionTypePolicySchema = z.enum(['strict', 'allowMismatch']).describe('strict rejects incompatible texture types. allowMismatch explicitly permits them; it does not convert the data.');
+
 export const customNodeGraphEffectNodeOutputReferenceSchema = z.object({ nodeId: z.string(), outputPort: z.string() });
 const unconnectedOutputSchema = z.object({ nodeId: z.null(), outputPort: z.null() });
 export const customNodeGraphEffectNodeOutputConnectionSchema = z.union([customNodeGraphEffectNodeOutputReferenceSchema, unconnectedOutputSchema]);
@@ -50,7 +50,7 @@ export const customNodeGraphEffectOutputDefinitionSchema = customNodeGraphEffect
 const positionSchema = z.object({ x: z.number(), y: z.number() });
 export const customNodeGraphEffectNodeSchema: z.ZodType<CustomNodeGraphEffectNode> = z.union([
 	z.object({
-		id: z.string(), type: z.literal('effect'), effectId: z.string(), isBypass: z.boolean(), resolution: effectResolutionSchema,
+		id: z.string(), type: z.literal('effect'), effectSource: effectSourceSchema, isBypass: z.boolean(), resolution: effectResolutionSchema,
 		params: z.record(z.string(), customNodeGraphEffectParameterBindingSchema), staticSettings: staticSettingValuesSchema, displayName: z.string(), pos: positionSchema.optional(),
 	}),
 	z.object({ id: z.string(), type: z.literal('globalIn'), pos: positionSchema.optional() }),
@@ -58,6 +58,7 @@ export const customNodeGraphEffectNodeSchema: z.ZodType<CustomNodeGraphEffectNod
 	z.object({ id: z.string(), type: z.literal('relay'), label: z.string().optional(), dataType: textureDataTypeSchema, input: customNodeGraphEffectNodeOutputConnectionSchema, pos: positionSchema.optional() }),
 ]);
 export const customNodeGraphEffectSchema: z.ZodType<CustomNodeGraphEffect> = z.object({
+	resolutionInputParameters: z.array(z.string()),
 	nodes: z.array(customNodeGraphEffectNodeSchema), outputDefs: z.array(customNodeGraphEffectOutputDefinitionSchema), primaryOutputId: z.string().nullable(),
 	paramDefs: z.array(customNodeGraphEffectPublicParameterDefinitionSchema), customParameterDefs: z.array(customNodeGraphEffectCustomParameterDefinitionSchema),
 	customParameterValues: z.record(customNodeGraphEffectCustomParameterIdSchema, customNodeGraphEffectValueParameterBindingSchema),

@@ -306,7 +306,7 @@ for (const [name, action] of [
 	['FPS change', playback => playback.updateTimelinePreviewFps()],
 	['audio edit', playback => playback.refreshAudio()],
 	['suspend', playback => playback.suspend()],
-	['Custom Node Graph Effect Live Preview', playback => playback.startCustomNodeGraphEffectLivePreview('customNodeGraphEffect')],
+	['Effect Live Preview', playback => playback.startCustomNodeGraphEffectLivePreview('customNodeGraphEffect')],
 	['dispose', playback => playback.dispose()],
 ]) {
 	// 【通常操作はBAKEを中止し、遅れて届く描画完了から処理を再開しない】
@@ -690,7 +690,7 @@ test('keeps audio time advancing during slow rendering and requests the paused p
 });
 
 // 【タイムラインの表示だけを切り替えても時刻や再生状態を変更しない】
-// Custom Node Graph Effect Live Previewから停止中のプレビューへ戻る際に、再生開始や先頭へのシークを強制しない。
+// Effect Live Previewから停止中のプレビューへ戻る際に、再生開始や先頭へのシークを強制しない。
 test('shows the paused timeline at its retained position', t => {
 	const { playback, calls, callbacks } = setup(t);
 	playback.seekTimeline(1234);
@@ -729,7 +729,7 @@ test('suspends timeline rendering and resumes without advancing export time', t 
 	assert.equal(playback.currentTimelineTime.value, 117);
 });
 
-// 【Custom Node Graph Effect Live Previewの復帰では最後に設定した引数を復元する】
+// 【Effect Live Previewの復帰では最後に設定した引数を復元する】
 // 呼び出し元のオブジェクトが変更されても、エクスポート後に別の設定で再開してはいけない。
 test('restores customNodeGraphEffectLivePreview mode with a snapshot of the latest parameters', t => {
 	const { playback, calls } = setup(t);
@@ -784,8 +784,8 @@ test('resumes timeline playback from the stopped position', t => {
 	assert.equal(playback.currentTimelineTime.value, 34);
 });
 
-// タイムライン再生はCustom Node Graph Effect Live Previewを即座に停止し、初回RAFを待たず現在位置を表示する。
-test('stops Custom Node Graph Effect Live Preview before playing the timeline and ignores duplicate play', t => {
+// タイムライン再生はEffect Live Previewを即座に停止し、初回RAFを待たず現在位置を表示する。
+test('stops Effect Live Preview before playing the timeline and ignores duplicate play', t => {
 	const { playback, callbacks, calls } = setup(t);
 	playback.startCustomNodeGraphEffectLivePreview('customNodeGraphEffect');
 	calls.length = 0;
@@ -797,7 +797,7 @@ test('stops Custom Node Graph Effect Live Preview before playing the timeline an
 	assert.equal(callbacks.size, 1);
 });
 
-// Custom Node Graph Effect Live Preview開始時に古いRAFを取り消し、遅れて呼ばれてもタイムラインを再描画しない。
+// Effect Live Preview開始時に古いRAFを取り消し、遅れて呼ばれてもタイムラインを再描画しない。
 test('cancels timeline playback when starting customNodeGraphEffectLivePreview', t => {
 	const { playback, callbacks, calls, frame } = setup(t);
 	playback.playTimeline();
@@ -815,7 +815,7 @@ test('cancels timeline playback when starting customNodeGraphEffectLivePreview',
 	assert.deepEqual(calls, []);
 });
 
-// 同じ時刻へのシークでもCustom Node Graph Effect Live Previewを停止する。時刻のwatchに依存するとこの操作を取りこぼす。
+// 同じ時刻へのシークでもEffect Live Previewを停止する。時刻のwatchに依存するとこの操作を取りこぼす。
 test('seeking the current time switches customNodeGraphEffectLivePreview to paused timeline', t => {
 	const { playback, calls, callbacks } = setup(t);
 	playback.startCustomNodeGraphEffectLivePreview('customNodeGraphEffect');
@@ -852,8 +852,8 @@ test('advances by elapsed time with an fps limit', t => {
 	assert.equal(playback.currentTimelineTime.value, 130);
 });
 
-// Custom Node Graph Effect Live Previewパラメータ更新は同一Custom Node Graph Effectのインスタンスを維持し、タイムラインからは排他的に切り替える。
-test('updates Custom Node Graph Effect Live Preview parameters without restarting the current Custom Node Graph Effect', t => {
+// Effect Live Previewパラメータ更新は同一Custom Node Graph Effectのインスタンスを維持し、タイムラインからは排他的に切り替える。
+test('updates Effect Live Preview parameters without restarting the current Custom Node Graph Effect', t => {
 	const { playback, calls, callbacks } = setup(t);
 	playback.playTimeline();
 	playback.updateCustomNodeGraphEffectLivePreviewParamValues('customNodeGraphEffect', {});

@@ -245,7 +245,7 @@ export class CanvasRenderer {
 		if (request == null || sequence <= request.afterSequence) return;
 		this.pendingPreviewCapture = null;
 		clearTimeout(request.timer);
-		// uniform出力の作業テクスチャは1×1でも、表示はProjectの解像度へ広がる。
+		// 未接続のプレビュー表示には、1×1の透明テクスチャを使う。
 		// 作品プレビューの比率・寸法を保つため、元テクスチャではなく表示先を基準にする。
 		const scale = Math.min(1, request.maximumSize / Math.max(this.gpuContext.canvas.width, this.gpuContext.canvas.height));
 		const width = Math.max(1, Math.round(this.gpuContext.canvas.width * scale));

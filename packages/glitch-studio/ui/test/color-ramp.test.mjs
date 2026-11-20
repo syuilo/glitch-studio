@@ -1,3 +1,4 @@
+import { testGraph } from './helpers/effect-graph.mjs';
 import { nodeParameterTarget } from './helpers/command-inputs.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -23,14 +24,14 @@ const commands = evaluate(await build({
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts';
-		export { default as definition } from '@gs/subsystems_effect_shared/fx/colorRamp/_def_.ts';
+		export { default as definition } from '@gs/subsystems_effect-new_native-effects/fx/colorRamp/_def_.ts';
 	` },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 	plugins: [i18nPlugin, { name: 'color-ramp-command-platform', setup(build) {
-		build.onResolve({ filter: /effect-definitions\.[jt]s$|preferences\.ts$/ }, args => ({ path: args.path.includes('preferences') ? 'preferences' : 'effects', namespace: 'platform' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$|preferences\.ts$/ }, args => ({ path: args.path.includes('preferences') ? 'preferences' : 'effects', namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', resolveDir: uiDirectory, contents: path === 'preferences'
 			? 'export const preferences = { s: { forceTypeSafety: true } };'
-			: "import definition from '@gs/subsystems_effect_shared/fx/colorRamp/_def_.ts'; export const effectDefinitions = { colorRamp: definition };" }));
+			: "import definition from '@gs/subsystems_effect-new_native-effects/fx/colorRamp/_def_.ts'; export const nativeEffectDefinitions = { colorRamp: definition };" }));
 	} }],
 }));
 
@@ -38,8 +39,8 @@ const commands = evaluate(await build({
 // 個別stopをCommandの対象へ追加せず、既存の末端値編集で実際の履歴とMessagePack保存を往復する。
 test('preserves Color Ramp values and modifiers through merged edits, undo, redo and saving', async () => {
 	const { definition, COMMAND_DEFS, UndoRedo, encodeProjectFile, decodeProjectFile } = commands;
-	const node = { id: 'node', type: 'effect', effectId: 'colorRamp', resolution: { mode: 'context', scale: 1 }, staticSettings: {}, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([name, def]) => [name, structuredClone(def.defaultValue)])) };
-	const customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, id: 'custom-node-graph-effect', nodes: [node], paramDefs: [] };
+	const node = { id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'colorRamp' }, resolution: { mode: 'context', scale: 1 }, staticSettings: {}, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([name, def]) => [name, structuredClone(def.defaultValue)])) };
+	const customNodeGraphEffect = { id: 'custom-node-graph-effect', definition: testGraph({ customParameterValues: {}, nodes: [node] }) };
 	const state = { customNodeGraphEffects: { value: [customNodeGraphEffect] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const target = { customNodeGraphEffectId: customNodeGraphEffect.id, nodeId: node.id, paramPath: ['ramp'] };
@@ -71,7 +72,7 @@ test('preserves Color Ramp values and modifiers through merged edits, undo, redo
 	assert.match(node.params.ramp.expression, /middle/);
 	assert.deepEqual(node.params.ramp.expressionModifier, modifier);
 	const encoded = await encodeProjectFile({ assets: [], generatedSpeech: [], timelineScenes: [], customNodeGraphEffects: state.customNodeGraphEffects.value, gsVersion: '2.0.0-alpha.19' });
-	assert.deepEqual(decodeProjectFile(encoded).customNodeGraphEffects[0].nodes[0].params, node.params);
+	assert.deepEqual(decodeProjectFile(encoded).customNodeGraphEffects[0].definition.nodes[0].params, node.params);
 	assert.throws(() => history.commit('switchCustomNodeGraphEffectNodeParameterInputSource', { ...nodeParameterTarget({ ...target }), inputSource: 'automationGraphInline' }), /does not support/);
 });
 

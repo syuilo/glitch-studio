@@ -15,12 +15,12 @@ export function createGroupTimelineLayer(getGroup: () => TimelineGroupLayer, opt
 	createLayer: (layer: TimelineLayer, clipId: string | null) => TimelineLayerRenderer<TimelineImage>;
 	getLayerVersion: (layer: TimelineLayer, clipId: string | null) => string | number;
 }): TimelineLayerRenderer<TimelineImage> {
+	const compositor = createTimelineCompositor(options);
 	const renderer = new TimelineRenderer<TimelineImage, TimelineLayer>({
-		fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] },
+		fallbackOutput: compositor.transparentImage,
 		createLayer: options.createLayer,
 		getLayerVersion: options.getLayerVersion,
 	});
-	const compositor = createTimelineCompositor(options);
 	const parameters = new TimelineCompositingParameters();
 	// 設定と合成モードは、子の描画空間を作った評価に結び付ける。単一の「最新値」を
 	// 持つと、別サンプルの準備が先に進んだ際に、待機中の評価へその値が混ざってしまう。
@@ -46,7 +46,7 @@ export function createGroupTimelineLayer(getGroup: () => TimelineGroupLayer, opt
 				timeDelta: context.timeDelta,
 				referenceTime: context.referenceTime != null ? { timeMs: context.referenceTime.sceneTimeMs, timeDelta: context.referenceTime.timeDelta } : undefined,
 				renderSpace: getTimelineGroupSpace({ settings, compositingMode }, options.resolution, context.renderSpace),
-				getInput: async () => ({ kind: 'uniform', value: [0, 0, 0, 0] }),
+				getInput: async () => compositor.transparentImage,
 			});
 			evaluationSettings.set(childEvaluation, { settings, preserveDepth: compositingMode === 'preserveDepth' });
 			return childEvaluation;

@@ -51,11 +51,11 @@
 import { useProjectSession } from '@/project-session.ts';
 import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import { computed, onMounted, onBeforeUnmount, ref, shallowReactive, shallowRef, useId, useTemplateRef, watch } from 'vue';
-import { getNodeOutputs } from '@gs/subsystems_custom-node-graph-effect_shared/node-outputs.ts';
+import { getNodeOutputs } from '@/utility/custom-node-graph-effect-node-outputs.ts';
 import { getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import type { ComponentPublicInstance } from 'vue';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffect } from '@/types/custom-node-graph-effect-view.ts';
 import { getCustomNodeGraphEffectWireInputElements, useCustomNodeGraphEffectWires } from '@/utility/custom-node-graph-effect-wires.ts';
 import { wireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';

@@ -6,7 +6,7 @@ import { build } from 'esbuild';
 
 // Mediabunnyとの境界だけ差し替え、実際の時刻変換・トラック選択・Inputの寿命をテストする。
 const bundled = await build({
-	entryPoints: [fileURLToPath(import.meta.resolve('@gs/subsystems_effect_shared/fx/videoFrame/video-source.ts'))],
+	entryPoints: [fileURLToPath(import.meta.resolve('@gs/subsystems_effect-new_native-effects/fx/videoFrame/video-source.ts'))],
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['mediabunny'],
 });
 

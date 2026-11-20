@@ -7,7 +7,7 @@ import { previewParameterContextKey, getPreviewParameterPosition, beginPreviewPa
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
-import type { CustomNodeGraphEffectEffectNode } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
+import type { CustomNodeGraphEffectEffectNode } from '@/types/custom-node-graph-effect-view.ts';
 import type { EditableParameterBinding } from '../types/parameter-edit.ts';
 import type { ProjectSessionContext } from '../ProjectSessionContext.ts';
 import { getPreviewViewportValue, getPreviewViewportZoom, isViewport2DParameter, preparePreviewViewportDrag } from '../utility/preview-viewport.ts';
@@ -72,7 +72,7 @@ export function usePreviewParameterHandle(app: ProjectSessionContext, props: {
 		if (currentKey == null || !canEdit || context == null) return;
 		const common = {
 			key: currentKey,
-			label: () => [context.label.value, props.node == null ? null : `${props.node.displayName ?? props.node.effectId} ${prettyId(props.node.id)}`,
+			label: () => [context.label.value, props.node == null ? null : `${props.node.displayName || ('id' in props.node.effectSource ? props.node.effectSource.id : props.node.effectSource.type)} ${prettyId(props.node.id)}`,
 				props.label ?? props.paramDef.ui.label].filter(part => part != null && part !== '').join(' / '),
 			available: () => available.value,
 		};

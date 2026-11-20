@@ -1,4 +1,4 @@
-import type { SpectrogramSettings } from '@gs/subsystems_effect_shared/audio-spectrogram/audio-spectrogram.ts';
+import type { SpectrogramSettings } from '@gs/subsystems_effect-new_native-effects/fx/audioSpectrogram/audio-spectrogram.ts';
 
 export type MonitorSettings = { overlay: boolean; waveformSeconds: number };
 export type PreviewOptions =

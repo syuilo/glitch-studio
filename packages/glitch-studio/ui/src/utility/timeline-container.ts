@@ -48,7 +48,7 @@ export function duplicateTimelineLayers(source: readonly TimelineLayer[]): Timel
 		layer.id = ids.get(layer.id)!;
 		if ('layerMask' in layer && layer.layerMask != null) layer.layerMask.sourceLayerId = ids.get(layer.layerMask.sourceLayerId) ?? layer.layerMask.sourceLayerId;
 		if (!isTimelineContainerLayer(layer)) for (const clip of layer.clips) clip.id = genId();
-		for (const key of ['publicParameterValues', 'compositingParamValues', 'audioParamValues', 'effectParamValues', 'customNodeGraphEffectParamValues', 'textParamValues', 'subtitleParamValues', 'cameraParamValues', 'transformParamValues', 'shape'] as const) {
+		for (const key of ['publicParameterValues', 'compositingParamValues', 'audioParamValues', 'effectParamValues', 'textParamValues', 'subtitleParamValues', 'cameraParamValues', 'transformParamValues', 'shape'] as const) {
 			if (key in layer) remapReferences((layer as unknown as Record<string, unknown>)[key]);
 		}
 	}

@@ -80,7 +80,7 @@ async function fixture(t) {
 	};
 	const manager = await TimelineRendererManager.create({
 		gpuDevice: device, gpuContext: { canvas: { width: 16, height: 16 }, configure() {}, getCurrentTexture: texture },
-		effectDefinitions: {}, effectImplementations: {},
+		nativeEffectDefinitions: {}, nativeEffectImplementations: {},
 	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enable32bitDataTextures: false, }, { assets: [] });
 	manager.presentOutput = output => calls.outputs.push(output);
 	t.after(() => manager.destroy());
@@ -202,7 +202,7 @@ test('keeps transparent replace output and releases resources across clip gaps',
 	await f.manager.renderTimelineFrame(200, 50);
 	assert.equal(first.texture.destroyed, true);
 	assert.equal(mask.destroyed, true);
-	assert.equal(f.calls.outputs.at(-1).kind, 'uniform');
+	assert.equal(f.calls.outputs.at(-1).kind, 'texture');
 	await f.manager.renderTimelineFrame(450, 250);
 	const second = f.textDraws()[1];
 	assert.notEqual(second.texture, first.texture);

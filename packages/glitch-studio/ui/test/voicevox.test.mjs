@@ -46,8 +46,8 @@ const bundled = await build({
 	` },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['mediabunny'],
 	plugins: [{ name: 'voicevox-test', setup(build) {
-		build.onResolve({ filter: /effect-definitions\.[jt]s$|preferences\.ts$/ }, args => ({ path: args.path, namespace: 'test' }));
-		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', contents: path.includes('effect-definitions') ? 'export const effectDefinitions = {};' : 'export const preferences = { s: { forceTypeSafety: true } };' }));
+		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$|preferences\.ts$/ }, args => ({ path: args.path, namespace: 'test' }));
+		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', contents: (path.includes('effect-definitions') || path.includes('native-effects/definitions')) ? 'export const nativeEffectDefinitions = {};' : 'export const preferences = { s: { forceTypeSafety: true } };' }));
 	} }],
 });
 const module = { exports: {} };

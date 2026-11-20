@@ -22,7 +22,7 @@ AiScript自体は非同期で実行します。Commandの準備やダイアロ�
 let customNodeGraphEffect = Command:createCustomNodeGraphEffect({ name: "Generated" })
 let fillNode = Command:createCustomNodeGraphEffectEffectNode({
 	customNodeGraphEffect: customNodeGraphEffect
-	effectId: "fill"
+	effectSource: { type: "nativeEffect", id: "fill" }
 	connectionMode: "appendToPrimaryOutput"
 })
 
@@ -96,7 +96,7 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 <: Script:queries() // 利用可能なQueryの名前
 <: Query:listCustomNodeGraphEffects()
 <: Query:listEffects()
-<: Query:getEffect({ effectId: "fill" })
+<: Query:getEffect({ effectSource: { type: "nativeEffect", id: "fill" } })
 ```
 
 一覧の各項目が持つ`target`を、そのまま対応する取得関数へ渡せます。作成Commandはこの参照自体を返します。
@@ -106,18 +106,18 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 | `Query:getProject()` | なし | 名前・説明・作者・解像度・Timelineの描画設定・書き出し設定 |
 | `Query:listCustomNodeGraphEffects()` | なし | 登録済みとScene内のインラインCustom Node Graph Effectの`target`・名前 |
 | `Query:getCustomNodeGraphEffect(target)` | Custom Node Graph Effect参照 | ノード・パラメータ・出力定義などの保存内容 |
-| `Query:listNodes(target)` | Custom Node Graph Effect参照 | ノードの参照・種別・Effect ID・表示名 |
+| `Query:listNodes(target)` | Custom Node Graph Effect参照 | ノードの参照・種別・`effectSource`・表示名 |
 | `Query:getNode(target)` | Node参照 | ノードの保存内容 |
 | `Query:listTimelineScenes()` | なし | Scene参照・名前・解像度 |
 | `Query:getTimelineScene(target)` | Scene参照 | Scene全体の保存内容 |
-| `Query:listTimelineLayers(target)` | Scene参照 | 子孫を表示順に並べたLayer一覧。`parentLayerId`で親を表す |
-| `Query:getTimelineLayer(target)` | Layer参照 | Layerの保存内容 |
+| `Query:listTimelineLayers(target)` | Scene参照 | 子孫を表示順に並べたLayer一覧。`parentLayerId`で親を表す。Effectを配置したLayerはすべて`layerType: "effect"` |
+| `Query:getTimelineLayer(target)` | Layer参照 | Layerの保存内容。Effect Layerの`effectSource`からEffectの種類と参照先またはインライン定義を取得できる |
 | `Query:getTimelineLayerParameters(target)` | Layer参照 | パラメータグループごとの`definitions`・`values` |
 | `Query:listTimelineClips(target)` | Layer参照 | Clip一覧。コンテナLayerの場合は空配列 |
 | `Query:getTimelineClip(target)` | Clip参照 | Clipの保存内容 |
 | `Query:listAssets()` / `Query:getAsset(target)` | 一覧は引数なし／Asset参照 | 素材の名前・寸法・ファイル種別などのメタデータ。バイナリ・サムネイルは含まない |
 | `Query:listPlayers()` / `Query:getPlayer(target)` | 一覧は引数なし／Player参照 | Playerの保存内容 |
-| `Query:listEffects()` / `Query:getEffect(target)` | 一覧は引数なし／Effect参照 | どちらも日英の概要を `summary` で返す。取得ではパラメータ・静的設定・出力も返す |
+| `Query:listEffects()` / `Query:getEffect(target)` | 一覧は引数なし／Effect参照 | Native Effect と登録済みの Custom Shader Effect・Custom Node Graph Effect を列挙する。各項目の `target` からパラメータ・静的設定・出力を取得できる |
 | `Query:listProjectAutomationGraphs()` / `Query:getProjectAutomationGraph(target)` | 一覧は引数なし／Automation Graph参照 | ProjectのAutomation Graph |
 | `Query:listCustomShaderEffects()` / `Query:getCustomShaderEffect(target)` | 一覧は引数なし／Custom Shader Effect参照 | どちらも入力された概要を文字列の `summary` で返す。取得では保存された定義全体を返す |
 
@@ -126,16 +126,16 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 | 対象 | 参照 |
 |---|---|
 | 登録済みCustom Node Graph Effect | `{ customNodeGraphEffectId: "..." }` |
-| Scene内のインラインCustom Node Graph Effect | `{ sceneId: "...", inlineCustomNodeGraphEffectLayerId: "..." }` |
+| Scene内のEffect Layerが所有するインラインCustom Node Graph Effect | `{ sceneId: "...", layerId: "..." }` |
 | Node | `{ customNodeGraphEffect: customNodeGraphEffectTarget, nodeId: "..." }` |
 | Scene | `{ sceneId: "..." }` |
 | Layer | `{ sceneId: "...", layerId: "..." }` |
 | Clip | `{ sceneId: "...", layerId: "...", clipId: "..." }` |
-| Asset / Player / Effect | `{ assetId: "..." }` / `{ playerId: "..." }` / `{ effectId: "..." }` |
+| Asset / Player / Effect | `{ assetId: "..." }` / `{ playerId: "..." }` / `{ effectSource: { type: "nativeEffect", id: "fill" } }` など |
 | ProjectのAutomation Graph | `{ automationGraphId: "..." }` |
 | Custom Shader Effect | `{ customShaderEffectId: "..." }` |
 
-Timelineのパラメータグループは`Query:getTimelineLayerParameters`のキーで確認できます。Custom Node Graph Effectの引数グループは`customNodeGraphEffect`です。Commandの`parameterGroup`にも同じ名前を指定します。
+Timelineのパラメータグループは`Query:getTimelineLayerParameters`のキーで確認できます。配置したEffectの引数は3種類とも`effect`、Layer自身に宣言した公開パラメータは`publicParameter`です。Commandの`parameterGroup`にも同じ名前を指定します。
 
 ## Dialogと正常終了
 

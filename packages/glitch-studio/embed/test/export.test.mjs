@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { implementation } from './helpers/load.mjs';
-import { fixture, parameter, literal } from './helpers/fixture.mjs';
+import { fixture, parameter, literal, shaderDefinition } from './helpers/fixture.mjs';
 
 const { preparePortableCustomNodeGraphEffect, encodePortableCustomNodeGraphEffect, createPortableCustomNodeGraphEffectFiles, createPortableCustomNodeGraphEffectArchive,
-	validatePortableParameters, getPortableParameterDefaults, getPortableRenderResolution, fill, image, video } = implementation;
+	getPortableParameterDefinitions, validatePortableParameters, getPortableParameterDefaults, getPortableRenderResolution, fill, image, video } = implementation;
 const definitions = { fill, image, video };
 
 // 【配布物は参照素材と使用するシェーダーだけを開始時点の状態で同梱する】
@@ -14,27 +14,29 @@ test('collects immutable resources and custom shaders without local paths or dev
 	const input = fixture();
 	input.assets = [{ id: 'image', name: 'image', width: 2, height: 1, fileDataType: 'image/png', fileData: new Blob([new Uint8Array([1, 2, 3])]), sourceFilePath: 'C:/private/image.png' }];
 	input.players = [{ id: 'camera', name: 'Camera', sourceType: 'webcam', deviceId: 'private-device' }];
-	const node = (id, effectId, staticSettings) => ({ ...input.customNodeGraphEffect.nodes[0], id, effectId,
-		params: Object.fromEntries(Object.entries(definitions[effectId]?.paramDefs ?? {}).map(([key, definition]) => [key, structuredClone(definition.defaultValue)])), staticSettings });
-	input.customNodeGraphEffect.nodes.unshift(node('image', 'image', { asset: 'image' }), node('camera', 'video', { player: 'camera' }));
-	// Imageの静的設定名は実際の定義から取得する。参照を取り落とす変更も検出する。
-	input.customNodeGraphEffect.nodes[0].staticSettings = { [Object.keys(image.staticSettingDefs)[0]]: 'image' };
-	input.customNodeGraphEffect.nodes[1].staticSettings = { [Object.keys(video.staticSettingDefs)[0]]: 'camera' };
-	const shader = { id: 'shader', name: 'Shader', summary: '', shaderApiVersion: 1, codeLanguage: 'wgsl', kind: 'generate', paramDefs: [],
-		outputDefs: [{ id: 'output', nameForReference: 'color', label: 'Color', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'output', resolutionInputIds: [],
-		code: 'fn main(position: vec2f) -> Output { var output: Output; output.color = vec4f(1); return output; }' };
-	input.customShaderEffects = [shader, { ...shader, id: 'unused' }];
-	input.customNodeGraphEffect.nodes.unshift(node('shader', 'customShaderEffect:shader', {}));
+	const child = fixture().customNodeGraphEffect;
+	child.nodes.push(
+		{ id: 'image', effectSource: { type: 'nativeEffect', id: 'image' }, params: {}, staticSettings: { [Object.keys(image.staticSettingDefs)[0]]: 'image' } },
+		{ id: 'camera', effectSource: { type: 'nativeEffect', id: 'video' }, params: {}, staticSettings: { [Object.keys(video.staticSettingDefs)[0]]: 'camera' } },
+		{ id: 'shader', effectSource: { type: 'customShaderEffectReference', id: 'shared-id' }, params: {} },
+	);
+	const shader = shaderDefinition('fn main(position: vec2f) -> Output { return Output(vec4f(1)); }');
+	input.customShaderEffects = [{ id: 'shared-id', name: 'Shader', summary: '', definition: shader }, { id: 'unused', definition: shader }];
+	input.customNodeGraphEffects = [{ id: 'shared-id', name: 'Child', definition: child, nodeMetadata: { fill: { displayName: 'editor-only' } } },
+		{ id: 'unused', definition: child }];
+	input.customNodeGraphEffect.nodes[0] = { id: 'fill', effectSource: { type: 'customNodeGraphEffectReference', id: 'shared-id' }, params: {} };
 	const prepared = preparePortableCustomNodeGraphEffect(input, definitions);
-	input.customNodeGraphEffect.nodes[0].displayName = 'changed';
+	input.customNodeGraphEffect.nodes[0].id = 'changed';
 	shader.code = 'changed';
 	const encoded = await encodePortableCustomNodeGraphEffect(prepared);
 	assert.deepEqual(prepared.diagnostics.players, ['Camera']);
 	assert.equal(encoded.assets[0].fileDataBase64, 'AQID');
 	assert.equal(encoded.customShaderEffects.length, 1);
-	assert.notEqual(encoded.customShaderEffects[0].code, 'changed');
-	assert.notEqual(encoded.customNodeGraphEffect.nodes[0].displayName, 'changed');
-	assert.doesNotMatch(JSON.stringify(encoded), /private-device|C:\/private/);
+	assert.notEqual(encoded.customShaderEffects[0].definition.code, 'changed');
+	assert.equal(encoded.customNodeGraphEffect.nodes[0].id, 'fill');
+	assert.deepEqual(encoded.customNodeGraphEffects.map(entry => entry.id), ['shared-id']);
+	assert.deepEqual(prepared.runtimeRequirements, { effectIds: ['fill', 'image', 'video'], requiresExpressions: true, requiresCustomShaderEffects: true });
+	assert.doesNotMatch(JSON.stringify(encoded), /editor-only|private-device|C:\/private/);
 });
 
 // 【公開値は型とコンテナに従って検証し、HDRや参照名の大小文字を保持する】
@@ -45,8 +47,8 @@ test('validates public values atomically while preserving HDR colors and nested 
 	const array = { ...parameter('array', [], 'Points'), dataType: { kind: 'array', elementType: { kind: 'vector' } }, element: { defaultValue: literal([0, 0]) }, maxElements: 2,
 		ui: { label: 'Points', control: { element: {} } } };
 	array.defaultValue = literal([{ id: 'internal-id', binding: literal([0.1, 0.2]) }]);
-	const defs = [scalar, color, array];
-	assert.deepEqual(getPortableParameterDefaults(defs, new implementation.ExpressionEvaluator()).Points, [[0.1, 0.2]]);
+	const defs = getPortableParameterDefinitions({ paramDefs: { speedId: scalar, colorId: color, arrayId: array } });
+	assert.deepEqual(getPortableParameterDefaults(defs).Points, [[0.1, 0.2]]);
 	const values = { Speed: 2, Color: [-1, 3, 0.25, 0.5], Points: [[0.2, -0.1]] };
 	const validated = validatePortableParameters(defs, values);
 	values.Color[0] = 123;
@@ -99,9 +101,26 @@ test('round trips script-like strings through standalone HTML without executing 
 // 壊れた成果物を配布先で初めて発見することを避け、編集すべき箇所を明示する。
 test('rejects invalid output and cyclic graphs before encoding', () => {
 	const input = fixture();
-	input.customNodeGraphEffect.outputDefs[0].dataType = { kind: 'scalar' };
+	input.customNodeGraphEffect.outputSources = {};
+	input.customNodeGraphEffect.outputDefs.output.dataType = { kind: 'scalar' };
 	assert.throws(() => preparePortableCustomNodeGraphEffect(input, definitions), /primary color output/);
 	const cyclic = fixture();
 	cyclic.customNodeGraphEffect.nodes.unshift({ id: 'relay', type: 'relay', dataType: { kind: 'color' }, input: { nodeId: 'relay', outputPort: 'output' } });
-	assert.throws(() => preparePortableCustomNodeGraphEffect(cyclic, definitions), /cycle/);
+	assert.throws(() => preparePortableCustomNodeGraphEffect(cyclic, definitions), /Cyclic/);
+});
+
+// 【配列長が変わるまで公開入力の束縛を再利用し、未使用の配列を配置の寿命から切り離す】
+// 同じ長さの更新で配置を破棄するとFeedbackの履歴が失われる。入れ子の可変長配列についても判定する。
+test('reuses bound inputs until a used nested array changes length', () => {
+	const samples = { ...parameter('array', [], 'samples'), dataType: { kind: 'array', elementType: { kind: 'vector' } },
+		element: { defaultValue: literal([0, 0]), canNode: true }, ui: { label: 'Samples', control: { element: {} } } };
+	const field = { ...parameter('struct', { samples: literal([]) }, 'field'), dataType: { kind: 'struct', fields: { samples: samples.dataType } },
+		fields: { samples }, ui: { label: 'Field', control: { fields: { samples: samples.ui } } } };
+	const bound = implementation.createPortableEffectInputs({ settings: field, unused: { ...samples, nameForReference: 'unused' } },
+		{ field: { samples: [[1, 2]] }, unused: [] });
+	const input = bound.inputs.settings.fields.samples.elements[0];
+	assert.deepEqual(input.value, [1, 2]);
+	assert.equal(bound.update({ field: { samples: [[3, 4]] }, unused: [[0, 0]] }), true);
+	assert.deepEqual(input.value, [3, 4]);
+	assert.equal(bound.update({ field: { samples: [] }, unused: [] }), false);
 });

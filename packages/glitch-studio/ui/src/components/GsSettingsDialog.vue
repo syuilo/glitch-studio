@@ -28,6 +28,10 @@
 							<template #label>{{ i18n.ts._Workspace.CustomNodeGraphEffectEditor }}</template>
 
 							<div class="_gaps_l">
+								<GsSwitch v-model="forceTypeSafety" data-test-force-type-safety>
+									{{ i18n.ts._Settings.ForceTypeSafety }}
+									<template #caption>{{ i18n.ts._Settings.ForceTypeSafetyHint }}</template>
+								</GsSwitch>
 								<GsSwitch v-model="customNodeGraphEffectAutoConnectOnNodeAdd" data-test-custom-node-graph-effect-auto-connect-on-node-add>
 									{{ i18n.ts._Settings.CustomNodeGraphEffectAutoConnectOnNodeAdd }}
 									<template #caption>{{ i18n.ts._Settings.CustomNodeGraphEffectAutoConnectOnNodeAddHint }}</template>
@@ -166,6 +170,7 @@ const timelineFrameCacheMaxGiB = preferences.model('timelineFrameCacheMaxGiB');
 const timelineFrameCachePrecision = preferences.model('timelineFrameCachePrecision');
 const timelinePreviewFramesAhead = preferences.model('timelinePreviewFramesAhead');
 const previewDisplayMode = preferences.model('previewDisplayMode');
+const forceTypeSafety = preferences.model('forceTypeSafety');
 const customNodeGraphEffectAutoConnectOnNodeAdd = preferences.model('customNodeGraphEffectAutoConnectOnNodeAdd');
 const customNodeGraphEffectWireStyle = preferences.model('customNodeGraphEffectWireStyle');
 

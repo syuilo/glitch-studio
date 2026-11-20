@@ -95,7 +95,7 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 	const projectSession = {
 		previewParameterEditing: { handles: shallowRef([]), viewport: shallowRef(null), time: ref(0), clear() {} },
 		activePreviewRenderer: shallowRef(controller),
-		customNodeGraphEffectRendererManagerController: { outputResolution: ref(null) },
+		effectLivePreviewManagerController: { outputResolution: ref(null) },
 		timelineRendererManagerController: { isSeeking: ref(false) },
 		previewPlayback: { state: ref({ mode: 'timeline' }), currentTimelineTime: ref(0), isTimelinePlaying: ref(false) },
 		highlightClipping: ref(false), previewExposure: ref(0), previewSrgbProof: ref(false), resolutionFactor: ref(resolutionFactor), customNodeGraphEffectLivePreviewTimeFactor: ref(1),
@@ -145,7 +145,7 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 }
 
 // 【両プレビューの描画遅延だけを表示し、即時のシーク状態や停止中の古い通知では表示しない】
-// Timelineの再生中とCustom Node Graph Effect Live Previewも同じ表示条件に揃える。
+// Timelineの再生中とEffect Live Previewも同じ表示条件に揃える。
 // 対象の切替で非表示側の遅延を引き継がず、描画を中断した画面ではスピナーも消す。
 test('shows rendering delays for the active preview during playback and Live Preview', async t => {
 	const f = await fixture(t);
@@ -247,7 +247,7 @@ test('waits for live preview output resolution before fitting its initial view',
 	f.projectSession.previewPlayback.state.value = { mode: 'customNodeGraphEffectLivePreview', customNodeGraphEffectId: 'custom-node-graph-effect' };
 	await f.frame();
 	assert.equal(f.find('zoom').text, 'ZOOM: 100%');
-	f.projectSession.customNodeGraphEffectRendererManagerController.outputResolution.value = { width: 600, height: 1200 };
+	f.projectSession.effectLivePreviewManagerController.outputResolution.value = { width: 600, height: 1200 };
 	await f.replaceCanvas(600, 1200);
 	await f.frame();
 	assert.equal(f.style.scale, 450 / 1200);
@@ -313,7 +313,7 @@ test('fits changed output dimensions and a replacement live preview canvas', asy
 	await f.click('fit-zoom');
 	assert.equal(f.style.scale, 800 / 960);
 	f.projectSession.previewPlayback.state.value = { mode: 'customNodeGraphEffectLivePreview', customNodeGraphEffectId: 'custom-node-graph-effect' };
-	f.projectSession.customNodeGraphEffectRendererManagerController.outputResolution.value = { width: 600, height: 1200 };
+	f.projectSession.effectLivePreviewManagerController.outputResolution.value = { width: 600, height: 1200 };
 	await f.replaceCanvas(600, 1200);
 	await f.click('fit-zoom');
 	assert.equal(f.style.scale, 450 / 1200);

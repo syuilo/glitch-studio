@@ -29,7 +29,6 @@
 							v-if="node.type === 'effect'"
 							:customNodeGraphEffect="customNodeGraphEffect"
 							:node="node"
-							:effectState="effectStates?.get(node.id)"
 							:class="$style.node"
 							@dragStart="dragStart"
 							@staticSetting="edit => emit('edit', { kind: 'editNodeStaticSetting', nodeId: node.id, ...edit })"
@@ -132,8 +131,7 @@ import XParamDefsEditor from './GsCustomNodeGraphEffectEditor.ParamDefsEditor.vu
 import XCustomParameters from './GsCustomNodeGraphEffectEditor.CustomParameters.vue';
 import XOutputDefsEditor from './GsCustomNodeGraphEffectEditor.OutputDefsEditor.vue';
 import GsTabs from './common/GsTabs.vue';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectGlobalInNode, CustomNodeGraphEffectGlobalOutNode, CustomNodeGraphEffectNode, NodeOutputReference } from '@gs/subsystems_custom-node-graph-effect_shared/types.ts';
-import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
+import type { CustomNodeGraphEffect, CustomNodeGraphEffectGlobalInNode, CustomNodeGraphEffectGlobalOutNode, CustomNodeGraphEffectNode, NodeOutputReference } from '@/types/custom-node-graph-effect-view.ts';
 import type { CustomNodeGraphEffectEdit, CustomNodeGraphEffectAssetDropActions } from '@/types/custom-node-graph-effect-editor.ts';
 import type { CustomNodeGraphEffectTarget } from '@/utility/custom-node-graph-effect-target.ts';
 import { i18n } from '@/i18n.ts';
@@ -152,7 +150,6 @@ const props = defineProps<{
 	customNodeGraphEffect: CustomNodeGraphEffect;
 	customNodeGraphEffectName: string;
 	previewTarget?: CustomNodeGraphEffectTarget;
-	effectStates?: ReadonlyMap<string, EffectInstanceState> | null;
 	exporting?: boolean;
 	assetDropActions: CustomNodeGraphEffectAssetDropActions | null;
 }>();
