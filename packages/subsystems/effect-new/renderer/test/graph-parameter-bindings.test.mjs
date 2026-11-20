@@ -4,6 +4,7 @@ import { getNodeInputDataType, areNodeDataTypesCompatible } from '@gs/shared/dat
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
+import { validateEffectSource } from '@gs/subsystems_effect-new_shared/validate-effect-source.ts';
 import { planEffect } from '../src/plan-effect.ts';
 import { createEffectInstance } from '../src/create-effect-instance.ts';
 
@@ -135,6 +136,44 @@ test('resolves PUBLIC names separately from customNodeGraphEffectPublicParameter
 	assert.deepEqual([...result.paramValues], [['gain-id', 23]]);
 	assert.deepEqual(result.nodeParams.get('node'), { named: 23, direct: 23 });
 	assert.throws(() => evaluate(evaluator, context({ invalid: number }, { invalid: expression('PUBLIC("gain-id")') })), /unknown parameter/);
+});
+
+// 【文字列を返すPublic Parameterから数値パラメータへ直接割り当てる】
+// 参照元の型と値は保持し、参照先のCPU値・uniformの両方へ数値を渡す。
+// 配置を作り直さずに値を更新でき、数値にならない文字列は描画エラーとして報告する。
+test('coerces public string and enum references to scalar inputs', () => {
+	const outputDefs = { output: { dataType: { kind: 'color' } } };
+	const nativeDefinition = {
+		paramDefs: { amount: paramDef('Amount', 0), uniform: { ...number, canNode: true } },
+		outputDefs, primaryOutput: 'output', primaryInputParameter: null, resolutionInputParameters: [],
+	};
+	const definitions = { getNativeEffect: () => nativeDefinition };
+	const reference = { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'source' };
+	for (const dataType of [{ kind: 'string' }, { kind: 'enum', options: ['2.5', '-3', 'invalid'] }]) {
+		const customNodeGraphEffect = {
+			paramDefs: { source: { ...paramDef('source', '2.5', 'string'), dataType } },
+			outputDefs, primaryOutput: 'output', primaryInputParameter: null, resolutionInputParameters: [],
+			nodes: [node({ amount: reference, uniform: reference })],
+			outputSources: { output: { nodeId: 'node', outputPort: 'output' } },
+		};
+		const effectSource = { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect };
+		validateEffectSource(effectSource, definitions);
+
+		const input = { kind: 'value', value: '2.5' };
+		const { steps } = planEffect({ effectSource, definitions, inputs: { source: input }, resolution: { width: 16, height: 16 }, usedOutputPorts: new Set(['output']) });
+		const { inputs } = [...steps].find(step => step.path?.[0] === 'node');
+		assert.equal(inputs.amount.kind, 'value');
+		assert.equal(inputs.uniform.kind, 'uniform');
+		assert.equal(inputs.amount.value, 2.5);
+		assert.deepEqual(inputs.uniform.value, [2.5]);
+		input.value = '-3';
+		assert.equal(inputs.amount.value, -3);
+		assert.deepEqual(inputs.uniform.value, [-3]);
+		assert.equal(input.value, '-3');
+		input.value = 'invalid';
+		assert.throws(() => inputs.amount.value, /Invalid numeric string "invalid" for parameter "Amount"/);
+		assert.throws(() => inputs.uniform.value, /Invalid numeric string "invalid"/);
+	}
 });
 
 const rampGraph = (isNormalized = true) => ({

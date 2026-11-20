@@ -49,10 +49,15 @@ export function reconcileCustomShaderEffectUsages(state: ProjectState, previous:
 			if (node == null) return null;
 			return node.type === 'relay' ? node.dataType : resolveEffectSource(node.effectSource, definitions).definition.outputDefs[source.outputPort]?.dataType;
 		};
-		const compatible = (source: CustomNodeGraphEffectOutputSource | null | undefined, input: ReturnType<typeof getNodeInputDataType>) =>
-			source == null || !('nodeId' in source) || !changed.has(source.nodeId) || areNodeDataTypesCompatible(next.definition.outputDefs[source.outputPort]?.dataType, input);
+		function canKeepOutputConnection(source: CustomNodeGraphEffectOutputSource | null | undefined, input: ReturnType<typeof getNodeInputDataType>) {
+			if (source == null || !('nodeId' in source) || !changed.has(source.nodeId)) return true;
+			const output = next.definition.outputDefs[source.outputPort];
+			// 参照先の型が同じなら、名前や他のポートを編集しても許可済みの型不一致の配線を保持する。
+			return output != null && (previous.definition.outputDefs[source.outputPort]?.dataType.kind === output.dataType.kind
+				|| areNodeDataTypesCompatible(output.dataType, input));
+		}
 		const nodes = graph.nodes.map(node => {
-			if (node.type === 'relay') return compatible(node.input, node.dataType) ? node : { ...node, input: null };
+			if (node.type === 'relay') return canKeepOutputConnection(node.input, node.dataType) ? node : { ...node, input: null };
 			const effectSource = reconcileSource(node.effectSource);
 			const parameterDefs = resolveEffectSource(effectSource, definitions).definition.paramDefs;
 			const params: Record<string, CustomNodeGraphEffectParameterBinding> = deepClone(node.params);
@@ -67,11 +72,11 @@ export function reconcileCustomShaderEffectUsages(state: ProjectState, previous:
 				}
 			}
 			if (changed.size > 0) for (const { path, def, value } of walkParameters<CustomNodeGraphEffectParameterBinding>(parameterDefs, params)) {
-				if (value.inputSource === 'node' && !compatible(value.source, getNodeInputDataType(def))) resolveParameter<CustomNodeGraphEffectParameterBinding>(parameterDefs, params, path).setValue({ ...value, source: null });
+				if (value.inputSource === 'node' && !canKeepOutputConnection(value.source, getNodeInputDataType(def))) resolveParameter<CustomNodeGraphEffectParameterBinding>(parameterDefs, params, path).setValue({ ...value, source: null });
 			}
 			return { ...node, effectSource, params };
 		});
-		const outputSources = Object.fromEntries(Object.entries(graph.outputSources).filter(([id, source]) => compatible(source, graph.outputDefs[id]?.dataType)));
+		const outputSources = Object.fromEntries(Object.entries(graph.outputSources).filter(([id, source]) => canKeepOutputConnection(source, graph.outputDefs[id]?.dataType)));
 		return { ...graph, nodes, outputSources };
 	}
 

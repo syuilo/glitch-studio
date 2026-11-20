@@ -3,6 +3,7 @@ import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.
 import { scaleResolution } from '@gs/shared/resolution.ts';
 import { resolveEffectNodeResolution } from '@gs/subsystems_effect-new_shared/effect-node-resolution.ts';
 import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
+import { canCoerceParameterDataType, coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { constantShaderInputComponents } from '@gs/shared/gpu/shader-input.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import { resolveEffectSource } from '@gs/subsystems_effect-new_shared/effect-source.ts';
@@ -19,7 +20,7 @@ import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definit
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { EffectSource, EffectDefinitions, ResolvedEffect } from '@gs/subsystems_effect-new_shared/effect-source.ts';
-import { isUnselectedGraphParameterReference, type CustomNodeGraphEffectParameterBinding, type NodeOutputReference } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
+import { isUnselectedGraphParameterReference, type CustomNodeGraphEffect, type CustomNodeGraphEffectParameterBinding, type NodeOutputReference } from '@gs/subsystems_effect-new_shared/custom-node-graph-effect.ts';
 import type { EffectParameterInput, EffectImageInput, EffectFrameContext, EffectPreparationStatus } from './effect-instance.ts';
 
 export interface EffectPlacement {
@@ -109,7 +110,11 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 	let evaluator: ParameterBindingEvaluator | null = null;
 	const getEvaluator = () => evaluator ??= new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const bindScopes = new Set<() => void>();
-	type Evaluation = { graph: () => ReturnType<typeof createGraphEvaluation>; resolution: () => Resolution };
+	type Evaluation = {
+		graph: () => ReturnType<typeof createGraphEvaluation>;
+		resolution: () => Resolution;
+		publicParameterDefs?: CustomNodeGraphEffect['paramDefs'];
+	};
 
 	function planBinding(definition: ParameterDefinition, binding: CustomNodeGraphEffectParameterBinding,
 		publicInput: (id: string) => PlannedInput, nodeOutput: (reference: NodeOutputReference) => PlannedInput | null,
@@ -121,7 +126,21 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 		if (binding.inputSource === 'customNodeGraphEffectPublicParameterReference') {
 			const source = publicInput(binding.parameterId);
 			const input = source.input;
-			if (definition.canNode === true && input.kind === 'value') return { input: valueInput(definition, () => input.value), use: source.use, prepareRead: source.prepareRead };
+			if (input.kind === 'value') {
+				const sourceDefinition = evaluation.publicParameterDefs?.[binding.parameterId];
+				if (sourceDefinition != null && canCoerceParameterDataType(sourceDefinition.dataType, definition.dataType)) {
+					// 参照元の文字列は保持し、受け取り側で変換する。子グラフがPUBLICで読む場合も同じ変換を通す。
+					return {
+						input: valueInput(definition, () => coerceParameterValue(definition, input.value)),
+						use: source.use,
+						prepareRead() {
+							const read = prepareCpuReader(source);
+							return frame => coerceParameterValue(definition, read(frame));
+						},
+					};
+				}
+				if (definition.canNode === true) return { input: valueInput(definition, () => input.value), use: source.use, prepareRead: source.prepareRead };
+			}
 			return withSampling(source, binding.sampling);
 		}
 		if (binding.inputSource === 'node') {
@@ -276,7 +295,8 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 					const childPath = [...path, node.id];
 					const childInput = (id: string, nodeResolution: () => Resolution) => {
 						const def = child.definition.paramDefs[id];
-						return planBinding(def, node.params[id] ?? def.defaultValue, parameter, nodeOutput, childPath, { graph: graphScope, resolution: nodeResolution });
+						return planBinding(def, node.params[id] ?? def.defaultValue, parameter, nodeOutput, childPath,
+							{ graph: graphScope, resolution: nodeResolution, publicParameterDefs: graph.paramDefs });
 					};
 					resolve = planPlacement(child, childInput, getResolution, node.resolution ?? null, node.staticSettings ?? {}, childPath, node.isBypass);
 					placements.set(node.id, resolve);

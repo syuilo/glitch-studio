@@ -1,4 +1,10 @@
+import type { DataType } from '../data-type/data-type.ts';
 import type { ParameterDefinition } from './parameter-definition.ts';
+
+/** 実際の文字列が有限の数値を表すかは、値の評価後に判定する。 */
+export function canCoerceParameterDataType(source: DataType, destination: DataType): boolean {
+	return destination.kind === 'scalar' && (source.kind === 'string' || source.kind === 'enum');
+}
 
 /** 評価済みの値を受け取り側の型に合わせる。保存値や参照元のenum/stringは変更しない。 */
 export function coerceParameterValue(definition: Pick<ParameterDefinition, 'dataType' | 'ui'>, value: unknown): unknown {

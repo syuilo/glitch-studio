@@ -1,5 +1,6 @@
 import { inspectStaticParameter, validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
+import { canCoerceParameterDataType } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { validateStaticSettings } from '@gs/shared/static-setting.ts';
 import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
@@ -108,7 +109,8 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 						if (id == null && parameter.canNode === true) throw new Error('Custom parameters require CPU values: ' + key);
 						const compatible = parameter.canNode === true
 							? canConnectNodeDataTypes(getNodeInputDataType(parameter), getNodeInputDataType(def), 'allowMismatch')
-							: areDataTypesEqual(parameter.dataType, def.dataType);
+							: areDataTypesEqual(parameter.dataType, def.dataType)
+								|| (id != null && canCoerceParameterDataType(parameter.dataType, def.dataType));
 						if (!compatible) throw new Error('Incompatible public parameter: ' + key);
 					}
 				});

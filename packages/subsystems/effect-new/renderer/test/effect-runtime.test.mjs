@@ -53,6 +53,40 @@ test('evaluates nested public and custom scopes, modifiers, automation and keyfr
 	cyclic.dispose();
 });
 
+// 【子グラフのPUBLICも直接割り当てで変換された数値を読む】
+// 親の公開値が式で変わっても、子グラフの数値参照にはそのフレームの変換結果を渡す。
+test('coerces public string references read by nested graph expressions', async () => {
+	const nativeDefinition = { ...definition, paramDefs: { result: scalar } };
+	const child = {
+		...definition,
+		paramDefs: { gain: scalar },
+		nodes: [{ id: 'draw', effectSource: native, params: { result: expression('PUBLIC("gain") + 1') } }],
+		outputSources: { image: output },
+	};
+	const parent = inline({
+		...definition,
+		paramDefs: { text: { ...scalar, dataType: { kind: 'string' }, defaultValue: literal('0') } },
+		nodes: [{
+			id: 'child', effectSource: inline(child),
+			params: { gain: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'text' } },
+		}],
+		outputSources: { image: { nodeId: 'child', outputPort: 'image' } },
+	});
+	validateEffectSource(parent, { getNativeEffect: () => nativeDefinition });
+
+	const values = [];
+	const instance = await create(parent, nativeDefinition, ({ inputs }) => ({
+		render() { values.push(inputs.result.value); }, dispose() {},
+	}), { params: { text: expression('if TIME < 2 { "2.5" } else { "-3" }') } });
+	try {
+		instance.render(frame(1));
+		instance.render(frame(2));
+		assert.deepEqual(values, [3.5, -2]);
+	} finally {
+		instance.dispose();
+	}
+});
+
 // 【公開入力からRelayを通る配線は、外部入力の種類と値をそのまま渡す】
 // InからOutへ直接つないだ場合と同じく、Relay自身はGPUリソースや描画処理を必要としない。
 test('passes both uniform and texture public inputs through a relay', async () => {

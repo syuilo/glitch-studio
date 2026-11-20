@@ -138,6 +138,43 @@ test('preserves compatible values and disconnects removed outputs atomically acr
 	assert.equal(state.customNodeGraphEffects.value[0].definition.nodes[0].params.amount.value, 'TIME');
 });
 
+// 【Custom Shader Effectの出力名を編集しても型不一致の配線を保持する】
+// 出力IDと型が同じなら、型安全設定を切り替えた後も、許可済みの配線をノード・Relay・公開出力に残す。
+// 出力の型自体が変わった場合は互換性を再判定し、非互換な配線を解除する。
+test('preserves mismatched wires when a shader output is renamed', () => {
+	const { definition, state, manager } = usageFixture();
+	const target = { customNodeGraphEffectId: 'customNodeGraphEffect' };
+	manager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect: target, effectSource: customShaderEffectReference(definition.id) });
+	const graph = state.customNodeGraphEffects.value[0].definition;
+	const [source, destination] = graph.nodes;
+	const wire = { nodeId: source.id, outputPort: 'mask' };
+	const input = definition.definition.primaryInputParameter;
+	const sampling = { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
+	destination.params[input] = { inputSource: 'node', source: wire, sampling };
+	graph.nodes.push({ id: 'relay', type: 'relay', dataType: { kind: 'color' }, input: wire });
+	graph.outputDefs.out.dataType = { kind: 'color' };
+	graph.outputSources.out = wire;
+
+	const connections = () => {
+		const current = state.customNodeGraphEffects.value[0].definition;
+		return [current.nodes[1].params[input].source, current.nodes[2].input, current.outputSources.out];
+	};
+	for (const rename of [{ label: 'Renamed' }, { nameForReference: 'renamed_mask' }]) {
+		const updated = structuredClone(definition);
+		Object.assign(updated.definition.outputDefs.mask, rename);
+		manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: updated.id, definition: updated });
+		assert.deepEqual(connections(), [wire, wire, wire]);
+		manager.undo();
+	}
+
+	const changedType = structuredClone(definition);
+	changedType.definition.outputDefs.mask.dataType = { kind: 'vector' };
+	manager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: changedType.id, definition: changedType });
+	assert.deepEqual(connections(), [null, null, undefined]);
+	manager.undo();
+	assert.deepEqual(connections(), [wire, wire, wire]);
+});
+
 // 【未接続・バイパス状態でも配置が参照するShaderを同梱する】
 // 読み込んだ後に配線やバイパスを変更できるよう、描画経路外の定義も持ち運ぶ。
 test('includes registered shaders in disconnected and bypassed nodes when exporting', () => {
