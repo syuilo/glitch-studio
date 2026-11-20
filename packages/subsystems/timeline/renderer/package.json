@@ -28,10 +28,10 @@
 		"./layers/video/video-timeline-layer.ts": "./src/layers/video/video-timeline-layer.ts"
 	},
 	"devDependencies": {
-		"@types/web": "0.0.359",
-		"@typescript-eslint/parser": "8.72.1",
+		"@types/web": "0.0.366",
+		"@typescript-eslint/parser": "8.72.2",
 		"@webgpu/types": "0.1.74",
-		"vite": "8.3.5",
+		"vite": "8.3.8",
 		"@gs/subsystems_effect_native-effects": "workspace:*"
 	},
 	"dependencies": {

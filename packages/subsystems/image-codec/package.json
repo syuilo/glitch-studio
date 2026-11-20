@@ -15,7 +15,7 @@
 	},
 	"devDependencies": {
 		"@jsquash/webp": "1.5.0",
-		"@types/web": "0.0.359",
-		"vite": "8.3.5"
+		"@types/web": "0.0.366",
+		"vite": "8.3.8"
 	}
 }

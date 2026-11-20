@@ -19,13 +19,13 @@
 		"./audio-spectrum.ts": "./src/audio-spectrum.ts"
 	},
 	"devDependencies": {
-		"@types/web": "0.0.359",
-		"@typescript-eslint/parser": "8.72.1",
-		"vite": "8.3.5"
+		"@types/web": "0.0.366",
+		"@typescript-eslint/parser": "8.72.2",
+		"vite": "8.3.8"
 	},
 	"dependencies": {
 		"@gs/shared": "workspace:*",
-		"mediabunny": "1.65.0",
+		"mediabunny": "1.66.0",
 		"@gs/subsystems_audio_shared": "workspace:*"
 	}
 }
