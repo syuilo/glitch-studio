@@ -32,7 +32,7 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 
 評価後、受け取り側のパラメータ定義が判明する境界で`coerceParameterValue()`を使う。scalarへ渡された文字列は`Number()`で有限な数値に変換し、空文字列・空白のみ・変換不能・非有限となる文字列はパラメータ名を含むエラーにする。enumの値やstring、保存済みのBindingは文字列のまま保持する。配列・構造体は既存のツリー走査で各scalar末端に適用する。数値以外の型やvector/colorの成分を暗黙変換する処理ではない。
 
-共通の`ParameterBindingBase`はツリー操作に必要な`inputSource`だけを定義する。`resolveParameter`・`walkParameters`・`mapParameterTree`・`walkParameterLeaves`の型引数には、ツリー全体で許可するBinding型を明示する。利用箇所では親がliteralでも子は式やドメイン固有方式になり得るため、親の具体型からは推論しない。走査結果・編集先と`ParameterArrayElement`は指定したBinding型を保持する。パラメータ定義の既定値は配列の要素・追加時の要素や構造体フィールドを含めて末端までliteralとする。未設定の値を補う`walkParameters`の結果には`ParameterDefaultValue`も含まれる。
+共通の`ParameterBindingBase`はツリー操作に必要な`inputSource`だけを定義する。`resolveParameter`・`walkParameters`・`mapParameterTree`・`walkParameterLeaves`の型引数には、ツリー全体で許可するBinding型を明示する。利用箇所では親がliteralでも子は式やドメイン固有方式になり得るため、親の具体型からは推論しない。走査結果・編集先と`ParameterArrayElement`は指定したBinding型を保持する。パラメータ定義の既定値は配列の要素・追加時の要素や構造体フィールドを含めて末端までliteralとする。`walkParameters`は渡されたBindingを定義順でたどり、未設定のルートを飛ばす。
 
 `node`・`customNodeGraphEffectPublicParameterReference`はCustom Node Graph Effect、`lowerLayerOutput`はTimeline側が型を定義し、共通基盤から参照しない。各ドメインは共通方式に固有方式を組み合わせ、利用可否の検証と参照の解決を担当する。literalの内部値は完全には静的型付けしていないため、配列・構造体内のBindingも受け入れ時に検証する。
 

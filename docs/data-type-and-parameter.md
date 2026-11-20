@@ -218,7 +218,7 @@ Bindingは利用可能な入力方式を所有するドメインで定義しま�
 
 Effect Layerは3種類のEffectすべてに `TimelineEffectParameterBinding` を使います。Timelineの入力方式に加え、音声用の `lowerLayerAudio` / `anotherLayerAudio` と画像用の `lowerLayerOutput` / `anotherLayerOutput` を持ちます。画像Bindingにはfit・wrap・filterを保存でき、Custom Node Graph Effect内のサンプリングは内部接続が指定します。Custom Node Graph Effect Live Previewから渡す `CustomNodeGraphEffectArgumentBindings` は共通方式だけを許可し、タイムラインの合成設定・音量にはTimelineの方式を許可します。
 
-共通の `ParameterBindingBase` はツリー操作に必要な `inputSource` だけを持ち、保存用の全方式を集めたunionにはしません。共通の走査・IDパスによる編集処理はジェネリックにし、呼び出し側のBinding型を保持します。未設定の値を補う `walkParameters` は、呼び出し側のBindingかliteralの既定値を返します。ノード接続やレイヤー入力は利用ドメイン側で設定します。複数ドメインを扱う編集用unionはUI側に置き、各Commandへ渡す境界で対象を絞り込みます。literalの内部値の完全な静的型付けは行っていないため、配列・構造体内部の入力方式の実行時検証も維持します。
+共通の `ParameterBindingBase` はツリー操作に必要な `inputSource` だけを持ち、保存用の全方式を集めたunionにはしません。共通の走査・IDパスによる編集処理はジェネリックにし、呼び出し側のBinding型を保持します。`walkParameters` は渡されたBindingを定義順でたどり、未設定のルートを飛ばします。ノード接続やレイヤー入力は利用ドメイン側で設定します。複数ドメインを扱う編集用unionはUI側に置き、各Commandへ渡す境界で対象を絞り込みます。literalの内部値の完全な静的型付けは行っていないため、配列・構造体内部の入力方式の実行時検証も維持します。
 
 ## 静的設定
 

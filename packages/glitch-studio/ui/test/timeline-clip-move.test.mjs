@@ -165,10 +165,10 @@ test('moves speech and empty stop keys with parameters while preserving speech s
 	f.history.redo(); assert.deepEqual(f.scene, after);
 });
 
-// 【未設定のCustom Node Graph Effect引数とネストしたレーンは独立したルートへ保存する】
-// 既定値を直接変更すると別レイヤーまで動き、単なるコピーを変更すると結果が保存されない。
-// 同じ配列要素の複数パラメータを追従させても上書きし合わず、Undoで未設定へ戻す。
-test('materializes default arguments and nested lanes without modifying shared definitions', t => {
+// 【保存済みのCustom Node Graph Effect引数のキーをクリップと一緒に移動する】
+// 同じ配列要素の複数フィールドを追従させても互いの編集を保持し、共有定義や未編集の配置に波及させない。
+// ドラッグの履歴をマージしても、クリップと全レーンを同じUndo/Redoで復元する。
+test('moves saved scalar and nested lanes with clips through merged undo and redo', t => {
 	for (const nested of [false, true]) {
 		const f = fixture(t, []);
 		const def = nested ? { ...structuredClone(arrayDefinition.paramDefs.buzzs), id: 'value' }
@@ -201,7 +201,7 @@ test('materializes default arguments and nested lanes without modifying shared d
 
 // 【後半のキー検証が失敗してもクリップや前半のキーを変更しない】
 // 発話の指定終端が安全な整数範囲を超えるとき、履歴に残らない部分更新を防ぐ。
-// ドラッグ中に追従対象を削除した場合も、別のキーで置き換えたり黙って無視したりしない。
+// ドラッグ中に追従対象のキーやBindingを削除しても、確定時に元のIDとパスで照合して操作全体を拒否する。
 test('rejects invalid speech endpoints and missing captured keys atomically', t => {
 	const audio = audioLayer('audio', [clip('a', 1000, 1000)], [1100]);
 	const speech = createVoicevoxTimelineLayer(1000);
@@ -212,10 +212,17 @@ test('rejects invalid speech endpoints and missing captured keys atomically', t 
 	assert.throws(() => f.history.commit('moveTimelineClips', { sceneId: 'scene', clips: f.targets, deltaMs: 100 }), /Invalid VOICEVOX subtitle duration/);
 	assert.deepEqual(f.scene, before);
 	const initial = prepareTimelineClipMove(f.state, f.scene, [f.targets[0]]);
+	const edit = { sceneId: 'scene', clips: initial.clips.map(clip => ({ ...clip, startMs: clip.startMs + 100 })),
+		keyframes: initial.keyframes.map(point => ({ ...point, x: point.x + 100 })) };
+	const assertMissingKeyframe = () => {
+		const beforeFailedEdit = structuredClone(f.scene);
+		assert.throws(() => f.history.commit('setTimelinePositions', edit), /Timeline keyframe not found/);
+		assert.deepEqual(f.scene, beforeFailedEdit);
+	};
 	audio.audioParamValues.volume.keyframesTimeline.keyframes = [];
-	const deleted = structuredClone(f.scene);
-	assert.throws(() => f.history.commit('setTimelinePositions', { sceneId: 'scene', clips: initial.clips.map(clip => ({ ...clip, startMs: clip.startMs + 100 })), keyframes: initial.keyframes.map(point => ({ ...point, x: point.x + 100 })) }), /Timeline keyframe not found/);
-	assert.deepEqual(f.scene, deleted);
+	assertMissingKeyframe();
+	delete audio.audioParamValues.volume;
+	assertMissingKeyframe();
 	assert.equal(f.changes.length, 0);
 	assert.equal(f.history.undoStack.value.length, 0);
 });

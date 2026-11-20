@@ -49,7 +49,7 @@ mapParameterTree(structDefinition, structDefinition.defaultValue, [], (_def, _bi
 walkParameterLeaves(definitions, literalParents);
 // @ts-expect-error IDパスの解決でも子のBinding型を親から推論しない
 resolveParameter(definitions, literalParents, ['array', 'first']);
-// @ts-expect-error 既定値を補完する走査でもドメインのBinding型を明示する
+// @ts-expect-error IDパスを使う走査でもドメインのBinding型を明示する
 walkParameters(definitions, literalParents);
 
 // 共通方式だけのBindingを持つ配置では、literalの親の下にも式を指定できる。
@@ -105,7 +105,7 @@ const common = resolveParameter<ValueParameterBinding>(definitions, literalParen
 // @ts-expect-error 共通方式だけのツリーには固有方式を書き込めない
 common.setValue({ inputSource: 'testReference', referenceId: 'source' });
 
-// 未設定の値は、ドメインが指定した方式に加えてliteralの既定値だけを返す。
+// 走査結果は利用ドメインのBinding型に一致する。
 for (const { value } of walkParameters<ReferenceBinding>(definitions, {})) {
-	const binding: ReferenceBinding | ParameterDefaultValue = value;
+	const binding: ReferenceBinding = value;
 }

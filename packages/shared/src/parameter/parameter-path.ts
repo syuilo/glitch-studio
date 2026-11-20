@@ -1,7 +1,7 @@
 import { getArrayElementDefinition, getStructFieldDefinitions } from './parameter-definition.ts';
 import { isLiteralParameterBinding } from './parameter-binding.ts';
 import type { ParameterArrayElement, ParameterBindingBase } from './parameter-binding.ts';
-import type { ParameterDefaultValue, ParameterDefinition } from './parameter-definition.ts';
+import type { ParameterDefinition } from './parameter-definition.ts';
 
 // 配列はindexではなく要素IDで指定する。親までのパスがIDのスコープとなる。
 export type ParamPath = readonly [string, ...string[]];
@@ -38,18 +38,17 @@ export function resolveParameter<Binding extends ParameterBindingBase = never>(d
 	return { def, value, setValue };
 }
 
-// 未設定の値は末端までliteralの既定値で補う。
+// 呼び出し側が渡したBindingを定義順でたどる。
 export function* walkParameters<Binding extends ParameterBindingBase = never>(defs: Record<string, ParameterDefinition>, params: NoInfer<Record<string, Binding>>): Generator<{
-	path: ParamPath; def: ParameterDefinition; value: Binding | ParameterDefaultValue;
+	path: ParamPath; def: ParameterDefinition; value: Binding;
 }> {
-	type ChildBinding = Binding | ParameterDefaultValue;
-	function* walk(def: ParameterDefinition, value: ChildBinding, path: ParamPath): ReturnType<typeof walkParameters<Binding>> {
+	function* walk(def: ParameterDefinition, value: Binding, path: ParamPath): ReturnType<typeof walkParameters<Binding>> {
 		if (def.dataType.kind === 'array' && isLiteralParameterBinding(value)) {
-			for (const element of value.value as ParameterArrayElement<ChildBinding>[]) {
+			for (const element of value.value as ParameterArrayElement<Binding>[]) {
 				yield* walk(getArrayElementDefinition(def), element.binding, [...path, element.id]);
 			}
 		} else if (def.dataType.kind === 'struct' && isLiteralParameterBinding(value)) {
-			const fields = value.value as Record<string, ChildBinding>;
+			const fields = value.value as Record<string, Binding>;
 			for (const [key, field] of Object.entries(getStructFieldDefinitions(def))) {
 				yield* walk(field, fields[key], [...path, key]);
 			}
@@ -58,5 +57,8 @@ export function* walkParameters<Binding extends ParameterBindingBase = never>(de
 		}
 	}
 
-	for (const [key, def] of Object.entries(defs)) yield* walk(def, params[key] ?? def.defaultValue, [key]);
+	for (const [key, def] of Object.entries(defs)) {
+		const value = params[key];
+		if (value != null) yield* walk(def, value, [key]);
+	}
 }

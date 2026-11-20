@@ -91,11 +91,12 @@ test('replaces nested leaf bindings without changing their containers or IDs', (
 	assert.throws(() => resolveParameter({ group }, values, ['group', 'items', 'missing', 'amount']), /Unknown array element/);
 });
 
-// 【未設定のコンテナの既定値も、配列要素IDを含むパスで走査する】
-// 既定値が末端までliteralでも、初期状態を表示するために通常の配置と同じパスで参照できる必要がある。
-test('walks nested literal defaults when a root parameter is missing', () => {
-	const leaves = [...walkParameters({ group }, {})];
+// 【明示されたBindingだけを定義順で走査する】
+// キーや配線の列挙では未設定のルートを飛ばす。保存順を変えてもTimelineのレーンなどの表示順が変わらないようにする。
+test('walks only supplied bindings in definition order', () => {
+	const leaves = [...walkParameters({ start: scalar, group, end: scalar }, { end: literal(2), start: literal(1) })];
 	assert.deepEqual(leaves.map(({ path, value }) => [path, value]), [
-		[['group', 'items', 'first', 'amount'], scalar.defaultValue],
+		[['start'], literal(1)],
+		[['end'], literal(2)],
 	]);
 });

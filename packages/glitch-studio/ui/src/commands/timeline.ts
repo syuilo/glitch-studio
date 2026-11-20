@@ -37,12 +37,11 @@ import type { EditableTimelineParameterBinding } from '../types/parameter-edit.t
 import type { TimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineContainerLayerType } from '@gs/subsystems_timeline_shared/container-layer.ts';
 import type { TimelineKeyframeSelection, TimelineKeyframePosition } from '@/utility/timeline-selection.ts';
-import type { TimelineKeyframeMoveUpdate } from '@/utility/timeline-keyframe-move.ts';
 import type { TimelineClipPaste } from '@/utility/timeline-clip-clipboard.ts';
 import type { TimelineClipSourceDurations } from '@/utility/timeline-clip-media.ts';
 import type { TimelineKeyframePaste } from '@/utility/timeline-keyframe-clipboard.ts';
 import { getTimelineKeyframePasteUpdates } from '@/utility/timeline-keyframe-clipboard.ts';
-import { prepareTimelineKeyframeMove } from '@/utility/timeline-keyframe-move.ts';
+import { moveTimelineKeyframesInDraft } from '@/utility/timeline-keyframe-move.ts';
 import { prepareTimelineClipMove } from '@/utility/timeline-clip-move.ts';
 
 export const setTimelineGroupCompositingModeCommandDef = defineTimelineCommand<{ sceneId: string; layerId: string; mode: 'flat' | 'preserveDepth' }>({
@@ -594,15 +593,6 @@ export const setTimelineMediaClipPlaybackRateCommandDef = defineTimelineCommand<
 	},
 });
 
-export function applyTimelineKeyframeMove(state: ProjectState, sceneId: string, updates: TimelineKeyframeMoveUpdate[], side: 'before' | 'after') {
-	for (const update of updates) {
-		const layer = getTimelineLayer(state, sceneId, update.layerId);
-		if (update.target === 'utterance') {
-			if (layer.layerType === 'voicevox') layer.utterances = deepClone(update[side]);
-		} else setTimelineLayerParameterRoot(layer, update.target, update.paramId, update[side]);
-	}
-}
-
 export const moveTimelineClipsCommandDef = defineTimelineCommand<{ sceneId: string; clips: TimelineClipTarget[]; deltaMs: number }>({
 	label: 'Move timeline clips',
 	changes: (state, payload) => [...new Set(payload.clips.map(clip => clip.layerId))].map(layerId => ({
@@ -622,9 +612,8 @@ export const moveTimelineClipsCommandDef = defineTimelineCommand<{ sceneId: stri
 		const scene = getScene(state, payload.sceneId);
 		const move = prepareTimelineClipMove(state, scene, payload.clips);
 		if (payload.deltaMs < move.minDelta || payload.deltaMs > move.maxDelta) throw new Error('Timeline edit is outside the valid range');
-		const updates = prepareTimelineKeyframeMove(state, scene, move.keyframes.map(point => ({ ...point, x: point.x + payload.deltaMs })));
+		moveTimelineKeyframesInDraft(state, scene, move.keyframes.map(point => ({ ...point, x: point.x + payload.deltaMs })));
 		for (const target of move.clips) getTimelineClip(state, payload.sceneId, target).clip.startMs = target.startMs + payload.deltaMs;
-		applyTimelineKeyframeMove(state, payload.sceneId, updates, 'after');
 	},
 });
 
@@ -882,8 +871,7 @@ export const moveTimelineKeyframesCommandDef = defineTimelineCommand<{ sceneId: 
 	})),
 	scope: payload => ({ sceneId: payload.sceneId }),
 	edit: (state, payload) => {
-		const updates = prepareTimelineKeyframeMove(state, getScene(state, payload.sceneId), payload.positions);
-		applyTimelineKeyframeMove(state, payload.sceneId, updates, 'after');
+		moveTimelineKeyframesInDraft(state, getScene(state, payload.sceneId), payload.positions);
 	},
 });
 
@@ -1052,9 +1040,8 @@ export const moveTimelineContainerInTimeCommandDef = defineTimelineCommand<{ sce
 		if (!isTimelineContainerLayer(container) || !Number.isSafeInteger(payload.deltaMs)) throw new Error('Invalid container move');
 		const initial = prepareTimelineContainerMove(state, container);
 		if (payload.deltaMs < initial.minDelta || payload.deltaMs > initial.maxDelta) throw new Error('Timeline edit is outside the valid range');
-		const updates = prepareTimelineKeyframeMove(state, getScene(state, payload.sceneId), initial.keyframes.map(point => ({ ...point, x: point.x + payload.deltaMs })));
+		moveTimelineKeyframesInDraft(state, getScene(state, payload.sceneId), initial.keyframes.map(point => ({ ...point, x: point.x + payload.deltaMs })));
 		for (const clip of initial.clips) getTimelineClip(state, payload.sceneId, clip).clip.startMs = clip.startMs + payload.deltaMs;
-		applyTimelineKeyframeMove(state, payload.sceneId, updates, 'after');
 	},
 });
 
@@ -1081,10 +1068,9 @@ export const setTimelinePositionsCommandDef = defineTimelineCommand<{ sceneId: s
 	})),
 	edit: (state, input) => {
 		if (new Set(input.clips.map(clip => JSON.stringify([clip.layerId, clip.clipId]))).size !== input.clips.length) throw new Error('Duplicate clip target');
-		const updates = prepareTimelineKeyframeMove(state, getScene(state, input.sceneId), input.keyframes);
+		moveTimelineKeyframesInDraft(state, getScene(state, input.sceneId), input.keyframes);
 		for (const position of input.clips) getTimelineClip(state, input.sceneId, position).clip.startMs = position.startMs;
 		for (const layerId of new Set(input.clips.map(clip => clip.layerId))) validateTimelineClips(getTimelineClipLayer(state, input.sceneId, layerId).clips);
-		applyTimelineKeyframeMove(state, input.sceneId, updates, 'after');
 	},
 });
 
