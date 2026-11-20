@@ -52,7 +52,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		const encoder = device.createCommandEncoder();
 		const output = compositor.render(encoder, background, source, { ...defaults, ...settings }, space, false, undefined, layerMaskImage);
 		device.queue.submit([encoder.finish()]);
-		const actual = output.kind === 'texture' ? await read(output.texture) : solid(output.value.map(value => Math.round(value * 255)));
+		const actual = await read(output.texture);
 		if (actual.length !== expected.length || actual.some((value, i) => Math.abs(value - expected[i]) > 2)) {
 			throw new Error(`${name}: ${actual} != ${expected}`);
 		}
@@ -124,8 +124,8 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		// 【倍率0は区間外ではなく、有効な透明マスクとして扱う】
 		// 透明な生成結果・素材が画面外へ出た場合も同じ被覆率の規則で処理できる。
 		await check('timeline zero scale mask clears background', blue, red, { mask: alphaMask, scale: [0, 1] }, solid([0, 0, 0, 0]));
-		// 【画像テクスチャのAlphaも、定数のAlphaと同じ規則で読み取る】
-		// 動画・画像のマスクを使う経路で、型別のpipeline切り替えと補間を検証する。
+		// 【模様のある素材のAlphaで下層を切り抜く】
+		// マスクの左右で異なるAlphaを読み、素材自身の色を描画しないことを確認する。
 		const maskTexture = texture(8, 4, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 0, 0, 0]));
 		await check('timeline texture mask reads alpha without drawing its color', blue, maskTexture, { mask: alphaMask }, pixels(x => x < 4 ? [0, 0, 255, 255] : [0, 0, 0, 0]));
 		// 半透明の素材にopacityを掛けても、RGBへalphaを二重乗算しない。
@@ -143,8 +143,8 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		await check('timeline scale shrinks around canvas center', blue, red, { scale: [0.5, 0.5] }, pixels((x, y) => x >= 2 && x < 6 && y >= 1 && y < 3 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		await check('timeline rotation respects rectangular aspect ratio', blue, red, { rotation: 0.25 }, pixels(x => x >= 2 && x < 6 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		// 【素材の右端を画面中央に配置する】
-		// 定数には画面サイズの素材枠を与える。originだけを変えても配置が動くことを確認する。
-		await check('timeline anchors the right edge of a uniform source at the center', blue, red, { origin: [0.5, 0] }, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
+		// Sceneと同じ寸法の素材で、originだけを変えても配置が動くことを確認する。
+		await check('timeline anchors the right edge of a scene-sized source at the center', blue, red, { origin: [0.5, 0] }, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		// 【支点の配置先を維持して拡縮する】
 		// 拡縮を戻した後にoriginへ戻さないと、倍率に応じて右端が画面中央からずれる。
 		await check('timeline scales around the positioned source anchor', blue, red, { origin: [0.5, 0], scale: [0.5, 0.5] }, pixels((x, y) => x < 4 && y >= 1 && y < 3 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
@@ -158,7 +158,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		await check('timeline anchors the contained source edge at the center', blue, wideRed, { origin: [0.5, 0], fitMode: 'contain' }, pixels((x, y) => x < 4 && y >= 1 && y < 3 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		await check('timeline zero scale produces transparent source', blue, red, { scale: [0, 1] }, solid([0, 0, 255, 255]));
 		await check('timeline replace with zero scale clears background', blue, red, { blendMode: 19, scale: [0, 1] }, solid([0, 0, 0, 0]));
-		// テクスチャ入力の左右反転と、uniform/texture切り替え時のpipeline更新を確認する。
+		// 同じ合成器へ模様のあるテクスチャを渡し、左右反転の結果を確認する。
 		const striped = texture(8, 4, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 255, 0, 255]));
 		await check('timeline negative scale flips texture source', transparent, striped, { scale: [-1, 1] }, pixels(x => x < 4 ? [0, 255, 0, 255] : [255, 0, 0, 255]));
 		// 【適用範囲だけを動かし、処理済み画像の模様は合成先の座標に固定する】
@@ -233,12 +233,11 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		}
 		// 全モードの分岐が実行可能であり、不透明な入力から透明度が失われないことを確認する。
 		for (const [name, blendMode] of Object.entries(colorBlendModes)) {
-			// Replaceは上の専用ケースで検証する。無変形ではuniformのまま返る。
+			// Replaceは上の専用ケースで検証する。無変形では素材のテクスチャを借用する。
 			if (name === 'none' || name === 'replace') continue;
 			const encoder = device.createCommandEncoder();
 			const output = compositor.render(encoder, blue, red, { ...defaults, blendMode });
 			device.queue.submit([encoder.finish()]);
-			if (output.kind !== 'texture') throw new Error('Expected texture');
 			const actual = await read(output.texture);
 			if (actual.some((v, i) => i % 4 === 3 && v !== 255)) throw new Error(`Invalid alpha for ${name}`);
 			completed.push(`timeline blend mode ${name}`);

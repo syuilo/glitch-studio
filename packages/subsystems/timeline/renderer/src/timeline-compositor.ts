@@ -1,6 +1,5 @@
 import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
-import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
-import { toShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import { createShaderInputBindings, generateShaderInputs } from '@gs/shared/gpu/shader-input.ts';
 import blendCode from '@gs/shared/color-blend.wgsl?raw';
 import { TIMELINE_FRAME, TIMELINE_IDENTITY, intersectTimelineBounds, invertTimelineAffine, multiplyTimelineAffine, projectTimelineMatrix, timelineGeometryMatrix, transformTimelineBounds, unionTimelineBounds } from '@gs/subsystems_timeline_shared/spatial.ts';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
@@ -12,6 +11,7 @@ import type { TimelineImage } from './timeline-image.ts';
 import type { TimelineLayerContext, TimelineLayerEvaluation } from './timeline-renderer.ts';
 
 export type TimelineCompositingObserver = (source: TimelineImage, settings: TimelineCompositingSettings, space?: TimelineRenderSpace) => void;
+const textureInputGroup = 1;
 const boundsUniform = (bounds: TimelineBounds) => [(bounds.left + bounds.right) / 2, (bounds.bottom + bounds.top) / 2, (bounds.right - bounds.left) / 2, (bounds.top - bounds.bottom) / 2];
 const rows = (matrix: TimelineAffine) => ({ x: [matrix[0], matrix[2], matrix[4], 0], y: [matrix[1], matrix[3], matrix[5], 0] });
 
@@ -36,18 +36,52 @@ export function createTimelineCompositor(options: {
 	const buffer = device.createBuffer({ size: uniforms.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 	const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
 	const group = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer } }] });
-	const pipelines = createShaderInputPipeline({
-		device,
-		vertex: options.vertex,
-		code: blendCode + code,
-		schema: { background: 'color', source: 'color', layerMask: 'color' },
-		targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
-		internalLayouts: [layout],
-		sampling: 'level0',
-	});
+	let compositingPipeline: ReturnType<typeof createCompositingPipeline> | null = null;
 	let texture: GPUTexture | null = null;
 	let transparent: ReturnType<typeof acquireTransparentTimelineImage> | null = null;
 	let renderedCompositor: ReturnType<typeof createTimelineCompositor> | null = null;
+
+	function createCompositingPipeline() {
+		let backgroundTexture: GPUTexture;
+		let sourceTexture: GPUTexture;
+		let layerMaskTexture: GPUTexture;
+		// 画像の配置と範囲は合成設定で計算済み。ここでは各画像の範囲内をstretchで読み、
+		// テクスチャや描画先の物理寸法が変わってもサンプリング情報を作り直さない。
+		const sampling = { kind: 'texture', fitMode: 'stretch', wrapMode: 'transparent', filterMode: 'linear', resolution } as const;
+		const inputs = {
+			background: { ...sampling, get texture() { return backgroundTexture; } },
+			source: { ...sampling, get texture() { return sourceTexture; } },
+			layerMask: { ...sampling, get texture() { return layerMaskTexture; } },
+		};
+		const generated = generateShaderInputs({ background: 'color', source: 'color', layerMask: 'color' }, inputs, textureInputGroup, 'level0');
+		const bindings = createShaderInputBindings(device, generated);
+		try {
+			const pipeline = device.createRenderPipeline({
+				layout: device.createPipelineLayout({ bindGroupLayouts: [layout, bindings.layout] }),
+				vertex: { module: options.vertex },
+				fragment: {
+					module: device.createShaderModule({ code: generated.code + '\n' + blendCode + code }),
+					targets: [{ format: INTERMEDIATE_TEXTURE_FORMAT }],
+				},
+				primitive: { topology: 'triangle-list' },
+			});
+			const getBindGroup = bindings.bindFixedInputs(inputs, resolution);
+			return {
+				pipeline,
+				bindTextures(background: GPUTexture, source: GPUTexture, layerMask: GPUTexture) {
+					backgroundTexture = background;
+					sourceTexture = source;
+					layerMaskTexture = layerMask;
+					return getBindGroup();
+				},
+				dispose: bindings.dispose,
+			};
+		} catch (error) {
+			bindings.dispose();
+			throw error;
+		}
+	}
+
 	return {
 		get transparentImage(): TimelineImage { return (transparent ??= acquireTransparentTimelineImage(device, resolution)).image; },
 		/** 素材のGPU処理は呼び出し側がsubmitし、合成は依存評価が確定してから実行する。 */
@@ -141,13 +175,8 @@ export function createTimelineCompositor(options: {
 				layerMaskInverted: Number(settings.layerMask?.inverted === true),
 			});
 			device.queue.writeBuffer(buffer, 0, uniforms.arrayBuffer);
-			const variant = pipelines.update({
-				// 背景は合成先へ配置済み。座標範囲への写像はWGSL側で行うため、
-				// 拡張された描画先の物理寸法でFitし直すと、静止した背景までクロップされる。
-				background: toShaderInput(background, { fitMode: 'stretch', wrapMode: 'transparent', filterMode: 'linear' }),
-				source: toShaderInput(source, { fitMode: 'stretch', wrapMode: 'transparent', filterMode: 'linear' }),
-				layerMask: toShaderInput(maskImage, { fitMode: 'stretch', wrapMode: 'transparent', filterMode: 'linear' }),
-			}, size);
+			const pipeline = compositingPipeline ??= createCompositingPipeline();
+			const textureGroup = pipeline.bindTextures(background.texture, source.texture, maskImage.texture);
 			const descriptor: GPURenderPassDescriptor = {
 				colorAttachments: [{
 					view: texture.createView(),
@@ -157,13 +186,20 @@ export function createTimelineCompositor(options: {
 				}],
 			};
 			const pass = options.beginPass?.(encoder, descriptor) ?? encoder.beginRenderPass(descriptor);
-			pass.setPipeline(variant.pipeline);
+			pass.setPipeline(pipeline.pipeline);
 			pass.setBindGroup(0, group);
-			pass.setBindGroup(pipelines.inputGroup, variant.bindGroup);
+			pass.setBindGroup(textureInputGroup, textureGroup);
 			pass.draw(3);
 			pass.end();
 			return { kind: 'texture', texture, region: { bounds: outputBounds, frameSize: resolution } };
 		},
-		dispose() { transparent?.release(); renderedCompositor?.dispose(); texture?.destroy(); buffer.destroy(); pipelines.dispose(); },
+		dispose() {
+			transparent?.release();
+			renderedCompositor?.dispose();
+			texture?.destroy();
+			buffer.destroy();
+			compositingPipeline?.dispose();
+			compositingPipeline = null;
+		},
 	};
 }

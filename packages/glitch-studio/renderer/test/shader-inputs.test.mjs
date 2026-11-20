@@ -147,14 +147,14 @@ test('cancels compositing while awaiting a referenced mask image', async () => {
 	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 } });
 	let resolveMask;
 	const mask = new Promise(resolve => { resolveMask = resolve; });
-	const source = { kind: 'uniform', value: [1, 0, 0, 1] };
+	const source = { kind: 'texture', texture: device.createTexture({ size: [8, 4], format: 'rgba16float' }) };
 	const settings = { mask: null, layerMask: { sourceLayerId: 'source', channel: 'alpha', inverted: false }, coordinateSpace: 'screen',
 		blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0, depth: 0 };
 	const controller = new AbortController();
 	try {
 		const result = compositor.evaluate({ getLayerOutput: () => mask }, source, settings);
 		assert.equal(result.source, source);
-		const pending = result.composite({ kind: 'uniform', value: [0, 0, 0, 0] }, controller.signal);
+		const pending = result.composite(compositor.transparentImage, controller.signal);
 		controller.abort();
 		resolveMask(source);
 		await assert.rejects(pending, { name: 'AbortError' });
@@ -179,7 +179,7 @@ test('scales image layer sources once and preserves borrowed asset textures', as
 		const renderer = createImageTimelineLayer(layer, source, {
 			device, vertex: {}, resolution: { width: 1920 * resolutionScale, height: 1080 * resolutionScale }, resolutionScale
 		});
-		const background = { kind: 'uniform', value: [0, 0, 0, 0] };
+		const background = { kind: 'texture', texture: device.createTexture({ size: [1920 * resolutionScale, 1080 * resolutionScale], format: 'rgba16float' }) };
 		const context = { sceneTimeMs: 0, contentTimeMs: 0, contentEndTimeMs: 5000, clipElapsedTimeMs: 0, clipDurationMs: 5000, isExport: resolutionScale === 1 };
 		const signal = new AbortController().signal;
 		const first = await (await renderer.evaluate(context, signal)).composite(background, signal);
@@ -187,7 +187,7 @@ test('scales image layer sources once and preserves borrowed asset textures', as
 		assert.equal(first.texture, second.texture);
 		assert.deepEqual([first.texture.width, first.texture.height], [3840 * resolutionScale, 2160 * resolutionScale]);
 		assert.equal(calls.draws, resolutionScale === 1 ? 0 : 1);
-		assert.equal(calls.textures.length, resolutionScale === 1 ? 1 : 2);
+		assert.equal(calls.textures.length, resolutionScale === 1 ? 2 : 3);
 		if (resolutionScale === 1) assert.equal(first.texture, source);
 		else assert.equal(first.texture.format, 'rgba16float');
 		assert.equal(submissions, 4);
@@ -195,7 +195,8 @@ test('scales image layer sources once and preserves borrowed asset textures', as
 		assert.equal(submissions, 4);
 		renderer.destroy();
 		assert.equal(source.destroyed, false);
-		assert.ok(calls.textures.filter(texture => texture !== source).every(texture => texture.destroyed));
+		assert.equal(background.texture.destroyed, false);
+		if (resolutionScale < 1) assert.equal(first.texture.destroyed, true);
 		assert.ok(calls.buffers.every(buffer => buffer.destroyed));
 		await renderer.evaluate(context, signal);
 		assert.equal(submissions, 4);
@@ -211,15 +212,17 @@ test('composites native-resolution sources with the selected fit before replacin
 	const source = { kind: 'texture', texture };
 	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 100, height: 100 } });
 	const settings = { blendMode: 19, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
-	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
+	const background = compositor.transparentImage;
+	const containWrite = calls.writes.length;
 	const contained = compositor.render(encoder, background, source, settings);
 	assert.notEqual(contained, source);
 	assert.deepEqual([contained.texture.width, contained.texture.height], [100, 100]);
-	assert.deepEqual([calls.writes.at(-2)[0], calls.writes.at(-2)[5]], [1, Math.fround(3840 / 2160)]);
+	assert.deepEqual([calls.writes[containWrite][0], calls.writes[containWrite][5]], [1, Math.fround(3840 / 2160)]);
+	const coverWrite = calls.writes.length;
 	compositor.render(encoder, background, source, { ...settings, fitMode: 'cover', scale: [0.5, 0.5] });
-	assert.deepEqual([calls.writes.at(-2)[0], calls.writes.at(-2)[5]], [2 * 2160 / 3840, 2]);
+	assert.deepEqual([calls.writes[coverWrite][0], calls.writes[coverWrite][5]], [2 * 2160 / 3840, 2]);
 	assert.ok(calls.groups.some(group => group.entries.some(entry => entry.resource.texture === texture)));
-	assert.deepEqual(calls.textures.map(texture => [texture.width, texture.height]), [[3840, 2160], [100, 100]]);
+	assert.deepEqual(calls.textures, [texture, background.texture, contained.texture]);
 	compositor.dispose();
 	assert.equal(texture.destroyed, false);
 });
@@ -232,7 +235,7 @@ test('keeps stretched replace outputs in scene coordinates without copying the s
 	const resolution = { width: 8, height: 4 };
 	const compositor = createTimelineCompositor({ device, vertex: {}, resolution });
 	const source = { kind: 'texture', texture: device.createTexture({ size: [16, 16], format: 'rgba16float' }) };
-	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
+	const background = compositor.transparentImage;
 	const settings = { blendMode: 19, opacity: 1, fitMode: 'stretch', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0, depth: 0 };
 	const output = compositor.render(encoder, background, source, settings);
 	assert.equal(output.texture, source.texture);
@@ -240,7 +243,7 @@ test('keeps stretched replace outputs in scene coordinates without copying the s
 	assert.deepEqual(output.region, { bounds: { left: -1, bottom: -1, right: 1, top: 1 }, frameSize: resolution });
 	assert.deepEqual(getTimelinePlacement(output, resolution, { ...settings, fitMode: 'contain' }), [1, 0, 0, 1, 0, 0]);
 	assert.equal(calls.draws, 0);
-	assert.equal(calls.textures.length, 1);
+	assert.equal(calls.textures.length, 2);
 	compositor.dispose();
 	assert.equal(source.texture.destroyed, false);
 });
@@ -248,7 +251,7 @@ test('keeps stretched replace outputs in scene coordinates without copying the s
 // 【ノード入力は同じ縦横比でもSceneの宣言寸法へ揃える】
 // EffectとCustom Node Graph EffectはTimelineのregionを知らないため、正方形の物理テクスチャを
 // 横長の合成結果としてそのまま渡すと入力サンプリングで再びFitされてしまう。
-// 定数と確定済み画像では、空のencoder作成・GPU送信も省く必要がある。
+// 確定済み画像では、空のencoder作成・GPU送信も省く必要がある。
 test('normalizes node inputs to declared scene dimensions while borrowing already matching frames', () => {
 	const { device, calls, encoder } = gpuFixture();
 	let encoders = 0, submissions = 0;
@@ -312,7 +315,7 @@ test('preserves background bounds and frame size when applying an oversized mask
 
 // 【素材寸法とfitに応じて支点だけを画面座標へ変換する】
 // originを画面基準のまま渡すと、縦横比が違う素材の端を固定できない。
-// 同じcompositorへの入力サイズ・fit・uniform切り替えでも毎回換算し、Positionは保持する。
+// 同じcompositorへの入力サイズやfitの切り替えでも毎回換算し、Positionは保持する。
 test('maps source-relative origins through fit while keeping positions in output space', () => {
 	const { device, calls, encoder } = gpuFixture();
 	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 100, height: 100 } });
@@ -329,7 +332,7 @@ test('maps source-relative origins through fit while keeping positions in output
 		const uniforms = calls.writes[writeIndex];
 		// 逆行列へPositionを渡すと、fit前の素材支点に戻る。
 		const mapped = [uniforms[0] * settings.position[0] * 2 + uniforms[1] * settings.position[1] * 2 + uniforms[2], uniforms[4] * settings.position[0] * 2 + uniforms[5] * settings.position[1] * 2 + uniforms[6]];
-		const sourceSize = source.kind === 'texture' ? [source.texture.width, source.texture.height] : [100, 100];
+		const sourceSize = [source.texture.width, source.texture.height];
 		assert.deepEqual(mapped, settings.origin.map((value, axis) => value * 2 * Math.max(...sourceSize) / sourceSize[axis]));
 		assert.equal(1 / uniforms[0], Math.abs(expectedOrigin[0]));
 		assert.equal(1 / uniforms[5], Math.abs(expectedOrigin[1]));
@@ -376,26 +379,31 @@ test('renders the selected Custom Node Graph Effect primary output after updates
 	}
 });
 
-// 【不透明度0と無変形の置き換えで余分なテクスチャを作らない】
+// 【不透明度0と無変形の置き換えで描画用のリソースを作らない】
 // 置き換え後の座標情報は更新するが、借用した画素の所有権は取得せず破棄もしない。
+// 合成パスを省略する間は、パイプラインやサンプリング情報の準備も必要ない。
 test('passes through timeline outputs without taking ownership', () => {
 	const { device, calls, encoder } = gpuFixture();
 	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 } });
-	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
+	const background = { kind: 'texture', texture: device.createTexture({ size: [8, 4], format: 'rgba16float' }) };
 	const source = { kind: 'texture', texture: device.createTexture({ size: [4, 2], format: 'rgba16float' }) };
 	const settings = { blendMode: 19, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
 	assert.equal(compositor.render(encoder, background, source, settings).texture, source.texture);
 	assert.equal(compositor.render(encoder, background, source, { ...settings, opacity: 0 }), background);
 	assert.equal(compositor.render(encoder, background, source, { ...settings, blendMode: 10 }), background);
-	assert.equal(calls.textures.length, 1);
+	assert.equal(calls.textures.length, 2);
 	assert.equal(calls.draws, 0);
+	assert.equal(calls.shaders.length, 0);
+	assert.equal(calls.writes.length, 0);
 	compositor.dispose();
+	assert.equal(background.texture.destroyed, false);
 	assert.equal(source.texture.destroyed, false);
 	assert.ok(calls.buffers.every(buffer => buffer.destroyed));
 });
 
 // 【レイヤーごとの出力所有権】
 // 各レイヤーが別々の出力を所有し、値の変更時には再利用、破棄時には所有物だけを解放する。
+// 入力テクスチャを差し替えてもサンプリング情報は固定なので、2回目以降は変形・合成設定だけを送る。
 test('owns separate timeline targets and reuses pipelines across parameter changes', () => {
 	const { device, calls, encoder } = gpuFixture();
 	const options = { device, vertex: {}, resolution: { width: 8, height: 4 } };
@@ -406,9 +414,11 @@ test('owns separate timeline targets and reuses pipelines across parameter chang
 	const settings = { blendMode: 0, opacity: 0.5, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
 	const a = first.render(encoder, background, source, settings);
 	const shaderCount = calls.shaders.length;
-	const updated = first.render(encoder, background, source, { ...settings, rotation: 0.5, blendMode: 3 });
+	assert.equal(calls.writes.length, 2);
+	const updated = first.render(encoder, background, background, { ...settings, rotation: 0.5, blendMode: 3 });
 	assert.equal(updated.texture, a.texture);
 	assert.equal(calls.shaders.length, shaderCount);
+	assert.equal(calls.writes.length, 3);
 	const b = second.render(encoder, a, source, settings);
 	assert.notEqual(a.texture, b.texture);
 	assert.equal(a.texture.format, 'rgba16float');
