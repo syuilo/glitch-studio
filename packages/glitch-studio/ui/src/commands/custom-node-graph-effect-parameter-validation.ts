@@ -1,10 +1,11 @@
 import { inspectStaticParameter } from '@gs/shared/parameter/static-parameter.ts';
 import { walkParameters, paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
-import { canConnectNodeDataTypes, getNodeInputDataType, type ConnectionTypePolicy } from '@gs/shared/data-type/node-compatibility.ts';
+import { canConnectNodeDataTypes, getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/player-audio-source.ts';
 import { validateCustomNodeGraphEffectAudioBinding } from '@/utility/custom-node-graph-effect-audio-parameters.ts';
 import { getNodeOutputs } from '@/utility/custom-node-graph-effect-node-outputs.ts';
 import { getEffectDefinitions } from '../utility/project-effects.ts';
+import type { ConnectionTypePolicy } from '@gs/shared/data-type/node-compatibility.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { CustomNodeGraphEffect, CustomNodeGraphEffectParameterBinding } from '@/types/custom-node-graph-effect-view.ts';
 import type { ProjectState } from '../Project.ts';

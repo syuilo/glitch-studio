@@ -49,6 +49,7 @@ export function reconcileCustomShaderEffectUsages(state: ProjectState, previous:
 			if (node == null) return null;
 			return node.type === 'relay' ? node.dataType : resolveEffectSource(node.effectSource, definitions).definition.outputDefs[source.outputPort]?.dataType;
 		};
+
 		function canKeepOutputConnection(source: CustomNodeGraphEffectOutputSource | null | undefined, input: ReturnType<typeof getNodeInputDataType>) {
 			if (source == null || !('nodeId' in source) || !changed.has(source.nodeId)) return true;
 			const output = next.definition.outputDefs[source.outputPort];
@@ -56,6 +57,7 @@ export function reconcileCustomShaderEffectUsages(state: ProjectState, previous:
 			return output != null && (previous.definition.outputDefs[source.outputPort]?.dataType.kind === output.dataType.kind
 				|| areNodeDataTypesCompatible(output.dataType, input));
 		}
+
 		const nodes = graph.nodes.map(node => {
 			if (node.type === 'relay') return canKeepOutputConnection(node.input, node.dataType) ? node : { ...node, input: null };
 			const effectSource = reconcileSource(node.effectSource);

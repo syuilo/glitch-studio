@@ -1,6 +1,6 @@
 import { getEffectDefinitions } from './project-effects.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
-import { canConnectNodeDataTypes, getNodeInputDataType, type ConnectionTypePolicy } from '@gs/shared/data-type/node-compatibility.ts';
+import { canConnectNodeDataTypes, getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
@@ -25,6 +25,7 @@ import { getCustomNodeGraphEffect } from './custom-node-graph-effect-target.ts';
 import { resolveNodeParam } from './node-params.ts';
 import { getScene, resolveLayerParameter, getLayerParameterValues } from './timeline-scene.ts';
 import type { DataType } from '@gs/shared/data-type/data-type.ts';
+import type { ConnectionTypePolicy } from '@gs/shared/data-type/node-compatibility.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';

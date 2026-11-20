@@ -1,4 +1,4 @@
-import { canConnectNodeDataTypes, getNodeInputDataType, type ConnectionTypePolicy } from '@gs/shared/data-type/node-compatibility.ts';
+import { canConnectNodeDataTypes, getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter-path.ts';
@@ -15,6 +15,7 @@ import { prepareTimelineEdit } from './timeline-preparation.ts';
 import { withCommandContract } from './definition.ts';
 import { TIMELINE_COMMAND_CONTRACTS } from './timeline-command-contracts.ts';
 import { getParameterBindingChangeKind } from './parameter-change.ts';
+import type { ConnectionTypePolicy } from '@gs/shared/data-type/node-compatibility.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
