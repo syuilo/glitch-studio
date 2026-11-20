@@ -190,7 +190,7 @@ function primaryInputFixture(candidates) {
 		outputSources: { output: { nodeId: 'consumer', outputPort: 'output' } },
 	});
 	const target = { customNodeGraphEffectId: 'graph' };
-	const manager = new UndoRedo({ customNodeGraphEffects: { value: [{ id: 'graph', definition }] } }, COMMAND_DEFS);
+	const manager = new UndoRedo({ customNodeGraphEffects: { value: [{ id: 'graph', definition }] }, timelineScenes: { value: [] } }, COMMAND_DEFS);
 	const { device, texture } = gpuFixture();
 	const textureInput = resolution => ({ kind: 'texture', resolution, texture: texture({ size: resolution }) });
 	return {

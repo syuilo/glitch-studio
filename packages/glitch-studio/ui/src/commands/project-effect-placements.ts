@@ -13,7 +13,7 @@ type PlacementEdit<T> = (current: T, restore: boolean) => void;
  */
 export function prepareProjectEffectPlacementChanges(state: ProjectState, options: {
 	customNodeGraphEffect?: (customNodeGraphEffect: CustomNodeGraphEffect) => PlacementEdit<CustomNodeGraphEffect> | null;
-	node?: (node: CustomNodeGraphEffectEffectNode) => PlacementEdit<CustomNodeGraphEffectEffectNode> | null;
+	node?: (node: CustomNodeGraphEffectEffectNode, containingCustomNodeGraphEffect: CustomNodeGraphEffect) => PlacementEdit<CustomNodeGraphEffectEffectNode> | null;
 	layerArguments?: (layer: TimelineEffectLayer, sceneId: string) => PlacementEdit<TimelineEffectLayer> | null;
 }): PreparedCommandChange<ProjectState, AppStateChange> {
 	function includeInlineDefinition<T extends { effectSource: EffectSource }>(placement: T, edit: PlacementEdit<T> | null): PlacementEdit<T> | null {
@@ -31,7 +31,7 @@ export function prepareProjectEffectPlacementChanges(state: ProjectState, option
 		const edits = new Map<string, PlacementEdit<CustomNodeGraphEffectEffectNode>>();
 		for (const node of customNodeGraphEffect.nodes) {
 			if (node.type === 'relay') continue;
-			const edit = includeInlineDefinition(node, options.node?.(node) ?? null);
+			const edit = includeInlineDefinition(node, options.node?.(node, customNodeGraphEffect) ?? null);
 			if (edit != null) edits.set(node.id, edit);
 		}
 		if (edits.size === 0) return editCustomNodeGraphEffect;

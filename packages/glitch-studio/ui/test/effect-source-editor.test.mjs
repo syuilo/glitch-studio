@@ -227,6 +227,116 @@ test('removes public arguments from every registered graph use and restores thei
 	await checkArguments(false);
 });
 
+// 【登録済みの公開入力でノード接続を無効にすると、利用側の画像Bindingを解除する】
+// 親グラフのInからの接続やインライン定義の入れ子も対象になる。色の固定値とCPU値の参照は引き続き有効なので保持する。
+// 定義と引数を同じ履歴で扱い、検証やWorkerに古いBindingが残らないことをUndo/Redoも含めて確認する。
+test('clears texture arguments when a registered public parameter stops accepting node input', async t => {
+	const literal = value => ({ inputSource: 'literal', value });
+	const image = { nameForReference: 'image', dataType: { kind: 'color' }, canNode: true, ui: { label: 'Image', control: {} }, defaultValue: literal([0, 0, 0, 0]) };
+	const child = testGraph({ paramDefs: { image }, primaryInputParameter: 'image', resolutionInputParameters: ['image'] });
+	const reference = { type: 'customNodeGraphEffectReference', id: 'child' };
+	const sampling = { fitMode: 'contain', wrapMode: 'clamp', filterMode: 'nearest' };
+	const wire = { inputSource: 'node', source: { nodeId: 'fill', outputPort: 'output' }, sampling };
+	const publicReference = parameterId => ({ inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId });
+	const call = (id, binding) => ({ id, effectSource: reference, params: { image: binding } });
+	const fill = { id: 'fill', effectSource: { type: 'nativeEffect', id: 'fill' }, params: {} };
+	const fixedColor = literal([1, 0, 0, 1]);
+	const parent = testGraph({
+		paramDefs: { image, color: { ...image, nameForReference: 'color', canNode: false } },
+		nodes: [fill, call('wired', wire), call('image', publicReference('image')), call('color', publicReference('color')), call('literal', fixedColor)],
+	});
+	const manager = new ProjectContext(createTestProject({ timelineScenes: [scene()], customNodeGraphEffects: [
+		{ id: 'child', name: 'Child', definition: child }, { id: 'parent', name: 'Parent', definition: parent },
+	] })).stateManager;
+	const addLayer = effectSource => {
+		const { layerId } = manager.commit('createTimelineLayer', { sceneId: 'scene', layer: { layerType: 'effect', effectSource }, clips: [] });
+		return manager.state.timelineScenes.value[0].layers.find(layer => layer.id === layerId);
+	};
+	const lowerLayer = addLayer(reference);
+	const explicitLayer = addLayer(reference);
+	manager.commit('setTimelineLayerParameterSource', { sceneId: 'scene', layerId: explicitLayer.id, parameterGroup: 'effect', parameterPath: ['image'],
+		source: { inputSource: 'anotherLayerOutput', layerId: lowerLayer.id, outputStage: 'source', sampling } });
+	const inlineLayer = addLayer(inlineGraph([fill, call('nested', wire)]));
+	const checkRenderer = observeRendererState(manager, t);
+	const snapshot = () => deepClone([manager.state.customNodeGraphEffects.value, manager.state.timelineScenes.value]);
+	const before = snapshot();
+	await checkRenderer();
+
+	manager.commit('replaceCustomNodeGraphEffectPublicParameterDefinition', {
+		target: { customNodeGraphEffect: { customNodeGraphEffectId: 'child' }, parameterId: 'image' }, definition: { ...image, canNode: false },
+	});
+	const [childEntry, parentEntry] = manager.state.customNodeGraphEffects.value;
+	assert.equal(childEntry.definition.primaryInputParameter, null);
+	assert.deepEqual(childEntry.definition.resolutionInputParameters, []);
+	const args = id => parentEntry.definition.nodes.find(node => node.id === id).params;
+	assert.deepEqual(args('wired'), {});
+	assert.deepEqual(args('image'), {});
+	assert.deepEqual(args('color'), { image: publicReference('color') });
+	assert.deepEqual(args('literal'), { image: fixedColor });
+	assert.equal(Object.hasOwn(lowerLayer.effectParamValues, 'image'), false);
+	assert.equal(Object.hasOwn(explicitLayer.effectParamValues, 'image'), false);
+	assert.deepEqual(inlineLayer.effectSource.customNodeGraphEffect.nodes.find(node => node.id === 'nested').params, {});
+	await checkRenderer();
+	const after = snapshot();
+	manager.undo();
+	assert.deepEqual(snapshot(), before);
+	await checkRenderer();
+	manager.redo();
+	assert.deepEqual(snapshot(), after);
+	await checkRenderer();
+});
+
+// 【インライン定義の公開引数では、無効になった配列内のBindingだけを初期値へ戻す】
+// 配列要素のIDと兄弟フィールドは別の編集に使うため、画像の接続を外す操作で失わない。
+// 引数全体の型を変えた場合も同じ履歴で旧引数を解除し、所有レイヤーに新しい定義を同期する。
+test('updates incompatible arguments on the Timeline layer that owns an inline definition', async t => {
+	const literal = value => ({ inputSource: 'literal', value });
+	const image = { canNode: true, defaultValue: literal([0, 0, 0, 0]) };
+	const amount = { defaultValue: literal(0) };
+	const defaultElement = literal({ image: image.defaultValue, amount: amount.defaultValue });
+	const settings = { nameForReference: 'settings', canNode: false, dataType: { kind: 'array', elementType: {
+		kind: 'struct', fields: { image: { kind: 'color' }, amount: { kind: 'scalar' } },
+	} }, ui: { label: 'Settings', control: { element: { fields: {
+		image: { label: 'Image', control: {} }, amount: { label: 'Amount', control: { controlType: 'number' } },
+	} } } }, element: { fields: { image, amount }, defaultValue: defaultElement }, defaultValue: literal([{ id: 'entry', binding: defaultElement }]) };
+	const manager = new ProjectContext(createTestProject({ timelineScenes: [scene()] })).stateManager;
+	const { layerId } = manager.commit('createTimelineLayer', { sceneId: 'scene', clips: [], layer: { layerType: 'effect',
+		effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: testGraph({ paramDefs: { settings } }) },
+	} });
+	const target = { customNodeGraphEffect: { sceneId: 'scene', layerId }, parameterId: 'settings' };
+	const layer = manager.state.timelineScenes.value[0].layers[0];
+	const updateField = (field, source) => manager.commit('setTimelineLayerParameterSource', {
+		sceneId: 'scene', layerId, parameterGroup: 'effect', parameterPath: ['settings', 'entry', field], source,
+	});
+	updateField('image', { inputSource: 'lowerLayerOutput' });
+	updateField('amount', literal(0.75));
+	const checkRenderer = observeRendererState(manager, t);
+	const before = deepClone(layer.effectParamValues.settings);
+	await checkRenderer();
+
+	manager.commit('replaceCustomNodeGraphEffectPublicParameterDefinition', { target, definition: {
+		...settings, element: { ...settings.element, fields: { image: { ...image, canNode: false }, amount } },
+	} });
+	const adjusted = literal([{ id: 'entry', binding: literal({ image: image.defaultValue, amount: literal(0.75) }) }]);
+	assert.deepEqual(layer.effectParamValues.settings, adjusted);
+	await checkRenderer();
+	manager.undo();
+	assert.deepEqual(layer.effectParamValues.settings, before);
+	await checkRenderer();
+	manager.redo();
+	assert.deepEqual(layer.effectParamValues.settings, adjusted);
+	await checkRenderer();
+
+	manager.commit('replaceCustomNodeGraphEffectPublicParameterDefinition', { target, definition: {
+		nameForReference: 'settings', canNode: false, dataType: { kind: 'scalar' }, ui: { label: 'Settings', control: { controlType: 'number' } }, defaultValue: literal(1),
+	} });
+	assert.equal(Object.hasOwn(layer.effectParamValues, 'settings'), false);
+	await checkRenderer();
+	manager.undo();
+	assert.deepEqual(layer.effectParamValues.settings, adjusted);
+	await checkRenderer();
+});
+
 // 【Asset 削除は登録・レイヤー所有の両方でインライン定義の末端まで到達する】
 // 参照の残った画像ノードはプロジェクト全体の検証を止める。同じIDのPlayerと別素材を残し、Undo/Redoも各配置へ届ける。
 test('clears nested node asset settings across graph owners and restores them on undo', async t => {

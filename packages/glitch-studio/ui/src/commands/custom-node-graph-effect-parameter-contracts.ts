@@ -97,7 +97,7 @@ export const CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS = {
 		inputSchema: z.object({ customNodeGraphEffect: customNodeGraphEffectTargetSchema, definition: customNodeGraphEffectPublicParameterInputSchema }), resultSchema: customNodeGraphEffectPublicParameterReferenceSchema,
 	},
 	replaceCustomNodeGraphEffectPublicParameterDefinition: {
-		description: 'Replace a public parameter definition while retaining its ID. The name must stay unique. Primary image/audio input designations are cleared if the new type no longer supports them.',
+		description: 'Replace a public parameter definition while retaining its ID. The name must stay unique. Clears unsupported primary input designations and resets incompatible arguments on affected Nodes and Timeline Layers. Undo restores the previous definition and arguments together.',
 		examples: [publicParameterSetup + 'Command:replaceCustomNodeGraphEffectPublicParameterDefinition({ target: parameter, definition: ' + scalarDefinition + ' })'],
 		inputSchema: z.object({ target: customNodeGraphEffectPublicParameterReferenceSchema, definition: customNodeGraphEffectPublicParameterInputSchema }), resultSchema: z.null(),
 	},

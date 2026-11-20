@@ -218,9 +218,11 @@ test('edits primary audio parameters and timeline arguments with independent und
 		const edit = command(name, payload);
 		edit.execute(f.state);
 		assert.equal(customNodeGraphEffect.definition.primaryAudioInputParameter, null);
+		assert.equal(Object.hasOwn(layer.effectParamValues, 'sound'), false);
 		edit.undo(f.state);
 		assert.equal(customNodeGraphEffect.definition.primaryAudioInputParameter, 'sound');
 		assert.equal(customNodeGraphEffect.definition.paramDefs.sound.dataType.kind, 'audioSource');
+		assert.deepEqual(layer.effectParamValues.sound, { inputSource: 'anotherLayerAudio', layerId: 'source' });
 	}
 	assert.throws(() => command('replaceCustomNodeGraphEffectPublicParameterDefinition', { target: { customNodeGraphEffect: { customNodeGraphEffectId: customNodeGraphEffect.id }, parameterId: 'sound' }, definition: { ...audio, canNode: true } }).execute(f.state));
 });
