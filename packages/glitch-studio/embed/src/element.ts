@@ -1,8 +1,7 @@
-import { validatePortableCustomNodeGraphEffectSettings } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
-import { getPortableParameterDefinitions, getPortableParameterDefaults, validatePortableParameters } from './parameters.ts';
+import { getPortableParameterDefinitions, getPortableParameterDefaults } from './parameters.ts';
 import { getPortableRenderResolution } from './protocol.ts';
 import { PortableCustomNodeGraphEffectFrameRateLimiter } from './frame-rate-limiter.ts';
-import type { PortableCustomNodeGraphEffect, PortableCustomNodeGraphEffectSettings } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
+import type { PortableCustomNodeGraphEffect } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
 import type { PortableCustomNodeGraphEffectRequest, PortableCustomNodeGraphEffectResponse } from './protocol.ts';
 
 export function registerCustomNodeGraphEffectElement(tagName: string, artwork: PortableCustomNodeGraphEffect, workerSource: string) {
@@ -10,8 +9,7 @@ export function registerCustomNodeGraphEffectElement(tagName: string, artwork: P
 	if (customElements.get(tagName) != null) return;
 	const definitions = getPortableParameterDefinitions(artwork.customNodeGraphEffect);
 	const defaults = getPortableParameterDefaults(definitions);
-	const initial = validatePortableParameters(definitions, artwork.initialParameters);
-	validatePortableCustomNodeGraphEffectSettings(artwork.settings);
+	const initial = structuredClone(artwork.initialParameters);
 
 	class PortableCustomNodeGraphEffectElement extends HTMLElement {
 		static observedAttributes = ['parameters', 'resolution-scale', 'max-pixels', 'fps-limit', 'paused'];
@@ -69,17 +67,14 @@ div:empty { display: none; }`;
 		}
 		public setParameter(name: string, value: unknown) { this.setParameters({ [name]: value }); }
 		public setParameters(values: Record<string, unknown>) {
-			const validated = validatePortableParameters(definitions, values);
-			this.apiParameters = { ...this.apiParameters, ...validated };
+			this.apiParameters = { ...this.apiParameters, ...structuredClone(values) };
 			this.parametersChanged = true;
 			this.requestRender();
 		}
 		public getParameter(name: string): unknown {
-			if (!Object.hasOwn(defaults, name)) throw new Error(`Unknown public parameter: ${name}`);
 			return structuredClone(this.parameters()[name]);
 		}
 		public resetParameter(name: string) {
-			if (!Object.hasOwn(defaults, name)) throw new Error(`Unknown public parameter: ${name}`);
 			delete this.apiParameters[name];
 			this.parametersChanged = true;
 			this.requestRender();
@@ -89,17 +84,15 @@ div:empty { display: none; }`;
 		public attributeChangedCallback(name: string) {
 			try {
 				if (name === 'parameters') {
-					this.attributeParameters = validatePortableParameters(definitions, JSON.parse(this.getAttribute(name) ?? '{}'));
+					this.attributeParameters = JSON.parse(this.getAttribute(name) ?? '{}');
 					this.parametersChanged = true;
 				} else if (name !== 'paused') {
 					const fpsLimitAttribute = this.getAttribute('fps-limit');
-					const settings: PortableCustomNodeGraphEffectSettings = {
+					this.settings = {
 						resolutionScale: Number(this.getAttribute('resolution-scale') ?? artwork.settings.resolutionScale),
 						maxPixels: Number(this.getAttribute('max-pixels') ?? artwork.settings.maxPixels),
 						fpsLimit: fpsLimitAttribute == null ? artwork.settings.fpsLimit : fpsLimitAttribute === 'auto' ? null : Number(fpsLimitAttribute),
 					};
-					validatePortableCustomNodeGraphEffectSettings(settings);
-					this.settings = settings;
 				}
 				if (name === 'paused') this.resetFrameTiming();
 				this.requestRender();

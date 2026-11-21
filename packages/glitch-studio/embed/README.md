@@ -9,7 +9,7 @@ Custom Node Graph Effectをエディタから独立したWeb Componentとして�
 - `src/element.ts`: Custom Elementの登録、Shadow DOM、表示サイズ・可視性・時間・ポインター・公開値とWorkerの管理。
 - `src/frame-rate-limiter.ts`: 表示周期の端数を持ち越すFPS制限。rAF時刻の丸めによる余分な間引きを防ぎ、失った描画枠は再実行しません。
 - `src/worker.ts`: WebGPU・素材・`effect` の `EffectInstance` の生成と破棄。主出力を指定して描画を準備し、完了したフレームをCanvasへ渡します。
-- `src/parameters.ts`: 公開値の検証と既定値の解決。編集用Bindingではなく通常の値をAPI境界で扱います。
+- `src/parameters.ts`: 公開パラメータの参照名と既定値の解決。編集用Bindingではなく通常の値をAPI境界で扱います。
 - `src/effect-inputs.ts` は公開パラメータの値をWorker内のEffect入力へ束縛します。
 - `src/runtime-requirements.ts`: 検証済みの作品から、配置済みエフェクトと式評価・Custom Shader Effectの必要性を判定します。
 - `build/catalog.mjs`: アプリのビルド時に、TS・WGSL・npm依存を解決したES Modulesのカタログを生成します。
@@ -19,7 +19,7 @@ Custom Node Graph Effectをエディタから独立したWeb Componentとして�
 
 組み込みWGSLのバッファ配置は[共通ローダー](../../shared/build/README.md)でアプリのビルド時に解析し、WGSL文字列と配置情報をカタログへ含めます。書き出し時や埋め込み先ではWGSLの構文解析を行わず、`webgpu-utils`・`wgsl_reflect`も同梱しません。GPU上のシェーダーコンパイルや動的な入力bindingの生成は描画先で行います。
 
-`glitch-studio/ui`は書き出しダイアログ・スナップショット・素材読み出しを担当し、`glitch-studio/desktop`が別プロセスでのビルドと一時ファイル経由の保存を担当します。描画の表示境界は`glitch-studio/renderer/portable-canvas-renderer.ts`です。
+`glitch-studio/ui`は書き出しダイアログ・手入力した公開値の検証・スナップショット・素材読み出しを担当し、`glitch-studio/desktop`が別プロセスでのビルドと一時ファイル経由の保存を担当します。手入力の検証コードは配布物に含めません。描画の表示境界は`glitch-studio/renderer/portable-canvas-renderer.ts`です。
 
 ## 成果物
 
@@ -70,7 +70,7 @@ customNodeGraphEffectElement.restart();
 
 スカラーは有限の数値、真理値・文字列・enumはそれぞれの値、ベクトルは`[x, y]`、色はstraight linear sRGBの`[r, g, b, a]`です。RGBはHDR値を許し、alphaは0〜1です。配列・構造体は通常のJSON配列・オブジェクトで、編集用IDやBindingを含めません。Color Rampは既存の値形式、`any`はRGBAまたは`null`、音声入力は`null`だけを扱います。外部画像・音声を注入するAPIはありません。
 
-更新は全項目を検証してから一括適用します。不正なAPI入力は例外、属性入力は`error`イベントとなり、直前の有効値を維持します。取得した値や呼び出し元のオブジェクトの変更は内部状態に影響しません。
+公開パラメータの名前・型・値と設定値の有効範囲は呼び出し側で保証します。embedのAPI境界ではこれらを検証しません。`parameters`属性のJSON構文エラーは`error`イベントとなり、属性から取得済みの公開値を維持します。取得した値や呼び出し元のオブジェクトの変更は内部状態に影響しません。
 
 | 属性 | 既定値・意味 |
 | --- | --- |

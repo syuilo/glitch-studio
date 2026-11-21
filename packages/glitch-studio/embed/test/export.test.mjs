@@ -5,7 +5,7 @@ import { implementation } from './helpers/load.mjs';
 import { fixture, parameter, shaderDefinition } from './helpers/fixture.mjs';
 
 const { preparePortableCustomNodeGraphEffect, encodePortableCustomNodeGraphEffect, createPortableCustomNodeGraphEffectFiles, createPortableCustomNodeGraphEffectArchive,
-	getPortableParameterDefinitions, validatePortableParameters, getPortableParameterDefaults, getPortableRenderResolution, fill, image, video } = implementation;
+	getPortableParameterDefinitions, getPortableParameterDefaults, getPortableRenderResolution, fill, image, video } = implementation;
 const definitions = { fill, image, video };
 
 // 【入れ子のPlayer既定値はWeb Componentの公開値では未選択になる】
@@ -25,7 +25,6 @@ test('exports nested audio defaults as unselected public values', () => {
 	assert.deepEqual(prepared.diagnostics.players, ['Microphone']);
 	const parameterDefinitions = getPortableParameterDefinitions(prepared.customNodeGraphEffect);
 	assert.deepEqual(getPortableParameterDefaults(parameterDefinitions).tracks, [{ audio: null }]);
-	assert.throws(() => validatePortableParameters(parameterDefinitions, { tracks: [{ audio: selectedPlayer }] }), /Invalid audioSource/);
 });
 
 // 【配布物は参照素材と使用するシェーダーだけを開始時点の状態で同梱する】
@@ -59,24 +58,28 @@ test('collects immutable resources and custom shaders without local paths or dev
 	assert.doesNotMatch(JSON.stringify(encoded), /editor-only|private-device|C:\/private/);
 });
 
-// 【公開値は型とコンテナに従って検証し、HDRや参照名の大小文字を保持する】
-// 途中までの更新・呼び出し元からの参照変更・編集用BindingのAPI漏出を防ぐ。
-test('validates public values atomically while preserving HDR colors and nested containers', () => {
+// 【公開値のHDR・入れ子・参照名を保持し、書き出し元から独立した値を作る】
+// 書き出しの非同期処理中に元の値が編集されても、準備済みの作品や公開既定値に影響させない。
+test('preserves HDR colors and nested public values in independent export snapshots', () => {
 	const scalar = parameter('scalar', 1, 'Speed');
 	const color = parameter('color', [0, 0, 0, 1], 'Color');
 	const array = { ...parameter('array', [], 'Points'), dataType: { kind: 'array', elementType: { kind: 'vector' } }, element: { defaultValue: [0, 0] }, maxElements: 2,
 		ui: { label: 'Points', control: { element: {} } } };
 	array.defaultValue = [[0.1, 0.2]];
-	const defs = getPortableParameterDefinitions({ paramDefs: { speedId: scalar, colorId: color, arrayId: array } });
-	assert.deepEqual(getPortableParameterDefaults(defs).Points, [[0.1, 0.2]]);
+	const input = fixture();
+	input.customNodeGraphEffect.paramDefs = { speedId: scalar, colorId: color, arrayId: array };
+	const parameterDefinitions = getPortableParameterDefinitions(input.customNodeGraphEffect);
+	const defaults = getPortableParameterDefaults(parameterDefinitions);
+	assert.deepEqual(defaults.Points, [[0.1, 0.2]]);
+	defaults.Points[0][0] = 99;
+	assert.deepEqual(array.defaultValue, [[0.1, 0.2]]);
 	const values = { Speed: 2, Color: [-1, 3, 0.25, 0.5], Points: [[0.2, -0.1]] };
-	const validated = validatePortableParameters(defs, values);
+	input.initialParameters = values;
+	const prepared = preparePortableCustomNodeGraphEffect(input, definitions);
+	assert.deepEqual(prepared.initialParameters, values);
 	values.Color[0] = 123;
-	assert.equal(validated.Color[0], -1);
-	assert.throws(() => validatePortableParameters(defs, { Speed: 3, Color: [1, 1, 1, 2] }), /Invalid color/);
-	assert.throws(() => validatePortableParameters(defs, { Speed: Infinity }), /Invalid scalar/);
-	assert.throws(() => validatePortableParameters(defs, { speed: 1 }), /Unknown/);
-	assert.throws(() => validatePortableParameters(defs, { Points: [[0, 0], [0, 0], [0, 0]] }), /Invalid array/);
+	values.Points[0][0] = 99;
+	assert.deepEqual(prepared.initialParameters, { Speed: 2, Color: [-1, 3, 0.25, 0.5], Points: [[0.2, -0.1]] });
 });
 
 // 【レスポンシブ解像度は画素数・GPU上限で等方的に縮小する】

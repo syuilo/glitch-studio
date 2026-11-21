@@ -78,13 +78,10 @@ try {
 	check(element.getParameter('level') === 1, 'API overrides retain priority over changed attributes');
 	await rendered(element, () => element.resetParameter('level'));
 	check(element.getParameter('level') === 0.25, 'reset restores the current attribute value');
-	let rejected = false;
-	try { element.setParameters({ level: 0.75, missing: 1 }); } catch { rejected = true; }
-	check(rejected && element.getParameter('level') === 0.25, 'invalid API batches leave all values unchanged');
 	let attributeError = false;
 	element.addEventListener('error', event => { if (!event.detail.fatal) attributeError = true; });
-	element.setAttribute('parameters', '{"level":false}');
-	check(attributeError && element.getParameter('level') === 0.25, 'invalid attributes preserve the last valid parameters');
+	element.setAttribute('parameters', '{"level":');
+	check(attributeError && element.getParameter('level') === 0.25, 'invalid JSON attributes preserve the previous attribute parameters');
 	const resized = await rendered(element, () => { element.style.width = '300px'; element.style.height = '150px'; });
 	check(resized.resolution.width === Math.round(300 * devicePixelRatio), 'CSS resize changes actual render resolution');
 	const scaled = await rendered(element, () => element.setAttribute('resolution-scale', '0.5'));
@@ -115,7 +112,14 @@ try {
 		check(Math.abs(optimizedColor[0] - 137) <= 2 && optimizedColor[3] === 255, name + ' optimized runtime preserves pixels: ' + optimizedColor);
 		if (name === 'defaults') {
 			check(optimized.getParameter('values')[0] === 0.25, 'nested literal defaults expose plain values');
-			await rendered(optimized, () => optimized.setParameter('values', [1, 0.5]));
+			// 【公開配列の更新・取得では外部の参照を内部状態に残さない】
+			// 検証の有無によらず、呼び出し元の変更は次の明示的な更新まで描画に影響させない。
+			const values = [1, 0.5];
+			await rendered(optimized, () => optimized.setParameter('values', values));
+			values[0] = 0;
+			const retrievedValues = optimized.getParameter('values');
+			retrievedValues[0] = 0;
+			check(optimized.getParameter('values')[0] === 1, 'public API values remain independent of caller references');
 			check((await pixel(optimized))[0] === 255, 'changing a public array length rebuilds its static input layout');
 		}
 		optimized.remove();

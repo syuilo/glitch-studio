@@ -3,7 +3,7 @@ import { analyzePortableCustomNodeGraphEffectRuntime } from './runtime-requireme
 import { readFileSource } from '@gs/shared/file-source.ts';
 import { collectCustomNodeGraphEffectResources, type CustomNodeGraphEffectResources } from '@gs/glitch-studio_shared/custom-node-graph-effect-resources.ts';
 import { validatePortableCustomNodeGraphEffectSettings } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
-import { getPortableParameterDefinitions, getPortableParameterDefaults, validatePortableParameters } from './parameters.ts';
+import { getPortableParameterDefinitions } from './parameters.ts';
 import type { PortableCustomNodeGraphEffect, PortableCustomNodeGraphEffectSettings } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
 
 export type PortableCustomNodeGraphEffectExportInput = CustomNodeGraphEffectResources & {
@@ -21,8 +21,6 @@ export function preparePortableCustomNodeGraphEffect(input: PortableCustomNodeGr
 	if (port == null || customNodeGraphEffect.outputDefs[port].dataType.kind !== 'color') throw new Error('Web export requires a primary color output. Convert scalar or vector fields to color before exporting.');
 	validatePortableCustomNodeGraphEffectSettings(input.settings);
 	if (!Number.isFinite(input.aspectRatio) || input.aspectRatio <= 0) throw new Error('Aspect ratio must be positive and finite');
-	const parameters = getPortableParameterDefinitions(customNodeGraphEffect);
-	getPortableParameterDefaults(parameters);
 	const { runtimeRequirements, resolutionNodes } = analyzePortableCustomNodeGraphEffectRuntime(resources, nativeDefinitions);
 	return {
 		name: input.name, gsVersion: input.gsVersion, customNodeGraphEffect,
@@ -30,7 +28,7 @@ export function preparePortableCustomNodeGraphEffect(input: PortableCustomNodeGr
 		customShaderEffects: resources.customShaderEffects,
 		customNodeGraphEffects: resources.customNodeGraphEffects.map(({ id, name, definition }) => ({ id, name, definition })),
 		aspectRatio: input.aspectRatio, settings: { ...input.settings },
-		initialParameters: validatePortableParameters(parameters, input.initialParameters),
+		initialParameters: structuredClone(input.initialParameters),
 		runtimeRequirements,
 		diagnostics: { players: resources.players.map(player => player.name), resolutionNodes },
 	};
@@ -91,7 +89,7 @@ customNodeGraphEffectElement.restart();
 Public parameters:
 ${Array.from(getPortableParameterDefinitions(artwork.customNodeGraphEffect), ([name, definition]) => '- ' + JSON.stringify(name) + ': ' + definition.dataType.kind).join('\n')}
 
-API overrides > parameters attribute > exported initial values > public defaults. Colors use straight linear sRGB RGBA; RGB may be outside 0..1. Parameter values are validated atomically. Invalid API values throw; invalid attributes emit error and keep the last valid values.
+API overrides > parameters attribute > exported initial values > public defaults. Colors use straight linear sRGB RGBA; RGB may be outside 0..1. The caller must supply parameter names, values and settings according to their definitions; the embed API does not validate them. Invalid JSON in the parameters attribute emits error and keeps the previous parsed parameters.
 
 Attributes: parameters (JSON), resolution-scale, max-pixels, fps-limit (auto or a positive number), paused (presence).
 The default FPS setting is automatic: follow requestAnimationFrame without additional frame limiting. fps-limit="auto" overrides an exported numeric limit; removing the attribute restores the exported setting.

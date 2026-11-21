@@ -15,7 +15,7 @@ const script = compileScript(descriptor, { id: 'custom-node-graph-effect-web-exp
 const bundle = await build({
 	absWorkingDir: directory,
 	stdin: { loader: 'ts', resolveDir: `${directory}/src/components`, contents: script + `
-		export { applicationActivity };
+		export { applicationActivity, parseCustomNodeGraphEffectWebExportParameters };
 		export { DEFAULT_PORTABLE_CUSTOM_NODE_GRAPH_EFFECT_SETTINGS } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
 	` },
 	define: { __ELECTRON__: 'true' },
@@ -32,7 +32,7 @@ const bundle = await build({
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
 const Dialog = { ...loaded.exports.default, render: () => null };
-const { applicationActivity, DEFAULT_PORTABLE_CUSTOM_NODE_GRAPH_EFFECT_SETTINGS } = loaded.exports;
+const { applicationActivity, parseCustomNodeGraphEffectWebExportParameters, DEFAULT_PORTABLE_CUSTOM_NODE_GRAPH_EFFECT_SETTINGS } = loaded.exports;
 const renderer = createRenderer({ createComment: () => ({}), insert() {}, remove() {}, parentNode: () => null, nextSibling: () => null });
 
 function fixture(t, fileData = new Blob(['asset'])) {
@@ -76,6 +76,33 @@ function readArtwork(javascript) {
 	runInNewContext(javascript, { capture: (_tag, data) => { artwork = data; } });
 	return artwork;
 }
+
+// 【手入力した公開値の型・入れ子・参照名を、書き出しダイアログで検証する】
+// 配布先では検証しないため、ユーザーが編集したJSONの誤りは書き出し前に報告する。
+// HDRのRGBは保持し、配列の上限や配布先で使えないPlayer参照はここで拒否する。
+test('validates handwritten public JSON while preserving HDR colors and nested values', () => {
+	const customNodeGraphEffect = { paramDefs: {
+		speedId: { dataType: { kind: 'scalar' }, nameForReference: 'Speed', ui: { label: 'Speed' }, defaultValue: 1 },
+		colorId: { dataType: { kind: 'color' }, nameForReference: 'Color', ui: { label: 'Color' }, defaultValue: [0, 0, 0, 1] },
+		pointsId: {
+			dataType: { kind: 'array', elementType: { kind: 'vector' } }, nameForReference: 'Points', maxElements: 2,
+			ui: { label: 'Points', control: { element: {} } }, defaultValue: [], element: { defaultValue: [0, 0] },
+		},
+		tracksId: {
+			dataType: { kind: 'array', elementType: { kind: 'struct', fields: { audio: { kind: 'audioSource' } } } },
+			nameForReference: 'Tracks', ui: { label: 'Tracks', control: { element: { fields: { audio: { label: 'Audio', control: {} } } } } },
+			defaultValue: [], element: { defaultValue: { audio: null }, fields: { audio: { defaultValue: null } } },
+		},
+	} };
+	const parseParameters = json => parseCustomNodeGraphEffectWebExportParameters(customNodeGraphEffect, json);
+	const values = { Speed: 2, Color: [-1, 3, 0.25, 0.5], Points: [[0.2, -0.1]], Tracks: [{ audio: null }] };
+	assert.deepEqual(parseParameters(JSON.stringify(values)), values);
+	assert.throws(() => parseParameters('{"Color":[1,1,1,2]}'), /Invalid color/);
+	assert.throws(() => parseParameters('{"Speed":1e999}'), /Invalid scalar/);
+	assert.throws(() => parseParameters('{"speed":1}'), /Unknown public parameter/);
+	assert.throws(() => parseParameters('{"Points":[[0,0],[0,0],[0,0]]}'), /Invalid array/);
+	assert.throws(() => parseParameters('{"Tracks":[{"audio":{"type":"player","playerId":"mic"}}]}'), /Invalid audioSource/);
+});
 
 // 【初期値の自動と数値指定を切り替えても、入力した上限を失わない】
 // 自動を0fpsとして扱わず、カスタムの入力エラーはそのモードだけで書き出しを止める。
