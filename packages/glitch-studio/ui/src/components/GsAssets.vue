@@ -25,7 +25,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, inject, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import GsButton from './common/GsButton.vue';
 import GsAsset from './GsAsset.vue';
 import GsInput from './common/GsInput.vue';
@@ -33,9 +33,8 @@ import GsLocalFontDialog from './GsLocalFontDialog.vue';
 import type { ProjectAsset } from '@/Project.ts';
 import { i18n } from '@/i18n.ts';
 import { useProjectSession } from '@/project-session.ts';
-import { importAssets } from '@/utility/import-assets.ts';
+import { importAssetsAndRevealPanel } from '@/utility/import-assets.ts';
 import { getAssetMenu } from '@/utility/asset-menu.ts';
-import { workspaceControllerKey } from '@/WorkspaceController.ts';
 import { popup, popupMenu } from '@/ui.ts';
 import { localFontErrorMessage, queryLocalFonts, supportsLocalFonts } from '@/utility/local-fonts.ts';
 
@@ -58,7 +57,6 @@ const emit = defineEmits<{
 }>();
 
 const { stateManager } = projectSession.projectContext;
-const workspaceController = inject(workspaceControllerKey)!;
 
 const selectedAssets = ref<ProjectAsset[]>([]);
 
@@ -137,9 +135,8 @@ async function addLocalFont() {
 	}
 }
 
-async function addAsset() {
-	const ids = await importAssets(projectSession.projectContext);
-	if (ids.length > 0) workspaceController.revealPanel({ contentType: 'assets', sourcePanelId: null });
+function addAsset() {
+	return importAssetsAndRevealPanel(projectSession);
 }
 
 function chooseFirstResult() {

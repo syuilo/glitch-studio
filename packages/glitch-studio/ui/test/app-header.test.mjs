@@ -27,6 +27,7 @@ const bundle = await build({ absWorkingDir: directory,
 				'@/preferences.ts': "import { ref } from 'vue'; export const preferences = { model: () => ref(false) };",
 				'@/desktop-update-ui.ts': 'export const desktopUpdateUi = null;',
 				'@/utility/custom-node-graph-effect-file.ts': 'export function importCustomNodeGraphEffectFile() {}',
+				'@/utility/import-assets.ts': "import { operations } from '@/app.ts'; export function importAssetsAndRevealPanel(session) { operations.push(['add-assets', session.id]); }",
 				'@/workspace.ts': 'export const workspacePanelChoices = [];',
 				// フォーカス・クリップボード操作はuseHeaderEditActionsのテストで検証する。
 				'@/composables/useHeaderEditActions.ts': 'export const useHeaderEditActions = () => ({});',
@@ -89,6 +90,7 @@ test('keeps application actions available without a project and binds project ac
 	emptyMenu.find(item => item.id === 'new-project').action();
 	assert.deepEqual(operations, [['new']]);
 	assert.equal(emptyMenu.find(item => item.id === 'save-project').disabled, true);
+	assert.equal(emptyMenu.find(item => item.id === 'add-assets').disabled, true);
 	assert.equal(emptyMenu.find(item => item.id === 'close-project').disabled, true);
 	const session = id => ({ id, hasUnsavedChanges: ref(true), isProjectSaving: ref(false), projectFileName: ref(null),
 		projectContext: { stateManager: { state: { name: ref(id) }, canUndo: ref(true), canRedo: ref(false), undo: () => operations.push(['undo', id]) } },
@@ -104,6 +106,13 @@ test('keeps application actions available without a project and binds project ac
 	await nextTick();
 	firstMenu.find(item => item.id === 'save-project').action();
 	assert.deepEqual(operations.at(-1), ['save', 'first']);
+	// 【ファイルメニューからアセットを追加する】
+	// アセット追加はインポートの直前に表示し、タブを切り替えてもメニューを開いたプロジェクトに追加する。
+	const addAssetsIndex = firstMenu.findIndex(item => item.id === 'add-assets');
+	assert.equal(firstMenu[addAssetsIndex].disabled, false);
+	assert.equal(firstMenu[addAssetsIndex + 1].type, 'parent');
+	firstMenu[addAssetsIndex].action();
+	assert.deepEqual(operations.at(-1), ['add-assets', 'first']);
 	find('data-test-header-save').props.onClick();
 	assert.deepEqual(operations.at(-1), ['save', 'second']);
 	find('data-test-header-undo').props.onClick();

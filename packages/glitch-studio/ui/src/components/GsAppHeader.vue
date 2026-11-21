@@ -112,6 +112,7 @@ import { useHeaderEditActions } from '@/composables/useHeaderEditActions.ts';
 import { preferences } from '@/preferences.ts';
 import { desktopUpdateUi } from '@/desktop-update-ui.ts';
 import { importCustomNodeGraphEffectFile } from '@/utility/custom-node-graph-effect-file.ts';
+import { importAssetsAndRevealPanel } from '@/utility/import-assets.ts';
 import { workspacePanelChoices } from '@/workspace.ts';
 import GsWindowTitlebar from '@/components/common/GsWindowTitlebar.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
@@ -198,6 +199,12 @@ function openHeaderFileMenu(ev: PointerEvent) {
 		action: () => { void projectSession?.saveProject(true); },
 	}, {
 		type: 'divider',
+	}, {
+		id: 'add-assets',
+		disabled: projectSession == null,
+		text: `${i18n.ts._Assets.Add}...`,
+		icon: 'ti ti-plus',
+		action: () => { if (projectSession != null) void importAssetsAndRevealPanel(projectSession); },
 	}, {
 		type: 'parent',
 		text: i18n.ts.Import,
