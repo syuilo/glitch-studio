@@ -84,9 +84,10 @@ export function usePreviewParameterHandle(app: ProjectSessionContext, props: {
 				minimumZoom: () => isViewport2DParameter(props.paramDef) ? props.paramDef.ui.control.minimumZoom ?? Number.MIN_VALUE : Number.MIN_VALUE,
 				maximumZoom: () => isViewport2DParameter(props.paramDef) ? props.paramDef.ui.control.maximumZoom ?? Number.MAX_VALUE : Number.MAX_VALUE,
 				begin() {
+					const definition = props.paramDef;
 					const scope = context.scope.value;
 					const binding = deepClone(props.paramValue);
-					if (!available.value || scope == null || binding.inputSource !== 'literal') return null;
+					if (!isViewport2DParameter(definition) || !available.value || scope == null || binding.inputSource !== 'literal') return null;
 					if (['center', 'zoom', 'rotation'].some(key => binding.value[key]?.inputSource === 'keyframesTimelineInline') && app.previewPlayback.state.value.mode === 'timeline') {
 						app.previewPlayback.seekTimeline(Math.round(time()), true, 'precise');
 					}
@@ -100,7 +101,7 @@ export function usePreviewParameterHandle(app: ProjectSessionContext, props: {
 						session = beginPreviewViewportBindingEdit(app.projectContext.stateManager, scope, props.node?.id ?? null,
 							props.previewParameterGroup ?? null, [...props.paramPath]);
 					}
-					return session == null ? null : preparePreviewViewportDrag(props.paramDef, binding, time(), endTime(), session);
+					return session == null ? null : preparePreviewViewportDrag(definition, binding, time(), endTime(), session);
 				},
 			});
 			return;

@@ -127,8 +127,8 @@ export function validateEnumParameterValue<T>(definition: ParameterDefinition, v
 
 // 保存形式は型・UI・設定を分離し、子を処理する場面でのみ定義として組み合わせる。
 // 配列要素の行ラベル（インデックス等）は呼び出し側が付ける。
-export function getArrayElementDefinition(definition: ParameterDefinition): ParameterDefinition {
-	if (!isParameterType(definition, 'array')) throw new Error('Expected array parameter definition');
+// 種類は呼び出し側で絞り込み、取得時の実行時検証を重ねない。
+export function getArrayElementDefinition(definition: ParameterDefinition_Array): ParameterDefinition {
 	return {
 		...definition.element,
 		dataType: definition.dataType.elementType,
@@ -136,8 +136,7 @@ export function getArrayElementDefinition(definition: ParameterDefinition): Para
 	} as ParameterDefinition;
 }
 
-export function getStructFieldDefinitions(definition: ParameterDefinition): Record<string, ParameterDefinition> {
-	if (!isParameterType(definition, 'struct')) throw new Error('Expected struct parameter definition');
+export function getStructFieldDefinitions(definition: ParameterDefinition_Struct): Record<string, ParameterDefinition> {
 	return Object.fromEntries(Object.entries(definition.dataType.fields).map(([key, dataType]) => [key, {
 		...definition.fields[key],
 		dataType,

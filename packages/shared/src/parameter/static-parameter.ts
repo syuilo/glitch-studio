@@ -15,9 +15,9 @@ type ValidateAudioSourceDefault = (value: unknown) => void;
 export function validateParameterDefaultValues(definition: ParameterDefinition, validateAudioSourceDefault: ValidateAudioSourceDefault | null = null): void {
 	validateDefaultValue(definition, definition.defaultValue, validateAudioSourceDefault);
 	// 配列全体が空でも、新しい要素・フィールドの初期値には独立した既定値がある。
-	if (definition.dataType.kind === 'array') {
+	if (isParameterType(definition, 'array')) {
 		validateParameterDefaultValues(getArrayElementDefinition(definition), validateAudioSourceDefault);
-	} else if (definition.dataType.kind === 'struct') {
+	} else if (isParameterType(definition, 'struct')) {
 		for (const field of Object.values(getStructFieldDefinitions(definition))) validateParameterDefaultValues(field, validateAudioSourceDefault);
 	}
 }
@@ -66,13 +66,13 @@ export function inspectStaticParameter<Binding extends ParameterBindingBase>(def
 	inspectLeaf: (definition: ParameterDefinition, binding: Binding) => void): void {
 	if (!binding) throw new Error('Missing parameter binding');
 	validateParameterExpressionModifier(definition, binding);
-	if (definition.dataType.kind !== 'array' && definition.dataType.kind !== 'struct') {
+	if (!isParameterType(definition, 'array') && !isParameterType(definition, 'struct')) {
 		validateColorRampParameterInputSource(definition, binding);
 		inspectLeaf(definition, binding);
 		return;
 	}
 	if (binding.inputSource !== 'literal' || !('value' in binding)) throw new Error('Container parameter must be literal');
-	if (definition.dataType.kind === 'array') {
+	if (isParameterType(definition, 'array')) {
 		if (!Array.isArray(binding.value)) throw new Error('Expected array parameter');
 		const elements = binding.value as ParameterArrayElement<Binding>[];
 		if (new Set(elements.map(element => element.id)).size !== elements.length) throw new Error('Duplicate array element ID');
@@ -103,10 +103,10 @@ export function staticParameterShape(definition: ParameterDefinition | null | un
 function staticParameterSourceShape(definition: ParameterDefinition | null | undefined, binding: any): unknown {
 	if (!binding) return null;
 	if (binding.inputSource === 'literal') {
-		if (definition?.dataType.kind === 'array' && Array.isArray(binding.value)) {
+		if (definition != null && isParameterType(definition, 'array') && Array.isArray(binding.value)) {
 			return ['array', binding.value.map((element: ParameterArrayElement) => [element.id, staticParameterShape(getArrayElementDefinition(definition), element.binding)])];
 		}
-		if (definition?.dataType.kind === 'struct' && binding.value && typeof binding.value === 'object') {
+		if (definition != null && isParameterType(definition, 'struct') && binding.value && typeof binding.value === 'object') {
 			const fields = getStructFieldDefinitions(definition);
 			return ['struct', Object.entries(binding.value).map(([key, value]) => [key, staticParameterShape(fields[key], value)])];
 		}

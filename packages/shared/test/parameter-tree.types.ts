@@ -2,6 +2,7 @@ import { resolveParameter, walkParameters } from '../src/parameter/parameter-pat
 import { mapParameterTree, walkParameterLeaves } from '../src/parameter/parameter-tree.ts';
 import { ParameterBindingEvaluator } from '../src/parameter/parameter-binding-evaluator.ts';
 import { createDefaultParameterBinding } from '../src/parameter/parameter-default.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions } from '../src/parameter/parameter-definition.ts';
 import type { ParameterDefaultValue, ParameterDefinition } from '../src/parameter/parameter-definition.ts';
 import type { ValueParameterBinding } from '../src/parameter/value-parameter-binding.ts';
 
@@ -37,6 +38,21 @@ type DomainBinding = ValueParameterBinding | ReferenceBinding;
 
 declare const arrayDefinition: ParameterDefinition<{ kind: 'array'; elementType: { kind: 'scalar' } }>;
 declare const structDefinition: ParameterDefinition<{ kind: 'struct'; fields: { amount: { kind: 'scalar' } } }>;
+
+// 【配列要素・構造体フィールドの取得には、種類を絞り込んだ定義だけを許可する】
+// 取得関数内で再検証せず、誤った種類や未分岐の定義を渡す実装をコンパイル時に拒否する。
+getArrayElementDefinition(arrayDefinition);
+getStructFieldDefinitions(structDefinition);
+// @ts-expect-error 配列要素は構造体から取得できない
+getArrayElementDefinition(structDefinition);
+// @ts-expect-error 構造体フィールドは配列から取得できない
+getStructFieldDefinitions(arrayDefinition);
+declare const unknownDefinition: ParameterDefinition;
+// @ts-expect-error 種類を絞り込んでいない定義は渡せない
+getArrayElementDefinition(unknownDefinition);
+// @ts-expect-error 構造体も呼び出し側で種類を絞り込む
+getStructFieldDefinitions(unknownDefinition);
+
 const definitions = { array: arrayDefinition, struct: structDefinition };
 const literalParents = { array: createDefaultParameterBinding(arrayDefinition), struct: createDefaultParameterBinding(structDefinition) };
 
@@ -56,13 +72,13 @@ walkParameters(definitions, literalParents);
 // 共通方式だけのBindingを持つ配置では、literalの親の下にも式を指定できる。
 mapParameterTree<ValueParameterBinding>(arrayDefinition, literalParents.array, [], (_def, binding) => {
 	// @ts-expect-error literalの親でも末端のvalueを無条件に読むことはできない
-	binding.value;
+	void binding.value;
 	if (binding.inputSource === 'expression') return binding.expression;
 	return binding.inputSource;
 });
 for (const { param } of walkParameterLeaves<ValueParameterBinding>(definitions, literalParents)) {
 	// @ts-expect-error structの親の型も末端には適用しない
-	param.value;
+	void param.value;
 	if (param.inputSource === 'expression') {
 		const expression: string = param.expression;
 	}
@@ -101,7 +117,7 @@ resolved.setValue({ inputSource: 'testReference', referenceId: 'source' });
 // @ts-expect-error 許可していない別ドメインの方式は書き込めない
 resolved.setValue({ inputSource: 'foreignReference', referenceId: 'source' });
 // @ts-expect-error 戻り値も親のliteralではなく、ドメイン全体のBindingとなる
-resolved.value.value;
+void resolved.value.value;
 const common = resolveParameter<ValueParameterBinding>(definitions, literalParents, ['array', 'first']);
 // @ts-expect-error 共通方式だけのツリーには固有方式を書き込めない
 common.setValue({ inputSource: 'testReference', referenceId: 'source' });

@@ -340,7 +340,7 @@ export function prepareParameterBindingPaste(definition: ParameterDefinition, cl
 				const elements = currentBinding.value as ParameterArrayElement<EditableParameterBinding>[];
 				requireValid(currentDefinition.maxElements == null || elements.length <= currentDefinition.maxElements);
 				for (const element of elements) { element.id = genId(); prepareTree(getArrayElementDefinition(currentDefinition), element.binding); }
-			} else if (currentBinding.inputSource === 'literal' && currentDefinition.dataType.kind === 'struct') {
+			} else if (currentBinding.inputSource === 'literal' && isParameterType(currentDefinition, 'struct')) {
 				for (const [key, field] of Object.entries(getStructFieldDefinitions(currentDefinition))) prepareTree(field, currentBinding.value[key]);
 			} else if (currentBinding.inputSource === 'keyframesTimelineInline') {
 				for (const point of currentBinding.keyframesTimeline.keyframes) point.id = genId();

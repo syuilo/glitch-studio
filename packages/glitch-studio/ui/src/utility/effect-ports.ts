@@ -1,5 +1,5 @@
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
-import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
@@ -27,11 +27,11 @@ export function getEffectOutputPorts(effect: Pick<EffectDefinition, 'outputDefs'
 }
 
 function getInputPorts(definition: ParameterDefinition, path: string[], label: string, isPrimary = false): EffectPort[] {
-	if (definition.dataType.kind === 'array') {
+	if (isParameterType(definition, 'array')) {
 		// Pickerではまだ配列要素が確定していないため、初期値の個数ではなく要素の定義を1回表示する。
 		return getInputPorts(getArrayElementDefinition(definition), path, `${label}[]`);
 	}
-	if (definition.dataType.kind === 'struct') {
+	if (isParameterType(definition, 'struct')) {
 		return Object.entries(getStructFieldDefinitions(definition)).flatMap(([key, field]) =>
 			getInputPorts(field, [...path, key], `${label} / ${field.ui.label}`));
 	}

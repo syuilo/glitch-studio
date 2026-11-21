@@ -1,7 +1,7 @@
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { computed, isReactive } from 'vue';
 import type { ComputedRef } from 'vue';
-import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
@@ -28,11 +28,11 @@ function storedConnection(source: Connection, inputId: string): CustomNodeGraphE
 function mapBinding<A extends StoredBinding | CustomNodeGraphEffectParameterBinding, B extends StoredBinding | CustomNodeGraphEffectParameterBinding>(
 	def: ParameterDefinition, binding: A, leaf: (value: A) => B,
 ): B | Extract<StoredBinding, { inputSource: 'literal' }> {
-	if (binding.inputSource === 'literal' && def.dataType.kind === 'array') {
+	if (binding.inputSource === 'literal' && isParameterType(def, 'array')) {
 		return { inputSource: 'literal', ...(binding.expressionModifier == null ? {} : { expressionModifier: binding.expressionModifier }), value: (binding.value as ParameterArrayElement<A>[]).map(element => ({ ...element,
 			binding: mapBinding(getArrayElementDefinition(def), element.binding, leaf) })) };
 	}
-	if (binding.inputSource === 'literal' && def.dataType.kind === 'struct') {
+	if (binding.inputSource === 'literal' && isParameterType(def, 'struct')) {
 		const fields = getStructFieldDefinitions(def);
 		return { inputSource: 'literal', ...(binding.expressionModifier == null ? {} : { expressionModifier: binding.expressionModifier }), value: Object.fromEntries(Object.entries(binding.value as Record<string, A>).map(([key, child]) =>
 			[key, mapBinding(fields[key], child, leaf)])) };

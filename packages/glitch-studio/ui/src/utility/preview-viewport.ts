@@ -77,7 +77,7 @@ export function zoomPreviewViewport(value: PreviewViewportValue, point: [number,
 	return { ...value, zoom, center: [value.center[0] + before[0] - after[0], value.center[1] + before[1] - after[1]] };
 }
 
-export function preparePreviewViewportDrag(definition: ParameterDefinition, binding: EditableParameterBinding, time: number, endTime: number,
+export function preparePreviewViewportDrag(definition: Viewport2DParameterDefinition, binding: EditableParameterBinding, time: number, endTime: number,
 	session: PreviewViewportEdit): PreviewViewportDrag | null {
 	const initialValue = getPreviewViewportValue(definition, binding, time, endTime);
 	if (initialValue == null || binding.inputSource !== 'literal') { session.cancel(); return null; }

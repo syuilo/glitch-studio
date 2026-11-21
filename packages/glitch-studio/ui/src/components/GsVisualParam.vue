@@ -175,7 +175,7 @@
 		/>
 	</Teleport>
 	<!-- 非表示でも子を保持し、入力途中の内容・子の開閉・プレビューハンドルを失わせない。 -->
-	<div v-if="paramDef.dataType.kind === 'array'" v-show="expanded" :class="$style.children" data-test-parameter-children>
+	<div v-if="isParameterType(paramDef, 'array')" v-show="expanded" :class="$style.children" data-test-parameter-children>
 		<GsVisualParam
 			v-for="(element, index) in arrayValues"
 			:key="element.id"
@@ -381,7 +381,7 @@ const arrayMaxElements = computed(() => isParameterType(props.paramDef, 'array')
 const canAddArrayElement = computed(() => arrayMaxElements.value == null || arrayValues.value.length < arrayMaxElements.value);
 const structValues = computed<Record<string, EditableParameterBinding> | null>(() => props.paramDef.dataType.kind === 'struct' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : null);
 const visibleFields = computed(() => {
-	if (props.paramDef.dataType.kind !== 'struct') return [];
+	if (!isParameterType(props.paramDef, 'struct')) return [];
 	const fields: Record<string, ParameterDefinition> = getStructFieldDefinitions(props.paramDef);
 	const span = previewParameterHandle.viewportNavigationSpan.value;
 	if (isViewport2DParameter(props.paramDef) && span != null && isParameterType(fields.center, 'vector')) {

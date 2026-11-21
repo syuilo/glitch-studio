@@ -1,4 +1,4 @@
-import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { constantShaderInputComponents } from '@gs/shared/gpu/shader-input.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { EffectParameterInput } from '@gs/subsystems_effect_renderer/effect-instance.ts';
@@ -11,14 +11,14 @@ export function createPortableEffectInputs(definitions: CustomNodeGraphEffect['p
 	const updateUniforms: (() => void)[] = [];
 
 	function bind(def: ParameterDefinition, read: () => unknown): EffectParameterInput {
-		if (def.dataType.kind === 'array') {
+		if (isParameterType(def, 'array')) {
 			const array = () => read() as unknown[];
 			const length = array().length;
 			sameLayout.push(() => array().length === length);
 			const element = getArrayElementDefinition(def);
 			return { kind: 'array', elements: Array.from({ length }, (_, i) => bind(element, () => array()[i])) };
 		}
-		if (def.dataType.kind === 'struct') {
+		if (isParameterType(def, 'struct')) {
 			return { kind: 'struct', fields: Object.fromEntries(Object.entries(getStructFieldDefinitions(def)).map(([key, field]) =>
 				[key, bind(field, () => (read() as Record<string, unknown>)[key])])) };
 		}

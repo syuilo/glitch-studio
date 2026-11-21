@@ -84,7 +84,6 @@ export function shaderInputVariantKey(schema: ShaderInputSchema, inputs: ShaderI
 /** WGSLとbindingの対応を同時に決定し、エフェクト側の二重管理を避ける。 */
 export function generateShaderInputs(schema: ShaderInputSchema, inputs: ShaderInputValues, group = 0, sampling: 'implicit' | 'level0' = 'implicit', scalarGradients = false) {
 	if (scalarGradients && sampling !== 'level0') throw new Error('Scalar gradients require level0 sampling');
-	const variantKey = shaderInputVariantKey(schema, inputs);
 	const names = new Set(Object.keys(schema));
 	for (const name of names) {
 		if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(name) || name.includes('__')) throw new Error(`Invalid shader input name: ${name}`);
@@ -195,8 +194,6 @@ fn ${prefix}_${name}(index: u32, position: vec2f${extra}) -> ${resultType} {
 	}).join('\n');
 	return {
 		code: `struct GsInputUniforms { ${declarations} };\n@group(${group}) @binding(0) var<uniform> gs_inputs: GsInputUniforms;\n${functions}\n${selectors}`,
-		schema,
-		variantKey,
 		entries,
 		slots,
 		// 各入力はvec4を2つ使い、CPUとWGSLのalignmentを一致させる。
@@ -352,7 +349,8 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 			};
 		},
 		update(inputs: ShaderInputValues, output: Resolution, inputReferenceResolutions: ShaderInputReferenceResolutions = {}) {
-			if (shaderInputVariantKey(generated.schema, inputs) !== generated.variantKey) throw new Error('Shader input shape or kind changed');
+			// 入力構成に対応するbindingsの選択・再生成は呼び出し側が担当する。
+			// ここでは確定済みの配置へ値を転送し、同じ構成キーを毎フレーム再計算しない。
 			let resourceIndex = 0;
 			values.fill(0);
 			for (const slot of generated.slots) {

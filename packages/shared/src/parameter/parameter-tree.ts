@@ -1,4 +1,4 @@
-import { getArrayElementDefinition, getStructFieldDefinitions } from './parameter-definition.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from './parameter-definition.ts';
 import type { ParameterArrayElement, ParameterBindingBase } from './parameter-binding.ts';
 import type { ParameterDefinition } from './parameter-definition.ts';
 
@@ -11,10 +11,10 @@ export type EvaluatedParameterPath = (string | number)[];
 // 型引数にはツリー全体で許可するBindingを明示する。指定漏れはneverで拒否する。
 export function mapParameterTree<Binding extends ParameterBindingBase = never>(def: ParameterDefinition, param: NoInfer<Binding>, path: EvaluatedParameterPath,
 	mapLeaf: NoInfer<(def: ParameterDefinition, param: Binding, path: EvaluatedParameterPath) => any>): any {
-	if (def.dataType.kind === 'array' || def.dataType.kind === 'struct') {
+	if (isParameterType(def, 'array') || isParameterType(def, 'struct')) {
 		// 構造は呼び出し前に検証済み。ここでは評価・走査だけを行う。
 		const value = (param as Binding & { value: unknown }).value;
-		if (def.dataType.kind === 'array') {
+		if (isParameterType(def, 'array')) {
 			return (value as ParameterArrayElement<Binding>[]).map((element, index) => mapParameterTree<Binding>(getArrayElementDefinition(def), element.binding, [...path, index], mapLeaf));
 		}
 		const fields = value as Record<string, Binding>;
@@ -28,9 +28,9 @@ export function* walkParameterLeaves<Binding extends ParameterBindingBase = neve
 	def: ParameterDefinition; param: Binding; path: EvaluatedParameterPath;
 }> {
 	function* walk(def: ParameterDefinition, param: Binding, path: EvaluatedParameterPath): ReturnType<typeof walkParameterLeaves<Binding>> {
-		if (def.dataType.kind === 'array' || def.dataType.kind === 'struct') {
+		if (isParameterType(def, 'array') || isParameterType(def, 'struct')) {
 			const value = (param as Binding & { value: unknown }).value;
-			if (def.dataType.kind === 'array') {
+			if (isParameterType(def, 'array')) {
 				for (const [index, element] of (value as ParameterArrayElement<Binding>[]).entries()) yield* walk(getArrayElementDefinition(def), element.binding, [...path, index]);
 			} else {
 				const fields = value as Record<string, Binding>;

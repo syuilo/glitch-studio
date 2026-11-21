@@ -1,4 +1,4 @@
-import { getArrayElementDefinition, getStructFieldDefinitions } from './parameter-definition.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from './parameter-definition.ts';
 import { isLiteralParameterBinding } from './parameter-binding.ts';
 import type { ParameterArrayElement, ParameterBindingBase } from './parameter-binding.ts';
 import type { ParameterDefinition } from './parameter-definition.ts';
@@ -19,7 +19,7 @@ export function resolveParameter<Binding extends ParameterBindingBase = never>(d
 	let hasArrayElementInPath = false;
 	if (def == null || value == null) throw new Error(`Unknown parameter: ${paramPathKey(path)}`);
 	for (const segment of path.slice(1)) {
-		if (def.dataType.kind === 'array' && isLiteralParameterBinding(value) && Array.isArray(value.value)) {
+		if (isParameterType(def, 'array') && isLiteralParameterBinding(value) && Array.isArray(value.value)) {
 			const element = (value.value as ParameterArrayElement<Binding>[]).find(element => element.id === segment);
 			// 削除済みのIDを、同じindexにある別要素へ読み替えてはいけない。
 			if (element == null) throw new Error(`Unknown array element: ${paramPathKey(path)}`);
@@ -27,7 +27,7 @@ export function resolveParameter<Binding extends ParameterBindingBase = never>(d
 			def = getArrayElementDefinition(def);
 			value = element.binding;
 			setValue = next => { element.binding = next; };
-		} else if (def.dataType.kind === 'struct' && isLiteralParameterBinding(value)) {
+		} else if (isParameterType(def, 'struct') && isLiteralParameterBinding(value)) {
 			const fields = value.value as Record<string, Binding>;
 			def = getStructFieldDefinitions(def)[segment];
 			value = fields[segment];
@@ -45,11 +45,11 @@ export function* walkParameters<Binding extends ParameterBindingBase = never>(de
 	path: ParamPath; def: ParameterDefinition; value: Binding;
 }> {
 	function* walk(def: ParameterDefinition, value: Binding, path: ParamPath): ReturnType<typeof walkParameters<Binding>> {
-		if (def.dataType.kind === 'array' && isLiteralParameterBinding(value)) {
+		if (isParameterType(def, 'array') && isLiteralParameterBinding(value)) {
 			for (const element of value.value as ParameterArrayElement<Binding>[]) {
 				yield* walk(getArrayElementDefinition(def), element.binding, [...path, element.id]);
 			}
-		} else if (def.dataType.kind === 'struct' && isLiteralParameterBinding(value)) {
+		} else if (isParameterType(def, 'struct') && isLiteralParameterBinding(value)) {
 			const fields = value.value as Record<string, Binding>;
 			for (const [key, field] of Object.entries(getStructFieldDefinitions(def))) {
 				yield* walk(field, fields[key], [...path, key]);

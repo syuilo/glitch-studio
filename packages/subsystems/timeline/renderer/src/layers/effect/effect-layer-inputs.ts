@@ -1,6 +1,6 @@
 import { constantShaderInputComponents } from '@gs/shared/gpu/shader-input.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
-import { getArrayElementDefinition, getStructFieldDefinitions, validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType, validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { deepClone, type Cloneable } from '@gs/shared/utility/deep-clone.ts';
 import { getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
@@ -35,11 +35,11 @@ export function createEffectLayerInputs(layer: TimelineEffectLayer, definition: 
 
 	function bind(def: ParameterDefinition, read: () => TimelineEffectParameterBinding): EffectPlacementInput {
 		const binding = read();
-		if (binding.inputSource === 'literal' && def.dataType.kind === 'array') {
+		if (binding.inputSource === 'literal' && isParameterType(def, 'array')) {
 			const element = getArrayElementDefinition(def);
 			return { kind: 'array', elements: binding.value.map((_: unknown, i: number) => bind(element, () => (read() as LiteralBinding).value[i].binding)) };
 		}
-		if (binding.inputSource === 'literal' && def.dataType.kind === 'struct') {
+		if (binding.inputSource === 'literal' && isParameterType(def, 'struct')) {
 			return { kind: 'struct', fields: Object.fromEntries(Object.entries(getStructFieldDefinitions(def)).map(([key, field]) =>
 				[key, bind(field, () => (read() as LiteralBinding).value[key])])) };
 		}

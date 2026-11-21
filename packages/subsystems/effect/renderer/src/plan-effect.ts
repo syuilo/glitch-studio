@@ -3,7 +3,7 @@ import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-de
 import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
 import { scaleResolution } from '@gs/shared/resolution.ts';
 import { resolveEffectNodeResolution } from '@gs/subsystems_effect_shared/effect-node-resolution.ts';
-import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { canCoerceParameterDataType, coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { areNodeDataTypesCompatible, getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import { constantShaderInputComponents } from '@gs/shared/gpu/shader-input.ts';
@@ -200,7 +200,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 			const child = (def: ParameterDefinition, select: (parent: typeof literal) => CustomNodeGraphEffectParameterBinding) => planBinding(
 				def, select(literal), publicInput, nodeOutput, path, evaluation,
 				observeParent == null ? null : update => observeParent(next => update(select(next as typeof literal))), isDefault);
-			if (definition.dataType.kind === 'array') {
+			if (isParameterType(definition, 'array')) {
 				const elementDefinition = getArrayElementDefinition(definition);
 				const elements = (literal.value as ParameterArrayElement<CustomNodeGraphEffectParameterBinding>[]).map((_, index) => child(elementDefinition, parent => parent.value[index].binding));
 				return {
@@ -212,7 +212,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 					},
 				};
 			}
-			if (definition.dataType.kind === 'struct') {
+			if (isParameterType(definition, 'struct')) {
 				const fields = Object.entries(getStructFieldDefinitions(definition)).map(([key, def]) => [key, child(def, parent => parent.value[key])] as const);
 				return {
 					input: { kind: 'struct', fields: Object.fromEntries(fields.map(([key, field]) => [key, field.input])) },

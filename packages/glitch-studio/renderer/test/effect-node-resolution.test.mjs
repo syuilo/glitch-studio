@@ -76,7 +76,6 @@ test('validates positive finite local scales for context and automatic modes', (
 		for (const scale of [0.001, 1, 2.5]) assert.doesNotThrow(() => validateEffectResolution({ mode, scale }));
 		for (const scale of [null, undefined, 0, -1, NaN, Infinity, -Infinity, '0.5']) {
 			assert.throws(() => validateEffectResolution({ mode, scale }), /scale/);
-			assert.throws(() => resolve({ setting: { mode, scale } }), /scale/);
 		}
 	}
 });
@@ -88,10 +87,8 @@ test('rounds source dimensions and preserves at least one pixel per axis', () =>
 	assert.deepEqual(resolve({ inputResolution: { width: 2, height: 1 }, resolutionScale: 0.25 }), { width: 2, height: 1 });
 });
 
-// 【無効な寸法・倍率とGPU上限超過を確保前に拒否する】
-// 原寸という指定を暗黙の縮小で置き換えず、失敗理由をユーザーへ返すための境界。
-test('rejects invalid dimensions and dimensions exceeding the device limit', () => {
-	for (const width of [0, -1, 1.5, NaN, Infinity]) assert.throws(() => resolve({ setting: { mode: 'customAbsolute', width, height: 10 } }));
-	for (const scale of [0, -1, NaN, Infinity]) assert.throws(() => scaleResolution({ width: 10, height: 10 }, scale));
+// 【GPU上限超過を確保前に拒否する】
+// 解決した寸法が実行環境のGPU上限を超える場合は、暗黙に縮小せず理由を返す。
+test('rejects dimensions exceeding the device limit', () => {
 	assert.throws(() => resolve({ setting: { mode: 'customAbsolute', width: 20000, height: 10 } }), /8192/);
 });

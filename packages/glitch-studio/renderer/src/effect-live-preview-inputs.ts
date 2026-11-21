@@ -1,6 +1,6 @@
 import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
-import { getArrayElementDefinition, getStructFieldDefinitions, validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType, validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { constantShaderInputComponents } from '@gs/shared/gpu/shader-input.ts';
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
@@ -30,7 +30,7 @@ export function createEffectLivePreviewInputs(definition: EffectDefinition, init
 	function bind(def: ParameterDefinition, read: () => ValueParameterBinding): EffectParameterInput {
 		const source = read();
 		sameLayout.push(() => read().inputSource === source.inputSource);
-		if (source.inputSource === 'literal' && def.dataType.kind === 'array') {
+		if (source.inputSource === 'literal' && isParameterType(def, 'array')) {
 			const ids = source.value.map((element: { id: string }) => element.id);
 			sameLayout.push(() => {
 				const elements = (read() as typeof source).value;
@@ -39,7 +39,7 @@ export function createEffectLivePreviewInputs(definition: EffectDefinition, init
 			const element = getArrayElementDefinition(def);
 			return { kind: 'array', elements: source.value.map((_: unknown, i: number) => bind(element, () => (read() as typeof source).value[i].binding)) };
 		}
-		if (source.inputSource === 'literal' && def.dataType.kind === 'struct') {
+		if (source.inputSource === 'literal' && isParameterType(def, 'struct')) {
 			return { kind: 'struct', fields: Object.fromEntries(Object.entries(getStructFieldDefinitions(def)).map(([id, field]) =>
 				[id, bind(field, () => (read() as typeof source).value[id])])) };
 		}

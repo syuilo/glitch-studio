@@ -1,4 +1,4 @@
-import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import type { ParameterDefinition, ParameterChangeKind } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
@@ -12,14 +12,14 @@ import type { EditableParameterBinding } from '../types/parameter-edit.ts';
 export function getParameterBindingChangeKind(definition: ParameterDefinition, before: EditableParameterBinding, after: EditableParameterBinding): ParameterChangeKind {
 	if (before.inputSource !== after.inputSource) return 'inputSource';
 	if (before.inputSource === 'literal' && after.inputSource === 'literal') {
-		if (definition.dataType.kind === 'array') {
+		if (isParameterType(definition, 'array')) {
 			const previousElements = before.value as ParameterArrayElement<EditableParameterBinding>[];
 			const nextElements = after.value as ParameterArrayElement<EditableParameterBinding>[];
 			if (previousElements.length !== nextElements.length || previousElements.some((element, index) => element.id !== nextElements[index].id)) return 'arrayElements';
 			const elementDefinition = getArrayElementDefinition(definition);
 			return combineChangeKinds(nextElements.map((element, index) => getParameterBindingChangeKind(elementDefinition, previousElements[index].binding, element.binding)));
 		}
-		if (definition.dataType.kind === 'struct') {
+		if (isParameterType(definition, 'struct')) {
 			const previousFields = before.value as Record<string, EditableParameterBinding>;
 			const nextFields = after.value as Record<string, EditableParameterBinding>;
 			return combineChangeKinds(Object.entries(getStructFieldDefinitions(definition)).map(([key, field]) => getParameterBindingChangeKind(field, previousFields[key], nextFields[key])));

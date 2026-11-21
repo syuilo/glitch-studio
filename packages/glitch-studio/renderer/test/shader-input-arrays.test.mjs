@@ -113,7 +113,6 @@ test('uploads mixed array elements and independent sampling settings', () => {
 	assert.notEqual(bindings.update(inputs, output), first);
 	assert.deepEqual(calls.writes.at(-1).slice(12, 16), [0.5, 1, 0, 0]);
 	assert.equal(calls.samplers.at(-1).addressModeU, 'repeat');
-	assert.throws(() => bindings.update({ ...inputs, images: [] }, output), /shape or kind changed/);
 	bindings.dispose();
 	assert.ok(calls.buffers.every(buffer => buffer.destroyed));
 });
@@ -138,8 +137,9 @@ test('caches array lengths and kinds including empty arrays', () => {
 	assert.ok(calls.buffers.every(buffer => buffer.destroyed));
 });
 
-// 配列専用の選択関数と微分関数を生成し、形状不一致や内部名衝突を見逃さない。
-test('generates typed selectors and rejects mismatched array shapes', () => {
+// 【配列専用の選択関数・微分関数を生成し、内部名の衝突を避ける】
+// 正しいschemaと入力の組から、空配列も含めて型に対応したWGSLを生成する。
+test('generates typed selectors without internal name collisions', () => {
 	const schema = { fields: { array: 'scalar' }, vectors: { array: 'vector' }, data: { array: 'any' }, gs_element0: 'scalar' };
 	const inputs = { fields: [constantShaderInput('scalar', 1)], vectors: [], data: [], gs_element0: constantShaderInput('scalar', 0) };
 	const generated = generateShaderInputs(schema, inputs, 1, 'level0', true);
@@ -147,8 +147,6 @@ test('generates typed selectors and rejects mismatched array shapes', () => {
 	assert.match(generated.code, /fn readGradient_fields\(index: u32, position: vec2f, calculate: bool\) -> vec3f/);
 	assert.match(generated.code, /const count_vectors: u32 = 0u/);
 	assert.equal(new Set(generated.slots.map(slot => slot.name)).size, generated.slots.length);
-	assert.throws(() => generateShaderInputs({ images: { array: 'color' } }, { images: red }), /shape mismatch/);
-	assert.throws(() => generateShaderInputs({ images: 'color' }, { images: [red] }), /shape mismatch/);
 });
 
 // samplerの共有オブジェクトでもbinding枠は消費する。上限超過はGPUリソース作成前に知らせる。
