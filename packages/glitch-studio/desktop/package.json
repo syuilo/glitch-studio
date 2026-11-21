@@ -13,11 +13,11 @@
 		"build:portable": "node build-portable-custom-node-graph-effect.mjs"
 	},
 	"devDependencies": {
-		"@electron/asar": "4.3.1",
-		"electron": "45.2.1",
+		"@electron/asar": "4.3.2",
+		"electron": "45.3.2",
 		"electron-builder": "26.18.0",
 		"js-yaml": "4.3.2",
-		"vite": "8.3.5",
+		"vite": "8.3.8",
 		"@gs/glitch-studio_embed": "workspace:*"
 	},
 	"dependencies": {

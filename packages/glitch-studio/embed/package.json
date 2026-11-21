@@ -21,10 +21,10 @@
 		"@gs/subsystems_effect_shared": "workspace:*"
 	},
 	"devDependencies": {
-		"@types/web": "0.0.359",
-		"@typescript-eslint/parser": "8.72.1",
+		"@types/web": "0.0.366",
+		"@typescript-eslint/parser": "8.72.2",
 		"@webgpu/types": "0.1.74",
 		"esbuild": "0.28.2",
-		"vite": "8.3.5"
+		"vite": "8.3.8"
 	}
 }
