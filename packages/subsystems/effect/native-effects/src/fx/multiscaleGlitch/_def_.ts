@@ -8,7 +8,7 @@ export default defineNativeEffect({
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,
-	tags: ['glitch', 'distortion', 'color', 'stylized', 'experimental'],
+	tags: ['glitch', 'distortion', 'color', 'experimental'],
 	paramDefs: {
 		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: {

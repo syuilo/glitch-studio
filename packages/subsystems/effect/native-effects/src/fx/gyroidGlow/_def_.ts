@@ -9,7 +9,7 @@ export default defineNativeEffect({
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,
-	tags: ['pattern', 'light', 'stylized', 'math', '3d'],
+	tags: ['pattern', 'light', 'math', '3d'],
 	paramDefs: {
 		time: {
 			dataType: { kind: 'scalar' },

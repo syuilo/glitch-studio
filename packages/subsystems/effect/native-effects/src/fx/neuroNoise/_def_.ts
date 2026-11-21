@@ -11,7 +11,7 @@ export default defineNativeEffect({
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,
-	tags: ['pattern', 'noise', 'stylized', 'experimental'],
+	tags: ['pattern', 'noise'],
 	paramDefs: {
 		background: {
 			dataType: { kind: 'color' },

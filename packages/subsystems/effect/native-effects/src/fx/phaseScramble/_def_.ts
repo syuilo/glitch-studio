@@ -8,7 +8,7 @@ export default defineNativeEffect({
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,
-	tags: ['glitch', 'stylized', 'experimental'],
+	tags: ['glitch', 'experimental'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: [0, 0, 0, 0] },
 		processing: {

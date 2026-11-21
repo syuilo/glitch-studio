@@ -10,7 +10,7 @@ export default defineNativeEffect({
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,
-	tags: ['pattern', 'liquid', 'stylized'],
+	tags: ['liquid'],
 	paramDefs: {
 		background: {
 			dataType: { kind: 'color' },
