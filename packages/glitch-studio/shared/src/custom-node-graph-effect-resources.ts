@@ -5,6 +5,7 @@ import { resolveEffectSource } from '@gs/subsystems_effect_shared/effect-source.
 import { validateEffectSource } from '@gs/subsystems_effect_shared/validate-effect-source.ts';
 import { validatePlayerAudioSourceSelection, type PlayerAudioSourceSelection } from './player-audio-source.ts';
 import { createProjectEffectDefinitions } from './project/effects.ts';
+import { validateProjectEffectRegistrations } from './project/validate-effect-registrations.ts';
 import type { Asset, Player } from '@gs/shared/types.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { StaticSettingDefinition } from '@gs/shared/static-setting.ts';
@@ -42,6 +43,7 @@ function copyEffectData<T>(value: T): T {
  */
 export function collectCustomNodeGraphEffectResources(input: CustomNodeGraphEffectResources, nativeDefinitions: NativeEffectDefinitions,
 	assignId: (kind: ResourceKind, id: string) => string = (_kind, id) => id): CustomNodeGraphEffectResources {
+	validateProjectEffectRegistrations(input);
 	const definitions = createProjectEffectDefinitions(input, nativeDefinitions);
 	const customShaderEffectIds = new Set<string>();
 	const customNodeGraphEffectIds = new Set<string>();

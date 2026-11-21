@@ -1,6 +1,6 @@
 import { nativeEffectDefinitions } from '@gs/subsystems_effect_native-effects/definitions.ts';
 import { createProjectEffectDefinitions } from '@gs/glitch-studio_shared/project/effects.ts';
-import { resolveEffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
+import { resolveEffectSourceForValidation } from '@gs/subsystems_effect_shared/validate-effect-source.ts';
 import type { EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
 import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
 import type { EffectDefinition, NativeEffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
@@ -24,7 +24,7 @@ export function getEffectDefinitions(state: RegistrationState) {
 			if (!Object.hasOwn(natives, effectSource.id)) throw new Error('Unknown Native Effect: ' + effectSource.id);
 			return { ...natives[effectSource.id], effectSource };
 		}
-		const { definition } = resolveEffectSource(effectSource, definitions);
+		const { definition } = resolveEffectSourceForValidation(effectSource, definitions);
 		const registration = effectSource.type === 'customShaderEffectReference' ? customShaderEffects.find(entry => entry.id === effectSource.id)
 			: effectSource.type === 'customNodeGraphEffectReference' ? customNodeGraphEffects.find(entry => entry.id === effectSource.id) : null;
 		const summary = registration != null && 'summary' in registration ? registration.summary : '';

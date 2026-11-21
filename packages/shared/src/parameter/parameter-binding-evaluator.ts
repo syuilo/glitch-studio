@@ -4,11 +4,13 @@ import { randomExpressionFunctions } from '../expression/random-functions.ts';
 import { evaluateKeyframesTimeline } from '../keyframes/keyframes-timeline-evaluator.ts';
 import { deepClone } from '../utility/deep-clone.ts';
 import type { Cloneable } from '../utility/deep-clone.ts';
-import { prepareExpressionParameterValue } from './expression-parameter-value.ts';
-import type { ExpressionParameterDefinition } from './expression-parameter-value.ts';
+import { coerceParameterValue } from './coerce-parameter-value.ts';
+import type { ParameterDefinition } from './parameter-definition.ts';
 import type { ExpressionFunction } from '../expression/expression-environment.ts';
 import type { ValueParameterBinding } from './value-parameter-binding.ts';
 import type { ParameterEvaluationScope } from './parameter-evaluation-scope.ts';
+
+type EvaluationParameterDefinition = Pick<ParameterDefinition, 'dataType' | 'ui'>;
 
 // Evaluatorはstateless/deterministicである必要がある
 
@@ -31,21 +33,21 @@ export class ParameterBindingEvaluator {
 		};
 	}
 
-	public evaluate(binding: ValueParameterBinding, scope: ParameterEvaluationScope, fallback: any, definition: ExpressionParameterDefinition): any {
+	public evaluate(binding: ValueParameterBinding, scope: ParameterEvaluationScope, fallback: any, definition: EvaluationParameterDefinition): any {
 		return this.bind(binding, fallback, definition, scope.automationGraphs)(scope);
 	}
 
 	/** 入力方式と参照先が固定の配置では、評価経路を配置の生成時に選ぶ。時刻と値は描画ごとに読む。 */
-	public bind(binding: ValueParameterBinding, fallback: any, definition: ExpressionParameterDefinition,
+	public bind(binding: ValueParameterBinding, fallback: any, definition: EvaluationParameterDefinition,
 		automationGraphs: ParameterEvaluationScope['automationGraphs']): (scope: ParameterEvaluationScope) => unknown {
 		const read = this.bindSource(binding, fallback, definition, automationGraphs);
 		const modifier = binding.expressionModifier;
 		if (modifier?.enabled !== true) return read;
 		return scope => {
 			const base = read(scope);
-			// VALUEへ渡す基準値の型変換で失敗した場合も、加工対象のパラメータをエラーに含める。
+				// 数値文字列の変換だけを行い、式が返す型・構造の正しさは検査しない。
 			try {
-				return this.evaluateExpression(modifier.code, scope, 'modifier', definition, prepareExpressionParameterValue(definition, base));
+				return this.evaluateExpression(modifier.code, scope, 'modifier', definition, coerceParameterValue(definition, base));
 			} catch (error) {
 				if (error instanceof ParameterExpressionError) throw error;
 				throw new ParameterExpressionError('modifier', definition, error);
@@ -53,7 +55,7 @@ export class ParameterBindingEvaluator {
 		};
 	}
 
-	private evaluateExpression(code: string, scope: ParameterEvaluationScope, stage: 'base' | 'modifier', definition: ExpressionParameterDefinition, value?: unknown): any {
+	private evaluateExpression(code: string, scope: ParameterEvaluationScope, stage: 'base' | 'modifier', definition: EvaluationParameterDefinition, value?: unknown): any {
 		try {
 			if (this.expressionEvaluator == null) throw new Error('Expression evaluation is unavailable');
 			const variables = { ...scope.variables };
@@ -68,13 +70,13 @@ export class ParameterBindingEvaluator {
 			// 式エンジンが変数を複製するため、保存値を保護するコピーはそこで一度だけ行う。
 			if (stage === 'modifier') variables.VALUE = value as Cloneable;
 			const result = this.expressionEvaluator.evaluate(code, { variables, functions });
-			return prepareExpressionParameterValue(definition, result);
+			return coerceParameterValue(definition, result);
 		} catch (error) {
 			throw new ParameterExpressionError(stage, definition, error);
 		}
 	}
 
-	private bindSource(binding: ValueParameterBinding, fallback: any, definition: ExpressionParameterDefinition,
+	private bindSource(binding: ValueParameterBinding, fallback: any, definition: EvaluationParameterDefinition,
 		graphs: ParameterEvaluationScope['automationGraphs']): (scope: ParameterEvaluationScope) => unknown {
 		switch (binding.inputSource) {
 			case 'literal': return () => binding.value;
@@ -94,7 +96,7 @@ export class ParameterBindingEvaluator {
 // エンジンはScene・ノード・レイヤーを知らない。ここでは式の段階とパラメータ名だけを付加し、
 // 上位のレンダラーが持つ所在情報と組み合わせて、通常のレンダリング失敗として通知する。
 class ParameterExpressionError extends Error {
-	constructor(stage: 'base' | 'modifier', definition: ExpressionParameterDefinition, cause: unknown) {
+	constructor(stage: 'base' | 'modifier', definition: EvaluationParameterDefinition, cause: unknown) {
 		super(`${stage === 'base' ? 'Base' : 'Modifier'} expression for parameter ${JSON.stringify(definition.ui.label)}: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
 	}
 }

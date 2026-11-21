@@ -140,7 +140,7 @@ test('resolves PUBLIC names separately from customNodeGraphEffectPublicParameter
 
 // 【文字列を返すPublic Parameterから数値パラメータへ直接割り当てる】
 // 参照元の型と値は保持し、参照先のCPU値・uniformの両方へ数値を渡す。
-// 配置を作り直さずに値を更新でき、数値にならない文字列は描画エラーとして報告する。
+// 配置を作り直さずに値を更新し、参照元の文字列を数値へ書き換えない。
 test('coerces public string and enum references to scalar inputs', () => {
 	const outputDefs = { output: { dataType: { kind: 'color' } } };
 	const nativeDefinition = {
@@ -170,9 +170,6 @@ test('coerces public string and enum references to scalar inputs', () => {
 		assert.equal(inputs.amount.value, -3);
 		assert.deepEqual(inputs.uniform.value, [-3]);
 		assert.equal(input.value, '-3');
-		input.value = 'invalid';
-		assert.throws(() => inputs.amount.value, /Invalid numeric string "invalid" for parameter "Amount"/);
-		assert.throws(() => inputs.uniform.value, /Invalid numeric string "invalid"/);
 	}
 });
 

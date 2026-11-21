@@ -116,8 +116,7 @@ export function isParameterType<P extends ParameterDefinition, K extends DataTyp
 	return definition.dataType.kind === kind;
 }
 
-// 選択肢の削除・改名後も保存済みのBindingや式は残す。
-// 実際に使う境界で検証し、古い値や式が返した範囲外の値を描画エラーとして報告する。
+// キーフレームなどを編集・読み込みで受け入れる境界で使う。評価済みの値には適用しない。
 export function validateEnumParameterValue<T>(definition: ParameterDefinition, value: T): T {
 	if (isParameterType(definition, 'enum') && (typeof value !== 'string' || !definition.dataType.options.includes(value))) {
 		throw new Error(`Invalid enum value ${JSON.stringify(value)} for parameter ${JSON.stringify(definition.ui.label)}. Expected one of: ${JSON.stringify(definition.dataType.options)}`);

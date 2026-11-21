@@ -1,5 +1,6 @@
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { createProjectEffectDefinitions } from '@gs/glitch-studio_shared/project/effects.ts';
+import { validateProjectEffectRegistrations } from '@gs/glitch-studio_shared/project/validate-effect-registrations.ts';
 import type { StaticSettingDefinitions, StaticSettingValues } from '@gs/shared/static-setting.ts';
 import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import { getTimelineLayerStaticSettings } from '@gs/subsystems_timeline_shared/layer-static-settings.ts';
@@ -8,8 +9,7 @@ import { computed, shallowRef } from 'vue';
 import { inspectStaticParameter, staticParameterShape } from '@gs/shared/parameter/static-parameter.ts';
 import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
 import { findDependencyCycle } from '@gs/shared/utility/dependency-cycle.ts';
-import { validateEffectSource } from '@gs/subsystems_effect_shared/validate-effect-source.ts';
-import { resolveEffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
+import { validateEffectSource, resolveEffectSourceForValidation } from '@gs/subsystems_effect_shared/validate-effect-source.ts';
 import type { EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
 import type { NativeEffectDefinitions } from '@gs/glitch-studio_shared/project/effects.ts';
 import { inspectTimelineLayer, timelineLayerStaticShape } from '@gs/subsystems_timeline_shared/static-validation.ts';
@@ -34,7 +34,7 @@ type LayerLocation = { path: number[]; insideGroup: boolean };
 
 /**
  * 正となる編集状態に対して同期的に検証する。レンダラーへ送信する前に結果を確定する。
- * 値の検証は評価側に残し、各単位の静的な形が同じなら検証器もグラフ走査も呼ばない。
+ * 式の結果は検証せず、各単位の静的な形が同じなら検証器もグラフ走査も呼ばない。
  * 描画停止はプロジェクト全体なので、子の診断を参照元へ伝播・複製する必要はない。
  */
 export class ProjectRenderValidation {
@@ -206,7 +206,7 @@ export class ProjectRenderValidation {
 	private nodeShape(node: CustomNodeGraphEffect['nodes'][number], definitions?: EffectDefinitions): string | null {
 		if (node.type === 'relay') return JSON.stringify(node);
 		try {
-			const { paramDefs } = resolveEffectSource(node.effectSource, definitions ?? this.definitions).definition;
+			const { paramDefs } = resolveEffectSourceForValidation(node.effectSource, definitions ?? this.definitions).definition;
 			const params = Object.entries(node.params).map(([id, binding]) => [id, staticParameterShape(paramDefs[id], binding)]);
 			return JSON.stringify([node.effectSource, node.staticSettings, node.resolution, node.isBypass, params]);
 		} catch { return null; }
@@ -232,14 +232,14 @@ export class ProjectRenderValidation {
 
 	private checkEffectResources(source: EffectSource, dependencies: Set<string>, definitions = this.definitions, visited = new Set<CustomNodeGraphEffect>()) {
 		if (source.type === 'customNodeGraphEffectReference') dependencies.add('customNodeGraphEffect:' + source.id);
-		const effect = resolveEffectSource(source, definitions);
+		const effect = resolveEffectSourceForValidation(source, definitions);
 		if (effect.type !== 'customNodeGraphEffect' || visited.has(effect.definition)) return;
 		const graph = effect.definition;
 		visited.add(graph);
 		for (const node of graph.nodes) {
 			if (node.type === 'relay') continue;
 			this.checkEffectResources(node.effectSource, dependencies, definitions, visited);
-			const def = resolveEffectSource(node.effectSource, definitions).definition;
+			const def = resolveEffectSourceForValidation(node.effectSource, definitions).definition;
 			this.staticSettings(def.staticSettingDefs ?? {}, node.staticSettings ?? {}, dependencies);
 			for (const [key, parameter] of Object.entries(def.paramDefs)) {
 				inspectStaticParameter(parameter, node.params[key] ?? createDefaultParameterBinding(parameter), (leaf, value) => this.value(leaf, value, dependencies));
@@ -293,7 +293,7 @@ export class ProjectRenderValidation {
 		const layer = this.layer(sceneId, id);
 		if (!layer) return;
 		const dependencies = new Set<string>();
-		const getEffect = () => layer.layerType === 'effect' ? resolveEffectSource(layer.effectSource, this.definitions).definition : null;
+		const getEffect = () => layer.layerType === 'effect' ? resolveEffectSourceForValidation(layer.effectSource, this.definitions).definition : null;
 		const edges = layer.layerType === 'scene' ? layer.clips.map(clip => clip.sceneId) : [];
 		const previous = this.sceneEdges.get(sceneId)?.get(id);
 		// Shapeの種類など、形の抽出自体が失敗する設定も診断として保持する。
@@ -348,10 +348,9 @@ export class ProjectRenderValidation {
 	}
 
 	private checkRegistrations() {
-		const ids = this.state.customNodeGraphEffects.value.map(customNodeGraphEffect => customNodeGraphEffect.id);
-		this.check('Custom Node Graph Effect registrations', ids, () => {
-			if (new Set(ids).size !== ids.length) throw new Error('Duplicate Custom Node Graph Effect ID');
-		});
+		const registrations = { customShaderEffects: this.state.customShaderEffects?.value ?? [], customNodeGraphEffects: this.state.customNodeGraphEffects.value };
+		const ids = [registrations.customShaderEffects.map(entry => entry.id), registrations.customNodeGraphEffects.map(entry => entry.id)];
+		this.check('Effect registrations', ids, () => validateProjectEffectRegistrations(registrations));
 	}
 
 	private checkSettings() {

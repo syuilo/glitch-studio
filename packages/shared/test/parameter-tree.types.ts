@@ -28,7 +28,7 @@ const elementField: NewElementField = expression;
 const fieldDefault: FieldDefault = expression;
 
 // 【評価には必ずパラメータの型を渡す】
-// 定義を渡し忘れた呼び出しで、基準値や式の結果の型検証が省略されないようにする。
+// 定義を渡し忘れた呼び出しで、数値文字列の変換や式のエラーに付ける対象情報を失わないようにする。
 // @ts-expect-error 第4引数のパラメータ定義は必須
 new ParameterBindingEvaluator(null).evaluate(modifiedLiteral, { variables: {}, automationGraphs: [], time: 0, endTime: 0 }, null);
 

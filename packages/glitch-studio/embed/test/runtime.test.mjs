@@ -63,12 +63,18 @@ test('bundles only selected runtime capabilities from a self-contained catalog',
 	const metadata = [];
 	const plain = await buildPortableCustomNodeGraphEffectRuntime(directory, requirements, (_name, result) => metadata.push(result));
 	assert.doesNotMatch(plain.elementSource + plain.workerSource, /AiScript|VideoSampleSink|Expression is empty|fn gs_fragment/);
+	// 【式の結果検証と登録IDの静的検証を配布ランタイムへ戻さない】
+	// エディタでは使う検証器も、描画の依存へ置くと未使用型の検証まで同梱されてしまう。
+	// 式を使う作品でも戻り値の型は検査せず、登録の正しさは書き出し時に保証する。
+	const excludedValidationMessages = /Expected a Color Ramp object|Color Ramp stop IDs|Invalid numeric string|Duplicate |Unknown Native Effect:|Unknown Custom Shader Effect:|Unknown Custom Node Graph Effect:/;
+	assert.doesNotMatch(plain.workerSource, excludedValidationMessages);
 	for (const result of metadata) {
 		assert.ok(Object.keys(result.inputs).filter(file => file.includes('/effects/')).every(file => file.includes('/effects/fill/')));
 		assert.ok(Object.values(result.outputs).every(output => output.imports.length === 0));
 	}
 	const expressions = await buildPortableCustomNodeGraphEffectRuntime(directory, { ...requirements, requiresExpressions: true });
 	assert.match(expressions.workerSource, /Expression is empty/);
+	assert.doesNotMatch(expressions.workerSource, excludedValidationMessages);
 	assert.equal(expressions.elementSource, plain.elementSource);
 	const shaders = await buildPortableCustomNodeGraphEffectRuntime(directory, { ...requirements, requiresCustomShaderEffects: true });
 	assert.match(shaders.workerSource, /fn gs_fragment/);

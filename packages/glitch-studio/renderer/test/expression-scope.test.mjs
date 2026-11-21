@@ -39,10 +39,9 @@ test('passes discrete layer keyframes to Custom Node Graph Effects consistently 
 	}
 });
 
-// 【enumの空タイムラインは既定値、無効になった保存値はエラーとして扱う】
-// 候補の削除・改名で別の値を黙って選ぶと、ユーザーの設定を失いUndoでも意図を復元できない。
-// 保存した型の候補に残っていても、現在の定義で検証することを保証する。
-test('uses current enum defaults only for empty timelines and rejects obsolete keyframe values', async () => {
+// 【enumの空タイムラインは現在の定義の既定値を使う】
+// 未設定のキーに古い保存型の候補を補わず、定義の変更と通常のキー評価を維持する。
+test('uses current enum defaults for empty timelines and evaluates stored keyframes', async () => {
 	const definition = { ...def('mode', 'b'), dataType: { kind: 'enum', options: ['a', 'b'] } };
 	const input = { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
 		keyframesTimeline: { dataType: { kind: 'enum', options: ['obsolete', 'a'] }, isNormalized: false, keyframes: [] } };
@@ -58,10 +57,7 @@ test('uses current enum defaults only for empty timelines and rejects obsolete k
 	definition.defaultValue = 'a';
 	await evaluate();
 	assert.equal(resolved, 'a');
-	input.keyframesTimeline.keyframes.push({ id: 'key', x: 0, value: 'obsolete', interpolation: { type: 'hold' } });
-	await assert.rejects(evaluate, /Invalid enum value/);
-	assert.equal(input.keyframesTimeline.keyframes[0].value, 'obsolete');
-	input.keyframesTimeline.keyframes[0].value = 'b';
+	input.keyframesTimeline.keyframes.push({ id: 'key', x: 0, value: 'b', interpolation: { type: 'hold' } });
 	await evaluate();
 	assert.equal(resolved, 'b');
 });

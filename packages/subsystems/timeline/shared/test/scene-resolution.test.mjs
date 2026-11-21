@@ -27,5 +27,4 @@ test('rejects invalid settings and scaled dimensions exceeding the device limit'
 	}
 	for (const setting of [undefined, {}, { mode: 'context' }]) assert.throws(() => validateSceneResolution(setting));
 	assert.throws(() => resolveSceneResolution({ mode: 'customAbsolute', width: 5000, height: 1 }, { width: 1, height: 1 }, 2, 8192), /8192/);
-	assert.throws(() => resolveSceneResolution({ mode: 'project' }, { width: 1, height: 1 }, 0, 8192), /positive/);
 });

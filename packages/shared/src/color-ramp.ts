@@ -23,7 +23,7 @@ export function createDefaultColorRamp(): ColorRamp {
 	] };
 }
 
-/** 保存値と式の戻り値に同じ契約を適用する。範囲の補正で入力ミスを隠さない。 */
+/** 編集・読み込みで受け取る保存値を検査する。式の評価や描画準備からは呼ばない。 */
 export function validateColorRamp(value: unknown): asserts value is ColorRamp {
 	if (value == null || typeof value !== 'object') throw new Error('Expected a Color Ramp object');
 	const ramp = value as Record<string, unknown>;
@@ -88,7 +88,6 @@ function prepareSegmentHues(left: ColorRampColor, right: ColorRampColor, method:
 
 /** UIとGPU転送で共有する。保存順を保ったstable sortで、同位置では後のstopを優先する。 */
 export function prepareColorRamp(ramp: ColorRamp): PreparedColorRamp {
-	validateColorRamp(ramp);
 	const stops = ramp.stops.map(stop => ({ position: Math.fround(stop.position), color: toWorkingColor(stop.color, ramp.colorSpace), linearColor: stop.color })).sort((a, b) => a.position - b.position);
 	return { interpolation: ramp.interpolation, colorSpace: ramp.colorSpace, repeatCount: Math.fround(ramp.repeatCount), repeatMode: ramp.repeatMode, stops: stops.map((stop, index) => {
 		const color = stop.color;
@@ -99,7 +98,6 @@ export function prepareColorRamp(ramp: ColorRamp): PreparedColorRamp {
 		// GPUでも同じ値を使うことで無彩色・経路・alphaの規則を二重実装しない。
 		const segmentHues = ramp.colorSpace === 'oklch' ? prepareSegmentHues(color, stops[index + 1]?.color ?? color, ramp.hueInterpolation ?? 'shorter') : null;
 		if (ramp.colorSpace === 'oklch') working[2] = color[2];
-		if (!working.every(component => Number.isFinite(Math.fround(component)))) throw new Error('Color Ramp color exceeds GPU float32 range');
 		const linearColor = stop.linearColor;
 		return { position: stop.position, color: working, linearColor: [linearColor[0] * alpha, linearColor[1] * alpha, linearColor[2] * alpha, alpha] as ColorRampColor, segmentHues };
 	}) };

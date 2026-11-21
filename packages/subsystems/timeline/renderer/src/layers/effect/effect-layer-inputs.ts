@@ -1,6 +1,6 @@
 import { constantShaderInputComponents } from '@gs/shared/gpu/shader-input.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
-import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType, validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { deepClone, type Cloneable } from '@gs/shared/utility/deep-clone.ts';
 import { getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
@@ -68,7 +68,7 @@ export function createEffectLayerInputs(layer: TimelineEffectLayer, definition: 
 		const fallback = binding.inputSource === 'automationGraphReference' || (def.dataType.kind === 'enum' && binding.inputSource === 'keyframesTimelineInline')
 			? def.defaultValue : def.dataType.kind === 'enum' ? null : genEmptyValue(def);
 		// 評価結果を切り離し、非同期の入力解決や準備の途中で編集されても今回のサンプルの値を保つ。
-		const convert = (value: Cloneable) => coerceParameterValue(def, deepClone(validateEnumParameterValue(def, value)));
+		const convert = (value: Cloneable) => coerceParameterValue(def, deepClone(value));
 		const evaluate = (scope: TimelineLayerEvaluationScope) => {
 			const current = read() as TimelineParameterBinding;
 			return convert(current.inputSource === 'literal' && current.expressionModifier?.enabled !== true

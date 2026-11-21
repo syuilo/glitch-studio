@@ -26,11 +26,11 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 
 `ParameterBindingEvaluator`が受け取る`ValueParameterBinding`は、literal・環境変数・式・グラフ参照・インライングラフ・キーフレームに限定する。時刻、終了時刻、グラフ一覧と式の環境は`ParameterEvaluationScope`で渡す。評価結果やスコープは保持しない。
 
-末端のCPU値Bindingには任意の`expressionModifier: { enabled, code } | null`を付けられる。評価器にはパラメータ定義を必ず渡し、基準値の型を揃えてから`VALUE`として加工式へ渡す。式エンジンが値を複製するため、式内の変更は保存値へ漏れない。基準の`inputSource: 'expression'`は維持し、基準式には`VALUE`を公開しない。加工式は利用箇所のBindingに指定する。式の未入力・構文・実行・戻り値の型のエラーは例外として伝播し、既定値へ置換しない。エラーには基準式／加工式とパラメータ名を付加する。空キー・未設定グラフなど正常な未設定状態の既定値処理は維持する。
+末端のCPU値Bindingには任意の`expressionModifier: { enabled, code } | null`を付けられる。評価器にはパラメータ定義を必ず渡し、基準値の数値文字列を変換してから`VALUE`として加工式へ渡す。式エンジンが値を複製するため、式内の変更は保存値へ漏れない。基準の`inputSource: 'expression'`は維持し、基準式には`VALUE`を公開しない。加工式は利用箇所のBindingに指定する。式の未入力・構文・実行のエラーは例外として伝播し、既定値へ置換しない。評価結果の型・構造・有限性は検証せず、不正な結果の動作は保証しない。エラーには基準式／加工式とパラメータ名を付加する。空キー・未設定グラフなど正常な未設定状態の既定値処理は維持する。
 
 共通の式関数`RANDOM(index, seed = 0)`と`NOISE(x, seed = 0)`は`src/expression/random-functions.ts`に定義し、`ParameterBindingEvaluator`から公開する。前者は0以上1未満の疑似乱数、後者は−1〜1の1次元Perlin Noiseを返す。引数だけで結果が決まり、時刻・レイヤー・評価順を暗黙に参照しない。式エンジン自体は関数を自動登録しない。引数・使い方は[パラメータのドキュメント](../../docs/data-type-and-parameter.md#乱数とノイズの式関数)を参照。
 
-評価後、受け取り側のパラメータ定義が判明する境界で`coerceParameterValue()`を使う。scalarへ渡された文字列は`Number()`で有限な数値に変換し、空文字列・空白のみ・変換不能・非有限となる文字列はパラメータ名を含むエラーにする。enumの値やstring、保存済みのBindingは文字列のまま保持する。配列・構造体は既存のツリー走査で各scalar末端に適用する。数値以外の型やvector/colorの成分を暗黙変換する処理ではない。
+評価後、受け取り側のパラメータ定義が判明する境界で`coerceParameterValue()`を使う。scalarへ渡された文字列は`Number()`で変換し、変換後の値の妥当性は検証しない。enumの値やstring、保存済みのBindingは文字列のまま保持する。配列・構造体は既存のツリー走査で各scalar末端に適用する。数値以外の型やvector/colorの成分を暗黙変換する処理ではない。
 
 共通の`ParameterBindingBase`はツリー操作に必要な`inputSource`だけを定義する。`resolveParameter`・`walkParameters`・`mapParameterTree`・`walkParameterLeaves`の型引数には、ツリー全体で許可するBinding型を明示する。利用箇所では親がliteralでも子は式やドメイン固有方式になり得るため、親の具体型からは推論しない。走査結果・編集先と`ParameterArrayElement`は指定したBinding型を保持する。定義の`defaultValue`には配列・構造体の末端まで値を直接置き、必要な箇所で`createDefaultParameterBinding`を使って編集用IDを持つBindingを生成する。`walkParameters`は渡されたBindingを定義順でたどり、未設定のルートを飛ばす。
 

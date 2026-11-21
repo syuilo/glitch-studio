@@ -6,7 +6,6 @@ import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_share
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
-import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
 import type { TextParameterValues } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 
@@ -20,7 +19,7 @@ export class TextParameters {
 			const binding = bindings[key as keyof TextParameterValues];
 			const fallback = binding?.inputSource === 'automationGraphReference' || def.dataType.kind === 'enum' ? def.defaultValue : genEmptyValue(def);
 			const value = binding == null ? def.defaultValue : this.evaluator.evaluate(binding, scope, fallback, def);
-			values[key] = coerceParameterValue(def, validateEnumParameterValue(def, value));
+			values[key] = coerceParameterValue(def, value);
 		}
 		// 式が返した値は保存値を変更せず描画境界で整える。色はここでは未乗算。
 		const number = (value: unknown) => typeof value === 'number' && Number.isFinite(Math.fround(value)) ? value : 0;

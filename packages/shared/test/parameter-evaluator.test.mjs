@@ -31,7 +31,7 @@ const context = (overrides = {}) => ({
 });
 
 // 【ランプ全体の基準式・加工式を評価し、保存値と式の結果を分離する】
-// 個別stopのBindingは追加せず、既存のオブジェクト値の式評価を使う。戻り値の検証と再評価の再現性も確認する。
+// 個別stopのBindingは追加せず、既存のオブジェクト値の式評価を使う。再評価の再現性も確認する。
 test('evaluates complete Color Ramp expressions and modifiers without mutating stored values', () => {
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const ramp = { colorSpace: 'srgb', repeatCount: 1, repeatMode: 'wrap', interpolation: 'linear', stops: [{ id: 'start', position: 0, color: [1, 0, 0, 1] }, { id: 'end', position: 1, color: [0, 0, 1, 1] }] };
@@ -52,8 +52,6 @@ test('evaluates complete Color Ramp expressions and modifiers without mutating s
 	}
 	const code = '{ colorSpace: "linearSrgb", interpolation: "constant", repeatCount: 1, repeatMode: "wrap", stops: [{ id: "only", position: 0, color: [TIME, 0, 0, 1] }] }';
 	assert.equal(evaluator.evaluate(expression(code), context({ variables: { TIME: 0.25 } }), null, definition).stops[0].color[0], 0.25);
-	assert.throws(() => evaluator.evaluate(expression('{}'), context(), ramp, definition), /Base expression for parameter "Ramp"/);
-	assert.throws(() => evaluator.evaluate(modified(literal(ramp), 'VALUE.colorSpace = "unknown"\nVALUE'), context(), ramp, definition), /Modifier expression for parameter "Ramp"/);
 	assert.throws(() => inspectStaticParameter(definition, { inputSource: 'automationGraphReference' }, () => {}), /does not support/);
 	assert.throws(() => inspectStaticParameter(definition, { inputSource: 'keyframesTimelineInline' }, () => {}), /does not support/);
 });
@@ -90,15 +88,11 @@ test('throws contextual expression errors and skips disabled or unreachable modi
 	assert.equal(evaluator.evaluate({ ...literal(2), expressionModifier: null }, scope, 42, scalarDefinition), 2);
 });
 
-// 【加工前と加工後の型を検証し、有限なovershootは保持する】
-// 不正な値を0や基準値へ戻すと書き出しでも設定ミスに気付けない。一方、式の前後でUI範囲へ
-// clampすると、基準アニメーションを使った倍率計算や揺れが変わるので型検証とは分ける。
-test('validates base and modifier types without clamping finite values', () => {
+// 【各型の加工式を評価し、有限なovershootは保持する】
+// 式の前後でUI範囲へclampすると、基準アニメーションを使った倍率計算や揺れが変わる。
+// 値の正しさは式の記述側に委ね、評価器は正常な値の計算結果をそのまま保つ。
+test('evaluates modifiers for each value type without clamping finite values', () => {
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
-	for (const code of ['true', '[1, 2]', 'null', '"text"', '1 / 0']) {
-		assert.throws(() => evaluator.evaluate(modified(expression(code), '1'), context(), 0, scalarDefinition), /Base expression/);
-		assert.throws(() => evaluator.evaluate(modified(literal(1), code), context(), 0, scalarDefinition), /Modifier expression/);
-	}
 	assert.equal(evaluator.evaluate(modified(literal(2), 'VALUE * 3'), context(), 0, scalarDefinition), 6);
 	for (const [kind, base, code, expected] of [
 		['bool', true, '!VALUE', false], ['string', 'hello', '"changed"', 'changed'],

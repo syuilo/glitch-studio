@@ -1,6 +1,6 @@
 import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
-import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType, validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { constantShaderInputComponents } from '@gs/shared/gpu/shader-input.ts';
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
@@ -45,7 +45,7 @@ export function createEffectLivePreviewInputs(definition: EffectDefinition, init
 		}
 		let evaluate = evaluator.bind(source, def.defaultValue, def, automationGraphs);
 		refresh.push(() => { evaluate = evaluator.bind(read(), def.defaultValue, def, automationGraphs); });
-		const readValue = (scope: ParameterEvaluationScope) => coerceParameterValue(def, validateEnumParameterValue(def, evaluate(scope)));
+		const readValue = (scope: ParameterEvaluationScope) => coerceParameterValue(def, evaluate(scope));
 		if (def.canNode === true) {
 			let value = constantShaderInputComponents(def.dataType.kind, def.defaultValue);
 			update.push(scope => { value = constantShaderInputComponents(def.dataType.kind, readValue(scope)); });

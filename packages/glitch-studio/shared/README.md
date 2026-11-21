@@ -14,7 +14,7 @@ Glitch Studioドメイン内で共通の型や処理などを置く
 
 ## Effectの登録と受け渡し
 
-プロジェクトはCustom Shader EffectとCustom Node Graph Effectをそれぞれ登録し、名前やノードの編集情報と、`effect` に渡す `definition` を分けて保存する。`createProjectEffectDefinitions` はそのスナップショットと呼び出し元のNative Effect定義から、種類ごとのIDを解決する。インライン定義は配置の `effectSource` に含まれる。
+プロジェクトはCustom Shader EffectとCustom Node Graph Effectをそれぞれ登録し、名前やノードの編集情報と、`effect` に渡す `definition` を分けて保存する。`createProjectEffectDefinitions` はそのスナップショットと呼び出し元のNative Effect定義から、種類ごとのIDを解決する。インライン定義は配置の `effectSource` に含まれる。登録IDの一意性は `validateProjectEffectRegistrations`、参照先の存在は `validateEffectSource` などの編集・読み込み・書き出し時の検証で保証し、実行時の索引では再検証しない。
 
 Workerに送る `RendererProjectState` は両方の登録一覧を持つ。定義を編集して利用側の配線も変わる場合は、登録と利用側の変更を同じ `applyRendererProjectChanges` の差分列に含める。インライン定義の編集は、所有するノード・登録定義・Timelineレイヤーの置換で伝える。
 

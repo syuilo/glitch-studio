@@ -1,5 +1,5 @@
 import { createResolutionExpressionVariables } from '@gs/shared/expression/resolution-variables.ts';
-import { prepareExpressionParameterValue } from '@gs/shared/parameter/expression-parameter-value.ts';
+import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import type { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 import type { ParameterEvaluationScope } from '@gs/shared/parameter/parameter-evaluation-scope.ts';
@@ -91,7 +91,7 @@ export function createGraphEvaluation(graph: Pick<CustomNodeGraphEffect, 'paramD
 		if (visiting.has(id)) throw new Error('Circular custom parameter reference: ' + [...visiting, id].join(' → '));
 		visiting.add(id);
 		try {
-			const result = prepareExpressionParameterValue(def, customReaders.get(id)!(frame));
+			const result = coerceParameterValue(def, customReaders.get(id)!(frame));
 			customValues.set(id, result);
 			return structuredClone(result);
 		} finally { visiting.delete(id); }

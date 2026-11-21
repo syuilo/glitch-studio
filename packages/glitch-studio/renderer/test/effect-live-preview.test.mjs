@@ -110,10 +110,10 @@ test('preserves history for parameter edits and rebuilds only transitive dependa
 	assert.deepEqual(f.errors, []);
 });
 
-// 【定義一覧の再同期は無関係な配置の履歴を維持し、初期化失敗から同じ選択で復帰する】
+// 【定義一覧の再同期は無関係な配置の履歴を維持し、関連定義の変更を反映する】
 // Workerをまたぐと定義の参照同一性は失われる。複製された一覧や別の登録変更でも
-// 表示中の配置を維持し、編集中の定義が再び有効になったら次のフレームへ反映する。
-test('preserves unrelated history on snapshot sync and resumes a corrected definition', async t => {
+// 表示中の配置を維持し、検証済みの関連定義が変わったら次のフレームへ反映する。
+test('preserves unrelated history on snapshot sync and applies a changed definition', async t => {
 	let disposed = 0;
 	const f = await fixture(t, { init() { return { render() {}, dispose() { disposed++; } }; } });
 	const graphSource = { type: 'customNodeGraphEffectReference', id: 'shared' };
@@ -124,14 +124,14 @@ test('preserves unrelated history on snapshot sync and resumes a corrected defin
 	f.manager.updateDynamicOptions({ customNodeGraphEffects: [structuredClone(registered), { ...registered, id: 'other' }] });
 	await f.frame(20);
 	assert.equal(disposed, 0);
-	const broken = { ...registered, definition: graph({ type: 'nativeEffect', id: 'missing' }) };
-	f.manager.updateDynamicOptions({ customNodeGraphEffects: [broken] });
+	const changed = structuredClone(registered);
+	changed.definition.nodes[0].params.value = literal(1);
+	f.manager.updateDynamicOptions({ customNodeGraphEffects: [changed] });
 	await f.frame(30);
 	assert.equal(disposed, 1);
-	assert.match(f.errors[0], /Unknown Native Effect/);
 	f.manager.updateDynamicOptions({ customNodeGraphEffects: [registered] });
 	await f.frame(40);
-	assert.equal(f.errors.length, 1);
+	assert.deepEqual(f.errors, []);
 	assert.equal(f.submitted.at(-1).time, 40);
 });
 

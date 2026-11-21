@@ -78,7 +78,7 @@ test('repeats the full unit domain before evaluating stops and color interpolati
 });
 
 // 【繰り返し設定は正のGPU表現可能な数値と既知の方式だけを受け付ける】
-// 式や貼り付けからも値が届くため、0・非有限値・f32で0になる値を描画へ渡さない。
+// 手入力や貼り付けの受け入れ時に、0・非有限値・f32で0になる値を保存値として拒否する。
 // 準備時の丸めで保存値を書き換えず、CPUとGPUには同じ繰り返し数を渡す。
 test('validates repeat settings and prepares float32 counts without mutating stored values', () => {
 	const ramp = createDefaultColorRamp();
@@ -229,8 +229,8 @@ test('preserves authored OKLCH stops and exact boundaries', () => {
 	assert.deepEqual(ramp, before);
 });
 
-// 【式や直接編集からの不正な対応表を明示的に拒否する】
-// 不正なIDや非有限値をGPUへ送ると選択が壊れたり描画が不定になる。RGBの有限な範囲外値は、補間後の出力にも保持する。
+// 【直接編集からの不正な対応表を受け入れ時に拒否する】
+// 編集用IDや値の契約は保存前に保証する。RGBの有限な範囲外値は、補間後の出力にも保持する。
 test('rejects malformed ramps and preserves extended linear RGB in output', () => {
 	const ramp = createDefaultColorRamp();
 	for (const hueInterpolation of ['unknown', 0, {}]) assert.throws(() => validateColorRamp({ ...circularRamp, hueInterpolation }), /hue interpolation/);

@@ -166,14 +166,28 @@ test('reports missing and cyclic registrations before allocating destination IDs
 });
 
 // 【同一IDのNative Effect・Custom Shader Effect・Custom Node Graph Effectを独立に解決する】
-// 表示名やIDの衝突で別種の定義を引いてはならない。登録内での重複は曖昧なので拒否する。
+// 表示名やIDの衝突で別種の定義を引いてはならない。検証済みの登録から種類別に解決する。
 test('resolves each effect kind in its own registry', () => {
 	const input = resources();
 	const definitions = createProjectEffectDefinitions(input, nativeDefinitions);
 	assert.equal(definitions.getNativeEffect('shared-id'), nativeDefinitions['shared-id']);
 	assert.equal(definitions.getCustomShaderEffect('shared-id'), input.customShaderEffects[0].definition);
 	assert.equal(definitions.getCustomNodeGraphEffect('shared-id'), input.customNodeGraphEffects[0].definition);
-	assert.throws(() => definitions.getNativeEffect('constructor'), /Unknown Native Effect/);
+});
+
+// 【登録内の重複と未知のNative Effectは書き出し前に拒否する】
+// ランタイムの索引では再検証しないため、IDを割り当てる前に静的な条件を確定する。
+test('rejects duplicate registrations and missing native references before export', () => {
+	const input = resources();
+	const assignId = () => assert.fail('unexpected ID allocation');
 	input.customShaderEffects.push(input.customShaderEffects[0]);
-	assert.throws(() => createProjectEffectDefinitions(input, nativeDefinitions), /Duplicate Custom Shader Effect/);
+	assert.throws(() => collectCustomNodeGraphEffectResources(input, nativeDefinitions, assignId), /Duplicate Custom Shader Effect/);
+	input.customShaderEffects.pop();
+	input.customNodeGraphEffects.push(input.customNodeGraphEffects[0]);
+	assert.throws(() => collectCustomNodeGraphEffectResources(input, nativeDefinitions, assignId), /Duplicate Custom Node Graph Effect/);
+	input.customNodeGraphEffects.pop();
+	for (const id of ['missing', 'constructor', '__proto__']) {
+		input.customNodeGraphEffect = graph([node('missing', { type: 'nativeEffect', id })], 'missing');
+		assert.throws(() => collectCustomNodeGraphEffectResources(input, nativeDefinitions, assignId), /Unknown Native Effect/);
+	}
 });

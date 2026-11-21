@@ -259,7 +259,6 @@ test('preserves sub-control-period hold boundaries and linear keyframes', async 
 
 // 【負数・非有限数の音量は無音にし、増幅値はレイヤー単位ではクリップしない】
 // NaNを音声出力に流さず、重ね合わせ前に音量情報を失わない。
-// 数値へ変換できない文字列は設定ミスとして拒否するため、別のテストで確認する。
 test('sanitizes negative and nonfinite gains and permits amplification', async () => {
 	const renderer = new TimelineAudioRenderer(constant);
 	for (const value of [-1, NaN, Infinity, -Infinity]) {
@@ -276,19 +275,6 @@ test('converts numeric gain strings before applying gain limits', async () => {
 	for (const [value, expected] of [['0.5', 0.5], [' 3 ', 3], ['1e-1', 0.1], ['-1', 0]]) {
 		const output = await renderSceneAudio(renderer, [layer({ audioParamValues: { volume: { inputSource: 'literal', value } } })], 100, 2, 1000);
 		assert.deepEqual(output, [new Float32Array(2).fill(expected), new Float32Array(2).fill(expected * 0.5)]);
-	}
-});
-
-// 【数値に変換できない音量文字列は設定エラーとして伝える】
-// 無音へ置き換えると設定ミスに気づけず、一部だけ数値として読むと意図しない音量になる。
-// 空白や非有限数を表す文字列も、共通のパラメータ評価の規則に従って拒否する。
-test('rejects invalid numeric gain strings instead of silently muting them', async () => {
-	const renderer = new TimelineAudioRenderer(constant);
-	for (const value of ['bad', '', ' ', '1foo', 'NaN', 'Infinity']) {
-		await assert.rejects(
-			renderSceneAudio(renderer, [layer({ audioParamValues: { volume: { inputSource: 'literal', value } } })], 100, 2, 1000),
-			{ message: `Invalid numeric string ${JSON.stringify(value)} for parameter "Volume". Expected a finite number.` },
-		);
 	}
 });
 

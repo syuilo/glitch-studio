@@ -1,6 +1,6 @@
 import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from './parameter-definition.ts';
 import { validateParameterExpressionModifier } from './parameter-expression-modifier.ts';
-import { prepareExpressionParameterValue } from './expression-parameter-value.ts';
+import { validateParameterValue } from './validate-parameter-value.ts';
 import type { ParameterDefinition } from './parameter-definition.ts';
 import type { ParameterBindingBase, ParameterArrayElement } from './parameter-binding.ts';
 
@@ -58,7 +58,7 @@ function validateDefaultValue(definition: ParameterDefinition, value: unknown, v
 	if (!['scalar', 'bool', 'string', 'color', 'colorRamp', 'vector', 'blendMode', 'fitMode', 'sizeReference', 'wrapMode', 'enum'].includes(kind)) throw new Error('Unsupported parameter data type');
 	// 式が受け取る文字列の数値変換は、型に対応する値を直接保存する定義には適用しない。
 	if (kind === 'scalar' && typeof value !== 'number') throw invalidDefault();
-	prepareExpressionParameterValue(definition, value);
+	validateParameterValue(definition, value);
 }
 
 /** 値の妥当性は評価後に検査する。ここではBindingの構造と静的な参照だけを扱う。 */

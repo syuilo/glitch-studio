@@ -3,7 +3,6 @@ import { test } from 'node:test';
 import { SIZE_REFERENCES, getSizeReferenceLength, isSizeReference } from '../src/size-reference.ts';
 import { areDataTypesEqual, isTextureDataType } from '../src/data-type/data-type.ts';
 import { genEmptyValue } from '../src/parameter/parameter-default.ts';
-import { prepareExpressionParameterValue } from '../src/parameter/expression-parameter-value.ts';
 import { validateParameterDefaultValues } from '../src/parameter/static-parameter.ts';
 import { isKeyframesDataType, isKeyframeValue, supportsKeyframeInterpolation } from '../src/keyframes/keyframes-timeline.ts';
 import { evaluateKeyframesTimeline } from '../src/keyframes/keyframes-timeline-evaluator.ts';
@@ -21,8 +20,8 @@ test('resolves all four size references across aspect ratios and render scales',
 });
 
 // 【サイズ基準を専用の型として扱い、既定値を長辺にする】
-// 汎用enumやGPUへの入力型とは区別する。式・加工式では同じ4値だけを受け入れ、
-// Checkerなどで廃止したStretchを既定値や不正な入力として暗黙に読み替えない。
+// 汎用enumやGPUへの入力型とは区別し、既定値は編集・読み込み側で検証する。
+// Checkerなどで廃止したStretchを保存値の受け入れ時に暗黙に読み替えない。
 test('uses a dedicated non-texture type with a long-side default and validated values', () => {
 	const definition = { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', control: {} }, defaultValue: 'longSide' };
 	assert.equal(genEmptyValue(definition), 'longSide');
@@ -32,12 +31,11 @@ test('uses a dedicated non-texture type with a long-side default and validated v
 	assert.equal(areDataTypesEqual(definition.dataType, { kind: 'enum', options: [...SIZE_REFERENCES] }), false);
 	for (const reference of SIZE_REFERENCES) {
 		assert.equal(isSizeReference(reference), true);
-		assert.equal(prepareExpressionParameterValue(definition, reference), reference);
+		assert.doesNotThrow(() => validateParameterDefaultValues({ ...definition, defaultValue: reference }));
 	}
 	for (const value of ['stretch', 'cover', 'contain', '', 0, null]) {
 		assert.equal(isSizeReference(value), false);
-		assert.throws(() => prepareExpressionParameterValue(definition, value), /Invalid sizeReference/);
-		assert.throws(() => getSizeReferenceLength(value, { width: 1920, height: 1080 }), /Invalid Size Reference/);
+		assert.throws(() => validateParameterDefaultValues({ ...definition, defaultValue: value }), /Invalid sizeReference/);
 	}
 });
 

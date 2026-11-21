@@ -10,11 +10,21 @@ import { validateEffectParameterLayout } from './effect-parameter-layout.ts';
 import { canConnectNodeDataTypes, getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { resolveEffectSource } from './effect-source.ts';
-import type { EffectDefinitions, EffectSource } from './effect-source.ts';
+import type { EffectDefinitions, EffectSource, ResolvedEffect } from './effect-source.ts';
 import type { EffectDefinition } from './effect-definition.ts';
 import { isUnselectedGraphParameterReference, type CustomNodeGraphEffect, type CustomNodeGraphEffectParameterBinding, type CustomNodeGraphEffectOutputSource, type NodeOutputReference } from './custom-node-graph-effect.ts';
 
 type InputSettings = { canNode?: boolean; element?: InputSettings; fields?: Record<string, InputSettings> };
+
+/** 参照先の欠落は静的検証で報告し、描画中の定義解決にはこの診断を持ち込まない。 */
+export function resolveEffectSourceForValidation(source: EffectSource, definitions: EffectDefinitions): ResolvedEffect {
+	const effect = resolveEffectSource(source, definitions);
+	if (effect.definition == null) {
+		const kind = effect.type === 'nativeEffect' ? 'Native Effect' : effect.type === 'customShaderEffect' ? 'Custom Shader Effect' : 'Custom Node Graph Effect';
+		throw new Error('Unknown ' + kind + ': ' + ('id' in source ? source.id : 'inline'));
+	}
+	return effect;
+}
 
 export function acceptsResolutionInput(settings: InputSettings | undefined): boolean {
 	if (settings == null) return false;
@@ -29,7 +39,7 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 	const ancestorIds = new Set<string>();
 
 	function visit(source: EffectSource): EffectDefinition {
-		const effect = resolveEffectSource(source, definitions);
+		const effect = resolveEffectSourceForValidation(source, definitions);
 		if (effect.type === 'nativeEffect' || validated.has(effect.definition)) return effect.definition;
 		if (effect.definition.ui != null) validateEffectParameterLayout(effect.definition.ui.parameterLayout, Object.keys(effect.definition.paramDefs));
 		validateStaticSettings(effect.definition.staticSettingDefs ?? {}, {});

@@ -13,5 +13,4 @@ export function getSizeReferenceLength(reference: SizeReference, resolution: { w
 		case 'shortSide': return Math.min(resolution.width, resolution.height);
 		case 'longSide': return Math.max(resolution.width, resolution.height);
 	}
-	throw new Error(`Invalid Size Reference: ${JSON.stringify(reference)}`);
 }

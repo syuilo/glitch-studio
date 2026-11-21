@@ -2,7 +2,7 @@ import { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.
 import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import type { Cloneable } from '@gs/shared/utility/deep-clone.ts';
-import { prepareExpressionParameterValue } from '@gs/shared/parameter/expression-parameter-value.ts';
+import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { resolveTimelineLayerPublicParameterReference, areTimelinePublicParameterTypesCompatible } from './public-parameters.ts';
 import { createTimelineLayerEvaluationScope } from './evaluation-scope.ts';
 import type { TimelineLayerPublicParameterDefinition, TimelineLayerPublicParameterContext, TimelineLayerPublicParameterOwner } from './public-parameters.ts';
@@ -26,7 +26,7 @@ export class TimelineParameterBindingEvaluator {
 			const ownerScope = createTimelineLayerEvaluationScope({ time: scope.time, isExport: scope.variables.IS_EXPORT === true, automationGraphs: owner.automationGraphs, publicParameters: ownerContext });
 			const binding = owner.publicParameterValues?.[publicParameterDefinition.id];
 			const value = binding == null ? publicParameterDefinition.defaultValue : evaluate(binding, ownerScope, publicParameterDefinition.defaultValue, publicParameterDefinition, true);
-			const result = prepareExpressionParameterValue(publicParameterDefinition, deepClone(value)) as Cloneable;
+			const result = coerceParameterValue(publicParameterDefinition, deepClone(value)) as Cloneable;
 			cache.set(key, result);
 			return result;
 		};
