@@ -88,6 +88,14 @@ test('ranks word, prefix and substring matches before typo matches', () => {
 	assert.deepEqual(search(['Neuro Noize', 'Aneuro Annoise'], 'neuro noise'), ['Aneuro Annoise', 'Neuro Noize']);
 });
 
+// 【名前の空白を省いた入力でも検索でき、文字どおりの一致が優先される】
+// QR Codeをqrcのような入力途中の文字列で選べるようにする。記号の省略や文字の飛ばし読みまでは許容しない。
+test('matches consecutive characters across spaces and prefers literal matches', () => {
+	assert.deepEqual(search(['QR Code', 'QR-Code', 'QR Encode', 'Aqrc'], 'qrc'), ['Aqrc', 'QR Code']);
+	assert.deepEqual(search(['Qrfx', 'QR Field'], 'qrfi'), ['QR Field', 'Qrfx']);
+	assert.deepEqual(search(['QR Code', 'QR Code Generator'], ' generator ＱＲＣＯＤＥ '), ['QR Code Generator']);
+});
+
 // 【4文字以上の語では挿入・削除・置換・隣接入れ替えを1回まで許容する】
 // 特に隣接入れ替えを2回の置換として扱うと、よくあるn i o s eの誤入力を救済できない。
 // 語頭・語中・語尾と繰り返し文字で、文字の読み飛ばしや末尾判定に欠落がないことを確認する。

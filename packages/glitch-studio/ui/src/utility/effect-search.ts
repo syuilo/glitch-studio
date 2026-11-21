@@ -6,6 +6,7 @@ type EffectSearchQuery = {
 type EffectNameSearchMatch = {
 	isExactName: boolean;
 	typoCount: number;
+	spaceOmittedMatchCount: number;
 	substringMatchCount: number;
 	prefixMatchCount: number;
 	matchPositionSum: number;
@@ -26,6 +27,7 @@ export function createEffectSearchQuery(text: string): EffectSearchQuery {
 
 export function matchEffectName(displayName: string, query: EffectSearchQuery): EffectNameSearchMatch | null {
 	const normalizedName = normalizeEffectSearchText(displayName);
+	const nameWithoutSpaces = normalizedName.replaceAll(' ', '');
 	// ハイフンや括弧なども語の境界として扱い、名前の一部のtypoを名前全体の長さで判定しない。
 	// 部分一致は元の名前に対して行うため、日本語や記号を含む検索も維持する。
 	const nameWords = Array.from(normalizedName.matchAll(/[\p{L}\p{M}\p{N}]+/gu), word => ({
@@ -36,6 +38,7 @@ export function matchEffectName(displayName: string, query: EffectSearchQuery): 
 		// 空白だけの入力では、空の名前も含めて検索による順位を付けない。
 		isExactName: query.terms.length > 0 && normalizedName === query.text,
 		typoCount: 0,
+		spaceOmittedMatchCount: 0,
 		substringMatchCount: 0,
 		prefixMatchCount: 0,
 		matchPositionSum: 0,
@@ -62,6 +65,13 @@ export function matchEffectName(displayName: string, query: EffectSearchQuery): 
 			match.matchPositionSum += Array.from(normalizedName.slice(0, substringPosition)).length;
 			continue;
 		}
+		// QR Codeをqrcのように空白を省いて探せるようにする。記号は残し、文字が連続している場合だけ一致させる。
+		const spaceOmittedPosition = nameWithoutSpaces.indexOf(term);
+		if (spaceOmittedPosition >= 0) {
+			match.spaceOmittedMatchCount++;
+			match.matchPositionSum += Array.from(nameWithoutSpaces.slice(0, spaceOmittedPosition)).length;
+			continue;
+		}
 		const termCharacters = Array.from(term);
 		// 短い語で1文字を許すと無関係な候補が増えるため、4文字以上に限定する。
 		if (termCharacters.length < 4) return null;
@@ -75,11 +85,12 @@ export function matchEffectName(displayName: string, query: EffectSearchQuery): 
 
 export function compareEffectNameSearchMatches(first: EffectNameSearchMatch, second: EffectNameSearchMatch): number {
 	// 点数の重み付けではなく優先順位ごとに比較し、部分一致が積み重なって完全一致を追い越すのを防ぐ。
-	// 全語が通常一致する候補をtypo候補より優先し、同じ編集回数なら残りの語の一致の強さで比較する。
+	// typoが少ない候補を優先し、同じ編集回数なら空白を省かず一致する語が多い候補を上にする。
 	// その後で一致位置の合計と名前の長さを比較し、入力途中でもNoiseをNeuro Noiseより上にする。
 	// 位置を合算することで、AND検索の語順を入れ替えてもこの比較結果は変わらない。
 	return Number(second.isExactName) - Number(first.isExactName)
 		|| first.typoCount - second.typoCount
+		|| first.spaceOmittedMatchCount - second.spaceOmittedMatchCount
 		|| first.substringMatchCount - second.substringMatchCount
 		|| first.prefixMatchCount - second.prefixMatchCount
 		|| first.matchPositionSum - second.matchPositionSum
