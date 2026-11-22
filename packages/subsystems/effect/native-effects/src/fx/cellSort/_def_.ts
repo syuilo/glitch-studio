@@ -8,7 +8,7 @@ export default defineNativeEffect({
 	},
 	kind: 'modify',
 	dependsOnRenderHistory: false,
-	tags: ['glitch', 'pattern', 'stylized'],
+	tags: ['glitch'],
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' },
