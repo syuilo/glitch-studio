@@ -31,10 +31,13 @@ function enableControlledTiledGpu(g) {
 	const waits = [];
 	const submissions = [];
 	g.device.queue = { submit: commands => submissions.push(commands), onSubmittedWorkDone: () => new Promise(resolve => waits.push(resolve)) };
-	g.device.createCommandEncoder = () => ({
-		beginRenderPass: () => ({ setScissorRect() {}, draw() {}, end() {} }),
-		finish: () => ({}),
-	});
+	g.device.createCommandEncoder = () => {
+		const passLabels = [];
+		return {
+			beginRenderPass({ label }) { passLabels.push(label); return { setScissorRect() {}, draw() {}, end() {} }; },
+			finish: () => ({ passLabels }),
+		};
+	};
 	return { waits, submissions, finish: async () => { waits.shift()(); await tick(); } };
 }
 
@@ -47,10 +50,10 @@ function enableAsynchronousTimestampGpu(t, g) {
 		else delete globalThis[name];
 	} });
 	const pending = [];
-	const control = { pending, holdReadbacks: false, failNextReadback: false, gpuTimeMs: 1, queueWaits: 0, queries: 0 };
+	const control = { pending, holdReadbacks: false, failNextReadback: false, gpuTimeMs: 1, queueWaits: 0, queries: 0, destroyedQuerySets: 0 };
 	g.device.features = new Set(['timestamp-query']);
 	g.device.queue = { submit() {}, onSubmittedWorkDone() { control.queueWaits++; return Promise.resolve(); } };
-	g.device.createQuerySet = ({ count }) => ({ timestamps: new BigUint64Array(count), destroy() {} });
+	g.device.createQuerySet = ({ count }) => ({ timestamps: new BigUint64Array(count), destroy() { control.destroyedQuerySets++; } });
 	g.device.createBuffer = ({ size }) => ({ size, data: new ArrayBuffer(size), destroyed: false, readback: null,
 		mapAsync() {
 			if (control.failNextReadback) {
@@ -173,7 +176,7 @@ async function tiledGraph(g, nodes, tiling, { heavy, init, onGpuTime, onFrameGpu
 				return { cacheKey: 0, dispose() {}, getRenderWorkloadHint() { hints.push(id); return { key: id, workPerPixel: 1 }; },
 					render({ commandEncoder }) {
 						renders.push(id);
-						const pass = commandEncoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
+						const pass = commandEncoder.beginRenderPass({ label: id, colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
 						pass.draw(3); pass.end();
 					}, ...init?.(context, publishers) };
 			},
@@ -197,6 +200,47 @@ test('finishes an untiled graph frame before its GPU statistics readback complet
 	control.pending[0].resolve(); await tick();
 	assert.deepEqual(reports, [[['effect'], 0, 1]]);
 	assert.equal(await frameReports[0][1], 1);
+});
+
+// 【最後の追記に失敗したフレームのGPU計測を解放し、Effectを再描画する】
+// Canvasの記録に失敗すると同じencoderのEffect描画も未送信になる。読み戻しを開始せず、次の描画で未完成のキャッシュを使わない。
+test('discards unsubmitted Effect rendering and its GPU timings when recording consumer commands fails', async t => {
+	const g = gpu();
+	const control = enableAsynchronousTimestampGpu(t, g);
+	const submit = t.mock.method(g.device.queue, 'submit');
+	const frameReports = [];
+	const f = await tiledGraph(g, [node('effect')], { mode: 'disabled' }, {
+		onFrameGpuTime: (_frame, result) => frameReports.push(result),
+	});
+	t.after(() => f.instance.dispose());
+	await assert.rejects(f.instance.renderTiled(frame, undefined, undefined, () => {
+		throw new Error('Canvas recording failed');
+	}), /Canvas recording failed/);
+	assert.equal(submit.mock.callCount(), 0);
+	assert.equal(control.destroyedQuerySets, 1);
+	assert.deepEqual(frameReports, []);
+	await f.instance.renderTiled(frame);
+	assert.equal(submit.mock.callCount(), 1);
+	assert.deepEqual(f.renders, ['effect', 'effect']);
+	assert.deepEqual(await Promise.all(frameReports), [1]);
+});
+
+// 【確定済みのEffect出力は、その出力を読む命令の失敗後も再利用する】
+// キャッシュを読むだけのフレームでは、表示側の失敗で描画済みのEffectを無効化する必要がない。
+test('retains cached Effect output when only consumer commands fail to record', async t => {
+	const g = gpu();
+	const control = enableControlledTiledGpu(g);
+	const f = await tiledGraph(g, [node('effect')], { mode: 'disabled' });
+	t.after(() => f.instance.dispose());
+	await f.instance.renderTiled(frame);
+	await assert.rejects(f.instance.renderTiled({ ...frame, time: 1 }, undefined, undefined, () => {
+		throw new Error('Canvas recording failed');
+	}), /Canvas recording failed/);
+	await f.instance.renderTiled({ ...frame, time: 2 }, undefined, undefined, encoder => {
+		encoder.beginRenderPass({ label: 'display' }).end();
+	});
+	assert.deepEqual(f.renders, ['effect']);
+	assert.deepEqual(control.submissions, [[{ passLabels: ['effect'] }], [{ passLabels: ['display'] }]]);
 });
 
 // 【通常パスとタイルのGPU時間を同じフレームに合計する】
@@ -265,7 +309,9 @@ test('renders tiled graph dependencies once and caches only completed work', asy
 test('defers disposal of a cancelled tiled placement until submitted work drains', async () => {
 	const g = gpu(), control = enableControlledTiledGpu(g);
 	const f = await tiledGraph(g, [node('history')], { mode: 'manual', tileSize: 8 });
-	const running = assert.rejects(f.instance.renderTiled(frame), { name: 'AbortError' });
+	const running = assert.rejects(f.instance.renderTiled(frame, undefined, undefined, () => {
+		assert.fail('cancelled rendering must not record consumer commands');
+	}), { name: 'AbortError' });
 	await tick(); assert.ok(control.submissions.length > 0);
 	f.instance.dispose(); assert.ok(g.textures.every(texture => texture.destroyed === 0));
 	while (control.waits.length > 0) await control.finish();
@@ -281,17 +327,27 @@ test('keeps ordinary effects synchronous without consulting workload hints', asy
 	assert.equal(f.instance.render(frame, g.encoder), undefined); assert.deepEqual(f.renders, ['ordinary']); assert.deepEqual(f.hints, []);
 });
 
-// 【自動分割の前後にある通常ノードをまとめて送信する】
-// タイル対象の前後関係を保ちつつ、通常ノードごとにGPU完了を待たない。
-test('batches ordinary nodes around an automatic effect without timestamp queries', async t => {
+// 【自動分割の前後にある通常ノードをまとめ、出力を読む命令は最後の送信に含める】
+// タイル描画の前に依存する描画を送信し、タイルの完了を待ってから後段と表示を記録する。
+test('batches ordinary nodes and consumer commands around automatic tiling without timestamp queries', async t => {
 	const g = gpu(), control = enableControlledTiledGpu(g);
 	const ids = ['first', 'second', 'heavy', 'last'];
 	const f = await tiledGraph(g, ids.map((id, i) => node(id, i === 0 ? {} : { left: wire(ids[i - 1]) })), { mode: 'auto' }, { heavy: 'heavy' });
 	t.after(() => f.instance.dispose());
-	const running = f.instance.renderTiled(frame); await tick();
-	assert.equal(control.submissions.length, 1); assert.deepEqual(f.renders, ids.slice(0, 3));
-	await control.finish(); await control.finish(); await running;
-	assert.equal(control.submissions.length, 3); assert.deepEqual(f.hints, ['heavy']); assert.deepEqual(f.renders, ids);
+	const submittedPasses = () => control.submissions.map(buffers => buffers.map(buffer => buffer.passLabels));
+	const running = f.instance.renderTiled(frame, undefined, undefined, encoder => {
+		encoder.beginRenderPass({ label: 'display' }).end();
+	});
+	await tick();
+	assert.deepEqual(submittedPasses(), [[['first', 'second']]]);
+	assert.deepEqual(f.renders, ids.slice(0, 3));
+	await control.finish();
+	assert.deepEqual(submittedPasses(), [[['first', 'second']], [['heavy']]]);
+	await control.finish();
+	await running;
+	assert.deepEqual(submittedPasses(), [[['first', 'second']], [['heavy']], [['last', 'display']]]);
+	assert.deepEqual(f.hints, ['heavy']);
+	assert.deepEqual(f.renders, ids);
 });
 
 // 【軽い描画は通常経路に戻し、一定フレーム後に再計測する】

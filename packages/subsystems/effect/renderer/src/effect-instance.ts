@@ -75,7 +75,9 @@ export interface EffectInstance {
 	/** 通常描画は呼び出し側のencoderへ記録する。出力を読むコマンドも次の描画・破棄の前に呼び出し側でsubmitする。 */
 	render(frame: EffectRenderContext): void;
 	render(frame: EffectFrameContext, commandEncoder: GPUCommandEncoder): void;
-	renderTiled(frame: EffectFrameContext, signal?: AbortSignal, onProgress?: EffectRenderTilingProgressObserver): Promise<void>;
+	/** 出力確定後、最後の送信前にrecordAfterRenderで出力を読む命令を同期的に追記できる。encoderの送信はEffectが所有する。 */
+	renderTiled(frame: EffectFrameContext, signal?: AbortSignal, onProgress?: EffectRenderTilingProgressObserver,
+		recordAfterRender?: (encoder: GPUCommandEncoder) => void): Promise<void>;
 	readonly dependsOnRenderHistory: boolean;
 	/** フレーム間で、配線・入力構造が同じ配置の値を更新する。nullはルートのinline Custom Node Graph Effectを指す。 */
 	updateCustomNodeGraphEffectValues(customNodeGraphEffectId: string | null, update: CustomNodeGraphEffectValueUpdate): void;

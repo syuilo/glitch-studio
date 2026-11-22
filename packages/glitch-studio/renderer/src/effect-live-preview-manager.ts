@@ -539,20 +539,20 @@ export class EffectLivePreviewManager extends EventEmitter<{
 			signal.throwIfAborted();
 			active.pendingValues.applyTo(effect);
 			active.inputs.beginFrame(timing.time);
-			await effect.renderTiled(frame, signal, progress => this.previewRenderDelayMonitor.updateTilingProgress(frame, progress));
+			await effect.renderTiled(frame, signal, progress => this.previewRenderDelayMonitor.updateTilingProgress(frame, progress), encoder => {
+				const output = active.port == null ? null : effect.outputs.get(active.port);
+				this.updateCanvasResolution(output?.resolution ?? resolution);
+				signal.throwIfAborted();
+				// 出力がないフレームも同じ表示・読み戻し経路を使う。初期値が透明黒の読み取り専用画像を再利用する。
+				const texture = output?.texture ?? (this.transparentTexture ??= this.gpuDevice.createTexture({
+					size: { width: 1, height: 1 },
+					format: INTERMEDIATE_TEXTURE_FORMAT,
+					usage: GPUTextureUsage.TEXTURE_BINDING,
+				}));
+				this.canvasRenderer.renderToCanvas(texture, encoder, timing.time, generation);
+				cpuFrame?.prepareReadback(encoder);
+			});
 			signal.throwIfAborted();
-			const output = active.port == null ? null : effect.outputs.get(active.port);
-			this.updateCanvasResolution(output?.resolution ?? resolution);
-			const encoder = this.gpuDevice.createCommandEncoder();
-			// 出力がないフレームも同じ表示・読み戻し経路を使う。初期値が透明黒の読み取り専用画像を再利用する。
-			const texture = output?.texture ?? (this.transparentTexture ??= this.gpuDevice.createTexture({
-				size: { width: 1, height: 1 },
-				format: INTERMEDIATE_TEXTURE_FORMAT,
-				usage: GPUTextureUsage.TEXTURE_BINDING,
-			}));
-			this.canvasRenderer.renderToCanvas(texture, encoder, timing.time, generation);
-			cpuFrame?.prepareReadback(encoder);
-			this.gpuDevice.queue.submit([encoder.finish()]);
 			this.pointerPositionPrev = pointer;
 			const gpuTiming = active.gpuTiming;
 			if (gpuTiming != null) {
