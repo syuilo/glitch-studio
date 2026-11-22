@@ -55,7 +55,22 @@ const PopupList = {
 
 function fixture(t, renderApplicationContent = null) {
 	const previousGlobals = new Map(['window', 'HTMLElement', 'ResizeObserver'].map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
-	const document = { body: null, activeElement: null };
+	const document = { body: null, activeElement: null, documentElement: { clientWidth: 800, clientHeight: 900 } };
+	const windowEvents = new EventTarget();
+	const window = {
+		document,
+		scrollX: 20,
+		scrollY: 40,
+		addEventListener: windowEvents.addEventListener.bind(windowEvents),
+		removeEventListener: windowEvents.removeEventListener.bind(windowEvents),
+		getComputedStyle: element => {
+			computedStyleReadCount++;
+			return {
+				zIndex: String(element.style.zIndex ?? 0),
+				getPropertyValue: name => element.style[name] ?? '',
+			};
+		},
+	};
 	let computedStyleReadCount = 0;
 	class TestElement {
 		constructor(tag) {
@@ -82,10 +97,7 @@ function fixture(t, renderApplicationContent = null) {
 		nextSibling: element => element.parentElement?.childNodes[element.parentElement.childNodes.indexOf(element) + 1] ?? null,
 	});
 	Object.defineProperties(globalThis, {
-		window: { configurable: true, value: { document, getComputedStyle: element => {
-			computedStyleReadCount++;
-			return { zIndex: String(element.style.zIndex ?? 0) };
-		} } },
+		window: { configurable: true, value: window },
 		HTMLElement: { configurable: true, value: TestElement },
 		ResizeObserver: { configurable: true, value: class { observe() {} disconnect() {} } },
 	});
@@ -111,7 +123,48 @@ function fixture(t, renderApplicationContent = null) {
 		}
 	});
 	return { showingUpdate, showingConfirmation, document, editor: () => editor, confirmation: () => confirmation,
-		computedStyleReadCount: () => computedStyleReadCount };
+		computedStyleReadCount: () => computedStyleReadCount,
+		resizeViewport(height) {
+			document.documentElement.clientHeight = height;
+			windowEvents.dispatchEvent(new Event('resize'));
+		} };
+}
+
+for (const position of ['fixed', 'absolute']) {
+	// 【下には収まらず上には収まるポップアップを、アンカーの上に表示する】
+	// 下側にある程度の空きがあっても、高さを受け取らないカラーピッカーなどははみ出していた。
+	// fixedとabsoluteで上下の選択が一致し、リサイズ時に下に収まるようになれば戻ることも確認する。
+	test(`flips a popup above its anchor and repositions on resize with ${position} positioning`, async t => {
+		const anchor = ref(null);
+		let modal = null;
+		const f = fixture(t, editorElement => [
+			editorElement,
+			...(anchor.value == null ? [] : [h(Modal, {
+				anchorElement: anchor.value,
+				ref: element => { modal = element; },
+			})]),
+		]);
+		const button = f.editor();
+		button.style.position = position;
+		button.getBoundingClientRect = () => ({ left: 740, right: 780, width: 40, top: 480, bottom: 500 });
+		anchor.value = button;
+		await nextTick();
+		const popup = modal.getRootElement().childNodes[0];
+		popup.offsetWidth = 600;
+		popup.offsetHeight = 440;
+		await nextTick();
+
+		assert.equal(popup.style.left, position === 'fixed' ? '200px' : '220px');
+		assert.equal(popup.style.top, position === 'fixed' ? '40px' : '80px');
+
+		popup.offsetHeight = 600;
+		f.resizeViewport(700);
+		assert.equal(popup.style.top, position === 'fixed' ? '16px' : '56px');
+
+		popup.offsetHeight = 440;
+		f.resizeViewport(1000);
+		assert.equal(popup.style.top, position === 'fixed' ? '500px' : '540px');
+	});
 }
 
 // 【モーダルを開閉してもフォーカス制御のために計算済みスタイルを取得しない】

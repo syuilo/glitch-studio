@@ -545,7 +545,8 @@ function close() {
 	box-sizing: border-box;
 	width: 600px;
 	max-width: 100vw;
-	min-height: 400px;
+	min-height: min(400px, calc(100dvh - 32px));
+	max-height: calc(100dvh - 32px);
 	overflow: auto;
 	padding: 14px;
 	border-radius: 10px;

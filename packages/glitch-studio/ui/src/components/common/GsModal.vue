@@ -183,121 +183,61 @@ const keymap = {
 	},
 } as const satisfies Keymap;
 
-const MARGIN = 16;
-const SCROLLBAR_THICKNESS = 16;
+const POPUP_VERTICAL_MARGIN = 16;
 
-const align = () => {
-	if (props.anchorElement == null) return;
-	if (type.value === 'drawer') return;
-	if (type.value === 'dialog') return;
+function align() {
+	const popupContent = content.value;
+	const anchorElement = props.anchorElement;
+	if (type.value !== 'popup' || anchorElement == null || popupContent == null) return;
 
-	if (content.value == null) return;
+	const height = popupContent.offsetHeight;
+	if (height === 0) return;
 
-	const anchorRect = props.anchorElement.getBoundingClientRect();
-
-	const width = content.value!.offsetWidth;
-	const height = content.value!.offsetHeight;
+	const anchorRect = anchorElement.getBoundingClientRect();
+	const width = popupContent.offsetWidth;
+	const { clientWidth, clientHeight } = window.document.documentElement;
+	const viewportTop = POPUP_VERTICAL_MARGIN;
+	const viewportBottom = clientHeight - POPUP_VERTICAL_MARGIN;
+	const upperSpace = anchorRect.top - viewportTop;
+	const lowerSpace = viewportBottom - anchorRect.bottom;
 
 	let left = 0;
-	let top = 0;
-
-	const x = anchorRect.left + (fixed.value ? 0 : window.scrollX);
-	const y = anchorRect.top + (fixed.value ? 0 : window.scrollY);
-
 	if (props.anchor.x === 'center') {
-		left = x + (props.anchorElement.offsetWidth / 2) - (width / 2);
-	} else if (props.anchor.x === 'left') {
-		// TODO
+		left = anchorRect.left + (anchorRect.width - width) / 2;
 	} else if (props.anchor.x === 'right') {
-		left = x + props.anchorElement.offsetWidth;
+		left = anchorRect.right;
 	}
 
+	let top = viewportTop;
 	if (props.anchor.y === 'center') {
-		top = (y - (height / 2));
-	} else if (props.anchor.y === 'top') {
-		// TODO
+		top = anchorRect.top - height / 2;
 	} else if (props.anchor.y === 'bottom') {
-		top = y + props.anchorElement.offsetHeight;
+		top = anchorRect.bottom;
 	}
 
-	if (fixed.value) {
-		// 画面から横にはみ出る場合
-		if (left + width > (window.innerWidth - SCROLLBAR_THICKNESS)) {
-			left = (window.innerWidth - SCROLLBAR_THICKNESS) - width;
-		}
-
-		const underSpace = ((window.innerHeight - SCROLLBAR_THICKNESS) - MARGIN) - top;
-		const upperSpace = (anchorRect.top - MARGIN);
-
-		// 画面から縦にはみ出る場合
-		if (top + height > ((window.innerHeight - SCROLLBAR_THICKNESS) - MARGIN)) {
-			if (props.noOverlap && props.anchor.x === 'center') {
-				if (underSpace >= (upperSpace / 3)) {
-					maxHeight.value = underSpace;
-				} else {
-					maxHeight.value = upperSpace;
-					top = (upperSpace + MARGIN) - height;
-				}
-			} else {
-				top = ((window.innerHeight - SCROLLBAR_THICKNESS) - MARGIN) - height;
-			}
-		} else {
-			maxHeight.value = underSpace;
-		}
+	if (props.noOverlap && props.anchor.x === 'center' && props.anchor.y === 'bottom') {
+		// 下に収まらないときは、上に収まるかを先に確認する。両側とも狭い場合は
+		// 広い側の高さをメニューへ渡し、その側でより多くの項目を表示できるようにする。
+		const placeAbove = height > lowerSpace && upperSpace > lowerSpace;
+		if (placeAbove) top = anchorRect.top - height;
+		maxHeight.value = Math.max(1, placeAbove ? upperSpace : lowerSpace);
 	} else {
-		// 画面から横にはみ出る場合
-		if (left + width - window.scrollX > (window.innerWidth - SCROLLBAR_THICKNESS)) {
-			left = (window.innerWidth - SCROLLBAR_THICKNESS) - width + window.scrollX - 1;
-		}
-
-		const underSpace = ((window.innerHeight - SCROLLBAR_THICKNESS) - MARGIN) - (top - window.scrollY);
-		const upperSpace = (anchorRect.top - MARGIN);
-
-		// 画面から縦にはみ出る場合
-		if (top + height - window.scrollY > ((window.innerHeight - SCROLLBAR_THICKNESS) - MARGIN)) {
-			if (props.noOverlap && props.anchor.x === 'center') {
-				if (underSpace >= (upperSpace / 3)) {
-					maxHeight.value = underSpace;
-				} else {
-					maxHeight.value = upperSpace;
-					top = window.scrollY + ((upperSpace + MARGIN) - height);
-				}
-			} else {
-				top = ((window.innerHeight - SCROLLBAR_THICKNESS) - MARGIN) - height + window.scrollY - 1;
-			}
-		} else {
-			maxHeight.value = underSpace;
-		}
+		maxHeight.value = Math.max(1, viewportBottom - viewportTop);
 	}
 
-	if (top < 0) {
-		top = MARGIN;
-	}
+	// 高さを自身で制限するポップアップも、上下どちらにも収まらない場合は
+	// アンカーとの重なりを許容して画面の端まで移動し、操作できる領域を確保する。
+	left = Math.max(0, Math.min(left, clientWidth - width));
+	top = Math.max(viewportTop, Math.min(top, viewportBottom - height));
 
-	if (left < 0) {
-		left = 0;
-	}
-
-	let transformOriginX = 'center';
-	let transformOriginY = 'center';
-
-	if (top >= anchorRect.top + props.anchorElement.offsetHeight + (fixed.value ? 0 : window.scrollY)) {
-		transformOriginY = 'top';
-	} else if ((top + height) <= anchorRect.top + (fixed.value ? 0 : window.scrollY)) {
-		transformOriginY = 'bottom';
-	}
-
-	if (left >= anchorRect.left + props.anchorElement.offsetWidth + (fixed.value ? 0 : window.scrollX)) {
-		transformOriginX = 'left';
-	} else if ((left + width) <= anchorRect.left + (fixed.value ? 0 : window.scrollX)) {
-		transformOriginX = 'right';
-	}
-
+	const transformOriginX = left >= anchorRect.right ? 'left' : left + width <= anchorRect.left ? 'right' : 'center';
+	const transformOriginY = top >= anchorRect.bottom ? 'top' : top + height <= anchorRect.top ? 'bottom' : 'center';
 	transformOrigin.value = `${transformOriginX} ${transformOriginY}`;
 
-	content.value.style.left = left + 'px';
-	content.value.style.top = top + 'px';
-};
+	// 配置の判定はビューポート座標で統一し、absoluteの場合だけ文書座標へ換算する。
+	popupContent.style.left = (left + (fixed.value ? 0 : window.scrollX)) + 'px';
+	popupContent.style.top = (top + (fixed.value ? 0 : window.scrollY)) + 'px';
+}
 
 const onOpened = () => {
 	emit('opened');
@@ -330,6 +270,12 @@ const alignObserver = new ResizeObserver((entries, observer) => {
 });
 
 onMounted(() => {
+	watch(type, (type, _, onCleanup) => {
+		if (type !== 'popup') return;
+		window.addEventListener('resize', align);
+		onCleanup(() => window.removeEventListener('resize', align));
+	}, { immediate: true });
+
 	watch(() => props.anchorElement, async () => {
 		if (props.anchorElement) {
 			props.anchorElement.style.pointerEvents = 'none';
