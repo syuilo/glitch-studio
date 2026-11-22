@@ -13,10 +13,14 @@ export function createEffectGpuExecution(device: GPUDevice, operation: EffectRen
 	let tiledTimer: TimingHelper | null = null;
 	const timers = new Set<TimingHelper>();
 	const freeTimers: TimingHelper[] = [];
-	let disposed = false;
+	const recordingTimers = new WeakMap<GPUCommandEncoder, TimingHelper>();
 	let sampleAfter = 0;
 	let sampledHint: EffectRenderWorkloadHint | null = null;
 	let nextHint: EffectRenderWorkloadHint | null = null;
+	function disposeTimer(timer: TimingHelper) {
+		timers.delete(timer);
+		timer.dispose();
+	}
 	return {
 		shouldTile() {
 			if (controller == null) return tiling.mode === 'manual';
@@ -35,7 +39,10 @@ export function createEffectGpuExecution(device: GPUDevice, operation: EffectRen
 			const recorder = new EffectGpuCommandRecorder();
 			operation.render({ ...frame, commandEncoder: recorder.encoder });
 			const timer = device.features.has('timestamp-query') ? freeTimers.pop() ?? new TimingHelper(device) : null;
-			if (timer != null) timers.add(timer);
+			if (timer != null) {
+				timers.add(timer);
+				recordingTimers.set(commandEncoder, timer);
+			}
 			try {
 				// 定期計測と統計で同じQueryを使い、同じパスの時間を重ねて計測するのを避ける。
 				recorder.replayUntiled(commandEncoder, timer, report == null && observe == null ? undefined : (index, pipelines, width, height, duration) => {
@@ -49,7 +56,10 @@ export function createEffectGpuExecution(device: GPUDevice, operation: EffectRen
 				}
 			} finally {
 				// submit後にreadbackを進め、描画ループを止めずに結果が返ったタイマーだけを再利用する。
-				timer?.observeResult(() => { if (!disposed) freeTimers.push(timer); });
+				timer?.observeResult(() => {
+					recordingTimers.delete(commandEncoder);
+					if (timers.has(timer)) freeTimers.push(timer);
+				});
 				timer?.readResultAfterSubmission();
 			}
 		},
@@ -70,12 +80,15 @@ export function createEffectGpuExecution(device: GPUDevice, operation: EffectRen
 			collectGpuTime?.(milliseconds);
 			sampleAfter = 30;
 		},
-		reset() { controller?.reset(); sampledHint = null; sampleAfter = 0; },
+		reset(unsubmittedEncoder?: GPUCommandEncoder | null) {
+			controller?.reset(); sampledHint = null; sampleAfter = 0;
+			// 破棄したencoderの統計は送信後の通知が来ない。先に送信済みの読み戻しは継続する。
+			const timer = unsubmittedEncoder == null ? null : recordingTimers.get(unsubmittedEncoder);
+			if (timer != null) disposeTimer(timer);
+		},
 		dispose() {
-			disposed = true;
 			tiledTimer?.dispose();
-			for (const timer of timers) timer.dispose();
-			timers.clear();
+			for (const timer of timers) disposeTimer(timer);
 			freeTimers.length = 0;
 		},
 	};

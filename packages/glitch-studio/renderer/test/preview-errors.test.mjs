@@ -890,6 +890,33 @@ for (const Manager of [TimelineRendererManager, EffectLivePreviewManager]) {
 	}
 }
 
+for (const mode of ['disabled', 'auto']) {
+	// 【タイル分割しないEffect描画とCanvas表示を同じコマンドバッファで送信する】
+	// 自動分割の対象外で毎フレームの送信を増やさず、Effectのキャッシュを使うフレームも表示する。
+	test(`submits Effect Live Preview and Canvas commands together with ${mode} tiling`, async t => {
+		const { renderer, errors, frame } = await fixture(t, { effectRenderTiling: { mode }, enableWaveformAndHistogram: false });
+		const device = renderer.gpuDevice;
+		const createEncoder = device.createCommandEncoder.bind(device);
+		t.mock.method(device, 'createCommandEncoder', () => {
+			const encoder = createEncoder();
+			let renderPasses = 0;
+			return {
+				...encoder,
+				beginRenderPass(descriptor) { renderPasses++; return encoder.beginRenderPass(descriptor); },
+				finish() { return { renderPasses }; },
+			};
+		});
+		const submit = t.mock.method(device.queue, 'submit');
+		renderer.startEffectLivePreview({ effectSource: { type: 'nativeEffect', id: 'fill' } });
+		await frame(16);
+		await frame(32);
+		renderer.updateEffectLivePreviewParamValues({ color: { inputSource: 'literal', value: [0, 1, 0, 1] } });
+		await frame(48);
+		assert.deepEqual(submit.mock.calls.map(call => call.arguments[0].map(buffer => buffer.renderPasses)), [[2], [1], [2]]);
+		assert.deepEqual(errors, []);
+	});
+}
+
 for (const enableStats of [false, true]) {
 	// 【Live Previewの計測無効時は描画を続けながらFPS・GPUメモリ追跡・通知を止める】
 	// GPUの計測パスだけでなく、リソース生成のラップやCPU側の移動平均も止める必要がある。
@@ -936,13 +963,11 @@ test('averages asynchronous GPU results per frame in presentation order', async 
 	};
 	const encoder = device.createCommandEncoder.bind(device);
 	device.createCommandEncoder = () => ({ ...encoder(), resolveQuerySet() {}, copyBufferToBuffer() {} });
-	f.renderer.nativeEffectDefinitions.pass = fillDefinition;
-	f.renderer.nativeEffectImplementations.pass = fillImplementation;
 	const samples = t.mock.method(f.renderer.gpuAverageFast, 'addSample');
 	const sampleValues = () => samples.mock.calls.map(call => call.arguments[0]);
 	const telemetry = [];
 	f.renderer.on('ev', event => { if (event.type === 'telemetry') telemetry.push(event.ctx.gpuAverageFast); });
-	f.renderer.startEffectLivePreview({ effectSource: { type: 'nativeEffect', id: 'pass' } });
+	f.renderer.startEffectLivePreview({ effectSource: { type: 'nativeEffect', id: 'fill' } });
 	await f.frame(16);
 	f.renderer.updateEffectLivePreviewParamValues({ color: { inputSource: 'literal', value: [0, 1, 0, 1] } });
 	await f.frame(32);
@@ -1056,7 +1081,7 @@ test('bounds CPU live preview readbacks and preserves skipped elapsed time', asy
 	const submitted = t.mock.method(f.renderer.gpuDevice.queue, 'submit');
 	const drawing = t.mock.method(f.renderer.canvasRenderer, 'renderToCanvas');
 	f.renderer.startEffectLivePreview({ effectSource: referenceSource });
-	const frames = t.mock.method(await f.renderer.activeEffect.ready, 'renderTiled', () => ({ kind: 'uniform', value: [1, 0, 0, 1] }));
+	const frames = t.mock.method(await f.renderer.activeEffect.ready, 'renderTiled');
 	await f.frame(16); await f.frame(32);
 	await new Promise(resolve => setImmediate(resolve));
 	await f.frame(48); await f.frame(64);
@@ -1075,7 +1100,7 @@ test('bounds CPU live preview readbacks and preserves skipped elapsed time', asy
 	assert.deepEqual(f.errors, []);
 });
 
-for (const failure of ['encoder', 'evaluation', 'finish', 'submit']) {
+for (const failure of ['encoder', 'evaluation', 'canvas', 'finish', 'submit']) {
 	// 【描画準備・評価・送信の失敗でも予約を返し、未送信の読み戻しを開始しない】
 	// 通常のGPU完了に到達しない例外でも、次の描画の表示枠を失って永久停止してはいけない。
 	test(`releases CPU live preview capacity after ${failure} failure`, async t => {
@@ -1091,6 +1116,7 @@ for (const failure of ['encoder', 'evaluation', 'finish', 'submit']) {
 		f.renderer.startEffectLivePreview({ effectSource: referenceSource });
 		const fail = () => { throw new Error('Injected failure'); };
 		if (failure === 'evaluation') t.mock.method(await f.renderer.activeEffect.ready, 'renderTiled', fail);
+		if (failure === 'canvas') t.mock.method(f.renderer.canvasRenderer, 'renderToCanvas', fail);
 		if (failure === 'encoder') t.mock.method(f.renderer.gpuDevice, 'createCommandEncoder', fail);
 		if (failure === 'finish') {
 			const create = f.renderer.gpuDevice.createCommandEncoder.bind(f.renderer.gpuDevice);

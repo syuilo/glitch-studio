@@ -38,7 +38,7 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 		renderTiled: (frame: EffectFrameContext, signal: AbortSignal, progress?: EffectRenderTilingProgressObserver, collectGpuTime?: CollectGpuTime) => Promise<void>;
 		commit: () => void;
 	}[] = [];
-	const historyResets: (() => void)[] = [];
+	const historyResets: ((unsubmittedEncoder?: GPUCommandEncoder | null) => void)[] = [];
 	const disposers: (() => void)[] = [];
 	let dependsOnRenderHistory = false;
 	let tiledRequest: AbortController | null = null;
@@ -53,10 +53,10 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 		}
 	}
 
-	function reset() {
+	function reset(unsubmittedEncoder?: GPUCommandEncoder | null) {
 		// 描画の中断後に途中まで更新した結果を再利用しないよう、履歴に加えて準備状態とキャッシュも破棄する。
 		preparation.invalidate();
-		for (const reset of historyResets) reset();
+		for (const reset of historyResets) reset(unsubmittedEncoder);
 	}
 
 	function release() {
@@ -159,8 +159,8 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 					cache?.commit();
 				},
 			});
-			historyResets.push(() => {
-				pending.clear(); cache?.reset(); gpuExecution.reset();
+			historyResets.push(unsubmittedEncoder => {
+				pending.clear(); cache?.reset(); gpuExecution.reset(unsubmittedEncoder);
 				historyResetPending = usesHistory;
 				operation.invalidateRenderCache?.();
 				operation.resetRenderHistory?.();
@@ -193,13 +193,14 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 					gpuTime?.report();
 				} catch (error) { reset(); throw error; }
 			},
-			async renderTiled(source, signal, progress) {
+			async renderTiled(source, signal, progress, recordAfterRender) {
 				checkAvailable();
 				signal?.throwIfAborted();
 				tiledRequest = new AbortController();
 				const active = signal == null ? tiledRequest.signal : AbortSignal.any([signal, tiledRequest.signal]);
 				const gpuTime = measureFrameGpuTime(source);
 				let encoder: GPUCommandEncoder | null = null;
+				let preserveEffectStateOnFailure = false;
 				const flush = () => {
 					if (encoder != null) device.queue.submit([encoder.finish()]);
 					encoder = null;
@@ -221,9 +222,20 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 						}
 						step.commit();
 					}
+					if (recordAfterRender != null) {
+						active.throwIfAborted();
+						// 全出力を公開してから、残りのEffect描画と出力を読む命令を一緒に送信する。
+						// キャッシュ再利用やタイル完了後に追記だけが失敗した場合は、確定済みの出力を保つ。
+						preserveEffectStateOnFailure = encoder == null;
+						recordAfterRender(encoder ??= device.createCommandEncoder());
+						active.throwIfAborted();
+					}
 					flush();
 					gpuTime?.report();
-				} catch (error) { reset(); throw error; } finally {
+				} catch (error) {
+					if (!preserveEffectStateOnFailure || active.aborted) reset(encoder);
+					throw error;
+				} finally {
 					tiledRequest = null;
 					if (disposed) release();
 					progress?.(null);
