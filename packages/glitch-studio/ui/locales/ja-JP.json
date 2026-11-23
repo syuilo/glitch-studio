@@ -869,7 +869,9 @@
 		"Input": "プレビュー入力",
 		"InputPlayback": "入力の再生",
 		"ImageInput": "プレビュー入力画像",
-		"AudioInput": "プレビュー入力音声"
+		"AudioInput": "プレビュー入力音声",
+		"Microphone": "マイク",
+		"WebcamAudioUnavailable": "Webカメラの音声を取得できませんでした。"
 	},
 	"_Parameter": {
 		"CopyId": "パラメータIDをコピー",
@@ -954,9 +956,7 @@
 		"Graph": "グラフ"
 	},
 	"_Webcam": {
-		"Title": "Webカメラ",
-		"AccessFailed": "Webカメラにアクセスできませんでした",
-		"PermissionDenied": "アクセスが拒否されました"
+		"Title": "Webカメラ"
 	},
 	"Color": "色",
 	"_ago": {

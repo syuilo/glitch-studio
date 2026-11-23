@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
@@ -8,7 +9,7 @@ import { createAudioWindowReader } from '@gs/subsystems_effect_native-effects/au
 import { createEffectInstance } from '@gs/subsystems_effect_renderer/create-effect-instance.ts';
 const { AudioHistory } = await load('@gs/subsystems_audio_renderer/audio-history.ts');
 const { createEffectLivePreviewInputs } = await loadShaderSource(fileURLToPath(new URL('../src/effect-live-preview-inputs.ts', import.meta.url)));
-const { EffectLivePreviewAudio } = await loadShaderSource(fileURLToPath(new URL('../src/effect-live-preview-audio.ts', import.meta.url)));
+const { EffectLivePreviewAudio, EffectLivePreviewAudioCapture } = await loadShaderSource(fileURLToPath(new URL('../src/effect-live-preview-audio.ts', import.meta.url)));
 import { createTimelineEffectProbe } from './helpers/timeline-effect-probe.mjs';
 const { default: waveform } = await load('@gs/subsystems_effect_native-effects/fx/audioWaveform/_impl_.ts');
 const { default: waveformDefinition } = await load('@gs/subsystems_effect_native-effects/fx/audioWaveform/_def_.ts');
@@ -89,6 +90,36 @@ test('shares preview audio across parameters without changing effect time', () =
 	inputs.beginFrame(8100);
 	assert.equal(first.value.endFrame, 96000);
 	assert.equal(time.value, 8.1);
+});
+
+// 【ライブ音声を描画ごとに固定し、転送バッファをWorkletに返す】
+// 次の音声が届いても準備中のEffectには同じPCMを渡す。バッファを返さないと入力が途中で止まる。
+test('snapshots captured preview audio and recycles transferred PCM', async t => {
+	const { port1, port2 } = new MessageChannel();
+	const capture = new EffectLivePreviewAudioCapture(port2, 1);
+	t.after(() => { capture.dispose(); port1.close(); });
+	assert.equal(capture.snapshot(), null);
+	async function append(startFrame, value) {
+		const frames = 1024;
+		const pcm = new Float32Array(frames * 2);
+		pcm.fill(value, 0, frames);
+		const recycled = once(port1, 'message');
+		port1.postMessage({ type: 'samples', generation: 0, startFrame, sampleRate: 48000, channelCount: 1, frameCount: frames, buffer: pcm.buffer }, [pcm.buffer]);
+		const [message] = await recycled;
+		assert.equal(message.type, 'recycle');
+		new Float32Array(message.buffer).fill(0);
+	}
+	await append(0, 0.25);
+	const first = capture.snapshot();
+	await append(1024, 0.5);
+	const next = capture.snapshot();
+	assert.equal(capture.snapshot(), next);
+	assert.equal(next.sourceKey, first.sourceKey);
+	assert.notEqual(next.cacheKey, first.cacheKey);
+	assert.equal(first.readWindow(0.01, signal()).sample(0, 'right'), 0.25);
+	assert.equal(next.readWindow(0.01, signal()).sample(0, 'right'), 0.5);
+	await append(4096, 0.75);
+	assert.notEqual(capture.snapshot().sourceKey, next.sourceKey);
 });
 
 // 【一時停止中のシーク先から音声窓を読み取る】

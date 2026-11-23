@@ -35,8 +35,9 @@ const session = useProjectSession();
 const controller = session.effectLivePreviewManagerController;
 const assets = session.projectContext.stateManager.state.assets;
 const selection = computed(() => session.getEffectLivePreviewMediaSelection(props.effectSource));
+const supportsAudio = computed(() => props.effectSource.type === 'customNodeGraphEffectReference');
 const eligibleAssets = computed(() => assets.value.filter(asset => /^(image|video)\//.test(asset.fileDataType)
-	|| (props.effectSource.type === 'customNodeGraphEffectReference' && asset.fileDataType.startsWith('audio/'))));
+	|| (supportsAudio.value && asset.fileDataType.startsWith('audio/'))));
 const selectedAsset = computed(() => {
 	const current = selection.value;
 	return current?.kind === 'asset' ? eligibleAssets.value.find(asset => asset.id === current.assetId) : null;
@@ -44,10 +45,14 @@ const selectedAsset = computed(() => {
 const items = computed(() => [
 	{ value: null, label: i18n.ts.None },
 	{ value: 'webcam', label: i18n.ts._Webcam.Title },
+	...(supportsAudio.value ? [{ value: 'microphone', label: i18n.ts._EffectPreview.Microphone }] : []),
 	...eligibleAssets.value.map(asset => ({ value: 'asset:' + asset.id, label: asset.name })),
 ]);
-const selectedValue = computed(() => selection.value?.kind === 'webcam' ? 'webcam'
-	: selectedAsset.value == null ? null : 'asset:' + selectedAsset.value.id);
+const selectedValue = computed(() => {
+	const current = selection.value;
+	if (current?.kind === 'webcam' || current?.kind === 'microphone') return current.kind;
+	return selectedAsset.value == null ? null : 'asset:' + selectedAsset.value.id;
+});
 const active = computed(() => {
 	const source = session.previewPlayback.livePreviewEffectSource.value;
 	return source?.type === props.effectSource.type && source.id === props.effectSource.id;
@@ -55,8 +60,9 @@ const active = computed(() => {
 const hasPlayback = computed(() => /^(video|audio)\//.test(selectedAsset.value?.fileDataType ?? ''));
 
 function select(value: string | null) {
-	session.setEffectLivePreviewMediaSelection(props.effectSource, value === 'webcam' ? { kind: 'webcam' }
-		: value == null ? null : { kind: 'asset', assetId: value.slice('asset:'.length) });
+	const selection = value === 'webcam' || value === 'microphone' ? { kind: value } as const
+		: value == null ? null : { kind: 'asset' as const, assetId: value.slice('asset:'.length) };
+	session.setEffectLivePreviewMediaSelection(props.effectSource, selection);
 	if (!active.value && value != null) emit('activate');
 }
 </script>

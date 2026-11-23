@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import { test } from 'node:test';
 import { build } from 'esbuild';
+import { i18n, i18nPlugin } from './helpers/i18n.mjs';
 
 // ControllerとWorkerの実コードを接続し、DOM・GPU・音声など通信以外の依存だけ置き換える。
 async function bundle(path) {
@@ -11,7 +12,7 @@ async function bundle(path) {
 		stdin: { contents: await readFile(new URL(path, import.meta.url), 'utf8'), loader: 'ts', resolveDir: fileURLToPath(new URL(path.replace(/[^/]+$/, ''), import.meta.url)) },
 		tsconfigRaw: {},
 		bundle: true, platform: 'node', format: 'cjs', write: false,
-		plugins: [{
+		plugins: [i18nPlugin, {
 			name: 'renderer-call-dependencies',
 			setup(build) {
 				build.onResolve({ filter: /.*/ }, args => args.kind === 'entry-point' || args.path === './RendererManagerControllerBase.ts' || args.path === '@gs/subsystems_timeline_shared/layer-tree.ts' || args.path === '@gs/subsystems_timeline_shared/types.ts' || args.path === './types.ts' || args.path === '@gs/shared/resolution.ts' || args.path === '@gs/shared/file-source.ts' || args.path === '@gs/shared/utility/deep-clone.ts' || args.path === '@gs/shared/utility/deep-equal.ts' || args.path === '@gs/glitch-studio_shared/project/renderer-state.ts' ? undefined : { path: args.path, namespace: 'stub' });
@@ -26,7 +27,7 @@ async function bundle(path) {
 					export const deepClone = structuredClone, deepEqual = () => false;
 					export const projectAudioSourceId = 'project', genId = () => 'id';
 					export const isVideoFrameAvailable = () => false;
-					export const playVideoAfterFirstFrameIsReady = () => {}, setupWebcam = () => {};
+					export const playVideoAfterFirstFrameIsReady = () => {};
 					export const alert = () => {};
 					export const displayCpuPreviewFrame = () => {};
 					export class CustomNodeGraphEffectLivePreviewEffectStateStore { stop() {} }
@@ -58,7 +59,7 @@ async function fixture(t, options = {}) {
 		on(name, handler) { this.handler = handler; }
 		reportPreviewError(message) { this.handler({ type: 'renderError', ctx: { message } }); }
 		gpuMemory = { getUsage: () => ({}) };
-		destroy() { options.onDestroy?.(); }
+		destroy() { this.capturePorts.forEach(port => port.close()); options.onDestroy?.(); }
 		echo(value) { return value; }
 		deferred() { return new Promise(resolve => pending.push(resolve)); }
 		failSync() { throw new TypeError('sync failure'); }
@@ -73,6 +74,8 @@ async function fixture(t, options = {}) {
 		setPreviewAudioSource(assetId) { this.audioSourceUpdates.push(assetId); }
 		audioPositionUpdates = [];
 		updatePreviewAudioPosition(...args) { this.audioPositionUpdates.push(args); }
+		capturePorts = [];
+		attachPreviewAudioCapture(port) { this.capturePorts.push(port); }
 	}
 	const workers = [];
 	const dependencies = {
@@ -86,12 +89,12 @@ async function fixture(t, options = {}) {
 		createWorker() {
 			let terminated = false;
 			const worker = {
-				postMessage(message) {
+				postMessage(message, options) {
 					if (worker.sendError) throw worker.sendError;
 					// initのCanvasスタブだけは複製不能。設定と通常のRPCは実際の送信同様に複製する。
 					const data = message.type === 'init'
 						? { ...message, staticOptions: structuredClone(message.staticOptions), dynamicOptions: structuredClone(message.dynamicOptions), resources: structuredClone(message.resources) }
-						: structuredClone(message);
+						: structuredClone(message, options);
 					queueMicrotask(() => {
 						if (!terminated) void context.onmessage({ data });
 					});
@@ -118,12 +121,16 @@ async function fixture(t, options = {}) {
 	};
 	const context = {
 		dependencies, structuredClone, console, Error, Blob, URL, module: { exports: {} },
-		HTMLMediaElement: options.mediaElement ?? class {}, HTMLVideoElement: class {}, MediaStream: class {},
-		navigator: { gpu: { getPreferredCanvasFormat: () => 'rgba8unorm' } },
-		window: { requestAnimationFrame() { return 1; }, cancelAnimationFrame() {}, document: { createElement: tag => tag === 'audio' && options.mediaElement != null ? new options.mediaElement() : canvas() } },
+		AbortController, HTMLMediaElement: options.mediaElement ?? class {}, HTMLVideoElement: options.videoElement ?? class {},
+		navigator: { mediaDevices: { getUserMedia: options.getUserMedia }, gpu: { getPreferredCanvasFormat: () => 'rgba8unorm' } },
+		window: { requestAnimationFrame() { return 1; }, cancelAnimationFrame() {}, document: { createElement(tag) {
+			if (tag === 'audio' && options.mediaElement != null) return new options.mediaElement();
+			if (tag === 'video' && options.videoElement != null) return new options.videoElement();
+			return canvas();
+		} } },
 	};
 	runInNewContext(controllerCode, context);
-	const controller = new context.module.exports.EffectLivePreviewManagerController({});
+	const controller = new context.module.exports.EffectLivePreviewManagerController(options.audioOutput ?? {});
 	const initialOptions = {
 		staticOptions: { enable32bitDataTextures: false, enableStats: false },
 		dynamicOptions: { fpsLimit: null, resolution: { width: 1, height: 1 }, resolutionScale: 1 },
@@ -138,6 +145,110 @@ async function fixture(t, options = {}) {
 }
 
 function setInitialAssets(initialOptions, assets) { initialOptions.resources.assets = structuredClone(assets); }
+
+class LiveVideoElement extends EventTarget {
+	requestVideoFrameCallback() { return 1; }
+	cancelVideoFrameCallback() {}
+	async play() {}
+	pause() {}
+	load() {}
+	removeAttribute() {}
+}
+
+function liveStream(...kinds) {
+	class Track extends EventTarget {
+		readyState = 'live';
+		constructor(kind) { super(); this.kind = kind; }
+		stop() { this.readyState = 'ended'; }
+	}
+	const tracks = kinds.map(kind => new Track(kind));
+	return { getTracks: () => tracks, getAudioTracks: () => tracks.filter(track => track.kind === 'audio') };
+}
+
+// 【Webカメラ映像と音声を同時に接続し、マイクへの切り替えで両方を解放する】
+// 映像再生はミュートしたまま、同じストリームの音声をWorkerへ渡す。
+// マイクだけの場合は映像要素を作らず、選択解除で音声キャプチャも解放する。
+test('attaches webcam and microphone audio to the preview worker', async t => {
+	const requests = [];
+	const streams = [liveStream('video', 'audio'), liveStream('audio')];
+	const captures = [];
+	const audioOutput = {
+		async getOutput() { return { context: { createMediaStreamSource: stream => ({ stream }) } }; },
+		captureSource(_id, source, { attach, reset }) {
+			const { port1, port2 } = new MessageChannel();
+			t.after(() => port1.close());
+			attach(port2);
+			const capture = {
+				source, started: false, disposed: false,
+				setState(active) { this.started = active; },
+				dispose() { this.disposed = true; port1.close(); reset(); },
+			};
+			captures.push(capture);
+			return capture;
+		},
+	};
+	const { controller, instances } = await fixture(t, {
+		videoElement: LiveVideoElement, audioOutput,
+		async getUserMedia(constraints) { requests.push({ ...constraints }); return streams[requests.length - 1]; },
+	});
+	t.after(() => instances[0].capturePorts.forEach(port => port.close()));
+	controller.setPreviewInput({ kind: 'webcam', captureAudio: true });
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(requests, [{ video: true, audio: true }]);
+	assert.equal(controller.previewMediaElement.value.srcObject, streams[0]);
+	assert.equal(controller.previewMediaElement.value.muted, true);
+	assert.equal(instances[0].capturePorts.length, 1);
+	assert.equal(captures[0].source.stream, streams[0]);
+	assert.equal(captures[0].started, true);
+
+	controller.setPreviewInput({ kind: 'microphone' });
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(requests.at(-1), { video: false, audio: true });
+	assert.equal(controller.previewMediaElement.value, null);
+	assert.ok(streams[0].getTracks().every(track => track.readyState === 'ended'));
+	assert.equal(captures[0].disposed, true);
+	assert.equal(instances[0].capturePorts.length, 2);
+	assert.equal(captures[1].source.stream, streams[1]);
+	assert.equal(captures[1].started, true);
+
+	const microphoneTrack = streams[1].getAudioTracks()[0];
+	microphoneTrack.stop();
+	microphoneTrack.dispatchEvent(new Event('ended'));
+	await new Promise(resolve => setImmediate(resolve));
+	assert.equal(captures[1].disposed, true);
+	assert.equal(instances[0].audioSourceUpdates.at(-1), null);
+});
+
+// 【Webカメラの音声を取得できなければ映像のみを利用し、切り替え後に届いたストリームも停止する】
+// デバイス権限の待機中に選択解除した場合に、裏でマイクやカメラが動き続けるのを防ぐ。
+test('falls back to video and stops device streams that arrive after deselection', async t => {
+	const requests = [];
+	const camera = liveStream('video');
+	const lateStream = liveStream('audio');
+	const permission = Promise.withResolvers();
+	const { controller, instances } = await fixture(t, {
+		videoElement: LiveVideoElement,
+		async getUserMedia(constraints) {
+			requests.push({ ...constraints });
+			if (requests.length === 1) throw new Error('Microphone unavailable');
+			return constraints.video ? camera : permission.promise;
+		},
+	});
+	controller.setPreviewInput({ kind: 'webcam', captureAudio: true });
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(requests, [{ video: true, audio: true }, { video: true, audio: false }]);
+	assert.equal(controller.previewMediaElement.value.srcObject, camera);
+	assert.equal(controller.previewMediaError.value, i18n.ts._EffectPreview.WebcamAudioUnavailable);
+
+	controller.setPreviewInput({ kind: 'microphone' });
+	controller.setPreviewInput(null);
+	permission.resolve(lateStream);
+	await new Promise(resolve => setImmediate(resolve));
+	assert.equal(camera.getTracks()[0].readyState, 'ended');
+	assert.equal(lateStream.getTracks()[0].readyState, 'ended');
+	assert.equal(controller.previewMediaError.value, null);
+	assert.equal(instances[0].capturePorts.length, 0);
+});
 
 // 【素材のシークを音声入力に伝え、ソースを切り替えたら古いメディアを解放する】
 // 一時停止中のシークでも音声は新しい素材時刻へ更新する。

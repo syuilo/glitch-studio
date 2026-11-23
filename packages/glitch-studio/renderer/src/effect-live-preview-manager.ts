@@ -25,7 +25,7 @@ import EventEmitter from 'eventemitter3';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { browserFrameScheduler, EffectLivePreviewRenderLoop } from './effect-live-preview-render-loop.ts';
 import { AssetTextures } from './asset-textures.ts';
-import { EffectLivePreviewAudio } from './effect-live-preview-audio.ts';
+import { EffectLivePreviewAudio, EffectLivePreviewAudioCapture } from './effect-live-preview-audio.ts';
 import { EffectLivePreviewImage, type EffectLivePreviewImageSource } from './effect-live-preview-image.ts';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
@@ -173,6 +173,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 	private readonly resources: EffectLivePreviewManagerResources;
 	private readonly previewImage: EffectLivePreviewImage;
 	private previewAudio: EffectLivePreviewAudio | null = null;
+	private previewAudioCapture: EffectLivePreviewAudioCapture | null = null;
 	private previewAudioPosition = 0;
 	private previewAudioGeneration = 0;
 	private pointerPosition: { x: number; y: number } = { x: -99999, y: -99999 };
@@ -306,9 +307,16 @@ export class EffectLivePreviewManager extends EventEmitter<{
 	public setPreviewAudioSource(assetId: string | null) {
 		const asset = assetId == null ? null : this.resources.assets.find(candidate => candidate.id === assetId);
 		this.previewTiledFrameController?.abort();
+		this.previewAudioCapture?.dispose();
+		this.previewAudioCapture = null;
 		this.previewAudio?.dispose();
 		this.previewAudio = asset == null ? null : new EffectLivePreviewAudio(asset.fileData);
 		this.updatePreviewAudioPosition(0, true);
+	}
+
+	public attachPreviewAudioCapture(port: MessagePort) {
+		this.setPreviewAudioSource(null);
+		this.previewAudioCapture = new EffectLivePreviewAudioCapture(port, this.previewAudioGeneration);
 	}
 
 	public updatePreviewAudioPosition(seconds: number, discontinuity: boolean) {
@@ -447,7 +455,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		const lifetime = new AbortController();
 		const inputs = createEffectLivePreviewInputs(definition, placement.params ?? {}, this.dynamicOptions.automationGraphs, {
 			image: () => this.previewImage.bind(),
-			audio: () => this.previewAudio?.atTime(this.previewAudioPosition, this.previewAudioGeneration) ?? null,
+			audio: () => this.previewAudioCapture?.snapshot() ?? this.previewAudio?.atTime(this.previewAudioPosition, this.previewAudioGeneration) ?? null,
 		});
 		const gpuTiming = this.staticOptions.enableStats ? {
 			frameTimes: new WeakMap<EffectFrameContext, Promise<number | null>>(), pending: Promise.resolve(),
@@ -602,6 +610,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		this.transparentTexture?.destroy();
 		this.assetTextures.dispose();
 		this.previewAudio?.dispose();
+		this.previewAudioCapture?.dispose();
 		this.previewImage.dispose();
 		if (this.pendingPreviewImage?.kind === 'frame') this.pendingPreviewImage.frame.close();
 		this.pendingPreviewImage = undefined;

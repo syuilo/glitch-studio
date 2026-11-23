@@ -331,7 +331,11 @@ export class ProjectSessionContext {
 		this.sessionDisposers.push(watch([this.effectLivePreviewManagerController.isReady, activeEffectKey, previewMedia, previewMediaAsset, () => previewMediaAsset.value?.fileData],
 			([isReady, _key, media, asset]) => {
 				if (!isReady) return;
-				this.effectLivePreviewManagerController.setPreviewInput(media?.kind === 'webcam' ? media : asset == null ? null : { kind: 'asset', asset });
+				const supportsAudio = this.previewPlayback.livePreviewEffectSource.value?.type === 'customNodeGraphEffectReference';
+				const input = media?.kind === 'webcam' ? { kind: 'webcam' as const, captureAudio: supportsAudio }
+					: media?.kind === 'microphone' && supportsAudio ? media
+					: asset == null ? null : { kind: 'asset' as const, asset };
+				this.effectLivePreviewManagerController.setPreviewInput(input);
 			}, { flush: 'post' }));
 		this.sessionDisposers.push(watch(this.previewPlayback.livePreviewEffectSource, effectSource => {
 			if (effectSource != null) return;

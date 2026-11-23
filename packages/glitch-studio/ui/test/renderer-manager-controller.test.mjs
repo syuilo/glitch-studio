@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { setImmediate } from 'node:timers/promises';
 import { build } from 'esbuild';
 import { computed, watch } from 'vue';
+import { i18nPlugin } from './helpers/i18n.mjs';
 
 // Controller間の連携は実コードを使い、ブラウザーのリソース生成だけ置き換える。
 const result = await build({
@@ -16,16 +17,15 @@ const result = await build({
 		resolveDir: fileURLToPath(new URL('../src', import.meta.url)), loader: 'ts',
 	},
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
-	plugins: [{
+	plugins: [i18nPlugin, {
 		name: 'browser-resources',
 		setup(build) {
-			build.onResolve({ filter: /^(?:@gs\/glitch-studio_renderer\/client\.ts|\.\/audio\/audio-inputs\.ts|\.\/utility\/(?:video|webcam)\.ts|@\/ui\.ts)$/ }, args => ({ path: args.path, namespace: 'browser-stub' }));
+			build.onResolve({ filter: /^(?:@gs\/glitch-studio_renderer\/client\.ts|\.\/utility\/video\.ts|@\/ui\.ts)$/ }, args => ({ path: args.path, namespace: 'browser-stub' }));
 			build.onLoad({ filter: /.*/, namespace: 'browser-stub' }, () => ({ contents: `
 				export const createEffectLivePreviewManagerWorker = () => dependencies.createWorker();
 				export const createTimelineRendererManagerWorker = () => dependencies.createWorker();
-				export class AudioInputs { reconnectRenderer() {} dispose() {} }
 				export const isVideoFrameAvailable = () => false;
-				export const playVideoAfterFirstFrameIsReady = () => {}, setupWebcam = () => {}, alert = () => {};
+				export const playVideoAfterFirstFrameIsReady = () => {}, alert = () => {};
 			` }));
 		},
 	}],

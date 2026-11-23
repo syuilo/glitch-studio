@@ -869,7 +869,9 @@
 		"Input": "Preview Input",
 		"InputPlayback": "Input Playback",
 		"ImageInput": "Preview Input Image",
-		"AudioInput": "Preview Input Audio"
+		"AudioInput": "Preview Input Audio",
+		"Microphone": "Microphone",
+		"WebcamAudioUnavailable": "Webcam audio is unavailable."
 	},
 	"_Parameter": {
 		"CopyId": "Copy Parameter ID",
@@ -954,9 +956,7 @@
 		"Graph": "Graph"
 	},
 	"_Webcam": {
-		"Title": "Webcam",
-		"AccessFailed": "Failed to access webcam",
-		"PermissionDenied": "denied permission"
+		"Title": "Webcam"
 	},
 	"Color": "Color",
 	"_ago": {

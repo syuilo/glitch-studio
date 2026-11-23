@@ -5,7 +5,7 @@ import { genId } from '@gs/shared/utility/id.ts';
 import { createEffectLivePreviewManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
 import { isEffectLivePreviewProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { isVideoFrameAvailable } from './utility/video.ts';
-import { setupWebcam } from './utility/webcam.ts';
+import { i18n } from './i18n.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import { displayCpuPreviewFrame } from './utility/cpu-preview-display.ts';
 import type { PreviewImageAnalysisSettings, PreviewImageAnalysisDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
@@ -40,6 +40,7 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 	public readonly previewMediaElement = shallowRef<HTMLMediaElement | null>(null);
 	public readonly previewMediaError = ref<string | null>(null);
 	private releaseMedia: (() => void) | null = null;
+	private liveCapture: AbortController | null = null;
 	private mediaAudioNode: MediaElementAudioSourceNode | null = null;
 	private pendingVideoFrame: VideoFrame | null = null;
 	private inFlightVideoFrame: number | null = null;
@@ -229,7 +230,7 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 		this.outputResolution.value = null;
 	}
 
-	public setPreviewInput(source: { kind: 'asset'; asset: Asset } | { kind: 'webcam' } | null) {
+	public setPreviewInput(source: { kind: 'asset'; asset: Asset } | { kind: 'webcam'; captureAudio: boolean } | { kind: 'microphone' } | null) {
 		this.releasePreviewMedia();
 		if (!this.isReady.value) return;
 		const asset = source?.kind === 'asset' ? source.asset : null;
@@ -242,6 +243,10 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 		this.call('setPreviewAudioSource', [asset != null && fileError == null && (isAudio || isVideo) ? asset.id : null]);
 		if (fileError != null) {
 			this.previewMediaError.value = fileError;
+			return;
+		}
+		if (source?.kind === 'microphone') {
+			this.startLiveCapture(null, true);
 			return;
 		}
 		if (!isAudio && !isVideo && source?.kind !== 'webcam') return;
@@ -290,6 +295,7 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 		}
 		const onMediaError = (error: unknown) => {
 			if (!current()) return;
+			if (source?.kind === 'webcam') this.releasePreviewMedia();
 			this.pendingVideoFrame?.close();
 			this.pendingVideoFrame = null;
 			if (this.isReady.value) {
@@ -304,9 +310,6 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 			if (frameCallback != null) video?.cancelVideoFrameCallback(frameCallback);
 			if (audioPositionCallback != null) window.cancelAnimationFrame(audioPositionCallback);
 			media.pause();
-			if (media.srcObject instanceof MediaStream) {
-				for (const track of media.srcObject.getTracks()) track.stop();
-			}
 			media.srcObject = null;
 			media.removeAttribute('src');
 			media.load();
@@ -314,17 +317,72 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 		};
 		if (url != null) {
 			media.src = url;
-		} else {
-			media.muted = true;
-			void setupWebcam().then(async camera => {
-				// 権限待ちの間に入力やプロジェクトが切り替わった場合も、カメラを保持しない。
-				if (!current()) {
-					for (const track of camera.getTracks()) track.stop();
-					return;
-				}
-				media.srcObject = camera;
-				await media.play();
-			}).catch(onMediaError);
+		} else if (source?.kind === 'webcam' && video != null) this.startLiveCapture(video, source.captureAudio);
+	}
+
+	private startLiveCapture(video: HTMLVideoElement | null, captureAudio: boolean) {
+		const lifetime = new AbortController();
+		this.liveCapture = lifetime;
+		void this.openLiveCapture(video, captureAudio, lifetime.signal).catch(error => {
+			if (lifetime.signal.aborted) return;
+			this.releasePreviewMedia();
+			this.call('updatePreviewImage', [null]);
+			this.call('setPreviewAudioSource', [null]);
+			this.previewMediaError.value = error instanceof Error ? error.message : String(error);
+		});
+	}
+
+	private async openLiveCapture(video: HTMLVideoElement | null, captureAudio: boolean, signal: AbortSignal) {
+		let stream: MediaStream;
+		try {
+			stream = await navigator.mediaDevices.getUserMedia({ video: video != null, audio: captureAudio });
+		} catch (error) {
+			if (signal.aborted || video == null || !captureAudio) throw error;
+			// 音声デバイスが無い環境や権限が拒否された場合もWebカメラの映像を利用できる。
+			stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+			if (!signal.aborted) this.previewMediaError.value = i18n.ts._EffectPreview.WebcamAudioUnavailable;
+		}
+		const stopTracks = () => { for (const track of stream.getTracks()) track.stop(); };
+		if (signal.aborted) {
+			stopTracks();
+			return;
+		}
+		signal.addEventListener('abort', stopTracks, { once: true });
+		if (video != null) {
+			video.muted = true;
+			video.srcObject = stream;
+			await video.play();
+		}
+		const audioTracks = stream.getAudioTracks();
+		if (signal.aborted || audioTracks.length === 0) return;
+
+		try {
+			const output = await this.audioOutput.getOutput();
+			if (signal.aborted) return;
+			const source = (output.context as AudioContext).createMediaStreamSource(stream);
+			// ライブ音声は無音を出力するWorkletにだけ接続し、スピーカーへの回り込みを防ぐ。
+			const capture = this.audioOutput.captureSource('preview:input', source, {
+				attach: port => this.call('attachPreviewAudioCapture', [port], [port]),
+				reset: () => { if (!signal.aborted && this.isReady.value) this.call('setPreviewAudioSource', [null]); },
+			});
+			const releaseAudio = () => {
+				signal.removeEventListener('abort', releaseAudio);
+				for (const track of audioTracks) track.removeEventListener('ended', onAudioEnded);
+				capture.dispose();
+			};
+			const onAudioEnded = () => {
+				if (audioTracks.every(track => track.readyState === 'ended')) releaseAudio();
+			};
+			signal.addEventListener('abort', releaseAudio, { once: true });
+			for (const track of audioTracks) track.addEventListener('ended', onAudioEnded);
+			capture.setState(true, 0);
+			onAudioEnded();
+		} catch (error) {
+			if (signal.aborted) return;
+			if (video == null) throw error;
+			this.call('setPreviewAudioSource', [null]);
+			for (const track of audioTracks) track.stop();
+			this.previewMediaError.value = i18n.ts._EffectPreview.WebcamAudioUnavailable;
 		}
 	}
 
@@ -386,6 +444,8 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 		this.previewMediaError.value = null;
 		this.mediaAudioNode?.disconnect();
 		this.mediaAudioNode = null;
+		this.liveCapture?.abort();
+		this.liveCapture = null;
 		this.releaseMedia?.();
 		this.releaseMedia = null;
 		this.pendingVideoFrame?.close();
