@@ -33,6 +33,7 @@
 							@dragStart="dragStart"
 							@staticSetting="edit => emit('edit', { kind: 'editNodeStaticSetting', nodeId: node.id, ...edit })"
 							@editParam="edit => emit('edit', { kind: 'editNodeParam', nodeId: node.id, edit })"
+							@resetParameters="emit('edit', { kind: 'resetNodeParameters', nodeId: node.id })"
 							@remove="emit('edit', { kind: 'removeNode', nodeId: node.id })"
 							@setBypass="bypass => emit('edit', { kind: 'setNodeBypass', nodeId: node.id, bypass })"
 							@setResolution="resolution => emit('edit', { kind: 'setNodeResolution', nodeId: node.id, resolution })"

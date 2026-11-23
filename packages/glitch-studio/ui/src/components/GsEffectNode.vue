@@ -120,6 +120,7 @@ const emit = defineEmits<{
 	(ev: 'dragStart', event: DragEvent): void;
 	(ev: 'staticSetting', edit: { key: string; value: string | number | boolean | null }): void;
 	(ev: 'editParam', event: ParamEdit): void;
+	(ev: 'resetParameters'): void;
 	(ev: 'remove'): void;
 	(ev: 'setBypass', bypass: boolean): void;
 	(ev: 'setResolution', resolution: EffectResolution): void;
@@ -167,7 +168,15 @@ function setDimension(axis: 'width' | 'height', value: number | null) {
 }
 
 function onHeaderContextmenu(ev: PointerEvent) {
-	ui.contextMenu(getCustomNodeGraphEffectNodeHeaderMenuItems(props.node, name => emit('setDisplayName', name)), ev);
+	const items = getCustomNodeGraphEffectNodeHeaderMenuItems(props.node, name => emit('setDisplayName', name));
+	items.push({
+		id: 'resetNodeParameters',
+		text: i18n.ts.Reset,
+		icon: 'ti ti-refresh',
+		danger: true,
+		action: () => emit('resetParameters'),
+	});
+	ui.contextMenu(items, ev);
 }
 
 function remove() {

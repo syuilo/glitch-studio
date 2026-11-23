@@ -62,6 +62,8 @@ export function commitCustomNodeGraphEffectEdit(manager: ProjectCommands, target
 			manager.commit('setCustomNodeGraphEffectNodeStaticSetting', { target: { customNodeGraphEffect: target, nodeId: event.nodeId }, key: event.key, value: event.value }); break;
 		case 'editNodeParam':
 			onNodeParameterEdit(manager, target, event.nodeId, event.edit); break;
+		case 'resetNodeParameters':
+			manager.commit('resetCustomNodeGraphEffectNodeParameters', { target: { customNodeGraphEffect: target, nodeId: event.nodeId } }); break;
 		case 'reorderNodes': {
 			// In/Outの位置を維持し、エディタに表示したノードだけを並べ替える。
 			const indices = customNodeGraphEffect.nodes.flatMap((node, index) => node.type !== 'globalIn' && node.type !== 'globalOut' ? [index] : []);

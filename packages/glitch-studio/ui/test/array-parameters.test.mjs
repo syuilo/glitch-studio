@@ -74,6 +74,32 @@ function fixtureWithRemovedPublicInput() {
 	return { state, node, target, customNodeGraphEffect, manager, publicParameter, imageParameter };
 }
 
+// 【ノード全体のリセットを一度のUndoで取り消す】
+// 複数パラメータにまたがる編集を一つの履歴にまとめ、配列要素のIDや公開入力への参照も復元する。
+test('resets all node parameters in one undoable edit', () => {
+	const { node, customNodeGraphEffect, manager } = fixtureWithRemovedPublicInput();
+	node.params.foo.value.node = literal([1, 0, 0, 1]);
+	const before = structuredClone(node.params);
+	const previousUndoCount = manager.undoStack.value.length;
+	const reset = () => commitCustomNodeGraphEffectEdit(manager, { customNodeGraphEffectId: customNodeGraphEffect.id }, {
+		kind: 'resetNodeParameters', nodeId: node.id,
+	});
+
+	reset();
+	const after = structuredClone(node.params);
+	assert.deepEqual(after.foo, createDefaultParameterBinding(definition.paramDefs.foo));
+	assert.deepEqual(after.bars, createDefaultParameterBinding(definition.paramDefs.bars));
+	assert.equal(after.buzzs.value.length, 1);
+	assert.deepEqual(after.buzzs.value[0].binding, createDefaultParameterBinding(definition.paramDefs.buzzs).value[0].binding);
+	assert.equal(manager.undoStack.value.length, previousUndoCount + 1);
+	reset();
+	assert.equal(manager.undoStack.value.length, previousUndoCount + 1);
+	manager.undo();
+	assert.deepEqual(node.params, before);
+	manager.redo();
+	assert.deepEqual(node.params, after);
+});
+
 // 【型不一致を許可した接続を残して、別の配列要素を削除・Undo・Redoする】
 // 設定に従って作成済みの接続を、配列全体の再検証で後から拒否してはいけない。
 // UIの接続・削除経路を通し、ネストした要素IDごとに既存接続を認識できることを確認する。

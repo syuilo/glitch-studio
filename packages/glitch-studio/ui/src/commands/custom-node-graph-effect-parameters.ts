@@ -1,4 +1,4 @@
-import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
+import { createDefaultParameterBinding, isParameterBindingDefault } from '@gs/shared/parameter/parameter-default.ts';
 import { canConnectNodeDataTypes } from '@gs/shared/data-type/node-compatibility.ts';
 import { AiSON } from '@syuilo/aiscript';
 import { validateStaticSettingValue } from '@gs/shared/static-setting.ts';
@@ -141,6 +141,21 @@ const replaceCustomNodeGraphEffectNodeParameterBinding = defineNodeParameterComm
 const resetCustomNodeGraphEffectNodeParameter = defineNodeParameterCommand<CustomNodeGraphEffectNodeParameterReference>(
 	'Reset Custom Node Graph Effect node parameter', parameter => createResetParameterBinding(parameter.def), { kind: 'reset' },
 );
+const resetCustomNodeGraphEffectNodeParameters = defineCommand<{ target: CustomNodeGraphEffectNodeReference }>({
+	label: 'Reset Custom Node Graph Effect node parameters',
+	prepare(state, { target }) {
+		const node = getCustomNodeGraphEffectEffectNode(state, target);
+		const { paramDefs } = getEffectDefinitions(state).describe(node.effectSource);
+		const defaultParams = Object.fromEntries(Object.entries(paramDefs).map(([key, definition]) => {
+			const binding = node.params[key];
+			// 既定値の配列は要素IDを維持し、リセットを繰り返したときに不要な履歴を作らない。
+			return [key, isParameterBindingDefault(definition, binding) ? binding : createResetParameterBinding(definition)];
+		}));
+		return prepareCustomNodeGraphEffectValue(node.params, defaultParams,
+			(currentState, value) => { getCustomNodeGraphEffectEffectNode(currentState, target).params = value; },
+			[{ type: 'node', target: target.customNodeGraphEffect, nodeId: target.nodeId, changes: [{ type: 'parameter', kind: 'reset' }] }]);
+	},
+});
 const setCustomNodeGraphEffectNodeParameterFields = defineNodeParameterCommand<CustomNodeGraphEffectNodeParameterReference & { fields: StructParameterFieldBindings }>(
 	'Set Custom Node Graph Effect node parameter fields', (parameter, input) => updateStructParameterFields(parameter.def, parameter.value, input.fields),
 );
@@ -555,6 +570,7 @@ export const CUSTOM_NODE_GRAPH_EFFECT_PARAMETERS_COMMAND_DEFS = {
 	setCustomNodeGraphEffectNodeParameterExpressionModifier: withCommandContract(setCustomNodeGraphEffectNodeParameterExpressionModifier, CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS.setCustomNodeGraphEffectNodeParameterExpressionModifier),
 	replaceCustomNodeGraphEffectNodeParameterBinding: withCommandContract(replaceCustomNodeGraphEffectNodeParameterBinding, CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS.replaceCustomNodeGraphEffectNodeParameterBinding),
 	resetCustomNodeGraphEffectNodeParameter: withCommandContract(resetCustomNodeGraphEffectNodeParameter, CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS.resetCustomNodeGraphEffectNodeParameter),
+	resetCustomNodeGraphEffectNodeParameters,
 	setCustomNodeGraphEffectNodeParameterFields: withCommandContract(setCustomNodeGraphEffectNodeParameterFields, CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS.setCustomNodeGraphEffectNodeParameterFields),
 	insertCustomNodeGraphEffectNodeParameterArrayElement: withCommandContract(insertCustomNodeGraphEffectNodeParameterArrayElement, CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS.insertCustomNodeGraphEffectNodeParameterArrayElement),
 	removeCustomNodeGraphEffectNodeParameterArrayElements: withCommandContract(removeCustomNodeGraphEffectNodeParameterArrayElements, CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS.removeCustomNodeGraphEffectNodeParameterArrayElements),
