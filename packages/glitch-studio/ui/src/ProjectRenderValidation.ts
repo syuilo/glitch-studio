@@ -120,14 +120,13 @@ export class ProjectRenderValidation {
 		const definition = registrations.find(entry => entry.id === effectSource?.id)?.definition;
 		if (definition == null) { this.removeUnit('Effect Live Preview inputs'); this.publish(); return; }
 		const values = Object.entries(definition.paramDefs).map(([id, def]) => [def, bindings[id] ?? createDefaultParameterBinding(def)] as const);
-		const dependencies = new Set<string>();
 		this.check('Effect Live Preview inputs', [effectSource, values.map(([def, value]) => staticParameterShape(def, value))], () => {
 			for (const [def, value] of values) inspectStaticParameter(def, value, (leaf, binding) => {
 				if (isEffectLivePreviewMediaBinding(binding)) {
 					if (!canUseEffectLivePreviewInput(leaf, binding.inputSource)) throw new Error('Incompatible Effect Live Preview input');
 				} else if (leaf.dataType.kind === 'audioSource') validateLiteralAudioSourceBinding(binding);
 			});
-		}, dependencies);
+		});
 		this.publish();
 	}
 

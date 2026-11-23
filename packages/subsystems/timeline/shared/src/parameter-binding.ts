@@ -1,8 +1,7 @@
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import { inspectStaticParameter } from '@gs/shared/parameter/static-parameter.ts';
-import { mapParameterAudioSourceValues, validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
-import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
+import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
 import type { ParameterBindingBase } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { ShaderInputSampling } from '@gs/shared/gpu/shader-input.ts';
@@ -39,12 +38,6 @@ export type TimelineLowerLayerAudioBinding = { inputSource: 'lowerLayerAudio' };
 export type TimelineAnotherLayerAudioBinding = { inputSource: 'anotherLayerAudio'; layerId: string | null };
 export type TimelineAudioInputBinding = TimelineLowerLayerAudioBinding | TimelineAnotherLayerAudioBinding;
 export type TimelineEffectParameterBinding = TimelineParameterBinding | TimelineAudioInputBinding | TimelineLowerLayerOutputBinding | TimelineAnotherLayerOutputBinding;
-
-/** Timelineの音声接続は配置が所有するため、定義内の音声の既定値は未選択のBindingへ変換する。 */
-export function createTimelineParameterDefaultBinding(definition: ParameterDefinition, createArrayElementId?: (index: number) => string) {
-	const defaultValue = mapParameterAudioSourceValues(definition.dataType, definition.defaultValue, () => null);
-	return createDefaultParameterBinding({ dataType: definition.dataType, defaultValue }, createArrayElementId);
-}
 
 export function isTimelineAudioInputBinding(binding: ParameterBindingBase): binding is TimelineAudioInputBinding {
 	return binding.inputSource === 'lowerLayerAudio' || binding.inputSource === 'anotherLayerAudio';
@@ -111,8 +104,6 @@ export function validateTimelineParameterTree(def: ParameterDefinition, binding:
 		validateTimelineParameterBinding(value, allowImageInput && leaf.canNode === true, allowAudioInput && leaf.dataType.kind === 'audioSource');
 		if (leaf.dataType.kind === 'audioSource' && !isTimelineAudioInputBinding(value)) {
 			validateLiteralAudioSourceBinding(value);
-			// nullリテラルだけが未選択を表す。undefinedを通すと検証後の値の型を保証できない。
-			if (value.value !== null) throw new Error('Timeline audio literals must be unselected');
 		}
 		onValue?.(leaf, value);
 	});

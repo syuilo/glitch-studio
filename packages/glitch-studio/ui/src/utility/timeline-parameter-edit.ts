@@ -1,4 +1,4 @@
-import { createTimelineParameterDefaultBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { getTimelineLayerPublicParameterContext, resolveTimelineLayerPublicParameterReference, areTimelinePublicParameterTypesCompatible } from "@gs/subsystems_timeline_shared/public-parameters.ts";
 import { resolveTimelineImageLayerReference } from "@gs/subsystems_timeline_shared/layer-output.ts";
 import { hasTimelineLayerParameters } from "@gs/subsystems_timeline_shared/types.ts";
@@ -79,7 +79,7 @@ export function applyTimelineParameterEdit(state: ProjectState, payload: Timelin
 	if (rootDef == null) throw new Error('Timeline parameter not found');
 
 	const currentRoot = values[rootKey] ?? null;
-	const defaultBinding = target === 'effect' && layer.layerType === 'effect' ? getEffectLayerParameterDefault(getEffectDefinitions(state).describe(layer.effectSource), rootKey) : createTimelineParameterDefaultBinding(rootDef);
+	const defaultBinding = target === 'effect' && layer.layerType === 'effect' ? getEffectLayerParameterDefault(getEffectDefinitions(state).describe(layer.effectSource), rootKey) : createDefaultParameterBinding(rootDef);
 	const draft = { [rootKey]: deepClone(currentRoot ?? defaultBinding) };
 	const resolved = resolveParameter<EditableTimelineParameterBinding>(defs, draft, payload.paramPath);
 	const { def, value: current } = resolved;
@@ -132,7 +132,7 @@ export function applyTimelineParameterEdit(state: ProjectState, payload: Timelin
 		}; break;
 		case 'reset':
 			next = payload.paramPath.length === 1 && defaultBinding.inputSource !== 'literal'
-				? defaultBinding : createTimelineParameterDefaultBinding(def, genId);
+				? defaultBinding : createDefaultParameterBinding(def, genId);
 			break;
 		case 'addElement':
 		case 'removeElement': {
@@ -143,14 +143,14 @@ export function applyTimelineParameterEdit(state: ProjectState, payload: Timelin
 			next = {
 				inputSource: 'literal',
 				value: edit.kind === 'addElement'
-					? [...elements, { id: genId(), binding: createTimelineParameterDefaultBinding(getArrayElementDefinition(def), genId) }]
+					? [...elements, { id: genId(), binding: createDefaultParameterBinding(getArrayElementDefinition(def), genId) }]
 					: elements.filter(element => element.id !== edit.elementId),
 			};
 			break;
 		}
 		case 'inputSource':
 			switch (edit.inputSource) {
-				case 'literal': next = createTimelineParameterDefaultBinding(def); break;
+				case 'literal': next = createDefaultParameterBinding(def); break;
 				case 'envVariable': next = { inputSource: 'envVariable', variable: '' }; break;
 				case 'expression': next = { inputSource: 'expression', expression: AiSON.stringify(current.inputSource === 'literal' ? current.value : def.defaultValue) }; break;
 				case 'automationGraphReference': next = {

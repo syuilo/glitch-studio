@@ -2,10 +2,11 @@ import { canConnectNodeDataTypes, getNodeInputDataType } from '@gs/shared/data-t
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter-path.ts';
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { getArrayElementDefinition, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { preserveParameterExpressionModifier, supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
 import { findTimelineLayer, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
-import { createTimelineParameterDefaultBinding, isTimelineImageInputBinding, validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import { isTimelineImageInputBinding, validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { resolveTimelineImageLayerReference } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import { resolveTimelineAnotherLayerAudioReference } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { getTimelineLayerPublicParameterContext, resolveTimelineLayerPublicParameterReference, areTimelinePublicParameterTypesCompatible } from '@gs/subsystems_timeline_shared/public-parameters.ts';
@@ -159,7 +160,7 @@ export const insertTimelineLayerParameterArrayElementCommandDef: CommandDef<Time
 		const elements = parameter.value.value as ParameterArrayElement<EditableTimelineParameterBinding>[];
 		if (parameter.def.maxElements != null && elements.length >= parameter.def.maxElements) throw new Error('Array parameter element limit reached');
 		const elementId = genId();
-		const binding = createTimelineParameterDefaultBinding(getArrayElementDefinition(parameter.def), genId);
+		const binding = createDefaultParameterBinding(getArrayElementDefinition(parameter.def), genId);
 		const prepared = withParameterChangeKind(replaceTimelineLayerParameterBindingCommandDef.prepare(state, {
 			...input, binding: { inputSource: 'literal', value: [...elements, { id: elementId, binding }] },
 		}), 'arrayElements');
