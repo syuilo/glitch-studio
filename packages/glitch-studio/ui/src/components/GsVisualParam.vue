@@ -35,6 +35,8 @@
 				<i v-else-if="paramValue.inputSource === 'node'" v-tooltip="i18n.ts._Parameter.Node" class="ti ti-plug" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'anotherLayerOutput'" v-tooltip="i18n.ts._Parameter.AnotherLayerOutput" class="ti ti-stack" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'lowerLayerOutput'" v-tooltip="i18n.ts._Parameter.LowerLayerOutput" class="ti ti-stack-2" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'previewInputImage'" v-tooltip="i18n.ts._EffectPreview.ImageInput" class="ti ti-photo" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'previewInputAudio'" v-tooltip="i18n.ts._EffectPreview.AudioInput" class="ti ti-wave-sine" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'lowerLayerAudio'" v-tooltip="i18n.ts._Parameter.LowerLayerAudio" class="ti ti-wave-sine" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'anotherLayerAudio'" v-tooltip="i18n.ts._Parameter.AnotherLayerAudio" class="ti ti-wave-sine" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'keyframesTimelineInline'" v-tooltip="i18n.ts._Parameter.Keyframes" class="ti ti-timeline" :class="$style.typeIcon"></i>
@@ -113,6 +115,9 @@
 						<GsSelect data-test-layer-output-stage :modelValue="paramValue.outputStage" :items="outputStageItems" @update:modelValue="value => updateAnotherLayerOutput({ outputStage: value })"/>
 						<button v-if="imageInputSamplingEnabled" class="_button" :v-tooltip="i18n.ts._Parameter.Sampling" @click="showAnotherLayerOutputSamplingMenu"><i class="ti ti-dots"></i></button>
 					</div>
+					<span v-else-if="paramValue.inputSource === 'previewInputImage'" data-test-preview-image-param>{{ i18n.ts._EffectPreview.ImageInput }}</span>
+					<span v-else-if="paramValue.inputSource === 'previewInputAudio'" data-test-preview-audio-param>{{ i18n.ts._EffectPreview.AudioInput }}</span>
+					<span v-else-if="previewMediaInputEnabled && paramDef.dataType.kind === 'any' && paramValue.inputSource === 'literal'">{{ i18n.ts._TimelineLayer.EditingUnsupported }}</span>
 					<span v-else-if="paramValue.inputSource === 'lowerLayerAudio'">{{ i18n.ts._Parameter.LowerLayerAudio }}</span>
 					<GsSelect v-else-if="paramValue.inputSource === 'anotherLayerAudio'" :modelValue="paramValue.layerId" :items="anotherLayerAudioItems" @update:modelValue="updateAnotherLayerAudio"/>
 					<GsSelect v-else-if="paramValue.inputSource === 'literal' && paramDef.dataType.kind === 'audioSource' && anotherLayerAudioOptions != null" :modelValue="null" :items="[{ label: i18n.ts.None, value: null }]" @update:modelValue="updateParamAsLiteral(null)"/>
@@ -260,7 +265,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'customNodeGraphEffectCustomParameterValueReference'; value: string }
 	| { kind: 'createPublicParameter' }
 	| { kind: 'createCustomParameter' }
-	| ParameterInputSourceEdit<'timelineLayerPublicParameterReference' | 'node' | 'anotherLayerOutput' | 'lowerLayerOutput' | 'lowerLayerAudio' | 'anotherLayerAudio' | 'customNodeGraphEffectPublicParameterReference' | 'customNodeGraphEffectCustomParameterValueReference'>
+	| ParameterInputSourceEdit<'timelineLayerPublicParameterReference' | 'node' | 'anotherLayerOutput' | 'lowerLayerOutput' | 'lowerLayerAudio' | 'anotherLayerAudio' | 'customNodeGraphEffectPublicParameterReference' | 'customNodeGraphEffectCustomParameterValueReference' | 'previewInputImage' | 'previewInputAudio'>
 );
 </script>
 
@@ -279,6 +284,7 @@ import type { TimelineParameterTarget } from '@gs/subsystems_timeline_shared/typ
 import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { isKeyframesDataType } from '@gs/shared/keyframes/keyframes-timeline.ts';
+import { canUseEffectLivePreviewInput, isEffectLivePreviewMediaBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import { supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
 import { isParameterVisible } from '@/utility/parameter-visibility.ts';
@@ -329,6 +335,7 @@ const props = defineProps<{
 	defaultBinding?: EditableParameterBinding;
 	label?: string;
 	keyframesEnabled?: boolean;
+	previewMediaInputEnabled?: boolean;
 	imageInputEnabled?: boolean;
 	imageInputSamplingEnabled?: boolean;
 	imageLayerOptions?: readonly { value: string; label: string }[];
@@ -618,6 +625,10 @@ function getMenu() {
 			types.push({ text: i18n.ts._Parameter.LowerLayerOutput, inputSource: 'lowerLayerOutput', icon: 'ti ti-stack-2' });
 			if (props.imageLayerOptions != null) types.push({ text: i18n.ts._Parameter.AnotherLayerOutput, inputSource: 'anotherLayerOutput', icon: 'ti ti-stack' });
 		}
+		if (props.previewMediaInputEnabled === true) {
+			if (canUseEffectLivePreviewInput(props.paramDef, 'previewInputImage')) types.push({ text: i18n.ts._EffectPreview.ImageInput, inputSource: 'previewInputImage', icon: 'ti ti-photo' });
+			if (canUseEffectLivePreviewInput(props.paramDef, 'previewInputAudio')) types.push({ text: i18n.ts._EffectPreview.AudioInput, inputSource: 'previewInputAudio', icon: 'ti ti-wave-sine' });
+		}
 		for (const { text, inputSource, icon } of types) {
 			if (props.paramDef.dataType.kind === 'colorRamp' && ['automationGraphReference', 'automationGraphInline'].includes(inputSource)) continue;
 			if (inputSource === 'keyframesTimelineInline' && (!props.keyframesEnabled || !isKeyframesDataType(props.paramDef.dataType))) continue;
@@ -649,7 +660,7 @@ function getMenu() {
 
 	const hasPublicParameterOwner = props.node != null ? props.customNodeGraphEffect != null
 		: props.customNodeGraphEffectParameterReferencesEnabled !== true && timelineEditor?.context.value != null && !timelineEditor.isPublicParameterValue;
-	if (hasPublicParameterOwner && canCreateNamedParameterFromBinding(props.paramDef, props.paramValue)) {
+	if (hasPublicParameterOwner && !isEffectLivePreviewMediaBinding(props.paramValue) && canCreateNamedParameterFromBinding(props.paramDef, props.paramValue)) {
 		menuItems.push({
 			id: 'createPublicParameter',
 			text: i18n.ts._Parameter.CreatePublicParameter,
@@ -657,7 +668,7 @@ function getMenu() {
 			action: () => emit('edit', { kind: 'createPublicParameter', ...target() }),
 		});
 	}
-	if (props.node != null && props.customNodeGraphEffect != null && canCreateNamedParameterFromBinding(props.paramDef, props.paramValue)) {
+	if (props.node != null && props.customNodeGraphEffect != null && !isEffectLivePreviewMediaBinding(props.paramValue) && canCreateNamedParameterFromBinding(props.paramDef, props.paramValue)) {
 		menuItems.push({
 			id: 'createCustomParameter',
 			text: i18n.ts._Parameter.CreateCustomParameter,

@@ -14,7 +14,7 @@ export function shaderDefinition(code) {
 
 export function fixture() {
 	return {
-		name: 'Portable Custom Node Graph Effect', gsVersion: 'test', assets: [], players: [], customShaderEffects: [], customNodeGraphEffects: [],
+		name: 'Portable Custom Node Graph Effect', gsVersion: 'test', assets: [], customShaderEffects: [], customNodeGraphEffects: [],
 		aspectRatio: 2, settings: { resolutionScale: 1, maxPixels: 8294400, fpsLimit: null }, initialParameters: {},
 		customNodeGraphEffect: {
 			kind: 'generate', paramDefs: { levelId: parameter('scalar', 0.25, 'level') },

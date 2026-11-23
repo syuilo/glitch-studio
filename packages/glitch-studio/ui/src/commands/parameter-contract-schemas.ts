@@ -3,7 +3,6 @@ import { SIZE_REFERENCES } from '@gs/shared/size-reference.ts';
 import { COLOR_RAMP_INTERPOLATIONS } from '@gs/shared/color-ramp.ts';
 import { colorBlendModes } from '@gs/shared/color-blend.ts';
 import { validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
-import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/player-audio-source.ts';
 import type { DataType, TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ValueParameterBinding, ValueParameterSource } from '@gs/shared/parameter/value-parameter-binding.ts';
@@ -98,7 +97,7 @@ const scalarControlSchema = z.union([
 	z.object({ controlType: z.literal('seed') }),
 ]);
 const vectorControlSchema = z.object({ controlType: z.enum(['vector', 'xy', 'dimension']), min: z.number().optional(), max: z.number().optional(), step: z.number().optional(), logarithmic: z.boolean().optional() });
-const parameterDefaultSchema = z.json().describe('Value matching the dataType. Use plain array elements and struct field values. Nested audioSource defaults may use a Player selection or null.');
+const parameterDefaultSchema = z.json().describe('Value matching the dataType. Use plain array elements and struct field values. Audio source defaults are null.');
 type ParameterSettingsData = { defaultValue: z.infer<typeof parameterDefaultSchema>; canNode?: boolean; maxElements?: number; element?: ParameterSettingsData; fields?: Record<string, ParameterSettingsData> };
 const parameterSettingsSchema: z.ZodType<ParameterSettingsData> = z.lazy(() => z.object({
 	defaultValue: parameterDefaultSchema, canNode: z.boolean().optional(), maxElements: z.number().optional(),
@@ -155,7 +154,7 @@ export const parameterDefinitionSchema = z.union([
 ]).superRefine((definition, context) => {
 	if (definition.dataType.kind !== 'array' && definition.dataType.kind !== 'struct') return;
 	try {
-		validateParameterDefaultValues(definition as ParameterDefinition, validatePlayerAudioSourceSelection);
+		validateParameterDefaultValues(definition as ParameterDefinition);
 	} catch (error) {
 		context.addIssue({ code: 'custom', path: ['defaultValue'], message: error instanceof Error ? error.message : String(error) });
 	}
@@ -165,7 +164,6 @@ export const staticSettingValueSchema = z.union([z.string(), z.number(), z.boole
 export const staticSettingValuesSchema = z.record(z.string(), staticSettingValueSchema);
 export const staticSettingDefinitionSchema = z.union([
 	z.object({ dataType: z.object({ kind: z.literal('assetReference'), assetType: z.enum(['image', 'video', 'font', 'lut']) }), ui: z.object({ label: z.string() }), defaultValue: z.string().nullable() }),
-	z.object({ dataType: z.object({ kind: z.literal('playerReference') }), ui: z.object({ label: z.string() }), defaultValue: z.string().nullable() }),
 	z.object({ dataType: z.object({ kind: z.literal('scalar') }), ui: z.object({ label: z.string() }), defaultValue: z.number() }),
 	z.object({ dataType: z.object({ kind: z.literal('bool') }), ui: z.object({ label: z.string() }), defaultValue: z.boolean() }),
 	z.object({ dataType: z.object({ kind: z.literal('string') }), ui: z.object({ label: z.string() }), defaultValue: z.string() }),

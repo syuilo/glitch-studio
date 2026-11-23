@@ -1,3 +1,4 @@
+import type { EffectLivePreviewMediaBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import type { ValueParameterBinding, ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { AutomationGraphPlaybackOptions } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { ExpressionVariableName } from '@gs/shared/expression/expression-environment.ts';
@@ -17,7 +18,7 @@ export type PublicParameterDefinitionEdit = Partial<{
 
 // 共用エディタだけが複数ドメインの方式を扱う。保存先の型は各ドメインのBindingを使う。
 export type EditableTimelineParameterBinding = TimelineEffectParameterBinding;
-export type EditableParameterBinding = CustomNodeGraphEffectParameterBinding | EditableTimelineParameterBinding;
+export type EditableParameterBinding = CustomNodeGraphEffectParameterBinding | EditableTimelineParameterBinding | EffectLivePreviewMediaBinding;
 
 // 入力方式ごとのunionにし、UI側で方式を除外した結果をCommandにも渡せるようにする。
 export type ParameterInputSourceEdit<Source extends EditableParameterBinding['inputSource'] = EditableParameterBinding['inputSource']> = {

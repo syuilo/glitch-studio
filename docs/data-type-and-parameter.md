@@ -222,6 +222,6 @@ Effect Layerは3種類のEffectすべてに `TimelineEffectParameterBinding` を
 
 ## 静的設定
 
-`packages/shared/src/static-setting.ts`の`StaticSettingDefinition`は`dataType`・`ui.label`・Bindingで包まない`defaultValue`を持つ。値は`StaticSettingValues`に直接保存する。対応型は素材参照（image / video / font / lut）・Player参照・scalar・bool・string・enum。具体的な設定名と定義はEffect・Timelineの各ドメインが所有し、共通層は利用先を知らない。
+`packages/shared/src/static-setting.ts`の`StaticSettingDefinition`は`dataType`・`ui.label`・Bindingで包まない`defaultValue`を持つ。値は`StaticSettingValues`に直接保存する。対応型は素材参照（image / video / font / lut）・scalar・bool・string・enum。具体的な設定名と定義はEffect・Timelineの各ドメインが所有し、共通層は利用先を知らない。
 
-素材参照・Player参照は通常の`DataType`から除外する。静的設定は式・加工式・キー・Automation Graph・ノード接続・Public Parameter参照・公開引数を受け取らない。`audioSource`は従来の静的な音声ルーティングとして維持する。
+素材参照は通常の`DataType`から除外する。静的設定は式・加工式・キー・Automation Graph・ノード接続・Public Parameter参照・公開引数を受け取らない。`audioSource`は音声を受け取る型。定義の既定値は`null`で、実行時の入力は配置側で接続する。

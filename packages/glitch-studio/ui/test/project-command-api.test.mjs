@@ -25,7 +25,7 @@ function fixture() {
 	const state = {
 		name: { value: 'Original' }, description: { value: '' }, author: { value: '' },
 		resolution: { value: { width: 1920, height: 1080 } }, automationGraphs: { value: [] },
-		assets: { value: [] }, players: { value: [] }, customNodeGraphEffects: { value: [] }, timelineScenes: { value: [] },
+		assets: { value: [] }, customNodeGraphEffects: { value: [] }, timelineScenes: { value: [] },
 	};
 	return { state, manager: new UndoRedo(state, { ...PROJECT_COMMAND_DEFS, ...RESOURCES_COMMAND_DEFS }) };
 }
@@ -35,40 +35,7 @@ function assetSource(fileData = new Blob(['original'])) {
 		isExternalReference: false, sourceFilePath: null, thumbnailSequence: null };
 }
 
-// 【型チェックを通らない呼び出しでも不正なPlayer名を保存しない】
-// AiScriptの引数はTypeScriptの型で制限できない。作成前に拒否し、既存のPlayerや
-// やり直し履歴を失わないことを確認する。
-test('rejects invalid Player names without changing state or redo', () => {
-	const { state, manager } = fixture();
-	manager.commit('createPlayer', { name: 'Existing' });
-	manager.commit('setProjectName', { name: 'Edited' });
-	manager.undo();
-	const before = structuredClone(state.players.value);
-	for (const name of [123, false, {}, []]) {
-		assert.throws(() => manager.commit('createPlayer', { name }), /input: name:/);
-		assert.deepEqual(state.players.value, before);
-		assert.equal(manager.redoStack.value.length, 1);
-	}
-	manager.redo();
-	assert.equal(state.name.value, 'Edited');
-});
 
-// 【Playerの取得元の種類を検証し、未知の種類をプロジェクトへ残さない】
-// 型付きUIと異なりスクリプトは任意の文字列を渡せるため、作成と変更の両方で拒否する。
-// 設定済みの取得元と、別の操作のRedoを変更しないことを確認する。
-test('rejects unsupported Player sources for creation and updates', () => {
-	const { state, manager } = fixture();
-	const player = manager.commit('createPlayer', { source: { type: 'webcam' } });
-	manager.commit('setProjectName', { name: 'Edited' });
-	manager.undo();
-	const before = structuredClone(state.players.value);
-	for (const source of [{ type: 'unknown' }, { type: 42 }, {}]) {
-		assert.throws(() => manager.commit('createPlayer', { source }), /source.type:/);
-		assert.throws(() => manager.commit('setPlayerSource', { ...player, source }), /source.type:/);
-		assert.deepEqual(state.players.value, before);
-		assert.equal(manager.redoStack.value.length, 1);
-	}
-});
 
 // 【実際のプロジェクト編集を非同期グループでまとめ、途中エラー後にもUndoできる】
 // 無効な解像度だけを拒否し、それ以前の名前変更や作成済みグラフを一つの履歴へ残す。

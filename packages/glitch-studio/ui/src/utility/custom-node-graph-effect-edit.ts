@@ -131,6 +131,7 @@ function onNodeParameterEdit(manager: ProjectCommands, customNodeGraphEffect: Cu
 		case 'customNodeGraphEffectPublicParameterReference': manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...input, source: { inputSource: event.kind, parameterId: event.value } }); break;
 		case 'customNodeGraphEffectCustomParameterValueReference': manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...input, source: { inputSource: event.kind, parameterId: event.value } }); break;
 		case 'inputSource':
+			if (event.inputSource === 'previewInputImage' || event.inputSource === 'previewInputAudio') return;
 			if (event.inputSource === 'timelineLayerPublicParameterReference' || event.inputSource === 'anotherLayerOutput' || event.inputSource === 'lowerLayerOutput' || event.inputSource === 'lowerLayerAudio' || event.inputSource === 'anotherLayerAudio') throw new Error('Timeline input is only available in timeline layer parameters');
 			manager.commit('switchCustomNodeGraphEffectNodeParameterInputSource', { ...input, inputSource: event.inputSource }); break;
 		case 'reset': manager.commit('resetCustomNodeGraphEffectNodeParameter', input); break;

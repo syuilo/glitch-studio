@@ -34,16 +34,3 @@ test('resolves file sources separately from asset metadata', () => {
 		}
 	}
 });
-
-// 【固定したPlayer参照から最新の映像を読み、解像度はメタデータだけを使う】
-// 初期化時のフレームを固定すると再生できず、到着したフレームで寸法を変えると静的性が崩れる。
-test('reads changing frames through a fixed player while keeping dimensions static', () => {
-	const definition = { staticSettingDefs: { player: { dataType: { kind: 'playerReference' }, ui: { label: 'Player' }, defaultValue: null } }, intrinsicResolutionSetting: 'player' };
-	let frame = null;
-	const context = { assets: [], assetTextures: new Map(), getPlayerVideoTexture: () => frame, getPlayerResolution: () => ({ width: 1920, height: 1080 }) };
-	const resource = resolveEffectStaticResources(definition, { player: 'player' }, context).player;
-	assert.equal(resource.getVideoTexture(), null);
-	frame = { texture: {}, displayResolution: { width: 320, height: 240 } };
-	assert.equal(resource.getVideoTexture(), frame);
-	assert.deepEqual(getEffectIntrinsicResolution(definition, { player: 'player' }, context), { width: 1920, height: 1080 });
-});

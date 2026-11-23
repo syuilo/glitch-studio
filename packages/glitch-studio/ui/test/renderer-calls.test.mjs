@@ -29,7 +29,6 @@ async function bundle(path) {
 					export const playVideoAfterFirstFrameIsReady = () => {}, setupWebcam = () => {};
 					export const alert = () => {};
 					export const displayCpuPreviewFrame = () => {};
-					export class AudioInputs { dispose() {} reconnectRenderer() {} registerPlayer() {} removePlayer() {} }
 					export class CustomNodeGraphEffectLivePreviewEffectStateStore { stop() {} }
 				` }));
 			},
@@ -69,7 +68,11 @@ async function fixture(t, options = {}) {
 		pointerPositions = [];
 		updatePointerPosition(position) { this.pointerPositions.push(position); }
 		videoFrameUpdates = [];
-		updateVideoFrame(...args) { this.videoFrameUpdates.push(args); }
+		updatePreviewImage(...args) { this.videoFrameUpdates.push(args); }
+		audioSourceUpdates = [];
+		setPreviewAudioSource(assetId) { this.audioSourceUpdates.push(assetId); }
+		audioPositionUpdates = [];
+		updatePreviewAudioPosition(...args) { this.audioPositionUpdates.push(args); }
 	}
 	const workers = [];
 	const dependencies = {
@@ -117,14 +120,14 @@ async function fixture(t, options = {}) {
 		dependencies, structuredClone, console, Error, Blob, URL, module: { exports: {} },
 		HTMLMediaElement: options.mediaElement ?? class {}, HTMLVideoElement: class {}, MediaStream: class {},
 		navigator: { gpu: { getPreferredCanvasFormat: () => 'rgba8unorm' } },
-		window: { document: { createElement: tag => tag === 'audio' && options.mediaElement != null ? new options.mediaElement() : canvas() } },
+		window: { requestAnimationFrame() { return 1; }, cancelAnimationFrame() {}, document: { createElement: tag => tag === 'audio' && options.mediaElement != null ? new options.mediaElement() : canvas() } },
 	};
 	runInNewContext(controllerCode, context);
 	const controller = new context.module.exports.EffectLivePreviewManagerController({});
 	const initialOptions = {
 		staticOptions: { enable32bitDataTextures: false, enableStats: false },
 		dynamicOptions: { fpsLimit: null, resolution: { width: 1, height: 1 }, resolutionScale: 1 },
-		resources: { assets: [], players: [] },
+		resources: { assets: [] },
 	};
 	const start = () => controller.initialize(initialOptions);
 	const restart = () => { controller.disposeManager(); return start(); };
@@ -136,80 +139,45 @@ async function fixture(t, options = {}) {
 
 function setInitialAssets(initialOptions, assets) { initialOptions.resources.assets = structuredClone(assets); }
 
-// 【入力未割り当てのPlayerがあってもManagerの生成を完了する】
-// ライブ入力を含むCustom Node Graph Effectの取り込みでは、Playerの入力を未割り当てにする。
-// 読み込み元のないメディア要素を作るとイベントが発生せず、プレビューの再生成が終わらなくなる。
-// Playerの定義はWorkerへ渡しつつ、メディアの準備を待たずに生成できることを確認する。
-test('initializes the renderer with unassigned players without waiting for media', async t => {
-	const { controller, instances, initialOptions, start, restart } = await fixture(t, { initialize: false });
-	const player = { id: 'unassigned-player', name: 'Camera', sourceType: null };
-	initialOptions.resources.players = [player];
-	await restart();
-	assert.equal(controller.getMediaElement(player.id), null);
-	assert.equal(controller.isReady.value, true);
-	assert.deepEqual(instances[0].resources.players, [player]);
-});
-
-// 【Player定義の反映ではメディアを全再作成し、古い要素を解放する】
-// 同じ原本でも再生成時には再生状態を引き継がず、素材とPlayerの差分同期を持たない。
-// 参照切れの入力は作らず、次の生成では復旧した読み取り口を採用する。
-test('recreates player media from initial assets and releases previous media', async t => {
+// 【素材のシークを音声入力に伝え、ソースを切り替えたら古いメディアを解放する】
+// 一時停止中のシークでも音声は新しい素材時刻へ更新する。
+// 素材一覧を受け取っただけでは動画や音声を読み込まず、選択中の入力だけを開く。
+test('loads selected preview media and updates audio position while paused', async t => {
 	class MediaElement extends EventTarget {
 		currentTime = 0;
 		paused = true;
-		get src() { return this.source; }
-		set src(value) { this.source = value; queueMicrotask(() => this.dispatchEvent(new Event('loadeddata'))); }
 		async play() { this.paused = false; }
 		pause() { this.paused = true; }
 		load() {}
-		removeAttribute() { this.source = ''; }
+		removeAttribute() { this.src = ''; }
 	}
-	const { controller, instances, initialOptions, start, restart } = await fixture(t, { mediaElement: MediaElement });
+	const { controller, instances, initialOptions, start } = await fixture(t, { initialize: false, mediaElement: MediaElement });
 	const asset = { id: 'asset', name: 'Audio', fileDataType: 'audio/wav',
 		fileData: { url: 'app://external-assets/original', size: 100, error: null } };
 	setInitialAssets(initialOptions, [asset]);
-	initialOptions.resources.players = [{ id: 'player', sourceType: 'asset', assetId: asset.id }];
-	await restart();
-	const originalMedia = controller.getMediaElement('player');
-	originalMedia.currentTime = 3;
-	await originalMedia.play();
-	setInitialAssets(initialOptions, [{ ...asset, name: 'Renamed', fileData: { ...asset.fileData } }]);
-	initialOptions.resources.players = [{ id: 'player', sourceType: 'asset', assetId: asset.id }];
-	await restart();
-	const recreatedMedia = controller.getMediaElement('player');
-	assert.notEqual(recreatedMedia, originalMedia);
-	assert.equal(originalMedia.paused, true);
-	assert.equal(originalMedia.src, '');
-	assert.equal(recreatedMedia.paused, true);
-	assert.equal(recreatedMedia.currentTime, 0);
-
-	const reloaded = { ...asset, fileData: { ...asset.fileData, url: 'app://external-assets/reloaded' } };
-	setInitialAssets(initialOptions, [reloaded]);
-	initialOptions.resources.players = [{ id: 'player', sourceType: 'asset', assetId: asset.id }];
-	await restart();
-	const reloadedMedia = controller.getMediaElement('player');
-	assert.notEqual(reloadedMedia, originalMedia);
-	assert.equal(originalMedia.paused, true);
-	assert.equal(reloadedMedia.src, reloaded.fileData.url);
-
-	setInitialAssets(initialOptions, [{ ...reloaded, fileData: { ...reloaded.fileData, error: 'missing' } }]);
-	initialOptions.resources.players = [{ id: 'player', sourceType: 'asset', assetId: asset.id }];
-	await restart();
-	assert.equal(controller.getMediaElement('player'), null);
-	setInitialAssets(initialOptions, [reloaded]);
-	initialOptions.resources.players = [{ id: 'player', sourceType: 'asset', assetId: asset.id }];
-	await restart();
-	assert.notEqual(controller.getMediaElement('player'), reloadedMedia);
-	assert.equal(controller.getMediaElement('player').src, reloaded.fileData.url);
-	// 定義の差し替えは次のWorkerの初期入力で反映し、準備中に旧Workerへフレーム解除を送らない。
+	await start();
+	assert.equal(controller.previewMediaElement.value, null);
+	controller.setPreviewInput({ kind: 'asset', asset });
+	const media = controller.previewMediaElement.value;
+	assert.equal(media.src, asset.fileData.url);
+	media.currentTime = 3;
+	media.dispatchEvent(new Event('seeking'));
+	media.dispatchEvent(new Event('seeked'));
 	await new Promise(resolve => setImmediate(resolve));
-	assert.deepEqual(instances[0].videoFrameUpdates, []);
+	assert.deepEqual(instances[0].audioPositionUpdates, [[3, true], [3, false]]);
+	assert.deepEqual(instances[0].audioSourceUpdates, [asset.id]);
+	controller.setPreviewInput(null);
+	assert.equal(controller.previewMediaElement.value, null);
+	assert.equal(media.paused, true);
+	assert.equal(media.src, '');
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(instances[0].audioSourceUpdates, [asset.id, null]);
 });
 
-// 【Playerの読み取り失敗では古いフレームを解除し、レンダラーを動かし続ける】
+// 【プレビュー素材の読み取り失敗では古いフレームを解除し、レンダラーを動かし続ける】
 // 送信待ちのフレームが残ると、解除した後で古い映像が再送されてしまう。
 // エラー情報はWorkerへ送らず、映像なしの通知とAssetの再確認だけを行う。
-test('clears player frames without reporting a rendering error after media read failures', async t => {
+test('clears preview media without reporting a rendering error after media read failures', async t => {
 	class MediaElement extends EventTarget {
 		error = null;
 		get src() { return this.source; }
@@ -223,18 +191,18 @@ test('clears player frames without reporting a rendering error after media read 
 	let rechecks = 0;
 	controller.onAssetReadFailure = () => rechecks++;
 	setInitialAssets(initialOptions, [{ id: 'asset', fileDataType: 'audio/wav', fileData: { url: 'app://external-assets/audio', size: 100, error: null } }]);
-	initialOptions.resources.players = [{ id: 'player', sourceType: 'asset', assetId: 'asset' }];
 	await restart();
-	const media = controller.getMediaElement('player');
+	controller.setPreviewInput({ kind: 'asset', asset: initialOptions.resources.assets[0] });
+	const media = controller.previewMediaElement.value;
 	let closed = 0;
-	controller.pendingVideoFrames.set('player', { close() { closed++; } });
+	controller.pendingVideoFrame = { close() { closed++; } };
 	media.error = { message: 'Original file was removed' };
 	media.dispatchEvent(new Event('error'));
 	await new Promise(resolve => setImmediate(resolve));
 	assert.equal(rechecks, 1);
-	assert.deepEqual(instances.at(-1).videoFrameUpdates.at(-1), ['player', null]);
+	assert.deepEqual(instances.at(-1).videoFrameUpdates.at(-1), [null]);
 	assert.equal(closed, 1);
-	assert.equal(controller.pendingVideoFrames.has('player'), false);
+	assert.equal(controller.pendingVideoFrame, null);
 	assert.equal(controller.isReady.value, true);
 });
 
@@ -246,8 +214,8 @@ test('ignores a video frame RPC failure from a disposed worker and closes the fr
 	const sent = Promise.withResolvers();
 	t.mock.method(controller, 'callAndWaitReturn', () => sent.promise);
 	let closed = 0;
-	controller.pendingVideoFrames.set('player', { close() { closed++; } });
-	const sending = controller.sendPendingVideoFrame('player');
+	controller.pendingVideoFrame = { close() { closed++; } };
+	const sending = controller.sendPendingVideoFrame();
 	controller.disposeManager();
 	sent.reject(new Error('Engine reloaded during renderer call'));
 	await sending;
@@ -325,7 +293,6 @@ test('passes fixed resources only at initialization and waits for their preparat
 	const starting = start();
 	const resources = await requested.promise;
 	assert.deepEqual(resources.assets, [{ id: 'image' }]);
-	assert.deepEqual(resources.players, []);
 	assert.equal(controller.isReady.value, false);
 	gate.resolve();
 	await starting;

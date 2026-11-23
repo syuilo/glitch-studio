@@ -3,7 +3,6 @@ import type { UniformValue } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { StaticSettingDataType, StaticSettingDefinitions, StaticSettingValue, StaticSettingValues } from '@gs/shared/static-setting.ts';
 import type { FileSource } from '@gs/shared/file-source.ts';
-import type { VideoFrameTexture } from '@gs/shared/media/video-texture.ts';
 import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 import type { EffectRenderTilingProgressObserver, EffectRenderWorkloadHint } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { ParameterDefaultValue, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
@@ -107,7 +106,7 @@ type NativeEffectInput<D extends DataType, Settings> = Settings extends { canNod
 type EffectStaticResource<T extends StaticSettingDataType> =
 	T extends { kind: 'assetReference'; assetType: 'image' } ? GPUTexture | null :
 	T extends { kind: 'assetReference' } ? FileSource | null :
-	T extends { kind: 'playerReference' } ? { getVideoTexture: () => VideoFrameTexture | null } | null : StaticSettingValue<T>;
+	StaticSettingValue<T>;
 export type EffectStaticResources<D extends { readonly staticSettingDefs?: StaticSettingDefinitions }> = {
 	readonly [K in keyof NonNullable<D['staticSettingDefs']>]: EffectStaticResource<NonNullable<D['staticSettingDefs']>[K]['dataType']>;
 };
@@ -118,7 +117,7 @@ export interface EffectInitContext<Inputs = Readonly<Record<string, EffectParame
 	readonly resolution: Resolution;
 	readonly inputs: Inputs;
 	readonly staticSettings: StaticSettingValues;
-	/** 静的設定の実行時の値。Assetの参照IDは借用リソースに解決する。Playerの選択は配置中固定し、フレームはgetterで取得する。 */
+	/** 静的設定の実行時の値。Assetの参照IDは借用リソースに解決する。 */
 	readonly resources: EffectStaticResources<{ staticSettingDefs: Settings }>;
 	/** 使用する出力だけを初期化時に確保する。テクスチャの寿命はレンダラーが管理する。 */
 	readonly outputTextures: ReadonlyMap<string, GPUTexture>;

@@ -61,9 +61,9 @@ test('uses string sizes and named processing modes', () => {
 	assert.equal(find('audioSpectrogram').fftSize.defaultValue, '2048');
 	assert.equal(find('histogram').resolution.defaultValue, '1');
 	assert.equal(find('waveform').resolution.defaultValue, '1');
-	for (const id of ['image', 'video']) {
+	for (const [id, fit] of [['image', 'cover'], ['videoFrame', 'contain']]) {
 		assert.equal(find(id).fit.dataType.kind, 'fitMode');
-		assert.equal(find(id).fit.defaultValue, 'cover');
+		assert.equal(find(id).fit.defaultValue, fit);
 	}
 	assert.deepEqual(find('rgbTo').mode.dataType.options, ['intensity', 'luminance']);
 });

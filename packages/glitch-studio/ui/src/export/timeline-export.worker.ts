@@ -19,7 +19,7 @@ function send(message: ExportResponse, transfer: Transferable[] = []) {
 	self.postMessage(message, { transfer });
 }
 
-// 1ジョブにつき1Worker。Playerのライブ入力は接続せず、専用のGPUDeviceと履歴を持つ。
+// 1ジョブにつき1Worker。専用のGPUDeviceと履歴を持つ。
 // キャンセル時は呼び出し元がWorkerを終了し、準備待ち・エンコード待ちも即座に中断する。
 let pendingChunk: { sequence: number; resolve: () => void } | null = null;
 let nextChunkSequence = 0;

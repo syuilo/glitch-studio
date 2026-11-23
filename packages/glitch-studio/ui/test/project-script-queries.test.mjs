@@ -41,7 +41,7 @@ function fixture() {
 		resolution: { value: { width: 1920, height: 1080 } }, timelineFps: { value: 30 },
 		timelineMotionBlur: { value: { enabled: false, shutterAngle: 180, samples: 8 } }, exportSettings: { value: null },
 		automationGraphs: { value: [] }, customShaderEffects: { value: [] },
-		assets: { value: [] }, players: { value: [] }, customNodeGraphEffects: { value: [] }, timelineScenes: { value: [] },
+		assets: { value: [] }, customNodeGraphEffects: { value: [] }, timelineScenes: { value: [] },
 	};
 	return { state, manager: new UndoRedo(state, COMMAND_DEFS), query: createProjectScriptQueries(state) };
 }
@@ -153,7 +153,6 @@ test('rejects malformed and missing query targets', () => {
 	assert.throws(() => query['Query:getCustomNodeGraphEffect']({ customNodeGraphEffectId: 'missing' }), /not found/);
 	assert.throws(() => query['Query:getTimelineScene']({ sceneId: 'missing' }), /not found/);
 	assert.throws(() => query['Query:getAsset']({ assetId: 'missing' }), /not found/);
-	assert.throws(() => query['Query:getPlayer']({ playerId: 'missing' }), /not found/);
 	assert.throws(() => query['Query:getEffect']({ effectSource: { type: 'nativeEffect', id: 'toString' } }), /Unknown Native Effect/);
 	assert.throws(() => query['Query:getEffect']({ effectSource: { type: 'nativeEffect', id: '__proto__' } }), /Unknown Native Effect/);
 });
@@ -204,7 +203,6 @@ test('executes every documented Query example against the public Command and Que
 		for (const source of definition.examples) {
 			const { state, manager, query } = fixture();
 			state.assets.value.push({ id: 'asset', name: 'Image', width: 100, height: 50, fileDataType: 'image/png', fileData: new Blob(['image']), hash: 'hash', isExternalReference: false, sourceFilePath: null });
-			state.players.value.push({ id: 'player', name: 'Player', sourceType: 'asset', assetId: 'asset' });
 			manager.commit('createProjectAutomationGraph', {});
 			const output = [];
 			const runtime = new ProjectScriptRuntime({

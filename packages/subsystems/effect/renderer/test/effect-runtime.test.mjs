@@ -100,9 +100,9 @@ test('updates every nested placement of a registration and retains unrelated cac
 	} finally { instance.dispose(); }
 });
 
-// 【固定長の配列・構造体の末端と音声選択の編集を次の準備に反映する】
-// GPUが初期化時に参照したフィールドを保ち、変わった式だけを再束縛する。音声が未選択の間は取得しない。
-test('rebinds edited array fields and audio selections before native frame preparation', async () => {
+// 【固定長の配列・構造体の末端の編集を次の準備に反映する】
+// GPUが初期化時に参照したフィールドを保ち、変わった式だけを再束縛する。
+test('rebinds edited array fields before native frame preparation', async () => {
 	const color = { ...scalar, canNode: true, dataType: { kind: 'color' }, defaultValue: [0, 0, 0, 0] };
 	const fields = { gain: scalar, color };
 	const element = { dataType: { kind: 'struct', fields: { gain: scalar.dataType, color: color.dataType } },
@@ -114,7 +114,7 @@ test('rebinds edited array fields and audio selections before native frame prepa
 	const def = { ...definition, paramDefs: { entries, audio } };
 	const bindings = (code, alpha) => literal([{ id: 'entry', binding: literal({ gain: expression(code), color: literal([1, 0, 0, alpha]) }) }]);
 	const graph = { ...definition, nodes: [{ id: 'draw', effectSource: native, params: { entries: bindings('1', 1) } }], outputSources: { image: output } };
-	const bound = [], audioReads = [], prepared = [];
+	const bound = [], prepared = [];
 	const instance = await create(inline(graph), def, ({ inputs }) => {
 		const { gain, color } = inputs.entries.elements[0].fields;
 		return { prepare() { prepared.push([gain.value, color.value, inputs.audio.value?.id ?? null]); }, render() {}, dispose() {} };
@@ -123,19 +123,17 @@ test('rebinds edited array fields and audio selections before native frame prepa
 			bound.push([binding.expression, path]);
 			return () => Number(binding.expression);
 		},
-		resolveAudioSource(id) { audioReads.push(id); return { id }; },
 	});
 
 	try {
 		const source = frame();
 		instance.render(source);
-		instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'draw', params: { entries: bindings('1', 0.5), audio: literal('sample') } });
+		instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'draw', params: { entries: bindings('1', 0.5) } });
 		instance.render(source);
 		instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'draw', params: { entries: bindings('2', 0.25) } });
 		instance.render(source);
-		assert.deepEqual(prepared, [[1, [1, 0, 0, 1], null], [1, [0.5, 0, 0, 0.5], 'sample'], [2, [0.25, 0, 0, 0.25], null]]);
+		assert.deepEqual(prepared, [[1, [1, 0, 0, 1], null], [1, [0.5, 0, 0, 0.5], null], [2, [0.25, 0, 0, 0.25], null]]);
 		assert.deepEqual(bound, [['1', ['draw']], ['2', ['draw']]]);
-		assert.deepEqual(audioReads, ['sample']);
 	} finally { instance.dispose(); }
 });
 
@@ -265,36 +263,32 @@ test('loads mismatched ports and draws with the original fixed shader inputs', a
 	}
 });
 
-// 【原寸と倍率を一度だけ適用し、画像・ファイル・Playerを借用し、音声をフレーム単位で解決する】
+// 【原寸と倍率を一度だけ適用し、画像・ファイルを借用して配置の音声を受け取る】
 // 素材や音声を所有する呼び出し側が同じGPU画像の内容を更新しても、配置の再生成は不要。
 test('resolves borrowed resources, audio and scaled intrinsic dimensions', async () => {
 	const audio = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null };
 	const setting = (dataType, defaultValue) => ({ dataType, defaultValue, ui: { label: 'Resource' } });
 	const def = { ...definition, paramDefs: { audio }, intrinsicResolutionSetting: 'image', staticSettingDefs: {
 		image: setting({ kind: 'assetReference', assetType: 'image' }, 'i'), font: setting({ kind: 'assetReference', assetType: 'font' }, 'f'),
-		player: setting({ kind: 'playerReference' }, 'p'),
 	} };
 	const texture = {};
 	const font = new Blob();
-	let video = null;
-	let reads = 0;
+	let audioTime = 1;
 	let renders = 0;
 	const draw = await create(native, def, ({ inputs, resolution, resources }) => {
 		assert.deepEqual(resolution, { width: 30, height: 15 });
 		assert.equal(resources.image, texture);
 		assert.equal(resources.font, font);
-		return { render(ctx) { renders++; assert.equal(resources.player.getVideoTexture(), video); assert.equal(inputs.audio.value.endFrame, ctx.time); }, dispose() {} };
-	}, { resolutionSetting: { mode: 'auto', scale: 1.5 }, resolutionScale: 0.5, params: { audio: literal('sound') },
+		return { render(ctx) { renders++; assert.equal(inputs.audio.value.endFrame, ctx.time); }, dispose() {} };
+	}, { resolutionSetting: { mode: 'auto', scale: 1.5 }, resolutionScale: 0.5, inputs: { audio: { kind: 'value', get value() { return { endFrame: audioTime }; } } },
 		resources: { assets: [{ id: 'i', width: 40, height: 20, fileData: new Blob(), fileDataType: 'image/png' },
-			{ id: 'f', fileData: font, fileDataType: 'font/ttf' }], assetTextures: new Map([['i', texture]]), getPlayerVideoTexture: () => video },
-		resolveAudioSource(id, ctx) { reads++; assert.equal(id, 'sound'); return { endFrame: ctx.time }; },
+			{ id: 'f', fileData: font, fileDataType: 'font/ttf' }], assetTextures: new Map([['i', texture]]) },
 	});
 	const first = frame();
 	await draw.prepare(first);
 	draw.render(first, {});
-	video = { texture };
+	audioTime = 2;
 	draw.render(frame(2));
-	assert.equal(reads, 2);
 	assert.equal(renders, 2);
 	draw.dispose();
 });

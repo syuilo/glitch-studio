@@ -1,7 +1,6 @@
 /** 静的設定は編集時だけ変更し、式・キー・接続などのBindingを保存しない。 */
 export type StaticSettingDataType =
 	| { kind: 'assetReference'; assetType: 'image' | 'video' | 'font' | 'lut' }
-	| { kind: 'playerReference' }
 	| { kind: 'scalar' }
 	| { kind: 'bool' }
 	| { kind: 'string' }
@@ -25,7 +24,7 @@ export type StaticSettingDefinitions = Record<string, StaticSettingDefinition>;
 // リテラルとして判別できる場合は拒否する。一般のstringの内容までは型で検証しない。
 export type CheckedStaticSettingDefinition<Definition extends StaticSettingDefinition> =
 	StaticSettingDefinition<Definition['dataType']> & (
-		Definition['dataType'] extends { kind: 'assetReference' | 'playerReference' }
+		Definition['dataType'] extends { kind: 'assetReference' }
 			? { defaultValue: Exclude<Definition['defaultValue'], ''> }
 			: unknown
 	);

@@ -9,7 +9,7 @@ import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { Project } from './gsproj.ts';
 import type { Ref } from 'vue';
 import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
-import type { Asset, Player } from '@gs/shared/types.js';
+import type { Asset } from '@gs/shared/types.js';
 import type { AssetThumbnailSequence } from './asset-thumbnail.ts';
 import type { ProjectCustomShaderEffect, ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.js';
@@ -40,7 +40,6 @@ export type ProjectState = {
 	assets: Ref<ProjectAsset[]>;
 	/** 現在の発話が参照する結果だけ。一時キャッシュと書き出しの保持分は含めない。 */
 	generatedSpeech: Ref<GeneratedSpeech[]>;
-	players: Ref<Player[]>;
 	customNodeGraphEffects: Ref<ProjectCustomNodeGraphEffect[]>;
 	timelineScenes: Ref<TimelineScene[]>;
 };
@@ -59,7 +58,6 @@ export type ProjectContentChange =
 
 export type AppStateChange = ProjectContentChange
 	| { type: 'asset'; assetId: string }
-	| { type: 'player'; playerId: string }
 	| { type: 'projectResolution' }
 	| { type: 'timelineRenderSettings' }
 	| { type: 'nodeName'; target: CustomNodeGraphEffectTarget; nodeId: string }
@@ -89,7 +87,6 @@ export class ProjectContext {
 			timelineMotionBlur: ref(deepClone(project.timelineMotionBlur)),
 			resolution: ref(project.resolution),
 			assets: ref(project.assets), // TODO: バイナリをリアクティブでwrapするのをやめる
-			players: ref(project.players),
 			generatedSpeech: ref(getReferencedGeneratedSpeech(project.timelineScenes, project.generatedSpeech)),
 			customNodeGraphEffects: ref(project.customNodeGraphEffects),
 			timelineScenes: ref(project.timelineScenes),
@@ -120,7 +117,6 @@ export class ProjectContext {
 			assets: state.assets.value,
 			generatedSpeech: getReferencedGeneratedSpeech(state.timelineScenes.value, state.generatedSpeech.value),
 			customNodeGraphEffects: state.customNodeGraphEffects.value,
-			players: state.players.value,
 			timelineScenes: state.timelineScenes.value,
 		} satisfies Project);
 	}

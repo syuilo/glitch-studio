@@ -18,17 +18,15 @@ import type { PreviewGamutCompressionSettings } from '@gs/glitch-studio_shared/p
 import type { PreviewGamutWarningSettings } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
 import type { PreviewImageSource } from '@gs/glitch-studio_shared/preview-image-source.ts';
 import type { ProjectCustomShaderEffect, ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
-import { getPlayerIntrinsicResolution } from '@gs/glitch-studio_shared/player-resolution.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { applyRendererProjectChanges, isEffectLivePreviewProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
-import { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import EventEmitter from 'eventemitter3';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { browserFrameScheduler, EffectLivePreviewRenderLoop } from './effect-live-preview-render-loop.ts';
 import { AssetTextures } from './asset-textures.ts';
-import { PlayerAudioInputs } from './player-audio-inputs.ts';
-import { PlayerVideoTextures } from './player-video-textures.ts';
+import { EffectLivePreviewAudio } from './effect-live-preview-audio.ts';
+import { EffectLivePreviewImage, type EffectLivePreviewImageSource } from './effect-live-preview-image.ts';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import { CanvasRenderer } from './canvas-renderer.ts';
@@ -41,9 +39,7 @@ import type { PreviewCanvasContext, PreviewDisplayMode, CpuPreviewFrame, CpuPrev
 import type { FrameScheduler, EffectLivePreviewFrameTiming } from './effect-live-preview-render-loop.ts';
 import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
-import type { AudioSourceId } from '@gs/shared/audio.ts';
-import type { AudioCaptureMessage } from '@gs/subsystems_audio_shared/audio-capture.ts';
-import { type Asset, type Player } from '@gs/shared/types.ts';
+import type { Asset } from '@gs/shared/types.ts';
 
 /**
  * 初期化時に決まっている必要がある設定情報
@@ -98,8 +94,8 @@ export type EffectLivePreviewManagerDynamicOptions = {
 	automationGraphs: AutomationGraph[];
 };
 
-/** 素材・Playerは寿命中に固定する。Effectの登録情報はプロジェクト状態に含める。 */
-export type EffectLivePreviewManagerResources = { assets: readonly Asset[]; players: readonly Player[] };
+/** 素材一覧は寿命中に固定する。Effectの登録情報はプロジェクト状態に含める。 */
+export type EffectLivePreviewManagerResources = { assets: readonly Asset[] };
 
 /** Managerが所有するGPU環境と、注入する描画機能。 */
 export type EffectLivePreviewManagerCoreConfig = {
@@ -142,7 +138,8 @@ export class EffectLivePreviewManager extends EventEmitter<{
 	'ev': (ctx: { [K in keyof EffectLivePreviewManagerEvents]: { type: K; ctx: Parameters<EffectLivePreviewManagerEvents[K]>[0] } }[keyof EffectLivePreviewManagerEvents]) => void;
 }> {
 	private previewTiledFrameController: AbortController | null = null;
-	private pendingVideoFrames = new Map<Player['id'], VideoFrame | null>();
+	// undefinedは保留なし、nullは入力を解除する更新。
+	private pendingPreviewImage: EffectLivePreviewImageSource | undefined;
 	private previewRenderGeneration = 0;
 	private historyGeneration = 0;
 	private gpuContext: PreviewCanvasContext;
@@ -174,10 +171,10 @@ export class EffectLivePreviewManager extends EventEmitter<{
 	private effectLivePreviewStatusInstanceId: string | null = null;
 	private assetTextures: AssetTextures;
 	private readonly resources: EffectLivePreviewManagerResources;
-	private readonly playerVideoTextures: PlayerVideoTextures;
-	private audioSources = new Map<AudioSourceId, AudioHistory>();
-	private playerAudioInputs = new PlayerAudioInputs(this.audioSources);
-	private audioPorts = new Map<AudioSourceId, MessagePort>();
+	private readonly previewImage: EffectLivePreviewImage;
+	private previewAudio: EffectLivePreviewAudio | null = null;
+	private previewAudioPosition = 0;
+	private previewAudioGeneration = 0;
 	private pointerPosition: { x: number; y: number } = { x: -99999, y: -99999 };
 	private pointerPositionPrev: { x: number; y: number } = { x: -99999, y: -99999 };
 	private definitions: EffectDefinitions;
@@ -239,7 +236,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 			timeFactor: this.dynamicOptions.effectLivePreviewTimeFactor,
 		});
 		this.gpuDevice = coreConfig.gpuDevice;
-		this.playerVideoTextures = new PlayerVideoTextures(this.gpuDevice);
+		this.previewImage = new EffectLivePreviewImage(this.gpuDevice);
 		this.gpuContext = coreConfig.gpuContext;
 		this.nativeEffectDefinitions = coreConfig.nativeEffectDefinitions;
 		this.nativeEffectImplementations = coreConfig.nativeEffectImplementations;
@@ -306,49 +303,29 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		this.emit('ev', { type: 'renderError', ctx: { message } });
 	}
 
-	public attachAudioSource(id: AudioSourceId, port: MessagePort) {
-		this.resetAudioSource(id, null);
-		const history = new AudioHistory();
-		this.audioSources.set(id, history);
-		this.audioPorts.set(id, port);
-		port.onmessage = (event: MessageEvent<AudioCaptureMessage>) => {
-			if (this.audioPorts.get(id) !== port) return;
-			const message = event.data;
-			if (message.type === 'reset') {
-				if (message.generation >= history.generation) history.reset(message.generation);
-			} else if (message.type === 'samples') {
-				try {
-					if (message.frameCount === 1024 && message.buffer.byteLength === 8192
-						&& (message.channelCount === 1 || message.channelCount === 2)
-						&& Number.isFinite(message.sampleRate) && message.sampleRate >= 8000 && message.sampleRate <= 192000
-						&& Number.isSafeInteger(message.startFrame) && message.startFrame >= 0) history.append(message);
-				} finally {
-					port.postMessage({ type: 'recycle', buffer: message.buffer }, [message.buffer]);
-				}
-			}
-		};
+	public setPreviewAudioSource(assetId: string | null) {
+		const asset = assetId == null ? null : this.resources.assets.find(candidate => candidate.id === assetId);
+		this.previewTiledFrameController?.abort();
+		this.previewAudio?.dispose();
+		this.previewAudio = asset == null ? null : new EffectLivePreviewAudio(asset.fileData);
+		this.updatePreviewAudioPosition(0, true);
 	}
 
-	public resetAudioSource(id: AudioSourceId, generation: number | null) {
-		const history = this.audioSources.get(id);
-		if (generation == null) {
-			history?.reset();
-			this.audioPorts.get(id)?.close();
-			this.audioPorts.delete(id);
-			this.audioSources.delete(id);
-		} else if (history && generation >= history.generation) {
-			history.reset(generation);
-		}
+	public updatePreviewAudioPosition(seconds: number, discontinuity: boolean) {
+		this.previewAudioPosition = seconds;
+		if (discontinuity) this.previewAudioGeneration++;
 	}
 
-	public updateVideoFrame(playerId: Player['id'], videoFrame: VideoFrame | null) {
+	public updatePreviewImage(source: EffectLivePreviewImageSource) {
 		if (this.previewTiledFrameController != null) {
-			// 実行中フレームが借用しているVideoFrameは閉じない。待機中の更新は最新だけ保持する。
-			this.pendingVideoFrames.get(playerId)?.close();
-			this.pendingVideoFrames.set(playerId, videoFrame);
+			// 描画中のテクスチャは借用中。次の描画までに届いた画像は最新の1枚だけ保持する。
+			if (this.pendingPreviewImage?.kind === 'frame') this.pendingPreviewImage.frame.close();
+			this.pendingPreviewImage = source;
 			return;
 		}
-		this.playerVideoTextures.updateFrame(playerId, videoFrame);
+		const frame = source?.kind === 'frame' ? source.frame : null;
+		const assetTexture = source?.kind === 'asset' ? this.assetTextures.textures.get(source.assetId) ?? null : null;
+		if (this.previewImage.update(frame, assetTexture) && this.activeEffect?.inputs.usesImage === true) this.initializePlacement();
 	}
 
 	public updatePointerPosition(newPointerPosition: { x: number; y: number }) {
@@ -453,7 +430,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 	}
 
 	private initializePlacement() {
-		// 配置の再初期化ではWorkerの素材・Player・GPUDeviceと状態通知のIDを引き継ぐ。
+		// 配置の再初期化ではWorkerの素材・GPUDeviceと状態通知のIDを引き継ぐ。
 		this.releasePlacement();
 		const placement = this.placement;
 		if (placement == null) return;
@@ -468,8 +445,10 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		const port = requestedPort != null && Object.hasOwn(definition.outputDefs, requestedPort) ? requestedPort : null;
 		const source: EffectLivePreviewStatusSource = { type: 'effectLivePreview', instanceId: this.effectLivePreviewStatusInstanceId! };
 		const lifetime = new AbortController();
-		const resolveAudio = (selection: unknown) => this.playerAudioInputs.resolve(selection);
-		const inputs = createEffectLivePreviewInputs(definition, placement.params ?? {}, this.dynamicOptions.automationGraphs, resolveAudio);
+		const inputs = createEffectLivePreviewInputs(definition, placement.params ?? {}, this.dynamicOptions.automationGraphs, {
+			image: () => this.previewImage.bind(),
+			audio: () => this.previewAudio?.atTime(this.previewAudioPosition, this.previewAudioGeneration) ?? null,
+		});
 		const gpuTiming = this.staticOptions.enableStats ? {
 			frameTimes: new WeakMap<EffectFrameContext, Promise<number | null>>(), pending: Promise.resolve(),
 		} : null;
@@ -477,10 +456,8 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		const ready = createEffectInstance({
 			effectSource: placement.effectSource, definitions: this.definitions, inputs: inputs.inputs, staticSettings: placement.staticSettings,
 			usedOutputPorts: new Set(port == null ? [] : [port]), resolution: this.dynamicOptions.resolution, resolutionScale: this.dynamicOptions.resolutionScale,
-			resources: { assets: this.resources.assets, assetTextures: this.assetTextures.textures,
-				getPlayerResolution: id => getPlayerIntrinsicResolution(id, this.resources.players, this.resources.assets),
-				getPlayerVideoTexture: id => this.playerVideoTextures.getTexture(id) },
-			resolveAudioSource: resolveAudio, tiling: this.staticOptions.effectRenderTiling ?? { mode: 'auto' },
+			resources: { assets: this.resources.assets, assetTextures: this.assetTextures.textures },
+			tiling: this.staticOptions.effectRenderTiling ?? { mode: 'auto' },
 			onPreparationStatus: status => {
 				if (lifetime.signal.aborted || (status.type !== 'error' && previousStatus?.type === status.type)) return;
 				previousStatus = status;
@@ -582,9 +559,9 @@ export class EffectLivePreviewManager extends EventEmitter<{
 			if (!signal.aborted) throw error;
 		} finally {
 			if (this.previewTiledFrameController === controller) this.previewTiledFrameController = null;
-			const pending = this.pendingVideoFrames;
-			this.pendingVideoFrames = new Map();
-			for (const [id, videoFrame] of pending) this.updateVideoFrame(id, videoFrame);
+			const pending = this.pendingPreviewImage;
+			this.pendingPreviewImage = undefined;
+			if (pending !== undefined) this.updatePreviewImage(pending);
 		}
 	}
 
@@ -624,12 +601,12 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		this.stopRenderLoop();
 		this.transparentTexture?.destroy();
 		this.assetTextures.dispose();
-		for (const id of this.audioPorts.keys()) this.resetAudioSource(id, null);
-		this.playerVideoTextures.dispose();
-		for (const videoFrame of this.pendingVideoFrames.values()) videoFrame?.close();
-		this.pendingVideoFrames.clear();
+		this.previewAudio?.dispose();
+		this.previewImage.dispose();
+		if (this.pendingPreviewImage?.kind === 'frame') this.pendingPreviewImage.frame.close();
+		this.pendingPreviewImage = undefined;
 		this.canvasRenderer.destroy();
-		this.gpuDevice?.destroy();
+		this.gpuDevice.destroy();
 	}
 
 	public setHighResolutionImageAnalysis(enabled: boolean, settings: PreviewImageAnalysisSettings) {

@@ -1,22 +1,18 @@
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
-import { createTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
-import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import imageEffectDef from '@gs/subsystems_effect_native-effects/fx/image/_def_.ts';
-import videoEffectDef from '@gs/subsystems_effect_native-effects/fx/video/_def_.ts';
-import audioWaveformEffectDef from '@gs/subsystems_effect_native-effects/fx/audioWaveform/_def_.ts';
 import { DEFAULT_TIMELINE_FPS, DEFAULT_TIMELINE_MOTION_BLUR } from './project-defaults.ts';
 import { DEFAULT_PROJECT_NAME, selectProjectFile } from './gsproj.ts';
 import { recentProjects } from './recent-projects.ts';
 import type { ProjectSessionManager } from './ProjectSessionManager.ts';
+import { createTimelineAssetLayer } from './utility/timeline-asset-layer.ts';
 import { inspectTimelineClipMedia } from './utility/timeline-clip-media.ts';
 import { readVideoFrameRate } from './utility/video-frame-rate.ts';
 import type { ProjectAsset } from './Project.ts';
 import type { ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
-import type { Player } from '@gs/shared/types.ts';
 import type { Project, ProjectFileHandle } from './gsproj.ts';
 import type { OpenedMediaFile } from './api.ts';
 import { i18n } from '@/i18n.ts';
@@ -89,7 +85,6 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 			customNodeGraphEffects: [initialCustomNodeGraphEffect],
 			customShaderEffects: [],
 			assets: [],
-			players: [],
 			generatedSpeech: [],
 			timelineScenes: [{
 				id: genId(),
@@ -161,29 +156,21 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 			hash: result.hash,
 		} satisfies ProjectAsset;
 	
-		const videoMedia = result.type.startsWith('video/') ? await inspectTimelineClipMedia(asset) : null;
-		const videoFrameRate = videoMedia != null ? await readVideoFrameRate(asset.fileData) : null;
-		if (videoMedia != null) {
-			if (videoMedia.durationMs < 1) {
-				await ui.alert({ type: 'error', text: i18n.ts._Assets.MediaTooShort });
-				return null;
-			}
-			if (videoMedia.audioError != null) {
-				await ui.alert({ type: 'warning', title: asset.name, text: videoMedia.audioError });
-			}
+		const isVideo = asset.fileDataType.startsWith('video/');
+		const isTimedMedia = isVideo || asset.fileDataType.startsWith('audio/');
+		const media = isTimedMedia ? await inspectTimelineClipMedia(asset) : null;
+		if (media != null && media.durationMs < 1) {
+			await ui.alert({ type: 'error', text: i18n.ts._Assets.MediaTooShort });
+			return null;
 		}
-	
-		const player = result.type.startsWith('video/') || result.type.startsWith('audio/') ? {
-			id: genId(),
-			name: result.name,
-			sourceType: 'asset',
-			assetId: asset.id,
-		} satisfies Player : null;
-	
+		if (media?.audioError != null) await ui.alert({ type: 'warning', title: asset.name, text: media.audioError });
+		const mediaLayer = isTimedMedia ? createTimelineAssetLayer(asset, 0, media) : null;
+		const videoFrameRate = isVideo ? await readVideoFrameRate(asset.fileData) : null;
+
 		const initialEffectNodeId = genId();
 		const initialInputParamId = genId();
 		const initialOutputId = genId();
-		const initialCustomNodeGraphEffect: ProjectCustomNodeGraphEffect = {
+		const initialCustomNodeGraphEffect: ProjectCustomNodeGraphEffect | null = isTimedMedia ? null : {
 			id: genId(),
 			name: 'Custom Node Graph Effect 1',
 			definition: {
@@ -204,7 +191,7 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 					defaultValue: [0, 0, 0, 0],
 					canNode: true,
 				} },
-				nodes: [result.type.startsWith('image/') ? {
+				nodes: [{
 					id: initialEffectNodeId,
 					type: 'effect',
 					staticSettings: { image: asset.id },
@@ -212,41 +199,6 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 					effectSource: { type: 'nativeEffect', id: 'image' },
 					params: {
 						fit: createDefaultParameterBinding(imageEffectDef.paramDefs.fit),
-					},
-					isBypass: false,
-				} : result.type.startsWith('video/') ? {
-					id: initialEffectNodeId,
-					type: 'effect',
-					staticSettings: { player: player!.id },
-					resolution: { mode: 'auto', scale: 1 },
-					effectSource: { type: 'nativeEffect', id: 'video' },
-					params: {
-						fit: createDefaultParameterBinding(videoEffectDef.paramDefs.fit),
-					},
-					isBypass: false,
-				} : result.type.startsWith('audio/') ? {
-					id: initialEffectNodeId,
-					type: 'effect',
-					staticSettings: {},
-					resolution: { mode: 'auto', scale: 1 },
-					effectSource: { type: 'nativeEffect', id: 'audioWaveform' },
-					params: {
-						audio: { inputSource: 'literal', value: { type: 'player', playerId: player!.id } },
-						channel: createDefaultParameterBinding(audioWaveformEffectDef.paramDefs.channel),
-						duration: createDefaultParameterBinding(audioWaveformEffectDef.paramDefs.duration),
-						amplitude: createDefaultParameterBinding(audioWaveformEffectDef.paramDefs.amplitude),
-						lineWidth: createDefaultParameterBinding(audioWaveformEffectDef.paramDefs.lineWidth),
-						color: createDefaultParameterBinding(audioWaveformEffectDef.paramDefs.color),
-					},
-					isBypass: false,
-				} : {
-					id: initialEffectNodeId,
-					type: 'effect',
-					staticSettings: {},
-					resolution: { mode: 'auto', scale: 1 },
-					effectSource: { type: 'nativeEffect', id: 'fill' },
-					params: {
-						color: { inputSource: 'literal', value: [0, 1, 0, 1] },
 					},
 					isBypass: false,
 				}],
@@ -259,43 +211,27 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 			name: DEFAULT_PROJECT_NAME,
 			description: '',
 			author: '',
-			customNodeGraphEffects: [initialCustomNodeGraphEffect],
+			customNodeGraphEffects: initialCustomNodeGraphEffect == null ? [] : [initialCustomNodeGraphEffect],
 			customShaderEffects: [],
 			assets: [asset],
-			players: player != null ? [player] : [],
 			generatedSpeech: [],
 			timelineScenes: [{
 				id: genId(),
 				name: 'SN1',
 				resolution: { mode: 'project' },
-				layers: [{
+				layers: mediaLayer != null ? [mediaLayer] : [{
 					id: genId(),
 					isDisabled: false,
 					isSolo: false,
 					color: null,
-					...(videoMedia != null ? {
-						layerType: 'video' as const,
-						name: asset.name,
-						clips: [{
-							id: genId(),
-							...createTimelineMediaClipTiming(0, videoMedia.durationMs),
-							assetId: asset.id,
-							audioEnabled: videoMedia.audioAvailable,
-							videoEnabled: true,
-						}],
-						audioParamValues: { volume: createDefaultParameterBinding(timelineAudioParamDefs.volume) },
-					} : {
-						layerType: 'effect' as const,
-						transformTarget: 'image' as const,
-						name: 'Custom Node Graph Effect',
-					effectSource: { type: 'customNodeGraphEffectReference', id: initialCustomNodeGraphEffect.id },
-					effectStaticSettings: {}, resolution: { mode: 'context', scale: 1 },
-						effectParamValues: {},
-						clips: [{
-							id: genId(),
-							...createTimelineClipTiming(0, 1000 * 10),
-						}],
-					}),
+					layerType: 'effect',
+					transformTarget: 'image',
+					name: 'Custom Node Graph Effect',
+					effectSource: { type: 'customNodeGraphEffectReference', id: initialCustomNodeGraphEffect!.id },
+					effectStaticSettings: {},
+					resolution: { mode: 'context', scale: 1 },
+					effectParamValues: {},
+					clips: [{ id: genId(), ...createTimelineClipTiming(0, 1000 * 10) }],
 					forceDisableMotionBlur: false,
 					mask: null,
 					layerMask: null,

@@ -599,7 +599,7 @@ test('persists only currently referenced speech and keeps disabled and pending u
 	const clearSpeech = { ...f.speech, sourceId: 'clear', key: getVoicevoxRequestKey({ ...f.request, text: '' }) };
 	const project = { id: 'p', gsVersion: '2.0.0-alpha.1', name: 'Speech', description: '', author: '', timelineFps: 60,
 		timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, resolution: { width: 640, height: 480 },
-		assets: [], players: [], customNodeGraphEffects: [], timelineScenes: f.scenes, generatedSpeech: [f.speech, dormantSpeech, obsoleteSpeech, clearSpeech] };
+		assets: [], customNodeGraphEffects: [], timelineScenes: f.scenes, generatedSpeech: [f.speech, dormantSpeech, obsoleteSpeech, clearSpeech] };
 	const restored = decodeProjectFile(await encodeProjectFile(project));
 	assert.deepEqual(restored.timelineScenes, f.scenes);
 	assert.deepEqual(restored.assets, []);

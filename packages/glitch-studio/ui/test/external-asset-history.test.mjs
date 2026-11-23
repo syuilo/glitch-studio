@@ -30,7 +30,7 @@ const externalAsset = (id, sourceFilePath = `C:/assets/${id}.mp4`) => ({
 const project = assets => ({
 	id: 'project', gsVersion: '2.0.0-alpha', name: 'Project', description: '', author: '', exportSettings: null,
 	timelineFps: 30, timelineMotionBlur: { enabled: false, shutterAngle: 360, samples: 32 }, resolution: { width: 1920, height: 1080 },
-	customShaderEffects: [], automationGraphs: [], assets, players: [], generatedSpeech: [], customNodeGraphEffects: [], timelineScenes: [],
+	customShaderEffects: [], automationGraphs: [], assets, generatedSpeech: [], customNodeGraphEffects: [], timelineScenes: [],
 });
 const thumbnails = width => ({ width, height: 90, frames: [{ timestampSeconds: 0, fileData: new Blob([String(width)]) }] });
 
@@ -71,7 +71,7 @@ test('undoes asset removal without replacing or reverting other reloaded assets'
 test('keeps the latest metadata per path across relink and import history', () => {
 	const { context, manager, findAsset, reload } = fixture([]);
 	const asset = externalAsset('asset');
-	manager.commit('insertImportedAssets', { assets: [asset], players: [] });
+	manager.commit('insertImportedAssets', { assets: [asset] });
 	reload(asset.id, { width: 800, thumbnailSequence: thumbnails(200) });
 	const replacement = { ...asset, sourceFilePath: 'C:/assets/relinked.mp4', width: 1000 };
 	context.externalAssetMetadata.record(replacement);

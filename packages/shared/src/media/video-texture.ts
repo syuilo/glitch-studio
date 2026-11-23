@@ -59,7 +59,7 @@ export function createVideoTexture(device: GPUDevice) {
 	};
 }
 
-/** Player等から借りたVideoFrameを、補間前にlinear・乗算済みの通常テクスチャへ正規化する。 */
+/** 入力元から借りたVideoFrameを、補間前にlinear・乗算済みの通常テクスチャへ正規化する。 */
 export function createVideoFrameTexture(device: GPUDevice) {
 	let texture: GPUTexture | null = null;
 	const converter = createExternalImageToLinearTextureConverter(device);

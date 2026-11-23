@@ -75,7 +75,7 @@ export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffe
 		const port = customNodeGraphEffect.primaryOutput!;
 		const effectDefinitions = createProjectEffectDefinitions(data, definitions);
 		const gpu = { device, defaultVertexShaderModule: device.createShaderModule({ code: vertexCode }), enable32bitDataTextures: false };
-		// Web書き出しではPlayerの権限取得や再生管理を避けるため、Playerと音声入力は未接続として扱う。
+		// Web書き出しの音声入力は未接続として扱う。
 		const resources = { assets, assetTextures: assetTextures.textures };
 		presenter = new PortableCanvasRenderer(device, canvas);
 		let inputs: ReturnType<typeof createPortableEffectInputs> | null = null;

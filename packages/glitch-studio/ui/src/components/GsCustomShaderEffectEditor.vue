@@ -59,6 +59,7 @@
 		</GsFolder>
 		<GsButton data-test-add-custom-shader-effect-output icon="ti ti-plus" @click="addOutput">{{ i18n.ts._CustomShaderEffect.AddOutput }}</GsButton>
 	</template>
+	<slot v-else-if="tab === 'preview'" name="preview"></slot>
 	<template v-else-if="tab === 'settings'">
 		<GsInput v-model="draft.name" data-test-custom-shader-effect-name><template #label>{{ i18n.ts.Name }}</template></GsInput>
 		<GsTextarea v-model="draft.summary"><template #label>{{ i18n.ts._Project.Description }}</template></GsTextarea>
@@ -89,6 +90,7 @@ import type { CustomShaderEffect } from '@gs/subsystems_effect_shared/custom-sha
 import { i18n } from '@/i18n.ts';
 import { areProjectCustomShaderEffectsEqual } from '@/utility/custom-shader-effect.ts';
 
+const slots = defineSlots<{ preview?: () => unknown }>();
 const props = defineProps<{ customShaderEffect: ProjectCustomShaderEffect }>();
 const emit = defineEmits<{ apply: [definition: ProjectCustomShaderEffect] }>();
 type CustomShaderEffectParameterDefinition = CustomShaderEffect['paramDefs'][string] & { id: string };
@@ -118,6 +120,7 @@ const tabs = [
 	{ id: 'code', label: 'WGSL' },
 	{ id: 'inputs', label: i18n.ts._CustomShaderEffect.Inputs },
 	{ id: 'outputs', label: i18n.ts._CustomShaderEffect.Outputs },
+	...(slots.preview == null ? [] : [{ id: 'preview', label: i18n.ts.Preview }]),
 	{ id: 'settings', label: i18n.ts.Settings },
 ];
 const kindItems: { value: CustomShaderEffect['kind']; label: string }[] = [

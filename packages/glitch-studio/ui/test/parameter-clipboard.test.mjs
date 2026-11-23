@@ -47,7 +47,7 @@ function fixture(projectSessionId = 'session') {
 	const shape = createShapeTimelineLayer('rectangle', 0);
 	shape.id = 'shape';
 	const scene = { id: 'scene', layers: [layer, shape] };
-	const state = { customNodeGraphEffects: { value: [customNodeGraphEffect] }, timelineScenes: { value: [scene] }, automationGraphs: { value: [] }, players: { value: [] } };
+	const state = { customNodeGraphEffects: { value: [customNodeGraphEffect] }, timelineScenes: { value: [scene] }, automationGraphs: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const context = { id: 'same-saved-project', isDisposed: false, stateManager: history };
 	const target = { kind: 'node', customNodeGraphEffectTarget: { customNodeGraphEffectId: customNodeGraphEffect.id }, nodeId: node.id, paramPath: ['foo', 'node'] };
@@ -115,29 +115,6 @@ test('preserves references in the same session across Save As during a pending p
 	assert.equal(f.history.undoStack.value.length, 1);
 });
 
-// 【Live PreviewのPlayer参照も、同じ保存IDを持つ別セッションへ持ち込まない】
-// プレビュー引数はCommandを通らないため、通常パラメータとは別の入口でも
-// 実行中のセッションIDを使う必要がある。同一セッションでは別名保存後も適用する。
-test('scopes live preview player references to their source session', async () => {
-	const from = fixture('source-session');
-	const to = fixture('destination-session');
-	const definition = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null };
-	const binding = { inputSource: 'literal', value: { type: 'player', playerId: 'player' } };
-	for (const f of [from, to]) {
-		f.customNodeGraphEffect.definition.paramDefs = { arg: { ...definition, nameForReference: 'arg' } };
-		f.state.players.value.push({ id: 'player' });
-	}
-	let text = '';
-	const clipboard = { writeText: async value => { text = value; }, readText: async () => text };
-	await handlePreviewParameterClipboard(from.context, from.projectSessionId, { type: 'customNodeGraphEffectReference', id: from.customNodeGraphEffect.id }, ['arg'], 'copy', () => ({ binding, followsDefault: false }), () => true, () => {}, clipboard);
-	let applied = null;
-	const paste = f => handlePreviewParameterClipboard(f.context, f.projectSessionId, { type: 'customNodeGraphEffectReference', id: f.customNodeGraphEffect.id }, ['arg'], 'paste', () => ({ binding: null, followsDefault: true }), () => true, (_id, value) => { applied = value; }, clipboard);
-	await paste(to);
-	assert.equal(applied, null);
-	from.context.id = 'saved-as';
-	await paste(from);
-	assert.deepEqual(applied, binding);
-});
 
 // 【カスタム値のコピー・貼り付けと内部参照を、所有Custom Node Graph Effectの範囲に限定する】
 // 同じIDの別Custom Node Graph Effectや外部公開引数へ内部参照を持ち込まず、値の貼り付けはUndoできるようにする。
@@ -314,20 +291,13 @@ test('validates public parameter references against their destination types and 
 	assert.equal(prepareParameterBindingPaste(scalarDefinition, timelineReference, f.resolve({ ...f.timelineTarget, layerId: f.shape.id, parameterTarget: 'compositing', paramPath: ['opacity'] }).context), null);
 });
 
-// 【Playerと音声レイヤーの参照を検証し、下位音声入力は貼り付け先の相対入力として扱う】
+// 【音声レイヤーの参照を検証し、下位音声入力は貼り付け先の相対入力として扱う】
 // 音声は同じaudioSource型でもCustom Node Graph EffectとTimelineで取得元の契約が異なる。
-test('validates player and timeline audio inputs without transferring project resources', () => {
+test('validates timeline audio inputs without transferring project resources', () => {
 	const f = fixture();
 	const definition = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null };
 	const nodeContext = f.resolve().context;
-	f.state.players.value.push({ id: 'player' });
-	const player = createParameterClipboard(definition, { inputSource: 'literal', value: { type: 'player', playerId: 'player' } }, nodeContext.source);
-	assert.ok(prepareParameterBindingPaste(definition, player, nodeContext));
-	assert.equal(prepareParameterBindingPaste(definition, player, { ...nodeContext, source: { ...nodeContext.source, projectSessionId: 'other' } }), null);
-	f.state.players.value = [];
-	assert.equal(prepareParameterBindingPaste(definition, player, nodeContext), null);
 	const timelineContext = f.resolve(f.timelineTarget).context;
-	assert.equal(prepareParameterBindingPaste(definition, player, timelineContext), null);
 	f.scene.layers.push({ id: 'audio', layerType: 'audio' });
 	const audio = createParameterClipboard(definition, { inputSource: 'anotherLayerAudio', layerId: 'audio' }, timelineContext.source);
 	assert.ok(prepareParameterBindingPaste(definition, audio, timelineContext));

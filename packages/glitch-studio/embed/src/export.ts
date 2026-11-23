@@ -33,7 +33,7 @@ export function preparePortableCustomNodeGraphEffect(input: PortableCustomNodeGr
 		aspectRatio: input.aspectRatio, settings: { ...input.settings },
 		initialParameters: structuredClone(input.initialParameters),
 		runtimeRequirements,
-		diagnostics: { players: resources.players.map(player => player.name), resolutionNodes },
+		diagnostics: { resolutionNodes },
 	};
 }
 
@@ -120,7 +120,7 @@ Events: ready, render (detail: resolution, time in seconds), error (detail: mess
 
 CSS determines the size. Rendering follows device pixels subject to scale and pixel limits. Existing node resolutions are preserved; mismatched output ratios use transparent letterboxing. Resizing or changing the length of a bound public array resets effect history and preserves time. Offscreen/hidden/zero-sized elements suspend their clocks. Removing an element releases resources; reconnecting retains parameter values and time but resets history. restart resets time/history and can retry a failed renderer. Pointer input uses the primary pointer and does not prevent touch scrolling.
 
-All Players (including file Players) remain unconnected. Video Frame reads bundled video assets independently. No tile rendering, external image/audio API or timeline playback is included. IS_EXPORT is false; END_TIME is Infinity; PROGRESS is 0.
+Video Frame reads bundled video assets. No tile rendering, external image/audio API or timeline playback is included. IS_EXPORT is false; END_TIME is Infinity; PROGRESS is 0.
 `;
 	return { format, javascript, html, readme, assetFiles };
 }

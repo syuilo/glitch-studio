@@ -34,7 +34,7 @@ const scene = (id, layers = []) => ({ id, name: id, resolution: { mode: 'project
 const sceneLayer = (id, sceneId) => ({ resolution: { mode: 'auto', scale: 1 }, id, name: id, layerType: 'scene', clips: [{ id: 'clip', sceneId, startMs: 0, durationMs: 1000, contentOffsetMs: 0 }], compositingParamValues: {}, audioParamValues: {}, automationGraphs: [] });
 const groupLayer = (id, layers) => ({ id, name: id, layerType: 'group', layers, compositingParamValues: {}, audioParamValues: {}, automationGraphs: [], isDisabled: false });
 function fixture(customNodeGraphEffects = [], timelineScenes = []) {
-	const state = { customNodeGraphEffects: ref(customNodeGraphEffects), timelineScenes: ref(timelineScenes), assets: ref([]), players: ref([]), resolution: ref({ width: 16, height: 16 }), timelineFps: ref(60), timelineMotionBlur: ref({ enabled: false, shutterAngle: 180, samples: 0 }) };
+	const state = { customNodeGraphEffects: ref(customNodeGraphEffects), timelineScenes: ref(timelineScenes), assets: ref([]), resolution: ref({ width: 16, height: 16 }), timelineFps: ref(60), timelineMotionBlur: ref({ enabled: false, shutterAngle: 180, samples: 0 }) };
 	const validation = new ProjectRenderValidation(state, definitions);
 	validation.reset();
 	return { state, validation };

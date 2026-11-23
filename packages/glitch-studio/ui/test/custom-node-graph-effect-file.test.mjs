@@ -44,15 +44,15 @@ function asset(id, type = 'image/png') {
 		sourceFilePath: 'C:/private/' + id, hash: 'hash-' + id };
 }
 function fixture() {
-	const setting = (assetType, label = assetType) => ({ dataType: assetType === 'player' ? { kind: 'playerReference' } : { kind: 'assetReference', assetType }, ui: { label }, defaultValue: null });
+	const setting = (assetType, label = assetType) => ({ dataType: { kind: 'assetReference', assetType }, ui: { label }, defaultValue: null });
 	const definitions = { resources: { ...testGraph(), staticSettingDefs: {
-		image: setting('image'), video: setting('video'), player: setting('player'), nestedImage: setting('image'), font: setting('font'), templateImage: setting('image'), templateFont: setting('font'),
+		image: setting('image'), video: setting('video'), nestedImage: setting('image'), font: setting('font'), templateImage: setting('image'), templateFont: setting('font'),
 	}, paramDefs: { audio: parameter('audioSource'), amount: parameter('scalar', 1), input: { ...parameter('color', [0, 0, 0, 0]), canNode: true } } } };
 	const customNodeGraphEffect = testGraph({
 		nodes: [
 			{ id: 'effect', type: 'effect', effectSource: { type: 'nativeEffect', id: 'resources' }, isBypass: false, resolution: { mode: 'auto', scale: 1 },
-				staticSettings: { image: 'default-image', video: 'video', player: 'file-player', nestedImage: 'nested-image', font: 'font', templateImage: 'template-image', templateFont: 'template-font' },
-				params: { audio: literal({ type: 'player', playerId: 'microphone' }), amount: { inputSource: 'expression', expression: 'TIME * 0.5' },
+				staticSettings: { image: 'default-image', video: 'video', nestedImage: 'nested-image', font: 'font', templateImage: 'template-image', templateFont: 'template-font' },
+				params: { audio: literal(null), amount: { inputSource: 'expression', expression: 'TIME * 0.5' },
 					input: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'input', sampling: { fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' } } } },
 			{ id: 'relay', type: 'relay', dataType: { kind: 'color' }, input: { nodeId: 'effect', outputPort: 'output' } },
 		],
@@ -64,9 +64,7 @@ function fixture() {
 		automationGraphs: [{ id: 'graph', nameForReference: 'graph', isNormalized: true, points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }],
 	});
 	const assets = [asset('video', 'video/mp4'), asset('nested-image'), asset('font', 'font/ttf'), asset('default-image'), asset('template-image'), asset('template-font', 'font/otf'), asset('unused')];
-	const players = [{ id: 'file-player', name: 'Movie', sourceType: 'asset', assetId: 'video' },
-		{ id: 'microphone', name: 'Mic', sourceType: 'microphone' }, { id: 'unused-player', name: 'Unused', sourceType: 'webcam' }];
-	const input = { name: 'Source Custom Node Graph Effect', customNodeGraphEffects: [], customShaderEffects: [], nodeMetadata: { effect: { displayName: 'Resource Node', position: { x: 3, y: 4 } } }, gsVersion: '2.0.0-alpha.1', customNodeGraphEffect, assets, players };
+	const input = { name: 'Source Custom Node Graph Effect', customNodeGraphEffects: [], customShaderEffects: [], nodeMetadata: { effect: { displayName: 'Resource Node', position: { x: 3, y: 4 } } }, gsVersion: '2.0.0-alpha.1', customNodeGraphEffect, assets };
 	return { input, definitions, customNodeGraphEffect, file: () => collectCustomNodeGraphEffectFile(input, definitions) };
 }
 function ids(prefix) { let index = 0; return () => `${prefix}-${++index}`; }
@@ -106,20 +104,18 @@ test('packages LUT references and remaps them on Custom Node Graph Effect import
 
 // 【参照された原本と公開パラメータの既定値だけを持ち運べる】
 // ノードが公開パラメータ経由で画像を読む場合や、空配列の要素追加用の初期値も見落としてはいけない。
-// 同じ動画をノードとPlayerが参照しても一度だけ同梱し、無関係な素材や元PCのパスを含めない。
+// 同じ素材を複数のノードが参照しても一度だけ同梱し、無関係な素材や元PCのパスを含めない。
 test('round trips referenced media and definition defaults without project paths or unused resources', async () => {
 	const f = fixture();
 	const file = f.file();
 	assert.equal(file.customNodeGraphEffect.id, undefined);
 	assert.equal(file.customNodeGraphEffect.name, undefined);
 	assert.deepEqual(file.assets.map(item => item.id).sort(), ['video', 'nested-image', 'font', 'default-image', 'template-image', 'template-font'].sort());
-	assert.deepEqual(file.players.map(item => item.id).sort(), ['file-player', 'microphone']);
 	assert.ok(file.assets.every(item => !('sourceFilePath' in item)));
 	f.input.nodeMetadata.effect.displayName = 'Edited after export';
 	f.customNodeGraphEffect.paramDefs.amount.defaultValue = null;
 	const decoded = decodeCustomNodeGraphEffectFile(await encodeCustomNodeGraphEffectFile(file), f.input.gsVersion);
 	assert.deepEqual(decoded.customNodeGraphEffect, file.customNodeGraphEffect);
-	assert.deepEqual(decoded.players, file.players);
 	for (const item of decoded.assets) {
 		assert.equal(item.fileData.type, item.fileDataType);
 		assert.deepEqual([...new Uint8Array(await item.fileData.arrayBuffer())], [1, 2, 3, 4]);
@@ -129,9 +125,8 @@ test('round trips referenced media and definition defaults without project paths
 });
 
 // 【取り込みごとに共有リソースのIDを変え、内部の配線と既定値を維持する】
-// 同じファイルを二度取り込んだり、元プロジェクトへ戻したりしても素材やPlayerを共有してはいけない。
-// マイクは未指定に戻すが、参照先のPlayer自体は残して入力だけを選び直せるようにする。
-test('remaps project resources while preserving local wiring and resetting device players', () => {
+// 同じファイルを二度取り込んだり、元プロジェクトへ戻したりしても素材を共有してはいけない。
+test('remaps project resources while preserving local wiring', () => {
 	const f = fixture();
 	const file = f.file();
 	const first = prepareCustomNodeGraphEffectImport(file, f.definitions, ids('first'));
@@ -151,11 +146,6 @@ test('remaps project resources while preserving local wiring and resetting devic
 	assert.equal(settings.image, importedAsset('default-image'));
 	assert.equal(settings.templateImage, importedAsset('template-image'));
 	assert.equal(settings.templateFont, importedAsset('template-font'));
-	assert.equal(first.players.find(player => player.name === 'Movie').assetId, importedAsset('video'));
-	assert.equal(settings.player, first.players.find(player => player.name === 'Movie').id);
-	assert.deepEqual(params.audio.value, { type: 'player', playerId: first.players.find(player => player.name === 'Mic').id });
-	assert.equal(first.players.find(player => player.name === 'Mic').sourceType, null);
-	assert.deepEqual(first.unassignedPlayerNames, ['Mic']);
 	assert.equal(file.customNodeGraphEffect.paramDefs.amount.defaultValue, 1);
 });
 
@@ -166,25 +156,19 @@ test('rejects missing resources unknown effects and dynamic resource bindings', 
 	const missingAsset = fixture();
 	missingAsset.input.assets = missingAsset.input.assets.filter(item => item.id !== 'default-image');
 	assert.throws(missingAsset.file, /Missing Asset/);
-	const missingPlayer = fixture();
-	missingPlayer.input.players = [];
-	assert.throws(missingPlayer.file, /Missing Player/);
 	const unknown = fixture();
 	unknown.customNodeGraphEffect.nodes[0].effectSource.id = 'unknown';
 	assert.throws(unknown.file, /Unknown Native Effect/);
 	const dynamic = fixture();
 	dynamic.customNodeGraphEffect.nodes[0].staticSettings.image = { inputSource: 'expression', expression: '"nested-image"' };
 	assert.throws(dynamic.file, /Invalid static setting/);
-	const missingPlayerAsset = fixture();
-	missingPlayerAsset.input.players[0].assetId = 'absent';
-	assert.throws(missingPlayerAsset.file, /Missing Asset/);
 });
 
-// 【素材・Playerの加工式は無効化中や未選択の基準値でも転送しない】
+// 【素材の加工式は無効化中や未選択の基準値でも転送しない】
 // コード内のIDは取り込み時に再割り当てできず、無効な式も再有効化すると参照切れになる。
 // 基準値だけの収集で成功扱いにしないよう、直接参照・ネスト・公開既定値と読み込み側も確認する。
 test('rejects bindings and modifiers inside static settings on export and import', () => {
-	for (const key of ['image', 'video', 'player', 'font']) {
+	for (const key of ['image', 'video', 'font']) {
 		for (const enabled of [true, false]) {
 			const f = fixture();
 			const file = f.file();
@@ -202,11 +186,9 @@ test('preserves non-resource modifiers and permits unmodified unselected resourc
 	const f = fixture();
 	f.customNodeGraphEffect.nodes[0].params.amount.expressionModifier = { enabled: true, code: 'VALUE * 2' };
 	f.customNodeGraphEffect.nodes[0].staticSettings.video = null;
-	f.customNodeGraphEffect.nodes[0].staticSettings.player = null;
 	const imported = prepareCustomNodeGraphEffectImport(f.file(), f.definitions);
 	assert.deepEqual(imported.customNodeGraphEffect.definition.nodes[0].params.amount, f.customNodeGraphEffect.nodes[0].params.amount);
 	assert.equal(imported.customNodeGraphEffect.definition.nodes[0].staticSettings.video, null);
-	assert.equal(imported.customNodeGraphEffect.definition.nodes[0].staticSettings.player, null);
 });
 
 // 【専用形式以外と未来の形式は読み込みを拒否する】
@@ -277,15 +259,15 @@ test('keeps newly created Custom Node Graph Effects independent and rejects dupl
 	assert.equal(new Set(ids).size, ids.length);
 	first.definition.paramDefs[first.definition.primaryInputParameter].defaultValue[0] = 1;
 	assert.deepEqual(second.definition.paramDefs[second.definition.primaryInputParameter].defaultValue, [0, 0, 0, 0]);
-	assert.throws(() => manager.commit('importCustomNodeGraphEffect', { customNodeGraphEffect: first, assets: [], players: [] }), /already exists/);
+	assert.throws(() => manager.commit('importCustomNodeGraphEffect', { customNodeGraphEffect: first, assets: [] }), /already exists/);
 	assert.equal(manager.undoStack.value.length, 2);
 	assert.deepEqual(manager.state.customNodeGraphEffects.value, [first, second]);
 });
 
 // 【取り込み全体を一回のUndoで戻し、Redoでも同じIDで同期する】
-// ノード・素材・Playerを別々の履歴へ分けると、不完全な構成が残ってしまう。
+// ノードと素材を別々の履歴へ分けると、不完全な構成が残ってしまう。
 // Workerの登録・削除も差分で反映し、復旧用の全量置換が必要になる不具合を検出する。
-test('imports assets players and a Custom Node Graph Effect with one synchronized undo and redo', async t => {
+test('imports assets and a Custom Node Graph Effect with one synchronized undo and redo', async t => {
 	const f = fixture();
 	const prepared = prepareCustomNodeGraphEffectImport(f.file(), f.definitions, ids('import'));
 	const manager = new ProjectContext(createTestProject()).stateManager;
@@ -302,12 +284,10 @@ test('imports assets players and a Custom Node Graph Effect with one synchronize
 	await sync.flush();
 	assert.equal(manager.undoStack.value.length, 1);
 	assert.equal(manager.state.assets.value.length, prepared.assets.length + 1);
-	assert.equal(manager.state.players.value.length, prepared.players.length);
 	assert.deepEqual(replica.customNodeGraphEffects, [prepared.customNodeGraphEffect]);
 	manager.undo();
 	await sync.flush();
 	assert.deepEqual(manager.state.assets.value.map(item => item.id), ['existing']);
-	assert.equal(manager.state.players.value.length, 0);
 	assert.equal(replica.customNodeGraphEffects.length, 0);
 	assert.equal(batches.at(-1)[0].customNodeGraphEffect, null);
 	manager.redo();
@@ -346,11 +326,9 @@ test('keeps project state and history unchanged when import IDs collide', () => 
 	const f = fixture();
 	const prepared = prepareCustomNodeGraphEffectImport(f.file(), f.definitions);
 	const manager = new ProjectContext(createTestProject()).stateManager;
-	manager.state.players.value = [{ id: prepared.players[1].id, name: 'Existing', sourceType: null }];
+	manager.state.assets.value.push(prepared.assets[0]);
 	assert.throws(() => manager.commit('importCustomNodeGraphEffect', prepared), /already exists/);
-	assert.equal(manager.state.assets.value.length, 0);
 	assert.equal(manager.state.customNodeGraphEffects.value.length, 0);
-	assert.equal(manager.state.players.value.length, 1);
 	assert.equal(manager.undoStack.value.length, 0);
 });
 
@@ -376,7 +354,7 @@ test('cancels file selection and rejects an import after the project closes', as
 	assert.equal(await importCustomNodeGraphEffectFile(context), null);
 	assert.equal(context.stateManager.undoStack.value.length, 0);
 	const file = { kind: 'glitch-studio-custom-node-graph-effect', formatVersion: 2, customNodeGraphEffects: [], customShaderEffects: [], gsVersion: '2.0.0-alpha.1', name: 'Empty',
-		customNodeGraphEffect: testGraph(), assets: [], players: [] };
+		customNodeGraphEffect: testGraph(), assets: [] };
 	const data = await encodeCustomNodeGraphEffectFile(file);
 	const reading = Promise.withResolvers();
 	browser.selectFile({ arrayBuffer: () => reading.promise });
@@ -395,7 +373,7 @@ test('cancels file selection and rejects an import after the project closes', as
 test('imports a selected file and preserves existing state when the next file cannot be decoded', async t => {
 	const context = new ProjectContext(createTestProject());
 	const file = { kind: 'glitch-studio-custom-node-graph-effect', formatVersion: 2, customNodeGraphEffects: [], customShaderEffects: [], gsVersion: '2.0.0-alpha.1', name: 'Imported Custom Node Graph Effect',
-		customNodeGraphEffect: testGraph(), assets: [], players: [] };
+		customNodeGraphEffect: testGraph(), assets: [] };
 	const data = await encodeCustomNodeGraphEffectFile(file);
 	const browser = platform(t, new File([new Uint8Array(data)], 'import.gscnge'));
 	const id = await importCustomNodeGraphEffectFile(context);

@@ -46,34 +46,6 @@ function fixture() {
 	return { get node() { return customNodeGraphEffect.definition.nodes.find(candidate => candidate.id === node.id); }, customNodeGraphEffect, layer, scene, state, history, changes };
 }
 
-// 【配列・構造体の音声入力に選択済みのPlayerを既定値として登録する】
-// 初期要素と追加用の設定は別々に保存する。取得元の形式を入口で検証し、単体の公開音声入力は未選択で作る。
-test('accepts nested Player defaults and validates the audio source at the public command boundary', () => {
-	const f = fixture();
-	const customNodeGraphEffect = { customNodeGraphEffectId: f.customNodeGraphEffect.id };
-	const audioSourceType = { kind: 'audioSource' };
-	const audioSourceUi = { label: 'Audio', control: {} };
-	const initialPlayer = { type: 'player', playerId: 'initial' };
-	const addedPlayer = { type: 'player', playerId: 'added' };
-	const definition = {
-		nameForReference: 'tracks', canNode: false,
-		dataType: { kind: 'array', elementType: { kind: 'struct', fields: { audio: audioSourceType } } },
-		ui: { label: 'Tracks', control: { element: { fields: { audio: audioSourceUi } } } },
-		defaultValue: [{ audio: initialPlayer }],
-		element: { defaultValue: { audio: addedPlayer }, fields: { audio: { defaultValue: addedPlayer } } },
-	};
-	const { parameterId } = f.history.commit('createCustomNodeGraphEffectPublicParameter', { customNodeGraphEffect, definition });
-	assert.deepEqual(f.customNodeGraphEffect.definition.paramDefs[parameterId], definition);
-
-	const invalid = structuredClone(definition);
-	invalid.nameForReference = 'invalid';
-	invalid.element.fields.audio.defaultValue.playerId = '';
-	assert.throws(() => f.history.commit('createCustomNodeGraphEffectPublicParameter', { customNodeGraphEffect, definition: invalid }), /Invalid player audio source/);
-	assert.throws(() => f.history.commit('createCustomNodeGraphEffectPublicParameter', {
-		customNodeGraphEffect, definition: { nameForReference: 'audio', canNode: false, dataType: audioSourceType, ui: audioSourceUi, defaultValue: initialPlayer },
-	}), /defaultValue/);
-	assert.equal(f.history.undoStack.value.length, 1);
-});
 
 // 【配列の既定値が指定された要素数の上限を超えたら定義の受付で報告する】
 // 定義を保存した後のWeb書き出しで初めて失敗することを防ぐ。空の外側配列でも、内側の追加用既定値を検証する。

@@ -38,12 +38,12 @@ const literal = value => ({ inputSource: 'literal', value });
 function fixture(t) {
 	t.mock.method(console, 'log', () => {});
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] };
-	const state = { timelineScenes: { value: [scene] }, resolution: { value: { width: 1000, height: 1000 } }, customNodeGraphEffects: { value: [] }, players: { value: [] }, assets: { value: [] } };
+	const state = { timelineScenes: { value: [scene] }, resolution: { value: { width: 1000, height: 1000 } }, customNodeGraphEffects: { value: [] }, assets: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const changes = [];
 	history.onChange(value => changes.push(value));
 	const initial = createCameraTimelineLayer(100.4);
-	history.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: scene.id, layers: [initial] } });
+	history.commit('insertImportedAssets', { assets: [], timeline: { sceneId: scene.id, layers: [initial] } });
 	const target = { sceneId: scene.id, layerId: initial.id, target: 'camera' };
 	return { scene, state, history, changes, target, initial,
 		get layer() { return scene.layers.find(layer => layer.id === initial.id); },
@@ -131,7 +131,7 @@ test('allows camera nesting through group, move, and paste commands with undo an
 	const copy = { ...structuredClone(f.layer), id: 'copy' };
 	const group = { id: 'group', name: 'Group', layerType: 'group', layers: [], isDisabled: false,
 		forceDisableMotionBlur: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: {} };
-	f.history.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [group] } });
+	f.history.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [group] } });
 	const before = structuredClone(f.scene.layers);
 	const { layerId: wrappedLayerId } = f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: [cameraId], containerType: 'group' });
 	assert.equal(findTimelineLayer(f.scene.layers, wrappedLayerId).layers[0].id, cameraId);
@@ -171,7 +171,7 @@ test('round-trips camera layers and duplicates independent camera settings', asy
 	const { layerId: wrappedLayerId } = f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: [copy.id, f.layer.id], containerType: 'group' });
 	const project = { id: 'project', gsVersion: '2.0.0-alpha', name: 'Cameras', description: '', author: '',
 		resolution: { width: 1920, height: 1080 }, timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
-		assets: [], generatedSpeech: [], players: [], customNodeGraphEffects: [], timelineScenes: f.state.timelineScenes.value };
+		assets: [], generatedSpeech: [], customNodeGraphEffects: [], timelineScenes: f.state.timelineScenes.value };
 	assert.deepEqual(decodeProjectFile(await encodeProjectFile(project)), project);
 });
 
@@ -181,7 +181,7 @@ test('wraps cameras and images in Transform and edits their shared timeline with
 	const f = fixture(t);
 	const cameraId = f.layer.id;
 	const image = { id: 'image', name: 'Image', layerType: 'image', isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [], compositingParamValues: {}, clips: [] };
-	f.history.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [image] } });
+	f.history.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [image] } });
 	const transform = createTransformTimelineLayer();
 	transform.id = f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: [image.id, cameraId], containerType: 'transform' }).layerId;
 	const parent = () => findTimelineLayer(f.scene.layers, transform.id);
@@ -219,7 +219,7 @@ test('allows cameras under Transform when editing group boundaries', t => {
 	transform.id = f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: [cameraId], containerType: 'transform' }).layerId;
 	const group = { id: 'group', name: 'Group', layerType: 'group', layers: [createTransformTimelineLayer()], isDisabled: false,
 		forceDisableMotionBlur: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: {} };
-	f.history.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [group] } });
+	f.history.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [group] } });
 	const before = structuredClone(f.scene.layers);
 	f.history.commit('moveTimelineLayerInTree', { sceneId: 'scene', layerId: transform.id, parentId: group.layers[0].id, beforeId: null });
 	assert.equal(findTimelineLayer(f.scene.layers, group.layers[0].id).layers[0].layers[0].id, cameraId);
@@ -235,7 +235,7 @@ test('allows cameras under Transform when editing group boundaries', t => {
 	assert.deepEqual(f.scene.layers, before);
 	// Transform同士の移動は認め、同じカメラID・クリップ・キーを保つ。
 	const outer = createTransformTimelineLayer();
-	f.history.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [outer] } });
+	f.history.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [outer] } });
 	f.history.commit('moveTimelineLayerInTree', { sceneId: 'scene', layerId: transform.id, parentId: outer.id, beforeId: null });
 	assert.equal(findTimelineLayer(f.scene.layers, outer.id).layers[0].layers[0].id, cameraId);
 });
@@ -264,7 +264,7 @@ test('preserves Transform descendants through renderer patches, duplication and 
 	assert.deepEqual(original.transformParamValues.scale.value, [1, 1]);
 	const project = { id: 'project', gsVersion: '2.0.0-alpha', name: 'Transforms', description: '', author: '',
 		resolution: { width: 1920, height: 1080 }, timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
-		assets: [], generatedSpeech: [], players: [], customNodeGraphEffects: [], timelineScenes: patched.timelineScenes };
+		assets: [], generatedSpeech: [], customNodeGraphEffects: [], timelineScenes: patched.timelineScenes };
 	assert.deepEqual(decodeProjectFile(await encodeProjectFile(project)), project);
 });
 

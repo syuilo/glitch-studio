@@ -34,7 +34,7 @@ test('connects the real Electron MCP server to project scripting, references and
 				resolution: ref({ width: 1920, height: 1080 }), timelineFps: ref(30),
 				timelineMotionBlur: ref({ enabled: false, shutterAngle: 180, samples: 8 }), exportSettings: ref(null),
 				automationGraphs: ref([]), customShaderEffects: ref([]), generatedSpeech: ref([]),
-				assets: ref([]), players: ref([]), customNodeGraphEffects: ref([]), timelineScenes: ref([]),
+				assets: ref([]), customNodeGraphEffects: ref([]), timelineScenes: ref([]),
 			};
 			const stateManager = new UndoRedo(state, COMMAND_DEFS);
 			const scripting = new ProjectScriptingController(stateManager, {

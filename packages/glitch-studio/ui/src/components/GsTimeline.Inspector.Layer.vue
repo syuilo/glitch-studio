@@ -414,6 +414,7 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 		return;
 	}
 	if (event.kind === 'node' || event.kind === 'customNodeGraphEffectPublicParameterReference' || event.kind === 'customNodeGraphEffectCustomParameterValueReference') return;
+	if (event.kind === 'inputSource' && (event.inputSource === 'previewInputImage' || event.inputSource === 'previewInputAudio')) return;
 	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'customNodeGraphEffectPublicParameterReference' || event.inputSource === 'customNodeGraphEffectCustomParameterValueReference')) return;
 	const mergeKey = event.mergeKey != null ? JSON.stringify([layer.id, target, event.paramPath, event.mergeKey]) : null;
 	if (event.kind === 'anotherLayerAudio' || (event.kind === 'inputSource' && (event.inputSource === 'lowerLayerAudio' || event.inputSource === 'anotherLayerAudio'))) {

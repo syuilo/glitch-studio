@@ -55,7 +55,7 @@ import type { ProjectFileHandle } from './gsproj.ts';
 import type { ProjectContext } from './Project.ts';
 import type { TimelineRendererManagerDynamicOptions } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { EffectLivePreviewManagerDynamicOptions } from '@gs/glitch-studio_renderer/effect-live-preview-manager.ts';
-import type { EffectLivePreviewParamValues } from './types/effect-live-preview.ts';
+import type { EffectLivePreviewMediaSelection, EffectLivePreviewParamValues, EffectLivePreviewSource } from './types/effect-live-preview.ts';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
 
@@ -80,6 +80,8 @@ export class ProjectSessionContext {
 	};
 	private synchronizedPreviewDisplayMode: 'effectLivePreview' | 'timeline' | null = null;
 	// 複数のパネルやプレビュー対象メニューから、同じ一時的な入力値を使う。
+	private readonly effectLivePreviewMediaSelections = shallowReactive(new Map<string, EffectLivePreviewMediaSelection>());
+	private readonly customNodeGraphEffectPreviewParamValues = shallowReactive(new Map<string, EffectLivePreviewParamValues>());
 	private readonly customShaderEffectPreviewParamValues = shallowReactive(new Map<string, EffectLivePreviewParamValues>());
 	public readonly previewParameterEditing = markRaw(new PreviewParameterEditingController());
 	public readonly projectContext: ProjectContext;
@@ -239,7 +241,7 @@ export class ProjectSessionContext {
 				const staticOptions = this.getPreviewStaticOptions();
 				const previewDisplayMode = this.previewPlayback.state.value.mode;
 				const snapshot = deepClone({
-					assets: getRendererAssets(state.assets.value), players: state.players.value,
+					assets: getRendererAssets(state.assets.value),
 					project: { customShaderEffects: state.customShaderEffects.value, automationGraphs: state.automationGraphs.value, customNodeGraphEffects: state.customNodeGraphEffects.value, timelineScenes: state.timelineScenes.value },
 					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value,
 						previewWarningImageSource: this.previewWarningImageSource.value, previewGamutWarning: { ...this.previewGamutWarning.value }, previewExposure: this.previewExposure.value, previewSrgbProof: this.previewSrgbProof.value, previewGamutCompression: { ...this.previewGamutCompression.value },
@@ -254,7 +256,7 @@ export class ProjectSessionContext {
 						staticOptions: staticOptions.effectLivePreview,
 						dynamicOptions: { ...snapshot.commonOptions, ...snapshot.effectLivePreviewOptions,
 							automationGraphs: snapshot.project.automationGraphs, customNodeGraphEffects: snapshot.project.customNodeGraphEffects, customShaderEffects: snapshot.project.customShaderEffects },
-						resources: { assets: snapshot.assets, players: snapshot.players },
+						resources: { assets: snapshot.assets },
 					}),
 					isCurrent() ? this.timelineRendererManagerController.initialize({
 						staticOptions: staticOptions.timeline,
@@ -314,6 +316,23 @@ export class ProjectSessionContext {
 		this.effectLivePreviewManagerController.onAssetReadFailure = () => {
 			void resolveExternalAssets(this.projectContext.stateManager.state.assets.value);
 		};
+		const activeEffectKey = computed(() => {
+			const source = this.previewPlayback.livePreviewEffectSource.value;
+			return source == null ? null : this.effectLivePreviewKey(source);
+		});
+		const previewMedia = computed(() => {
+			const key = activeEffectKey.value;
+			return key == null ? null : this.effectLivePreviewMediaSelections.get(key) ?? null;
+		});
+		const previewMediaAsset = computed(() => {
+			const selection = previewMedia.value;
+			return selection?.kind === 'asset' ? projectContext.stateManager.state.assets.value.find(asset => asset.id === selection.assetId) ?? null : null;
+		});
+		this.sessionDisposers.push(watch([this.effectLivePreviewManagerController.isReady, activeEffectKey, previewMedia, previewMediaAsset, () => previewMediaAsset.value?.fileData],
+			([isReady, _key, media, asset]) => {
+				if (!isReady) return;
+				this.effectLivePreviewManagerController.setPreviewInput(media?.kind === 'webcam' ? media : asset == null ? null : { kind: 'asset', asset });
+			}, { flush: 'post' }));
 		this.sessionDisposers.push(watch(this.previewPlayback.livePreviewEffectSource, effectSource => {
 			if (effectSource != null) return;
 			this.renderValidation.setEffectLivePreviewInputs(null);
@@ -520,7 +539,6 @@ export class ProjectSessionContext {
 					asset.isExternalReference, asset.sourceFilePath,
 					...(asset.fileData instanceof Blob ? [asset.fileData] : [asset.fileData.url, asset.fileData.size, asset.fileData.error]),
 				]),
-				...state.players.value.map(player => ['player', player.id, player.sourceType, player.assetId]),
 			];
 			return previous != null && next.length === previous.length && next.every((resource, index) =>
 				resource.length === previous[index].length && resource.every((value, field) => value === previous[index][field])) ? previous : next;
@@ -535,7 +553,7 @@ export class ProjectSessionContext {
 				if (!update.isCurrent()) return;
 				await resolveExternalAssets(state.assets.value);
 				if (!update.isCurrent()) return;
-				// 準備中の編集差分は再送せず、再生成経路が素材・Player・ノードの最新状態を取り込む。
+				// 準備中の編集差分は再送せず、再生成経路が素材・ノードの最新状態を取り込む。
 				await update.complete();
 			} catch (error) {
 				if (!update.isCurrent()) return;
@@ -680,6 +698,33 @@ export class ProjectSessionContext {
 		return this.renderEngine.runRendererUpdate(() => this.effectLivePreviewManagerController.updateDynamicOptions(options));
 	}
 
+	private effectLivePreviewKey(source: EffectLivePreviewSource) {
+		return source.type + ':' + source.id;
+	}
+
+	public getEffectLivePreviewMediaSelection(source: EffectLivePreviewSource): EffectLivePreviewMediaSelection | null {
+		return this.effectLivePreviewMediaSelections.get(this.effectLivePreviewKey(source)) ?? null;
+	}
+
+	public setEffectLivePreviewMediaSelection(source: EffectLivePreviewSource, selection: EffectLivePreviewMediaSelection | null) {
+		const key = this.effectLivePreviewKey(source);
+		if (selection == null) this.effectLivePreviewMediaSelections.delete(key);
+		else this.effectLivePreviewMediaSelections.set(key, selection);
+	}
+
+	public getCustomNodeGraphEffectPreviewParamValues(id: string): EffectLivePreviewParamValues {
+		return this.customNodeGraphEffectPreviewParamValues.get(id) ?? {};
+	}
+
+	public storeCustomNodeGraphEffectPreviewParamValues(id: string, values: EffectLivePreviewParamValues) {
+		if (Object.keys(values).length === 0) this.customNodeGraphEffectPreviewParamValues.delete(id);
+		else this.customNodeGraphEffectPreviewParamValues.set(id, values);
+	}
+
+	public startCustomNodeGraphEffectLivePreview(id: string) {
+		this.previewPlayback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id }, this.getCustomNodeGraphEffectPreviewParamValues(id));
+	}
+
 	public getCustomShaderEffectPreviewParamValues(customShaderEffectId: string): EffectLivePreviewParamValues {
 		return this.customShaderEffectPreviewParamValues.get(customShaderEffectId) ?? {};
 	}
@@ -741,7 +786,7 @@ export class ProjectSessionContext {
 		}, { immediate: true, flush: 'sync' }));
 
 		const state = this.projectContext.stateManager.state;
-		if (state.customNodeGraphEffects.value[0] != null) this.previewPlayback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id: state.customNodeGraphEffects.value[0].id });
+		if (state.customNodeGraphEffects.value[0] != null) this.startCustomNodeGraphEffectLivePreview(state.customNodeGraphEffects.value[0].id);
 
 		await this.renderEngine.enable();
 	}
@@ -782,6 +827,9 @@ export class ProjectSessionContext {
 		ui.disposeProjectSessionPopups(this);
 		this.projectContext.dispose();
 		this.scenePlaybackTimes.clear();
+		this.effectLivePreviewMediaSelections.clear();
+		this.customNodeGraphEffectPreviewParamValues.clear();
+		this.customShaderEffectPreviewParamValues.clear();
 		this.parameterExpansionStates.clear();
 		return this.disposal;
 	}

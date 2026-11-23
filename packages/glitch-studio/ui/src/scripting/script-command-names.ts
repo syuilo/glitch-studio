@@ -111,8 +111,6 @@ export const SCRIPT_COMMAND_NAMES = [
 	'setTimelinePositions',
 	'removeAsset',
 	'setAssetName',
-	'createPlayer',
-	'setPlayerSource',
 	'createCustomShaderEffect',
 	'duplicateCustomShaderEffect',
 	'replaceCustomShaderEffectDefinition',

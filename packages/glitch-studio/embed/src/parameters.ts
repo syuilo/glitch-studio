@@ -9,7 +9,7 @@ export function getPortableParameterDefinitions(graph: CustomNodeGraphEffect): R
 
 export function getPortableParameterDefaults(definitions: ReadonlyMap<string, ParameterDefinition>): Record<string, unknown> {
 	return Object.fromEntries(Array.from(definitions, ([name, definition]) => {
-		// 配布先ではPlayerを解決しないため、公開引数の音声は入れ子でも未選択で公開する。
+		// 公開引数の音声は入れ子でも未選択で公開する。
 		const value = mapParameterAudioSourceValues(definition.dataType, definition.defaultValue, () => null);
 		return [name, structuredClone(value)];
 	}));

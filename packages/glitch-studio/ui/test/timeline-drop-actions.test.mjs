@@ -50,7 +50,7 @@ function fixture(t) {
 	new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(name => mocks[name] ?? require(name), module, module.exports);
 	const { createTimelineDropActions, createTimelineAssetLayer, UndoRedo, COMMAND_DEFS } = module.exports;
 	const state = { timelineScenes: ref([{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }]),
-		assets: ref([]), players: ref([]), customNodeGraphEffects: ref([]) };
+		assets: ref([]), customNodeGraphEffects: ref([]) };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const changes = [];
 	history.onChange(value => { changes.push(value); events.push(['commit', dialogs]); });
@@ -68,7 +68,7 @@ function fixture(t) {
 		actions: createTimelineDropActions(options), scene: state.timelineScenes.value[0], deactivate: () => { active = false; } };
 }
 
-// 【複数ファイルを入力順に最上段へ配置し、Asset・Player・レイヤーを一度にUndoする】
+// 【複数ファイルを入力順に最上段へ配置し、Asset・レイヤーを一度にUndoする】
 // メタデータ取得中に再生ヘッドが進んでも全素材の開始を揃える。フォント・テキストは素材として残し、
 // 配置対象外が含まれる場合はAssetsを開く。通知・履歴も一括で反映する。
 test('imports a mixed batch at the captured playhead with one atomic undo and redo', async t => {
@@ -85,7 +85,6 @@ test('imports a mixed batch at the captured playhead with one atomic undo and re
 	assert.deepEqual(f.scene.layers.map(layer => layer.clips[0].durationMs), [5000, 9000, 9000]);
 	assert.equal(f.scene.layers[1].clips[0].audioEnabled, true);
 	assert.equal(f.state.assets.value.length, 5);
-	assert.equal(f.state.players.value.length, 2);
 	assert.equal(f.history.undoStack.value.length, 1);
 	assert.equal(f.changes.length, 1);
 	assert.ok(f.changes[0].some(change => change.type === 'layerOrder'));
@@ -96,14 +95,13 @@ test('imports a mixed batch at the captured playhead with one atomic undo and re
 	f.history.undo();
 	assert.equal(f.scene.layers.length, 0);
 	assert.equal(f.state.assets.value.length, 0);
-	assert.equal(f.state.players.value.length, 0);
 	f.history.redo();
 	assert.deepEqual(f.scene.layers.map(layer => layer.id), before);
 	assert.deepEqual(f.state.assets.value.map(asset => asset.name), files.map(file => file.name));
 });
 
 // 【既存Assetのドロップでは素材を複製せず、配置対象外は無視する】
-// 動画・音声用Playerの重複追加や、フォントのドロップで履歴だけが増えることを防ぐ。
+// 素材の重複追加や、フォントのドロップで履歴だけが増えることを防ぐ。
 test('adds existing assets without importing duplicates and ignores fonts', async t => {
 	const f = fixture(t);
 	f.state.assets.value.push({ id: 'video', name: 'Movie', fileDataType: 'video/mp4', fileData: new Blob() },
@@ -113,7 +111,6 @@ test('adds existing assets without importing duplicates and ignores fonts', asyn
 	assert.deepEqual(f.events, []);
 	await f.actions.dropAsset('video');
 	assert.equal(f.state.assets.value.length, 2);
-	assert.equal(f.state.players.value.length, 0);
 	assert.equal(f.scene.layers[0].clips[0].assetId, 'video');
 	assert.equal(f.history.undoStack.value.length, 1);
 	assert.equal(f.events.includes('revealAssets'), false);
@@ -136,14 +133,14 @@ test('keeps failed media in assets and adds videos without decodable audio', asy
 	assert.equal(f.events.filter(event => Array.isArray(event) && event[0] === 'alert').length, 1);
 });
 
-// 【取り込みのレイヤー検証が失敗した場合、AssetやPlayerだけを途中反映しない】
+// 【取り込みのレイヤー検証が失敗した場合、Assetだけを途中反映しない】
 // 一括Commandの後半が失敗しても、Undo不能な中途半端な状態を残さない。
 test('validates every planned layer before mutating imported resources', t => {
 	const f = fixture(t);
 	const asset = { id: 'image', name: 'Image', fileDataType: 'image/png', fileData: new Blob() };
 	const first = f.createTimelineAssetLayer(asset, 0, null);
 	const second = f.createTimelineAssetLayer({ ...asset, id: 'missing' }, 0, null);
-	assert.throws(() => f.history.commit('insertImportedAssets', { assets: [asset], players: [],
+	assert.throws(() => f.history.commit('insertImportedAssets', { assets: [asset],
 		timeline: { sceneId: 'scene', layers: [first, second], sourceDurationsMs: {} } }));
 	assert.equal(f.state.assets.value.length, 0);
 	assert.equal(f.scene.layers.length, 0);

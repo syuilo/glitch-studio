@@ -44,7 +44,7 @@ export class AudioInputSpectrum {
 		let firstEndFrame = continuous ? previous.lastEndFrame + hop : lastEndFrame;
 		// 長い停止・前方シークで際限なく追いつかない。捨てた区間の平滑化は再現しない。
 		firstEndFrame = Math.max(firstEndFrame, lastEndFrame - 127 * hop);
-		// Playerが既に捨てた履歴を大量の無音として解析しない。1窓に満たない場合だけゼロ補完する。
+		// 取得元が既に捨てた履歴を大量の無音として解析しない。1窓に満たない場合だけゼロ補完する。
 		firstEndFrame = Math.max(firstEndFrame, Math.min(lastEndFrame, Math.ceil((input.startFrame + this.size) / hop) * hop));
 		if (firstEndFrame > lastEndFrame) return null;
 		return {

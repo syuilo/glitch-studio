@@ -9,10 +9,10 @@ import { parseProjectApiValue } from '../project-api/contract.ts';
 import { customNodeGraphEffectTargetSchema, customNodeGraphEffectNodeReferenceSchema } from '../commands/custom-node-graph-effect-contract-schemas.ts';
 import { timelineSceneReferenceSchema, timelineLayerReferenceSchema, timelineClipReferenceSchema } from '../commands/timeline-contract-schemas.ts';
 import {
-	assetReferenceSchema, playerReferenceSchema, effectReferenceSchema, projectAutomationGraphReferenceSchema, customShaderEffectReferenceSchema,
+	assetReferenceSchema, effectReferenceSchema, projectAutomationGraphReferenceSchema, customShaderEffectReferenceSchema,
 	projectSummarySchema, customNodeGraphEffectSummarySchema, customNodeGraphEffectResultSchema, customNodeGraphEffectNodeSummarySchema, customNodeGraphEffectNodeResultSchema,
 	timelineSceneSummarySchema, timelineSceneResultSchema, timelineLayerSummarySchema, timelineLayerResultSchema, timelineClipResultSchema, timelineLayerParametersSchema,
-	assetMetadataSchema, playerResultSchema, effectSummarySchema, effectDefinitionResultSchema,
+	assetMetadataSchema, effectSummarySchema, effectDefinitionResultSchema,
 	projectAutomationGraphResultSchema, customShaderEffectSummarySchema, customShaderEffectResultSchema,
 } from './project-script-query-schemas.ts';
 import type { ProjectApiContract } from '../project-api/contract.ts';
@@ -193,22 +193,6 @@ export const PROJECT_SCRIPT_QUERY_DEFINITIONS = {
 			const asset = state.assets.value.find(candidate => candidate.id === assetId);
 			if (asset == null) throw new Error(`Asset not found: ${assetId}`);
 			return assetMetadata(asset);
-		},
-	}),
-	'Query:listPlayers': defineQuery({
-		argumentCount: 0, inputSchema: z.null(), resultSchema: z.array(playerResultSchema),
-		description: 'List stored Player definitions and target references. Describes source selection rather than live playback, capture permission or device state.',
-		examples: ['<: Query:listPlayers()'],
-		execute: state => snapshot(state.players.value.map(player => ({ ...player, target: { playerId: player.id } }))),
-	}),
-	'Query:getPlayer': defineQuery({
-		argumentCount: 1, inputSchema: playerReferenceSchema, resultSchema: playerResultSchema,
-		description: 'Get the stored Player source definition by ID. This does not start media playback or request webcam or microphone access.',
-		examples: ['each (let player, Query:listPlayers()) { <: Query:getPlayer(player.target) }'],
-		execute(state, { playerId }) {
-			const player = state.players.value.find(candidate => candidate.id === playerId);
-			if (player == null) throw new Error(`Player not found: ${playerId}`);
-			return snapshot({ ...player, target: { playerId } });
 		},
 	}),
 	'Query:listEffects': defineQuery({

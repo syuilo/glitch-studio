@@ -13,7 +13,6 @@ const result = await build({
 		export { default as fill } from '@gs/subsystems_effect_native-effects/fx/fill/_def_.ts';
 		export { default as image } from '@gs/subsystems_effect_native-effects/fx/image/_def_.ts';
 		export { default as symbols } from '@gs/subsystems_effect_native-effects/fx/symbols/_def_.ts';
-		export { default as video } from '@gs/subsystems_effect_native-effects/fx/video/_def_.ts';
 	` },
 	bundle: true, write: false, format: 'cjs', platform: 'node',
 });

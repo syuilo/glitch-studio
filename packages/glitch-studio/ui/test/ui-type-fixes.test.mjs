@@ -94,7 +94,7 @@ test('selects a MessagePack project and delays decoding until loading', async t 
 	const cancelled = selectProjectFile({ reservationId: 'test-session' });
 	input.dispatchEvent(new Event('cancel'));
 	assert.equal(await cancelled, null);
-	const project = { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, gsVersion: '2.0.0-alpha.2', name: 'Test', customNodeGraphEffects: [], assets: [], generatedSpeech: [], players: [], timelineScenes: [] };
+	const project = { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, gsVersion: '2.0.0-alpha.2', name: 'Test', customNodeGraphEffects: [], assets: [], generatedSpeech: [], timelineScenes: [] };
 	const selection = selectProjectFile({ reservationId: 'test-session' });
 	input.files = [new File([encode(project)], 'test.gsproj')];
 	input.dispatchEvent(new Event('change'));

@@ -2,7 +2,7 @@ import { importAssets } from './import-assets.ts';
 import { createCustomNodeGraphEffectAssetNode } from './custom-node-graph-effect-asset-node.ts';
 import { findCustomNodeGraphEffectOwner } from './custom-node-graph-effect-target.ts';
 import type { ProjectContext } from '../Project.ts';
-import type { Asset, Player } from '@gs/shared/types.ts';
+import type { Asset } from '@gs/shared/types.ts';
 import type { CustomNodeGraphEffectTarget } from './custom-node-graph-effect-target.ts';
 import type { CustomNodeGraphEffectAssetPlacement } from './custom-node-graph-effect-asset-node.ts';
 import type { CustomNodeGraphEffectAssetDropActions } from '../types/custom-node-graph-effect-editor.ts';
@@ -15,32 +15,24 @@ export function createCustomNodeGraphEffectDropActions(options: {
 	const customNodeGraphEffect = findCustomNodeGraphEffectOwner(context.stateManager.state, target);
 	const active = () => isActive() && customNodeGraphEffect != null && findCustomNodeGraphEffectOwner(context.stateManager.state, target) === customNodeGraphEffect;
 
-	function prepare(assets: readonly Asset[], availablePlayers: readonly Player[]) {
-		const placement: CustomNodeGraphEffectAssetPlacement = { target, nodes: [] };
-		const players: Player[] = [];
-		for (const asset of assets) {
-			const prepared = createCustomNodeGraphEffectAssetNode(asset, [...availablePlayers, ...players]);
-			if (prepared == null) continue;
-			placement.nodes.push(prepared.node);
-			if (prepared.player != null) players.push(prepared.player);
-		}
-		return { placement, players };
+	function prepare(assets: readonly Asset[]): CustomNodeGraphEffectAssetPlacement {
+		return { target, nodes: assets.flatMap(asset => createCustomNodeGraphEffectAssetNode(asset) ?? []) };
 	}
 
 	async function dropFiles(files: readonly File[]) {
-		if (!active()) return false;
+		const acceptedFiles = files.filter(file => !/^(video|audio)\//.test(file.type));
+		if (acceptedFiles.length === 0 || !active()) return false;
 		let added = 0;
 		let unplaced = false;
-		const ids = await importAssets(context, files, (assets, players, dialog) => {
+		const ids = await importAssets(context, acceptedFiles, (assets, dialog) => {
 			if (!active()) { unplaced = true; return null; }
 			dialog.setText('Adding Custom Node Graph Effect nodes');
 			dialog.setProgress(null);
 			dialog.setSubProgress(undefined);
-			const prepared = prepare(assets, [...context.stateManager.state.players.value, ...players]);
-			players.push(...prepared.players);
-			added = prepared.placement.nodes.length;
+			const placement = prepare(assets);
+			added = placement.nodes.length;
 			unplaced = added < assets.length;
-			return { customNodeGraphEffect: prepared.placement };
+			return { customNodeGraphEffect: placement };
 		});
 		if (ids.length > 0 && unplaced) revealAssets();
 		return ids.length > 0 && added > 0;
@@ -49,9 +41,9 @@ export function createCustomNodeGraphEffectDropActions(options: {
 	async function dropAsset(assetId: string) {
 		const asset = context.stateManager.state.assets.value.find(asset => asset.id === assetId);
 		if (asset == null || !active()) return false;
-		const prepared = prepare([asset], context.stateManager.state.players.value);
-		if (prepared.placement.nodes.length === 0) return false;
-		context.stateManager.commit('insertCustomNodeGraphEffectAssetNodes', { placement: prepared.placement, players: prepared.players });
+		const placement = prepare([asset]);
+		if (placement.nodes.length === 0) return false;
+		context.stateManager.commit('insertCustomNodeGraphEffectAssetNodes', { placement });
 		return true;
 	}
 

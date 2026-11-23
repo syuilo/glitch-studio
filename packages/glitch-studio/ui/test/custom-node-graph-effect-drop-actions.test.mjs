@@ -39,7 +39,7 @@ function fixture(t, inline = false) {
 	const { createCustomNodeGraphEffectDropActions, createCustomNodeGraphEffectAssetNode, COMMAND_DEFS, UndoRedo } = module.exports;
 	const customNodeGraphEffect = testGraph({ nodes: [{ id: 'old', type: 'effect', effectSource: { type: 'nativeEffect', id: 'fill' }, params: {} }],
 		outputSources: { output: { nodeId: 'old', outputPort: 'output' } } });
-	const state = { assets: ref([]), players: ref([]), customNodeGraphEffects: ref(inline ? [] : [{ id: 'custom-node-graph-effect', definition: customNodeGraphEffect }]),
+	const state = { assets: ref([]), customNodeGraphEffects: ref(inline ? [] : [{ id: 'custom-node-graph-effect', definition: customNodeGraphEffect }]),
 		timelineScenes: ref([{ id: 'scene', layers: inline ? [{ id: 'inline', layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: customNodeGraphEffect } }] : [] }]) };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	history.onChange(changes => events.push(['commit', dialogs, changes]));
@@ -50,23 +50,19 @@ function fixture(t, inline = false) {
 }
 
 // 【混在するファイルを取り込み、対応ノードを入力順に末尾へ追加して一度にUndoする】
-// 画像・動画・音声の参照先とPlayerを揃え、フォント・アーカイブはAssetsに残す。配線と出力ノードの位置は保持する。
+// 画像だけをノードにし、動画・音声を受け付けず、フォント・アーカイブはAssetsに残す。配線と出力ノードの位置は保持する。
 // 読み込みからCommand反映まで一つの進捗ダイアログを維持し、RedoでもIDと設定を変えない。
-test('imports media nodes in order with one undo and preserves existing wiring', async t => {
+test('imports only image nodes from mixed files with one undo and preserves existing wiring', async t => {
 	const f = fixture(t);
 	const files = [new File(['image'], 'photo.png', { type: 'image/png' }), new File(['video'], 'movie.mp4', { type: 'video/mp4' }),
 		new File(['audio'], 'sound.wav', { type: 'audio/wav' }), new File(['font'], 'font.ttf', { type: 'font/ttf' }),
 		new File(['archive'], 'archive.zip', { type: 'application/zip' })];
 	assert.equal(await f.actions.dropFiles(files), true);
-	assert.deepEqual(f.customNodeGraphEffect.nodes.map(node => node.effectSource.id), ['fill', 'image', 'video', 'audioWaveform']);
+	assert.deepEqual(f.customNodeGraphEffect.nodes.map(node => node.effectSource.id), ['fill', 'image']);
 	const nodes = f.customNodeGraphEffect.nodes.slice(1, 4);
 	assert.equal(nodes[0].staticSettings.image, f.state.assets.value[0].id);
 	assert.equal(nodes[0].params.fit.value, 'cover');
-	assert.equal(nodes[1].staticSettings.player, f.state.players.value[0].id);
-	assert.deepEqual(nodes[2].params.audio.value, { type: 'player', playerId: f.state.players.value[1].id });
-	assert.equal(nodes[2].params.channel.value, 'stereo');
-	assert.equal(f.state.assets.value.length, 5);
-	assert.equal(f.state.players.value.length, 2);
+	assert.equal(f.state.assets.value.length, 3);
 	assert.equal(f.history.undoStack.value.length, 1);
 	assert.ok(f.events.includes('revealAssets'));
 	assert.equal(f.events.filter(event => event === 'progress').length, 1);
@@ -76,34 +72,10 @@ test('imports media nodes in order with one undo and preserves existing wiring',
 	f.history.undo();
 	assert.deepEqual(f.customNodeGraphEffect.nodes.map(node => node.id), ['old']);
 	assert.equal(f.state.assets.value.length, 0);
-	assert.equal(f.state.players.value.length, 0);
 	f.history.redo();
 	assert.deepEqual(f.customNodeGraphEffect.nodes.slice(1, 4).map(node => node.id), ids);
 });
 
-// 【既存素材のPlayerを使い、Playerがない素材ではノードとまとめて作成する】
-// Assetを再取り込みせず、必要なPlayerだけ増やす。Undoで他ノードが利用する既存Playerを消さない。
-// ファイル読み込みのない既存Assetの配置では、進捗ダイアログで操作を止めない。
-test('reuses existing players and creates missing players with an atomic node addition', async t => {
-	const f = fixture(t);
-	f.state.assets.value.push({ id: 'video', name: 'Movie', fileDataType: 'video/mp4', fileData: new Blob() },
-		{ id: 'audio', name: 'Sound', fileDataType: 'audio/wav', fileData: new Blob() }, { id: 'font', name: 'Font', fileDataType: 'font/ttf', fileData: new Blob() });
-	f.state.players.value.push({ id: 'existing', name: 'Existing', sourceType: 'asset', assetId: 'video' });
-	assert.equal(await f.actions.dropAsset('video'), true);
-	assert.equal(f.customNodeGraphEffect.nodes[1].staticSettings.player, 'existing');
-	assert.equal(f.state.players.value.length, 1);
-	assert.equal(await f.actions.dropAsset('audio'), true);
-	assert.equal(f.state.players.value.length, 2);
-	assert.equal(f.history.undoStack.value.length, 2);
-	f.history.undo();
-	assert.deepEqual(f.state.players.value.map(player => player.id), ['existing']);
-	assert.equal(f.state.assets.value.length, 3);
-	assert.equal(await f.actions.dropAsset('font'), false);
-	assert.equal(await f.actions.dropAsset('missing'), false);
-	assert.equal(f.history.undoStack.value.length, 1);
-	assert.equal(f.events.includes('revealAssets'), false);
-	assert.equal(f.events.includes('progress'), false);
-});
 
 // 【インラインCustom Node Graph Effectも登録済みと同じ素材追加を行う】
 // タイムラインのレイヤーを新しく作らず、親から渡されたSceneとレイヤーの保存先だけを更新する。
@@ -137,17 +109,15 @@ test('retains imported assets without adding nodes after the target is replaced'
 	assert.ok(f.events.includes('revealAssets'));
 });
 
-// 【ノード参照の検証が失敗した取り込みでは、AssetやPlayerだけを追加しない】
+// 【ノード参照の検証が失敗した取り込みでは、Assetだけを追加しない】
 // バッチの後半が無効でも、部分追加を残さず、Undo履歴を増やさない。
 test('validates all node references before importing any resources', t => {
 	const f = fixture(t);
 	const image = { id: 'image', name: 'Image', fileDataType: 'image/png', fileData: new Blob() };
-	const video = { id: 'video', name: 'Video', fileDataType: 'video/mp4', fileData: new Blob() };
-	const first = f.createCustomNodeGraphEffectAssetNode(image, []);
-	const second = f.createCustomNodeGraphEffectAssetNode(video, []);
-	assert.throws(() => f.history.commit('insertImportedAssets', { assets: [image, video], players: [], customNodeGraphEffect: { target: f.target, nodes: [first.node, second.node] } }), /player asset not found/);
+	const first = f.createCustomNodeGraphEffectAssetNode(image);
+	const second = { ...first, id: 'bad', staticSettings: { image: 'missing' } };
+	assert.throws(() => f.history.commit('insertImportedAssets', { assets: [image], customNodeGraphEffect: { target: f.target, nodes: [first, second] } }), /Image asset not found/);
 	assert.equal(f.state.assets.value.length, 0);
-	assert.equal(f.state.players.value.length, 0);
 	assert.deepEqual(f.customNodeGraphEffect.nodes.map(node => node.id), ['old']);
 	assert.equal(f.history.undoStack.value.length, 0);
 });

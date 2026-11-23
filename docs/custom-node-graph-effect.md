@@ -34,18 +34,17 @@ InからOutへ繋いだ入力は、中継ノードを経由する場合も、テ
 
 ## Custom Node Graph Effectファイル
 
-- `.gscnge`はMessagePackで、種別・形式バージョン・Glitch Studioバージョン・表示名・`CustomNodeGraphEffect`本体・依存するAsset原本・Player定義を保存する。プロジェクト内のCustom Node Graph Effect IDやAssetの元ファイルパス、Custom Node Graph Effect Live Previewの引数、配置先レイヤーの設定・実行時の再生状態は含めない。
-- `glitch-studio/shared/src/custom-node-graph-effect-resources.ts`が依存収集を、`glitch-studio/ui/src/custom-node-graph-effect-file-codec.ts`がエンコード／デコード・取り込み準備を担当する。Glitch Studioが所属プロジェクトからAsset／Playerを収集し、Effect subsystemに必要なリソースを渡す。
-- 依存収集はエフェクトの`staticSettingDefs`に従って`staticSettings`のAsset・Player IDを調べる。通常パラメータと公開パラメータでは、配列・構造体の内部も含め、保存したBindingや既定値に含まれる音声ルーティングのPlayer参照を収集する。公開Commandで単体の`audioSource`を定義するときの既定値は未選択の`null`。配列・構造体の中では、初期値や要素追加時の値に`{ type: 'player', playerId }`も指定できる。素材参照をBindingや加工式に含めることはできない。素材の原本は`Blob`から`Uint8Array`へ変換して保存する。
-- 取り込み時はCustom Node Graph Effect・Asset・Playerに新しいプロジェクト内IDを生成し、素材・Playerの参照を書き換える。内部のノード・公開パラメータ・出力・Automation GraphのIDは、そのCustom Node Graph Effect内のスコープなので維持する。
-- ファイル由来のPlayerは素材IDを付け替える。カメラ・マイク・ライブストリーム由来のPlayerは参照を保ったまま入力未指定に戻し、再指定が必要な名前をUIへ返す。現在のPlayer UIが再指定できる外部入力はWebcamだけ。
-- `importCustomNodeGraphEffect` Commandが準備済みのCustom Node Graph Effect・Asset・Playerを一括追加する。Undo/Redoの通知で`customNodeGraphEffectRegistration`の追加・削除をCustom Node Graph Effect Live PreviewとTimelineの両レンダラーへ同期する。Custom Node Graph Effect Live Preview中のCustom Node Graph EffectをUndoで除去した場合はTimeline表示へ戻す。
+- `.gscnge`はMessagePackで、種別・形式バージョン・Glitch Studioバージョン・表示名・`CustomNodeGraphEffect`本体・依存するAsset原本を保存する。プロジェクト内のCustom Node Graph Effect IDやAssetの元ファイルパス、Custom Node Graph Effect Live Previewの引数、配置先レイヤーの設定・実行時の再生状態は含めない。
+- `glitch-studio/shared/src/custom-node-graph-effect-resources.ts`が依存収集を、`glitch-studio/ui/src/custom-node-graph-effect-file-codec.ts`がエンコード／デコード・取り込み準備を担当する。Glitch Studioが所属プロジェクトからAssetを収集し、Effect subsystemに必要なリソースを渡す。
+- 依存収集はEffectの`staticSettingDefs`に従って`staticSettings`のAsset IDを調べる。素材参照はBindingや加工式から独立した静的設定として保存する。素材の原本は`Blob`から`Uint8Array`へ変換して保存する。
+- 取り込み時はCustom Node Graph EffectとAssetに新しいプロジェクト内IDを生成し、素材の参照を書き換える。内部のノード・公開パラメータ・出力・Automation GraphのIDは、そのCustom Node Graph Effect内のスコープなので維持する。
+- `importCustomNodeGraphEffect` Commandが準備済みのCustom Node Graph EffectとAssetを一括追加する。Undo/Redoの通知で`customNodeGraphEffectRegistration`の追加・削除をCustom Node Graph Effect Live PreviewとTimelineの両レンダラーへ同期する。Custom Node Graph Effect Live Preview中のCustom Node Graph EffectをUndoで除去した場合はTimeline表示へ戻す。
 
 ## Webへの書き出し
 
 Custom Node Graph Effectエディタの「その他」から、HTML + JavaScriptのZIPまたは単一HTMLとして書き出せます。Web Component・Worker・使用するCustom Shader Effect・参照Assetを同梱し、HTTPSまたはlocalhost上のWebGPU対応Chromeでエディタなしに再生します。ZIPでは素材原本を`assets/`に格納し、単一HTMLではBase64でHTMLに含めます。
 
-表示寸法は埋め込み先のCSS、描画寸法は表示先の物理ピクセル・描画倍率・最大画素数で決まります。公開値は`parameters`属性のJSONまたは`setParameter` / `setParameters` APIで設定できます。primary pointerの位置を既存の`POINTER_POSITION`へ渡します。Playerは未接続とし、タイルレンダリングは行いません。
+表示寸法は埋め込み先のCSS、描画寸法は表示先の物理ピクセル・描画倍率・最大画素数で決まります。公開値は`parameters`属性のJSONまたは`setParameter` / `setParameters` APIで設定できます。primary pointerの位置を既存の`POINTER_POSITION`へ渡します。音声入力は未接続で、タイルレンダリングは行いません。
 
 生成物の構成、公開API、停止・リサイズ・再接続の規約、配信条件は[embedパッケージのREADME](../packages/glitch-studio/embed/README.md)を参照してください。`.gscnge`の保存・取り込みとは独立した配布形式です。
 
@@ -59,12 +58,12 @@ Custom Node Graph Effectエディタの「その他」から、HTML + JavaScript
 
 - 解像度は設定変更時にグラフ全体を計画し、フレームの時刻・通常パラメータ・GPUアップロード・非同期準備で変わらない。`intrinsicResolutionSetting`で指定した素材メタデータ、`resolutionInputParameters`で宣言した全接続の最大画素数、contextの順で決める。Selectorの選択位置や入力画像の内容では変わらず、定数入力に固有寸法はない。
 - 描画基準・プレビュー倍率の変更でも、Custom Node Graph Effect内の全エフェクトを再作成する。素材原寸・固定寸法によって実寸法が変わらないノードも履歴・準備済みリソースを失う。同じ倍率適用後の描画基準と同じ倍率の再通知では再作成しない。各Effectの解像度は`EffectInstance`の生成時に確定する。
-- Custom Node Graph Effect Live Previewでは、ファイルPlayerの原寸を参照素材のメタデータから取得し、Webcamなどのライブ入力はcontextに従う。Playerの選択は静的でも動画フレームは更新される。TimelineはPlayerを管理・解決せず、Player入力には対応しない。
-- Playerのフレームが未到着・取得不能の場合、Videoエフェクトは透明画像として描画を続ける。Playerの実行時エラーはCustom Node Graph Effectの描画エラーへ伝播せず、現時点ではPlayer側のエラー表示も行わない。フレームの解除・復旧でも更新番号で出力キャッシュを更新する。
+- エディタのプレビュータブでは画像・動画・音声AssetまたはWebcamを一つ選択できる。公開パラメータの制御方法で「プレビュー入力画像」や「プレビュー入力音声」を選ぶと、対応する入力を接続できる。音声付き動画の映像と音声は同時に利用できる。
+- 動画・音声の再生位置はEffectの`TIME`と独立する。画像の未到着・取得不能時は透明で描画を継続し、素材の読み取りエラーはプレビュータブに表示する。選択した素材と入力の設定は編集セッションで保持する。
 - Timelineからの画像入力は`source`を含む全出力段階を所属Sceneの寸法へ揃える。呼び出し側は入力ごとの寸法を宣言し、Custom Node Graph Effect側はScene・プロジェクトの定義を参照しない。
 
 ## エフェクトの静的設定
 
-`EffectDefinition.staticSettingDefs`は通常の`paramDefs`と独立した定義で、各ノードは`staticSettings`に値を直接保存する。Imageの画像、Video Frameの動画素材、VideoのPlayer、Apply LUTのLUT、Text・Text Patternのフォントをここに指定する。Imageは通常のエフェクトとして維持する。
+`EffectDefinition.staticSettingDefs`は通常の`paramDefs`と独立した定義で、各ノードは`staticSettings`に値を直接保存する。Imageの画像、Video Frameの動画素材、Apply LUTのLUT、Text・Text Patternのフォントをここに指定する。Imageは通常のエフェクトとして維持する。
 
 静的設定は式・キー・Automation Graph・加工式・Public Parameter参照・公開引数を持たない。素材参照型は通常パラメータとPublic Parameterから除外する。編集はCommand経由で保存・Undo/Redoされ、Custom Node Graph Effect内の全エフェクト・非同期準備・履歴・出力キャッシュを再作成する。通常パラメータの値だけの編集ではこれらを維持するが、接続・Bypass・解像度・構造の変更では未編集のノードも含めて再作成する。素材一覧・メタデータ・画像テクスチャはレンダラーの寿命中に固定する。同じ一覧からの素材選択変更はノード編集で扱い、素材自体の差し替え・再読み込み・追加・削除では両プレビューを再生成する。選択済み画像のテクスチャ欠落は読み込み失敗とし、準備待ちの透明表示にはしない。

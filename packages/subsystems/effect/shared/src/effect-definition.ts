@@ -15,7 +15,7 @@ export interface EffectDefinition {
 	/** 自動解像度に使う入力。配列・構造体の配下もたどり、接続のうち画素数が最大の寸法を採用する。 */
 	readonly resolutionInputParameters: readonly string[];
 	readonly staticSettingDefs?: StaticSettingDefinitions;
-	/** 原寸は静的設定が参照する画像・動画AssetまたはPlayerのメタデータから取得する。 */
+	/** 原寸は静的設定が参照する画像・動画Assetのメタデータから取得する。 */
 	readonly intrinsicResolutionSetting?: string;
 	/** 省略時はparamDefsの定義順。指定時は全パラメータを一度ずつ配置する。 */
 	readonly ui?: { readonly parameterLayout: readonly EffectParameterLayoutItem[] };
@@ -51,7 +51,7 @@ type HasTextureInput<T> = T extends { canNode: true } ? true
 	: T extends { fields: infer Fields } ? true extends { [K in keyof Fields]: HasTextureInput<Fields[K]> }[keyof Fields] ? true : false
 	: false;
 type ResolutionInputKeys<T> = Extract<{ [K in keyof T]: HasTextureInput<T[K]> extends true ? K : never }[keyof T], string>;
-type IntrinsicResolutionSource = { kind: 'playerReference' } | { kind: 'assetReference'; assetType: 'image' | 'video' };
+type IntrinsicResolutionSource = { kind: 'assetReference'; assetType: 'image' | 'video' };
 type NativeEffectLayout<D extends NativeEffectDefinition> = D extends { ui: { parameterLayout: infer L extends readonly EffectParameterLayoutItem[] } }
 	? { ui: { parameterLayout: readonly EffectParameterLayoutItem<ParameterId<D>>[] & CheckedEffectParameterLayout<L, ParameterId<D>> } } : unknown;
 

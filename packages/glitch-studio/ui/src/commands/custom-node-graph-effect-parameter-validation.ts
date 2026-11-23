@@ -1,7 +1,6 @@
 import { inspectStaticParameter } from '@gs/shared/parameter/static-parameter.ts';
 import { walkParameters, paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import { canConnectNodeDataTypes, getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
-import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/player-audio-source.ts';
 import { validateCustomNodeGraphEffectAudioBinding } from '@/utility/custom-node-graph-effect-audio-parameters.ts';
 import { getNodeOutputs } from '@/utility/custom-node-graph-effect-node-outputs.ts';
 import { getEffectDefinitions } from '../utility/project-effects.ts';
@@ -15,7 +14,6 @@ export function validateCustomNodeGraphEffectNodeParameterBinding(state: Project
 	inspectStaticParameter<CustomNodeGraphEffectParameterBinding>(definition, binding, (parameterDefinition, parameterBinding) => {
 		if (!['literal', 'expression', 'envVariable', 'automationGraphReference', 'automationGraphInline', 'keyframesTimelineInline', 'customNodeGraphEffectPublicParameterReference', 'customNodeGraphEffectCustomParameterValueReference', 'node'].includes(parameterBinding.inputSource)) throw new Error('Unsupported Custom Node Graph Effect parameter input source');
 		validateCustomNodeGraphEffectAudioBinding(parameterDefinition, parameterBinding, customNodeGraphEffect.paramDefs);
-		if (parameterDefinition.dataType.kind === 'audioSource' && parameterBinding.inputSource === 'literal') validatePlayerAudioSourceSelection(parameterBinding.value);
 	});
 	const definitions = { parameter: definition };
 	// 配列要素を並べ替えたり削除したりしても同じBindingを見つけられるよう、完全なIDパスで照合する。

@@ -93,11 +93,6 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	wrapper.nodes[0] = { id: 'fill', effectSource: { type: 'customNodeGraphEffectReference', id: 'registered' }, params: {} };
 	custom.customNodeGraphEffect.nodes[0] = { id: 'fill', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: wrapper }, params: {} };
 	await add('custom', custom);
-	const player = fixture();
-	player.players = [{ id: 'camera', name: 'Camera', sourceType: 'webcam' }];
-	player.customNodeGraphEffect.nodes[0] = { ...player.customNodeGraphEffect.nodes[0], effectSource: { type: 'nativeEffect', id: 'video' },
-		staticSettings: { [Object.keys(video.staticSettingDefs)[0]]: 'camera' }, params: Object.fromEntries(Object.entries(video.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])) };
-	await add('player', player);
 	const dangerous = fixture();
 	dangerous.name = '<!--<script></script><script>throw new Error("injected")</script>';
 	await add('standalone', dangerous);

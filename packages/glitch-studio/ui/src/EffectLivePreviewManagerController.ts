@@ -1,11 +1,10 @@
-import { ref, shallowReactive, shallowRef } from 'vue';
-import { getFileSourceUrl, getFileSourceError } from '@gs/shared/file-source.ts';
+import { ref, shallowRef } from 'vue';
+import { getFileSourceUrl, getFileSourceError, releaseFileSourceUrl } from '@gs/shared/file-source.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { createEffectLivePreviewManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
 import { isEffectLivePreviewProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { isVideoFrameAvailable } from './utility/video.ts';
-import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import { displayCpuPreviewFrame } from './utility/cpu-preview-display.ts';
@@ -13,7 +12,7 @@ import type { PreviewImageAnalysisSettings, PreviewImageAnalysisDisplaySettings 
 import type { AudioOutput } from './audio/audio-output.ts';
 import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { EffectLivePreviewSource, EffectLivePreviewParamValues } from './types/effect-live-preview.ts';
-import type { Asset, Player } from '@gs/shared/types.ts';
+import type { Asset } from '@gs/shared/types.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { EffectPreparationStatus } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import type { EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
@@ -38,12 +37,12 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 	// Worker再読み込みとエフェクト状態の参照に必要な内部情報。UIの再生状態はPreviewPlaybackControllerが所有する。
 	private effectLivePreviewStatusInstanceId: string | null = null;
 	private pointerPosition = { x: 0, y: 0 };
-	private players: Player[] = [];
-	private videoElements = shallowReactive(new Map<Player['id'], HTMLMediaElement>());
-	private audioInputs: AudioInputs;
-	private videoFrameCallbacks = new Map<Player['id'], number>();
-	private pendingVideoFrames = new Map<Player['id'], VideoFrame>();
-	private inFlightVideoFrames = new Map<Player['id'], number>();
+	public readonly previewMediaElement = shallowRef<HTMLMediaElement | null>(null);
+	public readonly previewMediaError = ref<string | null>(null);
+	private releaseMedia: (() => void) | null = null;
+	private mediaAudioNode: MediaElementAudioSourceNode | null = null;
+	private pendingVideoFrame: VideoFrame | null = null;
+	private inFlightVideoFrame: number | null = null;
 	private nextVideoFrameId = 0;
 	public gpuAverageDisplayFast = ref(0);
 	public gpuAverageDisplayMedium = ref(0);
@@ -53,7 +52,7 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 	public errorMessage = ref<string | null>(null);
 	public readonly preparationStatus = shallowRef<EffectPreparationStatus | null>(null);
 
-	constructor(audioOutput: AudioOutput) {
+	constructor(private readonly audioOutput: AudioOutput) {
 		super({
 			createWorker: () => {
 				return createEffectLivePreviewManagerWorker();
@@ -102,14 +101,6 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 				},
 			},
 			onCreated: () => {
-				this.audioInputs.reconnectRenderer();
-				// 一時停止中の動画には新しいフレーム通知が来ないため、現在のフレームも送り直す。
-				for (const [id, media] of this.videoElements) {
-					if (!(media instanceof HTMLVideoElement) || !isVideoFrameAvailable(media)) continue;
-					this.pendingVideoFrames.get(id)?.close();
-					this.pendingVideoFrames.set(id, new VideoFrame(media));
-					this.sendPendingVideoFrame(id);
-				}
 				this.call('updatePointerPosition', [this.pointerPosition]);
 			},
 			onDisposed: () => {
@@ -118,7 +109,7 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 				this.isRenderDelayed.value = false;
 				this.renderTilingProgress.value = null;
 				this.effectLivePreviewStatusInstanceId = null;
-				this.releasePlayerMedia();
+				this.releasePreviewMedia();
 				this.gpuMemoryUsage.value = null;
 				this.fpsDisplay.value = 0;
 				this.gpuAverageDisplayFast.value = 0;
@@ -126,11 +117,6 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 				this.gpuAverageDisplaySlow.value = 0;
 			},
 		});
-
-		this.audioInputs = new AudioInputs(audioOutput,
-			(id, port) => { if (this.isReady.value) this.call('attachAudioSource', [id, port], [port]); else port.close(); },
-			(id, generation) => { if (this.isReady.value) this.call('resetAudioSource', [id, generation]); },
-		);
 
 		this.canvas = window.document.createElement('canvas');
 		this.canvas.style.display = 'block';
@@ -159,7 +145,6 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 	public async initialize(options: EffectLivePreviewManagerInitialOptions): Promise<void> {
 		const snapshot = deepClone(options);
 		await this.launchManager(() => {
-			this.updatePlayers(snapshot.resources.players, snapshot.resources.assets);
 			// 転送済みcanvasは再転送できないため、起動ごとに属性を引き継いだcanvasを用意する。
 			// 初回も同じ手順に揃え、表示先への付け替えはUIに通知する。
 			for (const key of ['canvas', 'histogramCanvas', 'waveformHorizontalCanvas', 'waveformVerticalCanvas'] as const) {
@@ -195,27 +180,25 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 		});
 	}
 
-	private async sendPendingVideoFrame(playerId: string) {
-		if (!this.isReady.value || this.inFlightVideoFrames.has(playerId)) return;
-		const frame = this.pendingVideoFrames.get(playerId);
-		if (!frame) return;
-		this.pendingVideoFrames.delete(playerId);
+	private async sendPendingVideoFrame() {
+		if (!this.isReady.value || this.inFlightVideoFrame != null || this.pendingVideoFrame == null) return;
+		const frame = this.pendingVideoFrame;
+		this.pendingVideoFrame = null;
 		const id = this.nextVideoFrameId++;
-		this.inFlightVideoFrames.set(playerId, id);
+		this.inFlightVideoFrame = id;
 		try {
-			await this.callAndWaitReturn('updateVideoFrame', [playerId, frame], [frame]);
+			await this.callAndWaitReturn('updatePreviewImage', [{ kind: 'frame', frame }], [frame]);
 		} catch (error) {
 			frame.close();
-			// 再生成で破棄したWorkerのRPC失敗は、新世代のエラーにも未処理のrejectにもしない。
-			if (this.inFlightVideoFrames.get(playerId) !== id) return;
-			this.inFlightVideoFrames.delete(playerId);
+			if (this.inFlightVideoFrame !== id) return;
+			this.inFlightVideoFrame = null;
 			this.reportRenderFailure(error instanceof Error ? error : new Error(String(error)));
 			return;
 		}
-		// Worker再読み込み前の応答で、新しい送信の状態を解除しない。
-		if (this.inFlightVideoFrames.get(playerId) !== id) return;
-		this.inFlightVideoFrames.delete(playerId);
-		this.sendPendingVideoFrame(playerId);
+		// 破棄済みWorkerからの応答は、新しいWorkerの送信を解除しない。
+		if (this.inFlightVideoFrame !== id) return;
+		this.inFlightVideoFrame = null;
+		void this.sendPendingVideoFrame();
 	}
 
 	public startEffectLivePreviewRenderLoop(effectSource: EffectLivePreviewSource, paramValues: EffectLivePreviewParamValues = {}) {
@@ -246,89 +229,117 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 		this.outputResolution.value = null;
 	}
 
-	/** 定義は同期的に反映し、メディアの準備・権限待ちはプレビュー全体の起動条件にしない。 */
-	private updatePlayers(newPlayers: readonly Player[], assets: readonly Asset[]) {
-		// 定義変更はManager再生成時にまとめて反映する。原本や参照先の差分を追わず、
-		// 再生位置・Webcam接続も含めてメディアを作り直す。
-		this.releasePlayerMedia();
-		this.players = [...deepClone(newPlayers)];
-		for (const player of this.players) {
-			// 未割り当て・未対応の入力は、定義だけ保持してメディア要素は作らない。
-			if (player.sourceType !== 'asset' && player.sourceType !== 'webcam') continue;
-			const asset = player.sourceType === 'asset' ? assets.find(asset => asset.id === player.assetId) : null;
-			if (player.sourceType === 'asset' && asset == null) continue;
-			if (asset != null && getFileSourceError(asset.fileData) != null) continue;
-			const video = window.document.createElement(asset?.fileDataType.startsWith('audio/') ? 'audio' : 'video');
-			video.loop = true;
-			video.preload = 'auto';
-			video.crossOrigin = 'anonymous';
-			video.volume = 1;
-			this.videoElements.set(player.id, video);
-			if (player.sourceType === 'asset') this.audioInputs.registerPlayer(player.id, video);
-			// loadeddata後も、再生・シーク中に原本を読めなくなる場合がある。
-			// 古い映像を残さずフレームを解除し、描画側では透明として継続する。
-			video.addEventListener('error', () => {
-				if (video.error == null || this.videoElements.get(player.id) !== video) return;
-				this.pendingVideoFrames.get(player.id)?.close();
-				this.pendingVideoFrames.delete(player.id);
-				if (this.isReady.value) this.call('updateVideoFrame', [player.id, null]);
-				this.onAssetReadFailure?.();
-				console.error(video.error);
-			});
+	public setPreviewInput(source: { kind: 'asset'; asset: Asset } | { kind: 'webcam' } | null) {
+		this.releasePreviewMedia();
+		if (!this.isReady.value) return;
+		const asset = source?.kind === 'asset' ? source.asset : null;
+		const mimeType = asset?.fileDataType ?? '';
+		const isImage = mimeType.startsWith('image/');
+		const isAudio = mimeType.startsWith('audio/');
+		const isVideo = mimeType.startsWith('video/');
+		const fileError = asset == null ? null : getFileSourceError(asset.fileData);
+		this.call('updatePreviewImage', [asset != null && isImage && fileError == null ? { kind: 'asset', assetId: asset.id } : null]);
+		this.call('setPreviewAudioSource', [asset != null && fileError == null && (isAudio || isVideo) ? asset.id : null]);
+		if (fileError != null) {
+			this.previewMediaError.value = fileError;
+			return;
+		}
+		if (!isAudio && !isVideo && source?.kind !== 'webcam') return;
 
-			const onVideoFrame = () => {
-				if (!(video instanceof HTMLVideoElement)) return;
-				if (this.videoElements.get(player.id) !== video) return;
-				try {
-					if (!isVideoFrameAvailable(video)) return;
-					const frame = new VideoFrame(video);
-					// Retain only the newest frame while the worker is busy.
-					this.pendingVideoFrames.get(player.id)?.close();
-					this.pendingVideoFrames.set(player.id, frame);
-					this.sendPendingVideoFrame(player.id);
-				} finally {
-					this.videoFrameCallbacks.set(player.id, video.requestVideoFrameCallback(onVideoFrame));
-				}
-			};
+		const media = window.document.createElement(isAudio ? 'audio' : 'video');
+		const video = media instanceof HTMLVideoElement ? media : null;
+		const url = asset == null ? null : getFileSourceUrl(asset.fileData);
+		media.preload = 'auto';
+		media.crossOrigin = 'anonymous';
+		this.previewMediaElement.value = media;
+		let frameCallback: number | null = null;
+		let audioPositionCallback: number | null = null;
+		const current = () => this.previewMediaElement.value === media;
+		const sendFrame = () => {
+			if (!current() || video == null || !isVideoFrameAvailable(video) || video.seeking) return;
+			this.pendingVideoFrame?.close();
+			this.pendingVideoFrame = new VideoFrame(video);
+			void this.sendPendingVideoFrame();
+		};
+		const onVideoFrame = () => {
+			if (!current() || video == null) return;
+			frameCallback = video.requestVideoFrameCallback(onVideoFrame);
+			sendFrame();
+		};
+		if (video != null) {
+			video.playsInline = true;
+			frameCallback = video.requestVideoFrameCallback(onVideoFrame);
+			video.addEventListener('loadeddata', sendFrame);
+			video.addEventListener('seeked', sendFrame);
+		}
 
-			if (video instanceof HTMLVideoElement) this.videoFrameCallbacks.set(player.id, video.requestVideoFrameCallback(onVideoFrame));
-
-			if (player.sourceType === 'asset') {
-				video.src = getFileSourceUrl(asset!.fileData);
-			} else if (player.sourceType === 'webcam' && video instanceof HTMLVideoElement) {
-				void setupWebcam().then(camera => {
-					// 権限待ちの間に削除・入力変更・破棄されたPlayerへ古いカメラを接続しない。
-					if (this.videoElements.get(player.id) !== video) {
-						for (const track of camera.getTracks()) track.stop();
-						return;
-					}
-					video.srcObject = camera;
-					video.muted = true;
-					video.playsInline = true;
-					// 到着したフレームは既存のコールバックが転送するため、初回フレームも待たない。
-					return video.play();
-				}).catch(error => {
-					if (this.videoElements.get(player.id) === video) console.error(error);
-				});
+		const updatePosition = (discontinuity = false) => {
+			if (current() && this.isReady.value && asset != null && Number.isFinite(media.currentTime)) {
+				this.call('updatePreviewAudioPosition', [media.currentTime, discontinuity]);
 			}
+		};
+		const followPlayback = () => {
+			if (audioPositionCallback != null) window.cancelAnimationFrame(audioPositionCallback);
+			updatePosition();
+			audioPositionCallback = media.paused || media.ended || !current() ? null : window.requestAnimationFrame(followPlayback);
+		};
+		const onSeek = () => updatePosition(true);
+		if (asset != null) {
+			for (const event of ['play', 'pause', 'ended', 'seeked', 'loadeddata'] as const) media.addEventListener(event, followPlayback);
+			media.addEventListener('seeking', onSeek);
+		}
+		const onMediaError = (error: unknown) => {
+			if (!current()) return;
+			this.pendingVideoFrame?.close();
+			this.pendingVideoFrame = null;
+			if (this.isReady.value) {
+				this.call('updatePreviewImage', [null]);
+				this.call('setPreviewAudioSource', [null]);
+			}
+			this.previewMediaError.value = error instanceof Error ? error.message : String(error);
+			if (asset != null) this.onAssetReadFailure?.();
+		};
+		media.addEventListener('error', () => onMediaError(media.error?.message ?? 'Unable to load preview media.'));
+		this.releaseMedia = () => {
+			if (frameCallback != null) video?.cancelVideoFrameCallback(frameCallback);
+			if (audioPositionCallback != null) window.cancelAnimationFrame(audioPositionCallback);
+			media.pause();
+			if (media.srcObject instanceof MediaStream) {
+				for (const track of media.srcObject.getTracks()) track.stop();
+			}
+			media.srcObject = null;
+			media.removeAttribute('src');
+			media.load();
+			if (asset != null && url != null) releaseFileSourceUrl(asset.fileData, url);
+		};
+		if (url != null) {
+			media.src = url;
+		} else {
+			media.muted = true;
+			void setupWebcam().then(async camera => {
+				// 権限待ちの間に入力やプロジェクトが切り替わった場合も、カメラを保持しない。
+				if (!current()) {
+					for (const track of camera.getTracks()) track.stop();
+					return;
+				}
+				media.srcObject = camera;
+				await media.play();
+			}).catch(onMediaError);
 		}
 	}
 
-	public getVideoElement(playerId: Player['id']): HTMLVideoElement | null {
-		const media = this.videoElements.get(playerId);
-		return media instanceof HTMLVideoElement ? media : null;
+	public async playPreviewMedia() {
+		const media = this.previewMediaElement.value;
+		if (media == null) return;
+		const output = await this.audioOutput.getOutput();
+		if (this.previewMediaElement.value !== media) return;
+		// 試聴音もプロジェクトの音量・モニターを通す。EffectへのPCMは素材時刻から別途読み取る。
+		if (this.mediaAudioNode == null) {
+			this.mediaAudioNode = (output.context as AudioContext).createMediaElementSource(media);
+			this.mediaAudioNode.connect(output);
+		}
+		await media.play();
 	}
-
-	public getMediaElement(playerId: Player['id']): HTMLMediaElement | null {
-		return this.videoElements.get(playerId) ?? null;
-	}
-
-	public async playPlayer(playerId: Player['id']) {
-		if (this.players.find(player => player.id === playerId)?.sourceType === 'asset') await this.audioInputs.play(playerId);
-		else await this.videoElements.get(playerId)?.play();
-	}
-
-	public getPlayerLevels(playerId: Player['id']) { return this.audioInputs.getPlayerLevels(playerId); }
 
 	public async updatePointerPosition(newPointerPosition: { x: number; y: number }) {
 		this.pointerPosition = { ...newPointerPosition };
@@ -370,24 +381,15 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 		if (patch.length > 0) await this.callAndWaitReturn('applyProjectChanges', [deepClone(patch)]);
 	}
 
-	private releasePlayerMedia() {
-		this.audioInputs.dispose();
-		for (const [id, media] of this.videoElements) {
-			const callback = this.videoFrameCallbacks.get(id);
-			if (callback != null && media instanceof HTMLVideoElement) media.cancelVideoFrameCallback(callback);
-			media.pause();
-			if (media.srcObject instanceof MediaStream) {
-				for (const track of media.srcObject.getTracks()) track.stop();
-			}
-			media.srcObject = null;
-			URL.revokeObjectURL(media.src);
-			media.removeAttribute('src');
-			media.load();
-		}
-		for (const frame of this.pendingVideoFrames.values()) frame.close();
-		this.videoElements.clear();
-		this.videoFrameCallbacks.clear();
-		this.pendingVideoFrames.clear();
-		this.inFlightVideoFrames.clear();
+	private releasePreviewMedia() {
+		this.previewMediaElement.value = null;
+		this.previewMediaError.value = null;
+		this.mediaAudioNode?.disconnect();
+		this.mediaAudioNode = null;
+		this.releaseMedia?.();
+		this.releaseMedia = null;
+		this.pendingVideoFrame?.close();
+		this.pendingVideoFrame = null;
+		this.inFlightVideoFrame = null;
 	}
 }

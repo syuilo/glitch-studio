@@ -7,7 +7,7 @@
 </template>
 
 <script lang="ts" setup>
-// Playerに依存しない、チャンネルごとの線形振幅（0が無音、1が0 dBFS）を受け取る表示部品。
+// チャンネルごとの線形振幅（0が無音、1が0 dBFS）を受け取る表示部品。
 withDefaults(defineProps<{
 	levels: readonly number[];
 	orientation?: 'horizontal' | 'vertical';

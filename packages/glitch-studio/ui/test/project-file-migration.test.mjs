@@ -21,7 +21,7 @@ test('preserves Effect source discriminators and inline definitions on disk', as
 		primaryInputParameter: null, primaryOutput: 'color', resolutionInputParameters: [], nodes: [], outputSources: {} };
 	const sources = [{ type: 'nativeEffect', id: 'same' }, { type: 'customShaderEffectReference', id: 'same' },
 		{ type: 'customNodeGraphEffectReference', id: 'registered' }, { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph }];
-	const project = { gsVersion: '1.0.0', assets: [], generatedSpeech: [], players: [], customShaderEffects: [], customNodeGraphEffects: [{ id: 'registered', name: 'Registered', definition: graph }],
+	const project = { gsVersion: '1.0.0', assets: [], generatedSpeech: [], customShaderEffects: [], customNodeGraphEffects: [{ id: 'registered', name: 'Registered', definition: graph }],
 		timelineScenes: [{ id: 'scene', layers: sources.map((effectSource, index) => ({ id: String(index), layerType: 'effect', effectSource })) }] };
 	const restored = await decodeProjectFile(await encodeProjectFile(project), '1.0.0');
 	assert.deepEqual(restored.timelineScenes[0].layers.map(layer => layer.effectSource), sources);

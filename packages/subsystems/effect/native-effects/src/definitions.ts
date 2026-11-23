@@ -170,7 +170,6 @@ import vectorMath from './fx/vectorMath/_def_.ts';
 import vectorSelector from './fx/vectorSelector/_def_.ts';
 import vectorSmear from './fx/vectorSmear/_def_.ts';
 import vhsPlayback from './fx/vhsPlayback/_def_.ts';
-import video from './fx/video/_def_.ts';
 import videoFrame from './fx/videoFrame/_def_.ts';
 import vignette from './fx/vignette/_def_.ts';
 import water from './fx/water/_def_.ts';
@@ -352,7 +351,6 @@ export const nativeEffectDefinitions = {
 	vectorSelector,
 	vectorSmear,
 	vhsPlayback,
-	video,
 	videoFrame,
 	vignette,
 	water,

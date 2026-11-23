@@ -15,7 +15,6 @@ import { createGraphEvaluation, type ReadFrameValue } from './graph-evaluation.t
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { EffectRenderTiling } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
-import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import type { ShaderInputSampling } from '@gs/shared/gpu/shader-input.ts';
@@ -40,7 +39,6 @@ export interface EffectPlacement {
 	/** 素材一覧と準備済みテクスチャは呼び出し側から借用し、配置の寿命中固定する。 */
 	readonly resources?: EffectStaticResourceContext;
 	/** 保存した音声指定は呼び出し側が解釈する。取得元の未指定・未提供は未接続として扱う。 */
-	readonly resolveAudioSource?: (source: unknown, frame: EffectFrameContext) => AudioInput | null;
 	readonly tiling?: EffectRenderTiling;
 	/** 配置ID列とGPU時間（ms）。timestamp-query非対応時はnull。 */
 	readonly onGpuTime?: (nodePath: readonly string[], passIndex: number, milliseconds: number | null) => void;
@@ -249,8 +247,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 		function bindValue(source: EvaluatedBinding): ReadFrameValue | null {
 			if (source.inputSource === 'literal' && definition.dataType.kind === 'audioSource') {
 				setValue(null);
-				const resolve = placement.resolveAudioSource;
-				return source.value != null && resolve != null ? frame => resolve(source.value, frame) : null;
+				return null;
 			}
 			if (source.inputSource === 'literal' && source.expressionModifier?.enabled !== true) {
 				setValue(source.value);

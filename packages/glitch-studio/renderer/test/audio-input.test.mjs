@@ -7,8 +7,8 @@ const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 import { createAudioWindowReader } from '@gs/subsystems_effect_native-effects/audio-window.ts';
 import { createEffectInstance } from '@gs/subsystems_effect_renderer/create-effect-instance.ts';
 const { AudioHistory } = await load('@gs/subsystems_audio_renderer/audio-history.ts');
-const { playerAudioSourceId } = await load('@gs/shared/audio.ts');
-const { PlayerAudioInputs } = await loadShaderSource(fileURLToPath(new URL('../src/player-audio-inputs.ts', import.meta.url)));
+const { createEffectLivePreviewInputs } = await loadShaderSource(fileURLToPath(new URL('../src/effect-live-preview-inputs.ts', import.meta.url)));
+const { EffectLivePreviewAudio } = await loadShaderSource(fileURLToPath(new URL('../src/effect-live-preview-audio.ts', import.meta.url)));
 import { createTimelineEffectProbe } from './helpers/timeline-effect-probe.mjs';
 const { default: waveform } = await load('@gs/subsystems_effect_native-effects/fx/audioWaveform/_impl_.ts');
 const { default: waveformDefinition } = await load('@gs/subsystems_effect_native-effects/fx/audioWaveform/_def_.ts');
@@ -21,7 +21,7 @@ const samples = (window, channel = 'left') => Float32Array.from({ length: window
 const window = (left = [1, -1], right = left) => createAudioWindow(48000, [Float32Array.from(left), Float32Array.from(right)]);
 const deferred = () => Promise.withResolvers();
 
-async function audioPlacement(bindings, resolveAudioSource, publicAudio = null) {
+async function audioPlacement(bindings, publicAudio = null) {
 	const native = { type: 'nativeEffect', id: 'probe' }, amount = { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: {} }, defaultValue: 0 };
 	const metadata = { primaryInputParameter: null, primaryOutput: 'output', resolutionInputParameters: [], outputDefs: { output: { dataType: { kind: 'color' } } } };
 	const graph = { ...metadata, paramDefs: { sound: { ...audioDef, nameForReference: 'sound' } },
@@ -30,7 +30,7 @@ async function audioPlacement(bindings, resolveAudioSource, publicAudio = null) 
 		outputSources: Object.fromEntries(bindings.map((_, i) => [i, { nodeId: String(i), outputPort: 'output' }])) };
 	const observed = [];
 	const instance = await createEffectInstance({ effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph },
-		resolution: { width: 2, height: 2 }, usedOutputPorts: new Set(Object.keys(graph.outputDefs)), resolveAudioSource,
+		resolution: { width: 2, height: 2 }, usedOutputPorts: new Set(Object.keys(graph.outputDefs)),
 		inputs: { sound: { kind: 'value', value: publicAudio } }, definitions: { getNativeEffect: () => ({ ...metadata, paramDefs: { audio: audioDef, amount } }) } },
 		{}, () => ({ createOutputTexture: () => ({ destroy() {} }), init({ inputs }) { return { render() { observed.push(inputs.audio.value); }, dispose() {} }; } }));
 	return { instance, observed };
@@ -67,107 +67,55 @@ test('deduplicates ready windows and retries cancelled or failed requests', asyn
 	assert.equal(reads, 3);
 });
 
-// 【Effect Live Previewのモノラルを両チャンネルへ複製し、取得後の履歴更新から独立させる】
-// 同じPlayerを使う複数ノードや非同期準備の途中で、波形が別の再生位置へ変わらないようにする。
-test('freezes player PCM, pads missing history, and duplicates mono channels', () => {
-	const history = new AudioHistory();
-	const append = (values, generation) => history.append({ generation, startFrame: 0, sampleRate: 1000, channelCount: 1, frameCount: values.length, buffer: Float32Array.from(values).buffer });
-	append([1, 2, 3], 1);
-	const sources = new Map([[playerAudioSourceId('player'), history]]);
-	const inputs = new PlayerAudioInputs(sources);
-	const selection = { type: 'player', playerId: 'player' };
-	const input = inputs.resolve(selection);
-	append([9, 8, 7], 2);
-	const result = input.readWindow(0.005, signal());
-	assert.deepEqual([samples(result), samples(result, 'right')], [Float32Array.from([0, 0, 1, 2, 3]), Float32Array.from([0, 0, 1, 2, 3])]);
-	assert.notEqual(input.cacheKey, inputs.resolve(selection).cacheKey);
+// 【一つのプレビュー入力を複数の公開パラメータで共有する】
+// 同じ描画ではPCM取得元が一つに固定され、音声の再生位置がEffectのTIMEを上書きしない。
+test('shares preview audio across parameters without changing effect time', () => {
+	const amount = { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: {} }, defaultValue: 0 };
+	const definition = { paramDefs: { first: audioDef, second: audioDef, amount } };
+	const binding = { inputSource: 'previewInputAudio' };
+	let position = 0.5;
+	let reads = 0;
+	const inputs = createEffectLivePreviewInputs(definition, { first: binding, second: binding, amount: { inputSource: 'expression', expression: 'TIME' } }, [], {
+		image() { throw new Error('Image is unused'); },
+		audio() { reads++; return { endFrame: position * 48000 }; },
+	});
+	const { first, second, amount: time } = inputs.inputs;
+	inputs.beginFrame(8000);
+	assert.equal(first.value, second.value);
+	assert.equal(first.value.endFrame, 24000);
+	assert.equal(time.value, 8);
+	assert.equal(reads, 1);
+	position = 2;
+	inputs.beginFrame(8100);
+	assert.equal(first.value.endFrame, 96000);
+	assert.equal(time.value, 8.1);
 });
 
-// 【Playerの履歴更新後も、入力の解決と窓取得でPCMを複製しない】
-// 同じ状態のキャッシュヒットだけでなく、毎フレーム新しい音声が届く経路の全量コピーを防ぐ。
-// 長い窓のゼロ補完や、同じ入力を読む複数ノードもPCM配列を確保せず処理できる必要がある。
-test('resolves updated player inputs and multiple windows without copying PCM', () => {
-	const history = new AudioHistory();
-	const inputs = new PlayerAudioInputs(new Map([[playerAudioSourceId('player'), history]]));
-	const selection = { type: 'player', playerId: 'player' };
-	const Float32 = globalThis.Float32Array;
-	for (let frame = 0; frame < 3; frame++) {
-		history.append({ generation: 1, startFrame: frame, sampleRate: 48000, channelCount: 1,
-			frameCount: 1, buffer: Float32.of(frame + 1).buffer });
-		globalThis.Float32Array = new Proxy(Float32, { construct() { throw new Error('Unexpected PCM allocation'); } });
-		try {
-			const input = inputs.resolve(selection);
-			assert.equal(inputs.resolve(selection), input);
-			for (const seconds of [0.01, 1, 10]) {
-				const window = input.readWindow(seconds, signal());
-				assert.equal(window.sample(0, 'left'), 0);
-				assert.equal(window.sample(window.frameCount - 1, 'right'), frame + 1);
-			}
-		} finally {
-			globalThis.Float32Array = Float32;
-		}
+// 【一時停止中のシーク先から音声窓を読み取る】
+// Effectの描画が進んでいても、波形やFFTは最後に選んだ素材時刻のPCMを表示する。
+test('decodes preview audio at the playback position after seeking', async t => {
+	const sampleRate = 8000;
+	const bytes = new Uint8Array(44 + sampleRate * 2);
+	const view = new DataView(bytes.buffer);
+	const text = (offset, value) => bytes.set(new TextEncoder().encode(value), offset);
+	text(0, 'RIFF'); view.setUint32(4, bytes.length - 8, true); text(8, 'WAVE'); text(12, 'fmt ');
+	view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+	view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true);
+	view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+	text(36, 'data'); view.setUint32(40, sampleRate * 2, true);
+	for (let frame = 0; frame < sampleRate; frame++) view.setInt16(44 + frame * 2, frame < sampleRate / 2 ? 8192 : 16384, true);
+	const audio = new EffectLivePreviewAudio(new Blob([bytes], { type: 'audio/wav' }));
+	t.after(() => audio.dispose());
+	const previous = audio.atTime(0.25, 1);
+	const current = audio.atTime(0.75, 2);
+	assert.notEqual(previous.sourceKey, current.sourceKey);
+	const read = input => input.readWindow(0.05, signal());
+	const [beforeSeek, afterSeek] = await Promise.all([read(previous), read(current)]);
+	for (const channel of ['left', 'right']) {
+		assert.ok(Math.abs(beforeSeek.sample(1024, channel) - 0.25) < 0.0001);
+		assert.ok(Math.abs(afterSeek.sample(1024, channel) - 0.5) < 0.0001);
 	}
-});
-
-// 【同じ取得元のスナップショットをノード間と停止中の描画間で共有する】
-// 波形ノードを増やすたびに全履歴を複製せず、更新のないフレームでもコピーを繰り返さない。
-// 公開入力とノード内の指定は同じ取得元として解決する。
-test('shares player snapshots across nodes, public inputs, and unchanged frames', async t => {
-	const history = new AudioHistory();
-	history.append({ generation: 1, startFrame: 0, sampleRate: 1000, channelCount: 1, frameCount: 2, buffer: Float32Array.of(1, 2).buffer });
-	const inputs = new PlayerAudioInputs(new Map([[playerAudioSourceId('player'), history]]));
-	const selection = { type: 'player', playerId: 'player' };
-	const publicInput = inputs.resolve(selection);
-	const { instance, observed } = await audioPlacement([{ audio: literal(selection) },
-		{ audio: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'sound' } }], value => inputs.resolve(value), publicInput);
-	t.after(() => instance.dispose());
-	history.sample = () => { throw new Error('Unchanged history must not be copied again'); };
-	for (const time of [0, 1]) instance.render({ time, timeDelta: 0 }, {});
-	assert.equal(observed.length, 4);
-	for (const audio of observed) assert.equal(audio, publicInput);
-});
-
-// 【追記・リセット・同じIDの取得元差し替えをキャッシュへ反映する】
-// 通常の追記ではrevisionが変わらず、差し替えでは同じカウンター値になり得る。
-// 入力が変わるたびにEffectの窓キャッシュも無効化し、古いPCMは保持済みの描画専用に残す。
-test('invalidates player snapshots on append, reset, replacement, and disconnect', () => {
-	const history = new AudioHistory();
-	const append = (target, startFrame, values) => target.append({ generation: 1, startFrame, sampleRate: 1000, channelCount: 1,
-		frameCount: values.length, buffer: Float32Array.from(values).buffer });
-	append(history, 0, [1, 2]);
-	const sources = new Map([[playerAudioSourceId('player'), history]]);
-	const inputs = new PlayerAudioInputs(sources);
-	const selection = { type: 'player', playerId: 'player' };
-	const first = inputs.resolve(selection);
-	const revision = history.revision;
-	append(history, 2, [3, 4]);
-	assert.equal(history.revision, revision);
-	const appended = inputs.resolve(selection);
-	assert.notEqual(appended.cacheKey, first.cacheKey);
-	assert.equal(appended.sourceKey, first.sourceKey);
-	assert.equal(appended.sampleRate, 1000);
-	assert.equal(appended.startFrame, 0);
-	assert.equal(appended.endFrame, 4);
-	assert.equal(first.endFrame, 2);
-	assert.deepEqual(samples(appended.readWindow(0.002, signal())), Float32Array.of(3, 4));
-	const replacement = new AudioHistory();
-	append(replacement, 0, [5, 6, 7, 8]);
-	assert.equal(replacement.revision, history.revision);
-	assert.equal(replacement.endFrame, history.endFrame);
-	sources.set(playerAudioSourceId('player'), replacement);
-	const replaced = inputs.resolve(selection);
-	assert.notEqual(replaced.cacheKey, appended.cacheKey);
-	assert.notEqual(replaced.sourceKey, appended.sourceKey);
-	assert.deepEqual(samples(replaced.readWindow(0.002, signal())), Float32Array.of(7, 8));
-	replacement.reset();
-	const reset = inputs.resolve(selection);
-	assert.notEqual(reset.cacheKey, replaced.cacheKey);
-	assert.notEqual(reset.sourceKey, replaced.sourceKey);
-	assert.deepEqual(samples(reset.readWindow(0.002, signal())), Float32Array.of(0, 0));
-	assert.deepEqual(samples(first.readWindow(0.002, signal())), Float32Array.of(1, 2));
-	sources.clear();
-	assert.equal(inputs.resolve(selection), null);
-	assert.equal(inputs.resolve(null), null);
+	assert.equal(audio.atTime(0.75, 2).cacheKey, current.cacheKey);
 });
 
 // 【音声公開パラメータは専用入力として渡し、PUBLIC式には公開しない】
@@ -176,10 +124,10 @@ test('invalidates player snapshots on append, reset, replacement, and disconnect
 test('resolves public audio inputs independently of PUBLIC and image parameters', async t => {
 	const source = { cacheKey: 'lower', readWindow: () => window() };
 	const audio = { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'sound' };
-	const invalid = await audioPlacement([{ audio, amount: { inputSource: 'expression', expression: 'PUBLIC("sound")' } }], () => null, source);
+	const invalid = await audioPlacement([{ audio, amount: { inputSource: 'expression', expression: 'PUBLIC("sound")' } }], source);
 	t.after(() => invalid.instance.dispose());
 	assert.throws(() => invalid.instance.render({ time: 0, timeDelta: 0 }, {}), /unknown parameter/);
-	const valid = await audioPlacement([{ audio, amount: literal(0) }], () => null, source);
+	const valid = await audioPlacement([{ audio, amount: literal(0) }], source);
 	t.after(() => valid.instance.dispose());
 	valid.instance.render({ time: 0, timeDelta: 0 }, {});
 	assert.equal(valid.observed[0], source);
@@ -187,15 +135,6 @@ test('resolves public audio inputs independently of PUBLIC and image parameters'
 
 
 
-// 【Custom Node Graph Effectは呼び出し側の取得元指定を解釈せずに渡す】
-// Player以外の利用ドメインを追加しても、共通型やCustom Node Graph Effectへ選択肢を増やす必要がない。
-test('delegates literal audio selections without knowing their source domain', async t => {
-	const selection = { source: 'test-recording' }, input = { cacheKey: 'recording', readWindow: () => window() };
-	const { instance, observed } = await audioPlacement([{ audio: literal(selection) }], value => { assert.deepEqual(value, selection); return input; });
-	t.after(() => instance.dispose());
-	instance.render({ time: 0, timeDelta: 0 }, {});
-	assert.equal(observed[0], input);
-});
 
 // 【Custom Node Graph Effectの主音声入力はScene時刻で解決し、内容時刻と分離する】
 // トリムやCustom Node Graph Effect内のTIMEを変えても、同じ場所の下層音声が選ばれる必要がある。
@@ -275,9 +214,9 @@ test('uploads selected channel peaks and distinguishes silence from no source', 
 		history.append({ generation: 1, startFrame: start, sampleRate: 48000, channelCount: 2, frameCount: end - start,
 			buffer: Float32Array.from([...left.subarray(start, end), ...right.subarray(start, end)]).buffer });
 	}
-	const inputs = new PlayerAudioInputs(new Map([[playerAudioSourceId('player'), history]]));
+	const snapshot = history.snapshot();
 	const params = { ...Object.fromEntries(Object.entries(waveformDefinition.paramDefs).map(([key, def]) => [key, def.defaultValue])),
-		channel: 'stereo', duration: 0.005, color: [1, 0, 0, 0.5], audio: inputs.resolve({ type: 'player', playerId: 'player' }) };
+		channel: 'stereo', duration: 0.005, color: [1, 0, 0, 0.5], audio: { cacheKey: 'recording', readWindow: () => snapshot.readWindow(240) } };
 	history.reset();
 	const bound = Object.fromEntries(Object.keys(params).map(key => [key, { kind: 'value', get value() { return params[key]; } }]));
 	const instance = waveform.init({ device, resolution: { width: 2, height: 2 }, defaultVertexShaderModule: {}, inputs: bound, outputTextures: new Map([['output', { createView: () => ({}) }]]) });
