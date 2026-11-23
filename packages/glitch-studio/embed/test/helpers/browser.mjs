@@ -166,9 +166,6 @@ try {
 	const { element: noOutput } = await mount('nooutput');
 	check((await pixel(noOutput))[3] === 0, 'uniform wired directly to Out presents a transparent frame');
 	noOutput.remove();
-	const { element: player } = await mount('player');
-	check((await pixel(player))[3] === 0, 'unconnected Players produce transparent video without permission prompts');
-	player.remove();
 	const transient = document.createElement('gs-custom-node-graph-effect-test');
 	transient.style.cssText = 'width:100px;height:50px';
 	document.body.append(transient); const abandoned = transient.ready.catch(() => 'aborted'); transient.remove();

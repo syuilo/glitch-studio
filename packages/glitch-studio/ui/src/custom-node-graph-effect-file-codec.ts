@@ -4,7 +4,7 @@ import semverGt from 'semver/functions/gt.js';
 import { genId } from '@gs/shared/utility/id.ts';
 import { collectCustomNodeGraphEffectResources } from '@gs/glitch-studio_shared/custom-node-graph-effect-resources.ts';
 import type { CustomNodeGraphEffectResources } from '@gs/glitch-studio_shared/custom-node-graph-effect-resources.ts';
-import type { Asset, Player } from '@gs/shared/types.ts';
+import type { Asset } from '@gs/shared/types.ts';
 import type { NativeEffectDefinitions } from '@gs/glitch-studio_shared/project/effects.ts';
 import type { ProjectEffectRegistrations, ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import type { ProjectAsset } from './Project.ts';
@@ -19,8 +19,6 @@ export type CustomNodeGraphEffectFile = CustomNodeGraphEffectResources & {
 export type CustomNodeGraphEffectImport = ProjectEffectRegistrations & {
 	customNodeGraphEffect: ProjectCustomNodeGraphEffect;
 	assets: ProjectAsset[];
-	players: Player[];
-	unassignedPlayerNames: string[];
 };
 
 /** 定義とノードの編集情報を持ち出す。登録IDやレイヤーの設定は所属プロジェクトに残す。 */
@@ -60,7 +58,7 @@ export function decodeCustomNodeGraphEffectFile(data: Uint8Array, currentVersion
 	};
 	if (file?.kind !== 'glitch-studio-custom-node-graph-effect' || file.formatVersion !== 2
 		|| typeof file.name !== 'string' || typeof file.gsVersion !== 'string'
-		|| !Array.isArray(file.assets) || !Array.isArray(file.players)
+		|| !Array.isArray(file.assets)
 		|| !Array.isArray(file.customNodeGraphEffect?.nodes) || file.customNodeGraphEffect.paramDefs == null
 		|| file.customNodeGraphEffect.outputDefs == null || file.customNodeGraphEffect.outputSources == null
 		|| !Array.isArray(file.customNodeGraphEffects) || !Array.isArray(file.customShaderEffects)) {
@@ -77,21 +75,12 @@ export function decodeCustomNodeGraphEffectFile(data: Uint8Array, currentVersion
 }
 
 export function prepareCustomNodeGraphEffectImport(file: CustomNodeGraphEffectFile, definitions: NativeEffectDefinitions, createId = genId): CustomNodeGraphEffectImport {
-	// 読み込み成立に必要なエフェクト・素材・Playerの参照を、プロジェクトを変更する前に解決する。
+	// 読み込み成立に必要なエフェクト・素材の参照を、プロジェクトを変更する前に解決する。
 	const collected = collectCustomNodeGraphEffectResources(file, definitions, () => createId());
-	const unassignedPlayerNames: string[] = [];
-	const players: Player[] = collected.players.map(player => {
-		if (player.sourceType === 'asset') return player;
-		if (player.sourceType != null) unassignedPlayerNames.push(player.name);
-		// 新しいPlayer IDへの配線は維持し、マイクやカメラは取り込み先で選び直せるようにする。
-		return { id: player.id, name: player.name, sourceType: null };
-	});
 	return {
 		customNodeGraphEffect: { id: createId(), name: file.name, definition: collected.customNodeGraphEffect, nodeMetadata: collected.nodeMetadata },
 		customNodeGraphEffects: collected.customNodeGraphEffects,
 		customShaderEffects: collected.customShaderEffects,
 		assets: collected.assets.map(asset => ({ ...asset, isExternalReference: false, sourceFilePath: null, thumbnailSequence: null })),
-		players,
-		unassignedPlayerNames,
 	};
 }

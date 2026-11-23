@@ -135,7 +135,7 @@ export const PREF_DEF = definePreferences({
 												type: 'divider',
 												direction: 'horizontal',
 												children: [{
-													ratio: 0.25,
+													ratio: 1 / 3,
 													element: {
 														id: '77688f4068ee4f929f78eb6423c5da24',
 														type: 'panel',
@@ -143,23 +143,16 @@ export const PREF_DEF = definePreferences({
 														contentType: 'audioSpectrogram',
 													},
 												}, {
-													ratio: 0.25,
+													ratio: 1 / 3,
 													element: {
 														id: 'b933bae5a21e43c88b7ca481c71c40c2',
 														type: 'panel',
 														direction: 'horizontal',
 														contentType: 'audioWaveform',
 													},
+
 												}, {
-													ratio: 0.25,
-													element: {
-														id: 'e0b66dac15844bc5a27801d4c729dbdf',
-														type: 'panel',
-														direction: 'horizontal',
-														contentType: 'players',
-													},
-												}, {
-													ratio: 0.25,
+													ratio: 1 / 3,
 													element: {
 														id: 'b1274afa651a405988e29c508c0c02d5',
 														type: 'panel',

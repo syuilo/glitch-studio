@@ -96,7 +96,7 @@ test('preserves dangling anotherLayerAudio references through deletion, saving, 
 	assert.deepEqual(f.read(['audio']), { inputSource: 'anotherLayerAudio', layerId: 'sound' });
 	f.edit(['amplitude'], { kind: 'literal', value: 2 });
 	const project = { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, id: 'project', gsVersion: '2.0.0-alpha', name: 'Audio', description: '', author: '', resolution: { width: 800, height: 600 },
-		assets: [], generatedSpeech: [], players: [], customNodeGraphEffects: [], timelineScenes: f.state.timelineScenes.value };
+		assets: [], generatedSpeech: [], customNodeGraphEffects: [], timelineScenes: f.state.timelineScenes.value };
 	assert.deepEqual(decodeProjectFile(await encodeProjectFile(project)), project);
 	remove.undo(f.state);
 	assert.equal(f.state.timelineScenes.value[0].layers.at(-1).id, f.read(['audio']).layerId);
@@ -104,29 +104,6 @@ test('preserves dangling anotherLayerAudio references through deletion, saving, 
 	assert.equal(f.read(['audio']).layerId, 'sound');
 });
 
-// 【Playerの音声指定はGlitch StudioのCommand境界で検証する】
-// 共通パラメータの検証から取得元の種類を取り除いても、保存されるPlayer指定の制約は維持する。
-// 公開パラメータ参照の扱いはCustom Node Graph Effect側に残し、異なる取得元の指定を混入させない。
-test('validates player audio selections at the application command boundary', () => {
-	const audio = { ...effectDefinitions.audioWaveform.paramDefs.audio, id: 'sound', nameForReference: 'sound' };
-	const node = { id: 'waveform', type: 'effect', effectSource: { type: 'nativeEffect', id: 'audioWaveform' }, params: { audio: literal(null) } };
-	const state = { customNodeGraphEffects: { value: [{ id: 'visual', definition: testGraph({ customParameterValues: {}, paramDefs: { [audio.id]: audio }, nodes: [node] }) }] } };
-	const target = { customNodeGraphEffectId: 'visual', nodeId: node.id, paramPath: ['audio'] };
-	const command = value => prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: value } });
-	const selection = { type: 'player', playerId: 'player' };
-	const edit = command(selection);
-	edit.execute(state);
-	assert.deepEqual(node.params.audio, literal(selection));
-	for (const invalid of [undefined, { type: 'player', playerId: '' }, { type: 'layer', layerId: 'audio' }, 'player']) {
-		assert.throws(() => command(invalid).execute(state), invalid === undefined ? /parameter source input:/ : /Invalid player audio source/);
-		assert.deepEqual(node.params.audio, literal(selection));
-	}
-	edit.undo(state);
-	assert.deepEqual(node.params.audio, literal(null));
-	prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: audio.id } }).execute(state);
-	assert.equal(node.params.audio.parameterId, audio.id);
-	assert.throws(() => prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: { inputSource: 'expression', expression: 'null' } }).execute(state), /static input/);
-});
 
 // 【波形・Spectrumレイヤーは主音声入力を下層へ割り当て、リセットとUndo/Redoでも復元する】
 // 音声の主入力を画像の主入力とは別に扱い、生成系の通常合成を維持する。
@@ -239,18 +216,18 @@ test('edits primary audio parameters and timeline arguments with independent und
 });
 
 // 【Timelineで入れ子の音声入力を初期化するときは未選択にする】
-// Custom Node Graph EffectのPlayer参照とTimelineの音声接続は取得元が異なる。
+// Custom Node Graph Effectの公開音声入力は、配置側で接続される。
 // 配置、要素追加、リセット、定義更新のどの経路でも、Timelineに有効なBindingを生成する。
-test('uses unselected audio bindings for nested Player defaults in effect layers', () => {
+test('uses unselected audio bindings for nested audio defaults in effect layers', () => {
 	const { state } = fixture('audioWaveform');
 	const audio = effectDefinitions.audioWaveform.paramDefs.audio;
-	const player = { type: 'player', playerId: 'player' };
+
 	const tracks = {
 		nameForReference: 'tracks', canNode: false,
 		dataType: { kind: 'array', elementType: { kind: 'struct', fields: { audio: audio.dataType } } },
 		ui: { label: 'Tracks', control: { element: { fields: { audio: audio.ui } } } },
-		defaultValue: [{ audio: player }],
-		element: { defaultValue: { audio: player }, fields: { audio: { defaultValue: player } } },
+		defaultValue: [{ audio: null }],
+		element: { defaultValue: { audio: null }, fields: { audio: { defaultValue: null } } },
 	};
 	const definition = testGraph({ paramDefs: { tracks } });
 	const effectSource = { type: 'customNodeGraphEffectReference', id: 'audio-graph' };
@@ -282,13 +259,13 @@ test('uses unselected audio bindings for nested Player defaults in effect layers
 			...tracks,
 			dataType: { kind: 'array', elementType: { kind: 'struct', fields: { audio: audio.dataType, secondary: audio.dataType } } },
 			ui: { label: 'Tracks', control: { element: { fields: { audio: audio.ui, secondary: audio.ui } } } },
-			defaultValue: [{ audio: player, secondary: player }],
-			element: { defaultValue: { audio: player, secondary: player },
-				fields: { audio: { defaultValue: player }, secondary: { defaultValue: player } } },
+			defaultValue: [{ audio: null, secondary: null }],
+			element: { defaultValue: { audio: null, secondary: null },
+				fields: { audio: { defaultValue: null }, secondary: { defaultValue: null } } },
 		},
 	}).execute(state);
 	assert.deepEqual(read(['tracks', addedElementId, 'secondary']), literal(null));
-	assert.deepEqual(registered.definition.paramDefs.tracks.defaultValue, [{ audio: player, secondary: player }]);
+	assert.deepEqual(registered.definition.paramDefs.tracks.defaultValue, [{ audio: null, secondary: null }]);
 	validateLayer();
 });
 
@@ -506,7 +483,7 @@ test('round trips effect layers and changes resolution and clips with undo', asy
 	const add = prepareTestCommand(COMMAND_DEFS.createTimelineClip, { ...f.target, clip: { id: 'second', startMs: 6000, durationMs: 1000, contentOffsetMs: 50.25 } });
 	add.execute(f.state);
 	const project = { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, id: 'project', gsVersion: '2.0.0-alpha', name: 'Test', description: '', author: '', resolution: { width: 800, height: 600 },
-		assets: [], generatedSpeech: [], players: [], customNodeGraphEffects: [], timelineScenes: f.state.timelineScenes.value };
+		assets: [], generatedSpeech: [], customNodeGraphEffects: [], timelineScenes: f.state.timelineScenes.value };
 	assert.deepEqual(decodeProjectFile(await encodeProjectFile(project)), project);
 	resolution.undo(f.state);
 	assert.deepEqual(f.layer.resolution, { mode: 'auto', scale: 1 });
@@ -547,7 +524,7 @@ test('saves local resolution scales and validates undoable edits for nodes and e
 		}
 	}
 	const project = { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, id: 'project', gsVersion: '2.0.0-alpha', name: 'Test', description: '', author: '', resolution: { width: 800, height: 600 },
-		assets: [], generatedSpeech: [], players: [], customNodeGraphEffects: f.state.customNodeGraphEffects.value, timelineScenes: f.state.timelineScenes.value };
+		assets: [], generatedSpeech: [], customNodeGraphEffects: f.state.customNodeGraphEffects.value, timelineScenes: f.state.timelineScenes.value };
 	assert.deepEqual(decodeProjectFile(await encodeProjectFile(project)), project);
 });
 

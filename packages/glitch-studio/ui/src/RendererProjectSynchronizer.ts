@@ -24,7 +24,7 @@ export class RendererProjectSynchronizer {
 		onError: (error: unknown) => void;
 	}) {
 		this.unsubscribe = manager.onChange(changes => {
-			// Assets・Players・プロジェクト解像度・タイムライン描画設定は専用同期経路が扱い、表示名は送らない。
+			// Assets・プロジェクト解像度・タイムライン描画設定は専用同期経路が扱い、表示名は送らない。
 			// どの通知を描画へ送るかは、状態管理ではなくこの購読側で選ぶ。
 			const targets = changes.filter((change): change is ProjectContentChange =>
 				change.type === 'customShaderEffect' || change.type === 'automationGraphs' || change.type === 'node' || change.type === 'customNodeGraphEffect' || change.type === 'customNodeGraphEffectRegistration' || change.type === 'layer' || change.type === 'layerTree' || change.type === 'layerOrder' || change.type === 'scene');

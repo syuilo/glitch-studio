@@ -29,7 +29,7 @@ async function fixture(t, implementation) {
 		gpuDevice: device, canvasOutput: { format: 'rgba8unorm', colorSpace: 'srgb' }, gpuContext: { canvas: { width: 2, height: 1 }, configure() {}, getCurrentTexture: texture },
 		frameScheduler: { now: () => 0, requestFrame(callback) { frame = callback; return 1; }, cancelFrame() {} },
 		nativeEffectDefinitions: { shared: definition }, nativeEffectImplementations: { shared: implementation },
-	}, { enable32bitDataTextures: false, effectRenderTiling: { mode: 'disabled' }, enableStats: false, enableWaveformAndHistogram: false }, { assets: [], players: [] });
+	}, { enable32bitDataTextures: false, effectRenderTiling: { mode: 'disabled' }, enableStats: false, enableWaveformAndHistogram: false }, { assets: [] });
 	t.after(() => manager.destroy());
 	manager.on('ev', event => { if (event.type === 'renderError') errors.push(event.ctx.message); });
 	manager.updateDynamicOptions({ resolution: { width: 5, height: 3 },

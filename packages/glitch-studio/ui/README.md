@@ -23,7 +23,7 @@ Electronのファイル参照はIDと名前だけを持ち、読み込み関数�
 
 `ProjectSessionManager`が所有する`ProjectFileOperationController`を各セッションの保存管理と共有し、新規作成・Open・Save・Save as・Closeはウィンドウ内で一つだけ受け付ける。ファイル選択・権限確認の前に同期的に受付を確保し、完了・キャンセル・失敗と後処理まで保持する。処理中の追加要求はキューへ積まず拒否し、ヘッダー・Dashboard・タブバーの対応ボタンも無効にする。タブ切替と編集は引き続き可能で、保存中の編集内容は次の明示的なSaveで保存する。UI側に保存先の予約Mapは持たず、確定した保存先だけを照合する。Electronのmain側の予約・所有権管理は別ウィンドウとの競合を防ぐため維持する。
 
-切替時は編集画面のDOMとUndo履歴・選択・プレビュー設定・Timelineの再生位置を保持する。非アクティブなセッションはプレビューと音声再生を休止し、映像WorkerとGPU資源を解放する。戻ると最新のプロジェクト状態でレンダラーを再生成するため、Custom Node Graph Effectの実行中の描画履歴・Playerの実行状態は引き継がない。タブ非選択・書き出しの休止理由は独立し、別の処理の完了で裏のタブを再開しない。環境設定と保存されるワークスペース配置はウィンドウ共通、ワークスペース内の選択とTimelineの内部クリップボードはセッションごとに保持する。
+切替時は編集画面のDOMとUndo履歴・選択・プレビュー設定・Timelineの再生位置を保持する。非アクティブなセッションはプレビューと音声再生を休止し、映像WorkerとGPU資源を解放する。戻ると最新のプロジェクト状態でレンダラーを再生成するため、Custom Node Graph Effectの実行中の描画履歴・入力素材の再生状態は引き継がない。タブ非選択・書き出しの休止理由は独立し、別の処理の完了で裏のタブを再開しない。環境設定と保存されるワークスペース配置はウィンドウ共通、ワークスペース内の選択とTimelineの内部クリップボードはセッションごとに保持する。
 
 `createProjectActions(projectSessions)`はファイル選択・初期データの作成を行い、マネージャーへ渡す。 `importAssets()`には既存のProjectContext、または取り込み先を返す非同期関数を渡す。後者は素材が一つ以上読み込めた時点で呼ぶため、Dashboardからの取り込みに失敗しても空のセッションを作らない。プロジェクトに属するダイアログは`ui.popup(component, props, events, projectSession)`で開き、素材選択には`ui.selectAsset(projectSession, options)`を使う。`GsProjectEditor`が所属ポップアップを表示し、`GsPopup`はDOMを増やさずセッションを提供する。切り離したパネルも開いたプロジェクトに固定され、非アクティブ時は休止する。アプリ共通のポップアップは`App.vue`が表示し、セッションを持たない。
 
@@ -83,7 +83,7 @@ API・参照形式・実行例・制限は[スクリプティング](../../../do
 
 `utility/parameter-clipboard.ts`が型情報・Binding全体・参照元の編集セッション／所有者を保存する。参照元には保存ファイルのIDではなく`ProjectSessionContext.id`を使う。同じ保存IDを持つファイルを別セッションで開いても参照は共有せず、同じセッションで別名保存しても参照は有効なままになる。固定値、式、加工式、インラインのキーフレーム／Automation Graph、接続とサンプリング設定を保持し、型・入力方式・配列の要素数・参照先を検査する。配列・構造体は子まで含めて一括適用し、一つでも非互換なら履歴を増やさず全体を無視する。値の型変換・式の書き換え・キーフレーム時刻の移動は行わない。
 
-通常の値とインライン設定は別セッションにも貼り付けられる。ノードとCustom Node Graph Effect公開パラメータの参照は同じセッション・同じCustom Node Graph Effect、特定レイヤーの参照は同じセッション・同じSceneで、貼り付け先から利用できる場合だけ受け入れる。Player参照も同じセッション内に限定する。下位レイヤー入力は貼り付け先を基準とする相対入力として扱う。参照先のノード・レイヤー・素材は複製しない。Automation Graph参照はコピー時のセッションと所有先を保持し、Custom Node Graph Effect内部ではローカル定義、Live Preview引数ではプロジェクト定義、Timelineでは所属レイヤーまたはプロジェクト定義の利用範囲を守る。
+通常の値とインライン設定は別セッションにも貼り付けられる。ノードとCustom Node Graph Effect公開パラメータの参照は同じセッション・同じCustom Node Graph Effect、特定レイヤーの参照は同じセッション・同じSceneで、貼り付け先から利用できる場合だけ受け入れる。下位レイヤー入力は貼り付け先を基準とする相対入力として扱う。参照先のノード・レイヤー・素材は複製しない。Automation Graph参照はコピー時のセッションと所有先を保持し、Custom Node Graph Effect内部ではローカル定義、Live Preview引数ではプロジェクト定義、Timelineでは所属レイヤーまたはプロジェクト定義の利用範囲を守る。
 
 保存状態への適用は`pasteParameter` Commandで行い、貼り付け先の加工式も含めて置き換える。Undoでは未設定だったルートを未設定へ戻し、Redoでは確定済みのBindingとIDを復元する。Binding内の配列要素・キー・インラインのグラフ点・Color Ramp stopには貼り付けごとに新しいIDを発行する。Live Preview引数は既存のプレビュー編集と同様に保存状態・履歴へ含めない。非同期の読み取り中にセッション終了・対象の削除や置換・型変更が発生した場合は適用しない。
 
@@ -107,7 +107,7 @@ API・参照形式・実行例・制限は[スクリプティング](../../../do
 
 ## Timelineのプレビュー再生・BAKE
 
-環境設定の「レンダリング」にある「タイムラインプレビューの先行フレーム数」は、処理中の1フレームに追加する先行数を0・1・2・3の選択肢から選び、選択時に即時保存します。既定値は1（合計2フレーム）、0では各フレームのGPU完了を待ってから次を処理します。端末・編集ウィンドウの環境設定として保存し、プロジェクトには含めません。変更時は`PreviewRenderEngine`が両プレビューのWorkerを再生成するため、プレビューの初期化とフレームキャッシュの消去が発生します。Scene・現在位置・Timelineの再生状態は維持します。Custom Node Graph Effectの履歴とPlayerのメディア要素も作り直すため、Playerの再生位置はリセットされ、Webcamは再接続します。
+環境設定の「レンダリング」にある「タイムラインプレビューの先行フレーム数」は、処理中の1フレームに追加する先行数を0・1・2・3の選択肢から選び、選択時に即時保存します。既定値は1（合計2フレーム）、0では各フレームのGPU完了を待ってから次を処理します。端末・編集ウィンドウの環境設定として保存し、プロジェクトには含めません。変更時は`PreviewRenderEngine`が両プレビューのWorkerを再生成するため、プレビューの初期化とフレームキャッシュの消去が発生します。Scene・現在位置・Timelineの再生状態は維持します。Custom Node Graph Effectの履歴とプレビュー入力のメディア要素も作り直すため、入力の再生位置は初期化され、Webcamは再接続します。
 
 通常再生では`TimelineAudioPreview.currentTime()`が音声出力のtimestamp対から現在時刻を補間し、`PreviewPlaybackController`は毎RAFで表示対象フレームの変化を判定します。FPS制限をRAF間隔でも重ねると時計の位相差・浮動小数点の誤差で描画機会を逃すため、描画要求は表示フレームの変化だけで制限します。明示的な`refresh()`は編集・Worker復帰のため同じ時刻でも再描画します。
 
@@ -145,9 +145,9 @@ GPU処理を止めたCanvasも画面合成に影響するため、休止中は�
 
 環境設定のCustom Node Graph Effect Editorにある「追加したノードを自動接続する」で、エフェクトノード追加時の自動接続を切り替える。既定値は無効。有効時は現在の主出力の接続元（副出力ポートも含む）を追加ノードの主入力へ引き継ぎ、追加ノードの主出力をCustom Node Graph Effectの主出力へ接続する。それぞれ接続可能な場合だけ変更し、明示的に指定されたパラメータは優先する。登録済み・インラインの両方で適用し、Undo/Redoでは設定変更にかかわらず追加時の配線を復元する。素材ドロップによる追加は既存の配線を維持する。
 
-`GsCustomNodeGraphEffectEditor`はファイル・Assetのドロップ受付と表示を担当し、親が渡す`CustomNodeGraphEffectAssetDropActions`で保存先へ反映する。登録済みとインラインの両方で`utility/custom-node-graph-effect-drop-actions.ts`を使い、画像・動画・音声からImage・Video・Audio Waveformノードを通常ノード一覧の末尾へ追加する。ノード生成は`custom-node-graph-effect-asset-node.ts`、Asset・Player・ノードの一括追加とUndo/RedoはCommandが担当する。既存の配線と出力接続は変更しない。
+`GsCustomNodeGraphEffectEditor`はファイル・Assetのドロップ受付と表示を担当し、親が渡す`CustomNodeGraphEffectAssetDropActions`で保存先へ反映する。登録済みとインラインの両方で`utility/custom-node-graph-effect-drop-actions.ts`を使い、画像からImageノードを通常ノード一覧の末尾へ追加する。ノード生成は`custom-node-graph-effect-asset-node.ts`、Assetとノードの一括追加とUndo/RedoはCommandが担当する。既存の配線と出力接続は変更しない。
 
-`custom-node-graph-effect-file-codec.ts`は`.gscnge`（MessagePack・形式2）の依存収集・バイナリ変換・取り込み準備を担当する。参照される Custom Shader Effect と Custom Node Graph Effect の登録定義も同梱し、取り込み先で新しい ID に付け替える。ノードの値と公開パラメータの既定値・設定ツリーから静的な素材／Player参照を収集し、取り込み用のプロジェクト内IDを生成する。素材参照の加工式は無効化中や基準値がnullの場合も含めて転送を拒否する。元PCのパスや利用側のレイヤー／Effect Live Previewの状態は保存しない。
+`custom-node-graph-effect-file-codec.ts`は`.gscnge`（MessagePack・形式2）の依存収集・バイナリ変換・取り込み準備を担当する。参照される Custom Shader Effect と Custom Node Graph Effect の登録定義も同梱し、取り込み先で新しい ID に付け替える。静的設定から素材参照を収集し、取り込み用のプロジェクト内IDを生成する。素材参照の加工式は無効化中や基準値がnullの場合も含めて転送を拒否する。元PCのパスや利用側のレイヤー／Effect Live Previewの状態は保存しない。
 
 `utility/custom-node-graph-effect-file.ts`が選択・ダウンロード・エラー表示を担当する。共通のCustom Node Graph EffectエディターはOtherタブから`requestExport`を通知し、登録済み／インラインそれぞれの親が対象名とプロジェクトを渡す。ImportはApp.vueのFile → Import → Custom Node Graph Effect (.gscnge)、または登録済みCustom Node Graph Effectの選択メニューから同じ処理を呼び出し、`importCustomNodeGraphEffect` Commandで依存リソースごと一括追加する。ファイル選択・読み出しの間に取り込み先のProjectContextが終了した場合は、その結果を破棄する。
 
@@ -283,11 +283,11 @@ Scene追加・階層編集Commandは、操作条件とUndoに必要なIDの一�
 
 `PreviewRenderEngine`は静的診断が一つでもある場合、または実行時失敗を受けた場合に両プレビューのエンジンを破棄する。設定変更か明示的な再試行で静的エラーがなければ、最新のスナップショットから生成する。エラー中の差分をWorkerへ送ったり、復旧時に再送したりしない。静的診断と実行時失敗は別に保持し、古いWorkerの通知で解除しない。
 
-素材の追加・削除・原本や寸法の変更、Playerの追加・削除・参照先変更では、`ProjectSessionContext`が同期的に両プレビューのエンジンを破棄する。素材の参照解決中は差分送信と再生成を保留し、完了後に素材・Player・ノードの最新状態から再生成する。同じCommandで素材とノードを取り込む場合やUndo/Redoでも、異なる世代の素材とノードを組み合わせて静的解像度を計算しない。連続変更・セッション終了で失効した準備完了は無視し、書き出し等による休止は素材準備が完了しても解除しない。素材更新ではGPUリソース・前フレーム履歴・描画キャッシュを再作成する。表示名・サムネイルだけの変更や同値の素材情報の再代入では再生成しない。
+素材の追加・削除・原本や寸法の変更では、`ProjectSessionContext`が同期的に両プレビューのエンジンを破棄する。素材の参照解決中は差分送信と再生成を保留し、完了後に素材とノードの最新状態から再生成する。同じCommandで素材とノードを取り込む場合やUndo/Redoでも、異なる世代の素材とノードを組み合わせて静的解像度を計算しない。連続変更・セッション終了で失効した準備完了は無視し、書き出し等による休止は素材準備が完了しても解除しない。素材更新ではGPUリソース・前フレーム履歴・描画キャッシュを再作成する。表示名・サムネイルだけの変更や同値の素材情報の再代入では再生成しない。
 
-Controllerの`setInitialAssets()`と`updatePlayers()`は次に生成するManagerの入力を保持する。素材・Playerの定義はWorkerの初期化メッセージの`resources`だけへ含め、`updateDynamicOptions()`では送らない。`updatePlayers()`は既存のメディア・音声接続・フレーム・Webcamを一括解放して全再作成する。素材・Player変更とエラー復旧で無関係なPlayerの再生位置・再生状態もリセットし、Webcamを再取得する。Workerの表示設定だけの再読み込みでは`updatePlayers()`を呼ばず、現在フレームと音声接続を再送する。
+素材一覧はWorkerの初期化時に渡す。Effectごとのプレビュー入力の選択は編集セッションが保持し、Controllerは表示中の一つだけを開く。素材や表示先の切替で、以前のメディア要素とWebcamを解放する。
 
-音声プレビューは音声計画・ループ長の編集で再生成する。素材原本の変更は上記のプレビュー全体の再生成・再開で反映し、音声側では素材ファイルを別途監視しない。Player定義の準備でも旧Workerへ空フレームを送らず、再生中の読み取り失敗によるフレーム解除は引き続き行う。
+音声プレビューは音声計画・ループ長の編集で再生成する。素材原本の変更は上記のプレビュー全体の再生成・再開で反映し、音声側では素材ファイルを別途監視しない。プレビュー素材が読み取れなくなった場合は入力フレームを解除し、プレビュータブにエラーを表示する。
 
 Controllerは失敗を通知し、破棄の調整は`PreviewRenderEngine`に集約する。`RendererProjectSynchronizer`は差分の送信と成功・失敗の通知だけを担当し、失敗後の全量同期を行わない。RPC更新はエンジンの開始世代を捕捉して行い、素材更新等で破棄されたWorkerの遅延失敗を新世代のエラーとして扱わない。静的診断の解除とプレビュー固有設定の変更では再試行を予約し、同じターンの通知をまとめる。Inline Custom Node Graph Effectの公開定義変更時は所有レイヤーの引数も再検証する。
 

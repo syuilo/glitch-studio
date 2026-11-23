@@ -48,7 +48,7 @@ export async function runCustomShaderEffectLivePreview() {
 	const { device, gpuContext } = await canvasDevice();
 	const manager = await EffectLivePreviewManager.create({ gpuDevice: device, gpuContext,
 		nativeEffectDefinitions: { fill: fillDefinition }, nativeEffectImplementations: { fill: fillImplementation } },
-	{ enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false }, { assets: [], players: [] });
+	{ enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false }, { assets: [] });
 	const errors = Promise.withResolvers<never>();
 	manager.on('ev', event => { if (event.type === 'renderError') errors.reject(new Error(event.ctx.message)); });
 	function graph(port: string): CustomNodeGraphEffect {
@@ -83,6 +83,14 @@ export async function runCustomShaderEffectLivePreview() {
 		await pixel([255, 0, 0, 255]);
 		manager.updateEffectLivePreviewParamValues({});
 		await pixel([255, 0, 255, 255]);
+		manager.updateEffectLivePreviewParamValues({ source: { inputSource: 'previewInputImage' } });
+		const videoFrame = (rgba: number[], width: number) => new VideoFrame(new Uint8Array(Array.from({ length: width }, () => rgba).flat()), {
+			format: 'RGBA', codedWidth: width, codedHeight: 1, timestamp: 0,
+		});
+		manager.updatePreviewImage({ kind: 'frame', frame: videoFrame([0, 255, 0, 255], 2) });
+		await pixel([0, 255, 0, 255]);
+		manager.updatePreviewImage({ kind: 'frame', frame: videoFrame([0, 0, 255, 255], 4) });
+		await pixel([0, 0, 255, 255]);
 		const data: CustomShaderEffect = { ...registeredShader(copy).definition, primaryOutput: null, paramDefs: {}, primaryInputParameter: null, resolutionInputParameters: [],
 			outputDefs: { red: { nameForReference: 'red', dataType: { kind: 'scalar' } }, vector: { nameForReference: 'vector', dataType: { kind: 'vector' } } },
 			code: 'fn main(p: vec2f) -> Output { return Output(1, vec2f(0, 1)); }' };
@@ -91,7 +99,8 @@ export async function runCustomShaderEffectLivePreview() {
 		await pixel([255, 0, 0, 255]);
 		manager.startEffectLivePreview({ effectSource, outputPort: 'vector' });
 		await pixel([0, 255, 0, 255]);
-		return ['Compiled graph', 'Updated shader and ports', 'Restored shader', 'Standalone shader', 'Edited preview input', 'Reset preview input', 'First declared scalar output', 'Selected vector output'];
+		return ['Compiled graph', 'Updated shader and ports', 'Restored shader', 'Standalone shader', 'Edited preview input', 'Reset preview input',
+			'Preview video input', 'Resized preview video frame', 'First declared scalar output', 'Selected vector output'];
 	} finally { manager.destroy(); }
 }
 

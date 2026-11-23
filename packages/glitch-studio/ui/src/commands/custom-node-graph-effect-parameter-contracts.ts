@@ -62,7 +62,7 @@ export const CUSTOM_NODE_GRAPH_EFFECT_PARAMETER_CONTRACTS = {
 		inputSchema: z.object({ target: customNodeGraphEffectNodeReferenceSchema, displayName: z.string() }), resultSchema: z.null(),
 	},
 	setCustomNodeGraphEffectNodeStaticSetting: {
-		description: 'Set one plain static setting using its key from Query:getEffect().staticSettingDefs. Static settings do not accept expressions or bindings. Referenced Assets and Players must already exist.',
+		description: 'Set one plain static setting using its key from Query:getEffect().staticSettingDefs. Static settings do not accept expressions or bindings. Referenced Assets must already exist.',
 		examples: ['// node and settingKey come from Query:listNodes and Query:getEffect respectively.\nCommand:setCustomNodeGraphEffectNodeStaticSetting({ target: node, key: settingKey, value: true })'],
 		inputSchema: z.object({ target: customNodeGraphEffectNodeReferenceSchema, key: z.string(), value: staticSettingValueSchema }), resultSchema: z.null(),
 	},

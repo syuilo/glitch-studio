@@ -1,5 +1,4 @@
 import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
-import { mapParameterAudioSourceValues } from '@gs/shared/parameter/audio-source.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 
 /** 配布先のAPIとPUBLIC式が、同じ参照名で公開値を引けるようにする。 */
@@ -8,9 +7,5 @@ export function getPortableParameterDefinitions(graph: CustomNodeGraphEffect): R
 }
 
 export function getPortableParameterDefaults(definitions: ReadonlyMap<string, ParameterDefinition>): Record<string, unknown> {
-	return Object.fromEntries(Array.from(definitions, ([name, definition]) => {
-		// 配布先ではPlayerを解決しないため、公開引数の音声は入れ子でも未選択で公開する。
-		const value = mapParameterAudioSourceValues(definition.dataType, definition.defaultValue, () => null);
-		return [name, structuredClone(value)];
-	}));
+	return Object.fromEntries(Array.from(definitions, ([name, definition]) => [name, structuredClone(definition.defaultValue)]));
 }

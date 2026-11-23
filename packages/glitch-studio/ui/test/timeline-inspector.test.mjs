@@ -48,7 +48,7 @@ const result = await build({
 				timelineAudioPreview: { buffering: ref(false), error: ref(null) },
 				timelineRendererManagerController: { errorMessage: ref(null), frameCacheState: ref(null), isReady: ref(true), isFrameCacheEnabled: ref(false), layerTransform: ref(null), async observeLayerTransform() {}, getLayerEffectStates() {}, getEffectLayerState() {} },
 			};`,
-			effects: "import audioWaveform from '@gs/subsystems_effect_native-effects/fx/audioWaveform/_def_.ts'; export const nativeEffectDefinitions = { audioWaveform };",
+			effects: "import audioWaveform from '@gs/subsystems_effect_native-effects/fx/audioWaveform/_def_.ts'; import image from '@gs/subsystems_effect_native-effects/fx/image/_def_.ts'; export const nativeEffectDefinitions = { audioWaveform, image };",
 			preferences: `import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: true }, r: { showTransformInPreview: ref(true) },
 				model: key => ref(key === 'timelineTickMode' ? 'binary' : false) };`,
 			ui: `export const dropUiTest = { dialogs: 0 };
@@ -565,7 +565,7 @@ async function fixture(t, component = Inspector) {
 	t.after(() => { globalThis.ResizeObserver = previousResizeObserver; globalThis.HTMLElement = previousHTMLElement; });
 	const state = { automationGraphs: ref([]), timelineScenes: ref([{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [makeLayer('a'), makeLayer('b')] }]),
 																	assets: ref([{ id: 'sound', name: 'Sound', fileDataType: 'audio/wav', fileData: new Blob() }]), customNodeGraphEffects: ref([]),
-																	players: ref([]), generatedSpeech: ref([]), resolution: ref({ width: 1920, height: 1080 }), timelineFps: ref(30) };
+																	generatedSpeech: ref([]), resolution: ref({ width: 1920, height: 1080 }), timelineFps: ref(30) };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	projectSession.projectContext.stateManager = history;
 	const scene = state.timelineScenes.value[0];
@@ -949,7 +949,7 @@ test('creates and connects a layer public parameter through the Inspector in one
 
 // 【インラインEditorの素材ドロップを、詳細パネルが正しい保存先のCommandへ接続する】
 // 共通Editorへ渡した処理が登録済みCustom Node Graph Effectを編集したり、新しいタイムラインレイヤーを作らない。
-// Assetと対応Player・音声ノードの関係を実際の親SFCとCommandで確認する。
+// 既存の画像Assetだけがノードになり、音声Assetは配置しないことを親SFCとCommandを通して確認する。
 test('routes inline editor asset drops into the selected Custom Node Graph Effect', async t => {
 	const f = await fixture(t);
 	const layer = createInlineCustomNodeGraphEffectLayer(0);
@@ -958,15 +958,13 @@ test('routes inline editor asset drops into the selected Custom Node Graph Effec
 	await nextTick();
 	const editor = f.control('GsCustomNodeGraphEffectEditor');
 	const originalCount = layer.effectSource.customNodeGraphEffect.nodes.length;
-	assert.equal(await editor.props.assetDropActions.dropAsset('sound'), true);
+	assert.equal(await editor.props.assetDropActions.dropAsset('sound'), false);
+	f.history.state.assets.value.push({ id: 'image', name: 'Image', fileDataType: 'image/png', fileData: new Blob() });
+	assert.equal(await editor.props.assetDropActions.dropAsset('image'), true);
 	assert.equal(f.scene.layers.length, 3);
 	assert.equal(layer.effectSource.customNodeGraphEffect.nodes.length, originalCount + 1);
-	const node = layer.effectSource.customNodeGraphEffect.nodes.find(node => node.type === 'effect' && node.effectSource.id === 'audioWaveform');
-	assert.equal(node.params.audio.value.playerId, f.history.state.players.value[0].id);
-	assert.equal(f.history.state.players.value[0].assetId, 'sound');
 	f.history.undo();
 	assert.equal(layer.effectSource.customNodeGraphEffect.nodes.length, originalCount);
-	assert.equal(f.history.state.players.value.length, 0);
 });
 
 // 【詳細パネルを閉じて開き直しても選択を保持し、削除ボタンは親の操作へ接続される】

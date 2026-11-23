@@ -15,8 +15,6 @@ const { default: effect } = await load('@gs/subsystems_effect_native-effects/fx/
 const { default: definition } = await load('@gs/subsystems_effect_native-effects/fx/colorMix/_def_.ts');
 const { default: imageEffect } = await load('@gs/subsystems_effect_native-effects/fx/image/_impl_.ts');
 const { default: imageDefinition } = await load('@gs/subsystems_effect_native-effects/fx/image/_def_.ts');
-const { default: videoEffect } = await load('@gs/subsystems_effect_native-effects/fx/video/_impl_.ts');
-const { default: videoDefinition } = await load('@gs/subsystems_effect_native-effects/fx/video/_def_.ts');
 const { toShaderInput } = await load('@gs/shared/gpu/shader-input.ts');
 const { TimelineRenderer } = await load('@gs/subsystems_timeline_renderer/timeline-renderer.ts');
 import { createTimelineEffectProbe } from './helpers/timeline-effect-probe.mjs';
@@ -97,46 +95,6 @@ function gpuFixture() {
 	return { device, calls, encoder };
 }
 const literal = value => ({ inputSource: 'literal', value });
-
-// 【Playerのフレーム消失では透明にし、復旧した映像でキャッシュを更新する】
-// 初回到着待ちと取得失敗を同じnull入力として扱い、準備・描画を継続する。
-// 実際のVideo実装を通し、取得不能の間に古い映像が残らず、復旧時に設定の再編集も不要なことを確認する。
-test('keeps rendering transparent video while player frames are missing and resumes after recovery', async t => {
-	const { device, calls } = gpuFixture();
-	const passes = [];
-	const encoder = { beginRenderPass(descriptor) {
-		passes.push(descriptor);
-		return { setPipeline() {}, setBindGroup() {}, draw() { calls.draws++; }, end() {} };
-	} };
-	const videoTextures = new Map();
-	const renderer = await place(device, native('video'), { resolution: { width: 16, height: 9 }, staticSettings: { player: 'player' }, params: { fit: literal('stretch') },
-		resources: { assets: [], assetTextures: new Map(), getPlayerVideoTexture: id => videoTextures.get(id) ?? null } });
-	t.after(() => renderer.dispose());
-	const render = async () => {
-		const frame = shaderFrame(); await renderer.prepare(frame); renderer.render(frame, encoder); return renderer.outputs.get('output');
-	};
-	const assertTransparent = () => {
-		assert.equal(passes.at(-1).colorAttachments[0].loadOp, 'clear');
-		assert.deepEqual(Object.values(passes.at(-1).colorAttachments[0].clearValue ?? [0, 0, 0, 0]), [0, 0, 0, 0]);
-	};
-	await render();
-	assertTransparent();
-	const first = { texture: device.createTexture({ size: [16, 9] }), displayResolution: { width: 16, height: 9 } };
-	videoTextures.set('player', first);
-	await render();
-	assert.deepEqual(calls.externalCopies, []);
-	assert.equal(calls.draws, 1);
-	videoTextures.delete('player');
-	await render();
-	assertTransparent();
-	assert.equal(calls.draws, 1);
-	const recovered = { texture: device.createTexture({ size: [16, 9] }), displayResolution: { width: 16, height: 9 } };
-	videoTextures.set('player', recovered);
-	const output = await render();
-	assert.deepEqual(calls.externalCopies, []);
-	assert.equal(calls.draws, 2);
-	assert.deepEqual([output.texture.width, output.texture.height], [16, 9]);
-});
 
 // 【マスク画像の取得中に中断した合成は、GPUへ新たなコマンドを送信しない】
 // 遅延解決が終わった直後にも中断を確認し、古いシークの合成によるテクスチャ上書きを防ぐ。
@@ -517,7 +475,7 @@ test('resolves nested array inputs and invalidates sampling changes', async t =>
 });
 
 function place(device, effectSource, options = {}, implementations = {}) {
-	const registry = { colorMix: [definition, effect], image: [imageDefinition, imageEffect], video: [videoDefinition, videoEffect], ...implementations };
+	const registry = { colorMix: [definition, effect], image: [imageDefinition, imageEffect], ...implementations };
 	return createEffectInstance({ effectSource, definitions: { getNativeEffect: id => registry[id][0] }, resolution: { width: 32, height: 32 },
 		usedOutputPorts: new Set(['output']), ...options }, { device, defaultVertexShaderModule: {}, enable32bitDataTextures: false }, id => registry[id][1]);
 }

@@ -8,7 +8,7 @@ Glitch Studioドメイン内で共通の型や処理などを置く
 
 `src/effect-live-preview-expression.ts`はEffect Live Previewの公開パラメータで使える式変数を定義する。Effect Live PreviewはGlitch Studio側の利用スコープであり、Custom Node Graph Effect自身の評価スコープとは分ける。
 
-`src/player-audio-source.ts`は音声取得元としてのPlayer指定と、その検証を所有する。共通パラメータ層は静的な指定であることだけを扱い、Playerの選択形式やTimelineのレイヤー参照を共通の取得元一覧へ集めない。
+`src/effect-live-preview-input.ts`はEffect Live Previewの配置で使う映像・音声入力Bindingと、対応する公開パラメータの判定を定義する。
 
 `src/project/automation-graphs.ts`は、プロジェクト共通のAutomation Graphとレイヤーのローカル定義を評価用に組み合わせる。保存状態・Custom Node Graph Effect内部の定義は変更しない。名前参照はローカルを優先し、ID参照には両方の候補を残す。Timeline subsystemへは組み合わせた定義だけを渡し、プロジェクトへの依存を持ち込まない。
 
@@ -18,4 +18,4 @@ Glitch Studioドメイン内で共通の型や処理などを置く
 
 Workerに送る `RendererProjectState` は両方の登録一覧を持つ。定義を編集して利用側の配線も変わる場合は、登録と利用側の変更を同じ `applyRendererProjectChanges` の差分列に含める。インライン定義の編集は、所有するノード・登録定義・Timelineレイヤーの置換で伝える。
 
-`collectCustomNodeGraphEffectResources` は、ルートから未接続ノードも含めてインライン定義・登録参照をたどり、参照先の登録、Asset、Playerを含む独立したスナップショットを返す。取り込み時は第3引数で種類と旧IDから新IDを返す関数を渡す。Playerの素材参照や音声入力も同じ割り当てで更新され、ノードIDと出力ポートIDは保持される。Web書き出しの `PortableCustomNodeGraphEffect` も参照先のCustom Shader Effect・Custom Node Graph Effectを同梱する。
+`collectCustomNodeGraphEffectResources` は、ルートから未接続ノードも含めてインライン定義・登録参照をたどり、参照先の登録とAssetを含む独立したスナップショットを返す。取り込み時は第3引数で種類と旧IDから新IDを返す関数を渡す。ノードIDと出力ポートIDは保持される。Web書き出しの `PortableCustomNodeGraphEffect` も参照先のCustom Shader Effect・Custom Node Graph Effectを同梱する。

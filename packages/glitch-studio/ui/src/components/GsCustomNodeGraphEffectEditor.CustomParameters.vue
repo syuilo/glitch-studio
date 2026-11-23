@@ -88,6 +88,7 @@ function editValue(parameterId: string, event: ParamEdit) {
 		case 'anotherLayerAudio':
 		case 'timelineLayerPublicParameterReference': return;
 		case 'inputSource':
+			if (event.inputSource === 'previewInputImage' || event.inputSource === 'previewInputAudio') return;
 			if (event.inputSource === 'node' || event.inputSource === 'anotherLayerOutput' || event.inputSource === 'lowerLayerOutput' || event.inputSource === 'lowerLayerAudio' || event.inputSource === 'anotherLayerAudio' || event.inputSource === 'timelineLayerPublicParameterReference') return;
 			emit('edit', { kind: 'editCustomParameter', parameterId, edit: { kind: 'inputSource', inputSource: event.inputSource }, mergeKey: event.mergeKey });
 			return;

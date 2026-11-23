@@ -89,7 +89,7 @@ test('synchronizes shader definitions and reconciled placements atomically throu
 	layer.effectParamValues.amount = { inputSource: 'literal', value: 0.8 };
 	const inline = createInlineCustomNodeGraphEffectLayer(0);
 	inline.effectSource.customNodeGraphEffect = JSON.parse(JSON.stringify(customNodeGraphEffect.definition));
-	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [layer, inline] } });
+	f.manager.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [layer, inline] } });
 	await f.sync.flush();
 	const updated = structuredClone(customShaderEffect);
 	updated.definition.paramDefs.amount = { ...updated.definition.paramDefs.amount, dataType: { kind: 'vector' }, ui: { label: 'Amount', control: { controlType: 'vector' } }, defaultValue: [0.1, 0.2] };
@@ -165,7 +165,7 @@ test('synchronizes solo toggles and clearing through undo and redo', async t => 
 	f.manager.state.assets.value = [{ id: 'asset', name: 'Image', fileDataType: 'image/png', fileData: new Blob([], { type: 'image/png' }) }];
 	const child = createImageLayer('asset', 0);
 	child.isDisabled = true;
-	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [child] } });
+	f.manager.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [child] } });
 	await f.sync.flush();
 	assert.equal(f.replica.timelineScenes[0].layers[0].isSolo, false);
 	f.manager.commit('setTimelineLayerSolo', { sceneId: 'scene', layerId: child.id, isSolo: true });
@@ -198,7 +198,7 @@ test('synchronizes motion blur overrides through undo and redo without mutating 
 	assert.equal(child.forceDisableMotionBlur, false);
 	const group = { id: 'group', name: 'Group', layerType: 'group', layers: [child], isDisabled: false,
 		forceDisableMotionBlur: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
-	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [child] } });
+	f.manager.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [child] } });
 	group.id = f.manager.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: [child.id], containerType: 'group', name: group.name }).layerId;
 	await f.sync.flush();
 	for (const layerId of [child.id, group.id]) {
@@ -280,7 +280,7 @@ test('synchronizes visibility for every layer type through undo and redo with sc
 		{ ...createEffectTimelineLayer({ ...definition, effectSource: { type: 'nativeEffect', id: 'testStructArray' } }, 100), id: base.id },
 	];
 	const { sceneId: otherSceneId } = f.manager.commit('createTimelineScene', { name: 'Other' });
-	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: otherSceneId, layers: [layers[0]] } });
+	f.manager.commit('insertImportedAssets', { assets: [], timeline: { sceneId: otherSceneId, layers: [layers[0]] } });
 	await f.sync.flush();
 	for (const original of layers) {
 		f.manager.state.timelineScenes.value[0].layers = [structuredClone(original)];
@@ -329,13 +329,13 @@ test('coalesces structural changes without replaying obsolete node updates', asy
 test('absorbs child edits into newly added scenes and layers', async t => {
 	const f = fixture(t);
 	const inline = { id: 'inline', name: 'Inline', resolution: { mode: 'auto', scale: 1 }, layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: structuredClone(f.replica.customNodeGraphEffects[0].definition) }, clips: [], effectParamValues: {}, compositingParamValues: {}, automationGraphs: [] };
-	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [inline] } });
+	f.manager.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [inline] } });
 	f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ sceneId: 'scene', layerId: 'inline', nodeId: 'node-0', paramPath: f.target.paramPath }), source: { inputSource: 'literal', value: 0.3 } });
 	await f.sync.flush();
 	assert.deepEqual(f.batches.at(-1).map(change => change.type), ['layer', 'layerOrder']);
 	assert.equal(f.replica.timelineScenes[0].layers[0].effectSource.customNodeGraphEffect.nodes[0].params.buzzs.value[0].binding.value.x.value, 0.3);
 	const { sceneId: childSceneId } = f.manager.commit('createTimelineScene', { name: 'Child' });
-	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: childSceneId, layers: [inline] } });
+	f.manager.commit('insertImportedAssets', { assets: [], timeline: { sceneId: childSceneId, layers: [inline] } });
 	await f.sync.flush();
 	assert.deepEqual(f.batches.at(-1).map(change => change.type), ['scene']);
 	assert.equal(f.replica.timelineScenes[1].layers.length, 1);
@@ -355,7 +355,7 @@ const group = (id, layers = []) => ({ id, name: id, layerType: 'group', layers, 
 test('retains inline edit metadata across reparenting and restores edited deleted groups on undo', async t => {
 	const f = fixture(t);
 	const inline = { ...createInlineCustomNodeGraphEffectLayer(0), id: 'inline', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: structuredClone(f.replica.customNodeGraphEffects[0].definition) } };
-	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [group('group', [inline])] } });
+	f.manager.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [group('group', [inline])] } });
 	await f.sync.flush();
 	const edit = value => f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ sceneId: 'scene', layerId: 'inline', nodeId: 'node-0', paramPath: f.target.paramPath }), source: { inputSource: 'literal', value: value } });
 	edit(0.4);
@@ -387,7 +387,7 @@ test('sends each layer once without nested snapshots when moving a deep group', 
 	const f = fixture(t);
 	let root = { ...createEffectTimelineLayer({ ...definition, effectSource: { type: 'nativeEffect', id: 'testStructArray' } }, 1000), id: 'effect' };
 	for (let index = 0; index < 8; index++) root = group('group-' + index, [root]);
-	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [root] } });
+	f.manager.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [root] } });
 	await f.sync.flush();
 	const before = structuredClone(f.replica);
 	f.manager.commit('moveTimelineContainerInTime', { sceneId: 'scene', layerId: root.id, deltaMs: 100 });
@@ -424,7 +424,7 @@ test('retains layer edit kinds through merged history and simultaneous inline ed
 	const customNodeGraphEffect = structuredClone(f.replica.customNodeGraphEffects[0]);
 	customNodeGraphEffect.definition.paramDefs = { amount: { nameForReference: 'amount', dataType: { kind: 'scalar' },
 		ui: { label: 'Amount', control: { controlType: 'number' } }, canNode: false, defaultValue: 1 } };
-	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [{ id: 'inline', name: 'Inline', resolution: { mode: 'auto', scale: 1 }, layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: customNodeGraphEffect.definition }, clips: [], effectParamValues: {}, compositingParamValues: {}, automationGraphs: [] }] } });
+	f.manager.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [{ id: 'inline', name: 'Inline', resolution: { mode: 'auto', scale: 1 }, layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: customNodeGraphEffect.definition }, clips: [], effectParamValues: {}, compositingParamValues: {}, automationGraphs: [] }] } });
 	await f.sync.flush();
 	const target = { sceneId: 'scene', layerId: 'inline', target: 'effect', paramPath: ['amount'] };
 	const edit = value => f.manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ ...target }), source: { inputSource: 'literal', value: value } }, 'arguments');
@@ -549,8 +549,8 @@ test('synchronizes camera layer edits and undo without replacing other layers', 
 	const f = fixture(t);
 	const camera = createCameraTimelineLayer(0);
 	const image = createInlineCustomNodeGraphEffectLayer(0);
-	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [image] } });
-	f.manager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [camera] } });
+	f.manager.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [image] } });
+	f.manager.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [camera] } });
 	await f.sync.flush();
 	const originalImage = f.replica.timelineScenes[0].layers.find(layer => layer.id === image.id);
 	const target = { sceneId: 'scene', layerId: camera.id, target: 'camera' };

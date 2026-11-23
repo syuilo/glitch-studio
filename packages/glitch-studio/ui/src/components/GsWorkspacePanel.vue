@@ -65,7 +65,7 @@
 					<template v-else><i class="ti ti-chevron-left"></i></template>
 				</template>
 			</button>
-			<span :class="$style.title"><i :class="workspacePanelDefinitions[panel.contentType].icon" style="margin-inline-end: 0.5em;"></i>{{ workspacePanelDefinitions[panel.contentType].label }}</span>
+			<span :class="$style.title"><i :class="definition.icon" style="margin-inline-end: 0.5em;"></i>{{ definition.label }}</span>
 			<button :class="$style.popoutButton" class="_button" data-test-workspace-panel-popout @click="popout"><i class="ti ti-external-link"></i></button>
 			<div :class="$style.grabber" data-test-workspace-panel-grabber draggable="true" @dragstart.stop="onDragstart">
 				<svg viewBox="0 0 16 16" version="1.1" :class="$style.grabberSvg">
@@ -75,9 +75,9 @@
 			<button :class="$style.menu" class="_button" @click.stop="showSettingsMenu"><i class="ti ti-dots"></i></button>
 		</header>
 		<div v-if="!collapsed" ref="body" :class="$style.body">
-			<GsDetachableView ref="detachableView" :title="workspacePanelDefinitions[panel.contentType].label">
+			<GsDetachableView ref="detachableView" :title="definition.label">
 				<component
-					:is="workspacePanelDefinitions[panel.contentType].component"
+					:is="definition.component"
 					:panel="panel"
 				/>
 			</GsDetachableView>
@@ -110,6 +110,8 @@ const emit = defineEmits<{
 const body = useTemplateRef('body');
 const detachableView = useTemplateRef('detachableView');
 
+// 保存されたワークスペースから廃止されたパネルを開いても、ほかのパネルを使えるようにする。
+const definition = computed(() => workspacePanelDefinitions[props.panel.contentType] ?? workspacePanelDefinitions.blank);
 const parent = computed(() => findWorkspaceParent(preferences.r.workspaceDefinition.value, props.panel.id));
 const canCollapse = computed(() => parent.value?.type === 'divider');
 const stackingDirection = computed(() => parent.value?.type === 'divider' ? parent.value.direction : 'vertical');

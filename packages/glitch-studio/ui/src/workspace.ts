@@ -15,7 +15,6 @@ import XAudioWaveform from '@/components/GsWorkspacePanel.AudioWaveform.vue';
 import XStats from '@/components/GsWorkspacePanel.Stats.vue';
 import XCommandLog from '@/components/GsWorkspacePanel.CommandLog.vue';
 import XScripting from '@/components/GsWorkspacePanel.Scripting.vue';
-import XPlayers from '@/components/GsWorkspacePanel.Players.vue';
 import XTimeline from '@/components/GsWorkspacePanel.Timeline.vue';
 import XAssets from '@/components/GsWorkspacePanel.Assets.vue';
 import XAutomationGraphs from '@/components/GsWorkspacePanel.AutomationGraphs.vue';
@@ -32,7 +31,6 @@ const panelDefinitions = {
 	waveformHorizontal: { label: i18n.ts._Workspace.WaveformX, icon: 'ti ti-chart-column', component: XWaveform },
 	waveformVertical: { label: i18n.ts._Workspace.WaveformY, icon: 'ti ti-chart-column', component: XWaveform },
 	preview: { label: i18n.ts.Preview, icon: 'ti ti-device-desktop', component: XPreview },
-	players: { label: i18n.ts.Players, icon: 'ti ti-player-play', component: XPlayers },
 	customNodeGraphEffectEditor: { label: i18n.ts._Workspace.CustomNodeGraphEffectEditor, icon: 'ti ti-binary-tree-2', component: XCustomNodeGraphEffectEditor },
 	stats: { label: i18n.ts._Workspace.Stats, icon: 'ti ti-activity', component: XStats },
 	commandLog: { label: i18n.ts._Workspace.CommandLog, icon: 'ti ti-logs', component: XCommandLog },
@@ -111,7 +109,7 @@ export function getElementMenu(element: WorkspaceElement) {
 				type: 'tabs',
 				direction: 'horizontal',
 				children: [{
-					name: target.type === 'panel' ? workspacePanelDefinitions[target.contentType].label : 'Tab 1',
+					name: target.type === 'panel' ? (workspacePanelDefinitions[target.contentType] ?? workspacePanelDefinitions.blank).label : 'Tab 1',
 					element: target,
 				}],
 			};

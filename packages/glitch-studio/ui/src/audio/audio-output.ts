@@ -26,8 +26,8 @@ export class AudioOutput {
 
 	public get outputLevels() { return this.getLevels(projectAudioSourceId); }
 
-	// Playerの知識を持たない接続口。将来は音声グラフの出力AudioNodeも渡せる。
-	// prepare(context)の完了後に呼ぶ。接続中にawaitせず、削除済みPlayerの再接続を防ぐ。
+	// 任意のAudioNodeからモニター用のPCMを取得する。
+	// prepare(context)の完了後に呼ぶ。接続中にawaitせず、解放済みの入力の再接続を防ぐ。
 	public captureSource(id: AudioSourceId, source: AudioNode, handlers: { attach: (port: MessagePort) => void; reset: () => void; running?: (running: boolean) => void }): AudioCapture {
 		const context = source.context as AudioContext;
 		const capture = new AudioWorkletNode(context, 'glitch-audio-capture', {
@@ -142,7 +142,7 @@ export class AudioOutput {
 
 	private ensureOutput(context: AudioContext) {
 		if (!this.output) {
-			// 各Playerの音量調整後を加算するプロジェクト出力。モノラルは左右へ複製する。
+			// 全試聴音が通るプロジェクト出力。モノラルは左右へ複製する。
 			this.output = new GainNode(context, { channelCount: 2, channelCountMode: 'explicit', channelInterpretation: 'speakers' });
 			// 解析はoutputから分岐する。試聴音量はスピーカーへ向かう経路だけに適用する。
 			this.previewGain = new GainNode(context, { gain: this.previewVolume.value });

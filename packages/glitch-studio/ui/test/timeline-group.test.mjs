@@ -65,7 +65,7 @@ function fixture(t, layers, inspectMedia = () => ({ durationMs: 5000, hasAudio: 
 }
 
 function observeValidation(f) {
-	const validation = new ProjectRenderValidation({ ...f.state, players: { value: [] }, resolution: { value: { width: 16, height: 16 } },
+	const validation = new ProjectRenderValidation({ ...f.state, resolution: { value: { width: 16, height: 16 } },
 		timelineFps: { value: 60 }, timelineMotionBlur: { value: { enabled: false, shutterAngle: 180, samples: 0 } } }, {});
 	validation.reset();
 	f.history.onChange(changes => validation.update(changes));

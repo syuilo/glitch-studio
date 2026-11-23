@@ -339,15 +339,15 @@ test('updates incompatible arguments on the Timeline layer that owns an inline d
 });
 
 // 【Asset 削除は登録・レイヤー所有の両方でインライン定義の末端まで到達する】
-// 参照の残った画像ノードはプロジェクト全体の検証を止める。同じIDのPlayerと別素材を残し、Undo/Redoも各配置へ届ける。
+// 参照の残った画像ノードはプロジェクト全体の検証を止める。別素材を残し、Undo/Redoも各配置へ届ける。
 test('clears nested node asset settings across graph owners and restores them on undo', async t => {
 	const imageAsset = id => ({ id, name: id, fileData: new Blob(), fileDataType: 'image/png', width: 2, height: 2, isExternalReference: false, sourceFilePath: null, thumbnailSequence: null });
 	const image = (id, assetId) => ({ id, effectSource: { type: 'nativeEffect', id: 'image' }, params: {}, staticSettings: { image: assetId } });
 	const nested = inlineGraph([{ id: 'inner', params: {}, effectSource: inlineGraph([
-		image('removed', 'photo'), image('kept', 'other'), { id: 'video', effectSource: { type: 'nativeEffect', id: 'video' }, params: {}, staticSettings: { player: 'photo' } },
+		image('removed', 'photo'), image('kept', 'other'),
 	]) }]);
 	const manager = new ProjectContext(createTestProject({
-		timelineScenes: [scene()], assets: [imageAsset('photo'), imageAsset('other')], players: [{ id: 'photo', name: 'Player', sourceType: null, assetId: null }],
+		timelineScenes: [scene()], assets: [imageAsset('photo'), imageAsset('other')],
 		customNodeGraphEffects: [{ id: 'parent', name: 'Parent', definition: testGraph({ nodes: [
 			image('direct', 'photo'), { id: 'nested', params: {}, effectSource: nested },
 		] }) }],
@@ -360,7 +360,7 @@ test('clears nested node asset settings across graph owners and restores them on
 		assert.equal(parentNodes[0].staticSettings.image, expected);
 		for (const source of [parentNodes[1].effectSource, layerSource]) {
 			const nodes = source.customNodeGraphEffect.nodes[0].effectSource.customNodeGraphEffect.nodes;
-			assert.deepEqual(nodes.map(node => node.staticSettings), [{ image: expected }, { image: 'other' }, { player: 'photo' }]);
+			assert.deepEqual(nodes.map(node => node.staticSettings), [{ image: expected }, { image: 'other' }]);
 		}
 		assert.deepEqual(manager.state.assets.value.map(asset => asset.id), expected == null ? ['other'] : ['photo', 'other']);
 		await checkRenderer();
@@ -427,7 +427,7 @@ test('round-trips registered shader nodes with their dependency and editor metad
 	const project = manager.state;
 	const entry = project.customNodeGraphEffects.value[0];
 	const file = collectCustomNodeGraphEffectFile({ gsVersion: '1.0.0', name: entry.name, customNodeGraphEffect: entry.definition, nodeMetadata: entry.nodeMetadata,
-		customNodeGraphEffects: project.customNodeGraphEffects.value, customShaderEffects: project.customShaderEffects.value, assets: [], players: [] }, nativeEffectDefinitions);
+		customNodeGraphEffects: project.customNodeGraphEffects.value, customShaderEffects: project.customShaderEffects.value, assets: [] }, nativeEffectDefinitions);
 	const imported = prepareCustomNodeGraphEffectImport(decodeCustomNodeGraphEffectFile(await encodeCustomNodeGraphEffectFile(file), '1.0.0'), nativeEffectDefinitions);
 	const receiver = new ProjectContext(createTestProject()).stateManager;
 	receiver.commit('importCustomNodeGraphEffect', imported);

@@ -26,7 +26,7 @@ type ParameterDefaultValueMap = {
 	sizeReference: SizeReference;
 	wrapMode: WrapMode;
 	// 選択した取得元の形式と参照の解決は利用ドメインが所有する。
-	audioSource: Record<string, Cloneable> | null;
+	audioSource: null;
 	any: [number, number, number, number] | null;
 };
 

@@ -5,7 +5,6 @@ import { importMediaFiles } from './open-media-file.ts';
 import type { progress } from '../ui.ts';
 import type { ProjectContext, ProjectAsset } from '../Project.ts';
 import type { ProjectSessionContext } from '../ProjectSessionContext.ts';
-import type { Player } from '@gs/shared/types.ts';
 import type { TimelineAssetPlacement } from './timeline-asset-layer.ts';
 import type { CustomNodeGraphEffectAssetPlacement } from './custom-node-graph-effect-asset-node.ts';
 import { i18n } from '@/i18n.ts';
@@ -19,9 +18,9 @@ export async function importAssetsAndRevealPanel(projectSession: ProjectSessionC
 	}
 }
 
-/** ファイル選択と全体ドロップで同じ取り込み・Player作成・Undo単位を使う。 */
+/** ファイル選択と全体ドロップで同じ取り込み・Undo単位を使う。 */
 export async function importAssets(destination: ProjectContext | (() => Promise<ProjectContext | null>), files?: readonly File[],
-	preparePlacement?: (assets: ProjectAsset[], players: Player[], dialog: ReturnType<typeof progress>) => AssetImportPlacement | null | Promise<AssetImportPlacement | null>): Promise<string[]> {
+	preparePlacement?: (assets: ProjectAsset[], dialog: ReturnType<typeof progress>) => AssetImportPlacement | null | Promise<AssetImportPlacement | null>): Promise<string[]> {
 	if (typeof destination !== 'function' && destination.isDisposed) return [];
 	const selected = await selectMediaFiles({ files, multiple: true, allowAnyFile: true });
 	if (selected == null || selected.length === 0) return [];
@@ -39,7 +38,6 @@ export async function importAssets(destination: ProjectContext | (() => Promise<
 				const target = typeof destination === 'function' ? await destination() : destination;
 				if (target == null || target.isDisposed) return;
 				const assets: ProjectAsset[] = [];
-				const players: Player[] = [];
 				for (const result of imported) {
 					const id = genId();
 					assets.push({
@@ -54,19 +52,11 @@ export async function importAssets(destination: ProjectContext | (() => Promise<
 						thumbnailSequence: result.thumbnailSequence,
 						hash: result.hash,
 					});
-					if (result.type.startsWith('audio/') || result.type.startsWith('video/')) {
-						players.push({
-							id: genId(),
-							name: result.name,
-							sourceType: 'asset',
-							assetId: id,
-						});
-					}
 				}
-				const placement = await preparePlacement?.(assets, players, dialog) ?? {};
+				const placement = await preparePlacement?.(assets, dialog) ?? {};
 				// ファイル読み込みや配置準備の間に終了したプロジェクトへ、素材と履歴を追加しない。
 				if (target.isDisposed) return;
-				target.stateManager.commit('insertImportedAssets', { assets, players, ...placement });
+				target.stateManager.commit('insertImportedAssets', { assets, ...placement });
 				// 反映できたIDだけを返し、中止時に呼び出し元がパネル表示などを続行しないようにする。
 				importedAssetIds = assets.map(asset => asset.id);
 			},

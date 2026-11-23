@@ -99,9 +99,7 @@ test('reanalyzes waveform viewports at native detail on WebGPU and CPU displays'
 // 集計・描画pipelineの切り替え漏れや、同じ所有者で通常経路へ戻ったときの古い結果も検出する。
 test('preserves image analysis across direct and partial accumulation boundaries on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/image-analysis-accumulation-gpu.ts', 10));
 
-// 【複数VideoノードでPlayerの正規化画像を共有し、更新・切断・破棄でも正しい画素を保つ】
 // GPU資源の借用と更新はCPUのモックだけでは検証できず、コピー回数と実画素の両方を見る。
-test('shares normalized player images between Video nodes on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/player-video-textures-gpu.ts', 8));
 
 // 【半透明の広色域素材も、正しいlinear RGBの光量とalphaで読み込む】
 // 不透明のDisplay P3と半透明のsRGBが個別に通っても、デコード指定によって両者の組み合わせだけが暗くなり得る。
@@ -175,7 +173,7 @@ test('renders project Custom Shader Effects on WebGPU', { skip: !process.env.CHR
 
 // 【ライブプレビューの入口で準備中のフレームをスキップし、コンパイル後に実画素まで描画する】
 // Renderer.prepareをテスト側で呼ぶだけでは、Managerが準備を省略する不具合を検出できない。
-test('previews compiled Effects, shader edits and raw data channels', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/custom-shader-effect-gpu.ts', 8, 'runCustomShaderEffectLivePreview'));
+test('previews compiled Effects, shader edits, video input and raw data channels', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/custom-shader-effect-gpu.ts', 10, 'runCustomShaderEffectLivePreview'));
 
 // 【Timelineも同じManagerとGPUDeviceへ定義を更新し、同一時刻の旧キャッシュを使わない】
 // Layerの主出力を変更しても新しいpipelineへ解決し、更新後の画素が表示されることを確認する。

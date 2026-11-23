@@ -179,7 +179,7 @@
 		<GsButton iconOnly :title="i18n.ts.Random" icon="ti ti-dice-5" @click="() => changeValue(Math.floor(Math.random() * 16384))"/>
 	</div>
 	<div v-else-if="dataType.kind === 'audioSource'">
-		<GsSelect :modelValue="value?.playerId ?? null" :items="[{ label: i18n.ts.None, value: null }, ...stateManager.state.players.value.map(player => ({ label: player.name, value: player.id }))]" @update:modelValue="v => changeValue(v == null ? null : { type: 'player', playerId: v })"/>
+		<span>{{ i18n.ts.None }}</span>
 	</div>
 </div>
 </template>
@@ -199,13 +199,10 @@ import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import type { DataTypeUiControlDefinitionMap, DataTypeUiDefinition } from '@gs/shared/data-type/data-type-ui.ts';
 import type { LeafDataType } from '@gs/shared/data-type/data-type.ts';
-import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
 
-const projectSession = useProjectSession();
 
-const { stateManager } = projectSession.projectContext;
 
 const props = defineProps<{
 	// コンテナの子や配列操作は呼び出し元が扱い、このコントロールには末端の定義だけを渡す。

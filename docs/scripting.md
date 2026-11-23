@@ -58,7 +58,7 @@ Command:setCustomNodeGraphEffectNodeParameterSource({
 | Timelineの配置・階層・設定・キー | `moveTimelineLayerInTree`、`moveTimelineClips`、`setTimelineLayerName`、`setTimelineLayerMask`、`insertTimelineKeyframes` | [timeline.ts](../packages/glitch-studio/ui/src/commands/timeline.ts) |
 | Timelineの公開パラメータ | `createTimelineLayerPublicParameter`、`replaceTimelineLayerPublicParameterDefinition` | [timeline-parameters.ts](../packages/glitch-studio/ui/src/commands/timeline-parameters.ts) |
 | Timelineのパラメータ値 | `setTimelineLayerParameterSource`、`replaceTimelineLayerParameterBinding` | [timeline-parameter-api.ts](../packages/glitch-studio/ui/src/commands/timeline-parameter-api.ts) |
-| 既存Asset・Player | `setAssetName`、`removeAsset`、`createPlayer`、`setPlayerSource` | [resources.ts](../packages/glitch-studio/ui/src/commands/resources.ts) |
+| 既存Asset | `setAssetName`、`removeAsset` | [resources.ts](../packages/glitch-studio/ui/src/commands/resources.ts) |
 | Custom Shader Effect | `createCustomShaderEffect`、`replaceCustomShaderEffectDefinition` | [custom-shader-effect.ts](../packages/glitch-studio/ui/src/commands/custom-shader-effect.ts) |
 
 固定値・式・接続は、各Commandが受け取る入力方式で明示します。例えば`setCustomNodeGraphEffectNodeParameterSource`は入力元を設定して既存の加工式を保持し、`replaceCustomNodeGraphEffectNodeParameterBinding`は加工式を含めたBinding全体を置き換えます。`parameterPath`は配列で指定し、配列要素のパスにはインデックスではなく要素IDを使います。
@@ -116,7 +116,6 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 | `Query:listTimelineClips(target)` | Layer参照 | Clip一覧。コンテナLayerの場合は空配列 |
 | `Query:getTimelineClip(target)` | Clip参照 | Clipの保存内容 |
 | `Query:listAssets()` / `Query:getAsset(target)` | 一覧は引数なし／Asset参照 | 素材の名前・寸法・ファイル種別などのメタデータ。バイナリ・サムネイルは含まない |
-| `Query:listPlayers()` / `Query:getPlayer(target)` | 一覧は引数なし／Player参照 | Playerの保存内容 |
 | `Query:listEffects()` / `Query:getEffect(target)` | 一覧は引数なし／Effect参照 | Native Effect と登録済みの Custom Shader Effect・Custom Node Graph Effect を列挙する。各項目の `target` からパラメータ・静的設定・出力を取得できる |
 | `Query:listProjectAutomationGraphs()` / `Query:getProjectAutomationGraph(target)` | 一覧は引数なし／Automation Graph参照 | ProjectのAutomation Graph |
 | `Query:listCustomShaderEffects()` / `Query:getCustomShaderEffect(target)` | 一覧は引数なし／Custom Shader Effect参照 | どちらも入力された概要を文字列の `summary` で返す。取得では保存された定義全体を返す |
@@ -131,7 +130,7 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 | Scene | `{ sceneId: "..." }` |
 | Layer | `{ sceneId: "...", layerId: "..." }` |
 | Clip | `{ sceneId: "...", layerId: "...", clipId: "..." }` |
-| Asset / Player / Effect | `{ assetId: "..." }` / `{ playerId: "..." }` / `{ effectSource: { type: "nativeEffect", id: "fill" } }` など |
+| Asset / Effect | `{ assetId: "..." }` / `{ effectSource: { type: "nativeEffect", id: "fill" } }` など |
 | ProjectのAutomation Graph | `{ automationGraphId: "..." }` |
 | Custom Shader Effect | `{ customShaderEffectId: "..." }` |
 

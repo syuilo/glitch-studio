@@ -107,8 +107,7 @@ const appBundle = await build({
 				contents: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/.test(args.path)
 					? `import fill from '@gs/subsystems_effect_native-effects/fx/fill/_def_.ts';
 						import image from '@gs/subsystems_effect_native-effects/fx/image/_def_.ts';
-						import video from '@gs/subsystems_effect_native-effects/fx/video/_def_.ts';
-						export const nativeEffectDefinitions = { fill, image, video };`
+						export const nativeEffectDefinitions = { fill, image };`
 					: args.path.endsWith('preferences.ts') ? `
 						import { reactive, toRefs } from 'vue';
 						const settings = reactive({ forceTypeSafety: false, enable32bitDataTextures: false, animatedBgInPreview: false, effectRenderTiling: { mode: 'auto' },
@@ -159,6 +158,7 @@ const appBundle = await build({
 						startEffectLivePreviewRenderLoop(effectSource, params) { this.lifecycle.push('start'); this.livePreviewPlacement = deepClone({ effectSource, params }); }
 						updateEffectLivePreviewParamValues(params) { this.livePreviewPlacement.params = deepClone(params); }
 						stopRenderLoop() { this.lifecycle.push('stop'); }
+						setPreviewInput() {}
 						renderTimelineAt(time) { this.renders.push(time); }
 						async setHighResolutionImageAnalysis(enabled, settings) {
 							this.highResolutionAnalysisRequests.push(deepClone({ enabled, settings }));
@@ -529,7 +529,7 @@ function project(overrides = {}) {
 		exportSettings: null,
 		timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
 		gsVersion: '2.0.0-alpha.2', name: 'Example', description: 'First line\n日本語の説明', author: 'Author',
-		assets: [], generatedSpeech: [], players: [], customNodeGraphEffects: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }], resolution: { width: 640, height: 480 },
+		assets: [], generatedSpeech: [], customNodeGraphEffects: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }], resolution: { width: 640, height: 480 },
 		...overrides,
 		assets: (overrides.assets ?? []).map(asset => ({ fileDataType: asset.fileData?.type || (asset.id === 'audio' ? 'audio/wav' : 'image/png'), ...asset })),
 	};
@@ -661,11 +661,11 @@ test('round-trips nested solo flags independently of normal layer visibility', a
 });
 
 for (const [label, fileDataType, isExternalReference] of [
-	['embedded image', 'image/png', false], ['external image', 'image/png', true], ['external video', 'video/mp4', true],
+	['embedded image', 'image/png', false], ['external image', 'image/png', true],
 ]) {
 	// 【素材とノードを同じCommandで取り込んでも、素材準備前にノード差分を旧エンジンへ送らない】
 	// ProjectSessionContext・Command・RendererProjectSynchronizerは実コードを通す。遅い素材参照解決の間にも
-	// 編集を続け、最新の寸法・Player・ノード設定を両プレビューの再生成へ一緒に渡す必要がある。
+	// 編集を続け、最新の寸法・ノード設定を両プレビューの再生成へ一緒に渡す必要がある。
 	test(`rebuilds previews with matching assets and nodes after importing an ${label}`, async t => {
 		const window = setup(t);
 		const { projectSession, createCustomNodeGraphEffectAssetNode } = evaluateSession(project({ customNodeGraphEffects: [{ id: 'customNodeGraphEffect', name: 'Custom Node Graph Effect', definition: testGraph({ customParameterValues: {}, nodes: [] }) }] }));
@@ -676,8 +676,7 @@ for (const [label, fileDataType, isExternalReference] of [
 		window.desktop = { resolveExternalAsset: () => gate.promise };
 		const asset = { id: 'imported', name: 'Imported', width: 1920, height: 1080, fileDataType,
 																		fileData: isExternalReference ? source : new Blob(['image'], { type: fileDataType }), sourceFilePath: 'C:/assets/imported', isExternalReference };
-		const { node, player } = createCustomNodeGraphEffectAssetNode(asset, []);
-		const players = player == null ? [] : [player];
+		const node = createCustomNodeGraphEffectAssetNode(asset);
 		const manager = projectSession.projectContext.stateManager;
 		const controllers = [projectSession.effectLivePreviewManagerController, projectSession.timelineRendererManagerController];
 		for (const controller of controllers) {
@@ -690,15 +689,14 @@ for (const [label, fileDataType, isExternalReference] of [
 				if (!isExternalReference) await gate.promise;
 				if (generation !== controller.generation) return;
 				const importedNode = snapshot.dynamicOptions.customNodeGraphEffects[0].definition.nodes[0];
-				const assetId = importedNode.effectSource.id === 'image' ? importedNode.staticSettings.image
-					: projectSession.projectContext.stateManager.state.players.value.find(player => player.id === importedNode.staticSettings.player).assetId;
+				const assetId = importedNode.staticSettings.image;
 				const referencedAsset = snapshot.resources.assets.find(asset => asset.id === assetId);
 				assert.deepEqual([referencedAsset.width, referencedAsset.height], [1920, 1080]);
 				assert.equal(importedNode.resolution.scale, 0.5);
 				await initialize(snapshot);
 			};
 		}
-		manager.commit('insertImportedAssets', { assets: [asset], players, customNodeGraphEffect: { target: { customNodeGraphEffectId: 'customNodeGraphEffect' }, nodes: [node] } });
+		manager.commit('insertImportedAssets', { assets: [asset], customNodeGraphEffect: { target: { customNodeGraphEffectId: 'customNodeGraphEffect' }, nodes: [node] } });
 		assert.equal(projectSession.renderEngine.canRender.value, false);
 		assert.ok(controllers.every(controller => controller.isReady.value === false));
 		manager.commit('setCustomNodeGraphEffectNodeResolution', { target: nodeTarget({ customNodeGraphEffectId: 'customNodeGraphEffect', nodeId: node.id }), resolution: { mode: 'auto', scale: 0.5 } });
@@ -796,10 +794,10 @@ test('ignores obsolete asset preparation after undo and rebuilds the latest stat
 	window.desktop = { resolveExternalAsset: () => gate.promise };
 	const asset = { id: 'imported', name: 'Imported', width: 640, height: 480, fileDataType: 'image/png',
 																	fileData: source, sourceFilePath: 'C:/assets/imported', isExternalReference: true };
-	const { node } = createCustomNodeGraphEffectAssetNode(asset, []);
+	const node = createCustomNodeGraphEffectAssetNode(asset);
 	const manager = projectSession.projectContext.stateManager;
 	const controllers = [projectSession.effectLivePreviewManagerController, projectSession.timelineRendererManagerController];
-	manager.commit('insertImportedAssets', { assets: [asset], players: [], customNodeGraphEffect: { target: { customNodeGraphEffectId: 'customNodeGraphEffect' }, nodes: [node] } });
+	manager.commit('insertImportedAssets', { assets: [asset], customNodeGraphEffect: { target: { customNodeGraphEffectId: 'customNodeGraphEffect' }, nodes: [node] } });
 	await setImmediate();
 	manager.undo();
 	await setImmediate();
@@ -888,7 +886,7 @@ test('recreates previews after switching away from invalid customNodeGraphEffect
 	setup(t);
 	const { projectSession } = evaluateSession(project({ customNodeGraphEffects: [{ id: 'customNodeGraphEffect', definition: testGraph({ customParameterValues: {}, nodes: [], paramDefs: { "audio": { nameForReference: 'audio', dataType: { kind: 'audioSource' }, canNode: false, ui: { label: 'Audio', control: { controlType: 'audioSource' } }, defaultValue: null } } }) }] }));
 	await startActiveProjectSession(projectSession);
-	projectSession.previewPlayback.updateEffectLivePreviewParamValues({ type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' }, { audio: { inputSource: 'literal', value: { type: 'player', playerId: 'missing' } } });
+	projectSession.previewPlayback.updateEffectLivePreviewParamValues({ type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' }, { audio: { inputSource: 'previewInputImage' } });
 	assert.ok(projectSession.renderValidation.diagnostics.value.length > 0);
 	assert.equal(projectSession.timelineRendererManagerController.isReady.value, false);
 	projectSession.previewPlayback.showTimeline();
@@ -1171,7 +1169,7 @@ test('leaves Effect Live Preview when an imported Custom Node Graph Effect is un
 	await startActiveProjectSession(projectSession);
 	const manager = projectSession.projectContext.stateManager;
 	const customNodeGraphEffect = { id: 'imported', name: 'Imported Custom Node Graph Effect', definition: testGraph({ customParameterValues: {}, nodes: [], primaryInputParameter: null, primaryOutput: null, automationGraphs: [] }) };
-	manager.commit('importCustomNodeGraphEffect', { customNodeGraphEffect, customNodeGraphEffects: [], customShaderEffects: [], assets: [], players: [], unassignedPlayerNames: [] });
+	manager.commit('importCustomNodeGraphEffect', { customNodeGraphEffect, customNodeGraphEffects: [], customShaderEffects: [], assets: [] });
 	await setImmediate();
 	const customNodeGraphEffectLivePreview = projectSession.effectLivePreviewManagerController;
 	const timeline = projectSession.timelineRendererManagerController;
@@ -1916,6 +1914,43 @@ test('retains the source path when creating a project from an image', async t =>
 	const saved = decodeProjectFile(handle.bytes).assets[0];
 	assert.equal(saved.sourceFilePath, path);
 	assert.equal(await saved.fileData.text(), 'encoded image');
+});
+
+// 【音声を開いたら素材全長のTimelineクリップを作る】
+// Custom Node Graph Effectの自動生成を廃止しても、開いた直後から音声を再生できるようにする。
+test('creates a timeline clip instead of an effect when opening audio', async t => {
+	const window = setup(t);
+	const app = evaluate(appBundle);
+	const sampleRate = 8000;
+	const bytes = new Uint8Array(44 + sampleRate * 2);
+	const view = new DataView(bytes.buffer);
+	const text = (offset, value) => bytes.set(new TextEncoder().encode(value), offset);
+	text(0, 'RIFF'); view.setUint32(4, bytes.length - 8, true); text(8, 'WAVE'); text(12, 'fmt ');
+	view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+	view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true);
+	view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+	text(36, 'data'); view.setUint32(40, sampleRate * 2, true);
+	class MediaElement {
+		set src(_url) { queueMicrotask(() => this.onloadedmetadata?.()); }
+		removeAttribute() {}
+		load() {}
+	}
+	const createElement = window.document.createElement;
+	window.document.createElement = tag => tag === 'audio' ? new MediaElement() : createElement(tag);
+	const previousVideoElement = Object.getOwnPropertyDescriptor(globalThis, 'HTMLVideoElement');
+	globalThis.HTMLVideoElement = class {};
+	t.after(() => {
+		if (previousVideoElement != null) Object.defineProperty(globalThis, 'HTMLVideoElement', previousVideoElement);
+		else delete globalThis.HTMLVideoElement;
+	});
+	assert.equal(await app.newProjectFromImageOrVideo(new File([bytes], 'source.wav', { type: 'audio/wav' })), true);
+	const state = app.projectSession.projectContext.stateManager.state;
+	const [layer] = state.timelineScenes.value[0].layers;
+	assert.equal(app.projectSession.previewPlayback.state.value.mode, 'timeline');
+	assert.deepEqual(state.customNodeGraphEffects.value, []);
+	assert.equal(layer.layerType, 'audio');
+	assert.equal(layer.clips[0].assetId, state.assets.value[0].id);
+	assert.equal(layer.clips[0].durationMs, 1000);
 });
 
 // 【OSから開いた画像は新規プロジェクトになり、保存時に素材原本を上書きしない】
@@ -2717,7 +2752,7 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	projectSession.previewPlayback.seekTimeline(500);
 	assert.equal(projectSession.activePreviewRenderer.value, timeline);
 	timeline.renders.length = 0;
-	projectSession.projectContext.stateManager.commit('insertImportedAssets', { assets: [], players: [], timeline: { sceneId: 'scene', layers: [{ id: 'layer', layerType: 'effect', resolution: { mode: 'auto', scale: 1 }, effectSource: { type: 'customNodeGraphEffectReference', id: 'first' }, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], effectParamValues: {}, compositingParamValues: {}, automationGraphs: [] }] } });
+	projectSession.projectContext.stateManager.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [{ id: 'layer', layerType: 'effect', resolution: { mode: 'auto', scale: 1 }, effectSource: { type: 'customNodeGraphEffectReference', id: 'first' }, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], effectParamValues: {}, compositingParamValues: {}, automationGraphs: [] }] } });
 	await nextTick();
 	await setImmediate();
 	assert.equal('timelineScenes' in customNodeGraphEffectLivePreview.options, false);

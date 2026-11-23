@@ -3,26 +3,22 @@ import { getFileSourceError } from '@gs/shared/file-source.ts';
 import type { StaticSettingDefinitions, StaticSettingValues } from '@gs/shared/static-setting.ts';
 import type { Asset } from '@gs/shared/types.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
-import type { VideoFrameTexture } from '@gs/shared/media/video-texture.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { EffectStaticResources } from './effect-instance.ts';
 
 export type EffectStaticResourceContext = {
 	assets: readonly Asset[];
 	assetTextures: ReadonlyMap<string, GPUTexture>;
-	getPlayerResolution?: (playerId: string) => Resolution | null;
-	getPlayerVideoTexture?: (playerId: string) => VideoFrameTexture | null;
 };
 
 /** 既定値補完済みの設定と保存済みメタデータから、GPUやフレームの到着を待たず原寸を求める。 */
 export function getEffectIntrinsicResolution(definition: Pick<EffectDefinition, 'staticSettingDefs' | 'intrinsicResolutionSetting'>,
-	values: StaticSettingValues, context: Pick<EffectStaticResourceContext, 'assets' | 'getPlayerResolution'>): Resolution | null {
+	values: StaticSettingValues, context: Pick<EffectStaticResourceContext, 'assets'>): Resolution | null {
 	const key = definition.intrinsicResolutionSetting;
 	if (key == null) return null;
 	const setting = definition.staticSettingDefs?.[key];
 	const value = values[key];
 	if (typeof value !== 'string' || setting == null) return null;
-	if (setting.dataType.kind === 'playerReference') return context.getPlayerResolution?.(value) ?? null;
 	if (setting.dataType.kind !== 'assetReference') return null;
 	const asset = context.assets.find(asset => asset.id === value);
 	if (asset == null) throw new Error(`Asset not found: ${value}`);
@@ -36,10 +32,6 @@ export function resolveEffectStaticResources<Definition extends { staticSettingD
 	return Object.fromEntries(Object.entries(definition.staticSettingDefs ?? {}).map(([key, setting]) => {
 		const value = values[key];
 		if (value == null) return [key, null];
-		if (setting.dataType.kind === 'playerReference') {
-			// 正規化画像の所有者から最新の画像を借りる。ノードごとには変換・破棄しない。
-			return [key, { getVideoTexture: () => context.getPlayerVideoTexture?.(value as string) ?? null }];
-		}
 		if (setting.dataType.kind !== 'assetReference') return [key, value];
 		const asset = context.assets.find(asset => asset.id === value);
 		if (asset == null || !matchesAssetReferenceMimeType(setting.dataType, asset.fileDataType)) throw new Error(`Asset not found or incompatible: ${value}`);

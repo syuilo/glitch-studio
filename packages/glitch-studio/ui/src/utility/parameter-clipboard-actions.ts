@@ -1,3 +1,4 @@
+import { isEffectLivePreviewMediaBinding, type EffectLivePreviewParameterBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { preferences } from '@/preferences.ts';
 import { findCustomNodeGraphEffectOwner } from './custom-node-graph-effect-target.ts';
@@ -89,7 +90,7 @@ export async function handlePreviewParameterClipboard(
 	effectSource: EffectLivePreviewSource,
 	requestedPath: ParamPath,
 	operation: 'copy' | 'paste',
-	readArgument: (id: string) => { binding: ValueParameterBinding | null; followsDefault: boolean },
+	readArgument: (id: string) => { binding: EffectLivePreviewParameterBinding | null; followsDefault: boolean },
 	isActive: () => boolean,
 	apply: (id: string, binding: ValueParameterBinding) => void,
 	clipboard: ClipboardTextAccess = clipboardText,
@@ -111,7 +112,7 @@ export async function handlePreviewParameterClipboard(
 		if (definition == null) throw new Error('Preview parameter not found');
 		const { binding, followsDefault } = readArgument(rootId);
 		const draft = { [rootId]: binding == null ? createDefaultParameterBinding(definition) : deepClone(binding) };
-		return { draft, parameter: resolveParameter<ValueParameterBinding>({ [rootId]: definition }, draft, path), followsDefault: binding == null || followsDefault };
+		return { draft, parameter: resolveParameter<EffectLivePreviewParameterBinding>({ [rootId]: definition }, draft, path), followsDefault: binding == null || followsDefault };
 	};
 
 	let initial;
@@ -124,6 +125,7 @@ export async function handlePreviewParameterClipboard(
 		localAutomationGraphIds: [],
 	};
 	if (operation === 'copy') {
+		if (isEffectLivePreviewMediaBinding(initial.parameter.value)) return;
 		await clipboard.writeText(JSON.stringify(createParameterClipboard(initial.parameter.def, initial.parameter.value, source)));
 		return;
 	}
@@ -135,7 +137,7 @@ export async function handlePreviewParameterClipboard(
 	if (data == null || !isActive() || context.isDisposed) return;
 	if (customNodeGraphEffectEntry != null && !state.customNodeGraphEffects.value.includes(customNodeGraphEffectEntry)) return;
 	if (customShaderEffectEntry != null && !state.customShaderEffects.value.includes(customShaderEffectEntry)) return;
-	let nextRoot: ValueParameterBinding;
+	let nextRoot: EffectLivePreviewParameterBinding;
 	try {
 		const current = resolve();
 		if (!areDataTypesEqual(originalType, current.parameter.def.dataType)) return;
@@ -147,5 +149,5 @@ export async function handlePreviewParameterClipboard(
 		current.parameter.setValue(binding as ValueParameterBinding);
 		nextRoot = current.draft[rootId];
 	} catch { return; }
-	apply(rootId, nextRoot);
+	if (!isEffectLivePreviewMediaBinding(nextRoot)) apply(rootId, nextRoot);
 }

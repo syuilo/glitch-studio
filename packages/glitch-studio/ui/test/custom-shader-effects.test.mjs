@@ -58,7 +58,7 @@ function usageFixture() {
 	definition.definition.paramDefs.amount = { nameForReference: 'amount', canNode: true, dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: 0.25 };
 	definition.definition.outputDefs.mask = { nameForReference: 'mask', label: 'Mask', dataType: { kind: 'scalar' } };
 	const customNodeGraphEffect = { id: 'customNodeGraphEffect', name: 'Custom Node Graph Effect', definition: testGraph({ nodes: [], outputDefs: { "out": { name: 'out', label: 'Out', dataType: { kind: 'scalar' } } }, primaryInputParameter: null, primaryOutput: null, customParameterValues: {}, automationGraphs: [] }) };
-	const state = { customShaderEffects: ref([definition]), customNodeGraphEffects: ref([customNodeGraphEffect]), timelineScenes: ref([{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }]), resolution: ref({ width: 16, height: 8 }), assets: ref([]), players: ref([]), timelineFps: ref(60), timelineMotionBlur: ref({ enabled: false, shutterAngle: 180, samples: 0 }) };
+	const state = { customShaderEffects: ref([definition]), customNodeGraphEffects: ref([customNodeGraphEffect]), timelineScenes: ref([{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }]), resolution: ref({ width: 16, height: 8 }), assets: ref([]), timelineFps: ref(60), timelineMotionBlur: ref({ enabled: false, shutterAngle: 180, samples: 0 }) };
 	const manager = new UndoRedo(state, COMMAND_DEFS);
 	manager.commit('createCustomNodeGraphEffectEffectNode', { customNodeGraphEffect: { customNodeGraphEffectId: 'customNodeGraphEffect' }, effectSource: customShaderEffectReference(definition.id) });
 	const layer = createEffectTimelineLayer(getEffectDefinitions(state).describe(customShaderEffectReference(definition.id)), 0);
@@ -185,7 +185,7 @@ test('preserves mismatched wires when a shader output is renamed', () => {
 test('includes registered shaders in disconnected and bypassed nodes when exporting', () => {
 	const { state, definition, customNodeGraphEffect } = usageFixture();
 	customNodeGraphEffect.nodes[0].isBypass = true;
-	const file = collectCustomNodeGraphEffectFile({ name: 'Test', gsVersion: '2.0.0', customNodeGraphEffect, customNodeGraphEffects: [], customShaderEffects: state.customShaderEffects.value, assets: [], players: [] }, {});
+	const file = collectCustomNodeGraphEffectFile({ name: 'Test', gsVersion: '2.0.0', customNodeGraphEffect, customNodeGraphEffects: [], customShaderEffects: state.customShaderEffects.value, assets: [] }, {});
 	assert.deepEqual(file.customShaderEffects.map(entry => entry.id), [definition.id]);
 });
 
@@ -257,12 +257,17 @@ test('previews the applied shader and edits local overrides from its panel', asy
 	});
 	f.find('data-test-custom-shader-effect-code').props['onUpdate:modelValue']('Private WGSL draft');
 	f.find('data-test-preview-custom-shader-effect').props.onClick();
-	f.find('data-test-custom-shader-effect-preview-parameters').props.onClick();
-	await nextTick();
+	await f.tab('preview');
 	const parameter = () => f.find('data-test-custom-shader-effect-preview-parameter', 'amount');
 	assert.deepEqual(started, [customShaderEffect.id]);
 	assert.deepEqual(parameter().props.paramValue, { inputSource: 'literal', value: 0.25 });
-	assert.equal(parameter().props.paramDef.canNode, false);
+	parameter().props.onEdit({ kind: 'inputSource', paramPath: ['amount'], inputSource: 'previewInputImage' });
+	assert.deepEqual(overrides.value, {});
+	const imageId = customShaderEffect.definition.primaryInputParameter;
+	const image = f.find('data-test-custom-shader-effect-preview-parameter', imageId);
+	image.props.onEdit({ kind: 'inputSource', paramPath: [imageId], inputSource: 'previewInputImage' });
+	assert.deepEqual(overrides.value, { [imageId]: { inputSource: 'previewInputImage' } });
+	image.props.onEdit({ kind: 'reset', paramPath: [imageId] });
 	parameter().props.onEdit({ kind: 'literal', paramPath: ['amount'], value: 0.75 });
 	await nextTick();
 	assert.deepEqual(overrides.value, { amount: { inputSource: 'literal', value: 0.75 } });
@@ -270,6 +275,7 @@ test('previews the applied shader and edits local overrides from its panel', asy
 	await nextTick();
 	assert.deepEqual(overrides.value, {});
 	assert.deepEqual(state.customShaderEffects.value[0], customShaderEffect);
+	await f.tab('code');
 	assert.equal(f.find('data-test-custom-shader-effect-code').props.modelValue, 'Private WGSL draft');
 });
 

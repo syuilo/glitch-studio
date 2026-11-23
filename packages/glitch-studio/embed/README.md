@@ -100,7 +100,7 @@ customNodeGraphEffectElement.restart();
 - DOMからの削除でObserver・イベント・Worker・GPUリソースを解放します。再接続時はcanvasを作り直し、時刻と公開値を保持して履歴をリセットします。同一Document内の同期的なDOM移動では維持します。
 - 一要素につき一Worker・一GPUDeviceです。GPU完了まで次のフレームを送らず、描画が遅い場合のキュー蓄積を防ぎます。
 - primary pointerの移動・押下を受け取り、`POINTER_POSITION`へ既存の等方座標規約で渡します。余白の位置も出力座標へ換算し、最後の位置を保持します。タッチのスクロールを妨げず、複数ポインター・筆圧・押下状態の新しい環境変数は追加しません。
-- Playerはファイル由来も含めて未接続です。Videoは透明、音声は未入力として既存の処理に渡します。Video Frameは同梱した動画Assetを独立して読み出せます。Timeline・音声出力・タイルレンダリング・パフォーマンス統計は含めません。
+- 音声入力は未接続です。Video Frameは同梱した動画Assetを読み出せます。Timeline・音声出力・タイルレンダリング・パフォーマンス統計は含めません。
 - Custom Node Graph Effect内の環境変数は`IS_EXPORT=false`、`END_TIME=Infinity`、`PROGRESS=0`です。
 
 ## 検証

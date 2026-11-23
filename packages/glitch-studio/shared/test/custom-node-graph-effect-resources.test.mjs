@@ -25,7 +25,7 @@ const nativeDefinitions = { 'shared-id': { ...definition, paramDefs: { tracks: a
 
 function resources() {
 	const audioNode = { ...node('native', nativeReference), params: {
-		tracks: literal([{ id: 'track', binding: literal({ audio: literal({ type: 'player', playerId: 'shared-id' }) }) }]),
+		tracks: literal([{ id: 'track', binding: literal({ audio: literal(null) }) }]),
 	} };
 	const child = graph([audioNode, node('shader', shaderReference)], 'shader');
 	const inner = graph([node('first', graphReference), node('second', graphReference)], 'second');
@@ -47,7 +47,6 @@ function resources() {
 		],
 		assets: ['shared-id', 'unused'].map(id => ({ id, name: id, width: 1, height: 1, fileDataType: 'image/png',
 			fileData: { url: 'blob:image', size: 1, error: null }, originalFilePath: '/source' })),
-		players: [{ id: 'shared-id', name: 'Player', sourceType: 'asset', assetId: 'shared-id', deviceId: 'private' }],
 	};
 }
 
@@ -56,7 +55,7 @@ function resources() {
 test('collects the transitive graph and asset dependencies into a detached snapshot', () => {
 	const input = resources();
 	const output = collectCustomNodeGraphEffectResources(input, nativeDefinitions);
-	for (const entries of [output.customShaderEffects, output.customNodeGraphEffects, output.assets, output.players]) {
+	for (const entries of [output.customShaderEffects, output.customNodeGraphEffects, output.assets]) {
 		assert.deepEqual(entries.map(entry => entry.id), ['shared-id']);
 	}
 	assert.deepEqual(output.customNodeGraphEffect, input.customNodeGraphEffect);
@@ -64,12 +63,11 @@ test('collects the transitive graph and asset dependencies into a detached snaps
 	assert.notEqual(output.nodeMetadata.inner.inlineCustomNodeGraphEffect, input.nodeMetadata.inner.inlineCustomNodeGraphEffect);
 	assert.deepEqual(output.customNodeGraphEffects[0].nodeMetadata, input.customNodeGraphEffects[0].nodeMetadata);
 	assert.equal(Object.hasOwn(output.assets[0], 'originalFilePath'), false);
-	assert.equal(Object.hasOwn(output.players[0], 'deviceId'), false);
 	assert.notEqual(output.assets[0].fileData, input.assets[0].fileData);
 	assert.notEqual(output.customNodeGraphEffect.nodes[1].effectSource.customShaderEffect, shader);
 });
 
-// 【種類ごとにIDを割り当てて、配置・既定値・Playerの素材参照を同時に再マップする】
+// 【種類ごとにIDを割り当てて、配置・既定値を同時に再マップする】
 // 同じ文字列をNative Effectやノード内部のIDにも使用できるため、単純な文字列置換では配線が壊れる。
 test('remaps each resource once by kind while preserving native references and local wiring', () => {
 	const input = resources();
@@ -79,7 +77,7 @@ test('remaps each resource once by kind while preserving native references and l
 		calls.push([kind, id]);
 		return 'new-' + kind;
 	});
-	assert.deepEqual(calls.sort(), ['asset', 'customNodeGraphEffect', 'customShaderEffect', 'player'].map(kind => [kind, 'shared-id']));
+	assert.deepEqual(calls.sort(), ['asset', 'customNodeGraphEffect', 'customShaderEffect'].map(kind => [kind, 'shared-id']));
 	const inner = output.customNodeGraphEffect.nodes[0].effectSource.customNodeGraphEffect;
 	assert.deepEqual(inner.nodes.map(node => node.effectSource.id), ['new-customNodeGraphEffect', 'new-customNodeGraphEffect']);
 	assert.deepEqual(inner.outputSources.color, { nodeId: 'second', outputPort: 'color' });
@@ -87,8 +85,7 @@ test('remaps each resource once by kind while preserving native references and l
 	assert.equal(child.id, 'new-customNodeGraphEffect');
 	assert.deepEqual(child.definition.nodes[0].effectSource, nativeReference);
 	assert.equal(child.definition.nodes[0].staticSettings.image, 'new-asset');
-	assert.equal(child.definition.nodes[0].params.tracks.value[0].binding.value.audio.value.playerId, 'new-player');
-	assert.equal(output.players[0].assetId, output.assets[0].id);
+	assert.equal(child.definition.nodes[0].params.tracks.value[0].binding.value.audio.value, null);
 	assert.equal(child.definition.nodes[1].effectSource.id, output.customShaderEffects[0].id);
 	assert.equal(output.customNodeGraphEffect.nodes[2].effectSource.id, 'new-customShaderEffect');
 	assert.equal(output.customShaderEffects[0].definition.staticSettingDefs.image.defaultValue, 'new-asset');
@@ -96,61 +93,37 @@ test('remaps each resource once by kind while preserving native references and l
 	assert.deepEqual(collectCustomNodeGraphEffectResources(output, nativeDefinitions), output);
 });
 
-// 【入れ子の音声既定値だけから参照されるPlayerを同梱し、取り込み先のIDへ変換する】
-// 配列の初期要素・追加時の要素・構造体フィールドの設定にはそれぞれ独立した既定値がある。
-// どれか一箇所だけに参照がある場合でも、いずれのPlayerも配置先で解決できるようにする。
-test('collects and remaps Players referenced only by nested parameter defaults', () => {
-	const input = resources();
-	const selection = playerId => ({ type: 'player', playerId });
-	input.customNodeGraphEffects[0].definition.paramDefs = {
-		tracks: {
-			...audioList,
-			defaultValue: [{ audio: selection('initial') }],
-			element: { defaultValue: { audio: selection('added') }, fields: { audio: { defaultValue: selection('field') } } },
-		},
-	};
-	for (const id of ['initial', 'added', 'field']) input.players.push({ id, name: id, sourceType: 'asset', assetId: 'shared-id' });
-	const original = structuredClone(input);
-	const output = collectCustomNodeGraphEffectResources(input, nativeDefinitions, (kind, id) => kind + '-' + id);
-	const tracks = output.customNodeGraphEffects[0].definition.paramDefs.tracks;
-	assert.deepEqual(tracks.defaultValue, [{ audio: selection('player-initial') }]);
-	assert.deepEqual(tracks.element.defaultValue, { audio: selection('player-added') });
-	assert.deepEqual(tracks.element.fields.audio.defaultValue, selection('player-field'));
-	assert.deepEqual(output.players.map(player => player.id).sort(), ['player-added', 'player-field', 'player-initial', 'player-shared-id']);
-	assert.deepEqual(input, original);
-});
 
-// 【設定による未選択とPlayer経由でのみ参照されるAssetを区別する】
+// 【明示的な未選択で素材の既定値を上書きする】
 // Native Effectの既定素材が配置側で明示的に解除されたときは、その素材を要求しない。
-test('honors null overrides and includes assets reached only through a Player', () => {
+test('honors null overrides and includes the other asset references', () => {
 	const input = resources();
-	const playerSetting = { dataType: { kind: 'playerReference' }, ui: { label: 'Player' }, defaultValue: 'shared-id' };
+	const pictureSetting = { ...assetSetting, defaultValue: 'shared-id' };
 	input.customNodeGraphEffect = graph([{ ...node('native', nativeReference), staticSettings: { image: null } }], 'native');
 	const definitions = { 'shared-id': { ...definition, staticSettingDefs: {
-		player: playerSetting, image: { ...assetSetting, defaultValue: 'missing' },
+		picture: pictureSetting, image: { ...assetSetting, defaultValue: 'missing' },
 	} } };
 	const output = collectCustomNodeGraphEffectResources(input, definitions);
-	assert.deepEqual(output.customNodeGraphEffect.nodes[0].staticSettings, { image: null, player: 'shared-id' });
+	assert.deepEqual(output.customNodeGraphEffect.nodes[0].staticSettings, { image: null, picture: 'shared-id' });
 	assert.deepEqual(output.assets.map(asset => asset.id), ['shared-id']);
 	input.assets = [];
 	assert.throws(() => collectCustomNodeGraphEffectResources(input, definitions), /Missing Asset: shared-id/);
 });
 
-// 【インライン定義のポートIDを保持し、既定のPlayer参照を取り込み先へ向ける】
+// 【インライン定義のポートIDを保持し、既定の素材参照を取り込み先へ向ける】
 // ポートには任意の文字列IDを使用できる。配線とレコードのキーを対応させたまま、素材の参照だけを更新する。
 test('preserves arbitrary inline port IDs and remaps defaults in embedded definitions', () => {
 	const input = resources();
 	const port = '__proto__';
-	const playerSetting = { dataType: { kind: 'playerReference' }, ui: { label: 'Player' }, defaultValue: 'shared-id' };
-	const inlineShader = { ...shader, outputDefs: { [port]: colorOutput }, primaryOutput: port, staticSettingDefs: { player: playerSetting } };
+	const pictureSetting = { ...assetSetting, defaultValue: 'shared-id' };
+	const inlineShader = { ...shader, outputDefs: { [port]: colorOutput }, primaryOutput: port, staticSettingDefs: { picture: pictureSetting } };
 	input.customNodeGraphEffect = { ...definition, nodes: [node('inline', { type: 'inlineCustomShaderEffect', customShaderEffect: inlineShader })],
 		outputSources: { color: { nodeId: 'inline', outputPort: port } } };
 	const output = collectCustomNodeGraphEffectResources(input, {}, (kind, id) => kind + '-' + id);
 	const embedded = output.customNodeGraphEffect.nodes[0].effectSource.customShaderEffect;
 	assert.equal(Object.hasOwn(embedded.outputDefs, port), true);
 	assert.equal(output.customNodeGraphEffect.outputSources.color.outputPort, port);
-	assert.equal(embedded.staticSettingDefs.player.defaultValue, output.players[0].id);
-	assert.equal(output.players[0].assetId, output.assets[0].id);
+	assert.equal(embedded.staticSettingDefs.picture.defaultValue, output.assets[0].id);
 	assert.deepEqual(output.customShaderEffects, []);
 });
 

@@ -39,7 +39,7 @@ instance.render(frame, commandEncoder);
 - Custom Node Graph Effect の `PUBLIC(name)` は自身の公開CPUパラメータを、`CUSTOM(name)` は自身の内部パラメータを、`GRAPH(name, x, wrap)` は自身の Automation Graph を参照する。内部値は参照されたフレーム内で一度評価する。入れ子のノードに渡す引数のBindingは親グラフに属する。Relay は初期化時に入力のポートへ解決する。
 - `time` と `endTime` は秒、`timeDelta` とキー・Automation Graphの時間軸はミリ秒。`endTime` 省略時は無限の再生区間とする。ポインターの位置・移動量は配置の基準領域の長辺を1とする座標で渡す。各ノードでは描画解像度の縦横比へ換算した値を描画と式評価で共有する。
 - 配置には基準寸法 `resolution`、全体倍率 `resolutionScale`、解像度指定 `resolutionSetting` を渡せる。ルートは既定でcontext、内部ノードはauto。autoは素材原寸、指定入力の最大画素数の寸法、親の順で選ぶ。上流の計画寸法には全体倍率が適用済みで、各配置では自身の倍率だけを掛ける。
-- `resources` には素材メタデータ、画像テクスチャ、Playerの寸法と現在画像の取得関数を渡す。Native Effect は初期化時に画像、ファイルの読み取り口、またはPlayerの取得関数を借用する。音声のリテラルは `resolveAudioSource(source, frame)` で、そのフレームを基準とする `AudioInput` に解決する。素材の選択や寸法を変えた場合は配置を再生成する。
+- `resources` に素材メタデータと画像テクスチャを渡す。Native Effectは初期化時に解決済みの画像やファイルの読み取り口を借用する。音声は配置側から通常の入力として`AudioInput`を渡す。素材の選択や寸法を変えた場合は配置を再生成する。
 
 ## フレームの準備と実行
 
@@ -51,6 +51,6 @@ device.queue.submit([commandEncoder.finish()]);
 ```
 
 - プレビューは `tryPrepare(frame)` がtrueのときに描画できる。同じフレームオブジェクトで再確認すると評価値を再利用し、新しいフレーム・リセット・破棄は前の準備を中断する。`preparationStatus` と `onPreparationStatus` で準備状態とエラーを取得できる。準備から描画完了まで、呼び出し側は借用入力を同じフレームに保つ。Native Effect の `prepare(frame, signal)` は必要な読み込みのPromiseを返し、中断後の結果を反映しない。
-- `cacheKey` を公開するNative EffectとCustom Shader Effectは、入力とキーが一致すれば前回の描画結果を再利用する。時刻・ポインター・再生中のPlayerなどを直接読むNative Effectは毎回描画するか、それらの変化をキーに含める。外部テクスチャは同じ画像への書き込みでも `version` を更新する。世代を省略したテクスチャと履歴依存の配置は毎回描画する。下流には実際に描画した出力の世代を伝える。
+- `cacheKey` を公開するNative EffectとCustom Shader Effectは、入力とキーが一致すれば前回の描画結果を再利用する。時刻やポインターなどを直接読むNative Effectは毎回描画するか、それらの変化をキーに含める。外部テクスチャは同じ画像への書き込みでも `version` を更新する。世代を省略したテクスチャと履歴依存の配置は毎回描画する。下流には実際に描画した出力の世代を伝える。
 - `tiling` はdisabled（既定）、manual（`tileSize`）、autoに対応する。`await instance.renderTiled(frame, signal, onProgress)` は準備からコマンドの送信までを所有する。manualはRender Passを分割し、autoは `canHaveLongRunningRenderPass` を宣言したNative Effect・Custom Shader Effectを対象に負荷・実測に応じて分割する。通常のノードは同じencoderにまとめる。中断したフレームは履歴とキャッシュを無効化し、次の成功した描画の出力から利用できる。
 - `onGpuTime(nodePath, passIndex, milliseconds)` を指定するとRender Pass・Compute Passの時間を通知する。分割したパスでは実行したタイルの時間を集計する。timestamp-queryのないデバイスではnullを通知する。

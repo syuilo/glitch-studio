@@ -6,24 +6,21 @@ import { implementation } from './helpers/load.mjs';
 import { fixture, parameter, shaderDefinition } from './helpers/fixture.mjs';
 
 const { preparePortableCustomNodeGraphEffect, encodePortableCustomNodeGraphEffect, createPortableCustomNodeGraphEffectFiles, createPortableCustomNodeGraphEffectArchive,
-	getPortableParameterDefinitions, getPortableParameterDefaults, getPortableRenderResolution, fill, image, video } = implementation;
-const definitions = { fill, image, video };
+	getPortableParameterDefinitions, getPortableParameterDefaults, getPortableRenderResolution, fill, image } = implementation;
+const definitions = { fill, image };
 
-// 【入れ子のPlayer既定値はWeb Componentの公開値では未選択になる】
-// 書き出し時には参照を報告する。配布先ではPlayerを解決できないため、配列と構造体を保ったまま音声入力をnullにする。
+// 【入れ子の音声入力はWeb Componentの公開値でも未接続になる】
+// 配列と構造体を保ったまま音声入力の未選択を維持する。
 test('exports nested audio defaults as unselected public values', () => {
 	const input = fixture();
 	const audioSource = parameter('audioSource', null, 'Audio');
-	const selectedPlayer = { type: 'player', playerId: 'mic' };
-	input.players = [{ id: 'mic', name: 'Microphone', sourceType: 'microphone', deviceId: 'private-device' }];
 	input.customNodeGraphEffect.paramDefs.tracksId = {
-		...parameter('array', [{ audio: selectedPlayer }], 'tracks'),
+		...parameter('array', [{ audio: null }], 'tracks'),
 		dataType: { kind: 'array', elementType: { kind: 'struct', fields: { audio: audioSource.dataType } } },
 		ui: { label: 'Tracks', control: { element: { fields: { audio: audioSource.ui } } } },
 		element: { defaultValue: { audio: null }, fields: { audio: { defaultValue: null } } },
 	};
 	const prepared = preparePortableCustomNodeGraphEffect(input, definitions);
-	assert.deepEqual(prepared.diagnostics.players, ['Microphone']);
 	const parameterDefinitions = getPortableParameterDefinitions(prepared.customNodeGraphEffect);
 	assert.deepEqual(getPortableParameterDefaults(parameterDefinitions).tracks, [{ audio: null }]);
 });
@@ -33,11 +30,9 @@ test('exports nested audio defaults as unselected public values', () => {
 test('collects immutable resources and custom shaders without local paths or devices', async () => {
 	const input = fixture();
 	input.assets = [{ id: 'image', name: 'image', width: 2, height: 1, fileDataType: 'image/png', fileData: new Blob([new Uint8Array([1, 2, 3])]), sourceFilePath: 'C:/private/image.png', sourceFileName: 'original.PNG' }];
-	input.players = [{ id: 'camera', name: 'Camera', sourceType: 'webcam', deviceId: 'private-device' }];
 	const child = fixture().customNodeGraphEffect;
 	child.nodes.push(
 		{ id: 'image', effectSource: { type: 'nativeEffect', id: 'image' }, params: {}, staticSettings: { [Object.keys(image.staticSettingDefs)[0]]: 'image' } },
-		{ id: 'camera', effectSource: { type: 'nativeEffect', id: 'video' }, params: {}, staticSettings: { [Object.keys(video.staticSettingDefs)[0]]: 'camera' } },
 		{ id: 'shader', effectSource: { type: 'customShaderEffectReference', id: 'shared-id' }, params: {} },
 	);
 	const shader = shaderDefinition('fn main(position: vec2f) -> Output { return Output(vec4f(1)); }');
@@ -50,7 +45,6 @@ test('collects immutable resources and custom shaders without local paths or dev
 	shader.code = 'changed';
 	const { artwork: encoded } = await encodePortableCustomNodeGraphEffect(prepared, 'html');
 	const { artwork: zipped } = await encodePortableCustomNodeGraphEffect(prepared, 'zip');
-	assert.deepEqual(prepared.diagnostics.players, ['Camera']);
 	assert.equal(encoded.assets[0].fileDataBase64, 'AQID');
 	assert.equal(zipped.assets[0].fileDataPath, 'assets/1.PNG');
 	assert.doesNotMatch(JSON.stringify(zipped), /original\.PNG|C:\/private/);
@@ -58,7 +52,7 @@ test('collects immutable resources and custom shaders without local paths or dev
 	assert.notEqual(encoded.customShaderEffects[0].definition.code, 'changed');
 	assert.equal(encoded.customNodeGraphEffect.nodes[0].id, 'fill');
 	assert.deepEqual(encoded.customNodeGraphEffects.map(entry => entry.id), ['shared-id']);
-	assert.deepEqual(prepared.runtimeRequirements, { effectIds: ['fill', 'image', 'video'], requiresExpressions: true, requiresCustomShaderEffects: true });
+	assert.deepEqual(prepared.runtimeRequirements, { effectIds: ['fill', 'image'], requiresExpressions: true, requiresCustomShaderEffects: true });
 	assert.doesNotMatch(JSON.stringify(encoded), /editor-only|private-device|C:\/private/);
 });
 

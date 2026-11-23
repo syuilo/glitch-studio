@@ -376,8 +376,8 @@ test('opens progress before reading source bytes and uses only main progress for
 
 // 【任意ファイルも直列で読み込み、一括反映まで操作ロックを維持する】
 // 読めないファイルが途中にあっても残りを取り込み、サムネイル・原本パスを保つ。
-// メディア以外もAssetに保存し、Playerは動画・音声だけに作成する。
-// AssetとPlayerを一度のUndoで除去し、失敗内容はダイアログを閉じてからまとめて通知する。
+// メディア以外もAssetに保存する。
+// Assetを一度のUndoで除去し、失敗内容はダイアログを閉じてからまとめて通知する。
 test('imports valid files in order with one undo and reports failures after closing progress', async t => {
 	const f = setup(t);
 	setupImport(t);
@@ -399,7 +399,6 @@ test('imports valid files in order with one undo and reports failures after clos
 	assert.equal(ids.length, 4);
 	assert.deepEqual(context.stateManager.state.assets.value.map(asset => asset.name), ['movie.mp4', 'notes.txt', 'image.png', 'font.ttf']);
 	assert.equal(await context.stateManager.state.assets.value[1].fileData.text(), 'notes');
-	assert.equal(context.stateManager.state.players.value.length, 1);
 	assert.equal(context.stateManager.undoStack.value.length, 1);
 	assert.equal(f.calls.done, 1);
 	assert.equal(f.calls.alerts.length, 1);
@@ -407,10 +406,8 @@ test('imports valid files in order with one undo and reports failures after clos
 	stop();
 	context.stateManager.undo();
 	assert.equal(context.stateManager.state.assets.value.length, 0);
-	assert.equal(context.stateManager.state.players.value.length, 0);
 	context.stateManager.redo();
 	assert.equal(context.stateManager.state.assets.value[0].thumbnailSequence.frames.length, 11);
-	assert.equal(context.stateManager.state.players.value[0].assetId, ids[0]);
 });
 
 // 【すべてのファイルが読み込めない場合はプロジェクトとUndo履歴を作らない】
@@ -468,7 +465,7 @@ test('stops importing when the project closes during file selection', async t =>
 });
 
 for (const phase of ['reading', 'destination', 'placement']) {
-	// 【取り込み中に終了したプロジェクトへ素材・Player・Undo履歴を追加しない】
+	// 【取り込み中に終了したプロジェクトへ素材・Undo履歴を追加しない】
 	// 原本の読み込み、取り込み先の準備、配置準備の各待機中に終了する場合を確認する。
 	// 中止時はIDを返さず、呼び出し元のパネル表示を続行させない。進捗ダイアログも必ず閉じる。
 	test(`discards imported assets when the project closes during ${phase}`, async t => {
@@ -491,10 +488,9 @@ for (const phase of ['reading', 'destination', 'placement']) {
 			await waitForClose();
 			return context;
 		} : context;
-		const pending = f.importAssets(destination, [file], async (assets, players) => {
+		const pending = f.importAssets(destination, [file], async assets => {
 			assert.equal(phase, 'placement', 'Placement must not start after the destination closes');
 			assert.equal(assets.length, 1);
-			assert.equal(players.length, 1);
 			await waitForClose();
 			return {};
 		});
@@ -503,7 +499,6 @@ for (const phase of ['reading', 'destination', 'placement']) {
 		release.resolve();
 		assert.deepEqual(await pending, []);
 		assert.equal(context.stateManager.state.assets.value.length, 0);
-		assert.equal(context.stateManager.state.players.value.length, 0);
 		assert.equal(context.stateManager.undoStack.value.length, 0);
 		assert.equal(f.calls.dialogs, 1);
 		assert.equal(f.calls.done, 1);

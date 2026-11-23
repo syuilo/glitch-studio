@@ -524,7 +524,7 @@ function showPreviewTargetMenu(ev: PointerEvent) {
 			active: previewPlayback.livePreviewCustomNodeGraphEffectId.value === customNodeGraphEffect.id,
 			action: () => {
 				// 同じEffect Live Preview対象の再選択では、Preview Paramsで設定した値を初期化しない。
-				if (previewPlayback.livePreviewCustomNodeGraphEffectId.value !== customNodeGraphEffect.id) previewPlayback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id: customNodeGraphEffect.id });
+				if (previewPlayback.livePreviewCustomNodeGraphEffectId.value !== customNodeGraphEffect.id) projectSession.startCustomNodeGraphEffectLivePreview(customNodeGraphEffect.id);
 			},
 		})),
 	}, {

@@ -8,34 +8,29 @@ import { getEffectDefinitions } from '../utility/project-effects.ts';
 import { getScene } from '../utility/timeline-scene.ts';
 import { getCustomNodeGraphEffect, saveCustomNodeGraphEffect } from '../utility/custom-node-graph-effect-target.ts';
 import { defineCommand, definePublicCommand } from './definition.ts';
-import { playerSourceSchema } from './project-contract-schemas.ts';
 import { prepareProjectValueChange } from './prepared-value.ts';
 import { prepareProjectEffectPlacementChanges } from './project-effect-placements.ts';
 import { getTimelineAssetPlacementChanges, validateTimelineAssetPlacement, removeTimelineAssetPlacement } from './timeline.ts';
-import type { Player } from '@gs/shared/types.ts';
 import type { AppStateChange, ProjectState, ProjectAsset } from '../Project.ts';
 import type { CustomNodeGraphEffectAssetPlacement } from '../utility/custom-node-graph-effect-asset-node.ts';
 import type { AssetImportPlacement } from '../utility/import-assets.ts';
 
 // ファイルの読み込みやダイアログは呼び出し側が済ませ、取り込み済みの値だけを渡す。
 // 配置との参照関係を保つため、この内部取り込み操作では生成済みのIDを維持する。
-export const insertImportedAssetsCommandDef = defineCommand<{ assets: ProjectAsset[]; players: Player[] } & AssetImportPlacement>({
+export const insertImportedAssetsCommandDef = defineCommand<{ assets: ProjectAsset[] } & AssetImportPlacement>({
 	label: 'Import assets',
 	prepare(state, input) {
-		for (const [existing, added] of [[state.assets.value, input.assets], [state.players.value, input.players]]) {
-			const ids = new Set(existing.map(resource => resource.id));
-			for (const resource of added) {
-				if (resource.id.length === 0 || ids.has(resource.id)) throw new Error('Resource ID already exists');
-				ids.add(resource.id);
-			}
+		const ids = new Set(state.assets.value.map(asset => asset.id));
+		for (const asset of input.assets) {
+			if (asset.id.length === 0 || ids.has(asset.id)) throw new Error('Resource ID already exists');
+			ids.add(asset.id);
 		}
 		const saved = deepClone(input);
-		const draft = { ...state, assets: ref([...state.assets.value, ...saved.assets]), players: ref([...state.players.value, ...saved.players]) };
+		const draft = { ...state, assets: ref([...state.assets.value, ...saved.assets]) };
 		if (saved.timeline != null) validateTimelineAssetPlacement(draft, saved.timeline);
 		if (saved.customNodeGraphEffect != null) validateCustomNodeGraphEffectAssetPlacement(draft, saved.customNodeGraphEffect);
 		const changes: AppStateChange[] = [
 			...saved.assets.map(asset => ({ type: 'asset' as const, assetId: asset.id })),
-			...saved.players.map(player => ({ type: 'player' as const, playerId: player.id })),
 			...getTimelineAssetPlacementChanges(saved.timeline ?? null),
 			...getCustomNodeGraphEffectAssetPlacementChanges(saved.customNodeGraphEffect ?? null),
 		];
@@ -46,15 +41,12 @@ export const insertImportedAssetsCommandDef = defineCommand<{ assets: ProjectAss
 				changes,
 				apply(current) {
 					current.assets.value.push(...deepClone(saved.assets));
-					current.players.value.push(...deepClone(saved.players));
 					if (saved.timeline != null) getScene(current, saved.timeline.sceneId).layers.unshift(...deepClone(saved.timeline.layers));
 					if (saved.customNodeGraphEffect != null) appendCustomNodeGraphEffectAssetNodes(current, saved.customNodeGraphEffect);
 				},
 				revert(current) {
 					const assetIds = new Set(saved.assets.map(asset => asset.id));
-					const playerIds = new Set(saved.players.map(player => player.id));
 					current.assets.value = current.assets.value.filter(asset => !assetIds.has(asset.id));
-					current.players.value = current.players.value.filter(player => !playerIds.has(player.id));
 					if (saved.timeline != null) removeTimelineAssetPlacement(current, saved.timeline);
 					if (saved.customNodeGraphEffect != null) removeCustomNodeGraphEffectAssetNodes(current, saved.customNodeGraphEffect);
 				},
@@ -74,21 +66,9 @@ export function validateCustomNodeGraphEffectAssetPlacement(state: ProjectState,
 	for (const node of placement.nodes) {
 		if (ids.has(node.id)) throw new Error('Duplicate node ID');
 		ids.add(node.id);
-		if (node.effectSource.type !== 'nativeEffect') throw new Error('Unsupported asset node');
-		if (node.effectSource.id === 'image') {
-			const image = node.staticSettings.image;
-			if (typeof image !== 'string' || !state.assets.value.some(asset => asset.id === image && asset.fileDataType.startsWith('image/'))) throw new Error('Image asset not found');
-			continue;
-		}
-		let playerId: unknown = null;
-		if (node.effectSource.id === 'video') playerId = node.staticSettings.player;
-		else if (node.effectSource.id === 'audioWaveform' && node.params.audio?.inputSource === 'literal') {
-			const audio = node.params.audio.value;
-			if (audio != null && typeof audio === 'object' && 'type' in audio && audio.type === 'player' && 'playerId' in audio) playerId = audio.playerId;
-		} else throw new Error('Unsupported asset node');
-		const player = state.players.value.find(player => player.id === playerId);
-		const assetType = node.effectSource.id === 'video' ? 'video/' : 'audio/';
-		if (player?.sourceType !== 'asset' || !state.assets.value.some(asset => asset.id === player.assetId && asset.fileDataType.startsWith(assetType))) throw new Error('Media player asset not found');
+		if (node.effectSource.type !== 'nativeEffect' || node.effectSource.id !== 'image') throw new Error('Unsupported asset node');
+		const image = node.staticSettings.image;
+		if (typeof image !== 'string' || !state.assets.value.some(asset => asset.id === image && asset.fileDataType.startsWith('image/'))) throw new Error('Image asset not found');
 	}
 }
 
@@ -106,10 +86,10 @@ export function removeCustomNodeGraphEffectAssetNodes(state: ProjectState, place
 	saveCustomNodeGraphEffect(state, placement.target, customNodeGraphEffect);
 }
 
-export const insertCustomNodeGraphEffectAssetNodesCommandDef = defineCommand<{ placement: CustomNodeGraphEffectAssetPlacement; players: Player[] }>({
+export const insertCustomNodeGraphEffectAssetNodesCommandDef = defineCommand<{ placement: CustomNodeGraphEffectAssetPlacement }>({
 	label: 'Insert asset nodes',
 	prepare(state, input) {
-		return insertImportedAssetsCommandDef.prepare(state, { assets: [], players: input.players, customNodeGraphEffect: input.placement });
+		return insertImportedAssetsCommandDef.prepare(state, { assets: [], customNodeGraphEffect: input.placement });
 	},
 });
 
@@ -224,54 +204,6 @@ export const replaceAssetSourceCommandDef = defineCommand<{ assetId: string; sou
 	},
 });
 
-export type PlayerSource = null | { type: 'asset'; assetId: string } | { type: 'webcam' | 'microphone' | 'liveStream' };
-
-function playerSourceFields(state: ProjectState, source: PlayerSource): Pick<Player, 'sourceType' | 'assetId'> {
-	if (source == null) return { sourceType: null, assetId: null };
-	if (!['asset', 'webcam', 'microphone', 'liveStream'].includes(source.type)) throw new Error('Invalid Player source type');
-	if (source.type === 'asset') getAsset(state, source.assetId);
-	return { sourceType: source.type, assetId: source.type === 'asset' ? source.assetId : null };
-}
-
-export const createPlayerCommandDef = definePublicCommand({
-	label: 'Create player',
-	inputSchema: z.object({ name: z.string().nullish().describe('Omit or pass null for Player.'), source: playerSourceSchema.nullish().describe('Omit or pass null for an unassigned source.') }),
-	resultSchema: z.object({ playerId: z.string() }),
-	description: 'Create a Player and return its reference. Asset sources must already exist in the project. Selecting a capture source stores its type; this does not grant device permission or guarantee live input.',
-	examples: ['let player = Command:createPlayer({ name: "Input" })\n<: Query:getPlayer(player)'],
-	prepare(state, input) {
-		if (input.name != null && typeof input.name !== 'string') throw new Error('Player name must be a string');
-		const player: Player = { id: genId(), name: input.name ?? 'Player', ...playerSourceFields(state, input.source ?? null) };
-		return {
-			result: { playerId: player.id },
-			change: {
-				changes: [{ type: 'player', playerId: player.id }],
-				apply(current) { current.players.value.push(deepClone(player)); },
-				revert(current) { current.players.value = current.players.value.filter(candidate => candidate.id !== player.id); },
-			},
-		};
-	},
-});
-
-export const setPlayerSourceCommandDef = definePublicCommand({
-	label: 'Set player source',
-	inputSchema: z.object({ playerId: z.string().min(1), source: playerSourceSchema }),
-	resultSchema: z.null(),
-	description: 'Replace a Player source. Pass null to disconnect it, an existing Asset ID for asset input, or a capture source type. This does not import files.',
-	examples: ['let player = Command:createPlayer({})\nCommand:setPlayerSource({ playerId: player.playerId, source: null })'],
-	prepare(state, { playerId, source }) {
-		const player = state.players.value.find(candidate => candidate.id === playerId);
-		if (player == null) throw new Error('Player not found');
-		return prepareProjectValueChange({
-			before: { sourceType: player.sourceType, assetId: player.assetId ?? null },
-			after: playerSourceFields(state, source),
-			result: undefined,
-			changes: [{ type: 'player', playerId }],
-			write(current, value) { Object.assign(current.players.value.find(candidate => candidate.id === playerId)!, value); },
-		});
-	},
-});
-
 export const RESOURCES_COMMAND_DEFS = {
 	createAsset: createAssetCommandDef,
 	insertImportedAssets: insertImportedAssetsCommandDef,
@@ -279,6 +211,4 @@ export const RESOURCES_COMMAND_DEFS = {
 	removeAsset: removeAssetCommandDef,
 	setAssetName: setAssetNameCommandDef,
 	replaceAssetSource: replaceAssetSourceCommandDef,
-	createPlayer: createPlayerCommandDef,
-	setPlayerSource: setPlayerSourceCommandDef,
 };

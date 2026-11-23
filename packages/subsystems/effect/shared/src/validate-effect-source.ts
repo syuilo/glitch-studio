@@ -46,7 +46,7 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 		const intrinsic = effect.definition.intrinsicResolutionSetting;
 		if (intrinsic != null) {
 			const type = effect.definition.staticSettingDefs?.[intrinsic]?.dataType;
-			if (type?.kind !== 'playerReference' && !(type?.kind === 'assetReference' && (type.assetType === 'image' || type.assetType === 'video'))) {
+			if (type?.kind !== 'assetReference' || (type.assetType !== 'image' && type.assetType !== 'video')) {
 				throw new Error('Invalid intrinsic resolution setting: ' + intrinsic);
 			}
 		}

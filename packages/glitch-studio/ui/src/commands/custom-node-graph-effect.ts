@@ -61,7 +61,7 @@ const importCustomNodeGraphEffect = defineCommand<CustomNodeGraphEffectImport, {
 	prepare(state, input) {
 		const imported = deepClone(input);
 		if (state.customNodeGraphEffects.value.some(customNodeGraphEffect => customNodeGraphEffect.id === imported.customNodeGraphEffect.id)) throw new Error('Custom Node Graph Effect ID already exists');
-		for (const [existing, added] of [[state.assets.value, imported.assets], [state.players.value, imported.players], [state.customShaderEffects.value, imported.customShaderEffects], [state.customNodeGraphEffects.value, [...imported.customNodeGraphEffects, imported.customNodeGraphEffect]]]) {
+		for (const [existing, added] of [[state.assets.value, imported.assets], [state.customShaderEffects.value, imported.customShaderEffects], [state.customNodeGraphEffects.value, [...imported.customNodeGraphEffects, imported.customNodeGraphEffect]]]) {
 			const ids = new Set(existing.map(resource => resource.id));
 			for (const resource of added) {
 				if (ids.has(resource.id)) throw new Error('Resource ID already exists');
@@ -72,13 +72,11 @@ const importCustomNodeGraphEffect = defineCommand<CustomNodeGraphEffectImport, {
 		const graphIds = new Set(graphs.map(entry => entry.id));
 		const shaderIds = new Set(imported.customShaderEffects.map(entry => entry.id));
 		const assetIds = new Set(imported.assets.map(asset => asset.id));
-		const playerIds = new Set(imported.players.map(player => player.id));
 		return {
 			result: { customNodeGraphEffectId: imported.customNodeGraphEffect.id },
 			change: {
 				apply(current) {
 					current.assets.value.push(...deepClone(imported.assets));
-					current.players.value.push(...deepClone(imported.players));
 					current.customNodeGraphEffects.value.push(...deepClone(graphs));
 					current.customShaderEffects.value.push(...deepClone(imported.customShaderEffects));
 				},
@@ -86,13 +84,11 @@ const importCustomNodeGraphEffect = defineCommand<CustomNodeGraphEffectImport, {
 					current.customNodeGraphEffects.value = current.customNodeGraphEffects.value.filter(customNodeGraphEffect => !graphIds.has(customNodeGraphEffect.id));
 					current.customShaderEffects.value = current.customShaderEffects.value.filter(entry => !shaderIds.has(entry.id));
 					current.assets.value = current.assets.value.filter(asset => !assetIds.has(asset.id));
-					current.players.value = current.players.value.filter(player => !playerIds.has(player.id));
 				},
 				changes: [
 					...graphs.map(entry => ({ type: 'customNodeGraphEffectRegistration' as const, customNodeGraphEffectId: entry.id })),
 					...imported.customShaderEffects.map(entry => ({ type: 'customShaderEffect' as const, customShaderEffectId: entry.id })),
 					...imported.assets.map(asset => ({ type: 'asset' as const, assetId: asset.id })),
-					...imported.players.map(player => ({ type: 'player' as const, playerId: player.id })),
 				],
 			},
 		};

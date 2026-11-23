@@ -1,15 +1,15 @@
 <template>
 <Teleport :to="panelWindow.document.body">
 	<div ref="root" :class="$style.root" :data-test-workspace-panel-window="panel.contentType">
-		<GsDetachedWindowFrame :title="workspacePanelDefinitions[panel.contentType].label" :customTitlebar="isElectron" :contentHidden="projectSession.renderEngine.isSuspended.value">
-			<component :is="workspacePanelDefinitions[panel.contentType].component" :panel="panel"/>
+		<GsDetachedWindowFrame :title="definition.label" :customTitlebar="isElectron" :contentHidden="projectSession.renderEngine.isSuspended.value">
+			<component :is="definition.component" :panel="panel"/>
 		</GsDetachedWindowFrame>
 	</div>
 </Teleport>
 </template>
 
 <script lang="ts" setup>
-import { inject, onBeforeUnmount, onMounted, useTemplateRef } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, useTemplateRef } from 'vue';
 import GsDetachedWindowFrame from './GsDetachedWindowFrame.vue';
 import { useProjectSession } from '@/project-session.ts';
 import type { WorkspacePanel } from '@/workspace.ts';
@@ -31,7 +31,8 @@ const workspaceController = inject(workspaceControllerKey)!;
 const installFileDrops = inject(fileDropTargetInstallerKey, null);
 let disposeFileDrops: (() => void) | null = null;
 
-prepareDetachedWindow(props.panelWindow, workspacePanelDefinitions[props.panel.contentType].label);
+const definition = computed(() => workspacePanelDefinitions[props.panel.contentType] ?? workspacePanelDefinitions.blank);
+prepareDetachedWindow(props.panelWindow, definition.value.label);
 workspaceController.windowPanels.set(props.panel.id, props.panel);
 
 function onPanelWindowClosed() {

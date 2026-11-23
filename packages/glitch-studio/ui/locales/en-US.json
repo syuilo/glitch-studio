@@ -16,7 +16,6 @@
 	},
 	"_CustomShaderEffect": {
 		"PreviewApplied": "Preview the applied WGSL",
-		"PreviewParameters": "Preview Params",
 		"InUse": "Remove the Custom Shader Effect Nodes and Layers before deleting this definition.",
 		"Title": "Custom Shader Effects",
 		"Add": "Add Custom Shader Effect",
@@ -277,7 +276,6 @@
 	"Transform": "Transform",
 	"Subtitle": "Subtitle",
 	"Preview": "Preview",
-	"Players": "Players",
 	"_App": {
 		"Dashboard": "Dashboard",
 		"CloseProject": "Close project",
@@ -861,13 +859,17 @@
 		"Import": "Import Custom Node Graph Effect",
 		"ImportTitle": "Import Custom Node Graph Effect",
 		"Imported": "Custom Node Graph Effect imported",
-		"PreviewParameters": "Preview Params",
 		"PrimaryOutput": "Primary output",
 		"RemoveOutput": "Remove output",
 		"AddOutput": "Add Output",
 		"Primary": "Primary",
-		"AddParameter": "Add Parameter",
-		"UnassignedInputs": "External inputs were left unassigned: {names}. Camera inputs can be selected from the Player menu. Microphone and live stream inputs are not yet supported."
+		"AddParameter": "Add Parameter"
+	},
+	"_EffectPreview": {
+		"Input": "Preview Input",
+		"InputPlayback": "Input Playback",
+		"ImageInput": "Preview Input Image",
+		"AudioInput": "Preview Input Audio"
 	},
 	"_Parameter": {
 		"CopyId": "Copy Parameter ID",

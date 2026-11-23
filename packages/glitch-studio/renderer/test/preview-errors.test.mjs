@@ -587,7 +587,7 @@ async function fixture(t, staticOptions = {}, Manager = EffectLivePreviewManager
 			input: { dataType: { kind: 'color' }, canNode: true, defaultValue: [0, 0, 0, 0], ui: { label: 'Input', control: {} } },
 		}, primaryInputParameter: 'input', resolutionInputParameters: ['input'], outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output' } },
 		nativeEffectImplementations: { fill: fillImplementation, pass: { init: () => ({ render() {}, dispose() {} }) } },
-	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: true, enable32bitDataTextures: false, ...staticOptions }, { assets: [], players: [] });
+	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: true, enable32bitDataTextures: false, ...staticOptions }, { assets: [] });
 	renderer.on('ev', event => {
 		if (event.type === 'renderError') errors.push(event.ctx.message);
 	});
@@ -1551,8 +1551,8 @@ for (const Manager of [EffectLivePreviewManager, TimelineRendererManager]) {
 		const starting = Manager.create({
 			gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
 			nativeEffectDefinitions: {}, nativeEffectImplementations: {},
-		}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false, },
-		{ assets: [imageAsset('image')], players: [] }).then(manager => { returned = true; return manager; });
+		}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false },
+		{ assets: [imageAsset('image')] }).then(manager => { returned = true; return manager; });
 		await new Promise(resolve => setImmediate(resolve));
 		assert.equal(returned, false);
 		assert.equal(requests.length, 1);
@@ -1576,8 +1576,8 @@ for (const Manager of [EffectLivePreviewManager, TimelineRendererManager]) {
 		const starting = Manager.create({
 			gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
 			nativeEffectDefinitions: {}, nativeEffectImplementations: {},
-		}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false, },
-		{ assets: [imageAsset('image')], players: [] }, controller.signal);
+		}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false },
+		{ assets: [imageAsset('image')] }, controller.signal);
 		assert.equal(requests.length, 1);
 		const rejected = assert.rejects(starting, /initialization cancelled/);
 		controller.abort(new Error('initialization cancelled'));
@@ -1624,8 +1624,8 @@ for (const [name, createManager] of [['effectLivePreview', createEffectLivePrevi
 			let ready = false;
 			const starting = createManager({
 				canvas, histogramCanvas: canvas, waveformHorizontalCanvas: canvas, waveformVerticalCanvas: canvas,
-				staticOptions: { previewDisplayMode: displayMode, timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enable32bitDataTextures: false, },
-				dynamicOptions: { highlightClipping: true }, resources: { assets: [imageAsset('image')], players: [] },
+				staticOptions: { previewDisplayMode: displayMode, timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enable32bitDataTextures: false },
+				dynamicOptions: { highlightClipping: true }, resources: { assets: [imageAsset('image')] },
 				nativeEffectDefinitions: {}, nativeEffectImplementations: {},
 			}).then(manager => { ready = true; return manager; });
 			await new Promise(resolve => setImmediate(resolve));
@@ -1678,9 +1678,9 @@ for (const [name, createManager] of [['effectLivePreview', createEffectLivePrevi
 			const canvas = { getContext: () => failure === 'context' ? null : new Context() };
 			await assert.rejects(createManager({
 				canvas, histogramCanvas: canvas, waveformHorizontalCanvas: canvas, waveformVerticalCanvas: canvas,
-				staticOptions: { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enable32bitDataTextures: false, },
+				staticOptions: { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enable32bitDataTextures: false },
 				dynamicOptions: {},
-				resources: { assets: [{ id: 'broken', fileDataType: 'image/png', fileData: new Blob() }], players: [] },
+				resources: { assets: [{ id: 'broken', fileDataType: 'image/png', fileData: new Blob() }] },
 				nativeEffectDefinitions: {}, nativeEffectImplementations: {},
 			}), failure === 'context' ? /cannot get webgpu context/ : failure === 'constructor' ? /pipeline failed/ : /asset decode failed/);
 			assert.equal(destroyed.mock.callCount(), 1);
@@ -1790,10 +1790,10 @@ test('serializes tiled Live Preview frames and retains borrowed video frames unt
 	const present = t.mock.method(f.renderer.canvasRenderer, 'renderToCanvas');
 	const frame = () => ({ closed: 0, close() { this.closed++; } });
 	const old = frame(), replaced = frame(), latest = frame();
-	f.renderer.updateVideoFrame('player', old);
+	f.renderer.updatePreviewImage({ kind: 'frame', frame: old });
 	await f.frame(16); await f.frame(32); f.frame(64);
-	f.renderer.updateVideoFrame('player', replaced);
-	f.renderer.updateVideoFrame('player', latest);
+	f.renderer.updatePreviewImage({ kind: 'frame', frame: replaced });
+	f.renderer.updatePreviewImage({ kind: 'frame', frame: latest });
 	assert.equal(old.closed, 0);
 	assert.equal(replaced.closed, 1);
 	assert.equal(renders.length, 1);
@@ -1809,7 +1809,7 @@ test('serializes tiled Live Preview frames and retains borrowed video frames unt
 	assert.deepEqual(delays, [true, false]);
 	assert.equal(old.closed, 1);
 	assert.equal(latest.closed, 0);
-	assert.equal(f.renderer.playerVideoTextures.frameVersions.get('player'), 2);
+	assert.equal(f.renderer.previewImage.bind().version, 2);
 	await f.frame(96);
 	assert.equal(renders.length, 2);
 	assert.equal(renders[1].time, 0.096);

@@ -1,27 +1,20 @@
-import { mapParameterAudioSourceValues } from '@gs/shared/parameter/audio-source.ts';
-import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
-import { walkParameterLeaves } from '@gs/shared/parameter/parameter-tree.ts';
 import { resolveEffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
 import { validateEffectSource } from '@gs/subsystems_effect_shared/validate-effect-source.ts';
-import { validatePlayerAudioSourceSelection, type PlayerAudioSourceSelection } from './player-audio-source.ts';
 import { createProjectEffectDefinitions } from './project/effects.ts';
 import { validateProjectEffectRegistrations } from './project/validate-effect-registrations.ts';
-import type { Asset, Player } from '@gs/shared/types.ts';
-import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import type { StaticSettingDefinition } from '@gs/shared/static-setting.ts';
+import type { Asset } from '@gs/shared/types.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectParameterBinding } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
+import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
 import type { NativeEffectDefinitions } from './project/effects.ts';
 import type { CustomNodeGraphEffectEditorMetadata, ProjectEffectRegistrations } from './project/types.ts';
 
 export type CustomNodeGraphEffectResources = ProjectEffectRegistrations & CustomNodeGraphEffectEditorMetadata & {
 	customNodeGraphEffect: CustomNodeGraphEffect;
 	assets: Asset[];
-	players: Player[];
 };
 
-type ResourceKind = 'asset' | 'player' | 'customShaderEffect' | 'customNodeGraphEffect';
+type ResourceKind = 'asset' | 'customShaderEffect' | 'customNodeGraphEffect';
 
 function indexResources<T extends { id: string }>(resources: T[]): Map<string, T> {
 	const indexed = new Map(resources.map(resource => [resource.id, resource]));
@@ -68,9 +61,7 @@ export function collectCustomNodeGraphEffectResources(input: CustomNodeGraphEffe
 	const shaderIds = new Map(snapshot.customShaderEffects.map(entry => [entry.id, assignId('customShaderEffect', entry.id)]));
 	const graphIds = new Map(snapshot.customNodeGraphEffects.map(entry => [entry.id, assignId('customNodeGraphEffect', entry.id)]));
 	const availableAssets = indexResources(input.assets);
-	const availablePlayers = indexResources(input.players);
 	const assets = new Map<string, Asset>();
-	const players = new Map<string, Player>();
 
 	function collectAsset(id: string): string {
 		const existing = assets.get(id);
@@ -88,60 +79,10 @@ export function collectCustomNodeGraphEffectResources(input: CustomNodeGraphEffe
 		return newId;
 	}
 
-	function collectPlayer(id: string): string {
-		const existing = players.get(id);
-		if (existing != null) return existing.id;
-		const player = availablePlayers.get(id);
-		if (player == null) throw new Error('Missing Player: ' + id);
-		const newId = assignId('player', id);
-		// デバイス識別子はPC固有なので、Playerへの参照と入力種別だけを持ち出す。Assetを使う場合は素材も同梱する。
-		const { name, sourceType } = player;
-		players.set(id, {
-			id: newId, name, sourceType,
-			...(sourceType === 'asset' ? { assetId: player.assetId == null ? null : collectAsset(player.assetId) } : {}),
-		});
-		return newId;
-	}
-
-	function mapSetting(setting: StaticSettingDefinition, id: string): string {
-		if (setting.dataType.kind === 'assetReference') return collectAsset(id);
-		if (setting.dataType.kind === 'playerReference') return collectPlayer(id);
-		return id;
-	}
-
-	function mapPlayerAudioSource(value: unknown): PlayerAudioSourceSelection {
-		validatePlayerAudioSourceSelection(value);
-		return value == null ? null : { type: 'player', playerId: collectPlayer(value.playerId) };
-	}
-
-	function mapAudioBinding(definition: ParameterDefinition, binding: CustomNodeGraphEffectParameterBinding): void {
-		for (const { def, param } of walkParameterLeaves<CustomNodeGraphEffectParameterBinding>({ value: definition }, { value: binding })) {
-			if (def.dataType.kind !== 'audioSource' || param.inputSource === 'customNodeGraphEffectPublicParameterReference') continue;
-			if (param.inputSource !== 'literal') throw new Error('Audio sources must use a static input');
-			param.value = mapPlayerAudioSource(param.value);
-		}
-	}
-
-	function mapParameterDefaults(definition: ParameterDefinition): void {
-		definition.defaultValue = mapParameterAudioSourceValues(definition.dataType, definition.defaultValue, mapPlayerAudioSource);
-		// 配列が空でも追加用の既定値に Player が含まれ得る。子の設定へ変換結果を書き戻す。
-		if (isParameterType(definition, 'array')) {
-			const element = getArrayElementDefinition(definition);
-			mapParameterDefaults(element);
-			definition.element.defaultValue = element.defaultValue;
-		} else if (isParameterType(definition, 'struct')) {
-			for (const [key, field] of Object.entries(getStructFieldDefinitions(definition))) {
-				mapParameterDefaults(field);
-				definition.fields[key].defaultValue = field.defaultValue;
-			}
-		}
-	}
-
 	function mapDefinitionDefaults(definition: EffectDefinition): void {
 		for (const setting of Object.values(definition.staticSettingDefs ?? {})) {
-			if (typeof setting.defaultValue === 'string') setting.defaultValue = mapSetting(setting, setting.defaultValue);
+			if (setting.dataType.kind === 'assetReference' && typeof setting.defaultValue === 'string') setting.defaultValue = collectAsset(setting.defaultValue);
 		}
-		for (const parameter of Object.values(definition.paramDefs)) mapParameterDefaults(parameter);
 	}
 
 	function mapSource(source: EffectSource): EffectSource {
@@ -161,16 +102,15 @@ export function collectCustomNodeGraphEffectResources(input: CustomNodeGraphEffe
 		return { ...graph, nodes: graph.nodes.map(node => {
 			if (node.type === 'relay') return node;
 			const { definition } = resolveEffectSource(node.effectSource, definitions);
-			for (const [key, binding] of Object.entries(node.params)) mapAudioBinding(definition.paramDefs[key], binding);
 			// Custom Effectの未指定値は同梱する定義に従う。外部カタログにあるNative Effectの
 			// 素材参照だけはこの配置に固定し、取り込み先のIDへ書き換えられるようにする。
 			const references: [string, string][] = [];
 			for (const [key, setting] of Object.entries(definition.staticSettingDefs ?? {})) {
-				if (setting.dataType.kind !== 'assetReference' && setting.dataType.kind !== 'playerReference') continue;
+				if (setting.dataType.kind !== 'assetReference') continue;
 				const hasValue = node.staticSettings != null && Object.hasOwn(node.staticSettings, key);
 				if (!hasValue && node.effectSource.type !== 'nativeEffect') continue;
 				const value = hasValue ? node.staticSettings![key] : setting.defaultValue;
-				if (typeof value === 'string') references.push([key, mapSetting(setting, value)]);
+				if (typeof value === 'string') references.push([key, collectAsset(value)]);
 			}
 			const effectSource = mapSource(node.effectSource);
 			return references.length === 0 ? { ...node, effectSource }
@@ -187,5 +127,5 @@ export function collectCustomNodeGraphEffectResources(input: CustomNodeGraphEffe
 		entry.id = graphIds.get(entry.id)!;
 		entry.definition = mapGraph(entry.definition);
 	}
-	return { ...snapshot, customNodeGraphEffect, assets: [...assets.values()], players: [...players.values()] };
+	return { ...snapshot, customNodeGraphEffect, assets: [...assets.values()] };
 }

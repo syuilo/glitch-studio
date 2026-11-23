@@ -113,7 +113,7 @@ async function fixture(t) {
 			createOutputTexture: (_id, resolution) => texture({ size: resolution }),
 			init: () => ({ render() {}, dispose() {} }),
 		} },
-	}, { enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false }, { assets: [], players: [] });
+	}, { enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false }, { assets: [] });
 	renderer.on('ev', event => { if (event.type === 'renderError') errors.push(event.ctx.message); });
 	// 表示処理以外は差し替えず、実際にCanvasへ渡される最終出力の寸法を観測する。
 	renderer.canvasRenderer.renderToCanvas = output => renderedResolutions.push({ width: output.width, height: output.height });

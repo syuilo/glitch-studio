@@ -16,7 +16,7 @@ import type { TimelineAudioInputProvider } from '../../timeline-audio-input-reso
 import type { TimelineLayerContext, TimelineLayerRenderer } from '../../timeline-renderer.ts';
 import type { TimelineImage } from '../../timeline-image.ts';
 
-type EffectTimelineLayerOptions = Pick<EffectPlacement, 'definitions' | 'resources' | 'resolveAudioSource' | 'tiling' | 'onGpuTime' | 'onPreparationStatus'> & {
+type EffectTimelineLayerOptions = Pick<EffectPlacement, 'definitions' | 'resources' | 'tiling' | 'onGpuTime' | 'onPreparationStatus'> & {
 	wgpu: EffectGpuContext;
 	getNativeEffectImplementation: (id: string) => NativeEffectImplementation;
 	/** 所属Sceneの倍率適用前の基準寸法。 */
@@ -39,9 +39,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, options: E
 	const sourceId = intrinsicKey == null ? null : staticSettings[intrinsicKey];
 	let intrinsic: Resolution | null = null;
 	if (layer.resolution.mode === 'auto' && intrinsicKey != null && typeof sourceId === 'string') {
-		const type = definition.staticSettingDefs?.[intrinsicKey]?.dataType;
-		intrinsic = type?.kind === 'playerReference' ? options.resources?.getPlayerResolution?.(sourceId) ?? null
-			: options.resources?.assets.find(asset => asset.id === sourceId) ?? null;
+		intrinsic = options.resources?.assets.find(asset => asset.id === sourceId) ?? null;
 	}
 	// Timelineの画像入力はすべてScene寸法。autoの寸法を求めるだけの入力から、下層の描画を起動しない。
 	const setting = layer.resolution.mode === 'auto' && intrinsic == null ? { mode: 'context', scale: layer.resolution.scale } as const : layer.resolution;
@@ -62,7 +60,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, options: E
 		return initialization ??= createEffectInstance({
 			effectSource: layer.effectSource, definitions: options.definitions, inputs: inputs.inputs, staticSettings,
 			resolution: options.sceneBaseResolution, resolutionScale: options.resolutionScale, resolutionSetting: setting,
-			usedOutputPorts: new Set([port]), resources: options.resources, resolveAudioSource: options.resolveAudioSource,
+			usedOutputPorts: new Set([port]), resources: options.resources,
 			tiling: options.tiling, onGpuTime: options.onGpuTime, onPreparationStatus: options.onPreparationStatus,
 		}, options.wgpu, options.getNativeEffectImplementation, lifetime.signal).then(created => {
 			if (lifetime.signal.aborted) {

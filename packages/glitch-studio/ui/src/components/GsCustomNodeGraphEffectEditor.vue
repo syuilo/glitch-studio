@@ -97,6 +97,10 @@
 			/>
 		</div>
 
+		<div v-else-if="tab === 'preview'" :class="$style.preview">
+			<slot name="preview"></slot>
+		</div>
+
 		<div v-else-if="tab === 'other'" class="_spacer _gaps_m" style="height: 100%; overflow: auto;">
 			<GsInput large :modelValue="customNodeGraphEffectName" manualSave @update:modelValue="name => emit('rename', name)"><template #label>{{ i18n.ts.Name }}</template></GsInput>
 			<GsButton large :disabled="exporting" :wait="exporting" icon="ti ti-download" @click="emit('requestExport', 'gscnge')">{{ `${i18n.ts._CustomNodeGraphEffect.Export}...` }}</GsButton>
@@ -118,7 +122,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, useTemplateRef, provide } from 'vue';
+import { computed, ref, useTemplateRef, inject, provide } from 'vue';
 import GsWires from './GsWires.vue';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
@@ -147,6 +151,7 @@ provideCustomNodeGraphEffectWires();
 
 const isDesktop = __ELECTRON__ && window.desktop != null;
 
+const slots = defineSlots<{ preview?: () => unknown }>();
 const props = defineProps<{
 	customNodeGraphEffect: CustomNodeGraphEffect;
 	customNodeGraphEffectName: string;
@@ -155,9 +160,13 @@ const props = defineProps<{
 	assetDropActions: CustomNodeGraphEffectAssetDropActions | null;
 }>();
 
+const tab = ref('nodes');
+const livePreviewParameterContext = inject(previewParameterContextKey, null);
 provide(previewParameterContextKey, {
-	scope: computed(() => props.previewTarget == null ? null : { kind: 'customNodeGraphEffect' as const, target: props.previewTarget }),
+	scope: computed(() => tab.value === 'preview' ? livePreviewParameterContext?.scope.value ?? null
+		: props.previewTarget == null ? null : { kind: 'customNodeGraphEffect' as const, target: props.previewTarget }),
 	label: computed(() => props.customNodeGraphEffectName),
+	beginLivePreviewEdit: livePreviewParameterContext?.beginLivePreviewEdit,
 });
 provide(parameterExpansionScopeKey, computed(() => props.previewTarget == null ? null : customNodeGraphEffectTargetKey(props.previewTarget)));
 
@@ -177,12 +186,12 @@ const assetDrop = useAssetDrop({
 	reportError: error => { void ui.alert({ type: 'error', title: i18n.ts._CustomNodeGraphEffect.Drop, text: error instanceof Error ? error.message : String(error) }); },
 });
 
-const tab = ref('nodes');
 const tabs = [
 	{ id: 'nodes', label: i18n.ts._CustomNodeGraphEffect.Nodes },
 	{ id: 'customParameters', label: i18n.ts._Parameter.CustomParameter },
 	{ id: 'inputs', label: i18n.ts._CustomNodeGraphEffect.InputDefs },
 	{ id: 'outputs', label: i18n.ts._CustomNodeGraphEffect.OutputDefs },
+	...(slots.preview == null ? [] : [{ id: 'preview', label: i18n.ts.Preview }]),
 	{ id: 'other', label: i18n.ts.Other },
 ];
 
@@ -213,6 +222,11 @@ function onOutputInputChange(outputId: string, value: NodeOutputReference | null
 </script>
 
 <style module lang="scss">
+.preview {
+	height: 100%;
+	overflow: auto;
+}
+
 .root {
 	position: relative;
 	display: flex;

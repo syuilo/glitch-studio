@@ -22,7 +22,7 @@ ImageBitmapの`premultiplyAlpha`は既定値を使う。Chrome 157では`none`�
 
 動画のvisibleRectと表示寸法が異なる場合、表示寸法だけを原寸へ合わせたVideoFrameから取り込む。非正方形ピクセルの拡縮もlinear化より前には行わず、回転・表示寸法・描画倍率を変換済みテクスチャへ適用する。元のサンプルと借用フレームの所有権は変えない。
 
-Playerの映像はGlitch Studioの`PlayerVideoTextures`がフレームと正規化画像を所有する。使用されたPlayerだけをフレーム更新ごとに一度linear化し、複数のVideoノード・Fit変更・ノードの再生成でも同じ原寸画像を借用する。ノードは変換済みテクスチャと表示寸法を受け取り、フレームや共有テクスチャを破棄しない。
+プレビュー入力の映像はGlitch Studioの`EffectLivePreviewImage`がフレームと正規化画像を所有する。同じ入力を読むパラメータには、フレームごとに一度linear化したテクスチャを貸し出す。表示寸法と更新番号はEffectの入力から参照する。
 
 通常のPNG・JPEG等をlinear化しても、撮影時のトーン処理や失われたハイライトは復元されない。scene-linear素材との違いは残る。
 

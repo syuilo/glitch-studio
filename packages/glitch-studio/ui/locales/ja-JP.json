@@ -16,7 +16,6 @@
 	},
 	"_CustomShaderEffect": {
 		"PreviewApplied": "適用済みの WGSL をプレビューします",
-		"PreviewParameters": "プレビュー用パラメータ",
 		"InUse": "この定義を削除する前に、参照するCustom Shader Effect NodeとLayerを削除してください。",
 		"Title": "カスタムシェーダーエフェクト",
 		"Add": "カスタムシェーダーエフェクトを追加",
@@ -277,7 +276,6 @@
 	"Transform": "Transform",
 	"Subtitle": "字幕",
 	"Preview": "プレビュー",
-	"Players": "Player",
 	"_App": {
 		"Dashboard": "ダッシュボード",
 		"CloseProject": "プロジェクトを閉じる",
@@ -861,13 +859,17 @@
 		"Import": "Custom Node Graph Effectをインポート",
 		"ImportTitle": "Custom Node Graph Effectをインポート",
 		"Imported": "Custom Node Graph Effectをインポートしました",
-		"PreviewParameters": "プレビューパラメータ",
 		"PrimaryOutput": "主出力",
 		"RemoveOutput": "出力を削除",
 		"AddOutput": "出力を追加",
 		"Primary": "主入力",
-		"AddParameter": "パラメータを追加",
-		"UnassignedInputs": "外部入力が未割り当てです: {names}。カメラ入力はPlayerメニューから選択できます。マイクとライブストリームの入力にはまだ対応していません。"
+		"AddParameter": "パラメータを追加"
+	},
+	"_EffectPreview": {
+		"Input": "プレビュー入力",
+		"InputPlayback": "入力の再生",
+		"ImageInput": "プレビュー入力画像",
+		"AudioInput": "プレビュー入力音声"
 	},
 	"_Parameter": {
 		"CopyId": "パラメータIDをコピー",

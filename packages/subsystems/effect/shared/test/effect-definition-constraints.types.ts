@@ -82,17 +82,15 @@ const staticSettingDefs = {
 	video: { ...imageSetting, dataType: { kind: 'assetReference', assetType: 'video' } },
 	font: { ...imageSetting, dataType: { kind: 'assetReference', assetType: 'font' } },
 	lut: { ...imageSetting, dataType: { kind: 'assetReference', assetType: 'lut' } },
-	player: { dataType: { kind: 'playerReference' }, ui: { label: 'Player' }, defaultValue: null },
 	amount: { dataType: { kind: 'scalar' }, ui: { label: 'Amount' }, defaultValue: 1 },
 } as const;
 
-// 【原寸は画像・動画・Playerの静的設定からだけ取得する】
+// 【原寸は画像・動画の静的設定からだけ取得する】
 // 素材参照であってもフォントやLUTには描画画像の原寸という意味がない。
 // 参照名から設定の型を広げず、宣言された素材の種類を基準に判定する。
 export function checksIntrinsicResolutionSources() {
 	defineNativeEffect({ ...definition, staticSettingDefs, intrinsicResolutionSetting: 'image' });
 	defineNativeEffect({ ...definition, staticSettingDefs, intrinsicResolutionSetting: 'video' });
-	defineNativeEffect({ ...definition, staticSettingDefs, intrinsicResolutionSetting: 'player' });
 	// @ts-expect-error フォントは原寸の取得元にできない
 	defineNativeEffect({ ...definition, staticSettingDefs, intrinsicResolutionSetting: 'font' });
 	// @ts-expect-error LUTは原寸の取得元にできない
@@ -115,8 +113,6 @@ export function checksStaticSettingDefaults() {
 	defineNativeEffect({ ...definition, staticSettingDefs: { mode: { ...enumSetting, defaultValue: 'missing' } } });
 	// @ts-expect-error 素材の未選択に空文字列を使わない
 	defineNativeEffect({ ...definition, staticSettingDefs: { image: { ...imageSetting, defaultValue: '' } } });
-	// @ts-expect-error Playerの未選択に空文字列を使わない
-	defineNativeEffect({ ...definition, staticSettingDefs: { player: { ...staticSettingDefs.player, defaultValue: '' } } });
 	// 通常のstring設定では空文字列も有効な値であり、参照固有の制約を持ち込まない。
 	defineNativeEffect({ ...definition, staticSettingDefs: { text: { dataType: { kind: 'string' }, ui: { label: 'Text' }, defaultValue: '' } } });
 }

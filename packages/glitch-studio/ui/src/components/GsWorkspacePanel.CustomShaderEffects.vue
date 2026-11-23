@@ -7,13 +7,6 @@
 		<GsButton v-if="selected != null" v-tooltip="i18n.ts._CustomShaderEffect.InUse" :disabled="isCustomShaderEffectUsed(stateManager.state, selected.id)" data-test-delete-custom-shader-effect danger icon="ti ti-trash" @click="remove">{{ i18n.ts.Delete }}</GsButton>
 		<template v-if="selected != null">
 			<GsButton
-				v-if="previewParamDefs.length > 0"
-				:primary="previewParamsShowing"
-				data-test-custom-shader-effect-preview-parameters
-				icon="ti ti-adjustments-horizontal"
-				@click="previewParamsShowing = !previewParamsShowing"
-			>{{ i18n.ts._CustomShaderEffect.PreviewParameters }}</GsButton>
-			<GsButton
 				v-tooltip="i18n.ts._CustomShaderEffect.PreviewApplied"
 				:primary="previewActive"
 				data-test-preview-custom-shader-effect
@@ -23,24 +16,31 @@
 			<span v-if="previewActive && projectSession.effectLivePreviewManagerController.preparationStatus.value?.type === 'loading'">{{ i18n.ts.Loading }}</span>
 		</template>
 	</div>
-	<div v-if="selected != null && previewParamsShowing && previewParamDefs.length > 0" :key="selected.id" :class="$style.previewParams">
-		<template v-for="{ id, definition } in previewParamDefs" :key="id">
-			<div v-if="definition.dataType.kind === 'any'">{{ definition.ui.label }}{{ i18n.ts._TimelineLayer.EditingUnsupported }}</div>
-			<GsVisualParam
-				v-else
-				:availableVariables="EFFECT_LIVE_PREVIEW_VAR_DEFS"
-				:paramPath="[id]"
-				:automationGraphs="[]"
-				:projectAutomationGraphs="stateManager.state.automationGraphs.value"
-				:paramDef="definition"
-				:paramValue="previewParamValues[id] ?? previewDefaultBindings[id]"
-				:defaultBinding="previewDefaultBindings[id]"
-				:data-test-custom-shader-effect-preview-parameter="id"
-				@edit="onPreviewParamEdit"
-			/>
+
+	<GsCustomShaderEffectEditor v-if="selected != null" :key="selected.id" :customShaderEffect="selected" @apply="apply">
+		<template #preview>
+			<div :class="$style.previewParams">
+				<GsEffectLivePreviewInput
+					:effectSource="{ type: 'customShaderEffectReference', id: selected.id }"
+					@activate="projectSession.startCustomShaderEffectLivePreview(selected.id)"
+				/>
+				<template v-for="{ id, definition } in previewParamDefs" :key="id">
+					<GsVisualParam
+						previewMediaInputEnabled
+						:availableVariables="EFFECT_LIVE_PREVIEW_VAR_DEFS"
+						:paramPath="[id]"
+						:automationGraphs="[]"
+						:projectAutomationGraphs="stateManager.state.automationGraphs.value"
+						:paramDef="definition"
+						:paramValue="previewParamValues[id] ?? previewDefaultBindings[id]"
+						:defaultBinding="previewDefaultBindings[id]"
+						:data-test-custom-shader-effect-preview-parameter="id"
+						@edit="onPreviewParamEdit"
+					/>
+				</template>
+			</div>
 		</template>
-	</div>
-	<GsCustomShaderEffectEditor v-if="selected != null" :key="selected.id" :customShaderEffect="selected" @apply="apply"/>
+	</GsCustomShaderEffectEditor>
 </div>
 </template>
 
@@ -48,14 +48,14 @@
 import { computed, onBeforeUnmount, provide, ref } from 'vue';
 import { EFFECT_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shared/effect-live-preview-expression.ts';
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
-import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsCustomShaderEffectEditor from './GsCustomShaderEffectEditor.vue';
+import GsEffectLivePreviewInput from './GsEffectLivePreviewInput.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
-import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
+import type { EffectLivePreviewParameterBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
@@ -76,10 +76,9 @@ const selectedId = ref<string | null>(null);
 const selected = computed(() => definitions.value.find(definition => definition.id === selectedId.value) ?? definitions.value[0] ?? null);
 const definitionItems = computed(() => definitions.value.map(definition => ({ value: definition.id, label: definition.name })));
 
-const previewParamsShowing = ref(false);
 const previewActive = computed(() => selected.value != null && projectSession.previewPlayback.livePreviewCustomShaderEffectId.value === selected.value.id);
 const previewParamDefs = computed(() => Object.entries(selected.value?.definition.paramDefs ?? {}).map(([id, definition]) => ({
-	id, definition: isParameterType(definition, 'any') ? definition : { ...definition, canNode: false as const },
+	id, definition,
 })));
 const previewDefaultBindings = computed(() => Object.fromEntries(previewParamDefs.value.map(({ id, definition }) =>
 	[id, createDefaultParameterBinding(definition)])));
@@ -110,7 +109,7 @@ provide(previewParameterContextKey, {
 	},
 });
 
-function setPreviewParameterValue(customShaderEffectId: string, id: string, binding: ValueParameterBinding | null) {
+function setPreviewParameterValue(customShaderEffectId: string, id: string, binding: EffectLivePreviewParameterBinding | null) {
 	const values = { ...projectSession.getCustomShaderEffectPreviewParamValues(customShaderEffectId) };
 	if (binding == null) delete values[id];
 	else values[id] = binding;

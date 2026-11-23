@@ -3,12 +3,11 @@ import * as z from 'zod';
 import { parameterDefinitionSchema, textureDataTypeSchema, staticSettingDefinitionSchema } from '../commands/parameter-contract-schemas.ts';
 import { customNodeGraphEffectTargetSchema, customNodeGraphEffectNodeReferenceSchema, customNodeGraphEffectNodeSchema, customNodeGraphEffectSchema } from '../commands/custom-node-graph-effect-contract-schemas.ts';
 import { timelineLayerSchema, timelineClipSchema, timelineSceneResolutionSchema, timelineSceneReferenceSchema, timelineLayerReferenceSchema, timelineClipReferenceSchema, timelineEditableParameterBindingSchema } from '../commands/timeline-contract-schemas.ts';
-import { playerSchema, automationGraphSchema, projectCustomShaderEffectSchema, projectResolutionSchema, timelineMotionBlurSettingsSchema } from '../commands/project-contract-schemas.ts';
+import { automationGraphSchema, projectCustomShaderEffectSchema, projectResolutionSchema, timelineMotionBlurSettingsSchema } from '../commands/project-contract-schemas.ts';
 import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 
 const identifierSchema = z.string().min(1).describe('An existing identifier returned by a Query or creation Command.');
 export const assetReferenceSchema = z.looseObject({ assetId: identifierSchema });
-export const playerReferenceSchema = z.looseObject({ playerId: identifierSchema });
 export const effectReferenceSchema = z.looseObject({ effectSource: effectSourceSchema });
 export const projectAutomationGraphReferenceSchema = z.looseObject({ automationGraphId: identifierSchema });
 export const customShaderEffectReferenceSchema = z.looseObject({ customShaderEffectId: identifierSchema });
@@ -90,7 +89,6 @@ export const assetMetadataSchema = z.looseObject({
 	isExternalReference: z.boolean(),
 	sourceFilePath: z.string().nullable().describe('Stored external source path, or null. Asset bytes and thumbnails are not included.'),
 });
-export const playerResultSchema = z.intersection(playerSchema, z.looseObject({ target: playerReferenceSchema }));
 
 export const effectSummarySchema = z.looseObject({
 	target: effectReferenceSchema,

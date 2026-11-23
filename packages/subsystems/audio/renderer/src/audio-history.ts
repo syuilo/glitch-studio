@@ -113,7 +113,7 @@ export class AudioHistory {
 
 	public sample(frame: number, channel: AudioSampleChannel): number {
 		if (frame < this.startFrame || frame >= this.endFrame || !this.channelCount) return 0;
-		// 既存のPlayerプレビュー/Spectrogramは、モノラルの右側を無音として扱う。
+		// 音声のモニター表示では、モノラルの右側を無音として扱う。
 		// 描画用AudioInputの窓は、取得元によらずモノラルを左右へ複製する契約。
 		if (channel === 'right' && this.channelCount === 1) return 0;
 		this.currentBlock = findBlock(this.blocks, frame, this.currentBlock);

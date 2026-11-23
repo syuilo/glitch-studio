@@ -30,7 +30,6 @@ export async function exportCustomNodeGraphEffectFile(context: ProjectContext, c
 			gsVersion: _VERSION_,
 			customShaderEffects: state.customShaderEffects.value,
 			nodeMetadata, customNodeGraphEffects: state.customNodeGraphEffects.value, assets: state.assets.value,
-			players: state.players.value,
 		}, nativeEffectDefinitions);
 		const data = await encodeCustomNodeGraphEffectFile(file);
 		const url = URL.createObjectURL(new Blob([new Uint8Array(data)], { type: 'application/octet-stream' }));
@@ -59,13 +58,6 @@ export async function importCustomNodeGraphEffectFile(context: ProjectContext): 
 		const decoded = decodeCustomNodeGraphEffectFile(new Uint8Array(data), _VERSION_);
 		const prepared = prepareCustomNodeGraphEffectImport(decoded, nativeEffectDefinitions);
 		context.stateManager.commit('importCustomNodeGraphEffect', prepared);
-		if (prepared.unassignedPlayerNames.length > 0) {
-			ui.alert({
-				type: 'info',
-				title: i18n.ts._CustomNodeGraphEffect.Imported,
-				text: i18n.tsx._CustomNodeGraphEffect.UnassignedInputs({ names: prepared.unassignedPlayerNames.join(', ') }),
-			});
-		}
 		return prepared.customNodeGraphEffect.id;
 	} catch (error) {
 		if (context.isDisposed) return null;

@@ -20,7 +20,6 @@ import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts'
 import { resolveTimelineImageLayerReference } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import { resolveTimelineAnotherLayerAudioReference } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { getTimelineLayerPublicParameterContext, resolveTimelineLayerPublicParameterReference } from '@gs/subsystems_timeline_shared/public-parameters.ts';
-import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/player-audio-source.ts';
 import { customNodeGraphEffectTargetKey } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
 import { getCustomNodeGraphEffect } from './custom-node-graph-effect-target.ts';
 import { resolveNodeParam } from './node-params.ts';
@@ -110,7 +109,7 @@ function validateLiteral(dataType: DataType, value: unknown): void {
 		case 'fitMode': requireValid(isOneOf(value, ['contain', 'cover', 'stretch'])); break;
 		case 'wrapMode': requireValid(isWrapMode(value)); break;
 		case 'enum': requireValid(typeof value === 'string' && dataType.options.includes(value)); break;
-		case 'audioSource': validatePlayerAudioSourceSelection(value); break;
+		case 'audioSource': requireValid(value === null); break;
 		case 'any': requireValid(value === null || components(value, 4)); break;
 		case 'array': {
 			requireValid(Array.isArray(value));
@@ -264,12 +263,7 @@ function validateLeafDestination(definition: ParameterDefinition, binding: Edita
 		if (context.customNodeGraphEffect != null) validateCustomNodeGraphEffectAudioBinding(definition, binding, context.customNodeGraphEffect.paramDefs);
 	}
 	switch (binding.inputSource) {
-		case 'literal':
-			if (definition.dataType.kind === 'audioSource' && binding.value != null) {
-				validatePlayerAudioSourceSelection(binding.value);
-				requireValid(sameProjectSession && context.state.players.value.some(player => player.id === binding.value.playerId));
-			}
-			break;
+		case 'literal': break;
 		case 'automationGraphReference': {
 			if (binding.automationGraphId == null) break;
 			requireValid(sameProjectSession);

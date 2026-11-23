@@ -42,7 +42,7 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 `expression.ts`はレイヤーに公開する変数名、`evaluation-scope.ts`は映像と音声で共通のScene時刻の評価スコープを定義する。Custom Node Graph Effect内部の変数・公開パラメータ・グラフ一覧は継承しない。
 
-`parameter-binding.ts`は共通方式と公開パラメータ直接参照を扱う`TimelineParameterBinding`、音声入力用の`lowerLayerAudio` / `anotherLayerAudio`と画像入力用の`lowerLayerOutput` / `anotherLayerOutput`を加えた`TimelineEffectParameterBinding`を定義する。合成設定・音量にも同じ公開パラメータ参照を使う。音声入力Bindingは`audioSource`型だけで選択できる。`anotherLayerAudio`は`layerId: string | null`を保存し、引数を所有するレイヤーと同じSceneのグループ内を含め、音声・動画・VOICEVOX・Scene・グループレイヤーを選ぶ。`null`や削除・欠落した参照先は入力なしとして扱うが、保存したIDは維持する。TimelineではPlayerを指定できず、音声入力の式・キー・automationも扱わない。
+`parameter-binding.ts`は共通方式と公開パラメータ直接参照を扱う`TimelineParameterBinding`、音声入力用の`lowerLayerAudio` / `anotherLayerAudio`と画像入力用の`lowerLayerOutput` / `anotherLayerOutput`を加えた`TimelineEffectParameterBinding`を定義する。合成設定・音量にも同じ公開パラメータ参照を使う。音声入力Bindingは`audioSource`型だけで選択できる。`anotherLayerAudio`は`layerId: string | null`を保存し、引数を所有するレイヤーと同じSceneのグループ内を含め、音声・動画・VOICEVOX・Scene・グループレイヤーを選ぶ。`null`や削除・欠落した参照先は入力なしとして扱うが、保存したIDは維持する。音声入力の取得元はレイヤーのBindingで指定する。
 
 `timeline-audio.ts`の`resolveTimelineAnotherLayerAudioReference()`は、所属Scene内のグループを含む探索・自身の除外・音声出力の有無による参照可否を判定する純粋関数。Commandと描画側で同じ規則を使い、解決できない選択の拒否や入力なしへの変換はそれぞれの呼び出し側が行う。無効・空のレイヤーや音声無効の動画も有効な参照先として返す。
 

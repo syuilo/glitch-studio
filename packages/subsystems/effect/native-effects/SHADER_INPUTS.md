@@ -53,7 +53,7 @@ Fitは座標を変換し、containの余白も接続のWrapに従う。clampは�
 
 ## 特殊な入力処理
 
-厳密な整数画素参照や専用テクスチャへの変換が必要なら、texture入力の `GPUTexture` を直接扱える。uniformの場合もエフェクトの仕様に応じて処理する。素材・Playerなどの静的設定は `resources` から、接続に対応しない通常パラメータは評価済みの `value` から受け取る。
+厳密な整数画素参照や専用テクスチャへの変換が必要なら、texture入力の `GPUTexture` を直接扱える。uniformの場合もエフェクトの仕様に応じて処理する。素材の参照などの静的設定は `resources` から、接続に対応しない通常パラメータは評価済みの `value` から受け取る。
 
 Custom Node Graph EffectのInからOutへの直結やBypassは、対応するテクスチャを借用して渡す。借用するテクスチャの寿命は元の所有者が管理する。 [Effectの出力と配置](../README.md)
 

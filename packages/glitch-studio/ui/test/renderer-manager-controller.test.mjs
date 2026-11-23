@@ -110,7 +110,7 @@ function fixture(t, kind = 'CustomNodeGraphEffect') {
 	initialOptions.set(controller, {
 		staticOptions: { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enable32bitDataTextures: false, enableStats: false },
 		dynamicOptions: { fpsLimit: null, resolution: { width: 16, height: 16 }, resolutionScale: 1 },
-		resources: { assets: [], players: [] },
+		resources: { assets: [] },
 	});
 	// 本番のPreviewRenderEngineと同様に、エンジンの所有者が失敗通知を受けて解放する。
 	controller.onRenderFailure = error => controller.disposeManager(error);

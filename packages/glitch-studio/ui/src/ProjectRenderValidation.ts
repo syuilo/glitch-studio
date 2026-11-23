@@ -1,3 +1,4 @@
+import { canUseEffectLivePreviewInput, isEffectLivePreviewMediaBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { createProjectEffectDefinitions } from '@gs/glitch-studio_shared/project/effects.ts';
 import { validateProjectEffectRegistrations } from '@gs/glitch-studio_shared/project/validate-effect-registrations.ts';
@@ -17,7 +18,6 @@ import { getTimelineLayerOutputDependencyGraph, validateTimelineLayerMaskReferen
 import type { TimelineImageInputReference } from '@gs/subsystems_timeline_shared/layer-output.ts';
 import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
-import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/player-audio-source.ts';
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { customNodeGraphEffectTargetKey } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
 import type { CustomNodeGraphEffectTarget } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
@@ -25,7 +25,6 @@ import type { EffectDefinitions } from '@gs/subsystems_effect_shared/effect-sour
 import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
 import type { EffectLivePreviewSource, EffectLivePreviewParamValues } from './types/effect-live-preview.ts';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
-import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { AppStateChange, ProjectState } from './Project.ts';
 
 export type RenderValidationDiagnostic = { target: string; message: string };
@@ -46,7 +45,6 @@ export class ProjectRenderValidation {
 	private imageInputs = new Map<string, Map<string, TimelineImageInputReference[]>>();
 	private locations = new Map<string, Map<string, LayerLocation>>();
 	private assets = new Map<string, string>();
-	private players = new Set<string>();
 	private effectLivePreviewInputs: { effectSource: EffectLivePreviewSource; bindings: EffectLivePreviewParamValues } | null = null;
 	public readonly diagnostics = shallowRef<readonly RenderValidationDiagnostic[]>([]);
 	public readonly errorMessage = computed(() => this.diagnostics.value[0]?.message ?? null);
@@ -60,7 +58,6 @@ export class ProjectRenderValidation {
 		this.sceneEdges.clear(); this.imageInputs.clear(); this.locations.clear();
 		this.effectLivePreviewInputs = null;
 		this.assets = new Map(this.state.assets.value.map(asset => [asset.id, asset.fileDataType]));
-		this.players = new Set(this.state.players.value.map(player => player.id));
 		for (const customNodeGraphEffect of this.state.customNodeGraphEffects.value) this.replaceCustomNodeGraphEffect({ customNodeGraphEffectId: customNodeGraphEffect.id }, customNodeGraphEffect.definition);
 		for (const scene of this.state.timelineScenes.value) this.replaceScene(scene);
 		this.checkRegistrations(); this.checkSettings(); this.checkSceneGraph(); this.publish();
@@ -107,9 +104,6 @@ export class ProjectRenderValidation {
 				const asset = this.state.assets.value.find(asset => asset.id === change.assetId);
 				if (asset) this.assets.set(asset.id, asset.fileDataType); else this.assets.delete(change.assetId);
 				this.recheckDependents('asset:' + change.assetId);
-			} else if (change.type === 'player') {
-				if (this.state.players.value.some(player => player.id === change.playerId)) this.players.add(change.playerId); else this.players.delete(change.playerId);
-				this.recheckDependents('player:' + change.playerId);
 			} else if (change.type === 'projectResolution' || change.type === 'timelineRenderSettings') this.checkSettings();
 		}
 		if (this.effectLivePreviewInputs?.effectSource.type === 'customNodeGraphEffectReference' && changes.some(change => change.type === 'customNodeGraphEffect' || change.type === 'customNodeGraphEffectRegistration')) {
@@ -126,13 +120,13 @@ export class ProjectRenderValidation {
 		const definition = registrations.find(entry => entry.id === effectSource?.id)?.definition;
 		if (definition == null) { this.removeUnit('Effect Live Preview inputs'); this.publish(); return; }
 		const values = Object.entries(definition.paramDefs).map(([id, def]) => [def, bindings[id] ?? createDefaultParameterBinding(def)] as const);
-		const dependencies = new Set<string>();
 		this.check('Effect Live Preview inputs', [effectSource, values.map(([def, value]) => staticParameterShape(def, value))], () => {
 			for (const [def, value] of values) inspectStaticParameter(def, value, (leaf, binding) => {
-				if (leaf.dataType.kind === 'audioSource') validateLiteralAudioSourceBinding(binding);
-				this.value(leaf, binding, dependencies);
+				if (isEffectLivePreviewMediaBinding(binding)) {
+					if (!canUseEffectLivePreviewInput(leaf, binding.inputSource)) throw new Error('Incompatible Effect Live Preview input');
+				} else if (leaf.dataType.kind === 'audioSource') validateLiteralAudioSourceBinding(binding);
 			});
-		}, dependencies);
+		});
 		this.publish();
 	}
 
@@ -179,16 +173,6 @@ export class ProjectRenderValidation {
 		return mimeType;
 	}
 
-	private value(definition: ParameterDefinition, binding: any, dependencies: Set<string>) {
-		if (binding.inputSource !== 'literal' || binding.value == null) return;
-		const kind = definition.dataType.kind;
-		if (kind === 'audioSource') {
-			validatePlayerAudioSourceSelection(binding.value);
-			dependencies.add('player:' + binding.value.playerId);
-			if (!this.players.has(binding.value.playerId)) throw new Error('Player not found: ' + binding.value.playerId);
-		}
-	}
-
 	private staticSettings(definitions: StaticSettingDefinitions, values: StaticSettingValues, dependencies: Set<string>) {
 		const resolvedValues = createStaticSettingValues(definitions, values);
 		for (const [key, definition] of Object.entries(definitions)) {
@@ -197,9 +181,6 @@ export class ProjectRenderValidation {
 			if (definition.dataType.kind === 'assetReference') {
 				const mimeType = this.asset(value as string, dependencies);
 				if (!matchesAssetReferenceMimeType(definition.dataType, mimeType)) throw new Error('Incompatible Asset: ' + value);
-			} else if (definition.dataType.kind === 'playerReference') {
-				dependencies.add('player:' + value);
-				if (!this.players.has(value as string)) throw new Error('Player not found: ' + value);
 			}
 		}
 	}
@@ -242,9 +223,6 @@ export class ProjectRenderValidation {
 			this.checkEffectResources(node.effectSource, dependencies, definitions, visited);
 			const def = resolveEffectSourceForValidation(node.effectSource, definitions).definition;
 			this.staticSettings(def.staticSettingDefs ?? {}, node.staticSettings ?? {}, dependencies);
-			for (const [key, parameter] of Object.entries(def.paramDefs)) {
-				inspectStaticParameter(parameter, node.params[key] ?? createDefaultParameterBinding(parameter), (leaf, value) => this.value(leaf, value, dependencies));
-			}
 		}
 	}
 
@@ -313,8 +291,7 @@ export class ProjectRenderValidation {
 
 			const settings = getTimelineLayerStaticSettings(layer, getEffect());
 			this.staticSettings(settings.definitions, settings.values ?? {}, dependencies);
-			inspectTimelineLayer(layer, this.definitions, (def, binding) => {
-				this.value(def, binding, dependencies);
+			inspectTimelineLayer(layer, this.definitions, (_, binding) => {
 				const input = binding as { inputSource: string };
 				if (input.inputSource === 'lowerLayerOutput' || input.inputSource === 'anotherLayerOutput') inputs.push(binding as TimelineImageInputReference);
 			});

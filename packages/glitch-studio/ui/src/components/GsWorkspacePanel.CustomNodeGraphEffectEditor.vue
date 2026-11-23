@@ -2,26 +2,8 @@
 <div :class="$style.root">
 	<div :class="$style.header">
 		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> {{ customNodeGraphEffect?.name ?? '' }} [{{ prettyId(customNodeGraphEffect?.id ?? '') }}]</button>
-		<GsButton v-if="customNodeGraphEffect != null" style="margin-left: auto;" :primary="previewParamsShowing" icon="ti ti-adjustments-horizontal" @click="previewParamsShowing = !previewParamsShowing">{{ i18n.ts._CustomNodeGraphEffect.PreviewParameters }}</GsButton>
-		<GsButton v-if="customNodeGraphEffect != null" style="margin-left: 0;" :primary="previewPlayback.livePreviewCustomNodeGraphEffectId.value === customNodeGraphEffect.id" @click="previewCustomNodeGraphEffectLivePreview">Pv.</GsButton>
+		<GsButton v-if="customNodeGraphEffect != null" style="margin-left: auto;" :primary="previewPlayback.livePreviewCustomNodeGraphEffectId.value === customNodeGraphEffect.id" @click="previewCustomNodeGraphEffectLivePreview">{{ i18n.ts.Preview }}</GsButton>
 		<span v-if="previewPlayback.livePreviewCustomNodeGraphEffectId.value === customNodeGraphEffect?.id && projectSession.effectLivePreviewManagerController.preparationStatus.value?.type === 'loading'">{{ i18n.ts.Loading }}</span>
-	</div>
-
-	<div v-if="customNodeGraphEffect && previewParamsShowing" :key="customNodeGraphEffect.id" :class="$style.previewParams">
-		<!-- TODO: struct / array / anyの公開パラメータ編集UI。型定義の制約ではなく、現在のUIの対応範囲。 -->
-		<template v-for="paramDef of customNodeGraphEffect.paramDefs" :key="paramDef.id">
-			<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}{{ i18n.ts._TimelineLayer.EditingUnsupported }}</div>
-			<GsVisualParam
-				v-else
-				:availableVariables="EFFECT_LIVE_PREVIEW_VAR_DEFS"
-				:paramPath="[paramDef.id]"
-				:automationGraphs="[]"
-				:projectAutomationGraphs="stateManager.state.automationGraphs.value"
-				:paramDef="{ ...paramDef, canNode: false }"
-				:paramValue="previewParamValues[paramDef.id]"
-				@edit="onPreviewParamEdit"
-			/>
-		</template>
 	</div>
 
 	<GsCustomNodeGraphEffectEditor
@@ -37,29 +19,53 @@
 		@rename="renameCurrentCustomNodeGraphEffect"
 		@requestAddEffectNode="showAddEffectNodeMenu"
 		@requestExport="exportCurrentCustomNodeGraphEffect"
-	/>
+	>
+		<template #preview>
+			<div :class="$style.previewParams">
+				<GsEffectLivePreviewInput
+					:effectSource="{ type: 'customNodeGraphEffectReference', id: customNodeGraphEffect.id }"
+					@activate="previewCustomNodeGraphEffectLivePreview"
+				/>
+				<!-- 構造化された公開パラメータのプレビュー編集は未対応。 -->
+				<template v-for="paramDef of customNodeGraphEffect.paramDefs" :key="paramDef.id">
+					<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array'">{{ paramDef.ui.label }}{{ i18n.ts._TimelineLayer.EditingUnsupported }}</div>
+					<GsVisualParam
+						v-else
+						previewMediaInputEnabled
+						:availableVariables="EFFECT_LIVE_PREVIEW_VAR_DEFS"
+						:paramPath="[paramDef.id]"
+						:automationGraphs="[]"
+						:projectAutomationGraphs="stateManager.state.automationGraphs.value"
+						:paramDef="paramDef"
+						:paramValue="previewParamValues[paramDef.id]"
+						@edit="onPreviewParamEdit"
+					/>
+				</template>
+			</div>
+		</template>
+	</GsCustomNodeGraphEffectEditor>
 </div>
 </template>
 
 <script lang="ts" setup>
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
-import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { computed, ref, watch, onBeforeUnmount, inject, provide } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { prettyId } from '@gs/shared/utility/id.ts';
 import { EFFECT_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shared/effect-live-preview-expression.ts';
 import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
 import GsCustomNodeGraphEffectEditor from './GsCustomNodeGraphEffectEditor.vue';
+import GsEffectLivePreviewInput from './GsEffectLivePreviewInput.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
 import GsButton from './common/GsButton.vue';
 import type { ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
-import type { CustomNodeGraphEffectParamDef, CustomNodeGraphEffectArgumentBindings } from '@/types/custom-node-graph-effect-view.ts';
+import type { CustomNodeGraphEffectParamDef } from '@/types/custom-node-graph-effect-view.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { CustomNodeGraphEffectEdit } from '@/types/custom-node-graph-effect-editor.ts';
 import type { WorkspacePanel } from '@/workspace.ts';
-import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
+import { canUseEffectLivePreviewInput, isEffectLivePreviewMediaBinding, type EffectLivePreviewParameterBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import { getCustomNodeGraphEffectView } from '@/utility/custom-node-graph-effect-view.ts';
 import { i18n } from '@/i18n.ts';
 import { useProjectSession } from '@/project-session.ts';
@@ -84,7 +90,6 @@ const workspaceController = inject(workspaceControllerKey)!;
 let disposed = false;
 onBeforeUnmount(() => { disposed = true; });
 
-const previewParamsShowing = ref(false);
 const exporting = ref(false);
 const importing = ref(false);
 const selectedCustomNodeGraphEffectId = ref<ProjectCustomNodeGraphEffect['id'] | null>(null);
@@ -110,8 +115,16 @@ watch(() => customNodeGraphEffect.value?.id, id => {
 	selectedCustomNodeGraphEffectId.value = id ?? null;
 }, { immediate: true });
 
-const previewParamValues = ref<CustomNodeGraphEffectArgumentBindings>({});
+const previewParamValues = ref<Record<string, EffectLivePreviewParameterBinding>>({});
 const editedPreviewParamIds = new Set<string>();
+
+function synchronizePreviewParameters(id: string, activate: boolean) {
+	const overrides = Object.fromEntries([...editedPreviewParamIds].map(key => [key, previewParamValues.value[key]]));
+	projectSession.storeCustomNodeGraphEffectPreviewParamValues(id, overrides);
+	if (activate || previewPlayback.livePreviewCustomNodeGraphEffectId.value === id) {
+		previewPlayback.updateEffectLivePreviewParamValues({ type: 'customNodeGraphEffectReference', id }, overrides);
+	}
+}
 // Preview Paramsは保存データではないため、取消しだけを既存の一時値へ適用する。
 provide(previewParameterContextKey, {
 	scope: computed(() => customNodeGraphEffect.value == null ? null : {
@@ -133,7 +146,7 @@ provide(previewParameterContextKey, {
 				active = false;
 				previewParamValues.value[id] = before;
 				if (!wasEdited) editedPreviewParamIds.delete(id);
-				if (customNodeGraphEffect.value != null) previewPlayback.updateEffectLivePreviewParamValues({ type: 'customNodeGraphEffectReference', id: customNodeGraphEffect.value.id }, previewParamValues.value);
+				if (customNodeGraphEffect.value != null) synchronizePreviewParameters(customNodeGraphEffect.value.id, true);
 			},
 		};
 	},
@@ -142,15 +155,22 @@ let previewCustomNodeGraphEffectId: string | null = null;
 let previewParamTypes = new Map<string, CustomNodeGraphEffectParamDef['dataType']>();
 
 watch(customNodeGraphEffect, currentCustomNodeGraphEffect => {
-	if (currentCustomNodeGraphEffect?.id !== previewCustomNodeGraphEffectId) editedPreviewParamIds.clear();
-	const values: CustomNodeGraphEffectArgumentBindings = {};
+	const id = currentCustomNodeGraphEffect?.id ?? null;
+	const switched = id !== previewCustomNodeGraphEffectId;
+	if (switched) {
+		editedPreviewParamIds.clear();
+		previewParamValues.value = id == null ? {} : { ...projectSession.getCustomNodeGraphEffectPreviewParamValues(id) };
+		for (const key of Object.keys(previewParamValues.value)) editedPreviewParamIds.add(key);
+	}
+	const values: Record<string, EffectLivePreviewParameterBinding> = {};
 	for (const def of currentCustomNodeGraphEffect?.paramDefs ?? []) {
 		const previousType = previewParamTypes.get(def.id);
 		const value = previewParamValues.value[def.id];
 		// プレビューで明示的に編集していない値は、定義のデフォルト値に追従する。
 		// enumの選択肢が増減しても値と式は維持する。無効な値は描画エラーにし、Undoで復元できるようにする。
-		const compatible = previousType != null && (areDataTypesEqual(previousType, def.dataType)
-			|| (previousType.kind === 'enum' && def.dataType.kind === 'enum'));
+		const compatible = (switched || (previousType != null && (areDataTypesEqual(previousType, def.dataType)
+			|| (previousType.kind === 'enum' && def.dataType.kind === 'enum'))))
+			&& (value == null || !isEffectLivePreviewMediaBinding(value) || canUseEffectLivePreviewInput(def, value.inputSource));
 		if (editedPreviewParamIds.has(def.id) && compatible && value != null) {
 			values[def.id] = value;
 		} else {
@@ -162,9 +182,7 @@ watch(customNodeGraphEffect, currentCustomNodeGraphEffect => {
 	previewParamValues.value = values;
 	previewCustomNodeGraphEffectId = currentCustomNodeGraphEffect?.id ?? null;
 	previewParamTypes = new Map((currentCustomNodeGraphEffect?.paramDefs ?? []).map(def => [def.id, def.dataType]));
-	if (currentCustomNodeGraphEffect != null && previewPlayback.livePreviewCustomNodeGraphEffectId.value === currentCustomNodeGraphEffect.id) {
-		previewPlayback.updateEffectLivePreviewParamValues({ type: 'customNodeGraphEffectReference', id: currentCustomNodeGraphEffect.id }, values);
-	}
+	if (id != null) synchronizePreviewParameters(id, false);
 }, { deep: true, immediate: true });
 
 function onPreviewParamEdit(event: ParamEdit) {
@@ -177,7 +195,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 			(id, binding) => {
 				previewParamValues.value[id] = binding;
 				editedPreviewParamIds.add(id);
-				previewPlayback.updateEffectLivePreviewParamValues({ type: 'customNodeGraphEffectReference', id: currentCustomNodeGraphEffect.id }, previewParamValues.value);
+				synchronizePreviewParameters(currentCustomNodeGraphEffect.id, true);
 			}).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;
 	}
@@ -187,7 +205,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 	// Viewの数値欄も、プレビュー上の一括操作も、同じ引数ツリーへ反映する。
 	// 子の編集で親を作り直す際は、別フィールドの式やキーを維持する。
 	const draft = { [id]: previewParamValues.value[id] == null ? createDefaultParameterBinding(rootDefinition) : deepClone(previewParamValues.value[id]) };
-	const parameter = resolveParameter<ValueParameterBinding>({ [id]: rootDefinition }, draft, event.paramPath);
+	const parameter = resolveParameter<EffectLivePreviewParameterBinding>({ [id]: rootDefinition }, draft, event.paramPath);
 	const { def, value: current } = parameter;
 	const next = editEffectLivePreviewParameter(def, current, event);
 	if (next == null) return;
@@ -195,12 +213,12 @@ function onPreviewParamEdit(event: ParamEdit) {
 	previewParamValues.value[id] = draft[id];
 	if (event.kind === 'reset' && event.paramPath.length === 1) editedPreviewParamIds.delete(id);
 	else editedPreviewParamIds.add(id);
-	if (customNodeGraphEffect.value != null) previewPlayback.updateEffectLivePreviewParamValues({ type: 'customNodeGraphEffectReference', id: customNodeGraphEffect.value.id }, previewParamValues.value);
+	if (customNodeGraphEffect.value != null) synchronizePreviewParameters(customNodeGraphEffect.value.id, true);
 }
 
 function previewCustomNodeGraphEffectLivePreview() {
 	if (customNodeGraphEffect.value == null) return;
-	previewPlayback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id: customNodeGraphEffect.value.id }, previewParamValues.value);
+	projectSession.startCustomNodeGraphEffectLivePreview(customNodeGraphEffect.value.id);
 }
 
 function showSwitchMenu(ev: PointerEvent) {
