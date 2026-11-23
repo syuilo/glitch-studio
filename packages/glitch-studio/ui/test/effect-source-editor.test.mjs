@@ -152,7 +152,7 @@ test('disconnects consumers of a removed registered graph output and restores th
 });
 
 // 【公開入力の削除をUndoすると自動解像度の参照も復元する】
-// ポートIDだけを復元すると、Undo後に同じ画像へつなぎ直しても描画寸法が変わってしまう。
+// ポートIDだけを復元すると、Undo後に同じ画像へ繋ぎ直しても描画寸法が変わってしまう。
 test('restores the resolution input when undoing removal of the primary public input', () => {
 	const manager = new ProjectContext(createTestProject()).stateManager;
 	const target = manager.commit('createCustomNodeGraphEffect', {});

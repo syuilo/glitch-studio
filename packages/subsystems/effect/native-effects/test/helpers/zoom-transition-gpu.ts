@@ -91,7 +91,7 @@ export async function run() {
 	}
 
 	try {
-		// 【端点とその直前で元画像へ連続してつながる】
+		// 【端点とその直前で元画像へ連続して繋がる】
 		// 端点だけ元画像を返してズーム倍率が飛ぶ実装を、複数倍率・方向で検出する。
 		for (const direction of ['in', 'out'] as const) {
 			for (const [width, height] of [[33, 17], [17, 33]]) {

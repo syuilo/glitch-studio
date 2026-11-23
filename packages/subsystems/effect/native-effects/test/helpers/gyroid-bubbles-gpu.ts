@@ -60,7 +60,7 @@ export async function run(includePreview = false) {
 		assert(baseline.some((value, index) => index % 4 !== 3 && value > 0.2), 'visible default bubbles');
 		assert(baseline.every((value, index) => index % 4 === 3 ? value === 1 : value >= 0 && value <= 1), 'opaque soft shoulder');
 
-		// 【球の間に隙間があっても発光する膜がつながる】
+		// 【球の間に隙間があっても発光する膜が繋がる】
 		// Time=0で手前の2球の間にある同じ世界位置を照合する。Glow Widthを隙間より十分狭め、
 		// 単に光の裾が重なった場合と、smooth unionで表面が現れた場合を区別する。
 		const pair = { count: 2, surfaceDeformation: 0, glowWidth: 0.004, cameraPosition: [0.0049, 0.15] as [number, number] };

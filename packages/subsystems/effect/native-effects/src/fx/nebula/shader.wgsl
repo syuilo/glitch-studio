@@ -115,7 +115,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 		let opticalDepth = density * uniforms.absorption * stepLength;
 		let segmentTransmittance = exp(-opticalDepth);
 		// 区間内を一定密度として発光・吸収を解析積分する。吸収0ではdensity*区間長へ
-		// 連続につなぎ、サンプル数だけを増やして総光量が増えることを避ける。
+		// 連続に繋ぎ、サンプル数だけを増やして総光量が増えることを避ける。
 		var absorptionIntegral = 1.0 - opticalDepth * 0.5 + opticalDepth * opticalDepth / 6.0;
 		if (opticalDepth >= 0.001) { absorptionIntegral = (1.0 - segmentTransmittance) / opticalDepth; }
 		// 雲の薄い部分から濃い部分までRampを使い、雲量を減らしても一色へ偏らせない。

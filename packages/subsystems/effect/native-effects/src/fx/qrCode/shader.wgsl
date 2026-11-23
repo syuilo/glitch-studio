@@ -91,7 +91,7 @@ fn cellFilled(point: vec2f, cell: vec2i, dark: bool) -> bool {
 		// 連結辺の角は削らず、両隣が明部の凸角だけを丸める。
 		return horizontal || vertical || roundedBoxDistance(point, 0.5, radius) <= 0.0;
 	}
-	// 明部セルの角も評価して凹角を埋める。斜めが明部なら対角の二つのマスを勝手につながない。
+	// 明部セルの角も評価して凹角を埋める。斜めが明部なら対角の二つのマスを勝手に繋がない。
 	if (!horizontal || !vertical || !connectionCellDark(cell + direction) || radius <= 0.0) { return false; }
 	let cornerDistance = vec2f(0.5) - abs(point);
 	return all(cornerDistance < vec2f(radius)) && length(vec2f(radius) - cornerDistance) >= radius;

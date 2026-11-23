@@ -21,7 +21,7 @@ function getPoints(from, to, style = 'curved') {
 	});
 }
 
-// 【直線設定は端点をそのままつなぎ、同一点・垂直・極短の接続も有限のパスになる】
+// 【直線設定は端点をそのまま繋ぎ、同一点・垂直・極短の接続も有限のパスになる】
 // 接続開始時やポインターが出力を横切るときにも、NaNや不必要なループを描画しない。
 test('preserves straight connections and handles degenerate curved connections', () => {
 	for (const [from, to] of [

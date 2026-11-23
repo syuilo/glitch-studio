@@ -114,7 +114,7 @@ export async function run(includePreview = false) {
 	];
 
 	try {
-		// 【全方向・裏面モードで完全なA/Bへ連続してつながる】
+		// 【全方向・裏面モードで完全なA/Bへ連続して繋がる】
 		// 端点だけ元画像へ置換する実装では、影や裏面が最後のフレームで消えてしまう。
 		// 半透明・HDR・負値と極小/大半径を同時に使い、その直前も元画像へ近づくことを確認する。
 		const render = createEffect(65, 33);

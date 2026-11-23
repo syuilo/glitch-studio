@@ -133,7 +133,7 @@ export async function run() {
 			check(`${side} threshold selects tones`, direction * (active[0] - 0.125) > 0);
 			compare(`${side} threshold excludes tones`, await render({ ...atThreshold, [thresholdName]: scalar(0.5 - direction * 0.25) }), repeat(gray(0.5)), 0);
 			compare(`${side} negative softness is hard knee`, await render({ ...atThreshold, [softnessName]: scalar(-1) }), repeat(gray(0.5)), 0);
-			// 【移行区間の端で補正カーブの傾きが滑らかにつながる】
+			// 【移行区間の端で補正カーブの傾きが滑らかに繋がる】
 			// 出力画像の階調に折れ目が出る誤実装を、実際のfloat16出力の差分から検出する。
 			for (const edge of [0.25, 0.75]) {
 				const step = 1 / 64;

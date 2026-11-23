@@ -170,7 +170,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 
 		// 【対角セルの中心を丸い線で結び、横切る明部セルにも線を描く】
 		// 各セル内だけで線を描くと斜めの連結が途中で切れるため、両側の白いセル内で連続性を確認する。
-		// 逆向きや上下左右だけの隣接ではつながず、孤立点と線幅もCell Scaleへ従わせる。
+		// 逆向きや上下左右だけの隣接では繋がず、孤立点と線幅もCell Scaleへ従わせる。
 		const dots = await effect.render({ cellShape: 'circle', cellScale: 0.5 });
 		for (const [cellShape, directionY] of [['diagonalDown', 1], ['diagonalUp', -1]] as const) {
 			const pixels = await effect.render({ cellShape, cellScale: 0.5 });

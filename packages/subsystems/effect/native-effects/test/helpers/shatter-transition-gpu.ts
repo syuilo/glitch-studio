@@ -171,7 +171,7 @@ export async function run(includePreview = false) {
 		}
 		checks.push('geometric compositing HDR and transparent shards');
 
-		// 【移動を無効にしても終端へ滑らかにつながる】
+		// 【移動を無効にしても終端へ滑らかに繋がる】
 		// 破片が画面に残る設定で、最後のフレームだけBに置換する実装を防ぐ。
 		for (const stagger of [0, 1]) {
 			let previous = 1;

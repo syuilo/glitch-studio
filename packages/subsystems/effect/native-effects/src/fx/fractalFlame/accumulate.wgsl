@@ -118,7 +118,7 @@ fn accumulate(@builtin(global_invocation_id) invocation: vec3u) {
 		}
 		validIterations++;
 		if (validIterations <= uniforms.burnIn) { continue; }
-		// Phase=0ではPaletteの位置1を保つ。位相を動かすときだけ端を周期的につなぐ。
+		// Phase=0ではPaletteの位置1を保つ。位相を動かすときだけ端を周期的に繋ぐ。
 		var palettePosition = colorPosition;
 		if (uniforms.colorPhase != 0.0) { palettePosition = fract(colorPosition + uniforms.colorPhase); }
 		let color = evaluateColorRamp(palettePosition);

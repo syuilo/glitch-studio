@@ -27,7 +27,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 				uniformValues.set({
 					gridOffset: inputs.gridOffset.value,
 					maximumCellSize: Math.max(0, inputs.maximumCellSize.value) * referenceScale,
-					// 端点に最大セルを置くと、元画像と連続してつながらない。
+					// 端点に最大セルを置くと、元画像と連続して繋がらない。
 					// 最大点は必ず開区間に置き、式から0/1を渡した場合も有限の立上りを保つ。
 					peakPosition: Math.min(0.999, Math.max(0.001, inputs.peakPosition.value)),
 					mixWidth: Math.min(1, Math.max(0, inputs.mixWidth.value)),

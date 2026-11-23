@@ -93,7 +93,7 @@ test('waits for the asynchronous writer before delivering the next chunk', async
 });
 
 // 【保存失敗をlibwebpの一般的な書き込みエラーへ置き換えず、元の原因を返して資源を解放する】
-// ディスク不足や中断の理由を失うと対処できず、失敗したエンコーダーを再利用すると破損につながる。
+// ディスク不足や中断の理由を失うと対処できず、失敗したエンコーダーを再利用すると破損に繋がる。
 test('propagates writer failures and closes the encoder', async () => {
 	const encoder = await prepare(7, 5, pixelsFor(7, 5));
 	const error = new Error('disk full');

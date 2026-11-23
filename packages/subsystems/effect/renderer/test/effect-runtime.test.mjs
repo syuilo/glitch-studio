@@ -224,7 +224,7 @@ test('publishes borrowed textures through a relay and omits uniform outputs', as
 });
 
 // 【保存した型不一致の配線でも入力種別と値を維持する】
-// scalarの公開入力からvectorのRelayとcolorの入力・公開出力につないでも、
+// scalarの公開入力からvectorのRelayとcolorの入力・公開出力に繋いでも、
 // 内部ノードはどちらの入力種別もそのまま受け取り、公開出力はtextureのあるときだけ転送する。
 test('loads mismatched ports and draws with the original fixed shader inputs', async () => {
 	const color = { ...scalar, canNode: true, dataType: { kind: 'color' }, defaultValue: [0, 0, 0, 0] };

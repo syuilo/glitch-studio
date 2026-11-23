@@ -69,7 +69,7 @@ const emit = defineEmits<{ newProject: [] }>();
 	color: var(--THEME-fg);
 	border-radius: var(--tabCornerRadius) var(--tabCornerRadius) 0 0;
 
-	// 下端の外側に逆向きの丸みを描き、タブの背景を作業領域へ滑らかにつなげる。
+	// 下端の外側に逆向きの丸みを描き、タブの背景を作業領域へ滑らかに繋げる。
 	// 装飾が隣のタブや追加ボタンの操作を妨げないよう、ポインター判定から除外する。
 	&::before,
 	&::after {

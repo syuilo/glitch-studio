@@ -123,7 +123,7 @@ export async function run() {
 			}
 			checks.push(`${precise ? 32 : 16}bit exact endpoints`);
 
-			// 【Softnessが正ならMapの0/1も連続的にA/Bへつながる】
+			// 【Softnessが正ならMapの0/1も連続的にA/Bへ繋がる】
 			// 幅を画面外まで動かさず端点だけ強制する実装ではこの極限が不連続になる。
 			for (const mapValue of [0, 1]) {
 				for (const softness of [0.1, 1, 100000]) {

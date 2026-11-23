@@ -196,7 +196,7 @@ export async function run() {
 		equal(longSide, heightReference, 'size reference', 0);
 		checks.push('aspect resolution and size reference');
 
-		// 【正のSoftnessで端点近傍も元画像へ連続的につながる】
+		// 【正のSoftnessで端点近傍も元画像へ連続的に繋がる】
 		// 強い歪みが最後のフレームだけ突然消える実装を検出する。
 		for (const endpoint of [0, 1]) {
 			const parameters = { inputA: pattern, softness: 0.8, displacement: 0.5, chromaticShift: 0.3 };

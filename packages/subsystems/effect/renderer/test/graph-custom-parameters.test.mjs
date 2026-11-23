@@ -82,7 +82,7 @@ test('evaluates keyframes and local Automation Graphs on the shared sample clock
 });
 
 // 【自己参照・相互参照・加工式の循環を経路付きで検出する】
-// 無限再帰を防ぐだけでなく、ユーザーが修正すべき参照のつながりを特定できるようにする。
+// 無限再帰を防ぐだけでなく、ユーザーが修正すべき参照の繋がりを特定できるようにする。
 test('reports cycles through direct references and expression modifiers', () => {
 	const definitions = ['a', 'b', 'c'].map(id => scalar(id));
 	const f = fixture(definitions, { a: expression('CUSTOM("b")'), b: customReference('c'), c: { ...literal(0), expressionModifier: { enabled: true, code: 'CUSTOM("a")' } } });

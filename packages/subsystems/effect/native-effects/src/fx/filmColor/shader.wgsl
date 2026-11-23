@@ -3,7 +3,7 @@ const FILM_MIDDLE_LIGHTNESS = 0.564621617328234;
 
 // 両端を(0, 0)/(1, 1)に固定した有理二次曲線。
 // 端点の傾きが正なら全域で単調になり、通常の三次補間のような折り返しが起こらない。
-// 傾きは区間の縦横比で正規化して渡すので、異なる高さの区間もC1連続でつなげられる。
+// 傾きは区間の縦横比で正規化して渡すので、異なる高さの区間もC1連続で繋げられる。
 fn filmToneSegment(position: f32, startSlope: f32, endSlope: f32) -> f32 {
 	let complement = position * (1.0 - position);
 	return (position * position + startSlope * complement)

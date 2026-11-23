@@ -93,7 +93,7 @@ test('forwards changing borrowed textures through nested graphs and omits unifor
 	assert.equal(output.version, version);
 });
 
-// 【出力がない子グラフにつないだ入力は、受け取り側の既定値を使う】
+// 【出力がない子グラフに繋いだ入力は、受け取り側の既定値を使う】
 // 子のInに値を渡した配置では、その値が子のOutを越えて親側の描画に混入しない。
 test('uses the downstream default when a nested graph has no texture output', async t => {
 	const child = { ...base, paramDefs: { source: scalar }, nodes: [], outputSources: { main: { parameterId: 'source' } } };
