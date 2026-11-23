@@ -26,6 +26,7 @@ export function createDefaultParameterBinding(definition: Pick<ParameterDefiniti
 		}
 		return { inputSource: 'literal', value: deepClone(value) };
 	}
+
 	return bind(definition.dataType, definition.defaultValue);
 }
 

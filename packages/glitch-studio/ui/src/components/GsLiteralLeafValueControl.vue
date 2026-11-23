@@ -202,8 +202,6 @@ import type { LeafDataType } from '@gs/shared/data-type/data-type.ts';
 import { i18n } from '@/i18n.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
 
-
-
 const props = defineProps<{
 	// コンテナの子や配列操作は呼び出し元が扱い、このコントロールには末端の定義だけを渡す。
 	dataType: T;

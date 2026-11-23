@@ -17,10 +17,12 @@ export function createEffectGpuExecution(device: GPUDevice, operation: EffectRen
 	let sampleAfter = 0;
 	let sampledHint: EffectRenderWorkloadHint | null = null;
 	let nextHint: EffectRenderWorkloadHint | null = null;
+
 	function disposeTimer(timer: TimingHelper) {
 		timers.delete(timer);
 		timer.dispose();
 	}
+
 	return {
 		shouldTile() {
 			if (controller == null) return tiling.mode === 'manual';

@@ -21,12 +21,12 @@ navigator.wakeLock.request('screen')
 		);
 	});
 
-document.documentElement.toggleAttribute('data-web', !__ELECTRON__);
+window.document.documentElement.toggleAttribute('data-web', !__ELECTRON__);
 
 const app = createApp(App);
 
 if (__ELECTRON__ && window.desktop != null) {
-	const rootElement = document.documentElement;
+	const rootElement = window.document.documentElement;
 	let needsInitialState = true;
 	const updateWindowMaximizedAttribute = (maximized: boolean) => {
 		needsInitialState = false;

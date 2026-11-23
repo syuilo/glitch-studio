@@ -2,12 +2,13 @@ import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { preserveParameterExpressionModifier, validateParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import { canUseEffectLivePreviewInput, type EffectLivePreviewParameterBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
+import { canUseEffectLivePreviewInput } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParamEdit } from '@/components/GsVisualParam.vue';
 import { createInlineAutomationGraph } from './automation-graph.ts';
 import { createInlineKeyframesTimeline } from './keyframes-timeline.ts';
 import { createResetParameterBinding } from './parameter-default.ts';
+import type { EffectLivePreviewParameterBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 
 export function editEffectLivePreviewParameter(def: ParameterDefinition, current: EffectLivePreviewParameterBinding, event: ParamEdit): EffectLivePreviewParameterBinding | null {
 	let next = current;
