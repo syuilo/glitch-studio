@@ -38,6 +38,7 @@ import type { ProjectState } from '../Project.ts';
 
 type ParameterClipboardOwner =
 	| { kind: 'customNodeGraphEffect'; target: CustomNodeGraphEffectTarget }
+	| { kind: 'customShaderEffect'; customShaderEffectId: string }
 	| { kind: 'timelineLayer'; sceneId: string; layerId: string };
 
 export type ParameterClipboardSource = {
@@ -65,7 +66,7 @@ export type ProjectParameterClipboardTarget = { paramPath: ParamPath } & (
 export type ParameterPasteContext = { state: ProjectState; source: ParameterClipboardSource; connectionTypePolicy?: ConnectionTypePolicy } & (
 	| { kind: 'node'; customNodeGraphEffect: CustomNodeGraphEffect; nodeId: string }
 	| { kind: 'customParameter'; customNodeGraphEffect: CustomNodeGraphEffect }
-	| { kind: 'preview'; customNodeGraphEffect: CustomNodeGraphEffect }
+	| { kind: 'preview'; customNodeGraphEffect: CustomNodeGraphEffect | null }
 	| { kind: 'timeline'; scene: TimelineScene; layer: Exclude<TimelineLayer, { layerType: 'folder' }>; parameterTarget: TimelineParameterTarget }
 );
 
@@ -226,7 +227,8 @@ export function parseParameterClipboard(text: string): ParameterClipboardData | 
 			const target = object(owner.target);
 			requireValid(Object.hasOwn(target, 'customNodeGraphEffectId') ? nonemptyString(target.customNodeGraphEffectId)
 				: nonemptyString(target.sceneId) && nonemptyString(target.layerId));
-		} else requireValid(owner.kind === 'timelineLayer' && nonemptyString(owner.sceneId) && nonemptyString(owner.layerId));
+		} else if (owner.kind === 'customShaderEffect') requireValid(nonemptyString(owner.customShaderEffectId));
+		else requireValid(owner.kind === 'timelineLayer' && nonemptyString(owner.sceneId) && nonemptyString(owner.layerId));
 		return data as unknown as ParameterClipboardData;
 	} catch { return null; }
 }
@@ -259,7 +261,7 @@ function validateLeafDestination(definition: ParameterDefinition, binding: Edita
 		requireValid(isValueParameterBinding(binding) || binding.inputSource === 'node' || binding.inputSource === 'customNodeGraphEffectPublicParameterReference' || binding.inputSource === 'customNodeGraphEffectCustomParameterValueReference');
 		if (context.kind === 'preview') requireValid(binding.inputSource !== 'node' && binding.inputSource !== 'customNodeGraphEffectPublicParameterReference' && binding.inputSource !== 'customNodeGraphEffectCustomParameterValueReference');
 		if (context.kind === 'customParameter') validateCustomNodeGraphEffectCustomParameterBinding(definition, binding as CustomNodeGraphEffectValueParameterBinding);
-		validateCustomNodeGraphEffectAudioBinding(definition, binding, context.customNodeGraphEffect.paramDefs);
+		if (context.customNodeGraphEffect != null) validateCustomNodeGraphEffectAudioBinding(definition, binding, context.customNodeGraphEffect.paramDefs);
 	}
 	switch (binding.inputSource) {
 		case 'literal':

@@ -23,7 +23,7 @@ import { customNodeGraphEffectTargetKey } from '@gs/glitch-studio_shared/project
 import type { CustomNodeGraphEffectTarget } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
 import type { EffectDefinitions } from '@gs/subsystems_effect_shared/effect-source.ts';
 import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
-import type { CustomNodeGraphEffectArgumentBindings } from '@/types/custom-node-graph-effect-view.ts';
+import type { EffectLivePreviewSource, EffectLivePreviewParamValues } from './types/effect-live-preview.ts';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { AppStateChange, ProjectState } from './Project.ts';
@@ -47,7 +47,7 @@ export class ProjectRenderValidation {
 	private locations = new Map<string, Map<string, LayerLocation>>();
 	private assets = new Map<string, string>();
 	private players = new Set<string>();
-	private customNodeGraphEffectLivePreviewInputs: { customNodeGraphEffectId: string; bindings: CustomNodeGraphEffectArgumentBindings } | null = null;
+	private effectLivePreviewInputs: { effectSource: EffectLivePreviewSource; bindings: EffectLivePreviewParamValues } | null = null;
 	public readonly diagnostics = shallowRef<readonly RenderValidationDiagnostic[]>([]);
 	public readonly errorMessage = computed(() => this.diagnostics.value[0]?.message ?? null);
 
@@ -58,7 +58,7 @@ export class ProjectRenderValidation {
 	public reset(): void {
 		this.nodeValidationShapes.clear(); this.units.clear(); this.errors.clear(); this.dependents.clear();
 		this.sceneEdges.clear(); this.imageInputs.clear(); this.locations.clear();
-		this.customNodeGraphEffectLivePreviewInputs = null;
+		this.effectLivePreviewInputs = null;
 		this.assets = new Map(this.state.assets.value.map(asset => [asset.id, asset.fileDataType]));
 		this.players = new Set(this.state.players.value.map(player => player.id));
 		for (const customNodeGraphEffect of this.state.customNodeGraphEffects.value) this.replaceCustomNodeGraphEffect({ customNodeGraphEffectId: customNodeGraphEffect.id }, customNodeGraphEffect.definition);
@@ -68,9 +68,9 @@ export class ProjectRenderValidation {
 
 	public update(changes: readonly AppStateChange[]): void {
 		if (changes.some(change => change.type === 'customShaderEffect')) {
-			const previewInputs = this.customNodeGraphEffectLivePreviewInputs;
+			const previewInputs = this.effectLivePreviewInputs;
 			this.reset();
-			if (previewInputs != null) this.setCustomNodeGraphEffectLivePreviewInputs(previewInputs.customNodeGraphEffectId, previewInputs.bindings);
+			if (previewInputs != null) this.setEffectLivePreviewInputs(previewInputs.effectSource, previewInputs.bindings);
 			return;
 		}
 		// 削除・追加が同じCommandに含まれても、最終状態と最終参照先だけを検査する。
@@ -112,21 +112,22 @@ export class ProjectRenderValidation {
 				this.recheckDependents('player:' + change.playerId);
 			} else if (change.type === 'projectResolution' || change.type === 'timelineRenderSettings') this.checkSettings();
 		}
-		if (this.customNodeGraphEffectLivePreviewInputs && changes.some(change => change.type === 'customNodeGraphEffect' || change.type === 'customNodeGraphEffectRegistration')) {
+		if (this.effectLivePreviewInputs?.effectSource.type === 'customNodeGraphEffectReference' && changes.some(change => change.type === 'customNodeGraphEffect' || change.type === 'customNodeGraphEffectRegistration')) {
 			this.removeUnit('Effect Live Preview inputs');
-			this.setCustomNodeGraphEffectLivePreviewInputs(this.customNodeGraphEffectLivePreviewInputs.customNodeGraphEffectId, this.customNodeGraphEffectLivePreviewInputs.bindings);
+			this.setEffectLivePreviewInputs(this.effectLivePreviewInputs.effectSource, this.effectLivePreviewInputs.bindings);
 		}
 		this.publish();
 	}
 
-	public setCustomNodeGraphEffectLivePreviewInputs(customNodeGraphEffectId: string | null, bindings: CustomNodeGraphEffectArgumentBindings = {}) {
-		this.customNodeGraphEffectLivePreviewInputs = customNodeGraphEffectId == null ? null : { customNodeGraphEffectId, bindings };
-		if (customNodeGraphEffectId == null) { this.removeUnit('Effect Live Preview inputs'); this.publish(); return; }
-		const customNodeGraphEffect = this.state.customNodeGraphEffects.value.find(customNodeGraphEffect => customNodeGraphEffect.id === customNodeGraphEffectId);
-		if (!customNodeGraphEffect) { this.removeUnit('Effect Live Preview inputs'); this.publish(); return; }
-		const values = Object.entries(customNodeGraphEffect.definition.paramDefs).map(([id, def]) => [def, bindings[id] ?? createDefaultParameterBinding(def)] as const);
+	public setEffectLivePreviewInputs(effectSource: EffectLivePreviewSource | null, bindings: EffectLivePreviewParamValues = {}) {
+		this.effectLivePreviewInputs = effectSource == null ? null : { effectSource, bindings };
+		const registrations = effectSource?.type === 'customShaderEffectReference'
+			? this.state.customShaderEffects.value : this.state.customNodeGraphEffects.value;
+		const definition = registrations.find(entry => entry.id === effectSource?.id)?.definition;
+		if (definition == null) { this.removeUnit('Effect Live Preview inputs'); this.publish(); return; }
+		const values = Object.entries(definition.paramDefs).map(([id, def]) => [def, bindings[id] ?? createDefaultParameterBinding(def)] as const);
 		const dependencies = new Set<string>();
-		this.check('Effect Live Preview inputs', [customNodeGraphEffectId, values.map(([def, value]) => staticParameterShape(def, value))], () => {
+		this.check('Effect Live Preview inputs', [effectSource, values.map(([def, value]) => staticParameterShape(def, value))], () => {
 			for (const [def, value] of values) inspectStaticParameter(def, value, (leaf, binding) => {
 				if (leaf.dataType.kind === 'audioSource') validateLiteralAudioSourceBinding(binding);
 				this.value(leaf, binding, dependencies);

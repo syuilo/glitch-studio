@@ -130,7 +130,7 @@ for (const kind of ['CustomNodeGraphEffect', 'Timeline']) {
 		const worker = await initialize(controller, workers);
 		let instanceId = null;
 		if (kind === 'CustomNodeGraphEffect') {
-			controller.startCustomNodeGraphEffectLivePreviewRenderLoopFor('custom-node-graph-effect');
+			controller.startEffectLivePreviewRenderLoop({ type: 'customNodeGraphEffectReference', id: 'custom-node-graph-effect' });
 			instanceId = worker.calls('startEffectLivePreview').at(-1).args[1];
 		}
 		const tilingProgress = { completedTiles: 64, totalTiles: 256 };
@@ -210,12 +210,12 @@ for (const kind of ['CustomNodeGraphEffect', 'Timeline']) {
 test('rejects render delay notifications from previous Live Preview instances', async t => {
 	const { controller, workers } = fixture(t);
 	const worker = await initialize(controller, workers);
-	controller.startCustomNodeGraphEffectLivePreviewRenderLoopFor('custom-node-graph-effect');
+	controller.startEffectLivePreviewRenderLoop({ type: 'customNodeGraphEffectReference', id: 'custom-node-graph-effect' });
 	const previousId = worker.calls('startEffectLivePreview').at(-1).args[1];
 	const tilingProgress = { completedTiles: 64, totalTiles: 256 };
 	const notify = (instanceId, isDelayed) => worker.reply({ type: 'ev', ev: { type: 'renderDelay', ctx: { instanceId, isDelayed, tilingProgress: isDelayed ? tilingProgress : null } } });
 	notify(previousId, true);
-	controller.startCustomNodeGraphEffectLivePreviewRenderLoopFor('custom-node-graph-effect');
+	controller.startEffectLivePreviewRenderLoop({ type: 'customNodeGraphEffectReference', id: 'custom-node-graph-effect' });
 	const currentId = worker.calls('startEffectLivePreview').at(-1).args[1];
 	notify(previousId, true);
 	assert.equal(controller.isRenderDelayed.value, false);
@@ -532,7 +532,7 @@ for (const [kind, event] of [['CustomNodeGraphEffect', 'effectState'], ['Timelin
 			diagnostic = { message: error.message, origin };
 			controller.disposeManager(error);
 		};
-		if (kind === 'CustomNodeGraphEffect') controller.startCustomNodeGraphEffectLivePreviewRenderLoopFor('graph');
+		if (kind === 'CustomNodeGraphEffect') controller.startEffectLivePreviewRenderLoop({ type: 'customNodeGraphEffectReference', id: 'graph' });
 		const source = kind === 'CustomNodeGraphEffect' ? { type: 'effectLivePreview', instanceId: worker.calls('startEffectLivePreview').at(-1).args[1] }
 			: { type: 'timelineLayer', instanceId: 'instance', rootSceneId: 'root', layerId: 'layer',
 				clipId: 'clip', layerPath: ['sceneLayer', 'placement', 'layer'] };
@@ -626,7 +626,7 @@ test('keeps preparation status scoped to the current live preview instance', asy
 	const { controller, workers } = fixture(t, 'CustomNodeGraphEffect');
 	const worker = await initialize(controller, workers);
 	const start = () => {
-		controller.startCustomNodeGraphEffectLivePreviewRenderLoopFor('graph');
+		controller.startEffectLivePreviewRenderLoop({ type: 'customNodeGraphEffectReference', id: 'graph' });
 		return { type: 'effectLivePreview', instanceId: worker.calls('startEffectLivePreview').at(-1).args[1] };
 	};
 	const previous = start(), current = start();
@@ -711,7 +711,7 @@ test('terminates a synchronously created worker when destroyed immediately', asy
 test('disposes after call errors and accepts a new snapshot after failure', async t => {
 	const { controller, workers } = fixture(t);
 	const worker = await initialize(controller, workers);
-	controller.startCustomNodeGraphEffectLivePreviewRenderLoopFor('customNodeGraphEffect');
+	controller.startEffectLivePreviewRenderLoop({ type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' });
 	worker.reply({ type: 'callError', message: 'Custom Node Graph Effect creation failed' });
 	assert.equal(controller.errorMessage.value, 'Custom Node Graph Effect creation failed');
 	assert.equal(controller.isReady.value, false);

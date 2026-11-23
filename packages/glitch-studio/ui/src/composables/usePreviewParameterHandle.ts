@@ -57,7 +57,10 @@ export function usePreviewParameterHandle(app: ProjectSessionContext, props: {
 		if (scope == null || !editable.value || props.node?.isBypass === true || app.renderEngine.isSuspended.value) return false;
 		if (scope.kind === 'timelineLayer' && props.previewParameterGroup == null || scope.kind === 'customNodeGraphEffect' && props.node == null) return false;
 		const playback = app.previewPlayback;
-		if (scope.kind === 'livePreview') return context?.beginLivePreviewEdit != null && playback.livePreviewCustomNodeGraphEffectId.value === scope.customNodeGraphEffectId;
+		if (scope.kind === 'livePreview') {
+			const source = playback.livePreviewEffectSource.value;
+			return context?.beginLivePreviewEdit != null && source?.type === scope.effectSource.type && source.id === scope.effectSource.id;
+		}
 		if (scope.kind === 'customNodeGraphEffect' && 'customNodeGraphEffectId' in scope.target) return playback.livePreviewCustomNodeGraphEffectId.value === scope.target.customNodeGraphEffectId;
 		const sceneId = scope.kind === 'timelineLayer' ? scope.sceneId : 'sceneId' in scope.target ? scope.target.sceneId : null;
 		return playback.state.value.mode === 'timeline' && app.activeSceneId.value === sceneId

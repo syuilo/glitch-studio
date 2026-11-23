@@ -12,6 +12,7 @@ import type { CustomNodeGraphEffectTarget } from './custom-node-graph-effect-tar
 import type { EditableParameterBinding, ValueParameterEdit } from '../types/parameter-edit.ts';
 import type { ProjectContext } from '../Project.ts';
 import type { PreviewViewportHandle, PreviewViewportEdit } from './preview-viewport.ts';
+import type { EffectLivePreviewSource } from '../types/effect-live-preview.ts';
 
 export type PreviewParameterPoint = [number, number];
 type PreviewParameterValueEdit = Extract<ValueParameterEdit, { kind: 'literal' | 'keyframesTimelineInline' }>;
@@ -26,7 +27,7 @@ export type PreviewParameterBindingEdit = {
 export type PreviewParameterScope =
 	| { kind: 'customNodeGraphEffect'; target: CustomNodeGraphEffectTarget }
 	| { kind: 'timelineLayer'; sceneId: string; layerId: string }
-	| { kind: 'livePreview'; customNodeGraphEffectId: string };
+	| { kind: 'livePreview'; effectSource: EffectLivePreviewSource };
 export const previewParameterContextKey: InjectionKey<{
 	scope: ComputedRef<PreviewParameterScope | null>;
 	label: ComputedRef<string>;

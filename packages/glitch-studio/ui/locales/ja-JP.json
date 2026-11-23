@@ -15,6 +15,8 @@
 		"OutputTruncated": "出力上限に達したため、以降の出力を省略しました。"
 	},
 	"_CustomShaderEffect": {
+		"PreviewApplied": "適用済みの WGSL をプレビューします",
+		"PreviewParameters": "プレビュー用パラメータ",
 		"InUse": "この定義を削除する前に、参照するCustom Shader Effect NodeとLayerを削除してください。",
 		"Title": "カスタムシェーダーエフェクト",
 		"Add": "カスタムシェーダーエフェクトを追加",

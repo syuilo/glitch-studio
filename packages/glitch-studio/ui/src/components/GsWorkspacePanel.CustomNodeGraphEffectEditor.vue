@@ -46,9 +46,7 @@ import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-de
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { computed, ref, watch, onBeforeUnmount, inject, provide } from 'vue';
-import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { preserveParameterExpressionModifier, validateParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
 import { prettyId } from '@gs/shared/utility/id.ts';
 import { EFFECT_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shared/effect-live-preview-expression.ts';
 import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
@@ -68,13 +66,11 @@ import { useProjectSession } from '@/project-session.ts';
 import * as ui from '@/ui.ts';
 import { commitCustomNodeGraphEffectEdit } from '@/utility/custom-node-graph-effect-edit.ts';
 import { handleProjectParameterClipboard, handlePreviewParameterClipboard } from '@/utility/parameter-clipboard-actions.ts';
-import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
-import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
-import { createResetParameterBinding } from '@/utility/parameter-default.ts';
 import { exportPortableCustomNodeGraphEffectFile } from '@/utility/portable-custom-node-graph-effect-file.ts';
 import { exportCustomNodeGraphEffectFile, importCustomNodeGraphEffectFile } from '@/utility/custom-node-graph-effect-file.ts';
 import { createCustomNodeGraphEffectDropActions } from '@/utility/custom-node-graph-effect-drop-actions.ts';
 import { preferences } from '@/preferences.ts';
+import { editEffectLivePreviewParameter } from '@/utility/effect-live-preview-parameter.ts';
 import { previewParameterContextKey } from '@/utility/preview-parameter-editing.ts';
 import { workspaceControllerKey } from '@/WorkspaceController.ts';
 
@@ -118,7 +114,9 @@ const previewParamValues = ref<CustomNodeGraphEffectArgumentBindings>({});
 const editedPreviewParamIds = new Set<string>();
 // Preview Paramsは保存データではないため、取消しだけを既存の一時値へ適用する。
 provide(previewParameterContextKey, {
-	scope: computed(() => customNodeGraphEffect.value == null ? null : { kind: 'livePreview' as const, customNodeGraphEffectId: customNodeGraphEffect.value.id }),
+	scope: computed(() => customNodeGraphEffect.value == null ? null : {
+		kind: 'livePreview', effectSource: { type: 'customNodeGraphEffectReference', id: customNodeGraphEffect.value.id },
+	} as const),
 	label: computed(() => customNodeGraphEffect.value?.name ?? ''),
 	beginLivePreviewEdit(path) {
 		const customNodeGraphEffectId = customNodeGraphEffect.value?.id ?? null;
@@ -135,7 +133,7 @@ provide(previewParameterContextKey, {
 				active = false;
 				previewParamValues.value[id] = before;
 				if (!wasEdited) editedPreviewParamIds.delete(id);
-				if (customNodeGraphEffect.value != null) previewPlayback.updateCustomNodeGraphEffectLivePreviewParamValues(customNodeGraphEffect.value.id, previewParamValues.value);
+				if (customNodeGraphEffect.value != null) previewPlayback.updateEffectLivePreviewParamValues({ type: 'customNodeGraphEffectReference', id: customNodeGraphEffect.value.id }, previewParamValues.value);
 			},
 		};
 	},
@@ -165,7 +163,7 @@ watch(customNodeGraphEffect, currentCustomNodeGraphEffect => {
 	previewCustomNodeGraphEffectId = currentCustomNodeGraphEffect?.id ?? null;
 	previewParamTypes = new Map((currentCustomNodeGraphEffect?.paramDefs ?? []).map(def => [def.id, def.dataType]));
 	if (currentCustomNodeGraphEffect != null && previewPlayback.livePreviewCustomNodeGraphEffectId.value === currentCustomNodeGraphEffect.id) {
-		previewPlayback.updateCustomNodeGraphEffectLivePreviewParamValues(currentCustomNodeGraphEffect.id, values);
+		previewPlayback.updateEffectLivePreviewParamValues({ type: 'customNodeGraphEffectReference', id: currentCustomNodeGraphEffect.id }, values);
 	}
 }, { deep: true, immediate: true });
 
@@ -173,13 +171,13 @@ function onPreviewParamEdit(event: ParamEdit) {
 	if (event.kind === 'copy' || event.kind === 'paste') {
 		const currentCustomNodeGraphEffect = customNodeGraphEffect.value;
 		if (currentCustomNodeGraphEffect == null) return;
-		void handlePreviewParameterClipboard(projectSession.projectContext, projectSession.id, currentCustomNodeGraphEffect.id, event.paramPath, event.kind,
+		void handlePreviewParameterClipboard(projectSession.projectContext, projectSession.id, { type: 'customNodeGraphEffectReference', id: currentCustomNodeGraphEffect.id }, event.paramPath, event.kind,
 			id => ({ binding: previewParamValues.value[id] ?? null, followsDefault: !editedPreviewParamIds.has(id) }),
 			() => !disposed && customNodeGraphEffect.value === currentCustomNodeGraphEffect,
 			(id, binding) => {
 				previewParamValues.value[id] = binding;
 				editedPreviewParamIds.add(id);
-				previewPlayback.updateCustomNodeGraphEffectLivePreviewParamValues(currentCustomNodeGraphEffect.id, previewParamValues.value);
+				previewPlayback.updateEffectLivePreviewParamValues({ type: 'customNodeGraphEffectReference', id: currentCustomNodeGraphEffect.id }, previewParamValues.value);
 			}).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;
 	}
@@ -191,80 +189,18 @@ function onPreviewParamEdit(event: ParamEdit) {
 	const draft = { [id]: previewParamValues.value[id] == null ? createDefaultParameterBinding(rootDefinition) : deepClone(previewParamValues.value[id]) };
 	const parameter = resolveParameter<ValueParameterBinding>({ [id]: rootDefinition }, draft, event.paramPath);
 	const { def, value: current } = parameter;
-	let next = current;
-	const reset = (): CustomNodeGraphEffectArgumentBindings[string] => createResetParameterBinding(def);
-	switch (event.kind) {
-		case 'literal': next = { inputSource: 'literal', value: deepClone(event.value) }; break;
-		case 'automationGraphInline': next = deepClone(event.value); break;
-		case 'keyframesTimelineInline': next = deepClone(event.value); break;
-		case 'envVariable': next = { inputSource: 'envVariable', variable: event.value }; break;
-		case 'expression': next = { inputSource: 'expression', expression: event.value }; break;
-		case 'expressionModifier': next = { ...current, expressionModifier: deepClone(event.value) }; break;
-		case 'automationGraphReference': next = {
-			inputSource: 'automationGraphReference',
-			trimmedDurationMs: 1000,
-			wrapMode: 'repeat',
-			offsetMode: 'start',
-			...(current?.inputSource === 'automationGraphReference' ? current : {}),
-			automationGraphId: event.value,
-			...event.options,
-		}; break;
-		case 'createPublicParameter':
-		case 'createCustomParameter':
-		case 'timelineLayerPublicParameterReference':
-		case 'node':
-		case 'anotherLayerOutput':
-		case 'lowerLayerOutput':
-		case 'anotherLayerAudio':
-		case 'customNodeGraphEffectPublicParameterReference': return;
-		case 'customNodeGraphEffectCustomParameterValueReference': return;
-		case 'reset': next = reset(); break;
-		case 'inputSource':
-			switch (event.inputSource) {
-				case 'literal': next = reset(); break;
-				case 'expression': next = {
-					inputSource: 'expression',
-					expression: AiSON.stringify(current?.inputSource === 'literal' ? current.value : def.defaultValue),
-				}; break;
-				case 'automationGraphReference': next = {
-					inputSource: 'automationGraphReference',
-					automationGraphId: null,
-					trimmedDurationMs: 1000,
-					wrapMode: 'repeat',
-					offsetMode: 'start',
-				}; break;
-				case 'automationGraphInline': next = createInlineAutomationGraph(); break;
-				case 'keyframesTimelineInline':
-					next = createInlineKeyframesTimeline(def, current);
-					break;
-				case 'customNodeGraphEffectPublicParameterReference':
-				case 'customNodeGraphEffectCustomParameterValueReference':
-				case 'anotherLayerOutput':
-				case 'lowerLayerOutput':
-				case 'lowerLayerAudio':
-				case 'anotherLayerAudio':
-				case 'node':
-					return;
-			}
-			break;
-		case 'addElement':
-		case 'removeElement':
-			return;
-	}
-	if (event.kind !== 'reset' && event.kind !== 'expressionModifier') {
-		next = preserveParameterExpressionModifier(current, next);
-	}
-	validateParameterExpressionModifier(def, next);
+	const next = editEffectLivePreviewParameter(def, current, event);
+	if (next == null) return;
 	parameter.setValue(next);
 	previewParamValues.value[id] = draft[id];
 	if (event.kind === 'reset' && event.paramPath.length === 1) editedPreviewParamIds.delete(id);
 	else editedPreviewParamIds.add(id);
-	if (customNodeGraphEffect.value != null) previewPlayback.updateCustomNodeGraphEffectLivePreviewParamValues(customNodeGraphEffect.value.id, previewParamValues.value);
+	if (customNodeGraphEffect.value != null) previewPlayback.updateEffectLivePreviewParamValues({ type: 'customNodeGraphEffectReference', id: customNodeGraphEffect.value.id }, previewParamValues.value);
 }
 
 function previewCustomNodeGraphEffectLivePreview() {
 	if (customNodeGraphEffect.value == null) return;
-	previewPlayback.startCustomNodeGraphEffectLivePreview(customNodeGraphEffect.value.id, previewParamValues.value);
+	previewPlayback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id: customNodeGraphEffect.value.id }, previewParamValues.value);
 }
 
 function showSwitchMenu(ev: PointerEvent) {

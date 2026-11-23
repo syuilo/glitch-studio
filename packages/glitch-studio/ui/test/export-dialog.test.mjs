@@ -238,7 +238,7 @@ test('selects the first scene when no export scene is selected', t => {
 	const f = fixture(t);
 	f.close();
 	f.stateManager.state.exportSettings.value = null;
-	context.previewPlayback.state.value = { mode: 'customNodeGraphEffectLivePreview' };
+	context.previewPlayback.state.value = { mode: 'effectLivePreview' };
 	context.activeScene.value = { id: 'other' };
 	const initial = f.open();
 	assert.equal(initial.input.sceneId, 'scene');

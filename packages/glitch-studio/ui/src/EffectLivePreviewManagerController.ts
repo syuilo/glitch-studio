@@ -12,10 +12,9 @@ import { displayCpuPreviewFrame } from './utility/cpu-preview-display.ts';
 import type { PreviewImageAnalysisSettings, PreviewImageAnalysisDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
 import type { AudioOutput } from './audio/audio-output.ts';
 import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
-import type { ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
+import type { EffectLivePreviewSource, EffectLivePreviewParamValues } from './types/effect-live-preview.ts';
 import type { Asset, Player } from '@gs/shared/types.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
-import type { CustomNodeGraphEffectArgumentBindings } from '@/types/custom-node-graph-effect-view.ts';
 import type { EffectPreparationStatus } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import type { EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { EffectLivePreviewManager, EffectLivePreviewManagerResources, EffectLivePreviewManagerStaticOptions, EffectLivePreviewManagerDynamicOptions, EffectLivePreviewManagerEvents } from '@gs/glitch-studio_renderer/effect-live-preview-manager.ts';
@@ -37,8 +36,7 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 	public waveformHorizontalCanvas: HTMLCanvasElement;
 	public waveformVerticalCanvas: HTMLCanvasElement;
 	// Worker再読み込みとエフェクト状態の参照に必要な内部情報。UIの再生状態はPreviewPlaybackControllerが所有する。
-	private livePreviewCustomNodeGraphEffectId = ref<ProjectCustomNodeGraphEffect['id'] | null>(null);
-	private customNodeGraphEffectLivePreviewStatusInstanceId: string | null = null;
+	private effectLivePreviewStatusInstanceId: string | null = null;
 	private pointerPosition = { x: 0, y: 0 };
 	private players: Player[] = [];
 	private videoElements = shallowReactive(new Map<Player['id'], HTMLMediaElement>());
@@ -69,7 +67,7 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 			},
 			eventHandlers: {
 				renderDelay: ctx => {
-					if (ctx.instanceId !== this.customNodeGraphEffectLivePreviewStatusInstanceId) return;
+					if (ctx.instanceId !== this.effectLivePreviewStatusInstanceId) return;
 					this.isRenderDelayed.value = ctx.isDelayed;
 					this.renderTilingProgress.value = ctx.tilingProgress;
 				},
@@ -88,7 +86,7 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 					this.gpuMemoryUsage.value = ctx.usage;
 				},
 				effectState: (ctx) => {
-					if (ctx.source.instanceId !== this.customNodeGraphEffectLivePreviewStatusInstanceId) return;
+					if (ctx.source.instanceId !== this.effectLivePreviewStatusInstanceId) return;
 					this.preparationStatus.value = ctx.status;
 					if (ctx.status?.type === 'error') this.reportRenderFailure(new Error(String(ctx.status.error)), { source: ctx.source });
 				},
@@ -119,9 +117,8 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 				this.outputResolution.value = null;
 				this.isRenderDelayed.value = false;
 				this.renderTilingProgress.value = null;
-				this.customNodeGraphEffectLivePreviewStatusInstanceId = null;
+				this.effectLivePreviewStatusInstanceId = null;
 				this.releasePlayerMedia();
-				this.livePreviewCustomNodeGraphEffectId.value = null;
 				this.gpuMemoryUsage.value = null;
 				this.fpsDisplay.value = 0;
 				this.gpuAverageDisplayFast.value = 0;
@@ -221,24 +218,18 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 		this.sendPendingVideoFrame(playerId);
 	}
 
-	public startCustomNodeGraphEffectLivePreviewRenderLoopFor(customNodeGraphEffectId: ProjectCustomNodeGraphEffect['id'], paramValues: CustomNodeGraphEffectArgumentBindings = {}) {
+	public startEffectLivePreviewRenderLoop(effectSource: EffectLivePreviewSource, paramValues: EffectLivePreviewParamValues = {}) {
 		this.preparationStatus.value = null;
 		this.outputResolution.value = null;
 		const statusInstanceId = genId();
-		this.customNodeGraphEffectLivePreviewStatusInstanceId = statusInstanceId;
+		this.effectLivePreviewStatusInstanceId = statusInstanceId;
 		this.isRenderDelayed.value = false;
 		this.renderTilingProgress.value = null;
 		// 再生成中の表示モードはPreviewPlaybackControllerが保持し、両プレビューの準備後に再開する。
-		if (this.isReady.value) this.call('startEffectLivePreview', [{ effectSource: { type: 'customNodeGraphEffectReference', id: customNodeGraphEffectId }, params: deepClone(paramValues) }, statusInstanceId]);
-		this.livePreviewCustomNodeGraphEffectId.value = customNodeGraphEffectId;
+		if (this.isReady.value) this.call('startEffectLivePreview', [{ effectSource, params: deepClone(paramValues) }, statusInstanceId]);
 	}
 
-	public updateCustomNodeGraphEffectLivePreviewParamValues(customNodeGraphEffectId: ProjectCustomNodeGraphEffect['id'], paramValues: CustomNodeGraphEffectArgumentBindings) {
-		if (this.livePreviewCustomNodeGraphEffectId.value !== customNodeGraphEffectId) {
-			this.startCustomNodeGraphEffectLivePreviewRenderLoopFor(customNodeGraphEffectId, paramValues);
-			return;
-		}
-		// 同じCustom Node Graph Effectの操作ではインスタンスを維持し、履歴を初期化しない。
+	public updateEffectLivePreviewParamValues(paramValues: EffectLivePreviewParamValues) {
 		if (this.isReady.value) this.call('updateEffectLivePreviewParamValues', [deepClone(paramValues)]);
 	}
 
@@ -247,13 +238,12 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 	}
 
 	public stopRenderLoop() {
-		this.customNodeGraphEffectLivePreviewStatusInstanceId = null;
+		this.effectLivePreviewStatusInstanceId = null;
 		this.isRenderDelayed.value = false;
 		this.renderTilingProgress.value = null;
 		if (this.isReady.value) this.call('stopRenderLoop', []);
 		this.preparationStatus.value = null;
 		this.outputResolution.value = null;
-		this.livePreviewCustomNodeGraphEffectId.value = null;
 	}
 
 	/** 定義は同期的に反映し、メディアの準備・権限待ちはプレビュー全体の起動条件にしない。 */

@@ -306,7 +306,7 @@ for (const [name, action] of [
 	['FPS change', playback => playback.updateTimelinePreviewFps()],
 	['audio edit', playback => playback.refreshAudio()],
 	['suspend', playback => playback.suspend()],
-	['Effect Live Preview', playback => playback.startCustomNodeGraphEffectLivePreview('customNodeGraphEffect')],
+	['Effect Live Preview', playback => playback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' })],
 	['dispose', playback => playback.dispose()],
 ]) {
 	// 【通常操作はBAKEを中止し、遅れて届く描画完了から処理を再開しない】
@@ -557,7 +557,7 @@ test('uses timeline duration and does not play an empty timeline', t => {
 	assert.equal(empty.playback.isTimelinePlaying.value, false);
 });
 
-for (const mode of ['paused', 'playing', 'customNodeGraphEffectLivePreview']) {
+for (const mode of ['paused', 'playing', 'effectLivePreview']) {
 	// 【表示モードによらず両方の描画履歴を消し、時刻・再生状態を維持する】
 	// 非表示のTimelineにも履歴と画像キャッシュが残り得る。モード切替や再生の再起動を
 	// 行わず、停止中のTimelineだけでも現在位置を再描画する必要がある。
@@ -565,14 +565,14 @@ for (const mode of ['paused', 'playing', 'customNodeGraphEffectLivePreview']) {
 		const { playback, calls, callbacks } = setup(t);
 		playback.seekTimeline(1234);
 		if (mode === 'playing') playback.playTimeline();
-		if (mode === 'customNodeGraphEffectLivePreview') playback.startCustomNodeGraphEffectLivePreview('customNodeGraphEffect');
+		if (mode === 'effectLivePreview') playback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' });
 		const state = { ...playback.state.value };
 		const callbackIds = [...callbacks.keys()];
 		calls.length = 0;
 		playback.resetRenderHistory();
 		assert.deepEqual(calls, [
 			['resetTimelineRenderHistory'], ['resetRenderHistory'],
-			...(mode === 'customNodeGraphEffectLivePreview' ? [] : [['renderTimelineAt', 1234]]),
+			...(mode === 'effectLivePreview' ? [] : [['renderTimelineAt', 1234]]),
 		]);
 		assert.deepEqual(playback.state.value, state);
 		assert.equal(playback.currentTimelineTime.value, 1234);
@@ -592,7 +592,7 @@ function setup(t, fpsLimit = null, audio, duration = Infinity) {
 		},
 		cancelAnimationFrame(id) { callbacks.delete(id); },
 	};
-	const customNodeGraphEffectLivePreviewRenderer = Object.fromEntries(['startCustomNodeGraphEffectLivePreviewRenderLoopFor', 'updateCustomNodeGraphEffectLivePreviewParamValues', 'stopRenderLoop', 'resetRenderHistory']
+	const customNodeGraphEffectLivePreviewRenderer = Object.fromEntries(['startEffectLivePreviewRenderLoop', 'updateEffectLivePreviewParamValues', 'stopRenderLoop', 'resetRenderHistory']
 		.map(name => [name, (...args) => calls.push([name, ...args])]));
 	const timelineRenderer = { isReady: { value: true }, errorMessage: { value: null }, cancelSeek() {}, resetRenderHistory: () => calls.push(['resetTimelineRenderHistory']), renderTimelineAt: time => calls.push(['renderTimelineAt', time]) };
 	const playback = new PreviewPlaybackController(customNodeGraphEffectLivePreviewRenderer, timelineRenderer, () => typeof fpsLimit === 'function' ? fpsLimit() : fpsLimit, () => duration, audio);
@@ -649,7 +649,7 @@ test('retains unsent manual seek notifications and cancels them on playback or m
 	assert.deepEqual(renders, [[100, true]]);
 	timelineRenderer.isReady.value = false;
 	playback.seekTimeline(200);
-	playback.startCustomNodeGraphEffectLivePreview('customNodeGraphEffect');
+	playback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' });
 	timelineRenderer.isReady.value = true;
 	playback.showTimeline();
 	assert.deepEqual(renders.at(-1), [200]);
@@ -694,7 +694,7 @@ test('keeps audio time advancing during slow rendering and requests the paused p
 test('shows the paused timeline at its retained position', t => {
 	const { playback, calls, callbacks } = setup(t);
 	playback.seekTimeline(1234);
-	playback.startCustomNodeGraphEffectLivePreview('customNodeGraphEffect');
+	playback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' });
 	calls.length = 0;
 	playback.showTimeline();
 	assert.deepEqual(calls, [['stopRenderLoop'], ['renderTimelineAt', 1234]]);
@@ -733,16 +733,16 @@ test('suspends timeline rendering and resumes without advancing export time', t 
 // 呼び出し元のオブジェクトが変更されても、エクスポート後に別の設定で再開してはいけない。
 test('restores customNodeGraphEffectLivePreview mode with a snapshot of the latest parameters', t => {
 	const { playback, calls } = setup(t);
-	playback.startCustomNodeGraphEffectLivePreview('customNodeGraphEffect');
+	playback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' });
 	const params = { amount: { inputSource: 'literal', value: 3 } };
-	playback.updateCustomNodeGraphEffectLivePreviewParamValues('customNodeGraphEffect', params);
+	playback.updateEffectLivePreviewParamValues({ type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' }, params);
 	params.amount.value = 99;
 	playback.suspend();
 	calls.length = 0;
 	playback.refresh();
-	assert.equal(playback.state.value.mode, 'customNodeGraphEffectLivePreview');
+	assert.equal(playback.state.value.mode, 'effectLivePreview');
 	playback.resume();
-	assert.deepEqual(calls, [['startCustomNodeGraphEffectLivePreviewRenderLoopFor', 'customNodeGraphEffect', { amount: { inputSource: 'literal', value: 3 } }]]);
+	assert.deepEqual(calls, [['startEffectLivePreviewRenderLoop', { type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' }, { amount: { inputSource: 'literal', value: 3 } }]]);
 });
 
 // 【未準備のタイムラインへの描画を防ぎ、復帰時に最新のシーク位置を描く】
@@ -787,7 +787,7 @@ test('resumes timeline playback from the stopped position', t => {
 // タイムライン再生はEffect Live Previewを即座に停止し、初回RAFを待たず現在位置を表示する。
 test('stops Effect Live Preview before playing the timeline and ignores duplicate play', t => {
 	const { playback, callbacks, calls } = setup(t);
-	playback.startCustomNodeGraphEffectLivePreview('customNodeGraphEffect');
+	playback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' });
 	calls.length = 0;
 	playback.playTimeline();
 	playback.playTimeline();
@@ -804,21 +804,21 @@ test('cancels timeline playback when starting customNodeGraphEffectLivePreview',
 	frame(1000);
 	frame(1017);
 	const staleCallback = callbacks.values().next().value;
-	playback.startCustomNodeGraphEffectLivePreview('customNodeGraphEffect');
+	playback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' });
 	calls.length = 0;
 	staleCallback(1034);
 	playback.refresh();
 	playback.pauseTimeline();
 	assert.equal(callbacks.size, 0);
 	assert.equal(playback.currentTimelineTime.value, 17);
-	assert.deepEqual(playback.state.value, { mode: 'customNodeGraphEffectLivePreview', customNodeGraphEffectId: 'customNodeGraphEffect' });
+	assert.deepEqual(playback.state.value, { mode: 'effectLivePreview', effectSource: { type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' } });
 	assert.deepEqual(calls, []);
 });
 
 // 同じ時刻へのシークでもEffect Live Previewを停止する。時刻のwatchに依存するとこの操作を取りこぼす。
 test('seeking the current time switches customNodeGraphEffectLivePreview to paused timeline', t => {
 	const { playback, calls, callbacks } = setup(t);
-	playback.startCustomNodeGraphEffectLivePreview('customNodeGraphEffect');
+	playback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' });
 	calls.length = 0;
 	playback.seekTimeline(0);
 	assert.deepEqual(playback.state.value, { mode: 'timeline', playing: false });
@@ -856,14 +856,14 @@ test('advances by elapsed time with an fps limit', t => {
 test('updates Effect Live Preview parameters without restarting the current Custom Node Graph Effect', t => {
 	const { playback, calls, callbacks } = setup(t);
 	playback.playTimeline();
-	playback.updateCustomNodeGraphEffectLivePreviewParamValues('customNodeGraphEffect', {});
+	playback.updateEffectLivePreviewParamValues({ type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' }, {});
 	assert.equal(callbacks.size, 0);
 	calls.length = 0;
-	playback.updateCustomNodeGraphEffectLivePreviewParamValues('customNodeGraphEffect', {});
-	assert.deepEqual(calls, [['updateCustomNodeGraphEffectLivePreviewParamValues', 'customNodeGraphEffect', {}]]);
+	playback.updateEffectLivePreviewParamValues({ type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' }, {});
+	assert.deepEqual(calls, [['updateEffectLivePreviewParamValues', {}]]);
 });
 
-for (const mode of ['timeline', 'customNodeGraphEffectLivePreview']) {
+for (const mode of ['timeline', 'effectLivePreview']) {
 	for (const suspended of [false, true]) {
 		// 【プレビューの終了は再描画せず再開不能にし、休止中でも同じように終了する】
 		// タブを閉じた後の遅延操作や再開要求がWorker・音声・時計を動かさないことを保証する。
@@ -874,7 +874,7 @@ for (const mode of ['timeline', 'customNodeGraphEffectLivePreview']) {
 			const { playback, callbacks, calls, timelineRenderer } = setup(t, 30, audio, 5000);
 			playback.seekTimeline(1000);
 			if (mode === 'timeline') playback.playTimeline();
-			else playback.startCustomNodeGraphEffectLivePreview('custom-node-graph-effect');
+			else playback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id: 'custom-node-graph-effect' });
 			const pendingFrame = callbacks.values().next().value;
 			if (suspended) playback.suspend();
 			calls.length = 0;
@@ -883,7 +883,7 @@ for (const mode of ['timeline', 'customNodeGraphEffectLivePreview']) {
 			assert.equal(callbacks.size, 0);
 			assert.equal(playback.isTimelinePlaying.value, false);
 			assert.deepEqual(playback.state.value, { mode: 'timeline', playing: false });
-			assert.deepEqual(calls, mode === 'customNodeGraphEffectLivePreview' && !suspended ? [['stopRenderLoop']] : []);
+			assert.deepEqual(calls, mode === 'effectLivePreview' && !suspended ? [['stopRenderLoop']] : []);
 			assert.deepEqual(audioCalls, ['stop']);
 			const disposedTime = playback.currentTimelineTime.value;
 			calls.length = 0;
@@ -891,8 +891,8 @@ for (const mode of ['timeline', 'customNodeGraphEffectLivePreview']) {
 			t.mock.method(timelineRenderer, 'cancelSeek', () => assert.fail('Disposed controls must not reach the renderer'));
 			playback.resume();
 			playback.playTimeline();
-			playback.startCustomNodeGraphEffectLivePreview('custom-node-graph-effect');
-			playback.updateCustomNodeGraphEffectLivePreviewParamValues('custom-node-graph-effect', {});
+			playback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id: 'custom-node-graph-effect' });
+			playback.updateEffectLivePreviewParamValues({ type: 'customNodeGraphEffectReference', id: 'custom-node-graph-effect' }, {});
 			playback.showTimeline();
 			playback.seekTimeline(3000);
 			playback.stepTimelineFrame(1);

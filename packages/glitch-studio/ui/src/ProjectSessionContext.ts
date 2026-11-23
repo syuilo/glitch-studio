@@ -16,6 +16,7 @@ import { getVoicevoxRequests } from '@gs/subsystems_timeline_shared/voicevox-req
 import { getVoicevoxRequestKey, createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { openAudioFile } from '@gs/subsystems_audio_renderer/audio-file.ts';
 import { genId } from '@gs/shared/utility/id.ts';
+import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 
 import { getTimelineScenesWithProjectAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
 import { computed, ref, shallowReactive, shallowRef, markRaw, nextTick, watch } from 'vue';
@@ -54,6 +55,7 @@ import type { ProjectFileHandle } from './gsproj.ts';
 import type { ProjectContext } from './Project.ts';
 import type { TimelineRendererManagerDynamicOptions } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { EffectLivePreviewManagerDynamicOptions } from '@gs/glitch-studio_renderer/effect-live-preview-manager.ts';
+import type { EffectLivePreviewParamValues } from './types/effect-live-preview.ts';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
 
@@ -76,7 +78,9 @@ export class ProjectSessionContext {
 	private readonly onWindowFocus = () => {
 		if (!this.disposed) void resolveExternalAssets(this.projectContext.stateManager.state.assets.value);
 	};
-	private synchronizedPreviewDisplayMode: 'customNodeGraphEffectLivePreview' | 'timeline' | null = null;
+	private synchronizedPreviewDisplayMode: 'effectLivePreview' | 'timeline' | null = null;
+	// 複数のパネルやプレビュー対象メニューから、同じ一時的な入力値を使う。
+	private readonly customShaderEffectPreviewParamValues = shallowReactive(new Map<string, EffectLivePreviewParamValues>());
 	public readonly previewParameterEditing = markRaw(new PreviewParameterEditingController());
 	public readonly projectContext: ProjectContext;
 	public readonly scripting: ProjectScriptingController;
@@ -91,10 +95,10 @@ export class ProjectSessionContext {
 		const layerId = getSelectedTimelineLayerId(getTimelineEditorState(scene).selection);
 		return (layerId == null ? null : findTimelineLayer(scene.layers, layerId)) ?? null;
 	});
-	public customNodeGraphEffectLivePreviewFpsLimit = ref<number | null>(60);
+	public effectLivePreviewFpsLimit = ref<number | null>(60);
 	public timelinePreviewFpsFactor = ref(0.5);
 	public timelinePreviewMotionBlurSamples = ref<(typeof TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS)[number]>(DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES);
-	public customNodeGraphEffectLivePreviewTimeFactor = ref(1);
+	public effectLivePreviewTimeFactor = ref(1);
 	public resolutionFactor: Ref<number>;
 	public highlightClipping = ref(false);
 	/** 警告の判定対象だけを切り替え、作品・解析・保存データは変更しない。 */
@@ -142,7 +146,7 @@ export class ProjectSessionContext {
 	public readonly renderEngine: PreviewRenderEngine;
 	private readonly rendererProjectSynchronizer: RendererProjectSynchronizer;
 	private readonly projectSaveController: ProjectSaveController;
-	public activePreviewRenderer = computed(() => this.previewPlayback.state.value.mode === 'customNodeGraphEffectLivePreview' ? this.effectLivePreviewManagerController : this.timelineRendererManagerController);
+	public activePreviewRenderer = computed(() => this.previewPlayback.state.value.mode === 'effectLivePreview' ? this.effectLivePreviewManagerController : this.timelineRendererManagerController);
 	public get projectFileName() { return this.projectSaveController.projectFileName; }
 	public readonly projectDisplayName = computed(() => getProjectDisplayName(this.projectContext.stateManager.state.name.value, this.projectFileName.value));
 	public get projectFileHandle() { return this.projectSaveController.projectFileHandle; }
@@ -208,13 +212,13 @@ export class ProjectSessionContext {
 			() => this.projectContext.stateManager.state.timelineFps.value * this.timelinePreviewFpsFactor.value,
 			() => this.activeScene.value == null ? 0 : getSceneDuration(this.activeScene.value),
 			this.timelineAudioPreview,
-			(customNodeGraphEffectId, params) => {
-				this.renderValidation.setCustomNodeGraphEffectLivePreviewInputs(customNodeGraphEffectId, params);
+			(effectSource, params) => {
+				this.renderValidation.setEffectLivePreviewInputs(effectSource, params);
 				this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
 				this.renderEngine.notifyContentChange();
 			},
 		));
-		this.sessionDisposers.push(watch(() => JSON.stringify([this.previewPlayback.state.value.mode, this.previewPlayback.livePreviewCustomNodeGraphEffectId.value, this.activeSceneId.value]),
+		this.sessionDisposers.push(watch(() => JSON.stringify([this.previewPlayback.livePreviewEffectSource.value, this.activeSceneId.value]),
 			() => this.previewParameterEditing.clear(), { flush: 'sync' }));
 		this.renderEngine = markRaw(new PreviewRenderEngine({
 			dispose: reason => {
@@ -240,15 +244,15 @@ export class ProjectSessionContext {
 					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value,
 						previewWarningImageSource: this.previewWarningImageSource.value, previewGamutWarning: { ...this.previewGamutWarning.value }, previewExposure: this.previewExposure.value, previewSrgbProof: this.previewSrgbProof.value, previewGamutCompression: { ...this.previewGamutCompression.value },
 						previewBackground: preferences.s.animatedBgInPreview ? 'checker' as const : 'black' as const, analysisValueScale: this.analysisValueScale.value, analysisTarget: this.analysisTarget.value, analysisImageSource: this.analysisImageSource.value, analysisValueRange: { ...this.analysisValueRange.value }, analysisWaveformCanvasSizes: this.analysisWaveformCanvasSizes.value, analysisWaveformViewports: this.analysisWaveformViewports.value, analysisHistogramViewport: this.analysisHistogramViewport.value },
-					customNodeGraphEffectOptions: { previewActive: previewDisplayMode === 'customNodeGraphEffectLivePreview', fpsLimit: this.customNodeGraphEffectLivePreviewFpsLimit.value, effectLivePreviewTimeFactor: this.customNodeGraphEffectLivePreviewTimeFactor.value },
+					effectLivePreviewOptions: { previewActive: previewDisplayMode === 'effectLivePreview', fpsLimit: this.effectLivePreviewFpsLimit.value, effectLivePreviewTimeFactor: this.effectLivePreviewTimeFactor.value },
 					timelineOptions: { previewActive: previewDisplayMode === 'timeline', sceneId: this.activeSceneId.value, generatedSpeech: this.previewSpeech.value,
 						previewFps: state.timelineFps.value * this.timelinePreviewFpsFactor.value },
 				});
 				this.synchronizedPreviewDisplayMode = previewDisplayMode;
 				const results = await Promise.allSettled([
 					this.effectLivePreviewManagerController.initialize({
-						staticOptions: staticOptions.customNodeGraphEffect,
-						dynamicOptions: { ...snapshot.commonOptions, ...snapshot.customNodeGraphEffectOptions,
+						staticOptions: staticOptions.effectLivePreview,
+						dynamicOptions: { ...snapshot.commonOptions, ...snapshot.effectLivePreviewOptions,
 							automationGraphs: snapshot.project.automationGraphs, customNodeGraphEffects: snapshot.project.customNodeGraphEffects, customShaderEffects: snapshot.project.customShaderEffects },
 						resources: { assets: snapshot.assets, players: snapshot.players },
 					}),
@@ -310,10 +314,34 @@ export class ProjectSessionContext {
 		this.effectLivePreviewManagerController.onAssetReadFailure = () => {
 			void resolveExternalAssets(this.projectContext.stateManager.state.assets.value);
 		};
-		this.sessionDisposers.push(watch(this.previewPlayback.livePreviewCustomNodeGraphEffectId, id => {
-			if (id != null) return;
-			this.renderValidation.setCustomNodeGraphEffectLivePreviewInputs(null);
+		this.sessionDisposers.push(watch(this.previewPlayback.livePreviewEffectSource, effectSource => {
+			if (effectSource != null) return;
+			this.renderValidation.setEffectLivePreviewInputs(null);
 			this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
+		}, { flush: 'sync' }));
+		this.sessionDisposers.push(watch(() => [...projectContext.stateManager.state.customShaderEffects.value], (registrations, previousRegistrations) => {
+			const activeId = this.previewPlayback.livePreviewCustomShaderEffectId.value;
+			for (const previous of previousRegistrations) {
+				const current = registrations.find(registration => registration.id === previous.id);
+				if (current === previous) continue;
+				if (current == null) {
+					this.customShaderEffectPreviewParamValues.delete(previous.id);
+					if (activeId === previous.id) this.previewPlayback.showTimeline();
+					continue;
+				}
+				const values = this.customShaderEffectPreviewParamValues.get(current.id);
+				if (values == null) continue;
+				// 固定IDが同じでも型が変わった入力は、新しい定義の既定値から試せるようにする。
+				const entries = Object.entries(values);
+				const compatible = entries.filter(([id]) => {
+					const definition = current.definition.paramDefs[id];
+					return definition != null && areDataTypesEqual(previous.definition.paramDefs[id].dataType, definition.dataType);
+				});
+				if (compatible.length === entries.length) continue;
+				const next = Object.fromEntries(compatible);
+				this.customShaderEffectPreviewParamValues.set(current.id, next);
+				if (activeId === current.id) this.previewPlayback.updateEffectLivePreviewParamValues({ type: 'customShaderEffectReference', id: current.id }, next);
+			}
 		}, { flush: 'sync' }));
 		this.sessionDisposers.push(watch(() => this.timelineAudioPreview.error.value, message => {
 			if (message != null) {
@@ -431,12 +459,12 @@ export class ProjectSessionContext {
 			this.previewPlayback.refresh();
 		}, { flush: 'sync' }));
 
-		this.sessionDisposers.push(watch(this.customNodeGraphEffectLivePreviewFpsLimit, async value => {
-			await this.updateCustomNodeGraphEffectPreviewOptions({ fpsLimit: value });
+		this.sessionDisposers.push(watch(this.effectLivePreviewFpsLimit, async value => {
+			await this.updateEffectLivePreviewOptions({ fpsLimit: value });
 		}, { flush: 'sync' }));
 
-		this.sessionDisposers.push(watch(this.customNodeGraphEffectLivePreviewTimeFactor, async value => {
-			await this.updateCustomNodeGraphEffectPreviewOptions({ effectLivePreviewTimeFactor: value });
+		this.sessionDisposers.push(watch(this.effectLivePreviewTimeFactor, async value => {
+			await this.updateEffectLivePreviewOptions({ effectLivePreviewTimeFactor: value });
 		}, { flush: 'sync' }));
 		this.sessionDisposers.push(watch([this.projectContext.stateManager.state.timelineFps, this.timelinePreviewFpsFactor], async () => {
 			await this.updateTimelinePreviewOptions({ previewFps: this.projectContext.stateManager.state.timelineFps.value * this.timelinePreviewFpsFactor.value });
@@ -570,7 +598,7 @@ export class ProjectSessionContext {
 			effectRenderTiling: preferences.r.effectRenderTiling.value,
 		};
 		return {
-			customNodeGraphEffect: common,
+			effectLivePreview: common,
 			timeline: { ...common, timelineFps: state.timelineFps.value,
 				// 保存する書き出しサンプル数とプレビュー品質は別の設定として扱う。
 				timelineMotionBlur: { ...state.timelineMotionBlur.value, samples: this.timelinePreviewMotionBlurSamples.value },
@@ -636,7 +664,7 @@ export class ProjectSessionContext {
 			// 初期値は生成時に渡す。同じ表示先への復帰では追加RPCを送らず、
 			// 初期化中に切り替わった場合にもonReadyから最新の表示先へ同期する。
 			return Promise.all([
-				this.effectLivePreviewManagerController.updateDynamicOptions({ previewActive: mode === 'customNodeGraphEffectLivePreview' }),
+				this.effectLivePreviewManagerController.updateDynamicOptions({ previewActive: mode === 'effectLivePreview' }),
 				this.timelineRendererManagerController.updateDynamicOptions({ previewActive: mode === 'timeline' }),
 			]);
 		});
@@ -647,9 +675,22 @@ export class ProjectSessionContext {
 		return this.renderEngine.runRendererUpdate(() => this.timelineRendererManagerController.updateDynamicOptions(options));
 	}
 
-	private updateCustomNodeGraphEffectPreviewOptions(options: Partial<EffectLivePreviewManagerDynamicOptions>) {
+	private updateEffectLivePreviewOptions(options: Partial<EffectLivePreviewManagerDynamicOptions>) {
 		this.renderEngine.notifyContentChange();
 		return this.renderEngine.runRendererUpdate(() => this.effectLivePreviewManagerController.updateDynamicOptions(options));
+	}
+
+	public getCustomShaderEffectPreviewParamValues(customShaderEffectId: string): EffectLivePreviewParamValues {
+		return this.customShaderEffectPreviewParamValues.get(customShaderEffectId) ?? {};
+	}
+
+	public startCustomShaderEffectLivePreview(customShaderEffectId: string) {
+		this.previewPlayback.startEffectLivePreview({ type: 'customShaderEffectReference', id: customShaderEffectId }, this.getCustomShaderEffectPreviewParamValues(customShaderEffectId));
+	}
+
+	public updateCustomShaderEffectLivePreviewParamValues(customShaderEffectId: string, values: EffectLivePreviewParamValues) {
+		this.customShaderEffectPreviewParamValues.set(customShaderEffectId, values);
+		this.previewPlayback.updateEffectLivePreviewParamValues({ type: 'customShaderEffectReference', id: customShaderEffectId }, values);
 	}
 
 	/** 再生要求を止めてからGPUリソースを解放し、復帰完了後にだけ再生を戻す。 */
@@ -700,7 +741,7 @@ export class ProjectSessionContext {
 		}, { immediate: true, flush: 'sync' }));
 
 		const state = this.projectContext.stateManager.state;
-		if (state.customNodeGraphEffects.value[0] != null) this.previewPlayback.startCustomNodeGraphEffectLivePreview(state.customNodeGraphEffects.value[0].id);
+		if (state.customNodeGraphEffects.value[0] != null) this.previewPlayback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id: state.customNodeGraphEffects.value[0].id });
 
 		await this.renderEngine.enable();
 	}

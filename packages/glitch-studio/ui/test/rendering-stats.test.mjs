@@ -67,7 +67,7 @@ async function fixture(t, { enabled = true } = {}) {
 test('stops sampling and clears displayed values when measurement is disabled', async t => {
 	const f = await fixture(t, { enabled: false });
 	assert.equal(f.timerActive, false);
-	f.state.value = { mode: 'customNodeGraphEffectLivePreview', playing: true };
+	f.state.value = { mode: 'effectLivePreview', playing: true };
 	await nextTick();
 	assert.equal(f.timerActive, false);
 	assert.deepEqual(values(f.statistic('fast')), ['—']);
@@ -114,7 +114,7 @@ test('displays timeline averages and maxima in milliseconds without duplicating 
 // アンマウント後にサンプリングタイマーが残らないことも確認する。
 test('switches between timeline timings and Custom Node Graph Effect GPU averages with separate histories', async t => {
 	const f = await fixture(t);
-	f.state.value = { mode: 'customNodeGraphEffectLivePreview', playing: true };
+	f.state.value = { mode: 'effectLivePreview', playing: true };
 	await nextTick();
 	assert.equal(f.statistic('frameDurationMs'), undefined);
 	assert.deepEqual(values(f.statistic('fast')), ['1.5ms']);

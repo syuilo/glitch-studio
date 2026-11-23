@@ -9,7 +9,10 @@
 			</div>
 			<div :class="$style.center">
 				<button v-if="previewTargetName" :class="$style.previewTargetName" class="_button" @click="showPreviewTargetMenu">
-					<i v-if="previewPlayback.state.value.mode === 'timeline'" class="ti ti-memory"></i><i v-else-if="previewPlayback.state.value.mode === 'customNodeGraphEffectLivePreview'" class="ti ti-binary-tree-2"></i> {{ previewTargetName }} <i class="ti ti-chevron-down"></i>
+					<i v-if="previewPlayback.state.value.mode === 'timeline'" class="ti ti-memory"></i>
+					<i v-else-if="previewPlayback.state.value.effectSource.type === 'customShaderEffectReference'" class="ti ti-code"></i>
+					<i v-else class="ti ti-binary-tree-2"></i>
+					{{ previewTargetName }} <i class="ti ti-chevron-down"></i>
 				</button>
 			</div>
 			<div :class="$style.right">
@@ -126,7 +129,7 @@ import * as ui from '@/ui.ts';
 
 const projectSession = useProjectSession();
 
-const { activePreviewRenderer, effectLivePreviewManagerController, previewPlayback, highlightClipping, previewWarningImageSource, previewGamutWarning, previewExposure, resolutionFactor, customNodeGraphEffectLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = projectSession;
+const { activePreviewRenderer, effectLivePreviewManagerController, previewPlayback, highlightClipping, previewWarningImageSource, previewGamutWarning, previewExposure, resolutionFactor, effectLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = projectSession;
 const renderTilingProgressText = computed(() => {
 	const progress = activePreviewRenderer.value.renderTilingProgress.value;
 	if (progress == null || progress.totalTiles === 0) return null;
@@ -206,8 +209,8 @@ function updateEditingDocument() {
 
 watch(containerContainer, updateEditingDocument);
 onBeforeUnmount(() => { for (const doc of editingDocuments) doc.removeEventListener('keydown', onEditingKeydown); });
-const customNodeGraphEffectLivePreviewTime = ref(0);
-const time = computed(() => previewPlayback.state.value.mode === 'timeline' ? previewPlayback.currentTimelineTime.value : customNodeGraphEffectLivePreviewTime.value);
+const effectLivePreviewTime = ref(0);
+const time = computed(() => previewPlayback.state.value.mode === 'timeline' ? previewPlayback.currentTimelineTime.value : effectLivePreviewTime.value);
 const currentFrameNumber = computed(() => {
 	if (previewPlayback.state.value.mode !== 'timeline') return null;
 	// シーク・コマ送り・キャッシュと同じプレビューの時計で番号を表示する。
@@ -215,12 +218,13 @@ const currentFrameNumber = computed(() => {
 });
 const previewTargetName = computed(() => {
 	const state = previewPlayback.state.value;
-	return state.mode === 'timeline'
-		? activeScene.value?.name ?? null
-		: stateManager.state.customNodeGraphEffects.value.find(customNodeGraphEffect => customNodeGraphEffect.id === state.customNodeGraphEffectId)?.name ?? null;
+	if (state.mode === 'timeline') return activeScene.value?.name ?? null;
+	const registrations = state.effectSource.type === 'customShaderEffectReference'
+		? stateManager.state.customShaderEffects.value : stateManager.state.customNodeGraphEffects.value;
+	return registrations.find(registration => registration.id === state.effectSource.id)?.name ?? null;
 });
 const previewResolution = computed(() => {
-	if (previewPlayback.state.value.mode === 'customNodeGraphEffectLivePreview') return effectLivePreviewManagerController.outputResolution.value;
+	if (previewPlayback.state.value.mode === 'effectLivePreview') return effectLivePreviewManagerController.outputResolution.value;
 	const scene = activeScene.value;
 	if (scene == null) return null;
 	return scaleResolution(getSceneBaseResolution(scene.resolution, stateManager.state.resolution.value), resolutionFactor.value);
@@ -250,8 +254,8 @@ function update(t: number) {
 	if (renderEngine.isSuspended.value) return;
 	const delta = latestTime == null ? 0 : t - latestTime;
 	latestTime = t;
-	if (previewPlayback.state.value.mode === 'customNodeGraphEffectLivePreview') customNodeGraphEffectLivePreviewTime.value += delta * customNodeGraphEffectLivePreviewTimeFactor.value;
-	projectSession.previewParameterEditing.time.value = customNodeGraphEffectLivePreviewTime.value;
+	if (previewPlayback.state.value.mode === 'effectLivePreview') effectLivePreviewTime.value += delta * effectLivePreviewTimeFactor.value;
+	projectSession.previewParameterEditing.time.value = effectLivePreviewTime.value;
 	updatePreviewDevicePixelRatio();
 	fitInitialZoom();
 	updateGridLines();
@@ -434,7 +438,7 @@ function clearRulerPointer() {
 }
 
 function onPointermove(ev: PointerEvent) {
-	if (canvasContainer.value == null || previewPlayback.state.value.mode !== 'customNodeGraphEffectLivePreview') return;
+	if (canvasContainer.value == null || previewPlayback.state.value.mode !== 'effectLivePreview') return;
 	const rect = canvasContainer.value.getBoundingClientRect();
 	effectLivePreviewManagerController.updatePointerPosition({
 		x: (((ev.clientX - rect.left) / rect.width) - 0.5) * 2,
@@ -520,7 +524,18 @@ function showPreviewTargetMenu(ev: PointerEvent) {
 			active: previewPlayback.livePreviewCustomNodeGraphEffectId.value === customNodeGraphEffect.id,
 			action: () => {
 				// 同じEffect Live Preview対象の再選択では、Preview Paramsで設定した値を初期化しない。
-				if (previewPlayback.livePreviewCustomNodeGraphEffectId.value !== customNodeGraphEffect.id) previewPlayback.startCustomNodeGraphEffectLivePreview(customNodeGraphEffect.id);
+				if (previewPlayback.livePreviewCustomNodeGraphEffectId.value !== customNodeGraphEffect.id) previewPlayback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id: customNodeGraphEffect.id });
+			},
+		})),
+	}, {
+		type: 'parent',
+		text: i18n.ts._CustomShaderEffect.Title,
+		icon: 'ti ti-code',
+		children: () => stateManager.state.customShaderEffects.value.map(customShaderEffect => ({
+			text: customShaderEffect.name,
+			active: previewPlayback.livePreviewCustomShaderEffectId.value === customShaderEffect.id,
+			action: () => {
+				if (previewPlayback.livePreviewCustomShaderEffectId.value !== customShaderEffect.id) projectSession.startCustomShaderEffectLivePreview(customShaderEffect.id);
 			},
 		})),
 	}], ev.currentTarget ?? ev.target);

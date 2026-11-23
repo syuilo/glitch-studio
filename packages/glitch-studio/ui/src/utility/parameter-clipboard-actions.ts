@@ -6,7 +6,7 @@ import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
-import { createParameterClipboard, createCustomNodeGraphEffectClipboardSource, parseParameterClipboard, prepareParameterBindingPaste, prepareProjectParameterPaste, resolveProjectClipboardTarget } from './parameter-clipboard.ts';
+import { createParameterClipboard, parseParameterClipboard, prepareParameterBindingPaste, prepareProjectParameterPaste, resolveProjectClipboardTarget } from './parameter-clipboard.ts';
 import { clipboardText } from './clipboard-text.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
@@ -15,6 +15,8 @@ import type { EditableTimelineParameterBinding } from '../types/parameter-edit.t
 import type { ClipboardTextAccess } from './clipboard-text.ts';
 import type { ProjectParameterClipboardTarget } from './parameter-clipboard.ts';
 import type { ProjectContext } from '../Project.ts';
+import type { EffectLivePreviewSource } from '../types/effect-live-preview.ts';
+import type { ParameterClipboardSource } from './parameter-clipboard.ts';
 
 /** 読み取り前の対象を捕捉し、終了済みのプロジェクトや削除・再作成された対象へ遅延適用しない。 */
 export async function handleProjectParameterClipboard(
@@ -84,7 +86,7 @@ export async function handleProjectParameterClipboard(
 export async function handlePreviewParameterClipboard(
 	context: ProjectContext,
 	projectSessionId: string,
-	customNodeGraphEffectId: string,
+	effectSource: EffectLivePreviewSource,
 	requestedPath: ParamPath,
 	operation: 'copy' | 'paste',
 	readArgument: (id: string) => { binding: ValueParameterBinding | null; followsDefault: boolean },
@@ -94,16 +96,18 @@ export async function handlePreviewParameterClipboard(
 ): Promise<void> {
 	if (context.isDisposed || !isActive()) return;
 	const state = context.stateManager.state;
-	const entry = state.customNodeGraphEffects.value.find(candidate => candidate.id === customNodeGraphEffectId);
-	if (entry == null) return;
-	const customNodeGraphEffect = getCustomNodeGraphEffectView(entry, state);
+	const customNodeGraphEffectEntry = effectSource.type === 'customNodeGraphEffectReference'
+		? state.customNodeGraphEffects.value.find(candidate => candidate.id === effectSource.id) : null;
+	const customShaderEffectEntry = effectSource.type === 'customShaderEffectReference'
+		? state.customShaderEffects.value.find(candidate => candidate.id === effectSource.id) : null;
+	if (customNodeGraphEffectEntry == null && customShaderEffectEntry == null) return;
+	const readCustomNodeGraphEffect = () => customNodeGraphEffectEntry == null ? null : getCustomNodeGraphEffectView(customNodeGraphEffectEntry, state);
 	const path: ParamPath = [...requestedPath];
-	const rootDefinition = customNodeGraphEffect.paramDefs.find(definition => definition.id === path[0]);
-	if (rootDefinition == null) return;
-	const rootId = rootDefinition.id;
+	const rootId = path[0] as string;
 
 	const resolve = () => {
-		const definition = getCustomNodeGraphEffectView(entry, state).paramDefs.find(candidate => candidate.id === rootId);
+		const customNodeGraphEffect = readCustomNodeGraphEffect();
+		const definition = customNodeGraphEffect?.paramDefs.find(candidate => candidate.id === rootId) ?? customShaderEffectEntry?.definition.paramDefs[rootId];
 		if (definition == null) throw new Error('Preview parameter not found');
 		const { binding, followsDefault } = readArgument(rootId);
 		const draft = { [rootId]: binding == null ? createDefaultParameterBinding(definition) : deepClone(binding) };
@@ -112,7 +116,13 @@ export async function handlePreviewParameterClipboard(
 
 	let initial;
 	try { initial = resolve(); } catch { return; }
-	const source = { ...createCustomNodeGraphEffectClipboardSource(projectSessionId, { customNodeGraphEffectId }, customNodeGraphEffect), localAutomationGraphIds: [] };
+	const source: ParameterClipboardSource = {
+		projectSessionId,
+		owner: effectSource.type === 'customNodeGraphEffectReference'
+			? { kind: 'customNodeGraphEffect', target: { customNodeGraphEffectId: effectSource.id } }
+			: { kind: 'customShaderEffect', customShaderEffectId: effectSource.id },
+		localAutomationGraphIds: [],
+	};
 	if (operation === 'copy') {
 		await clipboard.writeText(JSON.stringify(createParameterClipboard(initial.parameter.def, initial.parameter.value, source)));
 		return;
@@ -122,15 +132,16 @@ export async function handlePreviewParameterClipboard(
 	const initialRoot = initial.draft[rootId];
 	const usesDefaultArrayElement = initial.followsDefault && initial.parameter.hasArrayElementInPath;
 	const data = parseParameterClipboard(await clipboard.readText());
-	if (data == null || !isActive() || context.isDisposed
-		|| !state.customNodeGraphEffects.value.includes(entry)) return;
+	if (data == null || !isActive() || context.isDisposed) return;
+	if (customNodeGraphEffectEntry != null && !state.customNodeGraphEffects.value.includes(customNodeGraphEffectEntry)) return;
+	if (customShaderEffectEntry != null && !state.customShaderEffects.value.includes(customShaderEffectEntry)) return;
 	let nextRoot: ValueParameterBinding;
 	try {
 		const current = resolve();
 		if (!areDataTypesEqual(originalType, current.parameter.def.dataType)) return;
 		if (usesDefaultArrayElement && !deepEqual(initialRoot, current.draft[rootId])) return;
 		const binding = prepareParameterBindingPaste(current.parameter.def, data, {
-			kind: 'preview', state, customNodeGraphEffect: getCustomNodeGraphEffectView(entry, state), source,
+			kind: 'preview', state, customNodeGraphEffect: readCustomNodeGraphEffect(), source,
 		});
 		if (binding == null) return;
 		current.parameter.setValue(binding as ValueParameterBinding);

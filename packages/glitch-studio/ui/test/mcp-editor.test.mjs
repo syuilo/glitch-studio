@@ -147,8 +147,8 @@ function previewSession() {
 	return { capture, called, flushes: () => flushes, session: {
 		id: 'preview', isDisposed: false, flushRendererProjectChanges: async () => { flushes++; },
 		renderEngine: { canRender: ref(true), errorMessage: ref(null), isSuspended: ref(false) },
-		previewPlayback: { state: shallowRef({ mode: 'timeline', playing: false }), currentTimelineTime: ref(123), livePreviewCustomNodeGraphEffectId: ref(null) },
-		activeSceneId: ref('scene'), activePreviewRenderer: shallowRef(controller), timelineRendererManagerController: controller,
+		previewPlayback: { state: shallowRef({ mode: 'timeline', playing: false }), currentTimelineTime: ref(123) },
+		activeSceneId: ref('scene'), activePreviewRenderer: shallowRef(controller), timelineRendererManagerController: controller, effectLivePreviewManagerController: controller,
 	} };
 }
 
@@ -176,6 +176,22 @@ test('discards capture results after the preview target changes', async () => {
 	fixture.session.activeSceneId.value = 'different-scene';
 	fixture.capture.resolve({ blob: new Blob(['PNG']), width: 512, height: 288, time: 123 });
 	await assert.rejects(result, /PREVIEW_CHANGED/);
+});
+
+// 【選択中のCustom Shader Effectを撮影し、同じIDのCustom Node Graph Effectと区別する】
+// 同じRendererとCanvasを使うため、撮影中の種別変更はプレビュー対象の状態で判定する。
+test('captures a shader preview and detects switching to a graph with the same ID', async () => {
+	for (const switchToGraph of [false, true]) {
+		const fixture = previewSession();
+		const playback = fixture.session.previewPlayback;
+		playback.state.value = { mode: 'effectLivePreview', effectSource: { type: 'customShaderEffectReference', id: 'shared' } };
+		const result = captureProjectPreview(fixture.session, 512, new AbortController().signal);
+		assert.deepEqual(await fixture.called.promise, [512]);
+		if (switchToGraph) playback.state.value = { mode: 'effectLivePreview', effectSource: { type: 'customNodeGraphEffectReference', id: 'shared' } };
+		fixture.capture.resolve({ blob: new Blob(['PNG']), width: 512, height: 288, time: 123 });
+		if (switchToGraph) await assert.rejects(result, /PREVIEW_CHANGED/);
+		else assert.deepEqual((await result).target, { kind: 'customShaderEffect', customShaderEffectId: 'shared' });
+	}
 });
 
 function seekFixture() {

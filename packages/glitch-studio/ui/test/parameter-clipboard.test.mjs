@@ -129,9 +129,9 @@ test('scopes live preview player references to their source session', async () =
 	}
 	let text = '';
 	const clipboard = { writeText: async value => { text = value; }, readText: async () => text };
-	await handlePreviewParameterClipboard(from.context, from.projectSessionId, from.customNodeGraphEffect.id, ['arg'], 'copy', () => ({ binding, followsDefault: false }), () => true, () => {}, clipboard);
+	await handlePreviewParameterClipboard(from.context, from.projectSessionId, { type: 'customNodeGraphEffectReference', id: from.customNodeGraphEffect.id }, ['arg'], 'copy', () => ({ binding, followsDefault: false }), () => true, () => {}, clipboard);
 	let applied = null;
-	const paste = f => handlePreviewParameterClipboard(f.context, f.projectSessionId, f.customNodeGraphEffect.id, ['arg'], 'paste', () => ({ binding: null, followsDefault: true }), () => true, (_id, value) => { applied = value; }, clipboard);
+	const paste = f => handlePreviewParameterClipboard(f.context, f.projectSessionId, { type: 'customNodeGraphEffectReference', id: f.customNodeGraphEffect.id }, ['arg'], 'paste', () => ({ binding: null, followsDefault: true }), () => true, (_id, value) => { applied = value; }, clipboard);
 	await paste(to);
 	assert.equal(applied, null);
 	from.context.id = 'saved-as';
@@ -440,7 +440,7 @@ test('ignores delayed preview parameter pastes after disposal or target changes'
 		const clipboard = createParameterClipboard(scalarDefinition, { inputSource: 'literal', value: 12 }, source);
 		const reading = Promise.withResolvers();
 		let applied = false;
-		const pending = handlePreviewParameterClipboard(f.context, f.projectSessionId, f.customNodeGraphEffect.id, ['arg'], 'paste', id => ({ binding: values[id], followsDefault: false }), () => true,
+		const pending = handlePreviewParameterClipboard(f.context, f.projectSessionId, { type: 'customNodeGraphEffectReference', id: f.customNodeGraphEffect.id }, ['arg'], 'paste', id => ({ binding: values[id], followsDefault: false }), () => true,
 			() => { applied = true; }, { readText: () => reading.promise });
 		invalidate(f);
 		reading.resolve(JSON.stringify(clipboard));
@@ -460,7 +460,7 @@ test('discards a pending preview paste when a displayed default array changes', 
 	const path = ['items', values.items.value[1].id];
 	const clipboard = createParameterClipboard(scalarDefinition, { inputSource: 'literal', value: 99 }, f.resolve().context.source);
 	const reading = Promise.withResolvers();
-	const pending = handlePreviewParameterClipboard(f.context, f.projectSessionId, f.customNodeGraphEffect.id, path, 'paste',
+	const pending = handlePreviewParameterClipboard(f.context, f.projectSessionId, { type: 'customNodeGraphEffectReference', id: f.customNodeGraphEffect.id }, path, 'paste',
 		id => ({ binding: values[id], followsDefault: true }), () => true, () => assert.fail('paste should be stale'), { readText: () => reading.promise });
 	const updatedDefinition = { ...publicArrayDefinition, defaultValue: [5, 10, 20] };
 	f.history.commit('replaceCustomNodeGraphEffectPublicParameterDefinition', {
@@ -482,7 +482,7 @@ test('pastes into an edited preview array element after it moves', async () => {
 	const elementId = values.items.value[1].id;
 	const clipboard = createParameterClipboard(scalarDefinition, { inputSource: 'literal', value: 99 }, f.resolve().context.source);
 	const reading = Promise.withResolvers();
-	const pending = handlePreviewParameterClipboard(f.context, f.projectSessionId, f.customNodeGraphEffect.id, ['items', elementId], 'paste',
+	const pending = handlePreviewParameterClipboard(f.context, f.projectSessionId, { type: 'customNodeGraphEffectReference', id: f.customNodeGraphEffect.id }, ['items', elementId], 'paste',
 		id => ({ binding: values[id], followsDefault: false }), () => true, (id, binding) => { values[id] = binding; }, { readText: () => reading.promise });
 	values.items.value.reverse();
 	reading.resolve(JSON.stringify(clipboard));
@@ -508,7 +508,7 @@ test('copies across independent window contexts and supports live preview withou
 	const values = { arg: { inputSource: 'literal', value: 5 } };
 	const source = from.resolve().context.source;
 	text = JSON.stringify(createParameterClipboard(scalarDefinition, { inputSource: 'expression', expression: 'TIME' }, source));
-	await handlePreviewParameterClipboard(to.context, to.projectSessionId, to.customNodeGraphEffect.id, ['arg'], 'paste',
+	await handlePreviewParameterClipboard(to.context, to.projectSessionId, { type: 'customNodeGraphEffectReference', id: to.customNodeGraphEffect.id }, ['arg'], 'paste',
 		id => ({ binding: values[id], followsDefault: false }), () => true, (id, binding) => { values[id] = binding; }, access);
 	assert.deepEqual(values.arg, { inputSource: 'expression', expression: 'TIME' });
 	assert.equal(to.history.undoStack.value.length, 1);

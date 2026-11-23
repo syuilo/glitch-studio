@@ -98,7 +98,7 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 		effectLivePreviewManagerController: { outputResolution: ref(null) },
 		timelineRendererManagerController: { isSeeking: ref(false) },
 		previewPlayback: { state: ref({ mode: 'timeline' }), currentTimelineTime: ref(0), isTimelinePlaying: ref(false) },
-		highlightClipping: ref(false), previewExposure: ref(0), previewSrgbProof: ref(false), resolutionFactor: ref(resolutionFactor), customNodeGraphEffectLivePreviewTimeFactor: ref(1),
+		highlightClipping: ref(false), previewExposure: ref(0), previewSrgbProof: ref(false), resolutionFactor: ref(resolutionFactor), effectLivePreviewTimeFactor: ref(1),
 		previewWarningImageSource: ref('original'),
 		previewGamutCompression: shallowRef({ mode: 'none', customAmount: 0.5 }),
 		previewGamutWarning: shallowRef({ enabled: false, referenceGamut: 'srgb', bounds: 'unit' }),
@@ -159,7 +159,7 @@ test('shows rendering delays for the active preview during playback and Live Pre
 	assert.equal(isLoading(), true);
 	const livePreview = markRaw({ ...f.controller, isRenderDelayed: ref(false) });
 	f.projectSession.activePreviewRenderer.value = livePreview;
-	f.projectSession.previewPlayback.state.value = { mode: 'customNodeGraphEffectLivePreview' };
+	f.projectSession.previewPlayback.state.value = { mode: 'effectLivePreview', effectSource: { type: 'customNodeGraphEffectReference', id: 'custom-node-graph-effect' } };
 	await nextTick();
 	assert.equal(isLoading(), false);
 	livePreview.isRenderDelayed.value = true;
@@ -244,7 +244,7 @@ test('waits for the real canvas size and a visible viewport before applying the 
 // Custom Node Graph Effectの出力はScene解像度とは異なるため、通知前にSceneの寸法で確定しない。
 test('waits for live preview output resolution before fitting its initial view', async t => {
 	const f = await fixture(t, { devicePixelRatio: 2 });
-	f.projectSession.previewPlayback.state.value = { mode: 'customNodeGraphEffectLivePreview', customNodeGraphEffectId: 'custom-node-graph-effect' };
+	f.projectSession.previewPlayback.state.value = { mode: 'effectLivePreview', effectSource: { type: 'customNodeGraphEffectReference', id: 'custom-node-graph-effect' } };
 	await f.frame();
 	assert.equal(f.find('zoom').text, 'ZOOM: 100%');
 	f.projectSession.effectLivePreviewManagerController.outputResolution.value = { width: 600, height: 1200 };
@@ -312,7 +312,7 @@ test('fits changed output dimensions and a replacement live preview canvas', asy
 	assert.equal(f.style.scale * 1.25, 2);
 	await f.click('fit-zoom');
 	assert.equal(f.style.scale, 800 / 960);
-	f.projectSession.previewPlayback.state.value = { mode: 'customNodeGraphEffectLivePreview', customNodeGraphEffectId: 'custom-node-graph-effect' };
+	f.projectSession.previewPlayback.state.value = { mode: 'effectLivePreview', effectSource: { type: 'customNodeGraphEffectReference', id: 'custom-node-graph-effect' } };
 	f.projectSession.effectLivePreviewManagerController.outputResolution.value = { width: 600, height: 1200 };
 	await f.replaceCanvas(600, 1200);
 	await f.click('fit-zoom');

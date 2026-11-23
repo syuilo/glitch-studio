@@ -2,16 +2,15 @@ import { computed, readonly, ref, shallowRef, watch } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { getTimelinePreviewFrameIndex, getTimelinePreviewFrameTime } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 import type { TimelinePreviewSeekMode } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
-import type { ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
-import type { CustomNodeGraphEffectArgumentBindings } from '@/types/custom-node-graph-effect-view.ts';
+import type { EffectLivePreviewSource, EffectLivePreviewParamValues } from './types/effect-live-preview.ts';
 import type { EffectLivePreviewManagerController } from './EffectLivePreviewManagerController.ts';
 import type { TimelineRendererManagerController } from './TimelineRendererManagerController.ts';
 
 export type PreviewPlaybackState =
-	| { mode: 'customNodeGraphEffectLivePreview'; customNodeGraphEffectId: ProjectCustomNodeGraphEffect['id'] }
+	| { mode: 'effectLivePreview'; effectSource: EffectLivePreviewSource }
 	| { mode: 'timeline'; playing: boolean };
 
-type CustomNodeGraphEffectLivePreviewRenderer = Pick<EffectLivePreviewManagerController, 'startCustomNodeGraphEffectLivePreviewRenderLoopFor' | 'updateCustomNodeGraphEffectLivePreviewParamValues' | 'stopRenderLoop' | 'resetRenderHistory'>;
+type EffectLivePreviewRenderer = Pick<EffectLivePreviewManagerController, 'startEffectLivePreviewRenderLoop' | 'updateEffectLivePreviewParamValues' | 'stopRenderLoop' | 'resetRenderHistory'>;
 type TimelineAudio = {
 	start(time: number, duration: number): void;
 	stop(): void;
@@ -31,43 +30,46 @@ export class PreviewPlaybackController {
 	private lastTimelinePreviewRequest: { time: number; seekMode: TimelinePreviewSeekMode } | null = null;
 	private readonly suspended = ref(false);
 	private readonly timelineBake = shallowRef<{ stopRequested: boolean } | null>(null);
-	private customNodeGraphEffectLivePreviewParams: CustomNodeGraphEffectArgumentBindings = {};
+	private effectLivePreviewParams: EffectLivePreviewParamValues = {};
 
 	public readonly state = readonly(this.playbackState);
 	public readonly currentTimelineTime = readonly(this.timelineTime);
 	public readonly isTimelinePlaying = computed(() => !this.suspended.value && this.playbackState.value.mode === 'timeline' && this.playbackState.value.playing);
 	public readonly isTimelineBaking = computed(() => this.timelineBake.value != null);
-	public readonly livePreviewCustomNodeGraphEffectId = computed(() => this.playbackState.value.mode === 'customNodeGraphEffectLivePreview' ? this.playbackState.value.customNodeGraphEffectId : null);
+	public readonly livePreviewEffectSource = computed(() => this.playbackState.value.mode === 'effectLivePreview' ? this.playbackState.value.effectSource : null);
+	public readonly livePreviewCustomNodeGraphEffectId = computed(() => this.livePreviewEffectSource.value?.type === 'customNodeGraphEffectReference' ? this.livePreviewEffectSource.value.id : null);
+	public readonly livePreviewCustomShaderEffectId = computed(() => this.livePreviewEffectSource.value?.type === 'customShaderEffectReference' ? this.livePreviewEffectSource.value.id : null);
 
 	constructor(
-		private readonly customNodeGraphEffectLivePreviewRenderer: CustomNodeGraphEffectLivePreviewRenderer,
+		private readonly effectLivePreviewRenderer: EffectLivePreviewRenderer,
 		private readonly timelineRenderer: TimelineRenderer,
 		private readonly getTimelinePreviewFps: () => number | null,
 		private readonly getDuration: () => number = () => Infinity,
 		private readonly audio?: TimelineAudio,
-		private readonly onCustomNodeGraphEffectLivePreviewInputsChanged?: (customNodeGraphEffectId: string, params: CustomNodeGraphEffectArgumentBindings) => void,
+		private readonly onEffectLivePreviewInputsChanged?: (effectSource: EffectLivePreviewSource, params: EffectLivePreviewParamValues) => void,
 	) {}
 
-	public startCustomNodeGraphEffectLivePreview(customNodeGraphEffectId: ProjectCustomNodeGraphEffect['id'], params: CustomNodeGraphEffectArgumentBindings = {}) {
+	public startEffectLivePreview(effectSource: EffectLivePreviewSource, params: EffectLivePreviewParamValues = {}) {
 		if (this.disposed) return;
 		this.pendingTimelineSeek = false;
 		this.timelineRenderer.cancelSeek();
 		this.pauseTimeline();
-		this.customNodeGraphEffectLivePreviewParams = deepClone(params);
-		this.onCustomNodeGraphEffectLivePreviewInputsChanged?.(customNodeGraphEffectId, params);
-		if (!this.suspended.value) this.customNodeGraphEffectLivePreviewRenderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor(customNodeGraphEffectId, params);
-		this.playbackState.value = { mode: 'customNodeGraphEffectLivePreview', customNodeGraphEffectId };
+		this.effectLivePreviewParams = deepClone(params);
+		this.onEffectLivePreviewInputsChanged?.(effectSource, this.effectLivePreviewParams);
+		if (!this.suspended.value) this.effectLivePreviewRenderer.startEffectLivePreviewRenderLoop(effectSource, params);
+		this.playbackState.value = { mode: 'effectLivePreview', effectSource };
 	}
 
-	public updateCustomNodeGraphEffectLivePreviewParamValues(customNodeGraphEffectId: ProjectCustomNodeGraphEffect['id'], params: CustomNodeGraphEffectArgumentBindings) {
+	public updateEffectLivePreviewParamValues(effectSource: EffectLivePreviewSource, params: EffectLivePreviewParamValues) {
 		if (this.disposed) return;
-		if (this.livePreviewCustomNodeGraphEffectId.value !== customNodeGraphEffectId) {
-			this.startCustomNodeGraphEffectLivePreview(customNodeGraphEffectId, params);
+		const current = this.livePreviewEffectSource.value;
+		if (current?.type !== effectSource.type || current.id !== effectSource.id) {
+			this.startEffectLivePreview(effectSource, params);
 			return;
 		}
-		this.customNodeGraphEffectLivePreviewParams = deepClone(params);
-		this.onCustomNodeGraphEffectLivePreviewInputsChanged?.(customNodeGraphEffectId, params);
-		if (!this.suspended.value) this.customNodeGraphEffectLivePreviewRenderer.updateCustomNodeGraphEffectLivePreviewParamValues(customNodeGraphEffectId, params);
+		this.effectLivePreviewParams = deepClone(params);
+		this.onEffectLivePreviewInputsChanged?.(effectSource, this.effectLivePreviewParams);
+		if (!this.suspended.value) this.effectLivePreviewRenderer.updateEffectLivePreviewParamValues(params);
 	}
 
 	public playTimeline() {
@@ -76,7 +78,7 @@ export class PreviewPlaybackController {
 		if (this.isTimelinePlaying.value) return;
 		this.pendingTimelineSeek = false;
 		this.timelineRenderer.cancelSeek();
-		this.leaveCustomNodeGraphEffectLivePreview();
+		this.leaveEffectLivePreview();
 		// 同じエラー文は再通知されない。既に失敗している場合は描画の再試行だけを行い、
 		// 成功でエラーが解除されるまで音声時計を開始しない。
 		if (this.timelineRenderer.errorMessage.value) { this.refresh(); return; }
@@ -138,14 +140,14 @@ export class PreviewPlaybackController {
 
 	public showTimeline() {
 		if (this.disposed) return;
-		this.leaveCustomNodeGraphEffectLivePreview();
+		this.leaveEffectLivePreview();
 		this.refresh();
 	}
 
 	public seekTimeline(time: number, isManualSeek = true, seekMode: TimelinePreviewSeekMode = 'frame') {
 		if (this.disposed) return;
 		this.cancelTimelineBake();
-		this.leaveCustomNodeGraphEffectLivePreview();
+		this.leaveEffectLivePreview();
 		this.timelineSeekMode = seekMode;
 		this.timelineTime.value = seekMode === 'precise' ? Math.max(0, time) : this.snapTimelineTime(time);
 		this.pendingTimelineSeek = isManualSeek && !this.isTimelinePlaying.value;
@@ -190,7 +192,7 @@ export class PreviewPlaybackController {
 			|| this.timelineRenderer.errorMessage.value != null || fps == null || !Number.isFinite(fps) || fps <= 0
 			|| !Number.isFinite(duration) || duration <= 0) return;
 		this.stopTimelinePlayback();
-		this.leaveCustomNodeGraphEffectLivePreview();
+		this.leaveEffectLivePreview();
 		this.pendingTimelineSeek = false;
 		this.timelineRenderer.cancelSeek();
 		if (this.timelineTime.value >= duration) return;
@@ -248,7 +250,7 @@ export class PreviewPlaybackController {
 		if (this.disposed) return;
 		this.cancelTimelineBake();
 		this.timelineRenderer.resetRenderHistory();
-		this.customNodeGraphEffectLivePreviewRenderer.resetRenderHistory();
+		this.effectLivePreviewRenderer.resetRenderHistory();
 		this.refresh();
 	}
 
@@ -304,7 +306,7 @@ export class PreviewPlaybackController {
 		this.audio?.stop();
 		if (this.timelineRafId != null) window.cancelAnimationFrame(this.timelineRafId);
 		this.timelineRafId = null;
-		if (this.playbackState.value.mode === 'customNodeGraphEffectLivePreview') this.customNodeGraphEffectLivePreviewRenderer.stopRenderLoop();
+		if (this.playbackState.value.mode === 'effectLivePreview') this.effectLivePreviewRenderer.stopRenderLoop();
 		this.suspended.value = true;
 	}
 
@@ -313,8 +315,8 @@ export class PreviewPlaybackController {
 		if (!this.suspended.value) return;
 		this.suspended.value = false;
 		const state = this.playbackState.value;
-		if (state.mode === 'customNodeGraphEffectLivePreview') {
-			this.customNodeGraphEffectLivePreviewRenderer.startCustomNodeGraphEffectLivePreviewRenderLoopFor(state.customNodeGraphEffectId, this.customNodeGraphEffectLivePreviewParams);
+		if (state.mode === 'effectLivePreview') {
+			this.effectLivePreviewRenderer.startEffectLivePreviewRenderLoop(state.effectSource, this.effectLivePreviewParams);
 		} else if (state.playing) {
 			this.playbackState.value = { mode: 'timeline', playing: false };
 			this.playTimeline();
@@ -330,13 +332,13 @@ export class PreviewPlaybackController {
 		this.timelineRenderer.cancelSeek();
 		// 終了時には再描画せず、遅れて届く操作でも再開できない状態にする。
 		this.stopTimelinePlayback();
-		this.leaveCustomNodeGraphEffectLivePreview();
+		this.leaveEffectLivePreview();
 		this.suspended.value = true;
 	}
 
-	private leaveCustomNodeGraphEffectLivePreview() {
-		if (this.playbackState.value.mode !== 'customNodeGraphEffectLivePreview') return;
-		if (!this.suspended.value) this.customNodeGraphEffectLivePreviewRenderer.stopRenderLoop();
+	private leaveEffectLivePreview() {
+		if (this.playbackState.value.mode !== 'effectLivePreview') return;
+		if (!this.suspended.value) this.effectLivePreviewRenderer.stopRenderLoop();
 		this.playbackState.value = { mode: 'timeline', playing: false };
 	}
 }

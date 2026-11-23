@@ -156,7 +156,8 @@ const appBundle = await build({
 							const next = applyRendererProjectChanges({ automationGraphs: this.options.automationGraphs, customShaderEffects: this.options.customShaderEffects, customNodeGraphEffects: this.options.customNodeGraphEffects, timelineScenes: this.options.timelineScenes ?? [] }, patch);
 							Object.assign(this.options, this.timeline ? next : { automationGraphs: next.automationGraphs, customShaderEffects: next.customShaderEffects, customNodeGraphEffects: next.customNodeGraphEffects });
 						}
-						startCustomNodeGraphEffectLivePreviewRenderLoopFor() { this.lifecycle.push('start'); }
+						startEffectLivePreviewRenderLoop(effectSource, params) { this.lifecycle.push('start'); this.livePreviewPlacement = deepClone({ effectSource, params }); }
+						updateEffectLivePreviewParamValues(params) { this.livePreviewPlacement.params = deepClone(params); }
 						stopRenderLoop() { this.lifecycle.push('stop'); }
 						renderTimelineAt(time) { this.renders.push(time); }
 						async setHighResolutionImageAnalysis(enabled, settings) {
@@ -278,7 +279,7 @@ test('integrates held analysis with preview switching settings and worker recrea
 	assert.equal(timeline.highResolutionAnalysisRequests.length, 2);
 	assert.equal(customNodeGraphEffect.highResolutionAnalysisRequests.length, 0);
 	assert.deepEqual(projectSession.displayedImageAnalysisSettings.value, { target: 'vectorLength', imageSource: 'original', imageAdjustments: { exposure: 0, srgbProof: false, gamutCompression: { mode: 'none', customAmount: 0.5 } }, valueScale: 'linear', valueRange: { minimum: -0.5, maximum: 0.5 }, waveformCanvasSizes: null, waveformViewports: null, histogramViewport: null });
-	projectSession.previewPlayback.startCustomNodeGraphEffectLivePreview('custom-node-graph-effect');
+	projectSession.previewPlayback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id: 'custom-node-graph-effect' });
 	await setImmediate();
 	assert.equal(projectSession.activePreviewRenderer.value, customNodeGraphEffect);
 	assert.equal(projectSession.imageAnalysisRenderer.value, timeline);
@@ -587,7 +588,7 @@ test('activates background presentation only for the selected preview without re
 	projectSession.previewPlayback.showTimeline();
 	await setImmediate();
 	check(false);
-	projectSession.previewPlayback.startCustomNodeGraphEffectLivePreview('customNodeGraphEffect');
+	projectSession.previewPlayback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' });
 	await setImmediate();
 	check(true);
 	for (const controller of [customNodeGraphEffect, timeline]) assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 1);
@@ -887,7 +888,7 @@ test('recreates previews after switching away from invalid customNodeGraphEffect
 	setup(t);
 	const { projectSession } = evaluateSession(project({ customNodeGraphEffects: [{ id: 'customNodeGraphEffect', definition: testGraph({ customParameterValues: {}, nodes: [], paramDefs: { "audio": { nameForReference: 'audio', dataType: { kind: 'audioSource' }, canNode: false, ui: { label: 'Audio', control: { controlType: 'audioSource' } }, defaultValue: null } } }) }] }));
 	await startActiveProjectSession(projectSession);
-	projectSession.previewPlayback.updateCustomNodeGraphEffectLivePreviewParamValues('customNodeGraphEffect', { audio: { inputSource: 'literal', value: { type: 'player', playerId: 'missing' } } });
+	projectSession.previewPlayback.updateEffectLivePreviewParamValues({ type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' }, { audio: { inputSource: 'literal', value: { type: 'player', playerId: 'missing' } } });
 	assert.ok(projectSession.renderValidation.diagnostics.value.length > 0);
 	assert.equal(projectSession.timelineRendererManagerController.isReady.value, false);
 	projectSession.previewPlayback.showTimeline();
@@ -943,6 +944,47 @@ test('updates shader definitions in both existing previews and restarts only aft
 		assert.equal(controller.options.customShaderEffects[0].definition.code, 'corrected shader');
 		assert.equal(controller.lifecycle.filter(event => event === 'initialize').length, 2);
 	}
+});
+
+// 【Custom Shader Effectのプレビュー入力を一時値として保持し、入力の型変更や削除に追従する】
+// 同じ固定IDの型が変わっても旧Bindingを使わず、プレビューを切り替えて戻ったときやWorkerの再起動時には最新値を使う。
+test('keeps shader preview overrides across preview switches and removes incompatible bindings', async t => {
+	setup(t);
+	const app = evaluate(appBundle);
+	const customShaderEffect = app.createProjectCustomShaderEffect([]);
+	customShaderEffect.definition.paramDefs.amount = {
+		nameForReference: 'amount', canNode: true, dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: 0.25,
+	};
+	const { projectSession } = evaluateSession(project({ customShaderEffects: [customShaderEffect] }));
+	await startActiveProjectSession(projectSession);
+	const { id } = customShaderEffect;
+	const controller = projectSession.effectLivePreviewManagerController;
+	const stateManager = projectSession.projectContext.stateManager;
+	const params = { amount: { inputSource: 'expression', expression: '0.5' } };
+	projectSession.startCustomShaderEffectLivePreview(id);
+	assert.equal(projectSession.activePreviewRenderer.value, controller);
+	assert.deepEqual(controller.livePreviewPlacement, { effectSource: { type: 'customShaderEffectReference', id }, params: {} });
+	const startCount = controller.lifecycle.filter(event => event === 'start').length;
+	projectSession.updateCustomShaderEffectLivePreviewParamValues(id, params);
+	assert.deepEqual(controller.livePreviewPlacement.params, params);
+	assert.equal(controller.lifecycle.filter(event => event === 'start').length, startCount);
+	assert.deepEqual(stateManager.state.customShaderEffects.value[0], customShaderEffect);
+	projectSession.previewPlayback.showTimeline();
+	projectSession.startCustomShaderEffectLivePreview(id);
+	assert.deepEqual(controller.livePreviewPlacement.params, params);
+	await projectSession.suspendPreview();
+	await projectSession.resumePreview();
+	assert.deepEqual(controller.livePreviewPlacement.params, params);
+
+	const changed = { ...customShaderEffect, definition: { ...customShaderEffect.definition, paramDefs: { ...customShaderEffect.definition.paramDefs,
+		amount: { nameForReference: 'amount', canNode: true, dataType: { kind: 'vector' }, ui: { label: 'Amount', control: { controlType: 'xy' } }, defaultValue: [0, 0] },
+	} } };
+	stateManager.commit('replaceCustomShaderEffectDefinition', { customShaderEffectId: id, definition: changed });
+	await projectSession.flushRendererProjectChanges();
+	assert.deepEqual(controller.livePreviewPlacement.params, {});
+	assert.deepEqual(projectSession.getCustomShaderEffectPreviewParamValues(id), {});
+	stateManager.commit('removeCustomShaderEffect', { customShaderEffectId: id });
+	assert.equal(projectSession.previewPlayback.state.value.mode, 'timeline');
 });
 
 // 【解析対象の切替は両プレビューへ同期し、数値データの軸と復旧時の設定も一致させる】
@@ -1040,8 +1082,8 @@ for (const [setting, change, inspect] of [
 		assert.equal(projectSession.timelineRendererManagerController.initialStaticOptions.enable32bitDataTextures, true);
 	}],
 	['timeline preview fps', projectSession => { projectSession.timelinePreviewFpsFactor.value = 2; }],
-	['customNodeGraphEffectLivePreview fps limit', projectSession => { projectSession.customNodeGraphEffectLivePreviewFpsLimit.value = 24; }],
-	['customNodeGraphEffectLivePreview time factor', projectSession => { projectSession.customNodeGraphEffectLivePreviewTimeFactor.value = 0.5; }],
+	['customNodeGraphEffectLivePreview fps limit', projectSession => { projectSession.effectLivePreviewFpsLimit.value = 24; }],
+	['customNodeGraphEffectLivePreview time factor', projectSession => { projectSession.effectLivePreviewTimeFactor.value = 0.5; }],
 	['clipping display', projectSession => { projectSession.highlightClipping.value = true; }],
 	['warning image source', projectSession => { projectSession.previewWarningImageSource.value = 'previewAdjusted'; }],
 	['gamut warning', projectSession => { projectSession.previewGamutWarning.value = { enabled: true, referenceGamut: 'srgb', bounds: 'unit' }; }],
@@ -1135,7 +1177,7 @@ test('leaves Effect Live Preview when an imported Custom Node Graph Effect is un
 	const timeline = projectSession.timelineRendererManagerController;
 	assert.ok(customNodeGraphEffectLivePreview.options.customNodeGraphEffects.some(entry => entry.id === 'imported'));
 	assert.ok(timeline.options.customNodeGraphEffects.some(entry => entry.id === 'imported'));
-	projectSession.previewPlayback.startCustomNodeGraphEffectLivePreview('imported');
+	projectSession.previewPlayback.startEffectLivePreview({ type: 'customNodeGraphEffectReference', id: 'imported' });
 	manager.undo();
 	assert.equal(projectSession.previewPlayback.livePreviewCustomNodeGraphEffectId.value, null);
 	assert.equal(projectSession.previewPlayback.state.value.mode, 'timeline');
@@ -1450,11 +1492,11 @@ test('applies timeline preview factors independently of the Effect Live Preview 
 	const { projectSession } = app;
 	t.after(() => projectSession.previewPlayback.dispose());
 	projectSession.timelineRendererManagerController.staticUpdates.length = 0;
-	const measure = (factor, customNodeGraphEffectLivePreviewFpsLimit) => {
+	const measure = (factor, effectLivePreviewFpsLimit) => {
 		projectSession.previewPlayback.pauseTimeline();
 		projectSession.previewPlayback.seekTimeline(0);
 		projectSession.timelinePreviewFpsFactor.value = factor;
-		projectSession.customNodeGraphEffectLivePreviewFpsLimit.value = customNodeGraphEffectLivePreviewFpsLimit;
+		projectSession.effectLivePreviewFpsLimit.value = effectLivePreviewFpsLimit;
 		projectSession.previewPlayback.playTimeline();
 		const timeline = projectSession.timelineRendererManagerController;
 		timeline.renders.length = 0;

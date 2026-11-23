@@ -26,8 +26,8 @@
 				<div :class="$style.footerSectionContents">
 					<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">{{ Math.round(stateManager.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(stateManager.state.resolution.value.height * resolutionFactor) }} px ({{ resolutionFactor }}x)</button>
 					<button v-if="previewPlayback.state.value.mode === 'timeline' && stateManager.state.timelineMotionBlur.value.enabled" v-tooltip="i18n.ts._App.MotionBlurSamplesHint" :class="$style.footerItem" class="_button" @click="openMotionBlurSamplesMenu">{{ i18n.ts._App.MotionBlur }}: {{ timelinePreviewMotionBlurSamples === 0 ? i18n.ts.Off : `${timelinePreviewMotionBlurSamples} samples` }}</button>
-					<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'customNodeGraphEffectLivePreview' ? customNodeGraphEffectLivePreviewFpsLabel : `${stateManager.state.timelineFps.value * timelinePreviewFpsFactor}fps (${timelinePreviewFpsFactor}x)` }}</button>
-					<button v-if="previewPlayback.state.value.mode === 'customNodeGraphEffectLivePreview'" :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">{{ i18n.ts._App.Time }}: {{ customNodeGraphEffectLivePreviewTimeFactor }}x</button>
+					<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'effectLivePreview' ? effectLivePreviewFpsLabel : `${stateManager.state.timelineFps.value * timelinePreviewFpsFactor}fps (${timelinePreviewFpsFactor}x)` }}</button>
+					<button v-if="previewPlayback.state.value.mode === 'effectLivePreview'" :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">{{ i18n.ts._App.Time }}: {{ effectLivePreviewTimeFactor }}x</button>
 					<div :class="[$style.footerItem, $style.previewVolume]">
 						<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
 						<GsRange v-model="previewVolume" small :min="0" :max="1" :step="0.01" :continuousUpdate="true" style="width: 150px;"/>
@@ -42,7 +42,7 @@
 				<div data-test-timeline-frame-cache-usage :class="$style.footerMemory">{{ i18n.tsx._App.TimelineFrameCacheUsage({ usage: timelineFrameCacheUsageLabel }) }}</div>
 				<button data-test-analysis-monitors-toggle :class="$style.footerItem" class="_button" @click="analysisMonitorsEnabled = !analysisMonitorsEnabled">{{ i18n.ts._App.Analysis }}: {{ analysisMonitorsEnabled ? i18n.ts.Enabled : i18n.ts.Disabled }}</button>
 				<button data-test-rendering-stats-toggle :class="$style.footerItem" class="_button" @click="renderingStatsEnabled = !renderingStatsEnabled">{{ i18n.ts._Workspace.Stats }}: {{ renderingStatsEnabled ? i18n.ts.Enabled : i18n.ts.Disabled }}</button>
-				<div v-if="renderingStatsEnabled && previewPlayback.state.value.mode === 'customNodeGraphEffectLivePreview' && effectLivePreviewManagerController.gpuMemoryUsage.value" v-tooltip="gpuMemoryTooltip" :class="$style.footerMemory">{{ (effectLivePreviewManagerController.gpuMemoryUsage.value.total / 1000 ** 2).toFixed(1) }} MB</div>
+				<div v-if="renderingStatsEnabled && previewPlayback.state.value.mode === 'effectLivePreview' && effectLivePreviewManagerController.gpuMemoryUsage.value" v-tooltip="gpuMemoryTooltip" :class="$style.footerMemory">{{ (effectLivePreviewManagerController.gpuMemoryUsage.value.total / 1000 ** 2).toFixed(1) }} MB</div>
 			</div>
 			<div :class="$style.outputLevelMeter">
 				<GsAudioLevelMeter :levels="audioOutput.outputLevels"/>
@@ -119,7 +119,7 @@ onMounted(() => {
 	if (root.value != null) disposeFileDrops = installFileDrops(root.value);
 });
 
-const { audioOutput, activePreviewRenderer, previewPlayback, effectLivePreviewManagerController, timelineRendererManagerController, resolutionFactor, customNodeGraphEffectLivePreviewFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, customNodeGraphEffectLivePreviewTimeFactor, projectBackupAccess, projectBackupStatus } = projectSession;
+const { audioOutput, activePreviewRenderer, previewPlayback, effectLivePreviewManagerController, timelineRendererManagerController, resolutionFactor, effectLivePreviewFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, effectLivePreviewTimeFactor, projectBackupAccess, projectBackupStatus } = projectSession;
 const timelineFrameCacheUsageLabel = computed(() => {
 	if (!timelineRendererManagerController.isFrameCacheEnabled.value) return i18n.ts.Disabled;
 	const ratio = timelineRendererManagerController.frameCacheUsageRatio.value;
@@ -127,9 +127,9 @@ const timelineFrameCacheUsageLabel = computed(() => {
 });
 const renderingStatsEnabled = preferences.model('renderingStatsEnabled');
 const analysisMonitorsEnabled = preferences.model('analysisMonitorsEnabled');
-const customNodeGraphEffectLivePreviewFpsLabel = computed(() => renderingStatsEnabled.value
+const effectLivePreviewFpsLabel = computed(() => renderingStatsEnabled.value
 	? `${Math.round(effectLivePreviewManagerController.fpsDisplay.value)}fps`
-	: `${customNodeGraphEffectLivePreviewFpsLimit.value ?? '∞'}fps`);
+	: `${effectLivePreviewFpsLimit.value ?? '∞'}fps`);
 const { stateManager } = projectSession.projectContext;
 
 const releaseOutputCapture = audioOutput.retainOutputCapture();
@@ -157,28 +157,28 @@ function openTimeFactorMenu(ev: PointerEvent) {
 	ui.popupMenu([{
 		type: 'radioOption',
 		text: '-1x',
-		active: computed(() => customNodeGraphEffectLivePreviewTimeFactor.value === -1),
-		action: () => customNodeGraphEffectLivePreviewTimeFactor.value = -1,
+		active: computed(() => effectLivePreviewTimeFactor.value === -1),
+		action: () => effectLivePreviewTimeFactor.value = -1,
 	}, {
 		type: 'radioOption',
 		text: '0x',
-		active: computed(() => customNodeGraphEffectLivePreviewTimeFactor.value === 0),
-		action: () => customNodeGraphEffectLivePreviewTimeFactor.value = 0,
+		active: computed(() => effectLivePreviewTimeFactor.value === 0),
+		action: () => effectLivePreviewTimeFactor.value = 0,
 	}, {
 		type: 'radioOption',
 		text: '0.5x',
-		active: computed(() => customNodeGraphEffectLivePreviewTimeFactor.value === 0.5),
-		action: () => customNodeGraphEffectLivePreviewTimeFactor.value = 0.5,
+		active: computed(() => effectLivePreviewTimeFactor.value === 0.5),
+		action: () => effectLivePreviewTimeFactor.value = 0.5,
 	}, {
 		type: 'radioOption',
 		text: '1x',
-		active: computed(() => customNodeGraphEffectLivePreviewTimeFactor.value === 1),
-		action: () => customNodeGraphEffectLivePreviewTimeFactor.value = 1,
+		active: computed(() => effectLivePreviewTimeFactor.value === 1),
+		action: () => effectLivePreviewTimeFactor.value = 1,
 	}, {
 		type: 'radioOption',
 		text: '2x',
-		active: computed(() => customNodeGraphEffectLivePreviewTimeFactor.value === 2),
-		action: () => customNodeGraphEffectLivePreviewTimeFactor.value = 2,
+		active: computed(() => effectLivePreviewTimeFactor.value === 2),
+		action: () => effectLivePreviewTimeFactor.value = 2,
 	}], ev.currentTarget ?? ev.target);
 }
 
@@ -241,28 +241,28 @@ function openFpsMenu(ev: PointerEvent) {
 	ui.popupMenu([{
 		type: 'radioOption',
 		text: i18n.ts._App.UnlimitedEffectLivePreview,
-		active: computed(() => customNodeGraphEffectLivePreviewFpsLimit.value === null),
-		action: () => customNodeGraphEffectLivePreviewFpsLimit.value = null,
+		active: computed(() => effectLivePreviewFpsLimit.value === null),
+		action: () => effectLivePreviewFpsLimit.value = null,
 	}, {
 		type: 'radioOption',
 		text: i18n.ts._App.EffectLivePreview120fps,
-		active: computed(() => customNodeGraphEffectLivePreviewFpsLimit.value === 120),
-		action: () => customNodeGraphEffectLivePreviewFpsLimit.value = 120,
+		active: computed(() => effectLivePreviewFpsLimit.value === 120),
+		action: () => effectLivePreviewFpsLimit.value = 120,
 	}, {
 		type: 'radioOption',
 		text: i18n.ts._App.EffectLivePreview60fps,
-		active: computed(() => customNodeGraphEffectLivePreviewFpsLimit.value === 60),
-		action: () => customNodeGraphEffectLivePreviewFpsLimit.value = 60,
+		active: computed(() => effectLivePreviewFpsLimit.value === 60),
+		action: () => effectLivePreviewFpsLimit.value = 60,
 	}, {
 		type: 'radioOption',
 		text: i18n.ts._App.EffectLivePreview30fps,
-		active: computed(() => customNodeGraphEffectLivePreviewFpsLimit.value === 30),
-		action: () => customNodeGraphEffectLivePreviewFpsLimit.value = 30,
+		active: computed(() => effectLivePreviewFpsLimit.value === 30),
+		action: () => effectLivePreviewFpsLimit.value = 30,
 	}, {
 		type: 'radioOption',
 		text: i18n.ts._App.EffectLivePreview15fps,
-		active: computed(() => customNodeGraphEffectLivePreviewFpsLimit.value === 15),
-		action: () => customNodeGraphEffectLivePreviewFpsLimit.value = 15,
+		active: computed(() => effectLivePreviewFpsLimit.value === 15),
+		action: () => effectLivePreviewFpsLimit.value = 15,
 	}], ev.currentTarget ?? ev.target);
 }
 

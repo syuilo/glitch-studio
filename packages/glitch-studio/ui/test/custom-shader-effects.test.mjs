@@ -15,6 +15,7 @@ const bundle = await build({
 	absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
 		export { default as Editor } from './src/components/GsCustomShaderEffectEditor.vue';
+		export { default as Panel } from './src/components/GsWorkspacePanel.CustomShaderEffects.vue';
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { getEffectDefinitions } from './src/utility/project-effects.ts';
 		export { createEffectTimelineLayer } from './src/utility/effect-timeline-layer.ts';
@@ -27,11 +28,15 @@ const bundle = await build({
 		export * from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
 	` },
 	plugins: [i18nPlugin, { name: 'custom-shader-effect-controls', setup(build) {
+		build.onResolve({ filter: /^@\/project-session\.ts$/ }, () => ({ path: 'session', namespace: 'custom-shader-effect-session' }));
+		build.onLoad({ filter: /.*/, namespace: 'custom-shader-effect-session' }, () => ({ contents: 'import { inject } from "vue"; export const useProjectSession = () => inject("testProjectSession");', resolveDir: directory }));
+		build.onResolve({ filter: /^@\/ui\.ts$/ }, () => ({ path: 'ui', namespace: 'custom-shader-effect-ui' }));
+		build.onLoad({ filter: /.*/, namespace: 'custom-shader-effect-ui' }, () => ({ contents: 'export function alert() {}' }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'custom-shader-effect-preferences' }));
 		build.onLoad({ filter: /.*/, namespace: 'custom-shader-effect-preferences' }, () => ({ contents: 'export const preferences = { s: { forceTypeSafety: true, customNodeGraphEffectAutoConnectOnNodeAdd: false } };', loader: 'ts' }));
 		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'custom-shader-effect-builtins' }));
 		build.onLoad({ filter: /.*/, namespace: 'custom-shader-effect-builtins' }, () => ({ contents: 'export const nativeEffectDefinitions = {};', loader: 'ts' }));
-		build.onResolve({ filter: /\.vue$/ }, ({ path }) => path.endsWith('GsCustomShaderEffectEditor.vue') ? null : { path: basename(path), namespace: 'control' });
+		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /(?:GsCustomShaderEffectEditor|GsWorkspacePanel\.CustomShaderEffects)\.vue$/.test(path) ? null : { path: basename(path), namespace: 'control' });
 		build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ loader: 'ts', contents: `
 			import { h } from 'vue';
 			export default { setup(_, { attrs, slots }) { return () => h('control', attrs, Object.values(slots).flatMap(slot => slot())); } };
@@ -45,7 +50,7 @@ const bundle = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { ProjectRenderValidation, COMMAND_DEFS, getEffectDefinitions, createEffectTimelineLayer, collectCustomNodeGraphEffectFile, customShaderEffectReference, Editor, CUSTOM_SHADER_EFFECT_COMMAND_DEFS, createProjectCustomShaderEffect, UndoRedo, validateCustomShaderEffectDefinition, describeCustomShaderEffectInterface } = module.exports;
+const { ProjectRenderValidation, COMMAND_DEFS, getEffectDefinitions, createEffectTimelineLayer, collectCustomNodeGraphEffectFile, customShaderEffectReference, Editor, Panel, CUSTOM_SHADER_EFFECT_COMMAND_DEFS, createProjectCustomShaderEffect, UndoRedo, validateCustomShaderEffectDefinition, describeCustomShaderEffectInterface } = module.exports;
 
 function usageFixture() {
 	const definition = createProjectCustomShaderEffect([]);
@@ -199,7 +204,7 @@ test('revalidates shader layers after primary output changes and undo', () => {
 	assert.equal(validation.errorMessage.value, null);
 });
 
-function fixture(t) {
+function fixture(t, projectSession = null) {
 	const element = type => ({ type, props: {}, children: [], parent: null });
 	const renderer = createRenderer({
 		createElement: element, createText: () => element('text'), createComment: () => element('comment'),
@@ -214,7 +219,11 @@ function fixture(t) {
 	const root = element('root');
 	const props = reactive({ customShaderEffect: createProjectCustomShaderEffect([]) });
 	const applied = [];
-	const app = renderer.createApp({ setup: () => () => h(Editor, { ...props, onApply: value => applied.push(value) }) });
+	const app = renderer.createApp({ setup: () => () => projectSession == null
+		? h(Editor, { ...props, onApply: value => applied.push(value) })
+		: h(Panel, { panel: {} }) });
+	if (projectSession != null) app.provide('testProjectSession', projectSession);
+	app.directive('tooltip', {});
 	app.config.globalProperties.$style = {};
 	app.mount(root);
 	t.after(() => app.unmount());
@@ -225,6 +234,44 @@ function fixture(t) {
 		async tab(value) { find(root, 'data-test-custom-shader-effect-tabs').props['onUpdate:modelValue'](value); await nextTick(); },
 	};
 }
+
+// 【Custom Shader Effect パネルから適用済み定義を再生し、プレビュー入力を編集できる】
+// 編集画面のWGSLを変更している間も、プレビュー専用の変更を定義へのCommandとして記録しない。
+test('previews the applied shader and edits local overrides from its panel', async t => {
+	const customShaderEffect = createProjectCustomShaderEffect([]);
+	customShaderEffect.definition.paramDefs.amount = {
+		nameForReference: 'amount', canNode: true, dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: 0.25,
+	};
+	const state = { customShaderEffects: ref([customShaderEffect]), customNodeGraphEffects: ref([]), timelineScenes: ref([]), automationGraphs: ref([]) };
+	const stateManager = new UndoRedo(state, CUSTOM_SHADER_EFFECT_COMMAND_DEFS);
+	const started = [];
+	const overrides = ref({});
+	const activeId = ref(null);
+	const f = fixture(t, {
+		projectContext: { stateManager },
+		previewPlayback: { livePreviewCustomShaderEffectId: activeId },
+		effectLivePreviewManagerController: { preparationStatus: ref(null) },
+		startCustomShaderEffectLivePreview(id) { started.push(id); activeId.value = id; },
+		getCustomShaderEffectPreviewParamValues: () => overrides.value,
+		updateCustomShaderEffectLivePreviewParamValues(id, values) { activeId.value = id; overrides.value = values; },
+	});
+	f.find('data-test-custom-shader-effect-code').props['onUpdate:modelValue']('Private WGSL draft');
+	f.find('data-test-preview-custom-shader-effect').props.onClick();
+	f.find('data-test-custom-shader-effect-preview-parameters').props.onClick();
+	await nextTick();
+	const parameter = () => f.find('data-test-custom-shader-effect-preview-parameter', 'amount');
+	assert.deepEqual(started, [customShaderEffect.id]);
+	assert.deepEqual(parameter().props.paramValue, { inputSource: 'literal', value: 0.25 });
+	assert.equal(parameter().props.paramDef.canNode, false);
+	parameter().props.onEdit({ kind: 'literal', paramPath: ['amount'], value: 0.75 });
+	await nextTick();
+	assert.deepEqual(overrides.value, { amount: { inputSource: 'literal', value: 0.75 } });
+	parameter().props.onEdit({ kind: 'reset', paramPath: ['amount'] });
+	await nextTick();
+	assert.deepEqual(overrides.value, {});
+	assert.deepEqual(state.customShaderEffects.value[0], customShaderEffect);
+	assert.equal(f.find('data-test-custom-shader-effect-code').props.modelValue, 'Private WGSL draft');
+});
 
 // 【定義変更はコードと入出力をまとめて確定し、Undo/Redoと通知で同じ状態を再現する】
 // 型の異なる出力を追加した後にコードだけ古い状態へ戻ると、後の描画側へ不整合を渡してしまう。

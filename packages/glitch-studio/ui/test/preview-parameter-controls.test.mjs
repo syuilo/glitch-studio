@@ -123,7 +123,7 @@ async function fixture(t, { showGrid = false, viewport = false, viewportParamete
 	const manager = new UndoRedo(state, COMMAND_DEFS);
 	const editing = new PreviewParameterEditingController();
 	Object.assign(projectSession, { projectContext: { stateManager: manager }, previewParameterEditing: editing,
-		previewPlayback: { state: ref({ mode: 'customNodeGraphEffectLivePreview', customNodeGraphEffectId: 'customNodeGraphEffect' }),
+		previewPlayback: { state: ref({ mode: 'effectLivePreview', effectSource: { type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' } }),
 			livePreviewCustomNodeGraphEffectId: ref('customNodeGraphEffect'), currentTimelineTime: ref(0), isTimelinePlaying: ref(false), isTimelineBaking: ref(false) },
 		renderEngine: { isSuspended: ref(false) }, activeSceneId: ref(null) });
 	const node = state.customNodeGraphEffects.value[0].definition.nodes[0];

@@ -79,6 +79,10 @@ export async function runCustomShaderEffectLivePreview() {
 		}
 		manager.startEffectLivePreview({ effectSource: shaderSource, params: { source: { inputSource: 'literal', value: [0, 0, 1, 1] } } });
 		await pixel([0, 0, 255, 255]);
+		manager.updateEffectLivePreviewParamValues({ source: { inputSource: 'literal', value: [1, 0, 0, 1] } });
+		await pixel([255, 0, 0, 255]);
+		manager.updateEffectLivePreviewParamValues({});
+		await pixel([255, 0, 255, 255]);
 		const data: CustomShaderEffect = { ...registeredShader(copy).definition, primaryOutput: null, paramDefs: {}, primaryInputParameter: null, resolutionInputParameters: [],
 			outputDefs: { red: { nameForReference: 'red', dataType: { kind: 'scalar' } }, vector: { nameForReference: 'vector', dataType: { kind: 'vector' } } },
 			code: 'fn main(p: vec2f) -> Output { return Output(1, vec2f(0, 1)); }' };
@@ -87,7 +91,7 @@ export async function runCustomShaderEffectLivePreview() {
 		await pixel([255, 0, 0, 255]);
 		manager.startEffectLivePreview({ effectSource, outputPort: 'vector' });
 		await pixel([0, 255, 0, 255]);
-		return ['Compiled graph', 'Updated shader and ports', 'Restored shader', 'Standalone shader', 'First declared scalar output', 'Selected vector output'];
+		return ['Compiled graph', 'Updated shader and ports', 'Restored shader', 'Standalone shader', 'Edited preview input', 'Reset preview input', 'First declared scalar output', 'Selected vector output'];
 	} finally { manager.destroy(); }
 }
 
