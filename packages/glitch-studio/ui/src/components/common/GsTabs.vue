@@ -1,14 +1,20 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.tabs">
-		<div v-for="tab in props.def" :key="tab.id" :class="[$style.tab, { [$style.active]: tab.id === props.modelValue }]" @pointerdown="emit('update:modelValue', tab.id)">
+		<div
+			v-for="tab in props.def"
+			:key="tab.id"
+			v-tooltip="tab.tooltip ?? null"
+			:class="[$style.tab, { [$style.active]: tab.id === props.modelValue }]"
+			@pointerdown="emit('update:modelValue', tab.id)"
+		>
 			<i v-if="tab.icon" :class="tab.icon"></i> {{ tab.label }}
 		</div>
 	</div>
 </div>
 </template>
 
-<script lang="ts" setup generic="T extends { id: string; label: string; icon?: string }">
+<script lang="ts" setup generic="T extends { id: string; label: string; icon?: string; tooltip?: string | null }">
 import { computed, ref, useTemplateRef, watch } from 'vue';
 
 const props = withDefaults(defineProps<{

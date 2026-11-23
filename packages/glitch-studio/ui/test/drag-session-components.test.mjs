@@ -39,7 +39,7 @@ const bundle = await build({ absWorkingDir: directory,
 			return { path: basename(path, '.vue'), namespace: 'control' };
 		});
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', resolveDir: directory, contents: {
-			'preferences.ts': `import { ref } from 'vue'; export const preferences = { r: { workspaceDefinition: ref(null) }, commits: [],
+			'preferences.ts': `import { ref } from 'vue'; export const preferences = { r: { workspaceDefinition: ref(null), showShortLabels: ref(false) }, commits: [],
 				get s() { return { workspaceDefinition: this.r.workspaceDefinition.value }; },
 				commit(key, value) { this.commits.push(value); this.r[key].value = value; } };`,
 			'workspace.ts': `export const workspacePanelDefinitions = { assets: { icon: '', label: 'Assets', component: 'div' } }; export function getElementMenu() { return []; }`,
@@ -379,6 +379,38 @@ test('shares asset drag data and clears it when the asset view is removed', asyn
 	shown.value = false;
 	await settle();
 	assert.equal(getActiveDragData(event('dragover', data, source), 'GsAsset'), null);
+});
+
+// 【選択中のタブを開いたまま短縮ラベルに切り替えられる】
+// 短縮表示は表示名とツールチップだけを切り替え、編集中のタブの内容を再生成しない。
+test('updates Nodes Effect tab labels in place and uses the full labels for tooltips', async t => {
+	const showShortLabels = preferences.r.showShortLabels;
+	t.after(() => { showShortLabels.value = false; });
+	const f = fixture(t, () => h(NodesEffectEditor, {
+		nodesEffect: { customParameterDefs: [], customParameterValues: {}, nodes: [], paramDefs: [], outputDefs: [] },
+		nodesEffectName: 'Nodes Effect',
+		assetDropActions: null,
+	}, { preview: () => h('div', { 'data-test-preview-content': '' }) }));
+	const tabs = f.find('data-test-nodes-effect-tabs');
+	tabs.props['onUpdate:modelValue']('preview');
+	await nextTick();
+	const fullTabs = tabs.props.def;
+	const previewContent = f.find('data-test-preview-content');
+	assert.ok(previewContent);
+	assert.ok(fullTabs.every(tab => tab.tooltip == null));
+
+	showShortLabels.value = true;
+	await nextTick();
+	assert.deepEqual(tabs.props.def.map(tab => tab.id), fullTabs.map(tab => tab.id));
+	assert.deepEqual(tabs.props.def.map(tab => tab.tooltip), fullTabs.map(tab => tab.label));
+	assert.ok(tabs.props.def.find(tab => tab.id === 'preview').label.length < fullTabs.find(tab => tab.id === 'preview').label.length);
+	assert.equal(tabs.props.modelValue, 'preview');
+	assert.equal(f.find('data-test-preview-content'), previewContent);
+
+	showShortLabels.value = false;
+	await nextTick();
+	assert.deepEqual(tabs.props.def, fullTabs);
+	assert.equal(f.find('data-test-preview-content'), previewContent);
 });
 
 // 【Nodes Effect Editor全体でファイルとAssetを受け付け、対象外Assetにもホバー表示を出す】

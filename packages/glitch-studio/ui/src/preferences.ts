@@ -31,6 +31,7 @@ export const PREF_DEF = definePreferences({
 	showGridInPreview: { default: () => false },
 	showRulersInPreview: { default: () => true },
 	showAdvancedParameters: { default: () => false },
+	showShortLabels: { default: () => false },
 	showTransformInPreview: { default: () => true },
 	previewTransformSnap: { default: () => true },
 	previewTransformKeepRatio: { default: () => true },

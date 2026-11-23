@@ -2,7 +2,15 @@
 <div :class="$style.root">
 	<div :class="$style.header">
 		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> {{ nodesEffect?.name ?? '' }} [{{ prettyId(nodesEffect?.id ?? '') }}]</button>
-		<GsButton v-if="nodesEffect != null" style="margin-left: auto;" :primary="previewPlayback.livePreviewNodesEffectId.value === nodesEffect.id" @click="previewNodesEffectLivePreview">{{ i18n.ts.Preview }}</GsButton>
+		<GsButton
+			v-if="nodesEffect != null"
+			v-tooltip="showShortLabels ? i18n.ts._NodesEffect.LivePreview : null"
+			style="margin-left: auto;"
+			:primary="previewPlayback.livePreviewNodesEffectId.value === nodesEffect.id"
+			@click="previewNodesEffectLivePreview"
+		>
+			{{ showShortLabels ? 'Pv' : i18n.ts.Preview }}
+		</GsButton>
 		<span v-if="previewPlayback.livePreviewNodesEffectId.value === nodesEffect?.id && projectSession.effectLivePreviewManagerController.preparationStatus.value?.type === 'loading'">{{ i18n.ts.Loading }}</span>
 	</div>
 
@@ -55,17 +63,18 @@ import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { prettyId } from '@gs/shared/utility/id.ts';
 import { EFFECT_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shared/effect-live-preview-expression.ts';
 import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
+import { canUseEffectLivePreviewInput, isEffectLivePreviewMediaBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import GsNodesEffectEditor from './GsNodesEffectEditor.vue';
 import GsEffectLivePreviewInput from './GsEffectLivePreviewInput.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
 import GsButton from './common/GsButton.vue';
+import type { EffectLivePreviewParameterBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import type { ProjectNodesEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import type { NodesEffectParamDef } from '@/types/nodes-effect-view.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { NodesEffectEdit } from '@/types/nodes-effect-editor.ts';
 import type { WorkspacePanel } from '@/workspace.ts';
-import { canUseEffectLivePreviewInput, isEffectLivePreviewMediaBinding, type EffectLivePreviewParameterBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import { getNodesEffectView } from '@/utility/nodes-effect-view.ts';
 import { i18n } from '@/i18n.ts';
 import { useProjectSession } from '@/project-session.ts';
@@ -84,6 +93,7 @@ const projectSession = useProjectSession();
 
 const { previewPlayback } = projectSession;
 const { stateManager } = projectSession.projectContext;
+const showShortLabels = preferences.r.showShortLabels;
 
 const props = defineProps<{ panel: WorkspacePanel }>();
 const workspaceController = inject(workspaceControllerKey)!;
@@ -125,6 +135,7 @@ function synchronizePreviewParameters(id: string, activate: boolean) {
 		previewPlayback.updateEffectLivePreviewParamValues({ type: 'nodesEffectReference', id }, overrides);
 	}
 }
+
 // Preview Paramsは保存データではないため、取消しだけを既存の一時値へ適用する。
 provide(previewParameterContextKey, {
 	scope: computed(() => nodesEffect.value == null ? null : {
@@ -285,9 +296,12 @@ function showAddEffectNodeMenu() {
 	const { dispose } = ui.popup(GsEffectPicker, { parentNodesEffectId: entry.id }, {
 		chosen: effect => {
 			if (projectSession.projectContext.getNodesEffectById(entry.id) == null) return;
-			stateManager.commit('createNodesEffectEffectNode', { nodesEffect: { nodesEffectId: entry.id }, effectSource: effect.effectSource,
-																																																																		connectionMode: preferences.s.nodesEffectAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none',
-																																																																		connectionTypePolicy: preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch' });
+			stateManager.commit('createNodesEffectEffectNode', {
+				nodesEffect: { nodesEffectId: entry.id },
+				effectSource: effect.effectSource,
+				connectionMode: preferences.s.nodesEffectAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none',
+				connectionTypePolicy: preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch',
+			});
 		},
 		closed: () => {
 			dispose();

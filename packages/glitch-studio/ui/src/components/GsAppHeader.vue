@@ -130,6 +130,7 @@ const stateManager = computed(() => props.projectSession?.projectContext.stateMa
 const hasUnsavedChanges = computed(() => props.projectSession?.hasUnsavedChanges.value ?? false);
 const fileOperationBusy = projectSessions.fileOperations.isBusy;
 const showAdvancedParameters = preferences.model('showAdvancedParameters');
+const showShortLabels = preferences.model('showShortLabels');
 const headerEditActions = useHeaderEditActions({
 	editorTarget: computed(() => props.editorEditTarget),
 	isActive: computed(() => props.projectSession != null),
@@ -281,6 +282,11 @@ function openHeaderViewMenu(ev: PointerEvent) {
 		type: 'switch',
 		text: i18n.ts._App.ShowAdvancedParameters,
 		ref: showAdvancedParameters,
+	}, {
+		type: 'switch',
+		id: 'show-short-labels',
+		text: i18n.ts._App.ShowShortLabels,
+		ref: showShortLabels,
 	}, ...(__ELECTRON__ ? [{
 		type: 'divider' as const,
 	}, {

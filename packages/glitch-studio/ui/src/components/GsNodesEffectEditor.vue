@@ -123,6 +123,7 @@
 
 <script lang="ts" setup>
 import { computed, ref, useTemplateRef, inject, provide } from 'vue';
+import { nodesEffectTargetKey } from '@gs/glitch-studio_shared/project/nodes-effect-target.ts';
 import GsWires from './GsWires.vue';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
@@ -140,12 +141,12 @@ import type { NodesEffect, NodesEffectGlobalInNode, NodesEffectGlobalOutNode, No
 import type { NodesEffectEdit, NodesEffectAssetDropActions } from '@/types/nodes-effect-editor.ts';
 import type { NodesEffectTarget } from '@/utility/nodes-effect-target.ts';
 import { i18n } from '@/i18n.ts';
+import { preferences } from '@/preferences.ts';
 import { provideNodesEffectWires } from '@/utility/nodes-effect-wires.ts';
 import { useAssetDrop } from '@/composables/useAssetDrop.ts';
 import * as ui from '@/ui.ts';
 import { previewParameterContextKey } from '@/utility/preview-parameter-editing.ts';
 import { parameterExpansionScopeKey } from '@/composables/useParameterExpansion.ts';
-import { nodesEffectTargetKey } from '@gs/glitch-studio_shared/project/nodes-effect-target.ts';
 
 provideNodesEffectWires();
 
@@ -164,7 +165,7 @@ const tab = ref('nodes');
 const livePreviewParameterContext = inject(previewParameterContextKey, null);
 provide(previewParameterContextKey, {
 	scope: computed(() => tab.value === 'preview' ? livePreviewParameterContext?.scope.value ?? null
-		: props.previewTarget == null ? null : { kind: 'nodesEffect' as const, target: props.previewTarget }),
+	: props.previewTarget == null ? null : { kind: 'nodesEffect' as const, target: props.previewTarget }),
 	label: computed(() => props.nodesEffectName),
 	beginLivePreviewEdit: livePreviewParameterContext?.beginLivePreviewEdit,
 });
@@ -186,14 +187,20 @@ const assetDrop = useAssetDrop({
 	reportError: error => { void ui.alert({ type: 'error', title: i18n.ts._NodesEffect.Drop, text: error instanceof Error ? error.message : String(error) }); },
 });
 
-const tabs = [
-	{ id: 'nodes', label: i18n.ts._NodesEffect.Nodes },
-	{ id: 'customParameters', label: i18n.ts._Parameter.CustomParameter },
-	{ id: 'inputs', label: i18n.ts._NodesEffect.InputDefs },
-	{ id: 'outputs', label: i18n.ts._NodesEffect.OutputDefs },
-	...(slots.preview == null ? [] : [{ id: 'preview', label: i18n.ts.Preview }]),
-	{ id: 'other', label: i18n.ts.Other },
+const showShortLabels = preferences.r.showShortLabels;
+const tabDefinitions = [
+	{ id: 'nodes', label: i18n.ts._NodesEffect.Nodes, shortLabel: 'Nd' },
+	{ id: 'customParameters', label: i18n.ts._Parameter.CustomParameter, shortLabel: 'Cp' },
+	{ id: 'inputs', label: i18n.ts._NodesEffect.InputDefs, shortLabel: 'In' },
+	{ id: 'outputs', label: i18n.ts._NodesEffect.OutputDefs, shortLabel: 'Out' },
+	...(slots.preview == null ? [] : [{ id: 'preview', label: i18n.ts.Preview, shortLabel: 'Pv' }]),
+	{ id: 'other', label: i18n.ts.Other, shortLabel: 'Oth' },
 ];
+const tabs = computed(() => tabDefinitions.map(({ id, label, shortLabel }) => ({
+	id,
+	label: showShortLabels.value ? shortLabel : label,
+	tooltip: showShortLabels.value ? label : null,
+})));
 
 const globalInNode = computed(() => props.nodesEffect.nodes.find((node): node is NodesEffectGlobalInNode => node.type === 'globalIn'));
 const globalOutNode = computed(() => props.nodesEffect.nodes.find((node): node is NodesEffectGlobalOutNode => node.type === 'globalOut'));
