@@ -5,8 +5,10 @@ import { collectCustomNodeGraphEffectResources, type CustomNodeGraphEffectResour
 import { validatePortableCustomNodeGraphEffectSettings } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
 import { getPortableParameterDefinitions } from './parameters.ts';
 import type { PortableCustomNodeGraphEffect, PortableCustomNodeGraphEffectSettings } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
+import type { Asset } from '@gs/shared/types.ts';
 
-export type PortableCustomNodeGraphEffectExportInput = CustomNodeGraphEffectResources & {
+export type PortableCustomNodeGraphEffectExportInput = Omit<CustomNodeGraphEffectResources, 'assets'> & {
+	assets: (Asset & { sourceFileName?: string })[];
 	name: string;
 	gsVersion: string;
 	aspectRatio: number;
@@ -22,9 +24,10 @@ export function preparePortableCustomNodeGraphEffect(input: PortableCustomNodeGr
 	validatePortableCustomNodeGraphEffectSettings(input.settings);
 	if (!Number.isFinite(input.aspectRatio) || input.aspectRatio <= 0) throw new Error('Aspect ratio must be positive and finite');
 	const { runtimeRequirements, resolutionNodes } = analyzePortableCustomNodeGraphEffectRuntime(resources, nativeDefinitions);
+	const sourceFileNames = new Map(input.assets.map(asset => [asset.id, asset.sourceFileName ?? asset.name]));
 	return {
 		name: input.name, gsVersion: input.gsVersion, customNodeGraphEffect,
-		assets: resources.assets,
+		assets: resources.assets.map(asset => ({ ...asset, sourceFileName: sourceFileNames.get(asset.id)! })),
 		customShaderEffects: resources.customShaderEffects,
 		customNodeGraphEffects: resources.customNodeGraphEffects.map(({ id, name, definition }) => ({ id, name, definition })),
 		aspectRatio: input.aspectRatio, settings: { ...input.settings },
@@ -34,19 +37,35 @@ export function preparePortableCustomNodeGraphEffect(input: PortableCustomNodeGr
 	};
 }
 
-export async function encodePortableCustomNodeGraphEffect(prepared: ReturnType<typeof preparePortableCustomNodeGraphEffect>, signal?: AbortSignal): Promise<PortableCustomNodeGraphEffect> {
+export type PortableCustomNodeGraphEffectAssetFile = { path: string; contents: Blob };
+
+// 静的配信に適した素材の拡張子に限って、原本の表記（大文字や別名）を残す。
+// 表示名は編集できるため、任意の拡張子を通すと配信サーバーがスクリプト等として扱い得る。
+const portableAssetExtension = /\.(avif|bmp|exr|gif|heic|heif|ico|jpe?g|jxl|png|tiff?|webp|avi|m4v|mkv|mov|mp4|mpe?g|og[gv]|webm|aac|flac|m4a|mp3|opus|wav|otf|ttc|ttf|woff2?|cube)$/i;
+
+export async function encodePortableCustomNodeGraphEffect(prepared: ReturnType<typeof preparePortableCustomNodeGraphEffect>, format: 'html' | 'zip', signal?: AbortSignal) {
 	const { diagnostics: _diagnostics, runtimeRequirements: _runtimeRequirements, assets, ...data } = prepared;
-	const embedded: PortableCustomNodeGraphEffect['assets'] = [];
-	// 原本を順に読む。大きな動画・フォントを同時に二重保持しない。
-	for (const { fileData, ...asset } of assets) {
+	const encodedAssets: PortableCustomNodeGraphEffect['assets'] = [];
+	const assetFiles: PortableCustomNodeGraphEffectAssetFile[] = [];
+	for (const { fileData, sourceFileName, ...asset } of assets) {
 		signal?.throwIfAborted();
 		try {
-			const bytes = new Uint8Array(await (await readFileSource(fileData)).arrayBuffer());
-			embedded.push({ ...asset, fileDataBase64: bytes.toBase64() });
+			const contents = await readFileSource(fileData);
+			if (format === 'zip') {
+				// 連番で衝突を避け、ファイル名からは拡張子だけを使う。
+				const extension = portableAssetExtension.exec(sourceFileName)?.[0] ?? '.bin';
+				const path = `assets/${assetFiles.length + 1}${extension}`;
+				assetFiles.push({ path, contents });
+				encodedAssets.push({ ...asset, fileDataPath: path });
+			} else {
+				// 原本を順に変換し、大きな動画・フォントの変換用バッファを同時に確保しない。
+				const bytes = new Uint8Array(await contents.arrayBuffer());
+				encodedAssets.push({ ...asset, fileDataBase64: bytes.toBase64() });
+			}
 		} catch (cause) { throw new Error(`Could not read Asset ${JSON.stringify(asset.name)}`, { cause }); }
 	}
 	signal?.throwIfAborted();
-	return { ...data, assets: embedded };
+	return { format, artwork: { ...data, assets: encodedAssets }, assetFiles };
 }
 
 export type PortableCustomNodeGraphEffectRuntime = { elementSource: string; workerSource: string };
@@ -55,19 +74,23 @@ function htmlText(value: string) {
 	return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 }
 
-export function createPortableCustomNodeGraphEffectFiles(artwork: PortableCustomNodeGraphEffect, runtime: PortableCustomNodeGraphEffectRuntime, tagName = `gs-custom-node-graph-effect-${crypto.randomUUID()}`) {
+export function createPortableCustomNodeGraphEffectFiles({ format, artwork, assetFiles }: Awaited<ReturnType<typeof encodePortableCustomNodeGraphEffect>>, runtime: PortableCustomNodeGraphEffectRuntime, tagName = `gs-custom-node-graph-effect-${crypto.randomUUID()}`) {
 	if (!/^gs-custom-node-graph-effect-[a-z0-9-]+$/.test(tagName)) throw new Error('Invalid Custom Node Graph Effect element name');
 	// JSON.parseを通して__proto__等も通常のデータとして復元する。作品の文字列をコードとして挿入しない。
 	const scriptString = (value: string) => JSON.stringify(value).replaceAll('<', '\\u003c');
 	const data = scriptString(JSON.stringify(artwork));
-	const javascript = `(() => {\n${runtime.elementSource}\nGlitchStudioCustomNodeGraphEffectEmbed.registerCustomNodeGraphEffectElement(${JSON.stringify(tagName)}, JSON.parse(${data}), ${scriptString(runtime.workerSource)});\n})();\n`;
+	// 埋め込み先ページやBlob WorkerのURLではなく、同梱ファイルと同じ場所にあるモジュールのURLを使う。
+	const moduleUrlArgument = format === 'zip' ? ', import.meta.url' : '';
+	const javascript = `(() => {\n${runtime.elementSource}\nGlitchStudioCustomNodeGraphEffectEmbed.registerCustomNodeGraphEffectElement(${JSON.stringify(tagName)}, JSON.parse(${data}), ${scriptString(runtime.workerSource)}${moduleUrlArgument});\n})();\n`;
 	const document = (script: string) => `<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${htmlText(artwork.name)}</title>\n<style>html, body { margin: 0; width: 100%; height: 100%; } ${tagName} { display: block; width: 100%; height: 100%; }</style>\n</head>\n<body>\n<${tagName} id="artwork"></${tagName}>\n${script}\n</body>\n</html>\n`;
+	if (format === 'html') {
+		// 実行コード自体もASCIIでビルドする。HTML parserがscriptを途中で閉じる文字列を残さない。
+		return { format, html: document(`<script type="module">\n${javascript.replace(/<\/script/gi, '<\\/script')}\n</script>`) };
+	}
 	const html = document('<script type="module" src="./artwork.js"></script>');
-	// 実行コード自体もASCIIでビルドする。HTML parserがscriptを途中で閉じる文字列を残さない。
-	const standaloneHtml = document(`<script type="module">\n${javascript.replace(/<\/script/gi, '<\\/script')}\n</script>`);
 	const readme = `# ${artwork.name}
 
-Serve index.html and artwork.js over HTTPS (or localhost) with WebGPU enabled. No CDN or Glitch Studio installation is required. The page CSP must allow the script, a blob: worker and inline component styles. Single HTML also requires inline scripts to be allowed.
+Serve index.html and artwork.js over HTTPS (or localhost) with WebGPU enabled. If an assets/ directory is included, deploy it alongside artwork.js. Assets are loaded relative to artwork.js. No CDN or Glitch Studio installation is required. The page CSP must allow the script, a blob: worker, inline component styles and asset fetches (connect-src). If served from a different origin, the script and assets must allow CORS requests from the embedding page.
 
 Embed:
 
@@ -99,5 +122,5 @@ CSS determines the size. Rendering follows device pixels subject to scale and pi
 
 All Players (including file Players) remain unconnected. Video Frame reads bundled video assets independently. No tile rendering, external image/audio API or timeline playback is included. IS_EXPORT is false; END_TIME is Infinity; PROGRESS is 0.
 `;
-	return { tagName, javascript, html, standaloneHtml, readme };
+	return { format, javascript, html, readme, assetFiles };
 }

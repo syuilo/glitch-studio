@@ -43,7 +43,7 @@ InからOutへつないだ入力は、中継ノードを経由する場合も、
 
 ## Webへの書き出し
 
-Custom Node Graph Effectエディタの「その他」から、HTML + JavaScriptのZIPまたは単一HTMLとして書き出せます。Web Component・Worker・使用するCustom Shader Effect・参照Assetを同梱し、HTTPSまたはlocalhost上のWebGPU対応Chromeでエディタなしに再生します。
+Custom Node Graph Effectエディタの「その他」から、HTML + JavaScriptのZIPまたは単一HTMLとして書き出せます。Web Component・Worker・使用するCustom Shader Effect・参照Assetを同梱し、HTTPSまたはlocalhost上のWebGPU対応Chromeでエディタなしに再生します。ZIPでは素材原本を`assets/`に格納し、単一HTMLではBase64でHTMLに含めます。
 
 表示寸法は埋め込み先のCSS、描画寸法は表示先の物理ピクセル・描画倍率・最大画素数で決まります。公開値は`parameters`属性のJSONまたは`setParameter` / `setParameters` APIで設定できます。primary pointerの位置を既存の`POINTER_POSITION`へ渡します。Playerは未接続とし、タイルレンダリングは行いません。
 

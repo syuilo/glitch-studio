@@ -165,7 +165,7 @@ async function download() {
 		signal.throwIfAborted();
 		if (saveFile == null) return;
 		status.value = i18n.ts._CustomNodeGraphEffect.WebExportPreparing;
-		const artwork = await encodePortableCustomNodeGraphEffect(snapshot, signal);
+		const artwork = await encodePortableCustomNodeGraphEffect(snapshot, selectedFormat, signal);
 		signal.throwIfAborted();
 		status.value = i18n.ts._CustomNodeGraphEffect.WebExportBuilding;
 		buildRequestId = crypto.randomUUID();
@@ -176,7 +176,7 @@ async function download() {
 		buildRequestId = null;
 		signal.throwIfAborted();
 		const files = createPortableCustomNodeGraphEffectFiles(artwork, runtime);
-		const blob = selectedFormat === 'html' ? new Blob([files.standaloneHtml], { type: 'text/html;charset=utf-8' }) : createPortableCustomNodeGraphEffectArchive(files);
+		const blob = files.format === 'html' ? new Blob([files.html], { type: 'text/html;charset=utf-8' }) : await createPortableCustomNodeGraphEffectArchive(files, signal);
 		status.value = i18n.ts._CustomNodeGraphEffect.WebExportSaving;
 		await desktop.beginExportFile(saveFile.id, blob.size);
 		// 既存の保存セッションを使い、キャンセル時には以前のファイルを保持する。

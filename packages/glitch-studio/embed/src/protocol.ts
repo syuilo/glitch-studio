@@ -12,7 +12,7 @@ export type PortableCustomNodeGraphEffectFrame = {
 };
 
 export type PortableCustomNodeGraphEffectRequest =
-	| { type: 'initialize'; canvas: OffscreenCanvas; artwork: PortableCustomNodeGraphEffect }
+	| { type: 'initialize'; canvas: OffscreenCanvas; artwork: PortableCustomNodeGraphEffect; artworkModuleUrl: string | null }
 	| { type: 'frame'; frame: PortableCustomNodeGraphEffectFrame }
 	| { type: 'dispose' };
 

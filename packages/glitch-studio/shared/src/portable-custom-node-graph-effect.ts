@@ -19,7 +19,7 @@ export type PortableCustomNodeGraphEffect = ProjectEffectRegistrations & {
 	name: string;
 	gsVersion: string;
 	customNodeGraphEffect: CustomNodeGraphEffect;
-	assets: (Omit<Asset, 'fileData'> & { fileDataBase64: string })[];
+	assets: (Omit<Asset, 'fileData'> & ({ fileDataBase64: string } | { fileDataPath: string }))[];
 	/** CSSで高さが指定されない場合だけ使う。描画解像度は保存しない。 */
 	aspectRatio: number;
 	settings: PortableCustomNodeGraphEffectSettings;

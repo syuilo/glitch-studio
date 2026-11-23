@@ -8,6 +8,7 @@ import { PortableCanvasRenderer } from '@gs/glitch-studio_renderer/portable-canv
 import { getPortableRenderResolution, getPortablePointerPosition } from './protocol.ts';
 import type { PortableCustomNodeGraphEffectRequest, PortableCustomNodeGraphEffectResponse, PortableCustomNodeGraphEffectFrame } from './protocol.ts';
 import type { PortableCustomNodeGraphEffect } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
+import type { Asset } from '@gs/shared/types.ts';
 
 /** 作品に配置されたNative Effectだけをカタログから受け取る。 */
 export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffectDefinitions, implementations: Readonly<Record<string, NativeEffectImplementation>>) {
@@ -40,7 +41,7 @@ export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffe
 		dispose();
 	}
 
-	async function initialize(canvas: OffscreenCanvas, data: PortableCustomNodeGraphEffect) {
+	async function initialize(canvas: OffscreenCanvas, data: PortableCustomNodeGraphEffect, artworkModuleUrl: string | null) {
 		if (navigator.gpu == null) throw new Error('WebGPU requires a supported browser and a secure context (HTTPS or localhost)');
 		const adapter = await navigator.gpu.requestAdapter();
 		controller.signal.throwIfAborted();
@@ -50,9 +51,23 @@ export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffe
 		device = createdDevice;
 		void device.lost.then(info => { if (!controller.signal.aborted) fail(new Error(`WebGPU device lost: ${info.message}`)); });
 		device.addEventListener('uncapturederror', event => fail(event.error));
-		const assets = data.assets.map(({ fileDataBase64, ...asset }) => ({
-			...asset, fileData: new Blob([Uint8Array.fromBase64(fileDataBase64)], { type: asset.fileDataType }),
-		}));
+		const assets: Asset[] = [];
+		for (const encodedAsset of data.assets) {
+			if ('fileDataPath' in encodedAsset) {
+				const { fileDataPath, ...asset } = encodedAsset;
+				try {
+					const response = await fetch(new URL(fileDataPath, artworkModuleUrl!), { signal: controller.signal });
+					if (!response.ok) throw new Error(`HTTP ${response.status}`);
+					const contents = await response.blob();
+					// サーバーのMIME判定によらず、デコーダーには書き出し時の型を渡す。
+					assets.push({ ...asset, fileData: contents.slice(0, contents.size, asset.fileDataType) });
+				} catch (error) { throw new Error(`Could not load Asset ${JSON.stringify(asset.name)} (${fileDataPath}): ${error instanceof Error ? error.message : String(error)}`); }
+			} else {
+				const { fileDataBase64, ...asset } = encodedAsset;
+				assets.push({ ...asset, fileData: new Blob([Uint8Array.fromBase64(fileDataBase64)], { type: asset.fileDataType }) });
+			}
+		}
+		controller.signal.throwIfAborted();
 		assetTextures = new AssetTextures(device, assets);
 		await assetTextures.waitUntilReady(controller.signal);
 		controller.signal.throwIfAborted();
@@ -115,7 +130,7 @@ export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffe
 	worker.onmessage = event => {
 		if (controller.signal.aborted) return;
 		const message = event.data;
-		if (message.type === 'initialize') void initialize(message.canvas, message.artwork).catch(fail);
+		if (message.type === 'initialize') void initialize(message.canvas, message.artwork, message.artworkModuleUrl).catch(fail);
 		else if (message.type === 'frame') {
 			// GPU完了まで一つのフレームを処理し、重い作品でGPUキューと入力遅延が積み上がるのを防ぐ。
 			if (renderFrame == null || processingFrame) return;

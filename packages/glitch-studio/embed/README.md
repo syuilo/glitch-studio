@@ -4,8 +4,8 @@ Custom Node Graph Effectをエディタから独立したWeb Componentとして�
 
 ## 構成
 
-- `src/export.ts`: 依存収集・静的検証・素材の埋め込み・HTML/JavaScript/利用案内の生成。収集規則は`.gscnge`と`glitch-studio/shared/custom-node-graph-effect-resources.ts`を共有します。
-- `src/archive.ts`: HTML・JavaScript・利用案内を一回でダウンロードする非圧縮ZIPの生成。
+- `src/export.ts`: 依存収集・静的検証・素材の読み出し・HTML/JavaScript/利用案内の生成。収集規則は`.gscnge`と`glitch-studio/shared/custom-node-graph-effect-resources.ts`を共有します。
+- `src/archive.ts`: HTML・JavaScript・利用案内・素材原本をまとめる非圧縮ZIPの生成。
 - `src/element.ts`: Custom Elementの登録、Shadow DOM、表示サイズ・可視性・時間・ポインター・公開値とWorkerの管理。
 - `src/frame-rate-limiter.ts`: 表示周期の端数を持ち越すFPS制限。rAF時刻の丸めによる余分な間引きを防ぎ、失った描画枠は再実行しません。
 - `src/worker.ts`: WebGPU・素材・`effect` の `EffectInstance` の生成と破棄。主出力を指定して描画を準備し、完了したフレームをCanvasへ渡します。
@@ -25,12 +25,12 @@ Custom Node Graph Effectをエディタから独立したWeb Componentとして�
 
 生成した成果物の実行にはElectron・Node.js・npmは不要です。
 
-- HTML + JavaScript: `index.html`、`artwork.js`、`README.md`のZIP。埋め込み先ではJavaScriptとCustom Elementを使用します。
-- 単一HTML: JavaScriptと素材を含むHTML。同じページにスクリプトと要素を移して利用するか、HTTPSで配信してiframeでも表示できます。
+- HTML + JavaScript: `index.html`、`artwork.js`、`README.md`、参照Asset原本をまとめたZIPです。原本は`assets/1.PNG`や`assets/2.mp4`のように、連番と元の拡張子を使って格納します。元のパスがなければAsset名から拡張子を取得します。拡張子がない場合や静的配信用の対象外の場合は`.bin`を使い、MIME型はどの場合も作品データに保持します。`artwork.js`と`assets/`を同じ場所に配信してください。埋め込み先のページから`artwork.js`とCustom Elementを使用すると、`artwork.js`のURLを基準に素材を読み込みます。
+- 単一HTML: JavaScriptと参照Asset原本を含むHTMLです。原本はBase64で同梱します。同じページにスクリプトと要素を移して利用するか、HTTPSで配信してiframeでも表示できます。
 
-どちらも画像・動画・フォント・LUTなどの参照Asset原本をBase64で含めます。CDNやエディタへの接続は不要です。元ファイルのパスとデバイス識別子は含めません。Native Effectは配置されている種類だけを同梱します。登録型・インライン型のCustom Effectを再帰的にたどり、参照された登録定義を種類・IDごとに一度ずつ同梱します。出力からの到達性やバイパスによるノード削除は行いません。タグ名は書き出しごとのUUIDを持ち、別作品との登録衝突を避けます。
+どちらも画像・動画・フォント・LUTなどの参照Asset原本を含みます。CDNやエディタへの接続は不要です。元ファイルのパスとデバイス識別子は含めません。Native Effectは配置されている種類だけを同梱します。登録型・インライン型のCustom Effectを再帰的にたどり、参照された登録定義を種類・IDごとに一度ずつ同梱します。出力からの到達性やバイパスによるノード削除は行いません。タグ名は書き出しごとのUUIDを持ち、別作品との登録衝突を避けます。
 
-HTTPSまたはlocalhost上のWebGPU対応Chromeを対象にします。COOP/COEPによるcross-origin isolationは必要ありません。配信先のCSPは成果物のscript、`worker-src blob:`、コンポーネントのインラインstyleを許可する必要があります。単一HTMLはインラインscriptの許可も必要です。式の評価に`unsafe-eval`は使いません。HTML + JavaScriptを`file://`で直接開く使い方は対象外です。
+HTTPSまたはlocalhost上のWebGPU対応Chromeを対象にします。COOP/COEPによるcross-origin isolationは必要ありません。配信先のCSPは成果物のscript、`worker-src blob:`、コンポーネントのインラインstyleを許可する必要があります。ZIPに素材がある場合は`connect-src`でも素材の配信元を許可してください。別オリジンへ埋め込む場合、JavaScriptと素材の配信サーバーは埋め込み先からのCORSリクエストを許可する必要があります。単一HTMLはインラインscriptの許可も必要です。式の評価に`unsafe-eval`は使いません。HTML + JavaScriptを`file://`で直接開く使い方は対象外です。
 
 ## ランタイムの最適化
 

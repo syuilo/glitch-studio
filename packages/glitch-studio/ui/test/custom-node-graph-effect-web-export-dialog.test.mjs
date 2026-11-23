@@ -57,7 +57,7 @@ function fixture(t, fileData = new Blob(['asset'])) {
 		settings: { ...DEFAULT_PORTABLE_CUSTOM_NODE_GRAPH_EFFECT_SETTINGS }, initialParameters: {},
 		diagnostics: { players: [], resolutionNodes: [] },
 		runtimeRequirements: { effectIds: [], requiresExpressions: false, requiresParameterDefaultExpressions: false, requiresCustomShaderEffects: false },
-		assets: [{ id: 'asset', name: 'Asset', width: 1, height: 1, fileDataType: 'image/png', fileData }],
+		assets: [{ id: 'asset', name: 'Asset', sourceFileName: 'asset.png', width: 1, height: 1, fileDataType: 'image/png', fileData }],
 		customNodeGraphEffect: { nodes: [], paramDefs: [{ id: 'speed', nameForReference: 'speed', dataType: { kind: 'scalar' }, canNode: false,
 			ui: { label: 'Speed', control: {} }, defaultValue: 1 }],
 		customParameterDefs: [], customParameterValues: {}, outputDefs: [], automationGraphs: [], primaryInputId: null, primaryOutputId: null },
@@ -188,9 +188,13 @@ test('recovers from activity rejection and invalid public values and saves a com
 		entries.set(new TextDecoder().decode(bytes.subarray(offset + 30, dataOffset)), new TextDecoder().decode(bytes.subarray(dataOffset, dataOffset + size)));
 		offset = dataOffset + size;
 	}
-	assert.deepEqual([...entries.keys()], ['index.html', 'artwork.js', 'README.md']);
+	assert.deepEqual([...entries.keys()], ['index.html', 'artwork.js', 'README.md', 'assets/1.png']);
+	assert.equal(entries.get('assets/1.png'), 'asset');
 	assert.match(entries.get('index.html'), /src="\.\/artwork.js"/);
-	const artwork = readArtwork(entries.get('artwork.js'));
+	// VMで登録引数だけを取り出す。モジュールURLでの解決はembedのブラウザテストで通す。
+	const artwork = readArtwork(entries.get('artwork.js').replace('import.meta.url', '"https://example.test/artwork.js"'));
+	assert.equal(artwork.assets[0].fileDataPath, 'assets/1.png');
+	assert.equal(artwork.assets[0].fileDataBase64, undefined);
 	assert.equal(artwork.initialParameters.speed, 3);
 	assert.equal(artwork.settings.fpsLimit, 24);
 	assert.equal(applicationActivity.isExporting.value, false);
@@ -204,6 +208,7 @@ test('suppresses saves after unmounting during asset reading', async t => {
 	const f = fixture(t, new class extends Blob {
 		async arrayBuffer() { started.resolve(); await released.promise; return super.arrayBuffer(); }
 	}(['asset']));
+	f.input.format = 'html';
 	const downloading = f.input.download();
 	await started.promise;
 	f.unmount();

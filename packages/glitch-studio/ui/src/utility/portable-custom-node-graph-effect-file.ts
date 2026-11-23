@@ -17,8 +17,10 @@ export async function exportPortableCustomNodeGraphEffectFile(session: ProjectSe
 		const { default: GsCustomNodeGraphEffectWebExportDialog } = await import('@/components/GsCustomNodeGraphEffectWebExportDialog.vue');
 		if (session.isDisposed) return;
 		const state = session.projectContext.stateManager.state;
+		// プロジェクト内で改名した素材も、元のパスがあれば元の拡張子を使えるようにする。
+		const assets = state.assets.value.map(asset => ({ ...asset, sourceFileName: asset.sourceFilePath?.split(/[/\\]/).at(-1) ?? asset.name }));
 		const prepared = preparePortableCustomNodeGraphEffect({
-			name, gsVersion: _VERSION_, customNodeGraphEffect, nodeMetadata, customNodeGraphEffects: state.customNodeGraphEffects.value, assets: state.assets.value, players: state.players.value,
+			name, gsVersion: _VERSION_, customNodeGraphEffect, nodeMetadata, customNodeGraphEffects: state.customNodeGraphEffects.value, assets, players: state.players.value,
 			customShaderEffects: state.customShaderEffects.value, aspectRatio: state.resolution.value.width / state.resolution.value.height,
 			settings: DEFAULT_PORTABLE_CUSTOM_NODE_GRAPH_EFFECT_SETTINGS, initialParameters: {},
 		}, nativeEffectDefinitions);

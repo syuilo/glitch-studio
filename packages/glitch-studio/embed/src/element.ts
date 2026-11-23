@@ -4,7 +4,7 @@ import { PortableCustomNodeGraphEffectFrameRateLimiter } from './frame-rate-limi
 import type { PortableCustomNodeGraphEffect } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
 import type { PortableCustomNodeGraphEffectRequest, PortableCustomNodeGraphEffectResponse } from './protocol.ts';
 
-export function registerCustomNodeGraphEffectElement(tagName: string, artwork: PortableCustomNodeGraphEffect, workerSource: string) {
+export function registerCustomNodeGraphEffectElement(tagName: string, artwork: PortableCustomNodeGraphEffect, workerSource: string, artworkModuleUrl: string | null = null) {
 	// 同じ成果物を複数回読み込んでも登録済みのクラスを使う。タグは書き出しごとに一意にする。
 	if (customElements.get(tagName) != null) return;
 	const definitions = getPortableParameterDefinitions(artwork.customNodeGraphEffect);
@@ -164,7 +164,7 @@ div:empty { display: none; }`;
 					}
 				}, { signal });
 				const canvas = this.canvas.transferControlToOffscreen();
-				const message: PortableCustomNodeGraphEffectRequest = { type: 'initialize', canvas, artwork };
+				const message: PortableCustomNodeGraphEffectRequest = { type: 'initialize', canvas, artwork, artworkModuleUrl };
 				worker.postMessage(message, [canvas]);
 			} catch (error) { this.reportError(error, true); }
 		}

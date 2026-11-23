@@ -15,7 +15,7 @@ function rendered(element, action = () => {}) {
 	});
 }
 async function mount(name, parameters = null) {
-	await import('/' + name + '.js');
+	await import('/' + name + '/artwork.js');
 	const element = document.createElement('gs-custom-node-graph-effect-' + name);
 	element.style.cssText = 'display:block;width:200px;height:100px';
 	element.pause();
@@ -185,12 +185,13 @@ try {
 	check(limitedRate.fps >= Math.min(60, refreshRate.fps) * 0.92 && limitedRate.fps <= 62,
 		'frame limiter sustains the available refresh rate: ' + JSON.stringify({ limitedRate, refreshRate }));
 	frameRateProbe.remove();
-	for (const name of ['standalone', 'symbols']) {
+	for (const name of ['standalone', 'symbols', 'image']) {
 		const iframe = document.createElement('iframe'); iframe.style.cssText = 'width:300px;height:150px';
 		await new Promise(resolve => { iframe.onload = resolve; iframe.src = '/' + name + '.html'; document.body.append(iframe); });
 		const standalone = iframe.contentDocument.querySelector('gs-custom-node-graph-effect-' + name);
 		await standalone.ready; await rendered(standalone);
 		if (name === 'symbols') await checkSymbolTextureRendering(standalone, 'single HTML');
+		else if (name === 'image') check((await pixel(standalone, 0.5, 0.1))[0] > 250, 'single HTML renders its embedded image');
 		else check(standalone.getParameter('level') === 0.25, 'single HTML survives script-like artwork strings and starts independently');
 		iframe.remove();
 	}

@@ -27,11 +27,15 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	const artifacts = new Map();
 	async function add(name, input) {
 		const prepared = preparePortableCustomNodeGraphEffect(input, { fill, image, symbols, video });
-		const artwork = await encodePortableCustomNodeGraphEffect(prepared);
 		const runtime = await buildPortableCustomNodeGraphEffectRuntime(catalog, prepared.runtimeRequirements);
-		const files = createPortableCustomNodeGraphEffectFiles(artwork, runtime, `gs-custom-node-graph-effect-${name}`);
-		artifacts.set(`/${name}.js`, files.javascript);
-		artifacts.set(`/${name}.html`, files.standaloneHtml);
+		const tagName = `gs-custom-node-graph-effect-${name}`;
+		const archive = createPortableCustomNodeGraphEffectFiles(await encodePortableCustomNodeGraphEffect(prepared, 'zip'), runtime, tagName);
+		artifacts.set(`/${name}/artwork.js`, archive.javascript);
+		for (const { path, contents } of archive.assetFiles) artifacts.set(`/${name}/${path}`, Buffer.from(await contents.arrayBuffer()));
+		if (name === 'standalone' || name === 'symbols' || name === 'image') {
+			const standalone = createPortableCustomNodeGraphEffectFiles(await encodePortableCustomNodeGraphEffect(prepared, 'html'), runtime, tagName);
+			artifacts.set(`/${name}.html`, standalone.html);
+		}
 	}
 	await add('test', fixture());
 	const literal = fixture();
@@ -60,7 +64,7 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	noOutput.customNodeGraphEffect.outputSources = { output: { parameterId: 'tint' } };
 	await add('nooutput', noOutput);
 	const imageInput = fixture();
-	imageInput.assets = [{ id: 'image', name: 'Image', width: 2, height: 2, fileDataType: 'image/png',
+	imageInput.assets = [{ id: 'image', name: 'Image', sourceFileName: 'original.PNG', width: 2, height: 2, fileDataType: 'image/png',
 		fileData: new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAE0lEQVR4nGP4z8DQAMIMDP8hEAA55Ab7GrcJWQAAAABJRU5ErkJggg==', 'base64')]) }];
 	imageInput.customNodeGraphEffect.nodes[0] = { ...imageInput.customNodeGraphEffect.nodes[0], effectSource: { type: 'nativeEffect', id: 'image' }, resolution: { mode: 'auto', scale: 1 },
 		staticSettings: { [Object.keys(image.staticSettingDefs)[0]]: 'image' }, params: Object.fromEntries(Object.entries(image.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])) };
@@ -112,8 +116,9 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 		response.setHeader('Content-Security-Policy', "script-src 'self' 'unsafe-inline'; worker-src blob:; style-src 'unsafe-inline'; connect-src 'self'");
 		if (request.url === '/harness.js') { response.setHeader('Content-Type', 'text/javascript'); response.end(harness); }
 		else if (artifacts.has(request.url)) {
-			response.setHeader('Content-Type', request.url.endsWith('.js') ? 'text/javascript' : 'text/html');
-			response.end(artifacts.get(request.url));
+			const content = artifacts.get(request.url);
+			response.setHeader('Content-Type', Buffer.isBuffer(content) ? 'application/octet-stream' : request.url.endsWith('.js') ? 'text/javascript' : 'text/html');
+			response.end(content);
 		} else {
 			response.setHeader('Content-Type', 'text/html');
 			response.end('<!doctype html><html><body><script type="module" src="/harness.js"></script></body></html>');
@@ -133,7 +138,8 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 		assert.equal(output.error, undefined, JSON.stringify(output, null, 2));
 		assert.ok(output.passed.length >= 15);
 		t.diagnostic(output.passed.join('\n'));
-		assert.ok(requests.every(url => /^\/(?:result|harness\.js|[a-z]+\.(?:js|html)|favicon\.ico)?$/.test(url)), requests.join(', '));
+		assert.equal(requests.filter(url => url === '/image/assets/1.PNG').length, 1);
+		assert.ok(requests.every(url => /^\/(?:result|harness\.js|[a-z]+\/artwork\.js|image\/assets\/1\.PNG|[a-z]+\.html|favicon\.ico)?$/.test(url)), requests.join(', '));
 	} finally {
 		clearTimeout(timer);
 		if (browser != null && browser.exitCode == null) {
