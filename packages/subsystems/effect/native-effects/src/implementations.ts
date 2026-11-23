@@ -65,6 +65,7 @@ import glass from './fx/glass/_impl_.ts';
 import gradient from './fx/gradient/_impl_.ts';
 import grayscale from './fx/grayscale/_impl_.ts';
 import grid from './fx/grid/_impl_.ts';
+import gyroidBubbles from './fx/gyroidBubbles/_impl_.ts';
 import gyroidGlow from './fx/gyroidGlow/_impl_.ts';
 import heightCaustics from './fx/heightCaustics/_impl_.ts';
 import heightLighting from './fx/heightLighting/_impl_.ts';
@@ -247,6 +248,7 @@ export const nativeEffectImplementations = {
 	gradient,
 	grayscale,
 	grid,
+	gyroidBubbles,
 	gyroidGlow,
 	heightCaustics,
 	heightLighting,

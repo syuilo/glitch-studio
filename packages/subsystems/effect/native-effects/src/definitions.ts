@@ -65,6 +65,7 @@ import glass from './fx/glass/_def_.ts';
 import gradient from './fx/gradient/_def_.ts';
 import grayscale from './fx/grayscale/_def_.ts';
 import grid from './fx/grid/_def_.ts';
+import gyroidBubbles from './fx/gyroidBubbles/_def_.ts';
 import gyroidGlow from './fx/gyroidGlow/_def_.ts';
 import heightCaustics from './fx/heightCaustics/_def_.ts';
 import heightLighting from './fx/heightLighting/_def_.ts';
@@ -246,6 +247,7 @@ export const nativeEffectDefinitions = {
 	gradient,
 	grayscale,
 	grid,
+	gyroidBubbles,
 	gyroidGlow,
 	heightCaustics,
 	heightLighting,
