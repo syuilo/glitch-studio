@@ -161,6 +161,9 @@ function createWindow(startupFilePath = null) {
 	if (getLaunchFileType(startupFilePath)?.kind === 'project') editorWindows.registerProject(context, startupFilePath, false, 'startup');
 	const registerProject = (filePath, saving, reservationId) => editorWindows.registerProject(context, filePath, saving, reservationId);
 	const { ipc, projectFiles, exportFiles } = context;
+	ipc.handle('desktop:is-window-maximized', () => mainWindow.isMaximized());
+	mainWindow.on('maximize', () => mainWindow.webContents.send('desktop:window-maximized-changed', true));
+	mainWindow.on('unmaximize', () => mainWindow.webContents.send('desktop:window-maximized-changed', false));
 	const disposeAssetExports = registerExternalAssetIpc(ipc, fileDialogs, context.externalAssetFiles, projectFiles, getTrustedMainWindow);
 	registerVoicevoxIpc(ipc, getTrustedMainWindow);
 	registerStartupFileIpc(ipc, projectFiles, getTrustedMainWindow, () => {

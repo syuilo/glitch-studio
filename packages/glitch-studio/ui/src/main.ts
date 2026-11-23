@@ -21,7 +21,28 @@ navigator.wakeLock.request('screen')
 		);
 	});
 
+document.documentElement.toggleAttribute('data-web', !__ELECTRON__);
+
 const app = createApp(App);
+
+if (__ELECTRON__ && window.desktop != null) {
+	const rootElement = document.documentElement;
+	let needsInitialState = true;
+	const updateWindowMaximizedAttribute = (maximized: boolean) => {
+		needsInitialState = false;
+		rootElement.toggleAttribute('data-window-maximized', maximized);
+	};
+	// 起動時の最大化も受け取れるよう先に購読し、初期値の応答が遅れても通知済みの状態を上書きしない。
+	const stopWatchingWindowMaximized = window.desktop.onWindowMaximizedChanged(updateWindowMaximizedAttribute);
+	void window.desktop.isWindowMaximized().then(maximized => {
+		if (needsInitialState) updateWindowMaximizedAttribute(maximized);
+	}).catch(console.error);
+	app.onUnmount(() => {
+		needsInitialState = false;
+		stopWatchingWindowMaximized();
+		rootElement.removeAttribute('data-window-maximized');
+	});
+}
 
 directives(app);
 

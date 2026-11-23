@@ -6,6 +6,8 @@ declare const __ELECTRON__: boolean;
 
 interface Window {
 	desktop?: {
+		isWindowMaximized(): Promise<boolean>;
+		onWindowMaximizedChanged(listener: (maximized: boolean) => void): () => void;
 		getMcpServerState(): Promise<import('@gs/glitch-studio_shared/mcp.ts').McpServerState>;
 		setMcpServerSettings(settings: import('@gs/glitch-studio_shared/mcp.ts').McpServerSettings): Promise<import('@gs/glitch-studio_shared/mcp.ts').McpServerState>;
 		regenerateMcpServerToken(): Promise<import('@gs/glitch-studio_shared/mcp.ts').McpServerState>;

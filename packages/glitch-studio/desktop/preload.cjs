@@ -2,6 +2,12 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // 汎用的なIPC送信口ではなく、UIに必要な操作だけを公開する。
 contextBridge.exposeInMainWorld('desktop', {
+	isWindowMaximized: () => ipcRenderer.invoke('desktop:is-window-maximized'),
+	onWindowMaximizedChanged: listener => {
+		const handler = (_event, maximized) => listener(maximized);
+		ipcRenderer.on('desktop:window-maximized-changed', handler);
+		return () => ipcRenderer.removeListener('desktop:window-maximized-changed', handler);
+	},
 	getMcpServerState: () => ipcRenderer.invoke('desktop:get-mcp-server-state'),
 	setMcpServerSettings: settings => ipcRenderer.invoke('desktop:set-mcp-server-settings', settings),
 	regenerateMcpServerToken: () => ipcRenderer.invoke('desktop:regenerate-mcp-server-token'),

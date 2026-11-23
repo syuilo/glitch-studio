@@ -289,6 +289,12 @@ function openFpsMenu(ev: PointerEvent) {
 	border-radius: 8px;
 }
 
+:global(html[data-web]) .body,
+:global(html[data-window-maximized]) .body {
+	margin: 0;
+	border-radius: 0;
+}
+
 .footer {
 	display: flex;
 	height: 28px;
