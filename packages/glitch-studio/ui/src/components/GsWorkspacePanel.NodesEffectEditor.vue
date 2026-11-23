@@ -234,13 +234,13 @@ function previewNodesEffectLivePreview() {
 
 function showSwitchMenu(ev: PointerEvent) {
 	ui.popupMenu([{
-		text: `${i18n.ts._NodesEffect.Import}...`,
-		icon: 'ti ti-upload',
-		action: importNodesEffect,
-	}, {
 		text: i18n.ts.New,
 		icon: 'ti ti-plus',
 		action: addNodesEffect,
+	}, {
+		text: `${i18n.ts._NodesEffect.Import}...`,
+		icon: 'ti ti-download',
+		action: importNodesEffect,
 	}, {
 		type: 'divider',
 	}, ...stateManager.state.nodesEffects.value.map(_nodesEffect => ({

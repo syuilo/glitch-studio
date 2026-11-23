@@ -1,14 +1,14 @@
-import { i18n } from '@/i18n.ts';
 import { LUT_ASSET_MIME_TYPE } from '@gs/shared/media/lut.ts';
-import GsDialog from '@/components/common/GsDialog.vue';
+import { readFileSource } from '@gs/shared/file-source.ts';
+import { openExternalAsset, resolveExternalAssets } from '../external-assets.ts';
+import { applicationActivity } from '../application-activity.ts';
+import { openMediaFile } from './open-media-file.ts';
 import type { ProjectAsset, ProjectContext } from '@/Project.ts';
 import type { MenuItem } from '@/types/menu.ts';
-import { popup, alert, progress } from '@/ui.ts';
-import { openExternalAsset, resolveExternalAssets } from '../external-assets.ts';
-import { readFileSource } from '@gs/shared/file-source.ts';
 import type { OpenedMediaFile } from '../api.ts';
-import { openMediaFile } from './open-media-file.ts';
-import { applicationActivity } from '../application-activity.ts';
+import { i18n } from '@/i18n.ts';
+import GsDialog from '@/components/common/GsDialog.vue';
+import { popup, alert, progress } from '@/ui.ts';
 
 const assetOperationGenerations = new WeakMap<ProjectAsset, number>();
 
@@ -157,7 +157,7 @@ export function getAssetMenu(projectContext: ProjectContext, asset: ProjectAsset
 		{
 			id: 'exportOriginal',
 			text: `${i18n.ts._Assets.ExportOriginal}...`,
-			icon: 'ti ti-download',
+			icon: 'ti ti-upload',
 			disabled: window.desktop == null,
 			action: exportFile,
 		},

@@ -103,7 +103,7 @@
 
 		<div v-else-if="tab === 'other'" class="_spacer _gaps_m" style="height: 100%; overflow: auto;">
 			<GsInput large :modelValue="nodesEffectName" manualSave @update:modelValue="name => emit('rename', name)"><template #label>{{ i18n.ts.Name }}</template></GsInput>
-			<GsButton large :disabled="exporting" :wait="exporting" icon="ti ti-download" @click="emit('requestExport', 'gsne')">{{ `${i18n.ts._NodesEffect.Export}...` }}</GsButton>
+			<GsButton large :disabled="exporting" :wait="exporting" icon="ti ti-upload" @click="emit('requestExport', 'gsne')">{{ `${i18n.ts._NodesEffect.Export}...` }}</GsButton>
 			<GsButton
 				v-if="isDesktop"
 				large
