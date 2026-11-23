@@ -237,6 +237,7 @@ function fixture(t, projectSession = null) {
 
 // 【Custom Shader Effect パネルから適用済み定義を再生し、プレビュー入力を編集できる】
 // 編集画面のWGSLを変更している間も、プレビュー専用の変更を定義へのCommandとして記録しない。
+// 環境変数は制御方法の切り替えと変数名の選択が別操作なので、両方がプレビューに反映されることを確認する。
 test('previews the applied shader and edits local overrides from its panel', async t => {
 	const customShaderEffect = createProjectCustomShaderEffect([]);
 	customShaderEffect.definition.paramDefs.amount = {
@@ -271,6 +272,12 @@ test('previews the applied shader and edits local overrides from its panel', asy
 	parameter().props.onEdit({ kind: 'literal', paramPath: ['amount'], value: 0.75 });
 	await nextTick();
 	assert.deepEqual(overrides.value, { amount: { inputSource: 'literal', value: 0.75 } });
+	parameter().props.onEdit({ kind: 'inputSource', paramPath: ['amount'], inputSource: 'envVariable' });
+	await nextTick();
+	assert.deepEqual(parameter().props.paramValue, { inputSource: 'envVariable', variable: '' });
+	parameter().props.onEdit({ kind: 'envVariable', paramPath: ['amount'], value: 'TIME' });
+	await nextTick();
+	assert.deepEqual(overrides.value, { amount: { inputSource: 'envVariable', variable: 'TIME' } });
 	parameter().props.onEdit({ kind: 'reset', paramPath: ['amount'] });
 	await nextTick();
 	assert.deepEqual(overrides.value, {});

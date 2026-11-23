@@ -49,6 +49,7 @@ export function editEffectLivePreviewParameter(def: ParameterDefinition, current
 				case 'previewInputAudio':
 					return canUseEffectLivePreviewInput(def, event.inputSource) ? { inputSource: event.inputSource } : null;
 				case 'literal': next = reset(); break;
+				case 'envVariable': next = { inputSource: 'envVariable', variable: '' }; break;
 				case 'expression': next = {
 					inputSource: 'expression',
 					expression: AiSON.stringify(current?.inputSource === 'literal' ? current.value : def.defaultValue),
