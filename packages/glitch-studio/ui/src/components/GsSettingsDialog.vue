@@ -25,24 +25,24 @@
 						</GsSelect>
 
 						<GsFolder defaultOpen>
-							<template #label>{{ i18n.ts._Workspace.CustomNodeGraphEffectEditor }}</template>
+							<template #label>{{ i18n.ts._Workspace.NodesEffectEditor }}</template>
 
 							<div class="_gaps_l">
 								<GsSwitch v-model="forceTypeSafety" data-test-force-type-safety>
 									{{ i18n.ts._Settings.ForceTypeSafety }}
 									<template #caption>{{ i18n.ts._Settings.ForceTypeSafetyHint }}</template>
 								</GsSwitch>
-								<GsSwitch v-model="customNodeGraphEffectAutoConnectOnNodeAdd" data-test-custom-node-graph-effect-auto-connect-on-node-add>
-									{{ i18n.ts._Settings.CustomNodeGraphEffectAutoConnectOnNodeAdd }}
-									<template #caption>{{ i18n.ts._Settings.CustomNodeGraphEffectAutoConnectOnNodeAddHint }}</template>
+								<GsSwitch v-model="nodesEffectAutoConnectOnNodeAdd" data-test-nodes-effect-auto-connect-on-node-add>
+									{{ i18n.ts._Settings.NodesEffectAutoConnectOnNodeAdd }}
+									<template #caption>{{ i18n.ts._Settings.NodesEffectAutoConnectOnNodeAddHint }}</template>
 								</GsSwitch>
 								<GsSelect
-									v-model="customNodeGraphEffectWireStyle" large :items="[
-										{ value: 'straight', label: i18n.ts._Settings.CustomNodeGraphEffectWireStyleStraight },
-										{ value: 'curved', label: i18n.ts._Settings.CustomNodeGraphEffectWireStyleCurved },
-									]" data-test-custom-node-graph-effect-wire-style
+									v-model="nodesEffectWireStyle" large :items="[
+										{ value: 'straight', label: i18n.ts._Settings.NodesEffectWireStyleStraight },
+										{ value: 'curved', label: i18n.ts._Settings.NodesEffectWireStyleCurved },
+									]" data-test-nodes-effect-wire-style
 								>
-								<template #label>{{ i18n.ts._Settings.CustomNodeGraphEffectWireStyle }}</template>
+								<template #label>{{ i18n.ts._Settings.NodesEffectWireStyle }}</template>
 								</GsSelect>
 							</div>
 						</GsFolder>
@@ -171,8 +171,8 @@ const timelineFrameCachePrecision = preferences.model('timelineFrameCachePrecisi
 const timelinePreviewFramesAhead = preferences.model('timelinePreviewFramesAhead');
 const previewDisplayMode = preferences.model('previewDisplayMode');
 const forceTypeSafety = preferences.model('forceTypeSafety');
-const customNodeGraphEffectAutoConnectOnNodeAdd = preferences.model('customNodeGraphEffectAutoConnectOnNodeAdd');
-const customNodeGraphEffectWireStyle = preferences.model('customNodeGraphEffectWireStyle');
+const nodesEffectAutoConnectOnNodeAdd = preferences.model('nodesEffectAutoConnectOnNodeAdd');
+const nodesEffectWireStyle = preferences.model('nodesEffectWireStyle');
 
 function selectLocale(locale: string) {
 	// リセット後の表示値更新で言語変更の案内が重複しないよう、保存は選択イベントからだけ行う。

@@ -1,5 +1,5 @@
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
-import { testGraph } from './helpers/effect-graph.mjs';
+import { testNodesEffect } from './helpers/nodes-effect.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -38,11 +38,11 @@ const { PreviewParameterEditingController, getPreviewParameterPosition, beginPre
 const close = (actual, expected) => actual.forEach((value, axis) => assert.ok(Math.abs(value - expected[axis]) < 1e-12, `${actual} != ${expected}`));
 
 function fixture() {
-	const customNodeGraphEffect = { id: 'customNodeGraphEffect', definition: testGraph({ nodes: [{ id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, params: { first: literal([0, 0]), second: literal([0.2, 0.1]) } }] }) };
-	const state = { customNodeGraphEffects: ref([customNodeGraphEffect]), timelineScenes: ref([]), resolution: ref({ width: 1920, height: 1080 }) };
+	const nodesEffect = { id: 'nodesEffect', definition: testNodesEffect({ nodes: [{ id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, params: { first: literal([0, 0]), second: literal([0.2, 0.1]) } }] }) };
+	const state = { nodesEffects: ref([nodesEffect]), timelineScenes: ref([]), resolution: ref({ width: 1920, height: 1080 }) };
 	const manager = new UndoRedo(state, COMMAND_DEFS);
-	const node = state.customNodeGraphEffects.value[0].definition.nodes[0];
-	const scope = { kind: 'customNodeGraphEffect', target: { customNodeGraphEffectId: customNodeGraphEffect.id } };
+	const node = state.nodesEffects.value[0].definition.nodes[0];
+	const scope = { kind: 'nodesEffect', target: { nodesEffectId: nodesEffect.id } };
 	const begin = () => {
 		const binding = node.params.first;
 		return preparePreviewParameterDrag(definition, binding, 500, 1000,
@@ -179,7 +179,7 @@ test('inserts a single stable keyframe at the edit time and preserves interpolat
 });
 
 // 【Timelineの保存先へ反映し、未指定の位置はUndoで未指定へ戻す】
-// 表示用既定値を参照しただけで保存値を増やさず、Custom Node Graph Effectの保存先とも混同しない。
+// 表示用既定値を参照しただけで保存値を増やさず、Nodes Effectの保存先とも混同しない。
 test('uses timeline layer commands and restores an omitted binding on undo', () => {
 	const f = fixture();
 	const layer = { id: 'layer', layerType: 'shape', compositingParamValues: {} };
@@ -197,7 +197,7 @@ test('uses timeline layer commands and restores an omitted binding on undo', () 
 test('does not roll back another command when an old drag is cancelled', () => {
 	const f = fixture();
 	const drag = f.begin(); drag.update([0.1, 0.1]);
-	f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { target: { customNodeGraphEffect: f.scope.target, nodeId: 'node' }, parameterPath: ['first'], source: { inputSource: 'literal', value: [0.4, 0.3] } });
+	f.manager.commit('setNodesEffectNodeParameterSource', { target: { nodesEffect: f.scope.target, nodeId: 'node' }, parameterPath: ['first'], source: { inputSource: 'literal', value: [0.4, 0.3] } });
 	assert.equal(drag.active, false); drag.cancel();
 	assert.deepEqual(f.node.params.first.value, [0.4, 0.3]);
 });
@@ -206,7 +206,7 @@ test('does not roll back another command when an old drag is cancelled', () => {
 // ボタン表示と編集可否を分け、式やノード接続を固定値へ暗黙に変更しない。
 test('rejects driven inputs and vector controls without evaluating expressions', () => {
 	for (const binding of [{ inputSource: 'expression', expression: 'invalid' }, { inputSource: 'node', nodeId: 'other', outputPort: 'output' },
-		{ inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'parameter' }]) assert.equal(getPreviewParameterPosition(definition, binding, 0, 1000), null);
+		{ inputSource: 'nodesEffectPublicParameterReference', parameterId: 'parameter' }]) assert.equal(getPreviewParameterPosition(definition, binding, 0, 1000), null);
 	assert.equal(getPreviewParameterPosition({ ...definition, ui: { ...definition.ui, control: { controlType: 'vector' } } }, literal([0, 0]), 0, 1000), null);
 });
 

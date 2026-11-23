@@ -26,7 +26,7 @@ export async function run() {
 			const layer = testEffectLayer({ type: 'nativeEffect', id: 'text' });
 			const effect = createEffectTimelineLayer(layer, {
 				wgpu, sceneBaseResolution: resolution, resolutionScale: 1,
-				definitions: { getNativeEffect: () => definition, getCustomNodeGraphEffect: unexpected, getCustomShaderEffect: unexpected },
+				definitions: { getNativeEffect: () => definition, getNodesEffect: unexpected, getCustomShaderEffect: unexpected },
 				getNativeEffectImplementation: () => implementation,
 			});
 			const signal = new AbortController().signal;

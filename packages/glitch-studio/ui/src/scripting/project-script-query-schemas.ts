@@ -1,7 +1,7 @@
 import { effectSourceSchema } from '../commands/effect-source-schema.ts';
 import * as z from 'zod';
 import { parameterDefinitionSchema, textureDataTypeSchema, staticSettingDefinitionSchema } from '../commands/parameter-contract-schemas.ts';
-import { customNodeGraphEffectTargetSchema, customNodeGraphEffectNodeReferenceSchema, customNodeGraphEffectNodeSchema, customNodeGraphEffectSchema } from '../commands/custom-node-graph-effect-contract-schemas.ts';
+import { nodesEffectTargetSchema, nodesEffectNodeReferenceSchema, nodesEffectNodeSchema, nodesEffectSchema } from '../commands/nodes-effect-contract-schemas.ts';
 import { timelineLayerSchema, timelineClipSchema, timelineSceneResolutionSchema, timelineSceneReferenceSchema, timelineLayerReferenceSchema, timelineClipReferenceSchema, timelineEditableParameterBindingSchema } from '../commands/timeline-contract-schemas.ts';
 import { automationGraphSchema, projectCustomShaderEffectSchema, projectResolutionSchema, timelineMotionBlurSettingsSchema } from '../commands/project-contract-schemas.ts';
 import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
@@ -47,18 +47,18 @@ export const projectSummarySchema = z.looseObject({
 	exportSettings: exportDialogSettingsSchema.nullable(),
 });
 
-export const customNodeGraphEffectSummarySchema = z.looseObject({ target: customNodeGraphEffectTargetSchema, name: z.string() });
-export const customNodeGraphEffectResultSchema = z.intersection(customNodeGraphEffectSchema, customNodeGraphEffectSummarySchema.extend({
-	id: identifierSchema.optional().describe('Present on registered Custom Node Graph Effects. Inline Custom Node Graph Effects are identified by target instead.'),
+export const nodesEffectSummarySchema = z.looseObject({ target: nodesEffectTargetSchema, name: z.string() });
+export const nodesEffectResultSchema = z.intersection(nodesEffectSchema, nodesEffectSummarySchema.extend({
+	id: identifierSchema.optional().describe('Present on registered Nodes Effects. Inline Nodes Effects are identified by target instead.'),
 }));
-export const customNodeGraphEffectNodeSummarySchema = z.looseObject({
-	target: customNodeGraphEffectNodeReferenceSchema,
+export const nodesEffectNodeSummarySchema = z.looseObject({
+	target: nodesEffectNodeReferenceSchema,
 	id: identifierSchema,
 	type: z.enum(['effect', 'globalIn', 'globalOut', 'relay']),
 	effectSource: effectSourceSchema.nullable(),
 	displayName: z.string(),
 });
-export const customNodeGraphEffectNodeResultSchema = z.intersection(customNodeGraphEffectNodeSchema, z.looseObject({ target: customNodeGraphEffectNodeReferenceSchema }));
+export const nodesEffectNodeResultSchema = z.intersection(nodesEffectNodeSchema, z.looseObject({ target: nodesEffectNodeReferenceSchema }));
 
 export const timelineSceneSummarySchema = z.looseObject({ target: timelineSceneReferenceSchema, name: z.string(), resolution: timelineSceneResolutionSchema });
 export const timelineSceneResultSchema = timelineSceneSummarySchema.extend({ id: identifierSchema, layers: z.array(timelineLayerSchema) });

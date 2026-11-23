@@ -1,5 +1,5 @@
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
-import { testGraph } from './helpers/effect-graph.mjs';
+import { testNodesEffect } from './helpers/nodes-effect.mjs';
 import { nodeParameterTarget, assetSource } from './helpers/command-inputs.mjs';
 import { prepareTestCommand } from './helpers/prepared-command.mjs';
 import assert from 'node:assert/strict';
@@ -139,15 +139,15 @@ test('repairs enum keys using the current definition while preserving invalid st
 
 // 【離散値のタイムライン編集を履歴とプロジェクト保存へ統合する】
 // 一文字ずつの編集の集約に使うCommandが、保存値を参照共有せずUndo/Redoで復元することを確認する。
-// 通常のCustom Node Graph EffectとインラインCustom Node Graph Effectの両方で同じ入出力契約を維持する。
-test('round-trips and undoes discrete keyframe creation insertion and editing on both Custom Node Graph Effect layer types', async () => {
+// 通常のNodes EffectとインラインNodes Effectの両方で同じ入出力契約を維持する。
+test('round-trips and undoes discrete keyframe creation insertion and editing on both Nodes Effect layer types', async () => {
 	for (const inline of [false, true]) {
 		for (const [dataType, first, second] of [[{ kind: 'string' }, 'Hello\n世界', ''], [{ kind: 'bool' }, true, false], [{ kind: 'enum', options: ['a', 'b'] }, 'a', 'b']]) {
 			const { state } = fixture();
 			const definition = { ...keyframeDefinition(dataType, first), id: 'gain', nameForReference: 'gain' };
-			state.customNodeGraphEffects.value[0].definition.paramDefs = { [definition.id]: definition };
+			state.nodesEffects.value[0].definition.paramDefs = { [definition.id]: definition };
 			const layer = state.timelineScenes.value[0].layers[0];
-			if (inline) { layer.effectSource = { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: state.customNodeGraphEffects.value[0].definition }; }
+			if (inline) { layer.effectSource = { type: 'inlineNodesEffect', nodesEffect: state.nodesEffects.value[0].definition }; }
 			const target = { sceneId: 'scene', layerId: layer.id, paramPath: ['gain'] };
 			const create = prepareTestCommand(uiParameterEdit, { ...target, edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } });
 			create.execute(state);
@@ -156,7 +156,7 @@ test('round-trips and undoes discrete keyframe creation insertion and editing on
 			const value = updateInlineKeyframe(inserted.value, definition, inserted.keyframeId, { value: second });
 			const edit = prepareTestCommand(uiParameterEdit, { ...target, edit: { kind: 'keyframesTimelineInline', value } });
 			edit.execute(state);
-			const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: [], customNodeGraphEffects: state.customNodeGraphEffects.value, timelineScenes: state.timelineScenes.value }));
+			const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: [], nodesEffects: state.nodesEffects.value, timelineScenes: state.timelineScenes.value }));
 			assert.deepEqual(restored.timelineScenes, state.timelineScenes.value);
 			value.keyframesTimeline.keyframes[0].value = 'mutated';
 			edit.undo(state);
@@ -176,7 +176,7 @@ test('round-trips and undoes discrete keyframe creation insertion and editing on
 // 既存コマンドを通して変更し、選択したキー以外の設定や時刻を変更しないことも確認する。
 test('round-trips easing family and direction and restores interpolation edits with undo and redo', async () => {
 	const { state } = fixture();
-	const definition = state.customNodeGraphEffects.value[0].definition.paramDefs.gain;
+	const definition = state.nodesEffects.value[0].definition.paramDefs.gain;
 	const layer = state.timelineScenes.value[0].layers[0];
 	const initial = createInlineKeyframesTimeline(definition);
 	const keyframeId = initial.keyframesTimeline.keyframes[0].id;
@@ -192,7 +192,7 @@ test('round-trips easing family and direction and restores interpolation edits w
 		assert.deepEqual(layer.effectParamValues.gain.keyframesTimeline.keyframes[0].interpolation, interpolation);
 		assert.deepEqual(layer.effectParamValues.gain.keyframesTimeline.keyframes[1], initial.keyframesTimeline.keyframes[1]);
 		const after = structuredClone(layer.effectParamValues.gain);
-		const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: [], customNodeGraphEffects: state.customNodeGraphEffects.value, timelineScenes: state.timelineScenes.value }));
+		const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: [], nodesEffects: state.nodesEffects.value, timelineScenes: state.timelineScenes.value }));
 		assert.deepEqual(restored.timelineScenes, state.timelineScenes.value);
 		edit.undo(state);
 		assert.deepEqual(layer.effectParamValues.gain, before);
@@ -233,7 +233,7 @@ test('rejects easing interpolation for discrete keyframe values', () => {
 
 function imageFixture() {
 	const assets = ['first', 'second'].map(id => ({ id, name: id, fileDataType: 'image/png', fileData: new Blob([id], { type: 'image/png' }) }));
-	const state = { assets: { value: assets }, customNodeGraphEffects: { value: [] }, timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }] } };
+	const state = { assets: { value: assets }, nodesEffects: { value: [] }, timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }] } };
 	const layer = createImageLayer('first', 2000);
 	const target = { sceneId: 'scene', layerId: layer.id, clipId: layer.clips[0].id };
 	const add = prepareTestCommand(importLayer, { sceneId: 'scene', layer });
@@ -256,7 +256,7 @@ test('round-trips image assets and independently undoes timing, compositing and 
 	assert.equal(current().clips[0].contentOffsetMs, 0);
 	assert.equal(current().clips[0].durationMs, 60000);
 	assert.equal(current().compositingParamValues.opacity.inputSource, 'keyframesTimelineInline');
-	const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: state.assets.value, customNodeGraphEffects: [], timelineScenes: state.timelineScenes.value }));
+	const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: state.assets.value, nodesEffects: [], timelineScenes: state.timelineScenes.value }));
 	assert.deepEqual(restored.timelineScenes, state.timelineScenes.value);
 	assert.equal(await restored.assets.find(asset => asset.id === current().clips[0].assetId).fileData.text(), 'second');
 	for (const command of [source, opacity, timing]) command.undo(state);
@@ -275,7 +275,7 @@ test('round-trips layer masks and reference-only layers through project files', 
 	prepareTestCommand(importLayer, { sceneId: 'scene', layer: source }).execute(state);
 	prepareTestCommand(COMMAND_DEFS.setTimelineLayerReferenceMask, { ...target, layerMask: { sourceLayerId: source.id, channel: 'luminance', inverted: true } }).execute(state);
 	prepareTestCommand(COMMAND_DEFS.setTimelineLayerCompositeInclusion, { sceneId: 'scene', layerId: source.id, isIncludedInComposite: false }).execute(state);
-	const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: state.assets.value, customNodeGraphEffects: [], timelineScenes: state.timelineScenes.value }));
+	const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: state.assets.value, nodesEffects: [], timelineScenes: state.timelineScenes.value }));
 	assert.deepEqual(restored.timelineScenes[0].layers.find(layer => layer.id === target.layerId).layerMask, current().layerMask);
 	assert.equal(restored.timelineScenes[0].layers.find(layer => layer.id === source.id).isIncludedInComposite, false);
 });
@@ -293,7 +293,7 @@ test('preserves image references through asset deletion and keeps duplicated set
 	const remove = prepareTestCommand(COMMAND_DEFS.removeAsset, { assetId: 'first' });
 	remove.execute(state);
 	assert.equal(current().clips[0].assetId, 'first');
-	const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: state.assets.value, customNodeGraphEffects: [], timelineScenes: state.timelineScenes.value }));
+	const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: state.assets.value, nodesEffects: [], timelineScenes: state.timelineScenes.value }));
 	assert.equal(restored.timelineScenes[0].layers.find(entry => entry.id === layer.id).clips[0].assetId, 'first');
 	const change = prepareTestCommand(COMMAND_DEFS.setTimelineClipSource, { ...target, assetId: 'second' });
 	change.execute(state);
@@ -335,7 +335,7 @@ test('round-trips video settings and undoes trimmed timing and independent audio
 	for (const command of [settings, fit, volume, timing]) command.execute(state);
 	assert.deepEqual(state.timelineScenes.value[0].layers.find(entry => entry.id === 'video').compositingParamValues.fitMode, { inputSource: 'literal', value: 'cover' });
 	const before = structuredClone(state.timelineScenes.value[0].layers);
-	const encoded = await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, gsVersion: '2.0.0', assets: [], customNodeGraphEffects: [], timelineScenes: state.timelineScenes.value });
+	const encoded = await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, gsVersion: '2.0.0', assets: [], nodesEffects: [], timelineScenes: state.timelineScenes.value });
 	assert.deepEqual(decodeProjectFile(encoded).timelineScenes[0].layers, before);
 	assert.throws(() => mediaCommand('trimTimelineClip', { ...target, edge: 'start', deltaMs: NaN, sourceDurationMs: 10000 }).execute(state), /input: deltaMs:/);
 	assert.deepEqual(state.timelineScenes.value[0].layers, before);
@@ -364,7 +364,7 @@ test('round-trips audio layers and undoes timing, volume and removal', async () 
 	remove.execute(state);
 	remove.undo(state);
 	assert.deepEqual(state.timelineScenes.value[0].layers, before);
-	const encoded = await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, gsVersion: '2.0.0', assets: [], customNodeGraphEffects: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: state.timelineScenes.value[0].layers }] });
+	const encoded = await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, gsVersion: '2.0.0', assets: [], nodesEffects: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: state.timelineScenes.value[0].layers }] });
 	assert.deepEqual(decodeProjectFile(encoded).timelineScenes[0].layers, before);
 	timing.undo(state);
 	volume.undo(state);
@@ -375,8 +375,8 @@ test('round-trips audio layers and undoes timing, volume and removal', async () 
 	assert.deepEqual(state.timelineScenes.value[0].layers.find(entry => entry.id === 'audio'), layer);
 });
 
-// 合成設定の履歴はCustom Node Graph Effectパラメータと独立し、保存された初期値まで復元する。
-test('undoes and redoes compositing expressions without changing Custom Node Graph Effect parameters', () => {
+// 合成設定の履歴はNodes Effectパラメータと独立し、保存された初期値まで復元する。
+test('undoes and redoes compositing expressions without changing Nodes Effect parameters', () => {
 	const { state } = fixture();
 	const layer = state.timelineScenes.value[0].layers[0];
 	layer.effectParamValues.opacity = { inputSource: 'literal', value: 0.8 };
@@ -414,7 +414,7 @@ test('preserves compositing graphs and settings through edits and serialization'
 	inline.execute(state);
 	edit('rotation', { kind: 'automationGraphReference', value: 'graph', options: { trimmedDurationMs: 2500, offsetMode: 'start', wrapMode: 'clamp' } });
 	edit('blendMode', { kind: 'literal', value: 'replace' });
-	const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] }], assets: [], customNodeGraphEffects: [] })).timelineScenes[0].layers[0];
+	const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] }], assets: [], nodesEffects: [] })).timelineScenes[0].layers[0];
 	assert.deepEqual(restored.compositingParamValues, layer.compositingParamValues);
 	assert.deepEqual(restored.automationGraphs, layer.automationGraphs);
 	assert.equal(restored.compositingParamValues.rotation.trimmedDurationMs, 2500);
@@ -457,17 +457,17 @@ function fixture() {
 	const initial = { inputSource: 'literal', value: 3 };
 	const node = { id: 'node', type: 'effect', resolution: { mode: 'context', scale: 1 }, staticSettings: {}, effectSource: { type: 'nativeEffect', id: 'test' }, params: { values: { inputSource: 'literal', value: [{ id: 'first', binding: initial }] } } };
 	const state = {
-		customNodeGraphEffects: { value: [{ id: 'customNodeGraphEffect', definition: testGraph({ customParameterValues: {}, nodes: [node], primaryInputParameter: null, paramDefs: { "gain": { ...keyframeDefinition({ kind: 'scalar' }, initial.value) } } }) }] },
-		timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' }, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], effectParamValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] }] },
+		nodesEffects: { value: [{ id: 'nodesEffect', definition: testNodesEffect({ customParameterValues: {}, nodes: [node], primaryInputParameter: null, paramDefs: { "gain": { ...keyframeDefinition({ kind: 'scalar' }, initial.value) } } }) }] },
+		timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'nodesEffect' }, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], effectParamValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] }] },
 	};
-	return { state, node, target: { customNodeGraphEffectId: 'customNodeGraphEffect', nodeId: 'node', paramPath: ['values', 'first'] } };
+	return { state, node, target: { nodesEffectId: 'nodesEffect', nodeId: 'node', paramPath: ['values', 'first'] } };
 }
 
 // 【配列要素のBindingを切り替えても要素IDを維持する】
 // inlineへの切り替えをUndoでき、RedoでグラフのポイントIDも再現する。
 test('restores inline graph creation in nested node parameters', () => {
 	const { state, node, target } = fixture();
-	const command = prepareTestCommand(COMMAND_DEFS.switchCustomNodeGraphEffectNodeParameterInputSource, { ...nodeParameterTarget({ ...target }), inputSource: 'automationGraphInline' });
+	const command = prepareTestCommand(COMMAND_DEFS.switchNodesEffectNodeParameterInputSource, { ...nodeParameterTarget({ ...target }), inputSource: 'automationGraphInline' });
 	command.execute(state);
 	const created = structuredClone(node.params.values.value[0].binding);
 	assert.equal(node.params.values.value[0].id, 'first');
@@ -484,16 +484,16 @@ test('restores inline graph creation in nested node parameters', () => {
 // UndoRedoは結合時に最初のundoと最後のexecuteを保持する。その契約で全ドラッグを復元できる。
 test('restores the first and final snapshots of a merged graph drag', () => {
 	const { state, node, target } = fixture();
-	prepareTestCommand(COMMAND_DEFS.switchCustomNodeGraphEffectNodeParameterInputSource, { ...nodeParameterTarget({ ...target }), inputSource: 'automationGraphInline' }).execute(state);
+	prepareTestCommand(COMMAND_DEFS.switchNodesEffectNodeParameterInputSource, { ...nodeParameterTarget({ ...target }), inputSource: 'automationGraphInline' }).execute(state);
 	const before = structuredClone(node.params.values.value[0].binding);
 	const intermediate = structuredClone(before);
 	intermediate.automationGraph.points[0].y = 2;
-	const first = prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: intermediate });
+	const first = prepareTestCommand(COMMAND_DEFS.setNodesEffectNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: intermediate });
 	first.execute(state);
 	const final = structuredClone(intermediate);
 	final.automationGraph.points[0].y = 4;
 	final.automationGraph.points[1].bezierControlPointA = [-0.25, 2];
-	const last = prepareTestCommand(COMMAND_DEFS.setCustomNodeGraphEffectNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: final });
+	const last = prepareTestCommand(COMMAND_DEFS.setNodesEffectNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: final });
 	last.execute(state);
 	// エディタが次に可変配列を編集しても、履歴のスナップショットは変わらない。
 	intermediate.automationGraph.points[0].y = 99;
@@ -576,7 +576,7 @@ test('changes scene resolution with undo redo and project persistence', async ()
 	const command = prepareTestCommand(COMMAND_DEFS.setTimelineSceneResolution, { sceneId: scene.id, resolution });
 	command.execute(state);
 	assert.deepEqual(scene.resolution, resolution);
-	const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: state.assets.value, customNodeGraphEffects: [], timelineScenes: state.timelineScenes.value }));
+	const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: state.assets.value, nodesEffects: [], timelineScenes: state.timelineScenes.value }));
 	assert.deepEqual(restored.timelineScenes[0].resolution, resolution);
 	command.undo(state);
 	assert.deepEqual(scene.resolution, { mode: 'project' });

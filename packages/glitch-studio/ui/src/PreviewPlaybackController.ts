@@ -37,7 +37,7 @@ export class PreviewPlaybackController {
 	public readonly isTimelinePlaying = computed(() => !this.suspended.value && this.playbackState.value.mode === 'timeline' && this.playbackState.value.playing);
 	public readonly isTimelineBaking = computed(() => this.timelineBake.value != null);
 	public readonly livePreviewEffectSource = computed(() => this.playbackState.value.mode === 'effectLivePreview' ? this.playbackState.value.effectSource : null);
-	public readonly livePreviewCustomNodeGraphEffectId = computed(() => this.livePreviewEffectSource.value?.type === 'customNodeGraphEffectReference' ? this.livePreviewEffectSource.value.id : null);
+	public readonly livePreviewNodesEffectId = computed(() => this.livePreviewEffectSource.value?.type === 'nodesEffectReference' ? this.livePreviewEffectSource.value.id : null);
 	public readonly livePreviewCustomShaderEffectId = computed(() => this.livePreviewEffectSource.value?.type === 'customShaderEffectReference' ? this.livePreviewEffectSource.value.id : null);
 
 	constructor(

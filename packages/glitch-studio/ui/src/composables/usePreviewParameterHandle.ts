@@ -7,7 +7,7 @@ import { previewParameterContextKey, getPreviewParameterPosition, beginPreviewPa
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
-import type { CustomNodeGraphEffectEffectNode } from '@/types/custom-node-graph-effect-view.ts';
+import type { NodesEffectEffectNode } from '@/types/nodes-effect-view.ts';
 import type { EditableParameterBinding } from '../types/parameter-edit.ts';
 import type { ProjectSessionContext } from '../ProjectSessionContext.ts';
 import { getPreviewViewportValue, getPreviewViewportZoom, isViewport2DParameter, preparePreviewViewportDrag } from '../utility/preview-viewport.ts';
@@ -16,7 +16,7 @@ import type { PreviewViewportEdit } from '../utility/preview-viewport.ts';
 
 export function usePreviewParameterHandle(app: ProjectSessionContext, props: {
 	paramDef: ParameterDefinition; paramValue: EditableParameterBinding; paramPath: ParamPath;
-	node?: CustomNodeGraphEffectEffectNode; label?: string; previewParameterGroup?: TimelineParameterTarget;
+	node?: NodesEffectEffectNode; label?: string; previewParameterGroup?: TimelineParameterTarget;
 }) {
 	const context = inject(previewParameterContextKey, null);
 	const key = computed(() => context?.scope.value == null ? null
@@ -26,7 +26,7 @@ export function usePreviewParameterHandle(app: ProjectSessionContext, props: {
 	const endTime = () => {
 		const scope = context?.scope.value;
 		const sceneId = scope?.kind === 'timelineLayer' ? scope.sceneId
-			: scope?.kind === 'customNodeGraphEffect' && 'sceneId' in scope.target ? scope.target.sceneId : null;
+			: scope?.kind === 'nodesEffect' && 'sceneId' in scope.target ? scope.target.sceneId : null;
 		if (sceneId == null) return 0;
 		const scene = app.projectContext.stateManager.state.timelineScenes.value.find(candidate => candidate.id === sceneId);
 		return scene == null ? 0 : getSceneDuration(scene);
@@ -55,13 +55,13 @@ export function usePreviewParameterHandle(app: ProjectSessionContext, props: {
 	const available = computed(() => {
 		const scope = context?.scope.value;
 		if (scope == null || !editable.value || props.node?.isBypass === true || app.renderEngine.isSuspended.value) return false;
-		if (scope.kind === 'timelineLayer' && props.previewParameterGroup == null || scope.kind === 'customNodeGraphEffect' && props.node == null) return false;
+		if (scope.kind === 'timelineLayer' && props.previewParameterGroup == null || scope.kind === 'nodesEffect' && props.node == null) return false;
 		const playback = app.previewPlayback;
 		if (scope.kind === 'livePreview') {
 			const source = playback.livePreviewEffectSource.value;
 			return context?.beginLivePreviewEdit != null && source?.type === scope.effectSource.type && source.id === scope.effectSource.id;
 		}
-		if (scope.kind === 'customNodeGraphEffect' && 'customNodeGraphEffectId' in scope.target) return playback.livePreviewCustomNodeGraphEffectId.value === scope.target.customNodeGraphEffectId;
+		if (scope.kind === 'nodesEffect' && 'nodesEffectId' in scope.target) return playback.livePreviewNodesEffectId.value === scope.target.nodesEffectId;
 		const sceneId = scope.kind === 'timelineLayer' ? scope.sceneId : 'sceneId' in scope.target ? scope.target.sceneId : null;
 		return playback.state.value.mode === 'timeline' && app.activeSceneId.value === sceneId
 			&& !playback.isTimelinePlaying.value && !playback.isTimelineBaking.value;

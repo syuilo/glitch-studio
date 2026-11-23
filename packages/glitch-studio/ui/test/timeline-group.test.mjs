@@ -1,4 +1,4 @@
-import { testGraph } from './helpers/effect-graph.mjs';
+import { testNodesEffect } from './helpers/nodes-effect.mjs';
 import { i18nPlugin } from './helpers/i18n.mjs';
 import { createDragActionsFixture } from './helpers/timeline-drag-actions.mjs';
 import assert from 'node:assert/strict';
@@ -48,7 +48,7 @@ const bundled = await build({
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { COMMAND_DEFS, createTimelineCommandDefinitions, createTimelineContainerLayer, getTimelineParameterEditBinding, UndoRedo, ProjectRenderValidation, prepareTimelineContainerMove, duplicateTimelineLayers, findTimelineLayer,
-	createVoicevoxTimelineLayer, applyRendererProjectChanges, findRendererCustomNodeGraphEffect, createTimelineLayerActions } = module.exports;
+	createVoicevoxTimelineLayer, applyRendererProjectChanges, findRendererNodesEffect, createTimelineLayerActions } = module.exports;
 const literal = value => ({ inputSource: 'literal', value });
 const keys = times => ({ inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
 	keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false,
@@ -60,7 +60,7 @@ const group = (id, layers = []) => ({ ...createTimelineContainerLayer('group', i
 function fixture(t, layers, inspectMedia = () => ({ durationMs: 5000, hasAudio: true, hasVideo: false })) {
 	t.mock.method(console, 'log', () => {});
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers };
-	const state = { timelineScenes: { value: [scene] }, customNodeGraphEffects: { value: [] }, assets: { value: [] } };
+	const state = { timelineScenes: { value: [scene] }, nodesEffects: { value: [] }, assets: { value: [] } };
 	return { scene, state, history: new UndoRedo(state, { ...COMMAND_DEFS, ...createTimelineCommandDefinitions({ inspectMedia }) }) };
 }
 
@@ -231,7 +231,7 @@ test('preserves mask settings and inactive blend keys when duplicating or moving
 	layer.compositingParamValues.blendMode = keys([400, 700]);
 	layer.compositingParamValues.blendMode.keyframesTimeline.dataType = { kind: 'blendMode' };
 	for (const key of layer.compositingParamValues.blendMode.keyframesTimeline.keyframes) key.value = 'multiply';
-	const state = { customNodeGraphEffects: { value: [] } };
+	const state = { nodesEffects: { value: [] } };
 	const move = prepareTimelineContainerMove(state, layer);
 	assert.deepEqual(move.keyframes.filter(key => key.paramPath[0] === 'blendMode').map(key => key.x), [400, 700]);
 	const [copy] = duplicateTimelineLayers([layer]);
@@ -393,10 +393,10 @@ test('keeps selected layers on right click and offers rename only for one layer'
 // グループと子の同時選択や、別々の選択レイヤーを参照するBindingでも、
 // 元の木を変更せずコピー側へ参照を付け替え、Redoで同じIDと配置を再現する。
 test('duplicates selected roots together above their sources with one undo', async t => {
-	const visual = { id: 'visual', name: 'Visual', resolution: { mode: 'auto', scale: 1 }, layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'shared' }, isDisabled: false, automationGraphs: [], clips: [], compositingParamValues: {}, effectParamValues: { audio: { inputSource: 'anotherLayerAudio', layerId: 'audio' } } };
+	const visual = { id: 'visual', name: 'Visual', resolution: { mode: 'auto', scale: 1 }, layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'shared' }, isDisabled: false, automationGraphs: [], clips: [], compositingParamValues: {}, effectParamValues: { audio: { inputSource: 'anotherLayerAudio', layerId: 'audio' } } };
 	const f = fixture(t, [group('parent', [sound('audio')]), visual]);
 	f.state.assets.value = [{ id: 'asset', fileDataType: 'audio/wav' }];
-	f.state.customNodeGraphEffects.value = [{ id: 'shared', definition: testGraph({ paramDefs: { audio: { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null } } }) }];
+	f.state.nodesEffects.value = [{ id: 'shared', definition: testNodesEffect({ paramDefs: { audio: { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null } } }) }];
 	const before = structuredClone(f.scene);
 	const controls = layerMenuFixture(f, ['audio', 'visual', 'parent']);
 	await controls.open('parent').find(item => item.id === 'duplicate').action();
@@ -448,7 +448,7 @@ test('renames through history and ignores results after the timeline closes', as
 test('leaves the tree selection and history unchanged when duplication preparation fails', async t => {
 	const f = fixture(t, [sound('a'), sound('b')], async () => { throw new Error('Missing media'); });
 	f.state.assets.value = [{ id: 'asset', fileDataType: 'audio/wav' }];
-	f.state.customNodeGraphEffects.value = [{ id: 'shared', definition: testGraph({ paramDefs: { audio: { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null } } }) }];
+	f.state.nodesEffects.value = [{ id: 'shared', definition: testNodesEffect({ paramDefs: { audio: { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null } } }) }];
 	const before = structuredClone(f.scene);
 	const controls = layerMenuFixture(f, ['a', 'b']);
 	await controls.open('a').find(item => item.id === 'duplicate').action();
@@ -530,7 +530,7 @@ test('groups, reparents and ungroups atomically with stable child IDs', t => {
 // 【複製内の音声参照は複製先へ、外部参照は元のIDへ向ける】
 // 入れ子のパラメータも対応し、元のグループや共有定義を書き換えない。
 test('remaps internal audio references while preserving external references when duplicating', () => {
-	const original = group('group', [sound('sound'), group('nested', [{ id: 'visual', name: 'Visual', resolution: { mode: 'auto', scale: 1 }, layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'shared' }, isDisabled: false, automationGraphs: [], clips: [], compositingParamValues: {}, effectParamValues: { internal: { inputSource: 'anotherLayerAudio', layerId: 'sound' }, external: { inputSource: 'anotherLayerAudio', layerId: 'outside' },
+	const original = group('group', [sound('sound'), group('nested', [{ id: 'visual', name: 'Visual', resolution: { mode: 'auto', scale: 1 }, layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'shared' }, isDisabled: false, automationGraphs: [], clips: [], compositingParamValues: {}, effectParamValues: { internal: { inputSource: 'anotherLayerAudio', layerId: 'sound' }, external: { inputSource: 'anotherLayerAudio', layerId: 'outside' },
 			items: { inputSource: 'array', items: [{ id: 'item', value: { inputSource: 'anotherLayerAudio', layerId: 'group' } }] } } }])]);
 	const before = structuredClone(original);
 	const [copy] = duplicateTimelineLayers([original]);
@@ -547,12 +547,12 @@ test('remaps internal audio references while preserving external references when
 // 編集対象の経路だけをコピーし、描画中の古いスナップショットとインライン定義を維持する。
 test('applies nested renderer patches without mutating the previous tree', () => {
 	const child = sound('sound');
-	const visual = { id: 'visual', layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: { nodes: [] } } };
-	const original = { customNodeGraphEffects: [], timelineScenes: [{ id: 'scene', layers: [group('group', [child, visual])] }] };
+	const visual = { id: 'visual', layerType: 'effect', effectSource: { type: 'inlineNodesEffect', nodesEffect: { nodes: [] } } };
+	const original = { nodesEffects: [], timelineScenes: [{ id: 'scene', layers: [group('group', [child, visual])] }] };
 	const next = applyRendererProjectChanges(original, [{ type: 'layer', sceneId: 'scene', layerId: 'sound', layer: { ...child, isDisabled: true }, changes: [{ type: 'disabled' }] }]);
 	assert.equal(findTimelineLayer(original.timelineScenes[0].layers, 'sound').isDisabled, false);
 	assert.equal(findTimelineLayer(next.timelineScenes[0].layers, 'sound').isDisabled, true);
-	assert.equal(findRendererCustomNodeGraphEffect(next, { sceneId: 'scene', layerId: 'visual' }), visual.effectSource.customNodeGraphEffect);
+	assert.equal(findRendererNodesEffect(next, { sceneId: 'scene', layerId: 'visual' }), visual.effectSource.nodesEffect);
 	assert.equal(next.timelineScenes[0].layers[0].layers[1], visual);
 });
 
@@ -588,7 +588,7 @@ test('validates every descendant before inserting a group', t => {
 	let durationMs = 100;
 	const f = fixture(t, [sound('existing')], () => ({ durationMs, hasAudio: true, hasVideo: false }));
 	f.state.assets.value = [{ id: 'asset', fileDataType: 'audio/wav' }];
-	f.state.customNodeGraphEffects.value = [{ id: 'shared', definition: testGraph({ paramDefs: { audio: { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null } } }) }];
+	f.state.nodesEffects.value = [{ id: 'shared', definition: testNodesEffect({ paramDefs: { audio: { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null } } }) }];
 	const before = structuredClone(f.scene);
 	const input = { sceneId: 'scene', beforeLayerId: 'existing', layer: group('new', [group('nested', [sound('fresh')])]) };
 	assert.throws(() => f.history.commit('insertTimelineLayer', input), /media duration/);
@@ -690,7 +690,7 @@ test('remaps internal image output references while preserving external image so
 		{ id: 'first', binding: { ...reference('source', 'rendered'), fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' } },
 		{ id: 'second', binding: { ...reference('outside', 'composited'), fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' } },
 	] } } };
-	const publicLayer = { id: 'public', layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'visual' }, clips: [], effectParamValues: { image: reference('source', 'source') } };
+	const publicLayer = { id: 'public', layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'visual' }, clips: [], effectParamValues: { image: reference('source', 'source') } };
 	const original = group('root', [source, effect, publicLayer]);
 	const [copy] = duplicateTimelineLayers([original]);
 	const [copiedSource, copiedEffect, copiedPublic] = copy.layers;

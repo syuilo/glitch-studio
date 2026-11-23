@@ -8,7 +8,7 @@ const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: {} }, defaultValue: 0 };
 const native = { type: 'nativeEffect', id: 'test' };
-const inline = customNodeGraphEffect => ({ type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect });
+const inline = nodesEffect => ({ type: 'inlineNodesEffect', nodesEffect });
 const definition = { kind: 'generate', primaryInputParameter: null, primaryOutput: 'image', paramDefs: {},
 	outputDefs: { image: { dataType: { kind: 'color' } } }, resolutionInputParameters: [] };
 const output = { nodeId: 'draw', outputPort: 'image' };
@@ -44,20 +44,20 @@ test('updates default uniforms and modifiers while retaining the inline placemen
 		const source = frame(1);
 		const texture = instance.outputs.get('image').texture;
 		instance.render(source);
-		instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'draw', params: { gain: literal(3) } });
+		instance.updateNodesEffectValues(null, { nodeId: 'draw', params: { gain: literal(3) } });
 		instance.render(source);
-		instance.updateCustomNodeGraphEffectValues(null, { customParameterValues: { offset: literal(7) } });
+		instance.updateNodesEffectValues(null, { customParameterValues: { offset: literal(7) } });
 		assert.equal(publicBindings, 0);
 		const modifier = code => ({ ...literal(3), expressionModifier: { enabled: true, code } });
 		const firstModifier = modifier('VALUE + PUBLIC("bias")');
-		instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'draw', params: { gain: firstModifier } });
+		instance.updateNodesEffectValues(null, { nodeId: 'draw', params: { gain: firstModifier } });
 		assert.equal(publicBindings, 1);
 		assert.equal(instance.tryPrepare(source), true);
-		instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'draw', params: { gain: firstModifier, unused: literal(9) } });
+		instance.updateNodesEffectValues(null, { nodeId: 'draw', params: { gain: firstModifier, unused: literal(9) } });
 		assert.equal(instance.preparationStatus.type, 'ready');
-		instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'draw', params: { gain: modifier('VALUE + PUBLIC("bias") + CUSTOM("offset") + TIME') } });
+		instance.updateNodesEffectValues(null, { nodeId: 'draw', params: { gain: modifier('VALUE + PUBLIC("bias") + CUSTOM("offset") + TIME') } });
 		instance.render(source);
-		instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'draw', params: {} });
+		instance.updateNodesEffectValues(null, { nodeId: 'draw', params: {} });
 		instance.render(source);
 		assert.deepEqual(draws, [[0, 0, 40], [0, 3, 40], [3, 15, 40], [15, 0, 40]]);
 		assert.equal(instance.outputs.get('image').texture, texture);
@@ -67,7 +67,7 @@ test('updates default uniforms and modifiers while retaining the inline placemen
 // 【登録値の編集を同じ登録IDの全配置に届け、無関係な出力はキャッシュから返す】
 // 入れ子と直接配置でノードIDが同じでも、PUBLICは各配置の引数を読み、外側の同名ノードは描き直さない。
 test('updates every nested placement of a registration and retains unrelated cached outputs', async () => {
-	const ref = { type: 'customNodeGraphEffectReference', id: 'registered' };
+	const ref = { type: 'nodesEffectReference', id: 'registered' };
 	const def = { ...definition, paramDefs: { gain: scalar } };
 	const registered = { ...definition, paramDefs: { bias: scalar }, customParameterDefs: { offset: { ...scalar, nameForReference: 'offset' } },
 		nodes: [{ id: 'draw', effectSource: native, params: { gain: expression('PUBLIC("bias") + CUSTOM("offset")') } }],
@@ -83,17 +83,17 @@ test('updates every nested placement of a registration and retains unrelated cac
 		const draws = [];
 		values.push(draws);
 		return { cacheKey: 0, render() { draws.push(inputs.gain.value); }, dispose() {} };
-	}, { definitions: { getNativeEffect: () => def, getCustomNodeGraphEffect: () => registered },
+	}, { definitions: { getNativeEffect: () => def, getNodesEffect: () => registered },
 		usedOutputPorts: new Set(['first', 'second', 'other']) });
 
 	try {
 		const source = frame();
 		instance.render(source);
-		instance.updateCustomNodeGraphEffectValues('registered', { customParameterValues: { offset: literal(3) } });
+		instance.updateNodesEffectValues('registered', { customParameterValues: { offset: literal(3) } });
 		instance.render(source);
-		instance.updateCustomNodeGraphEffectValues('registered', { nodeId: 'draw', params: { gain: expression('(PUBLIC("bias") + CUSTOM("offset")) * 2') } });
+		instance.updateNodesEffectValues('registered', { nodeId: 'draw', params: { gain: expression('(PUBLIC("bias") + CUSTOM("offset")) * 2') } });
 		instance.render(source);
-		instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'first', params: { bias: literal(2) } });
+		instance.updateNodesEffectValues(null, { nodeId: 'first', params: { bias: literal(2) } });
 		instance.render(source);
 		instance.render(source);
 		assert.deepEqual(values, [[1, 4, 8, 10], [5, 8, 16], [100]]);
@@ -128,9 +128,9 @@ test('rebinds edited array fields before native frame preparation', async () => 
 	try {
 		const source = frame();
 		instance.render(source);
-		instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'draw', params: { entries: bindings('1', 0.5) } });
+		instance.updateNodesEffectValues(null, { nodeId: 'draw', params: { entries: bindings('1', 0.5) } });
 		instance.render(source);
-		instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'draw', params: { entries: bindings('2', 0.25) } });
+		instance.updateNodesEffectValues(null, { nodeId: 'draw', params: { entries: bindings('2', 0.25) } });
 		instance.render(source);
 		assert.deepEqual(prepared, [[1, [1, 0, 0, 1], null], [1, [0.5, 0, 0, 0.5], null], [2, [0.25, 0, 0, 0.25], null]]);
 		assert.deepEqual(bound, [['1', ['draw']], ['2', ['draw']]]);
@@ -166,7 +166,7 @@ test('evaluates nested public and custom scopes, modifiers, automation and keyfr
 	instance.render(frame(2));
 	assert.deepEqual(values, [[14, 3, 1, 0.25, [0.25, 0.25]], [18, 3, 1, 0.25, [0.25, 0.25]]]);
 	instance.dispose();
-	graph.nodes[0].params.result = { inputSource: 'customNodeGraphEffectCustomParameterValueReference', parameterId: 'unused' };
+	graph.nodes[0].params.result = { inputSource: 'nodesEffectCustomParameterValueReference', parameterId: 'unused' };
 	const cyclic = await create(inline(parent), def, () => ({ render() {}, dispose() {} }));
 	assert.throws(() => cyclic.render(frame()), /Circular custom parameter reference/);
 	cyclic.dispose();
@@ -174,7 +174,7 @@ test('evaluates nested public and custom scopes, modifiers, automation and keyfr
 
 // 【子グラフのPUBLICも直接割り当てで変換された数値を読む】
 // 親の公開値が式で変わっても、子グラフの数値参照にはそのフレームの変換結果を渡す。
-test('coerces public string references read by nested graph expressions', async () => {
+test('coerces public string references read by expressions in a nested Nodes Effect', async () => {
 	const nativeDefinition = { ...definition, paramDefs: { result: scalar } };
 	const child = {
 		...definition,
@@ -187,7 +187,7 @@ test('coerces public string references read by nested graph expressions', async 
 		paramDefs: { text: { ...scalar, dataType: { kind: 'string' }, defaultValue: '0' } },
 		nodes: [{
 			id: 'child', effectSource: inline(child),
-			params: { gain: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'text' } },
+			params: { gain: { inputSource: 'nodesEffectPublicParameterReference', parameterId: 'text' } },
 		}],
 		outputSources: { image: { nodeId: 'child', outputPort: 'image' } },
 	});
@@ -232,7 +232,7 @@ test('loads mismatched ports and draws with the original fixed shader inputs', a
 			{ id: 'wire', type: 'relay', dataType: { kind: 'vector' }, input: { parameterId: 'gain' } },
 			{ id: 'draw', effectSource: native, params: {
 				wired: { inputSource: 'node', source: { nodeId: 'wire', outputPort: 'output' }, sampling: { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' } },
-				direct: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'gain' },
+				direct: { inputSource: 'nodesEffectPublicParameterReference', parameterId: 'gain' },
 			} },
 		], outputDefs: { ...definition.outputDefs, relay: { dataType: { kind: 'color' } } },
 		outputSources: { image: output, relay: { nodeId: 'wire', outputPort: 'output' } },
@@ -331,7 +331,7 @@ test('supersedes preparation, shares a ready frame and drains work before dispos
 test('propagates input versions and invalidates cached outputs on reset', async () => {
 	const def = { ...definition, paramDefs: { image: { ...scalar, canNode: true } } };
 	const sampling = { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' };
-	const graph = { ...def, nodes: [{ id: 'a', effectSource: native, params: { image: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'image' } } },
+	const graph = { ...def, nodes: [{ id: 'a', effectSource: native, params: { image: { inputSource: 'nodesEffectPublicParameterReference', parameterId: 'image' } } },
 		{ id: 'draw', effectSource: native, params: { image: { inputSource: 'node', source: { nodeId: 'a', outputPort: 'image' }, sampling } } }], outputSources: { image: output } };
 	let version = 0, draws = 0;
 	const instance = await create(inline(graph), def, () => ({ cacheKey: 0, render() { draws++; }, dispose() {} }), {
@@ -362,7 +362,7 @@ test('validates shader interfaces and unused relay cycles without a GPU', () => 
 	assert.throws(() => validate({ ...shader, resolutionInputParameters: ['missing'] }), /invalidResolutionInput/);
 	const custom = { ...scalar, nameForReference: 'gain' };
 	assert.throws(() => validateEffectSource(inline({ ...definition, nodes: [], outputSources: {},
-		customParameterDefs: { gain: custom }, customParameterValues: { gain: { inputSource: 'customNodeGraphEffectCustomParameterValueReference', parameterId: 'gain' } },
+		customParameterDefs: { gain: custom }, customParameterValues: { gain: { inputSource: 'nodesEffectCustomParameterValueReference', parameterId: 'gain' } },
 	}), {}), /Circular custom parameter reference/);
 	assert.throws(() => validateEffectSource(inline({ ...definition, nodes: [
 		{ id: 'self', type: 'relay', dataType: { kind: 'color' }, input: { nodeId: 'self', outputPort: 'output' } },

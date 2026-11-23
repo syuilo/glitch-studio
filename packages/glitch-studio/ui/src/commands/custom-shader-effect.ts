@@ -74,21 +74,21 @@ const replaceCustomShaderEffectDefinition = definePublicCommand({
 		if (beforeDefinition == null) throw new Error('Custom Shader Effect not found');
 		const afterDefinition = { ...definition, id: customShaderEffectId };
 		validateProjectCustomShaderEffect(afterDefinition);
-		const { graphs, layers } = reconcileCustomShaderEffectUsages(state, beforeDefinition, afterDefinition);
-		// Undoで元に戻す範囲を、実際に補正したCustom Node Graph Effectとレイヤーに絞る。
+		const { nodesEffectChanges, layers } = reconcileCustomShaderEffectUsages(state, beforeDefinition, afterDefinition);
+		// Undoで元に戻す範囲を、実際に補正したNodes Effectとレイヤーに絞る。
 		return prepareProjectValueChange({
-			before: { definition: beforeDefinition, customNodeGraphEffects: graphs.map(({ before }) => before), layers: layers.map(({ sceneId, before }) => ({ sceneId, layer: before })) },
-			after: { definition: afterDefinition, customNodeGraphEffects: graphs.map(({ after }) => after), layers: layers.map(({ sceneId, after }) => ({ sceneId, layer: after })) },
+			before: { definition: beforeDefinition, nodesEffects: nodesEffectChanges.map(({ before }) => before), layers: layers.map(({ sceneId, before }) => ({ sceneId, layer: before })) },
+			after: { definition: afterDefinition, nodesEffects: nodesEffectChanges.map(({ after }) => after), layers: layers.map(({ sceneId, after }) => ({ sceneId, layer: after })) },
 			// Node・Layer の更新は定義の変更からのみ生じる。
 			equals: (before, after) => areProjectCustomShaderEffectsEqual(before.definition, after.definition),
 			result: undefined, changes: [
 				{ type: 'customShaderEffect', customShaderEffectId },
-				...graphs.map(({ after }) => ({ type: 'customNodeGraphEffect' as const, target: { customNodeGraphEffectId: after.id } })),
+				...nodesEffectChanges.map(({ after }) => ({ type: 'nodesEffect' as const, target: { nodesEffectId: after.id } })),
 				...layers.map(({ sceneId, after }) => ({ type: 'layer' as const, sceneId, layerId: after.id, changes: [{ type: 'definition' as const }] })),
 			],
 			write(current, next) {
 				current.customShaderEffects.value[current.customShaderEffects.value.findIndex(candidate => candidate.id === customShaderEffectId)] = next.definition;
-				for (const customNodeGraphEffect of next.customNodeGraphEffects) current.customNodeGraphEffects.value[current.customNodeGraphEffects.value.findIndex(candidate => candidate.id === customNodeGraphEffect.id)] = customNodeGraphEffect;
+				for (const nodesEffect of next.nodesEffects) current.nodesEffects.value[current.nodesEffects.value.findIndex(candidate => candidate.id === nodesEffect.id)] = nodesEffect;
 				for (const { sceneId, layer } of next.layers) {
 					const scene = current.timelineScenes.value.find(scene => scene.id === sceneId)!;
 					const location = findTimelineLayerLocation(scene.layers, layer.id)!;

@@ -18,6 +18,6 @@ export function createProjectEffectDefinitions(project: ProjectEffectRegistratio
 	return {
 		getNativeEffect: id => nativeEffects.get(id)!,
 		getCustomShaderEffect: indexDefinitions(project.customShaderEffects),
-		getCustomNodeGraphEffect: indexDefinitions(project.customNodeGraphEffects),
+		getNodesEffect: indexDefinitions(project.nodesEffects),
 	};
 }

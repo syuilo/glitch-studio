@@ -1,20 +1,20 @@
-import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
+import type { NodesEffect } from '@gs/subsystems_effect_shared/nodes-effect.ts';
 import type { CustomShaderEffect } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
 
-/** キーは各Custom Node Graph Effect内のノードID。インラインの子も配置先で編集情報を所有する。 */
-export type CustomNodeGraphEffectEditorMetadata = {
+/** キーは各Nodes Effect内のノードID。インラインの子も配置先で編集情報を所有する。 */
+export type NodesEffectEditorMetadata = {
 	nodeMetadata?: Record<string, {
 		displayName?: string;
 		position?: { x: number; y: number };
-		inlineCustomNodeGraphEffect?: CustomNodeGraphEffectEditorMetadata;
+		inlineNodesEffect?: NodesEffectEditorMetadata;
 	}>;
 };
 
 /** 登録情報はプロジェクトが所有する。配線・実行にはdefinitionだけを渡す。 */
-export type ProjectCustomNodeGraphEffect = CustomNodeGraphEffectEditorMetadata & {
+export type ProjectNodesEffect = NodesEffectEditorMetadata & {
 	id: string;
 	name: string;
-	definition: CustomNodeGraphEffect;
+	definition: NodesEffect;
 };
 
 export type ProjectCustomShaderEffect = {
@@ -26,5 +26,5 @@ export type ProjectCustomShaderEffect = {
 
 export type ProjectEffectRegistrations = {
 	customShaderEffects: ProjectCustomShaderEffect[];
-	customNodeGraphEffects: ProjectCustomNodeGraphEffect[];
+	nodesEffects: ProjectNodesEffect[];
 };

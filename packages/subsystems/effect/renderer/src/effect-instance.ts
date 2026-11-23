@@ -7,7 +7,7 @@ import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 import type { EffectRenderTilingProgressObserver, EffectRenderWorkloadHint } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { ParameterDefaultValue, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { DataType } from '@gs/shared/data-type/data-type.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectEffectNode } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
+import type { NodesEffect, NodesEffectEffectNode } from '@gs/subsystems_effect_shared/nodes-effect.ts';
 
 /** 寸法は配置中固定する。textureとversionは描画後に最新のものを取得する。 */
 export type EffectTextureOutput = {
@@ -62,9 +62,9 @@ export interface EffectRenderOperation {
 
 export type EffectPreparationStatus = { type: 'idle' | 'loading' | 'ready' } | { type: 'error'; error: unknown };
 
-export type CustomNodeGraphEffectValueUpdate =
-	| { nodeId: string; params: CustomNodeGraphEffectEffectNode['params'] }
-	| { customParameterValues: CustomNodeGraphEffect['customParameterValues'] };
+export type NodesEffectValueUpdate =
+	| { nodeId: string; params: NodesEffectEffectNode['params'] }
+	| { customParameterValues: NodesEffect['customParameterValues'] };
 
 export interface EffectInstance {
 	readonly preparationStatus: EffectPreparationStatus;
@@ -78,8 +78,8 @@ export interface EffectInstance {
 	renderTiled(frame: EffectFrameContext, signal?: AbortSignal, onProgress?: EffectRenderTilingProgressObserver,
 		recordAfterRender?: (encoder: GPUCommandEncoder) => void): Promise<void>;
 	readonly dependsOnRenderHistory: boolean;
-	/** フレーム間で、配線・入力構造が同じ配置の値を更新する。nullはルートのinline Custom Node Graph Effectを指す。 */
-	updateCustomNodeGraphEffectValues(customNodeGraphEffectId: string | null, update: CustomNodeGraphEffectValueUpdate): void;
+	/** フレーム間で、配線・入力構造が同じ配置の値を更新する。nullはルートのinline Nodes Effectを指す。 */
+	updateNodesEffectValues(nodesEffectId: string | null, update: NodesEffectValueUpdate): void;
 	resetRenderHistory(): void;
 	dispose(): void;
 	/** 要求されたポートのうち、テクスチャを出力するものだけを持つ。所有権は移さない。 */

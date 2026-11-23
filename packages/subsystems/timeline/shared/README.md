@@ -40,7 +40,7 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 `strokeProgress`は輪郭の描画割合で、0は輪郭なし、0.5は半周、1（既定値）は閉じた輪郭。`strokeStart`は描き始める位置で、0（既定値）と1が上中央、0.25が右中央、0.5が下中央、0.75が左中央。どちらも輪郭を付ける前の形状の周長を基準に時計回りに数え、評価値は0〜1へ制限する。起点を越える区間も連続して描き、部分描画の両端は輪郭の接線に垂直に切る。塗り・輪郭幅・輪郭配置は変えない。両パラメータとも通常の式・automation・キーを使う。
 
-`expression.ts`はレイヤーに公開する変数名、`evaluation-scope.ts`は映像と音声で共通のScene時刻の評価スコープを定義する。Custom Node Graph Effect内部の変数・公開パラメータ・グラフ一覧は継承しない。
+`expression.ts`はレイヤーに公開する変数名、`evaluation-scope.ts`は映像と音声で共通のScene時刻の評価スコープを定義する。Nodes Effect内部の変数・公開パラメータ・グラフ一覧は継承しない。
 
 `parameter-binding.ts`は共通方式と公開パラメータ直接参照を扱う`TimelineParameterBinding`、音声入力用の`lowerLayerAudio` / `anotherLayerAudio`と画像入力用の`lowerLayerOutput` / `anotherLayerOutput`を加えた`TimelineEffectParameterBinding`を定義する。合成設定・音量にも同じ公開パラメータ参照を使う。音声入力Bindingは`audioSource`型だけで選択できる。`anotherLayerAudio`は`layerId: string | null`を保存し、引数を所有するレイヤーと同じSceneのグループ内を含め、音声・動画・VOICEVOX・Scene・グループレイヤーを選ぶ。`null`や削除・欠落した参照先は入力なしとして扱うが、保存したIDは維持する。音声入力の取得元はレイヤーのBindingで指定する。
 
@@ -58,7 +58,7 @@ Scene一覧の重複ID・参照先の欠落・循環参照などの診断は、�
 
 描画用途ごとのサンプル数は呼び出し側が選ぶ。プレビュー品質の選択肢・プロジェクトの既定fps・既定ブラー設定はUIが所有し、このパッケージには含めない。
 
-`render-history-effects.ts`は配置されたエフェクトとCustom Node Graph Effectの定義から`dependsOnRenderHistory`を調べる。これは警告用の検査であり、実行制限や履歴リセットの方針ではない。
+`render-history-effects.ts`は配置されたエフェクトとNodes Effectの定義から`dependsOnRenderHistory`を調べる。これは警告用の検査であり、実行制限や履歴リセットの方針ではない。
 
 ## VOICEVOXレイヤー
 
@@ -115,10 +115,10 @@ Groupを祖先に持つカメラはUIの静的検証で診断する。無効な�
 音声計画はTransformを音量なしで透過し、下層入力も外側へ継続する。Group・Sceneは従来の合成境界を維持する。
 
 
-Effectレイヤーの画像入力に`lowerLayerOutput` / `anotherLayerOutput`を許可する。`anotherLayerOutput`は`layerId`と`outputStage: source | rendered | composited`を持つ。画像入力のBindingには任意のsamplingを指定できる。Custom Node Graph Effectでは内部の接続がsamplingを所有する。加工系Effectの主画像入力の既定値・リセットは`lowerLayerOutput`とする。`layer-output.ts`は同じScene内の画像参照と、素材・合成境界・Group以外のコンテナの透過を区別した依存グラフを所有する。静的な循環は無効化・クリップ期間にかかわらず拒否する。
+Effectレイヤーの画像入力に`lowerLayerOutput` / `anotherLayerOutput`を許可する。`anotherLayerOutput`は`layerId`と`outputStage: source | rendered | composited`を持つ。画像入力のBindingには任意のsamplingを指定できる。Nodes Effectでは内部の接続がsamplingを所有する。加工系Effectの主画像入力の既定値・リセットは`lowerLayerOutput`とする。`layer-output.ts`は同じScene内の画像参照と、素材・合成境界・Group以外のコンテナの透過を区別した依存グラフを所有する。静的な循環は無効化・クリップ期間にかかわらず拒否する。
 
 `layer-static-settings.ts`はEffect・Text・VOICEVOXの独立した静的設定の定義と保存値を組み合わせる。エフェクトレイヤーは`effectStaticSettings`を持ち、共通の`StaticSettingValues`へIDや値を直接保存する。素材参照型は通常・公開パラメータから除外する。
 
 公開する位置・移動・距離・CameraのXY/Zは[共通空間単位](../../../../docs/spatial-coordinate.md)です。Originは透明余白を含む素材の長辺単位、Positionは配置先のScene単位です。画像合成・クリップ・行列は内部の各軸[-1,+1]で扱い、`layer-transform.ts`が境界の換算を担当します。カメラの画角と既定Zも長辺基準とし、パラメータ定義・作成・評価にはSceneの解像度を渡しません。投影と祖先Transformの座標換算には引き続き描画先のScene寸法を使います。
 
-Effectレイヤーの `effectSource` はeffectのEffectSourceを保存する。Native Effect、Custom Shader Effect、Custom Node Graph Effectに共通のパラメータ・静的設定・解像度を持ち、Custom EffectはID参照とインライン配置の両方を扱う。Timelineへ配置するEffectは、プライマリ出力にcolorポートを指定する。
+Effectレイヤーの `effectSource` はeffectのEffectSourceを保存する。Native Effect、Custom Shader Effect、Nodes Effectに共通のパラメータ・静的設定・解像度を持ち、Custom EffectはID参照とインライン配置の両方を扱う。Timelineへ配置するEffectは、プライマリ出力にcolorポートを指定する。

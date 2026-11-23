@@ -1,10 +1,10 @@
 import { getEffectDefinitions } from './project-effects.ts';
-import { getNodeOutputs } from '@/utility/custom-node-graph-effect-node-outputs.ts';
+import { getNodeOutputs } from '@/utility/nodes-effect-node-outputs.ts';
 import { preferences } from '@/preferences.ts';
 import { areNodeDataTypesCompatible, canConnectNodeDataTypes as canConnectWithPolicy } from '@gs/shared/data-type/node-compatibility.ts';
 import { prettyId } from '@gs/shared/utility/id.js';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { CustomNodeGraphEffectNode, NodeOutputReference, CustomNodeGraphEffect } from '@/types/custom-node-graph-effect-view.ts';
+import type { NodesEffectNode, NodeOutputReference, NodesEffect } from '@/types/nodes-effect-view.ts';
 import { getEffectNodeName } from './node-name.ts';
 
 // 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
@@ -23,7 +23,7 @@ export function nodeOutputKey(connection: { nodeId: string; outputPort: string }
 }
 
 // 接続済みの警告はforceTypeSafetyに関わらず、ポートの型の互換性で判定する。
-export function hasNodeInputTypeMismatch(nodes: CustomNodeGraphEffectNode[], connection: { nodeId: string; outputPort: string } | null, inputDataType: TextureDataType | null, paramDefs: CustomNodeGraphEffect['paramDefs'] = [], definitions = getEffectDefinitions({})): boolean {
+export function hasNodeInputTypeMismatch(nodes: NodesEffectNode[], connection: { nodeId: string; outputPort: string } | null, inputDataType: TextureDataType | null, paramDefs: NodesEffect['paramDefs'] = [], definitions = getEffectDefinitions({})): boolean {
 	if (connection == null || inputDataType == null) return false;
 	return nodes.some(node => {
 		if (node.id === connection.nodeId) {
@@ -36,7 +36,7 @@ export function hasNodeInputTypeMismatch(nodes: CustomNodeGraphEffectNode[], con
 
 // undefinedは入力型による絞り込みを省略、nullは接続可能な入力型がないことを表す。
 // getNodeInputDataTypeのnullを「全型を許可」に変えないため、ここでは省略と明示的なnullを区別する。
-export function getNodeOutputItems(nodes: CustomNodeGraphEffectNode[], excludedNodeId?: string, inputDataType?: TextureDataType | null, paramDefs: CustomNodeGraphEffect['paramDefs'] = [], definitions = getEffectDefinitions({}),
+export function getNodeOutputItems(nodes: NodesEffectNode[], excludedNodeId?: string, inputDataType?: TextureDataType | null, paramDefs: NodesEffect['paramDefs'] = [], definitions = getEffectDefinitions({}),
 	currentConnection?: Pick<NodeOutputReference, 'nodeId' | 'outputPort'> | null,
 ): { label: string; value: string; connection: NodeOutputReference; dataType: TextureDataType; typeCompatible: boolean; icon?: string | null }[] {
 	return nodes.flatMap(node => {

@@ -26,7 +26,7 @@ const bundle = await build({ absWorkingDir: directory,
 				'@/ui.ts': 'export const menus = []; export const popupMenu = items => menus.push(items); export function popup() {} export function alert() {}',
 				'@/preferences.ts': "import { ref } from 'vue'; export const preferences = { model: () => ref(false) };",
 				'@/desktop-update-ui.ts': 'export const desktopUpdateUi = null;',
-				'@/utility/custom-node-graph-effect-file.ts': 'export function importCustomNodeGraphEffectFile() {}',
+				'@/utility/nodes-effect-file.ts': 'export function importNodesEffectFile() {}',
 				'@/utility/import-assets.ts': "import { operations } from '@/app.ts'; export function importAssetsAndRevealPanel(session) { operations.push(['add-assets', session.id]); }",
 				'@/workspace.ts': 'export const workspacePanelChoices = [];',
 				// フォーカス・クリップボード操作はuseHeaderEditActionsのテストで検証する。

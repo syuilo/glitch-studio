@@ -6,13 +6,13 @@ import { resolveEffectSource } from '@gs/subsystems_effect_shared/effect-source.
 import { ref } from 'vue';
 import { getEffectDefinitions } from '../utility/project-effects.ts';
 import { getScene } from '../utility/timeline-scene.ts';
-import { getCustomNodeGraphEffect, saveCustomNodeGraphEffect } from '../utility/custom-node-graph-effect-target.ts';
+import { getNodesEffect, saveNodesEffect } from '../utility/nodes-effect-target.ts';
 import { defineCommand, definePublicCommand } from './definition.ts';
 import { prepareProjectValueChange } from './prepared-value.ts';
 import { prepareProjectEffectPlacementChanges } from './project-effect-placements.ts';
 import { getTimelineAssetPlacementChanges, validateTimelineAssetPlacement, removeTimelineAssetPlacement } from './timeline.ts';
 import type { AppStateChange, ProjectState, ProjectAsset } from '../Project.ts';
-import type { CustomNodeGraphEffectAssetPlacement } from '../utility/custom-node-graph-effect-asset-node.ts';
+import type { NodesEffectAssetPlacement } from '../utility/nodes-effect-asset-node.ts';
 import type { AssetImportPlacement } from '../utility/import-assets.ts';
 
 // ファイルの読み込みやダイアログは呼び出し側が済ませ、取り込み済みの値だけを渡す。
@@ -28,11 +28,11 @@ export const insertImportedAssetsCommandDef = defineCommand<{ assets: ProjectAss
 		const saved = deepClone(input);
 		const draft = { ...state, assets: ref([...state.assets.value, ...saved.assets]) };
 		if (saved.timeline != null) validateTimelineAssetPlacement(draft, saved.timeline);
-		if (saved.customNodeGraphEffect != null) validateCustomNodeGraphEffectAssetPlacement(draft, saved.customNodeGraphEffect);
+		if (saved.nodesEffect != null) validateNodesEffectAssetPlacement(draft, saved.nodesEffect);
 		const changes: AppStateChange[] = [
 			...saved.assets.map(asset => ({ type: 'asset' as const, assetId: asset.id })),
 			...getTimelineAssetPlacementChanges(saved.timeline ?? null),
-			...getCustomNodeGraphEffectAssetPlacementChanges(saved.customNodeGraphEffect ?? null),
+			...getNodesEffectAssetPlacementChanges(saved.nodesEffect ?? null),
 		];
 		if (changes.length === 0) return { result: undefined, change: null };
 		return {
@@ -42,27 +42,27 @@ export const insertImportedAssetsCommandDef = defineCommand<{ assets: ProjectAss
 				apply(current) {
 					current.assets.value.push(...deepClone(saved.assets));
 					if (saved.timeline != null) getScene(current, saved.timeline.sceneId).layers.unshift(...deepClone(saved.timeline.layers));
-					if (saved.customNodeGraphEffect != null) appendCustomNodeGraphEffectAssetNodes(current, saved.customNodeGraphEffect);
+					if (saved.nodesEffect != null) appendNodesEffectAssetNodes(current, saved.nodesEffect);
 				},
 				revert(current) {
 					const assetIds = new Set(saved.assets.map(asset => asset.id));
 					current.assets.value = current.assets.value.filter(asset => !assetIds.has(asset.id));
 					if (saved.timeline != null) removeTimelineAssetPlacement(current, saved.timeline);
-					if (saved.customNodeGraphEffect != null) removeCustomNodeGraphEffectAssetNodes(current, saved.customNodeGraphEffect);
+					if (saved.nodesEffect != null) removeNodesEffectAssetNodes(current, saved.nodesEffect);
 				},
 			},
 		};
 	},
 });
 
-export function getCustomNodeGraphEffectAssetPlacementChanges(placement: CustomNodeGraphEffectAssetPlacement | null): AppStateChange[] {
-	return placement == null || placement.nodes.length === 0 ? [] : [{ type: 'customNodeGraphEffect', target: placement.target }];
+export function getNodesEffectAssetPlacementChanges(placement: NodesEffectAssetPlacement | null): AppStateChange[] {
+	return placement == null || placement.nodes.length === 0 ? [] : [{ type: 'nodesEffect', target: placement.target }];
 }
 
 /** リソースの追加前に全ノードと参照を検証し、Undo不能な部分反映を残さない。 */
-export function validateCustomNodeGraphEffectAssetPlacement(state: ProjectState, placement: CustomNodeGraphEffectAssetPlacement) {
-	const customNodeGraphEffect = getCustomNodeGraphEffect(state, placement.target);
-	const ids = new Set(customNodeGraphEffect.nodes.map(node => node.id));
+export function validateNodesEffectAssetPlacement(state: ProjectState, placement: NodesEffectAssetPlacement) {
+	const nodesEffect = getNodesEffect(state, placement.target);
+	const ids = new Set(nodesEffect.nodes.map(node => node.id));
 	for (const node of placement.nodes) {
 		if (ids.has(node.id)) throw new Error('Duplicate node ID');
 		ids.add(node.id);
@@ -72,24 +72,24 @@ export function validateCustomNodeGraphEffectAssetPlacement(state: ProjectState,
 	}
 }
 
-export function appendCustomNodeGraphEffectAssetNodes(state: ProjectState, placement: CustomNodeGraphEffectAssetPlacement) {
-	const customNodeGraphEffect = getCustomNodeGraphEffect(state, placement.target);
-	const outputIndex = customNodeGraphEffect.nodes.findIndex(node => node.type === 'globalOut');
-	customNodeGraphEffect.nodes.splice(outputIndex < 0 ? customNodeGraphEffect.nodes.length : outputIndex, 0, ...deepClone(placement.nodes));
-	saveCustomNodeGraphEffect(state, placement.target, customNodeGraphEffect);
+export function appendNodesEffectAssetNodes(state: ProjectState, placement: NodesEffectAssetPlacement) {
+	const nodesEffect = getNodesEffect(state, placement.target);
+	const outputIndex = nodesEffect.nodes.findIndex(node => node.type === 'globalOut');
+	nodesEffect.nodes.splice(outputIndex < 0 ? nodesEffect.nodes.length : outputIndex, 0, ...deepClone(placement.nodes));
+	saveNodesEffect(state, placement.target, nodesEffect);
 }
 
-export function removeCustomNodeGraphEffectAssetNodes(state: ProjectState, placement: CustomNodeGraphEffectAssetPlacement) {
+export function removeNodesEffectAssetNodes(state: ProjectState, placement: NodesEffectAssetPlacement) {
 	const ids = new Set(placement.nodes.map(node => node.id));
-	const customNodeGraphEffect = getCustomNodeGraphEffect(state, placement.target);
-	customNodeGraphEffect.nodes = customNodeGraphEffect.nodes.filter(node => !ids.has(node.id));
-	saveCustomNodeGraphEffect(state, placement.target, customNodeGraphEffect);
+	const nodesEffect = getNodesEffect(state, placement.target);
+	nodesEffect.nodes = nodesEffect.nodes.filter(node => !ids.has(node.id));
+	saveNodesEffect(state, placement.target, nodesEffect);
 }
 
-export const insertCustomNodeGraphEffectAssetNodesCommandDef = defineCommand<{ placement: CustomNodeGraphEffectAssetPlacement }>({
+export const insertNodesEffectAssetNodesCommandDef = defineCommand<{ placement: NodesEffectAssetPlacement }>({
 	label: 'Insert asset nodes',
 	prepare(state, input) {
-		return insertImportedAssetsCommandDef.prepare(state, { assets: [], customNodeGraphEffect: input.placement });
+		return insertImportedAssetsCommandDef.prepare(state, { assets: [], nodesEffect: input.placement });
 	},
 });
 
@@ -115,7 +115,7 @@ export const removeAssetCommandDef = definePublicCommand({
 	label: 'Remove asset',
 	inputSchema: z.object({ assetId: z.string().min(1) }),
 	resultSchema: z.null(),
-	description: 'Remove an existing Asset and clear its static-setting references on nodes in registered and inline Custom Node Graph Effects. Other saved references can become unresolved. Undo restores the Asset and cleared references; no source file is deleted.',
+	description: 'Remove an existing Asset and clear its static-setting references on nodes in registered and inline Nodes Effects. Other saved references can become unresolved. Undo restores the Asset and cleared references; no source file is deleted.',
 	examples: ['let assets = Query:listAssets()\nif (assets.len > 0) { Command:removeAsset(assets[0].target) }'],
 	prepare(state, { assetId }) {
 		const asset = deepClone(getAsset(state, assetId));
@@ -207,7 +207,7 @@ export const replaceAssetSourceCommandDef = defineCommand<{ assetId: string; sou
 export const RESOURCES_COMMAND_DEFS = {
 	createAsset: createAssetCommandDef,
 	insertImportedAssets: insertImportedAssetsCommandDef,
-	insertCustomNodeGraphEffectAssetNodes: insertCustomNodeGraphEffectAssetNodesCommandDef,
+	insertNodesEffectAssetNodes: insertNodesEffectAssetNodesCommandDef,
 	removeAsset: removeAssetCommandDef,
 	setAssetName: setAssetNameCommandDef,
 	replaceAssetSource: replaceAssetSourceCommandDef,

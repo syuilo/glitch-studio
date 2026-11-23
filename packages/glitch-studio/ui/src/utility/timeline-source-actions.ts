@@ -1,4 +1,4 @@
-import { createCustomNodeGraphEffectDefinition } from './project-custom-node-graph-effect.ts';
+import { createNodesEffectDefinition } from './project-nodes-effect.ts';
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { createTimelineClipTiming, getTimelineClipInsertionDuration } from '@gs/subsystems_timeline_shared/timing.ts';
 import { createTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
@@ -192,12 +192,12 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		if (seekAfter) seek(startMs);
 	}
 
-	async function addReferencedCustomNodeGraphEffectLayer() {
+	async function addReferencedNodesEffectLayer() {
 		const initialLayers = sceneLayers.value;
-		const { canceled, result: id } = await ui.select({ title: i18n.ts._Timeline.SelectCustomNodeGraphEffect, items: stateManager.state.customNodeGraphEffects.value.filter(({ definition }) => findTimelineEffectOutput(definition) != null).map(customNodeGraphEffect => ({ label: customNodeGraphEffect.name, value: customNodeGraphEffect.id })) });
-		const customNodeGraphEffect = stateManager.state.customNodeGraphEffects.value.find(customNodeGraphEffect => customNodeGraphEffect.id === id);
-		if (canceled || customNodeGraphEffect == null || !isActive() || sceneLayers.value !== initialLayers) return;
-		addLayer({ layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: customNodeGraphEffect.id } });
+		const { canceled, result: id } = await ui.select({ title: i18n.ts._Timeline.SelectNodesEffect, items: stateManager.state.nodesEffects.value.filter(({ definition }) => findTimelineEffectOutput(definition) != null).map(nodesEffect => ({ label: nodesEffect.name, value: nodesEffect.id })) });
+		const nodesEffect = stateManager.state.nodesEffects.value.find(nodesEffect => nodesEffect.id === id);
+		if (canceled || nodesEffect == null || !isActive() || sceneLayers.value !== initialLayers) return;
+		addLayer({ layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: nodesEffect.id } });
 	}
 
 	function showAddEffectLayerMenu() {
@@ -239,14 +239,14 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 			icon: 'ti ti-music',
 			action: () => addMediaLayer('audio'),
 		}, {
-			text: i18n.ts._Timeline.InlineCustomNodeGraphEffect,
+			text: i18n.ts._Timeline.InlineNodesEffect,
 			icon: 'ti ti-binary-tree-2',
-			action: () => addLayer({ layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: createCustomNodeGraphEffectDefinition() } }, true, true),
+			action: () => addLayer({ layerType: 'effect', effectSource: { type: 'inlineNodesEffect', nodesEffect: createNodesEffectDefinition() } }, true, true),
 		}, {
-			id: 'referenceCustomNodeGraphEffect',
-			text: i18n.ts._Timeline.ReferenceCustomNodeGraphEffect,
+			id: 'referenceNodesEffect',
+			text: i18n.ts._Timeline.ReferenceNodesEffect,
 			icon: 'ti ti-binary-tree-2',
-			action: addReferencedCustomNodeGraphEffectLayer,
+			action: addReferencedNodesEffectLayer,
 		}, {
 			text: desktopAvailable() ? 'VOICEVOX' : i18n.ts._Timeline.VoicevoxUnavailable,
 			icon: 'ti ti-microphone',

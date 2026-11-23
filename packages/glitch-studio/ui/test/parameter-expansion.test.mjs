@@ -18,7 +18,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		export { default as LayerSettings } from './src/components/GsTimeline.EffectSettings.vue';
 		export { default as Wires } from './src/components/GsWires.vue';
 		export { default as Port } from './src/components/GsNodePort.vue';
-		export { provideCustomNodeGraphEffectWires } from './src/utility/custom-node-graph-effect-wires.ts';
+		export { provideNodesEffectWires } from './src/utility/nodes-effect-wires.ts';
 		export { parameterExpansionScopeKey } from './src/composables/useParameterExpansion.ts';
 		export { projectSession } from './src/project-session.ts';
 		export { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect_native-effects/definitions.ts';
@@ -29,7 +29,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'platform' }));
 		build.onResolve({ filter: /(?:^@\/|\/src\/)(app|project-session|ui)\.ts$/ }, ({ path }) => ({ path: path.endsWith('ui.ts') ? 'ui' : 'app', namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', resolveDir: directory, contents: {
-			preferences: "import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false), customNodeGraphEffectWireStyle: ref('straight') } };",
+			preferences: "import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false), nodesEffectWireStyle: ref('straight') } };",
 			effects: "import definition from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };",
 			app: 'export const projectSession = {}; export function useProjectSession() { return projectSession; }',
 			ui: 'export function popupMenu() {} export function popup() {} export function contextMenu() {} export function alert() {} export async function inputText() { return { canceled: true }; }',
@@ -68,7 +68,7 @@ class TestResizeObserver {
 const module = { exports: {} };
 new Function('require', 'module', 'exports', 'HTMLElement', 'Element', 'ResizeObserver', 'window', bundle.outputFiles[0].text)(
 	createRequire(import.meta.url), module, module.exports, TestElement, TestElement, TestResizeObserver, new TestWindow());
-const { NodeSettings, LayerSettings, Wires, Port, provideCustomNodeGraphEffectWires, parameterExpansionScopeKey, projectSession, effectDefinitions, preferences } = module.exports;
+const { NodeSettings, LayerSettings, Wires, Port, provideNodesEffectWires, parameterExpansionScopeKey, projectSession, effectDefinitions, preferences } = module.exports;
 const originalDefinition = structuredClone(effectDefinitions.testStructArray);
 const defaultBuzzId = createDefaultParameterBinding(originalDefinition.paramDefs.buzzs).value[0].id;
 const element = tag => markRaw(new TestElement(tag));
@@ -113,9 +113,9 @@ async function fixture(t, { target = 'node', defaultCollapsed = false, elementCo
 	const owners = ref([createOwner('first-owner'), createOwner('second-owner')]);
 	const selection = ref(0);
 	const owner = computed(() => owners.value[selection.value]);
-	const customNodeGraphEffect = computed(() => ({ nodes: [{ id: 'source', type: 'relay', dataType: { kind: 'color' } }, ...owners.value],
+	const nodesEffect = computed(() => ({ nodes: [{ id: 'source', type: 'relay', dataType: { kind: 'color' } }, ...owners.value],
 		paramDefs: [], outputDefs: [], automationGraphs: [], customParameterDefs: [] }));
-	const scope = ref(JSON.stringify(target === 'node' ? ['customNodeGraphEffect', 'first-custom-node-graph-effect'] : ['timelineLayer', 'scene', 'first-layer']));
+	const scope = ref(JSON.stringify(target === 'node' ? ['nodesEffect', 'first-nodes-effect'] : ['timelineLayer', 'scene', 'first-layer']));
 	const state = shallowReactive(new Map());
 	Object.assign(projectSession, { parameterExpansionStates: state,
 		projectContext: { stateManager: { state: { automationGraphs: ref([]), resolution: ref({ width: 800, height: 600 }) } } } });
@@ -124,16 +124,16 @@ async function fixture(t, { target = 'node', defaultCollapsed = false, elementCo
 	let wireMap;
 	const root = element('root');
 	const app = renderer.createApp({ setup() {
-		wireMap = provideCustomNodeGraphEffectWires();
+		wireMap = provideNodesEffectWires();
 		return () => h('main', [
 			h(Port, { output: true, dataType: { kind: 'color' }, 'onUpdate:element': value => {
 				if (value == null) delete wireMap.out.source;
 				else wireMap.out.source = { output: value };
 			} }),
 			...(showEditor.value ? [h(target === 'node' ? NodeSettings : LayerSettings, target === 'node'
-				? { node: owner.value, customNodeGraphEffect: customNodeGraphEffect.value, onEditParam: edit => edits.push(edit) }
+				? { node: owner.value, nodesEffect: nodesEffect.value, onEditParam: edit => edits.push(edit) }
 				: { layer: owner.value, contextResolution: { width: 800, height: 600 }, imageLayerOptions: [], anotherLayerAudioOptions: [], onEdit: edit => edits.push(edit) })] : []),
-			...(target === 'node' ? [h(Wires, { customNodeGraphEffect: customNodeGraphEffect.value })] : []),
+			...(target === 'node' ? [h(Wires, { nodesEffect: nodesEffect.value })] : []),
 		]);
 	} });
 	app.provide(parameterExpansionScopeKey, computed(() => target === 'layer' ? JSON.stringify([scope.value, owner.value.id]) : scope.value));

@@ -12,7 +12,7 @@ import { createTimelineAssetLayer } from './utility/timeline-asset-layer.ts';
 import { inspectTimelineClipMedia } from './utility/timeline-clip-media.ts';
 import { readVideoFrameRate } from './utility/video-frame-rate.ts';
 import type { ProjectAsset } from './Project.ts';
-import type { ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
+import type { ProjectNodesEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import type { Project, ProjectFileHandle } from './gsproj.ts';
 import type { OpenedMediaFile } from './api.ts';
 import { i18n } from '@/i18n.ts';
@@ -42,9 +42,9 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 		const initialEffectNodeId = genId();
 		const initialInputParamId = genId();
 		const initialOutputId = genId();
-		const initialCustomNodeGraphEffect: ProjectCustomNodeGraphEffect = {
+		const initialNodesEffect: ProjectNodesEffect = {
 			id: genId(),
-			name: 'Custom Node Graph Effect 1',
+			name: 'Nodes Effect 1',
 			definition: {
 				kind: 'modify', resolutionInputParameters: [initialInputParamId],
 				customParameterDefs: {},
@@ -82,7 +82,7 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 			name: DEFAULT_PROJECT_NAME,
 			description: '',
 			author: '',
-			customNodeGraphEffects: [initialCustomNodeGraphEffect],
+			nodesEffects: [initialNodesEffect],
 			customShaderEffects: [],
 			assets: [],
 			generatedSpeech: [],
@@ -97,7 +97,7 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 					isDisabled: false,
 					isSolo: false,
 					color: null,
-					effectSource: { type: 'customNodeGraphEffectReference', id: initialCustomNodeGraphEffect.id },
+					effectSource: { type: 'nodesEffectReference', id: initialNodesEffect.id },
 					effectStaticSettings: {}, resolution: { mode: 'context', scale: 1 },
 					effectParamValues: {},
 					forceDisableMotionBlur: false,
@@ -117,7 +117,7 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 						rotation: createDefaultParameterBinding(timelineCompositingParamDefs.rotation),
 					}),
 					automationGraphs: [],
-					name: 'Custom Node Graph Effect',
+					name: 'Nodes Effect',
 					clips: [{
 						id: genId(),
 						...createTimelineClipTiming(0, 1000 * 10),
@@ -170,9 +170,9 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 		const initialEffectNodeId = genId();
 		const initialInputParamId = genId();
 		const initialOutputId = genId();
-		const initialCustomNodeGraphEffect: ProjectCustomNodeGraphEffect | null = isTimedMedia ? null : {
+		const initialNodesEffect: ProjectNodesEffect | null = isTimedMedia ? null : {
 			id: genId(),
-			name: 'Custom Node Graph Effect 1',
+			name: 'Nodes Effect 1',
 			definition: {
 				kind: 'modify', resolutionInputParameters: [initialInputParamId],
 				customParameterDefs: {},
@@ -211,7 +211,7 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 			name: DEFAULT_PROJECT_NAME,
 			description: '',
 			author: '',
-			customNodeGraphEffects: initialCustomNodeGraphEffect == null ? [] : [initialCustomNodeGraphEffect],
+			nodesEffects: initialNodesEffect == null ? [] : [initialNodesEffect],
 			customShaderEffects: [],
 			assets: [asset],
 			generatedSpeech: [],
@@ -226,8 +226,8 @@ export function createProjectActions(projectSessions: ProjectSessionManager) {
 					color: null,
 					layerType: 'effect',
 					transformTarget: 'image',
-					name: 'Custom Node Graph Effect',
-					effectSource: { type: 'customNodeGraphEffectReference', id: initialCustomNodeGraphEffect!.id },
+					name: 'Nodes Effect',
+					effectSource: { type: 'nodesEffectReference', id: initialNodesEffect!.id },
 					effectStaticSettings: {},
 					resolution: { mode: 'context', scale: 1 },
 					effectParamValues: {},

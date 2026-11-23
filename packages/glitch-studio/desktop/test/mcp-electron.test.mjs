@@ -34,7 +34,7 @@ test('connects the real Electron MCP server to project scripting, references and
 				resolution: ref({ width: 1920, height: 1080 }), timelineFps: ref(30),
 				timelineMotionBlur: ref({ enabled: false, shutterAngle: 180, samples: 8 }), exportSettings: ref(null),
 				automationGraphs: ref([]), customShaderEffects: ref([]), generatedSpeech: ref([]),
-				assets: ref([]), customNodeGraphEffects: ref([]), timelineScenes: ref([]),
+				assets: ref([]), nodesEffects: ref([]), timelineScenes: ref([]),
 			};
 			const stateManager = new UndoRedo(state, COMMAND_DEFS);
 			const scripting = new ProjectScriptingController(stateManager, {
@@ -163,8 +163,8 @@ test('connects the real Electron MCP server to project scripting, references and
 			assert.deepEqual(JSON.parse(graph.output[0]).effectSource, { type: 'nativeEffect', id: 'fill' });
 			// ガイドで案内した二つの一覧から、IDを決め打ちせず登録定義を取得できる。
 			const registered = data(await call('execute_script', { projectSessionId: 'second', source: [
-				'let entry = Query:listCustomNodeGraphEffects()[0]',
-				'let graph = Query:getEffect({ effectSource: { type: "customNodeGraphEffectReference", id: entry.target.customNodeGraphEffectId } })',
+				'let entry = Query:listNodesEffects()[0]',
+				'let graph = Query:getEffect({ effectSource: { type: "nodesEffectReference", id: entry.target.nodesEffectId } })',
 				'<: graph.displayName',
 				'Command:createCustomShaderEffect({ name: "MCP Shader" })',
 				'each (let effect, Query:listEffects()) {',
@@ -176,7 +176,7 @@ test('connects the real Electron MCP server to project scripting, references and
 			await evaluate('window.testSessions[1].projectContext.stateManager.undo(); void 0;');
 			assert.equal(await evaluate('window.testSessions[1].projectContext.stateManager.state.customShaderEffects.value.length'), 0);
 			await evaluate('window.testSessions[1].projectContext.stateManager.undo(); void 0;');
-			assert.equal(await evaluate('window.testSessions[1].projectContext.stateManager.state.customNodeGraphEffects.value.length'), 0);
+			assert.equal(await evaluate('window.testSessions[1].projectContext.stateManager.state.nodesEffects.value.length'), 0);
 			stage = 'executing project script';
 			const executed = data(await call('execute_script', { projectSessionId: 'second',
 				source: 'Command:setProjectName({ name: "Edited second" })\\nlet project = Query:getProject()\\n<: project.name',

@@ -16,7 +16,7 @@ const ports = { output: { dataType: { kind: 'color' } }, extra: { dataType: { ki
 function setup(nodes, output = reference(nodes.at(-1).id), kind = 'color') {
 	const graph = { nodes, paramDefs: { input: parameter(kind) }, outputDefs: { result: { dataType: { kind } } },
 		outputSources: { result: output }, primaryInputParameter: 'input', primaryOutput: 'result', resolutionInputParameters: [] };
-	const source = { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph };
+	const source = { type: 'inlineNodesEffect', nodesEffect: graph };
 	const definition = { paramDefs: { a: parameter('color'), b: parameter('color') }, primaryInputParameter: 'a', primaryOutput: 'output',
 		outputDefs: ports, resolutionInputParameters: [] };
 	const definitions = { getNativeEffect: () => definition };
@@ -129,7 +129,7 @@ test('resolves relays on both sides of a bypassed effect', async t => {
 for (const [label, source] of [['missing node', reference('removed')], ['missing public input', { parameterId: 'removed' }], ['unknown relay port', reference('first', 'removed')]]) {
 	// 【参照できない中継先を編集境界で拒否する】
 	// 不正な参照を既定の接続へ読み替えず、GPUを確保する前に修正できる。
-	test('rejects ' + label + ' at the graph editing boundary', () => {
+	test('rejects ' + label + ' at the Nodes Effect editing boundary', () => {
 		const f = setup([relay('first'), relay('last', source)]);
 		assert.throws(f.validate);
 	});

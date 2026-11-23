@@ -22,7 +22,7 @@ const scene = (id, layers) => ({ id, name: id, resolution: { mode: 'project' }, 
 test('retains distinct public parameter ancestors for lower audio across Transform boundaries', () => {
 	const inside = sound('inside');
 	const outside = sound('outside');
-	const visual = { id: 'visual', layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'graph' }, name: '', clips: [], automationGraphs: [] };
+	const visual = { id: 'visual', layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'graph' }, name: '', clips: [], automationGraphs: [] };
 	const definition = { id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: { controlType: 'number' } }, defaultValue: 1 };
 	const parent = { id: 'parent', name: 'Parent', layerType: 'transform', isDisabled: false, automationGraphs: [], layers: [visual, inside], publicParameterDefs: [definition] };
 	outside.publicParameterDefs = [definition];
@@ -57,7 +57,7 @@ test('references any layer in the scene without ancestor gains and honors ancest
 // 【下層音声は同じ親の下層だけを読む】
 // 指定レイヤー参照の自由度を広げても、下層入力がグループ外の音声を取り込んではいけない。
 test('keeps lower-layer audio inside its parent while allowing explicit cross-group references', () => {
-	const visual = { id: 'visual', layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'graph' }, name: '', clips: [], effectParamValues: {}, compositingParamValues: {}, automationGraphs: [] };
+	const visual = { id: 'visual', layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'graph' }, name: '', clips: [], effectParamValues: {}, compositingParamValues: {}, automationGraphs: [] };
 	const root = scene('root', [group('group', [sound('above'), visual, group('below', [sound('inside')])]), sound('outside')]);
 	assert.deepEqual(getSceneAudioClips([root], 'root', { type: 'belowLayer', layerId: 'visual' }).map(clip => clip.sourceId), ['inside']);
 	assert.deepEqual(getSceneAudioClips([root], 'root', { type: 'layer', layerId: 'outside' }).map(clip => clip.sourceId), ['outside']);

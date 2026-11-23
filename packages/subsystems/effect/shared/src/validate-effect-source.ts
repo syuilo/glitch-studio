@@ -12,7 +12,7 @@ import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { resolveEffectSource } from './effect-source.ts';
 import type { EffectDefinitions, EffectSource, ResolvedEffect } from './effect-source.ts';
 import type { EffectDefinition } from './effect-definition.ts';
-import { isUnselectedGraphParameterReference, type CustomNodeGraphEffect, type CustomNodeGraphEffectParameterBinding, type CustomNodeGraphEffectOutputSource, type NodeOutputReference } from './custom-node-graph-effect.ts';
+import { isUnselectedNodesEffectParameterReference, type NodesEffect, type NodesEffectParameterBinding, type NodesEffectOutputSource, type NodeOutputReference } from './nodes-effect.ts';
 
 type InputSettings = { canNode?: boolean; element?: InputSettings; fields?: Record<string, InputSettings> };
 
@@ -20,7 +20,7 @@ type InputSettings = { canNode?: boolean; element?: InputSettings; fields?: Reco
 export function resolveEffectSourceForValidation(source: EffectSource, definitions: EffectDefinitions): ResolvedEffect {
 	const effect = resolveEffectSource(source, definitions);
 	if (effect.definition == null) {
-		const kind = effect.type === 'nativeEffect' ? 'Native Effect' : effect.type === 'customShaderEffect' ? 'Custom Shader Effect' : 'Custom Node Graph Effect';
+		const kind = effect.type === 'nativeEffect' ? 'Native Effect' : effect.type === 'customShaderEffect' ? 'Custom Shader Effect' : 'Nodes Effect';
 		throw new Error('Unknown ' + kind + ': ' + ('id' in source ? source.id : 'inline'));
 	}
 	return effect;
@@ -35,7 +35,7 @@ export function acceptsResolutionInput(settings: InputSettings | undefined): boo
 /** 編集・読み込み時に使う。未使用ポートやバイパスを含む保存グラフを検証し、描画側は再検査しない。 */
 export function validateEffectSource(source: EffectSource, definitions: EffectDefinitions): void {
 	const validated = new Set<object>();
-	const ancestors = new Set<CustomNodeGraphEffect>();
+	const ancestors = new Set<NodesEffect>();
 	const ancestorIds = new Set<string>();
 
 	function visit(source: EffectSource): EffectDefinition {
@@ -51,16 +51,16 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 			}
 		}
 		if (effect.type === 'customShaderEffect') validateCustomShaderEffectDefinition(effect.definition);
-		if (effect.type === 'customNodeGraphEffect') {
-			const graph = effect.definition;
-			for (const parameter of Object.values(graph.paramDefs)) validateParameterDefaultValues(parameter);
-			const registeredId = source.type === 'customNodeGraphEffectReference' ? source.id : null;
-			if (ancestors.has(graph) || (registeredId != null && ancestorIds.has(registeredId))) throw new Error('Cyclic Custom Node Graph Effect reference');
+		if (effect.type === 'nodesEffect') {
+			const nodesEffect = effect.definition;
+			for (const parameter of Object.values(nodesEffect.paramDefs)) validateParameterDefaultValues(parameter);
+			const registeredId = source.type === 'nodesEffectReference' ? source.id : null;
+			if (ancestors.has(nodesEffect) || (registeredId != null && ancestorIds.has(registeredId))) throw new Error('Cyclic Nodes Effect reference');
 			if (registeredId != null) ancestorIds.add(registeredId);
-			ancestors.add(graph);
-			const nodes = new Map(graph.nodes.map(node => [node.id, node]));
-			if (nodes.size !== graph.nodes.length) throw new Error('Duplicate Custom Node Graph Effect node ID');
-			const nodeDefinitions = new Map(graph.nodes.filter(node => node.type !== 'relay').map(node => [node.id, visit(node.effectSource)]));
+			ancestors.add(nodesEffect);
+			const nodes = new Map(nodesEffect.nodes.map(node => [node.id, node]));
+			if (nodes.size !== nodesEffect.nodes.length) throw new Error('Duplicate Nodes Effect node ID');
+			const nodeDefinitions = new Map(nodesEffect.nodes.filter(node => node.type !== 'relay').map(node => [node.id, visit(node.effectSource)]));
 			const complete = new Set<string>();
 			const path = new Set<string>();
 
@@ -72,9 +72,9 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 				return output.dataType;
 			}
 
-			function sourceType(source: CustomNodeGraphEffectOutputSource): TextureDataType | null {
+			function sourceType(source: NodesEffectOutputSource): TextureDataType | null {
 				if ('nodeId' in source) return checkOutput(source);
-				const def = graph.paramDefs[source.parameterId];
+				const def = nodesEffect.paramDefs[source.parameterId];
 				return def == null ? null : getNodeInputDataType(def);
 			}
 
@@ -97,25 +97,25 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 				complete.add(id);
 			}
 
-			function checkBinding(id: string | null, key: string, binding: CustomNodeGraphEffectParameterBinding): void {
-				const parameter = id == null ? graph.customParameterDefs?.[key] : nodeDefinitions.get(id)!.paramDefs[key];
+			function checkBinding(id: string | null, key: string, binding: NodesEffectParameterBinding): void {
+				const parameter = id == null ? nodesEffect.customParameterDefs?.[key] : nodeDefinitions.get(id)!.paramDefs[key];
 				if (parameter == null) throw new Error('Unknown node parameter: ' + id + '.' + key);
-				inspectStaticParameter<CustomNodeGraphEffectParameterBinding>(parameter, binding, (def, leaf) => {
-					if (isUnselectedGraphParameterReference(leaf)) return;
-					if (!isValueParameterBinding(leaf) && leaf.inputSource !== 'node' && leaf.inputSource !== 'customNodeGraphEffectCustomParameterValueReference'
-						&& leaf.inputSource !== 'customNodeGraphEffectPublicParameterReference') throw new Error('Unsupported parameter binding: ' + key);
+				inspectStaticParameter<NodesEffectParameterBinding>(parameter, binding, (def, leaf) => {
+					if (isUnselectedNodesEffectParameterReference(leaf)) return;
+					if (!isValueParameterBinding(leaf) && leaf.inputSource !== 'node' && leaf.inputSource !== 'nodesEffectCustomParameterValueReference'
+						&& leaf.inputSource !== 'nodesEffectPublicParameterReference') throw new Error('Unsupported parameter binding: ' + key);
 					if (leaf.inputSource === 'node' && (def.canNode !== true || id == null)) throw new Error('Parameter does not accept node input: ' + key);
-					if (leaf.inputSource === 'customNodeGraphEffectCustomParameterValueReference') {
-						const source = graph.customParameterDefs?.[leaf.parameterId];
+					if (leaf.inputSource === 'nodesEffectCustomParameterValueReference') {
+						const source = nodesEffect.customParameterDefs?.[leaf.parameterId];
 						if (source == null || !areDataTypesEqual(source.dataType, def.dataType)) throw new Error('Incompatible custom parameter: ' + key);
 					}
 					// 音声の取得元は固定値または同じ型の公開パラメータ参照で指定する。式とは独立に解決する。
-					if (def.dataType.kind === 'audioSource' && leaf.inputSource !== 'customNodeGraphEffectPublicParameterReference') validateLiteralAudioSourceBinding(leaf);
+					if (def.dataType.kind === 'audioSource' && leaf.inputSource !== 'nodesEffectPublicParameterReference') validateLiteralAudioSourceBinding(leaf);
 					if (leaf.inputSource === 'node' && leaf.source != null) {
 						if (!canConnectNodeDataTypes(checkOutput(leaf.source), getNodeInputDataType(def), 'allowMismatch')) throw new Error('Incompatible node connection: ' + key);
 					}
-					if (leaf.inputSource === 'customNodeGraphEffectPublicParameterReference') {
-						const parameter = graph.paramDefs[leaf.parameterId];
+					if (leaf.inputSource === 'nodesEffectPublicParameterReference') {
+						const parameter = nodesEffect.paramDefs[leaf.parameterId];
 						if (parameter == null) throw new Error('Unknown public parameter: ' + leaf.parameterId);
 						if (id == null && parameter.canNode === true) throw new Error('Custom parameters require CPU values: ' + key);
 						const compatible = parameter.canNode === true
@@ -128,12 +128,12 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 			}
 
 			for (const id of nodes.keys()) checkNode(id);
-			const names = Object.entries(graph.paramDefs).map(([id, def]) => def.nameForReference ?? id);
-			const custom = Object.values(graph.customParameterDefs ?? {});
+			const names = Object.entries(nodesEffect.paramDefs).map(([id, def]) => def.nameForReference ?? id);
+			const custom = Object.values(nodesEffect.customParameterDefs ?? {});
 			const unique = (values: string[]) => !values.includes('') && new Set(values).size === values.length;
 			if (!unique(names) || !unique(custom.map(def => def.nameForReference))) throw new Error('Invalid parameter reference name');
-			const graphs = graph.automationGraphs ?? [];
-			if (!unique(graphs.map(g => g.id)) || !unique(graphs.map(g => g.nameForReference))) throw new Error('Invalid Automation Graph reference');
+			const nodesEffects = nodesEffect.automationGraphs ?? [];
+			if (!unique(nodesEffects.map(g => g.id)) || !unique(nodesEffects.map(g => g.nameForReference))) throw new Error('Invalid Automation Graph reference');
 			for (const def of custom) {
 				if (def.canNode != null && def.canNode !== false) throw new Error('Custom parameters require CPU values');
 				if (!['scalar', 'bool', 'string', 'color', 'vector', 'enum', 'colorRamp', 'sizeReference'].includes(def.dataType.kind)) throw new Error('Unsupported custom parameter type');
@@ -146,25 +146,25 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 				if (checkedCustom.has(key)) return;
 				if (checkingCustom.has(key)) throw new Error('Circular custom parameter reference: ' + [...checkingCustom, key].join(' → '));
 				checkingCustom.add(key);
-				const binding = graph.customParameterValues?.[key];
+				const binding = nodesEffect.customParameterValues?.[key];
 				if (binding != null) {
 					checkBinding(null, key, binding);
-					if (binding.inputSource === 'customNodeGraphEffectCustomParameterValueReference' && binding.parameterId !== '') checkCustom(binding.parameterId);
+					if (binding.inputSource === 'nodesEffectCustomParameterValueReference' && binding.parameterId !== '') checkCustom(binding.parameterId);
 				}
 				checkingCustom.delete(key);
 				checkedCustom.add(key);
 			}
 
-			for (const key of Object.keys(graph.customParameterValues ?? {})) checkCustom(key);
-			if (graph.primaryInputParameter != null && graph.paramDefs[graph.primaryInputParameter]?.canNode !== true) throw new Error('Invalid primary input');
-			if (graph.primaryOutput != null && graph.outputDefs[graph.primaryOutput] == null) throw new Error('Invalid primary output');
-			if (graph.primaryAudioInputParameter != null && graph.paramDefs[graph.primaryAudioInputParameter]?.dataType.kind !== 'audioSource') throw new Error('Invalid primary audio input');
-			if (graph.resolutionInputParameters.some(key => !acceptsResolutionInput(graph.paramDefs[key]))) throw new Error('Invalid resolution input');
-			for (const [id, output] of Object.entries(graph.outputSources)) {
+			for (const key of Object.keys(nodesEffect.customParameterValues ?? {})) checkCustom(key);
+			if (nodesEffect.primaryInputParameter != null && nodesEffect.paramDefs[nodesEffect.primaryInputParameter]?.canNode !== true) throw new Error('Invalid primary input');
+			if (nodesEffect.primaryOutput != null && nodesEffect.outputDefs[nodesEffect.primaryOutput] == null) throw new Error('Invalid primary output');
+			if (nodesEffect.primaryAudioInputParameter != null && nodesEffect.paramDefs[nodesEffect.primaryAudioInputParameter]?.dataType.kind !== 'audioSource') throw new Error('Invalid primary audio input');
+			if (nodesEffect.resolutionInputParameters.some(key => !acceptsResolutionInput(nodesEffect.paramDefs[key]))) throw new Error('Invalid resolution input');
+			for (const [id, output] of Object.entries(nodesEffect.outputSources)) {
 				if (output == null) continue;
-				if (!canConnectNodeDataTypes(sourceType(output), graph.outputDefs[id]?.dataType, 'allowMismatch')) throw new Error('Incompatible public output: ' + id);
+				if (!canConnectNodeDataTypes(sourceType(output), nodesEffect.outputDefs[id]?.dataType, 'allowMismatch')) throw new Error('Incompatible public output: ' + id);
 			}
-			ancestors.delete(graph);
+			ancestors.delete(nodesEffect);
 			if (registeredId != null) ancestorIds.delete(registeredId);
 		}
 		validated.add(effect.definition);

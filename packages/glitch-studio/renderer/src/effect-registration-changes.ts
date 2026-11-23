@@ -1,5 +1,5 @@
 import type { EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
+import type { NodesEffect } from '@gs/subsystems_effect_shared/nodes-effect.ts';
 import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { ProjectEffectRegistrations } from '@gs/glitch-studio_shared/project/types.ts';
 
@@ -22,28 +22,28 @@ export function diffEffectRegistrationSnapshots(previous: ProjectEffectRegistrat
 	return [
 		...changedRegistrations(previous.customShaderEffects, next.customShaderEffects).map(([id, entry]) =>
 			({ type: 'customShaderEffectRegistration' as const, customShaderEffectId: id, customShaderEffect: entry })),
-		...changedRegistrations(previous.customNodeGraphEffects, next.customNodeGraphEffects).map(([id, entry]) =>
-			({ type: 'customNodeGraphEffectRegistration' as const, customNodeGraphEffectId: id, customNodeGraphEffect: entry })),
+		...changedRegistrations(previous.nodesEffects, next.nodesEffects).map(([id, entry]) =>
+			({ type: 'nodesEffectRegistration' as const, nodesEffectId: id, nodesEffect: entry })),
 	];
 }
 
 /** 指定の変更が影響する配置を、インライン定義・登録参照の入れ子までたどる。 */
 export function changedEffectReferences(changes: Iterable<RendererProjectChange>, project: ProjectEffectRegistrations) {
 	const shaders = new Set<string>();
-	const graphs = new Set<string>();
+	const changedNodesEffectIds = new Set<string>();
 	for (const change of changes) {
 		if (change.type === 'customShaderEffectRegistration') shaders.add(change.customShaderEffectId);
-		if ('customNodeGraphEffectId' in change) graphs.add(change.customNodeGraphEffectId);
+		if ('nodesEffectId' in change) changedNodesEffectIds.add(change.nodesEffectId);
 	}
-	if (shaders.size === 0 && graphs.size === 0) return null;
-	const registered = new Map(project.customNodeGraphEffects.map(entry => [entry.id, entry.definition]));
-	const results = new Map<CustomNodeGraphEffect, boolean>();
+	if (shaders.size === 0 && changedNodesEffectIds.size === 0) return null;
+	const registered = new Map(project.nodesEffects.map(entry => [entry.id, entry.definition]));
+	const results = new Map<NodesEffect, boolean>();
 
-	function usesChangedGraph(graph: CustomNodeGraphEffect): boolean {
-		const cached = results.get(graph);
+	function usesChangedNodesEffect(nodesEffect: NodesEffect): boolean {
+		const cached = results.get(nodesEffect);
 		if (cached != null) return cached;
-		const changed = graph.nodes.some(node => node.type !== 'relay' && usesChangedEffect(node.effectSource));
-		results.set(graph, changed);
+		const changed = nodesEffect.nodes.some(node => node.type !== 'relay' && usesChangedEffect(node.effectSource));
+		results.set(nodesEffect, changed);
 		return changed;
 	}
 
@@ -52,10 +52,10 @@ export function changedEffectReferences(changes: Iterable<RendererProjectChange>
 			case 'nativeEffect':
 			case 'inlineCustomShaderEffect': return false;
 			case 'customShaderEffectReference': return shaders.has(source.id);
-			case 'inlineCustomNodeGraphEffect': return usesChangedGraph(source.customNodeGraphEffect);
-			case 'customNodeGraphEffectReference': {
-				const graph = registered.get(source.id);
-				return graphs.has(source.id) || (graph != null && usesChangedGraph(graph));
+			case 'inlineNodesEffect': return usesChangedNodesEffect(source.nodesEffect);
+			case 'nodesEffectReference': {
+				const nodesEffect = registered.get(source.id);
+				return changedNodesEffectIds.has(source.id) || (nodesEffect != null && usesChangedNodesEffect(nodesEffect));
 			}
 		}
 	}

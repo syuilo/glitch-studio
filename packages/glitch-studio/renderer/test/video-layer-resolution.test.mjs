@@ -7,7 +7,7 @@ import { build } from 'esbuild';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
 // デコードとGPU実行だけを置き換える。倍率の受け渡し・動画転送・合成の分岐・
-// Custom Node Graph Effect内の自動解像度は実装を通し、境界のどこかで倍率が失われる回帰を検出する。
+// Nodes Effect内の自動解像度は実装を通し、境界のどこかで倍率が失われる回帰を検出する。
 const videoSourceModule = '@gs/shared/media/video-source.ts';
 const managerBundle = await build({
 	entryPoints: [fileURLToPath(new URL('../src/timeline-renderer-manager.ts', import.meta.url))],
@@ -510,12 +510,12 @@ test('scales video sources once through replace composition and automatic proces
 	const video = { ...timing, id: 'video', layerType: 'video', clips: [{ id: 'clip', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: false, assetId: 'asset', audioEnabled: false, videoEnabled: true }], audioParamValues: { volume: literal(1) }, compositingParamValues: { fitMode: { inputSource: 'literal', value: 'cover' } } };
 	const processing = { ...timing, id: 'processing', layerType: 'effect', effectParamValues: {}, effectStaticSettings: {}, resolution: { mode: 'context', scale: 1 },
 		compositingParamValues: { blendMode: literal('replace') },
-		effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: {
+		effectSource: { type: 'inlineNodesEffect', nodesEffect: {
 			kind: 'modify', paramDefs: { input: { dataType: { kind: 'color' }, canNode: true, defaultValue: [0, 0, 0, 0] } },
 			primaryInputParameter: 'input', resolutionInputParameters: ['input'], primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } },
 			outputSources: { output: { nodeId: 'second', outputPort: 'output' } },
 			nodes: [
-				{ id: 'first', effectSource: { type: 'nativeEffect', id: 'pass' }, params: { input: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'input' } } },
+				{ id: 'first', effectSource: { type: 'nativeEffect', id: 'pass' }, params: { input: { inputSource: 'nodesEffectPublicParameterReference', parameterId: 'input' } } },
 				{ id: 'second', effectSource: { type: 'nativeEffect', id: 'pass' }, params: { input: { inputSource: 'node', source: { nodeId: 'first', outputPort: 'output' } } } },
 			],
 		} },

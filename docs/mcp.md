@@ -71,27 +71,27 @@ claude mcp add --scope user --transport http glitch_studio http://127.0.0.1:4572
 
 ## AiScriptによる編集
 
-最初に`get_scripting_guide`を読み、`search_scripting_api`と`get_scripting_api`で必要なAPIの契約を取得します。資料は実行中のアプリが持つCommand・Queryの定義から生成するため、公開中のAPIと一致します。`get_scripting_api`の`names`には`Command:createCustomNodeGraphEffect`や`Query:getCustomNodeGraphEffect`のように名前空間付きの名前を指定します。
+最初に`get_scripting_guide`を読み、`search_scripting_api`と`get_scripting_api`で必要なAPIの契約を取得します。資料は実行中のアプリが持つCommand・Queryの定義から生成するため、公開中のAPIと一致します。`get_scripting_api`の`names`には`Command:createNodesEffect`や`Query:getNodesEffect`のように名前空間付きの名前を指定します。
 
-`execute_script`には`projectSessionId`と`source`を渡します。例えば、次のスクリプトはFillノードを持つCustom Node Graph Effectを作成し、作成結果を出力します。
+`execute_script`には`projectSessionId`と`source`を渡します。例えば、次のスクリプトはFillノードを持つNodes Effectを作成し、作成結果を出力します。
 
 ```aiscript
-let customNodeGraphEffect = Command:createCustomNodeGraphEffect({ name: "Generated" })
-let fillNode = Command:createCustomNodeGraphEffectEffectNode({
-  customNodeGraphEffect: customNodeGraphEffect
+let nodesEffect = Command:createNodesEffect({ name: "Generated" })
+let fillNode = Command:createNodesEffectEffectNode({
+  nodesEffect: nodesEffect
   effectSource: { type: "nativeEffect", id: "fill" }
   connectionMode: "appendToPrimaryOutput"
 })
-Command:setCustomNodeGraphEffectNodeParameterSource({
+Command:setNodesEffectNodeParameterSource({
   target: fillNode
   parameterPath: ["color"]
   source: { inputSource: "literal", value: [1, 0.2, 0.1, 1] }
 })
-<: Query:getCustomNodeGraphEffect(customNodeGraphEffect)
+<: Query:getNodesEffect(nodesEffect)
 ```
 
-`Query:listEffects()`はNative Effect、登録済みのCustom Shader Effect、登録済みのCustom Node Graph Effectを返します。各項目の`target`を`Query:getEffect`に渡すとパラメータと出力ポートの定義を取得できます。`effectSource`を使ってノードを追加するときは、親グラフへの直接・間接の循環参照を避けてください。TimelineのEffectレイヤーには主出力が`color`のEffectを指定します。
-登録済みのCustom Node Graph Effectを配置するときは、`Query:listCustomNodeGraphEffects()`の各項目のうち、`target.customNodeGraphEffectId`を持つものを選び、`{ type: "customNodeGraphEffectReference", id: entry.target.customNodeGraphEffectId }`を`effectSource`として渡します。
+`Query:listEffects()`はNative Effect、登録済みのCustom Shader Effect、登録済みのNodes Effectを返します。各項目の`target`を`Query:getEffect`に渡すとパラメータと出力ポートの定義を取得できます。`effectSource`を使ってノードを追加するときは、親のNodes Effectへの直接・間接の循環参照を避けてください。TimelineのEffectレイヤーには主出力が`color`のEffectを指定します。
+登録済みのNodes Effectを配置するときは、`Query:listNodesEffects()`の各項目のうち、`target.nodesEffectId`を持つものを選び、`{ type: "nodesEffectReference", id: entry.target.nodesEffectId }`を`effectSource`として渡します。
 
 MCPで渡したスクリプトはScriptingパネルの本文・出力を書き換えません。出力、正常終了したCommandの件数、エラーの有無をツールの結果へ返します。出力量には上限があり、切り詰めた場合は結果に示します。
 
@@ -105,7 +105,7 @@ MCPの実行では`Dialog:*`と`readline`を使用できません。待ち時間
 
 `capture_preview`へ`projectSessionId`を渡すと、その編集ウィンドウで選択中のプロジェクトのプレビューを取得します。非選択タブでは映像Workerを解放しているため、画像を取得したいプロジェクトをアプリで選択してください。ツールがタブを自動的に切り替えることはありません。
 
-返却する画像はPNGです。`maxSize`で長辺の上限を指定でき、既定は1024px、最大は2048pxです。縦横比を維持して縮小し、取得した画像の寸法や対象の情報も返します。任意のScene・Custom Node Graph Effectや時刻を指定して描画する書き出し機能ではありません。
+返却する画像はPNGです。`maxSize`で長辺の上限を指定でき、既定は1024px、最大は2048pxです。縦横比を維持して縮小し、取得した画像の寸法や対象の情報も返します。任意のScene・Nodes Effectや時刻を指定して描画する書き出し機能ではありません。
 
 Commandの完了はプロジェクト状態への反映を意味し、描画の成功は別に確認します。描画できない場合や取得中に選択対象が変わった場合は、別の対象の画像を返さず失敗します。
 

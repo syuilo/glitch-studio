@@ -14,7 +14,7 @@ const bundled = await build({
 		export { commitTimelineParameterEdit } from './src/utility/timeline-parameter-command-actions.ts';
 		export { getTimelineParameterEditBinding } from './src/commands/timeline-parameter-api.ts';
 		export { createEffectTimelineLayer } from './src/utility/effect-timeline-layer.ts';
-		export { createInlineCustomNodeGraphEffectLayer } from './src/utility/inline-custom-node-graph-effect-layer.ts';
+		export { createInlineNodesEffectLayer } from './src/utility/inline-nodes-effect-layer.ts';
 		export { createTextTimelineLayer } from './src/utility/text-timeline-layer.ts';
 		export { default as definition } from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts';
 	` },
@@ -29,13 +29,13 @@ const bundled = await build({
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
 const { COMMAND_DEFS, UndoRedo, commitTimelineParameterEdit, getTimelineParameterEditBinding,
-	createEffectTimelineLayer, createInlineCustomNodeGraphEffectLayer, createTextTimelineLayer, definition } = loaded.exports;
+	createEffectTimelineLayer, createInlineNodesEffectLayer, createTextTimelineLayer, definition } = loaded.exports;
 const defaultBuzzId = createDefaultParameterBinding(definition.paramDefs.buzzs).value[0].id;
 
 function fixture(t, layer) {
 	// 全操作を同じ時刻に固定し、自動マージの時間条件が必ず満たされる状況で確認する。
 	t.mock.method(performance, 'now', () => 0);
-	const state = { timelineScenes: { value: [{ id: 'scene', name: 'Scene', layers: [layer] }] }, customNodeGraphEffects: { value: [] }, assets: { value: [] } };
+	const state = { timelineScenes: { value: [{ id: 'scene', name: 'Scene', layers: [layer] }] }, nodesEffects: { value: [] }, assets: { value: [] } };
 	const manager = new UndoRedo(state, COMMAND_DEFS);
 	const notifications = [];
 	manager.onChange(changes => notifications.push(changes[0].changes[0].kind));
@@ -152,13 +152,13 @@ test('classifies complete replacements and preserves notifications through undo 
 	assert.equal(f.notifications.at(-1), 'arrayElements');
 });
 
-// 【Custom Node Graph Effect引数の接続・リセットを値通知として扱わない】
+// 【Nodes Effect引数の接続・リセットを値通知として扱わない】
 // レンダラーはこの対象のvalue通知ではインスタンスを維持するため、画像の接続先変更や
 // リセットをvalueに落とすと、古い配線・静的状態が再利用される。
-test('reports structural changes for Custom Node Graph Effect argument UI actions', t => {
-	const layer = createInlineCustomNodeGraphEffectLayer(0);
+test('reports structural changes for Nodes Effect argument UI actions', t => {
+	const layer = createInlineNodesEffectLayer(0);
 	const f = fixture(t, layer);
-	const path = [layer.effectSource.customNodeGraphEffect.primaryInputParameter];
+	const path = [layer.effectSource.nodesEffect.primaryInputParameter];
 	f.edit('effect', path, { kind: 'inputSource', inputSource: 'anotherLayerOutput' });
 	f.edit('effect', path, { kind: 'anotherLayerOutput', value: { inputSource: 'anotherLayerOutput', layerId: null, outputStage: 'rendered' } });
 	f.edit('effect', path, { kind: 'reset' });

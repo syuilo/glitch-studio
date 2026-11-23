@@ -2,10 +2,10 @@ import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType }
 import { constantShaderInputComponents } from '@gs/shared/gpu/shader-input.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { EffectParameterInput } from '@gs/subsystems_effect_renderer/effect-instance.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
+import type { NodesEffect } from '@gs/subsystems_effect_shared/nodes-effect.ts';
 
 /** Web Componentの公開値を、描画計画が実際に要求した入力だけに束縛する。 */
-export function createPortableEffectInputs(definitions: CustomNodeGraphEffect['paramDefs'], initial: Record<string, unknown>) {
+export function createPortableEffectInputs(definitions: NodesEffect['paramDefs'], initial: Record<string, unknown>) {
 	let values = initial;
 	const sameLayout: (() => boolean)[] = [];
 	const updateUniforms: (() => void)[] = [];

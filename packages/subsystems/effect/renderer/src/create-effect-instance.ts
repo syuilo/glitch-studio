@@ -4,7 +4,7 @@ import { createFramePreparation, type PrepareFrame } from './frame-preparation.t
 import { createRenderCache } from './render-cache.ts';
 import { createEffectGpuExecution, type CollectGpuTime } from './effect-gpu-execution.ts';
 import { createEffectRenderDevice } from './tiling/effect-render-device.ts';
-import { createEffectFrameMapper } from './graph-evaluation.ts';
+import { createEffectFrameMapper } from './effect-parameter-evaluation.ts';
 import { resolveEffectStaticResources } from './effect-static-settings.ts';
 import { planEffect, type EffectPlacement, type EvaluateStep } from './plan-effect.ts';
 import type { EffectRenderTilingProgressObserver } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
@@ -172,7 +172,7 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 			get preparationStatus() { return preparation.status; },
 			tryPrepare(frame) { checkAvailable(); return preparation.tryPrepare(frame); },
 			async prepare(frame, signal) { checkAvailable(); await preparation.prepare(frame, signal); },
-			updateCustomNodeGraphEffectValues(id, update) {
+			updateNodesEffectValues(id, update) {
 				checkAvailable();
 				const revision = valueUpdates.preparationLayoutRevision;
 				if (!valueUpdates.apply(id, update)) return;

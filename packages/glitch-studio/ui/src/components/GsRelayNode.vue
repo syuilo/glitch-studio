@@ -1,12 +1,12 @@
 <template>
-<div :class="$style.root" :data-test-custom-node-graph-effect-relay-node="node.id">
+<div :class="$style.root" :data-test-nodes-effect-relay-node="node.id">
 	<div
 		:class="$style.header"
 		:draggable="true"
 		@dragstart.stop="emit('dragStart', $event)"
 		@contextmenu.prevent.stop="onHeaderContextmenu"
 	>
-		<b :class="$style.name">{{ node.label || i18n.ts._CustomNodeGraphEffect.RelayNode }}</b>
+		<b :class="$style.name">{{ node.label || i18n.ts._NodesEffect.RelayNode }}</b>
 		<div :class="$style.headerRight">
 			<span class="_monospace" data-test-relay-node-id>{{ prettyId(node.id) }}</span>
 			<div :class="$style.headerButtons">
@@ -51,14 +51,14 @@
 			<template #label>{{ i18n.ts._ParameterEditor.DataType }}</template>
 		</GsSelect>
 	</div>
-	<GsCustomNodeGraphEffectNodeInput
-		:customNodeGraphEffect="customNodeGraphEffect"
+	<GsNodesEffectNodeInput
+		:nodesEffect="nodesEffect"
 		:nodeId="node.id"
 		inputId="input"
 		label=""
 		:dataType="node.dataType"
 		:input="node.input"
-		data-test-custom-node-graph-effect-relay-input
+		data-test-nodes-effect-relay-input
 		@change="emit('changeInput', $event)"
 	/>
 	<GsNodeOutputs :node="node"/>
@@ -72,16 +72,16 @@ import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsNodeOutputs from './GsNodeOutputs.vue';
-import GsCustomNodeGraphEffectNodeInput from './GsCustomNodeGraphEffectNodeInput.vue';
+import GsNodesEffectNodeInput from './GsNodesEffectNodeInput.vue';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { NodeOutputReference, CustomNodeGraphEffect, CustomNodeGraphEffectRelayNode } from '@/types/custom-node-graph-effect-view.ts';
+import type { NodeOutputReference, NodesEffect, NodesEffectRelayNode } from '@/types/nodes-effect-view.ts';
 import { i18n } from '@/i18n.ts';
 import * as ui from '@/ui.ts';
-import { getCustomNodeGraphEffectNodeHeaderMenuItems } from '@/utility/custom-node-graph-effect-node-menu.ts';
+import { getNodesEffectNodeHeaderMenuItems } from '@/utility/nodes-effect-node-menu.ts';
 
 const props = defineProps<{
-	customNodeGraphEffect: CustomNodeGraphEffect;
-	node: CustomNodeGraphEffectRelayNode;
+	nodesEffect: NodesEffect;
+	node: NodesEffectRelayNode;
 }>();
 
 const emit = defineEmits<{
@@ -99,7 +99,7 @@ const dataTypeItems = (['any', 'color', 'scalar', 'vector'] as const).map(kind =
 }));
 
 function onHeaderContextmenu(event: PointerEvent) {
-	ui.contextMenu(getCustomNodeGraphEffectNodeHeaderMenuItems(props.node, name => emit('setDisplayName', name)), event);
+	ui.contextMenu(getNodesEffectNodeHeaderMenuItems(props.node, name => emit('setDisplayName', name)), event);
 }
 </script>
 

@@ -220,7 +220,7 @@ const previewTargetName = computed(() => {
 	const state = previewPlayback.state.value;
 	if (state.mode === 'timeline') return activeScene.value?.name ?? null;
 	const registrations = state.effectSource.type === 'customShaderEffectReference'
-		? stateManager.state.customShaderEffects.value : stateManager.state.customNodeGraphEffects.value;
+		? stateManager.state.customShaderEffects.value : stateManager.state.nodesEffects.value;
 	return registrations.find(registration => registration.id === state.effectSource.id)?.name ?? null;
 });
 const previewResolution = computed(() => {
@@ -517,14 +517,14 @@ function showPreviewTargetMenu(ev: PointerEvent) {
 		})),
 	}, {
 		type: 'parent',
-		text: i18n.ts.CustomNodeGraphEffect,
+		text: i18n.ts.NodesEffect,
 		icon: 'ti ti-box-multiple',
-		children: () => stateManager.state.customNodeGraphEffects.value.map(customNodeGraphEffect => ({
-			text: customNodeGraphEffect.name,
-			active: previewPlayback.livePreviewCustomNodeGraphEffectId.value === customNodeGraphEffect.id,
+		children: () => stateManager.state.nodesEffects.value.map(nodesEffect => ({
+			text: nodesEffect.name,
+			active: previewPlayback.livePreviewNodesEffectId.value === nodesEffect.id,
 			action: () => {
 				// 同じEffect Live Preview対象の再選択では、Preview Paramsで設定した値を初期化しない。
-				if (previewPlayback.livePreviewCustomNodeGraphEffectId.value !== customNodeGraphEffect.id) projectSession.startCustomNodeGraphEffectLivePreview(customNodeGraphEffect.id);
+				if (previewPlayback.livePreviewNodesEffectId.value !== nodesEffect.id) projectSession.startNodesEffectLivePreview(nodesEffect.id);
 			},
 		})),
 	}, {

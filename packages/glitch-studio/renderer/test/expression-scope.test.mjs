@@ -9,10 +9,10 @@ const expression = expression => ({ inputSource: 'expression', expression });
 const def = (id, value = 7, kind = 'scalar') => ({ id, nameForReference: id.toLowerCase().replaceAll('-', '_'), dataType: { kind }, ui: { label: id, control: kind === 'scalar' ? { controlType: 'number' } : {} }, defaultValue: value, canNode: false });
 const clipFrame = { sceneTimeMs: 500, contentTimeMs: 250, contentEndTimeMs: 2000, clipElapsedTimeMs: 100, clipDurationMs: 1850, isExport: true };
 
-// 【レイヤーの離散キーフレームは評価済みの引数としてCustom Node Graph Effectへ渡す】
+// 【レイヤーの離散キーフレームは評価済みの引数としてNodes Effectへ渡す】
 // 文字列・bool・enumをテクスチャや式へ変換せず、プレビューと書き出しで同じ切り替え時刻を使う。
 // トリム後の見かけの開始時刻でキーをリセットしないよう、Scene時刻と内容時刻を分けて往復シークも確認する。
-test('passes discrete layer keyframes to Custom Node Graph Effects consistently during preview export and seeking', async () => {
+test('passes discrete layer keyframes to Nodes Effects consistently during preview export and seeking', async () => {
 	const definitions = [
 		{ ...def('text', ''), dataType: { kind: 'string' } },
 		{ ...def('enabled', false), dataType: { kind: 'bool' } },
@@ -25,12 +25,12 @@ test('passes discrete layer keyframes to Custom Node Graph Effects consistently 
 			{ id: 'second', x: 10000, value: second, interpolation: { type: 'hold' } },
 		] },
 	});
-	const layer = { automationGraphs: [], customNodeGraphEffectParamValues: {
+	const layer = { automationGraphs: [], nodesEffectParamValues: {
 		text: animated(definitions[0], 'Hello\n世界', ''), enabled: animated(definitions[1], true, false), mode: animated(definitions[2], 'a', 'b'),
 	} };
 	let resolved;
 	const adapter = createTimelineEffectProbe({ paramDefs: Object.fromEntries(definitions.map(def => [def.id, def])),
-		params: layer.customNodeGraphEffectParamValues, render(frame, values) { resolved = values; } });
+		params: layer.nodesEffectParamValues, render(frame, values) { resolved = values; } });
 	for (const isExport of [false, true]) {
 		for (const time of [10000, 9999, 15000, 5000]) {
 			await adapter.evaluate({ sceneTimeMs: time, contentTimeMs: time - 1000, clipElapsedTimeMs: time - 1000, clipDurationMs: 20000, contentEndTimeMs: 20000, timeDelta: 0, isExport }, new AbortController().signal);

@@ -30,7 +30,7 @@ test('evaluates IS_EXPORT in public parameters and node expressions without leak
 		params: { direct: { inputSource: 'expression', expression: 'IS_EXPORT' }, public: { inputSource: 'expression', expression: 'PUBLIC("external")' } } }],
 		outputSources: { output: { nodeId: 'draw', outputPort: 'output' } } };
 	const observed = [];
-	const instance = await createEffectInstance({ effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph },
+	const instance = await createEffectInstance({ effectSource: { type: 'inlineNodesEffect', nodesEffect: graph },
 		resolution: { width: 4, height: 4 }, usedOutputPorts: new Set(['output']), params: { external: { inputSource: 'expression', expression: 'IS_EXPORT' } },
 		definitions: { getNativeEffect: () => ({ ...metadata, paramDefs: { direct: flag, public: flag } }) } }, {}, () => ({
 			createOutputTexture: () => ({ destroy() {} }), init: ({ inputs }) => ({ render: () => observed.push([inputs.direct.value, inputs.public.value]), dispose() {} }),

@@ -8,7 +8,7 @@ import { build } from 'esbuild';
 import { compileScript, parse } from 'vue/compiler-sfc';
 import { createRenderer, h, nextTick } from 'vue';
 import { i18nPlugin } from './helpers/i18n.mjs';
-import { testGraph } from './helpers/effect-graph.mjs';
+import { testNodesEffect } from './helpers/nodes-effect.mjs';
 
 // 検索入力・フィルター・Enter選択を実際のテンプレート経由で操作する。
 // アプリの初期化と子コントロールだけを置き換え、名前検索と入出力ポートの判定は実装を使用する。
@@ -26,7 +26,7 @@ const bundle = await build({
 		build.onResolve({ filter: /native-effects\/definitions\.ts$/ }, () => ({ path: 'effects', namespace: 'fixture' }));
 		build.onLoad({ filter: /.*/, namespace: 'fixture' }, ({ path }) => ({ contents: path === 'app'
 			? `import { ref } from 'vue';
-				export const state = { customShaderEffects: ref([]), customNodeGraphEffects: ref([]) };
+				export const state = { customShaderEffects: ref([]), nodesEffects: ref([]) };
 				export function useProjectSession() { return { projectContext: { stateManager: { state } } }; }`
 			: "import { reactive } from 'vue'; export const nativeEffectDefinitions = reactive({});" }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => path.endsWith('GsEffectPicker.vue')
@@ -72,7 +72,7 @@ function fixture(t, definitions, { props = {}, graphs = [], shaders = [], recent
 	});
 	for (const key of Object.keys(fixtureDefinitions)) delete fixtureDefinitions[key];
 	Object.assign(fixtureDefinitions, definitions);
-	state.customNodeGraphEffects.value = graphs;
+	state.nodesEffects.value = graphs;
 	state.customShaderEffects.value = shaders;
 	const element = () => ({ children: [], parent: null, props: {} });
 	const renderer = createRenderer({
@@ -159,8 +159,8 @@ test('applies strict filters and uses primary ports only to break equal name mat
 
 // 【グラフへの追加は自分自身と自分を含む候補だけを初期一覧・履歴・検索から除く】
 // 登録種別が異なれば同じ ID を使える。未接続のインライングラフ経由の循環も除き、主出力のない子は選べる。
-test('filters graph cycles across sections, recents and search while keeping independent Effect sources', async t => {
-	const reference = id => ({ type: 'customNodeGraphEffectReference', id });
+test('filters cyclic Nodes Effect references across sections, recents and search while keeping independent Effect sources', async t => {
+	const reference = id => ({ type: 'nodesEffectReference', id });
 	const node = effectSource => ({ id: 'node', effectSource, params: {}, isBypass: true });
 	const parent = reference('shared');
 	const child = reference('child');
@@ -168,13 +168,13 @@ test('filters graph cycles across sections, recents and search while keeping ind
 	const native = { type: 'nativeEffect', id: 'shared' };
 	const shader = { type: 'customShaderEffectReference', id: 'shared' };
 	const f = fixture(t, { shared: effect('Native') }, {
-		props: { parentCustomNodeGraphEffectId: parent.id }, recent: [ancestor, child, parent],
-		shaders: [{ id: 'shared', name: 'Shader', summary: '', definition: testGraph() }],
+		props: { parentNodesEffectId: parent.id }, recent: [ancestor, child, parent],
+		shaders: [{ id: 'shared', name: 'Shader', summary: '', definition: testNodesEffect() }],
 		graphs: [
-			{ id: parent.id, name: 'Parent', definition: testGraph() },
-			{ id: child.id, name: 'Child Graph', definition: testGraph({ primaryOutput: null }) },
-			{ id: 'middle', name: 'Middle', definition: testGraph({ nodes: [node(parent)] }) },
-			{ id: ancestor.id, name: 'Ancestor Graph', definition: testGraph({ nodes: [node({ type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: testGraph({ nodes: [node(reference('middle'))] }) })] }) },
+			{ id: parent.id, name: 'Parent', definition: testNodesEffect() },
+			{ id: child.id, name: 'Child Graph', definition: testNodesEffect({ primaryOutput: null }) },
+			{ id: 'middle', name: 'Middle', definition: testNodesEffect({ nodes: [node(parent)] }) },
+			{ id: ancestor.id, name: 'Ancestor Graph', definition: testNodesEffect({ nodes: [node({ type: 'inlineNodesEffect', nodesEffect: testNodesEffect({ nodes: [node(reference('middle'))] }) })] }) },
 		],
 	});
 	const row = source => f.find('data-test-effect-picker-effect', JSON.stringify(source));
@@ -188,19 +188,19 @@ test('filters graph cycles across sections, recents and search while keeping ind
 	assert.deepEqual(f.results(), [child.id]);
 	row(child).props.onClick();
 	assert.deepEqual(f.chosen[0].effectSource, child);
-	state.customNodeGraphEffects.value.find(entry => entry.id === 'middle').definition.nodes = [];
+	state.nodesEffects.value.find(entry => entry.id === 'middle').definition.nodes = [];
 	await nextTick();
 	assert.ok(row(ancestor));
 });
 
 // 【Timeline のレイヤーには主出力が color の登録グラフだけを表示する】
 // 副出力に color があってもレイヤーはそれを自動選択しない。型フィルターを解除しても配置条件を維持する。
-test('offers registered graphs with a primary color output for timeline layers', async t => {
+test('offers registered Nodes Effects with a primary color output for timeline layers', async t => {
 	const outputDefs = { color: { dataType: { kind: 'color' } }, scalar: { dataType: { kind: 'scalar' } } };
 	const f = fixture(t, {}, {
 		props: { selectedOutputType: 'color', requirePrimaryColorOutput: true },
 		graphs: ['color', 'scalar', null].map(primaryOutput => ({
-			id: primaryOutput ?? 'none', name: 'Graph', definition: testGraph({ primaryOutput, outputDefs }),
+			id: primaryOutput ?? 'none', name: 'Graph', definition: testNodesEffect({ primaryOutput, outputDefs }),
 		})),
 	});
 	assert.deepEqual(f.results(), ['color']);

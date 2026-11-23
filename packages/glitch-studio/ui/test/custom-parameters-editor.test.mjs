@@ -12,11 +12,11 @@ import { i18nPlugin } from './helpers/i18n.mjs';
 const directory = fileURLToPath(new URL('../', import.meta.url));
 const bundle = await build({ absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
-		export { default as CustomParameters } from './src/components/GsCustomNodeGraphEffectEditor.CustomParameters.vue';
+		export { default as CustomParameters } from './src/components/GsNodesEffectEditor.CustomParameters.vue';
 		export { default as Keyframes } from './src/components/GsInlineKeyframesEditor.vue';
 	` },
 	plugins: [i18nPlugin, { name: 'custom-parameter-controls', setup(build) {
-		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsCustomNodeGraphEffectEditor\.CustomParameters\.vue$|GsInlineKeyframesEditor\.vue$/.test(path) ? null : { path: basename(path), namespace: 'control' });
+		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsNodesEffectEditor\.CustomParameters\.vue$|GsInlineKeyframesEditor\.vue$/.test(path) ? null : { path: basename(path), namespace: 'control' });
 		build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ loader: 'ts', contents: `
 			import { h } from 'vue';
 			export default { setup(_, { attrs, slots }) { return () => h('control', attrs, Object.values(slots).flatMap(slot => slot())); } };
@@ -56,11 +56,11 @@ function fixture(t, component, initialProps) {
 // 【カスタムの編集UIは公開と別の名前空間を持ち、ノード固有の環境を提示しない】
 // 外部向けの定義や参照候補へ内部設定を混ぜず、編集通知が安定したIDを持つことを確認する。
 test('edits custom values and definitions with a separate namespace and shared scope', async t => {
-	const customNodeGraphEffect = { customParameterValues: {}, nodes: [], automationGraphs: [], paramDefs: [scalar('public', 'my_param_2')], customParameterDefs: [scalar('first', 'my_param'), scalar('second', 'other')] };
-	const f = fixture(t, CustomParameters, { customNodeGraphEffect });
+	const nodesEffect = { customParameterValues: {}, nodes: [], automationGraphs: [], paramDefs: [scalar('public', 'my_param_2')], customParameterDefs: [scalar('first', 'my_param'), scalar('second', 'other')] };
+	const f = fixture(t, CustomParameters, { nodesEffect });
 	const valueEditor = f.find('data-test-custom-parameter-value', 'first');
 	assert.deepEqual(valueEditor.props.availableVariables, ['TIME', 'TIME_MS', 'END_TIME', 'END_TIME_MS', 'PROGRESS', 'IS_EXPORT']);
-	assert.ok(Object.hasOwn(valueEditor.props, 'customNodeGraphEffectParameterReferencesEnabled'));
+	assert.ok(Object.hasOwn(valueEditor.props, 'nodesEffectParameterReferencesEnabled'));
 	f.find('data-test-add-custom-parameter').props.onClick();
 	assert.equal(f.edits.at(-1).definition.nameForReference, 'my_param_2');
 	const definitionEditor = f.find('data-test-custom-parameter-definition', 'first');

@@ -9,7 +9,7 @@ const outputs = { main: { dataType: color.dataType }, other: { dataType: color.d
 const definition = { kind: 'generate', paramDefs: {}, outputDefs: outputs, primaryOutput: 'main', primaryInputParameter: null, resolutionInputParameters: [] };
 const native = id => ({ type: 'nativeEffect', id });
 const graph = (nodes, outputSources, paramDefs = {}) => ({
-	type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: { ...definition, paramDefs, nodes, outputSources },
+	type: 'inlineNodesEffect', nodesEffect: { ...definition, paramDefs, nodes, outputSources },
 });
 const node = (id, params = {}) => ({ id, effectSource: native(id), params });
 const output = nodeId => ({ nodeId, outputPort: 'main' });
@@ -72,7 +72,7 @@ test('commits all history ports together only after a successful render', async 
 
 // 【履歴を持つ到達ノードだけをリセットする】
 // 共有された上流を多重にリセットせず、使用されない枝のために履歴を作らない。
-test('resets reachable history once even when the graph exposes it twice', async t => {
+test('resets reachable history once even when the Nodes Effect exposes it twice', async t => {
 	const events = [];
 	const source = graph([node('shared'), node('unused')], { main: output('shared'), other: output('shared') });
 	const effect = await createEffectInstance(placement(source), {}, id => implementation(() => {
@@ -153,7 +153,7 @@ test('ignores late preparation after resetting a placement and retries independe
 test('invalidates only consumers of the public texture whose version changed', async t => {
 	const versions = { left: 0, right: 0 };
 	const inputs = Object.fromEntries(Object.keys(versions).map(id => [id, { kind: 'texture', texture: {}, resolution: size, get version() { return versions[id]; } }]));
-	const reference = parameterId => ({ inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId });
+	const reference = parameterId => ({ inputSource: 'nodesEffectPublicParameterReference', parameterId });
 	const source = graph(['left', 'right'].map(id => node(id, { source: reference(id) })), { main: output('left'), other: output('right') }, { left: color, right: color });
 	const renders = [];
 	const effect = await createEffectInstance(placement(source, { inputs, definitions: { getNativeEffect: () => ({ ...definition, paramDefs: { source: color } }) } }), {},

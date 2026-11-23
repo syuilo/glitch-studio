@@ -1,5 +1,5 @@
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
-import { testGraph } from './helpers/effect-graph.mjs';
+import { testNodesEffect } from './helpers/nodes-effect.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
@@ -49,7 +49,7 @@ function fixture(t) {
 	const layer = createShapeTimelineLayer('rectangle', 100);
 	layer.id = 'shape';
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] };
-	const state = { timelineScenes: { value: [scene] }, customNodeGraphEffects: { value: [] }, assets: { value: [] } };
+	const state = { timelineScenes: { value: [scene] }, nodesEffects: { value: [] }, assets: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const changes = [];
 	history.onChange(value => changes.push(value));
@@ -177,21 +177,21 @@ test('requires the original scene and compatible surviving lanes without requiri
 	assert.equal(prepareTimelineKeyframePaste(f.state, f.scene, clipboard, 1000), null);
 });
 
-// 【同じ配置に保存されたCustom Node Graph Effect引数のキー入力へ貼り付ける】
+// 【同じ配置に保存されたNodes Effect引数のキー入力へ貼り付ける】
 // キー入力が削除された後も既定値からレーンを作り直さないようにする。
 // enumの候補が更新された場合も、追加する値を現在の選択肢で検証する。
-test('pastes into saved Custom Node Graph Effect arguments and validates current enum options', t => {
+test('pastes into saved Nodes Effect arguments and validates current enum options', t => {
 	const f = fixture(t);
 	const dataType = { kind: 'enum', options: ['one', 'two'] };
 	const def = { id: 'choice', dataType, ui: { label: 'Choice', control: { labels: {} } }, canNode: false,
 		defaultValue: 'one' };
 	const placement = createInlineKeyframesTimeline(def);
 	placement.keyframesTimeline.keyframes[0].id = 'default-key';
-	const customNodeGraphEffect = { id: 'customNodeGraphEffect', definition: testGraph({ paramDefs: { [def.id]: def } }) };
-	f.state.customNodeGraphEffects.value.push(customNodeGraphEffect);
-	f.scene.layers.push({ id: 'custom-node-graph-effect-layer', layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' }, effectParamValues: { choice: structuredClone(placement) }, clips: [], compositingParamValues: {} });
+	const nodesEffect = { id: 'nodesEffect', definition: testNodesEffect({ paramDefs: { [def.id]: def } }) };
+	f.state.nodesEffects.value.push(nodesEffect);
+	f.scene.layers.push({ id: 'nodes-effect-layer', layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'nodesEffect' }, effectParamValues: { choice: structuredClone(placement) }, clips: [], compositingParamValues: {} });
 	f.selection.length = 0;
-	f.selection.push({ layerId: 'custom-node-graph-effect-layer', target: 'effect', paramPath: ['choice'], keyframeId: 'default-key' });
+	f.selection.push({ layerId: 'nodes-effect-layer', target: 'effect', paramPath: ['choice'], keyframeId: 'default-key' });
 	const clipboard = f.clipboard;
 	const originalDefault = structuredClone(def.defaultValue);
 	const keyframes = prepareTimelineKeyframePaste(f.state, f.scene, clipboard, 1000);
@@ -230,9 +230,9 @@ test('removes saved keys atomically and restores each lane through undo and redo
 			placement.value[0].binding.value.x = structuredClone(keys);
 			placement.value[0].binding.value.y = structuredClone(keys);
 		}
-		const customNodeGraphEffect = { id: 'customNodeGraphEffect', definition: testGraph({ paramDefs: { [def.id]: def } }) };
-		f.state.customNodeGraphEffects.value.push(customNodeGraphEffect);
-		for (const id of ['edited', 'untouched']) f.scene.layers.push({ id, layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' }, effectParamValues: id === 'edited' ? { value: placement } : {}, clips: [], compositingParamValues: {} });
+		const nodesEffect = { id: 'nodesEffect', definition: testNodesEffect({ paramDefs: { [def.id]: def } }) };
+		f.state.nodesEffects.value.push(nodesEffect);
+		for (const id of ['edited', 'untouched']) f.scene.layers.push({ id, layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'nodesEffect' }, effectParamValues: id === 'edited' ? { value: placement } : {}, clips: [], compositingParamValues: {} });
 		const paths = nested ? [['value', defaultBuzzId, 'x'], ['value', defaultBuzzId, 'y']] : [['value']];
 		const selection = paths.map(paramPath => ({ layerId: 'edited', target: 'effect', paramPath, keyframeId: 'remove' }));
 		const before = structuredClone(f.scene);

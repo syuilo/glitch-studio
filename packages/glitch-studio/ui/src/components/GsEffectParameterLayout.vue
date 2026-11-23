@@ -51,7 +51,7 @@ import { useProjectSession } from '@/project-session.ts';
 import { preferences } from '@/preferences.ts';
 import { useParameterExpansionState } from '@/composables/useParameterExpansion.ts';
 import { isParameterVisible } from '@/utility/parameter-visibility.ts';
-import { connectedNodeParameterPathKeysKey, useCustomNodeGraphEffectWires } from '@/utility/custom-node-graph-effect-wires.ts';
+import { connectedNodeParameterPathKeysKey, useNodesEffectWires } from '@/utility/nodes-effect-wires.ts';
 
 const props = withDefaults(defineProps<{
 	definition: EffectDefinition;
@@ -66,7 +66,7 @@ const props = withDefaults(defineProps<{
 defineSlots<{ default(props: { parameterKey: string }): any }>();
 
 const projectSession = useProjectSession();
-const wireMap = useCustomNodeGraphEffectWires();
+const wireMap = useNodesEffectWires();
 const connectedParameterPathKeys = inject(connectedNodeParameterPathKeysKey, null);
 const collapsedPortElement = shallowRef<HTMLElement | null>(null);
 const items = computed(() => props.section?.children ?? props.definition.ui?.parameterLayout ?? Object.keys(props.definition.paramDefs));

@@ -54,10 +54,10 @@ export async function run() {
 	}
 	function createPlacement(definition: NativeEffectDefinition, implementation: NativeEffectImplementation, params: ReturnType<typeof parameterBindings>,
 		size: number, mode: 'auto' | 'disabled' | 'manual', statistics = false) {
-		const customNodeGraphEffect = { ...definition, nodes: [{ id: 'draw', effectSource: { type: 'nativeEffect' as const, id: 'native' },
-			params: Object.fromEntries(Object.keys(params).map(id => [id, { inputSource: 'customNodeGraphEffectPublicParameterReference' as const, parameterId: id }])) }],
+		const nodesEffect = { ...definition, nodes: [{ id: 'draw', effectSource: { type: 'nativeEffect' as const, id: 'native' },
+			params: Object.fromEntries(Object.keys(params).map(id => [id, { inputSource: 'nodesEffectPublicParameterReference' as const, parameterId: id }])) }],
 			outputSources: { output: { nodeId: 'draw', outputPort: 'output' } } };
-		return createEffectInstance({ effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect },
+		return createEffectInstance({ effectSource: { type: 'inlineNodesEffect', nodesEffect },
 			inputs: createTestInputs(definition.paramDefs, () => params), definitions: { getNativeEffect: () => definition },
 			resolution: { width: size, height: size }, usedOutputPorts: new Set(['output']), tiling: mode === 'manual' ? { mode, tileSize: 128 } : { mode },
 			onGpuTime: statistics ? () => {} : undefined }, { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false }, () => implementation);
@@ -111,19 +111,19 @@ export async function run() {
 		return actual;
 	}
 	try {
-		const mandelbrotCustomNodeGraphEffect = parameterBindings(mandelbrotDefinition);
+		const mandelbrotNodesEffect = parameterBindings(mandelbrotDefinition);
 		// 過分割が報告された1024角・4235反復の深ズームを回帰条件にする。
-		mandelbrotCustomNodeGraphEffect.view = literal({ center: literal([-0.2058423031514639, 0.27240018402412547]), zoom: literal(11601744.655951558), rotation: literal(0) });
-		mandelbrotCustomNodeGraphEffect.maximumIterations = literal(4235);
-		const auto = await createPlacement(mandelbrotDefinition, mandelbrotImplementation, mandelbrotCustomNodeGraphEffect, 1024, 'auto');
-		const disabled = await createPlacement(mandelbrotDefinition, mandelbrotImplementation, mandelbrotCustomNodeGraphEffect, 1024, 'disabled');
+		mandelbrotNodesEffect.view = literal({ center: literal([-0.2058423031514639, 0.27240018402412547]), zoom: literal(11601744.655951558), rotation: literal(0) });
+		mandelbrotNodesEffect.maximumIterations = literal(4235);
+		const auto = await createPlacement(mandelbrotDefinition, mandelbrotImplementation, mandelbrotNodesEffect, 1024, 'auto');
+		const disabled = await createPlacement(mandelbrotDefinition, mandelbrotImplementation, mandelbrotNodesEffect, 1024, 'disabled');
 		try {
 			await compare(auto, disabled, 'Mandelbrot initial');
-			mandelbrotCustomNodeGraphEffect.view = literal({ center: literal([-0.2058423131514639, 0.27240018402412547]), zoom: literal(11601744.655951558), rotation: literal(0) });
+			mandelbrotNodesEffect.view = literal({ center: literal([-0.2058423131514639, 0.27240018402412547]), zoom: literal(11601744.655951558), rotation: literal(0) });
 
 			await compare(auto, disabled, 'Mandelbrot moved');
 			// 配色だけならヒントを維持でき、静的キャッシュを更新する実描画もQueryなしへ戻る。
-			mandelbrotCustomNodeGraphEffect.unescapedColor = literal([1, 0, 0, 1]);
+			mandelbrotNodesEffect.unescapedColor = literal([1, 0, 0, 1]);
 
 			const recolored = await draw(auto, 'Mandelbrot recolored');
 			assert(recolored.timing.queries === 0, 'Mandelbrot returns to ordinary rendering after a light first draw');
@@ -146,27 +146,27 @@ export async function run() {
 			assert((moved.timing.progress?.totalTiles ?? 1) === 1, 'Magnetic Pendulum removes unnecessary tiling after a view change');
 		} finally { automaticPendulum.dispose(); disabledPendulum.dispose(); }
 		// ヒントの接続・端数付き積分とAAの変更・配色だけの通常描画復帰を、実際の配置で確かめる。
-		const doublePendulumCustomNodeGraphEffect = parameterBindings(doublePendulumFractalDefinition);
-		doublePendulumCustomNodeGraphEffect.coloringMethod = literal('angle1');
-		const automaticDoublePendulum = await createPlacement(doublePendulumFractalDefinition, doublePendulumFractalImplementation, doublePendulumCustomNodeGraphEffect, 256, 'auto');
-		const disabledDoublePendulum = await createPlacement(doublePendulumFractalDefinition, doublePendulumFractalImplementation, doublePendulumCustomNodeGraphEffect, 256, 'disabled');
+		const doublePendulumNodesEffect = parameterBindings(doublePendulumFractalDefinition);
+		doublePendulumNodesEffect.coloringMethod = literal('angle1');
+		const automaticDoublePendulum = await createPlacement(doublePendulumFractalDefinition, doublePendulumFractalImplementation, doublePendulumNodesEffect, 256, 'auto');
+		const disabledDoublePendulum = await createPlacement(doublePendulumFractalDefinition, doublePendulumFractalImplementation, doublePendulumNodesEffect, 256, 'disabled');
 		try {
 			const initial = await compare(automaticDoublePendulum, disabledDoublePendulum, 'Double Pendulum initial');
 			assert((initial.timing.progress?.totalTiles ?? 1) === 1, 'Double Pendulum renders a light first draw in one tile');
-			doublePendulumCustomNodeGraphEffect.simulationTime = literal(3.005);
-			doublePendulumCustomNodeGraphEffect.antialiasing = literal(true);
+			doublePendulumNodesEffect.simulationTime = literal(3.005);
+			doublePendulumNodesEffect.antialiasing = literal(true);
 
 
 			await compare(automaticDoublePendulum, disabledDoublePendulum, 'Double Pendulum partial step and AA');
 			const ramp = doublePendulumFractalDefinition.paramDefs.ramp.defaultValue;
-			doublePendulumCustomNodeGraphEffect.ramp = literal({ ...ramp,
+			doublePendulumNodesEffect.ramp = literal({ ...ramp,
 				stops: ramp.stops.map((stop, index) => index === 0 ? { ...stop, color: [1, 0, 0, 1] } : stop),
 			});
 
 
 			const recolored = await compare(automaticDoublePendulum, disabledDoublePendulum, 'Double Pendulum recolored');
 			assert(recolored.timing.queries === 0, 'Double Pendulum reuses learned untiled rendering for ramp color edits');
-			doublePendulumCustomNodeGraphEffect.view = literal({ center: literal([0.1, 0.2]), zoom: literal(2) });
+			doublePendulumNodesEffect.view = literal({ center: literal([0.1, 0.2]), zoom: literal(2) });
 
 
 			await compare(automaticDoublePendulum, disabledDoublePendulum, 'Double Pendulum moved');
@@ -174,23 +174,23 @@ export async function run() {
 		// 添付プロジェクトの1024角・約2314積分を64回連続でパンする。256角の単発描画だけでは、
 		// 視点キーの再学習や30回ごとの定期計測による引っ掛かりを検出できない。
 		for (const statistics of [false, true]) {
-			const customNodeGraphEffect = parameterBindings(doublePendulumFractalDefinition);
-			customNodeGraphEffect.initialAngularVelocity1 = literal(4.530000000000001);
-			customNodeGraphEffect.gravity = literal(26.82);
-			customNodeGraphEffect.timeStep = literal(0.001296523784419149);
-			customNodeGraphEffect.angularVelocityRange = literal(8.087466597938915);
+			const nodesEffect = parameterBindings(doublePendulumFractalDefinition);
+			nodesEffect.initialAngularVelocity1 = literal(4.530000000000001);
+			nodesEffect.gravity = literal(26.82);
+			nodesEffect.timeStep = literal(0.001296523784419149);
+			nodesEffect.angularVelocityRange = literal(8.087466597938915);
 			const view = (index: number) => literal({ center: literal([-2.3783367035287313 + index * 0.015, 3.0766039599245305 + index * 0.01]), zoom: literal(1.704604830642477) });
-			customNodeGraphEffect.view = view(0);
+			nodesEffect.view = view(0);
 
 
-			const automatic = await createPlacement(doublePendulumFractalDefinition, doublePendulumFractalImplementation, customNodeGraphEffect, 1024, 'auto', statistics);
-			const disabled = await createPlacement(doublePendulumFractalDefinition, doublePendulumFractalImplementation, customNodeGraphEffect, 1024, 'disabled', statistics);
+			const automatic = await createPlacement(doublePendulumFractalDefinition, doublePendulumFractalImplementation, nodesEffect, 1024, 'auto', statistics);
+			const disabled = await createPlacement(doublePendulumFractalDefinition, doublePendulumFractalImplementation, nodesEffect, 1024, 'disabled', statistics);
 			try {
 				await compare(automatic, disabled, `Double Pendulum attached statistics=${statistics}`);
 				const automaticFrames: FrameTiming[] = [];
 				const disabledFrames: FrameTiming[] = [];
 				for (let index = 1; index <= 64; index++) {
-					customNodeGraphEffect.view = view(index);
+					nodesEffect.view = view(index);
 
 
 					disabledFrames.push((await draw(disabled, `pan ${index}: disabled`, false)).timing);
@@ -215,14 +215,14 @@ export async function run() {
 		// 同じ64タイルを毎回描き、分割数の学習や静止画キャッシュの影響を除いて実行器を比較する。
 		// 統計の有無を分けることで、コマンド再生とreadback待ちのそれぞれの費用を確認できる。
 		for (const statistics of [false, true]) {
-			const customNodeGraphEffect = parameterBindings(doublePendulumFractalDefinition);
+			const nodesEffect = parameterBindings(doublePendulumFractalDefinition);
 
-			const manual = await createPlacement(doublePendulumFractalDefinition, doublePendulumFractalImplementation, customNodeGraphEffect, 1024, 'manual', statistics);
-			const disabled = await createPlacement(doublePendulumFractalDefinition, doublePendulumFractalImplementation, customNodeGraphEffect, 1024, 'disabled');
+			const manual = await createPlacement(doublePendulumFractalDefinition, doublePendulumFractalImplementation, nodesEffect, 1024, 'manual', statistics);
+			const disabled = await createPlacement(doublePendulumFractalDefinition, doublePendulumFractalImplementation, nodesEffect, 1024, 'disabled');
 			try {
 				const frames: FrameTiming[] = [];
 				for (let index = 0; index < 20; index++) {
-					customNodeGraphEffect.view = literal({ center: literal([index * 0.01, 0]), zoom: literal(1) });
+					nodesEffect.view = literal({ center: literal([index * 0.01, 0]), zoom: literal(1) });
 
 					const frame = await draw(manual, `64 tiles statistics=${statistics} frame=${index}`, false);
 					if (frame.timing.progress?.completedTiles !== 64 || frame.timing.progress.totalTiles !== 64) throw new Error(`incomplete manual frame ${index}`);

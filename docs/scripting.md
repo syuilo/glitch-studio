@@ -16,30 +16,30 @@ AiScript自体は非同期で実行します。Commandの準備やダイアロ�
 
 ## 最初のスクリプト
 
-次の例は、Fillノードと出力接続を持つCustom Node Graph Effectを作成し、その保存内容を出力します。作成したCustom Node Graph EffectはCustom Node Graph Effect Editorから選択できます。
+次の例は、Fillノードと出力接続を持つNodes Effectを作成し、その保存内容を出力します。作成したNodes EffectはNodes Effect Editorから選択できます。
 
 ```aiscript
-let customNodeGraphEffect = Command:createCustomNodeGraphEffect({ name: "Generated" })
-let fillNode = Command:createCustomNodeGraphEffectEffectNode({
-	customNodeGraphEffect: customNodeGraphEffect
+let nodesEffect = Command:createNodesEffect({ name: "Generated" })
+let fillNode = Command:createNodesEffectEffectNode({
+	nodesEffect: nodesEffect
 	effectSource: { type: "nativeEffect", id: "fill" }
 	connectionMode: "appendToPrimaryOutput"
 })
 
-Command:setCustomNodeGraphEffectNodeParameterSource({
+Command:setNodesEffectNodeParameterSource({
 	target: fillNode
 	parameterPath: ["color"]
 	source: { inputSource: "literal", value: [1, 0.2, 0.1, 1] }
 })
 
-<: Query:getCustomNodeGraphEffect(customNodeGraphEffect)
+<: Query:getNodesEffect(nodesEffect)
 ```
 
 色は既存のパラメータと同じlinear sRGBです。公開する位置・距離も通常の編集と同じ共通単位を使います。詳細は[空間座標](spatial-coordinate.md)を参照してください。
 
 ## Command
 
-編集は`Command:<Command名>({ ...入力... })`で行います。名前・入力・戻り値はUIが利用するCommandと共通です。例えば`Command:createCustomNodeGraphEffect`は`{ customNodeGraphEffectId }`を返し、そのまま次のCommandの`customNodeGraphEffect`へ渡せます。戻り値のないCommandは`null`を返します。引数オブジェクトは必須なので、既定値だけで作る場合も`Command:createCustomNodeGraphEffect({})`と書きます。
+編集は`Command:<Command名>({ ...入力... })`で行います。名前・入力・戻り値はUIが利用するCommandと共通です。例えば`Command:createNodesEffect`は`{ nodesEffectId }`を返し、そのまま次のCommandの`nodesEffect`へ渡せます。戻り値のないCommandは`null`を返します。引数オブジェクトは必須なので、既定値だけで作る場合も`Command:createNodesEffect({})`と書きます。
 
 利用可能な名前と説明は実行中のアプリから取得できます。
 
@@ -52,8 +52,8 @@ Command:setCustomNodeGraphEffectNodeParameterSource({
 | 対象 | 主な操作例 | 入力・戻り値の定義 |
 |---|---|---|
 | Project・Automation Graph | `setProjectName`、`setProjectResolution`、`createProjectAutomationGraph` | [project.ts](../packages/glitch-studio/ui/src/commands/project.ts) |
-| Custom Node Graph Effect・Node | `createCustomNodeGraphEffect`、`createCustomNodeGraphEffectEffectNode`、`removeCustomNodeGraphEffectNode` | [custom-node-graph-effect.ts](../packages/glitch-studio/ui/src/commands/custom-node-graph-effect.ts) |
-| Custom Node Graph Effectのパラメータ・入出力 | `setCustomNodeGraphEffectNodeParameterSource`、`replaceCustomNodeGraphEffectNodeParameterBinding`、`setCustomNodeGraphEffectOutputConnection` | [custom-node-graph-effect-parameters.ts](../packages/glitch-studio/ui/src/commands/custom-node-graph-effect-parameters.ts) |
+| Nodes Effect・Node | `createNodesEffect`、`createNodesEffectEffectNode`、`removeNodesEffectNode` | [nodes-effect.ts](../packages/glitch-studio/ui/src/commands/nodes-effect.ts) |
+| Nodes Effectのパラメータ・入出力 | `setNodesEffectNodeParameterSource`、`replaceNodesEffectNodeParameterBinding`、`setNodesEffectOutputConnection` | [nodes-effect-parameters.ts](../packages/glitch-studio/ui/src/commands/nodes-effect-parameters.ts) |
 | Scene・Layer・Clipの作成と素材情報を要する操作 | `createTimelineScene`、`createTimelineLayer`、`createTimelineClip`、`trimTimelineClip` | [timeline-api.ts](../packages/glitch-studio/ui/src/commands/timeline-api.ts)、[timeline-creation.ts](../packages/glitch-studio/ui/src/commands/timeline-creation.ts) |
 | Timelineの配置・階層・設定・キー | `moveTimelineLayerInTree`、`moveTimelineClips`、`setTimelineLayerName`、`setTimelineLayerMask`、`insertTimelineKeyframes` | [timeline.ts](../packages/glitch-studio/ui/src/commands/timeline.ts) |
 | Timelineの公開パラメータ | `createTimelineLayerPublicParameter`、`replaceTimelineLayerPublicParameterDefinition` | [timeline-parameters.ts](../packages/glitch-studio/ui/src/commands/timeline-parameters.ts) |
@@ -61,7 +61,7 @@ Command:setCustomNodeGraphEffectNodeParameterSource({
 | 既存Asset | `setAssetName`、`removeAsset` | [resources.ts](../packages/glitch-studio/ui/src/commands/resources.ts) |
 | Custom Shader Effect | `createCustomShaderEffect`、`replaceCustomShaderEffectDefinition` | [custom-shader-effect.ts](../packages/glitch-studio/ui/src/commands/custom-shader-effect.ts) |
 
-固定値・式・接続は、各Commandが受け取る入力方式で明示します。例えば`setCustomNodeGraphEffectNodeParameterSource`は入力元を設定して既存の加工式を保持し、`replaceCustomNodeGraphEffectNodeParameterBinding`は加工式を含めたBinding全体を置き換えます。`parameterPath`は配列で指定し、配列要素のパスにはインデックスではなく要素IDを使います。
+固定値・式・接続は、各Commandが受け取る入力方式で明示します。例えば`setNodesEffectNodeParameterSource`は入力元を設定して既存の加工式を保持し、`replaceNodesEffectNodeParameterBinding`は加工式を含めたBinding全体を置き換えます。`parameterPath`は配列で指定し、配列要素のパスにはインデックスではなく要素IDを使います。
 
 公開するCommandはプロジェクト内容の編集に限ります。プロジェクト保存、環境設定変更、パネル操作、書き出し設定の変更、ファイル選択や素材の新規取り込みは提供しません。Blobや取り込み済みの内部配置情報を必要とするCommandも公開しません。
 
@@ -72,8 +72,8 @@ Command・Query・Dialogとの受け渡しには、`null`、真理値、数値�
 すべての公開Command・Queryは、説明・AiScriptの実行例・入力スキーマ・結果スキーマを持ちます。実行中のアプリと同じ定義から資料を生成するため、次の関数で利用可能なAPIを検索し、正確な引数を確認できます。読み取りだけで、Undo履歴は作りません。
 
 ```aiscript
-<: Script:search("CustomNodeGraphEffect")
-let api = Script:describe("Command:createCustomNodeGraphEffect")
+<: Script:search("NodesEffect")
+let api = Script:describe("Command:createNodesEffect")
 <: api.description
 <: api.inputSchema
 <: api.resultSchema
@@ -94,7 +94,7 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 
 ```aiscript
 <: Script:queries() // 利用可能なQueryの名前
-<: Query:listCustomNodeGraphEffects()
+<: Query:listNodesEffects()
 <: Query:listEffects()
 <: Query:getEffect({ effectSource: { type: "nativeEffect", id: "fill" } })
 ```
@@ -104,9 +104,9 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 | API | 引数 | 内容 |
 |---|---|---|
 | `Query:getProject()` | なし | 名前・説明・作者・解像度・Timelineの描画設定・書き出し設定 |
-| `Query:listCustomNodeGraphEffects()` | なし | 登録済みとScene内のインラインCustom Node Graph Effectの`target`・名前 |
-| `Query:getCustomNodeGraphEffect(target)` | Custom Node Graph Effect参照 | ノード・パラメータ・出力定義などの保存内容 |
-| `Query:listNodes(target)` | Custom Node Graph Effect参照 | ノードの参照・種別・`effectSource`・表示名 |
+| `Query:listNodesEffects()` | なし | 登録済みとScene内のインラインNodes Effectの`target`・名前 |
+| `Query:getNodesEffect(target)` | Nodes Effect参照 | ノード・パラメータ・出力定義などの保存内容 |
+| `Query:listNodes(target)` | Nodes Effect参照 | ノードの参照・種別・`effectSource`・表示名 |
 | `Query:getNode(target)` | Node参照 | ノードの保存内容 |
 | `Query:listTimelineScenes()` | なし | Scene参照・名前・解像度 |
 | `Query:getTimelineScene(target)` | Scene参照 | Scene全体の保存内容 |
@@ -116,7 +116,7 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 | `Query:listTimelineClips(target)` | Layer参照 | Clip一覧。コンテナLayerの場合は空配列 |
 | `Query:getTimelineClip(target)` | Clip参照 | Clipの保存内容 |
 | `Query:listAssets()` / `Query:getAsset(target)` | 一覧は引数なし／Asset参照 | 素材の名前・寸法・ファイル種別などのメタデータ。バイナリ・サムネイルは含まない |
-| `Query:listEffects()` / `Query:getEffect(target)` | 一覧は引数なし／Effect参照 | Native Effect と登録済みの Custom Shader Effect・Custom Node Graph Effect を列挙する。各項目の `target` からパラメータ・静的設定・出力を取得できる |
+| `Query:listEffects()` / `Query:getEffect(target)` | 一覧は引数なし／Effect参照 | Native Effect と登録済みの Custom Shader Effect・Nodes Effect を列挙する。各項目の `target` からパラメータ・静的設定・出力を取得できる |
 | `Query:listProjectAutomationGraphs()` / `Query:getProjectAutomationGraph(target)` | 一覧は引数なし／Automation Graph参照 | ProjectのAutomation Graph |
 | `Query:listCustomShaderEffects()` / `Query:getCustomShaderEffect(target)` | 一覧は引数なし／Custom Shader Effect参照 | どちらも入力された概要を文字列の `summary` で返す。取得では保存された定義全体を返す |
 
@@ -124,9 +124,9 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 
 | 対象 | 参照 |
 |---|---|
-| 登録済みCustom Node Graph Effect | `{ customNodeGraphEffectId: "..." }` |
-| Scene内のEffect Layerが所有するインラインCustom Node Graph Effect | `{ sceneId: "...", layerId: "..." }` |
-| Node | `{ customNodeGraphEffect: customNodeGraphEffectTarget, nodeId: "..." }` |
+| 登録済みNodes Effect | `{ nodesEffectId: "..." }` |
+| Scene内のEffect Layerが所有するインラインNodes Effect | `{ sceneId: "...", layerId: "..." }` |
+| Node | `{ nodesEffect: nodesEffectTarget, nodeId: "..." }` |
 | Scene | `{ sceneId: "..." }` |
 | Layer | `{ sceneId: "...", layerId: "..." }` |
 | Clip | `{ sceneId: "...", layerId: "...", clipId: "..." }` |
@@ -151,7 +151,7 @@ Dialog関数は一つのオプションオブジェクトを受け取ります�
 
 ```aiscript
 let name = Dialog:input_text({
-	title: "Custom Node Graph Effect"
+	title: "Nodes Effect"
 	text: "Enter a name"
 	default: "Generated"
 })
@@ -159,12 +159,12 @@ if name == null {
 	Script:exit()
 }
 
-if !Dialog:confirm({ text: "Create the Custom Node Graph Effect?" }) {
+if !Dialog:confirm({ text: "Create the Nodes Effect?" }) {
 	Script:exit()
 }
 
-let customNodeGraphEffect = Command:createCustomNodeGraphEffect({ name: name })
-<: customNodeGraphEffect
+let nodesEffect = Command:createNodesEffect({ name: name })
+<: nodesEffect
 Dialog:alert({ text: "Created" })
 ```
 

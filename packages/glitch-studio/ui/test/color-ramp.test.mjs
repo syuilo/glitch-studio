@@ -1,5 +1,5 @@
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
-import { testGraph } from './helpers/effect-graph.mjs';
+import { testNodesEffect } from './helpers/nodes-effect.mjs';
 import { nodeParameterTarget } from './helpers/command-inputs.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -41,10 +41,10 @@ const commands = evaluate(await build({
 test('preserves Color Ramp values and modifiers through merged edits, undo, redo and saving', async () => {
 	const { definition, COMMAND_DEFS, UndoRedo, encodeProjectFile, decodeProjectFile } = commands;
 	const node = { id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'colorRamp' }, resolution: { mode: 'context', scale: 1 }, staticSettings: {}, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([name, def]) => [name, createDefaultParameterBinding(def)])) };
-	const customNodeGraphEffect = { id: 'custom-node-graph-effect', definition: testGraph({ customParameterValues: {}, nodes: [node] }) };
-	const state = { customNodeGraphEffects: { value: [customNodeGraphEffect] } };
+	const nodesEffect = { id: 'nodes-effect', definition: testNodesEffect({ customParameterValues: {}, nodes: [node] }) };
+	const state = { nodesEffects: { value: [nodesEffect] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
-	const target = { customNodeGraphEffectId: customNodeGraphEffect.id, nodeId: node.id, paramPath: ['ramp'] };
+	const target = { nodesEffectId: nodesEffect.id, nodeId: node.id, paramPath: ['ramp'] };
 	const initial = structuredClone(node.params.ramp);
 	const ramp = createDefaultColorRamp();
 	ramp.colorSpace = 'oklch';
@@ -53,10 +53,10 @@ test('preserves Color Ramp values and modifiers through merged edits, undo, redo
 	ramp.repeatCount = 2.5;
 	ramp.repeatMode = 'pingPong';
 	ramp.stops.push({ id: 'middle', position: 0.5, color: [1, 0, 0, 0.5] });
-	history.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: ramp } }, 'drag');
+	history.commit('setNodesEffectNodeParameterSource', { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: ramp } }, 'drag');
 	ramp.stops[2].position = 0.75;
 	ramp.interpolation = 'easeOut';
-	history.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: ramp } }, 'drag');
+	history.commit('setNodesEffectNodeParameterSource', { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: ramp } }, 'drag');
 	assert.equal(history.undoStack.value.length, 1);
 	history.undo();
 	assert.deepEqual(node.params.ramp, initial);
@@ -68,13 +68,13 @@ test('preserves Color Ramp values and modifiers through merged edits, undo, redo
 	assert.equal(node.params.ramp.value.repeatCount, 2.5);
 	assert.equal(node.params.ramp.value.repeatMode, 'pingPong');
 	const modifier = { enabled: true, code: 'VALUE.colorSpace = "oklab"\nVALUE' };
-	history.commit('setCustomNodeGraphEffectNodeParameterExpressionModifier', { ...nodeParameterTarget({ ...target }), expressionModifier: modifier });
-	history.commit('switchCustomNodeGraphEffectNodeParameterInputSource', { ...nodeParameterTarget({ ...target }), inputSource: 'expression' });
+	history.commit('setNodesEffectNodeParameterExpressionModifier', { ...nodeParameterTarget({ ...target }), expressionModifier: modifier });
+	history.commit('switchNodesEffectNodeParameterInputSource', { ...nodeParameterTarget({ ...target }), inputSource: 'expression' });
 	assert.match(node.params.ramp.expression, /middle/);
 	assert.deepEqual(node.params.ramp.expressionModifier, modifier);
-	const encoded = await encodeProjectFile({ assets: [], generatedSpeech: [], timelineScenes: [], customNodeGraphEffects: state.customNodeGraphEffects.value, gsVersion: '2.0.0-alpha.19' });
-	assert.deepEqual(decodeProjectFile(encoded).customNodeGraphEffects[0].definition.nodes[0].params, node.params);
-	assert.throws(() => history.commit('switchCustomNodeGraphEffectNodeParameterInputSource', { ...nodeParameterTarget({ ...target }), inputSource: 'automationGraphInline' }), /does not support/);
+	const encoded = await encodeProjectFile({ assets: [], generatedSpeech: [], timelineScenes: [], nodesEffects: state.nodesEffects.value, gsVersion: '2.0.0-alpha.19' });
+	assert.deepEqual(decodeProjectFile(encoded).nodesEffects[0].definition.nodes[0].params, node.params);
+	assert.throws(() => history.commit('switchNodesEffectNodeParameterInputSource', { ...nodeParameterTarget({ ...target }), inputSource: 'automationGraphInline' }), /does not support/);
 });
 
 const componentDirectory = fileURLToPath(new URL('../src/components/common/', import.meta.url));

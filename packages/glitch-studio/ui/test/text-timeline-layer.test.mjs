@@ -33,7 +33,7 @@ const literal = value => ({ inputSource: 'literal', value });
 function fixture(t) {
 	t.mock.method(console, 'log', () => {});
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] };
-	const state = { timelineScenes: { value: [scene] }, customNodeGraphEffects: { value: [] }, assets: { value: [] } };
+	const state = { timelineScenes: { value: [scene] }, nodesEffects: { value: [] }, assets: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const changes = [];
 	history.onChange(value => changes.push(value));
@@ -112,7 +112,7 @@ test('round-trips and duplicates text layers without sharing parameter values', 
 	assert.equal(f.layer.textParamValues.shadowColor.value[0], 0.2);
 	const project = { id: 'project', gsVersion: '2.0.0-alpha', name: 'Text', description: '', author: '',
 		resolution: { width: 1920, height: 1080 }, timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
-		assets: [], generatedSpeech: [], customNodeGraphEffects: [], timelineScenes: f.state.timelineScenes.value };
+		assets: [], generatedSpeech: [], nodesEffects: [], timelineScenes: f.state.timelineScenes.value };
 	assert.deepEqual(decodeProjectFile(await encodeProjectFile(project)), project);
 	const invalid = structuredClone(project);
 	invalid.timelineScenes[0].layers[0].textParamValues.color = { inputSource: 'lowerLayerOutput' };

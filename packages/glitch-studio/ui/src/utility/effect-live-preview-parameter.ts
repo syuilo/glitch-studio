@@ -40,8 +40,8 @@ export function editEffectLivePreviewParameter(def: ParameterDefinition, current
 		case 'anotherLayerOutput':
 		case 'lowerLayerOutput':
 		case 'anotherLayerAudio':
-		case 'customNodeGraphEffectPublicParameterReference': return null;
-		case 'customNodeGraphEffectCustomParameterValueReference': return null;
+		case 'nodesEffectPublicParameterReference': return null;
+		case 'nodesEffectCustomParameterValueReference': return null;
 		case 'reset': next = reset(); break;
 		case 'inputSource':
 			switch (event.inputSource) {
@@ -65,8 +65,8 @@ export function editEffectLivePreviewParameter(def: ParameterDefinition, current
 				case 'keyframesTimelineInline':
 					next = createInlineKeyframesTimeline(def, isValueParameterBinding(current) ? current : reset());
 					break;
-				case 'customNodeGraphEffectPublicParameterReference':
-				case 'customNodeGraphEffectCustomParameterValueReference':
+				case 'nodesEffectPublicParameterReference':
+				case 'nodesEffectCustomParameterValueReference':
 				case 'anotherLayerOutput':
 				case 'lowerLayerOutput':
 				case 'lowerLayerAudio':

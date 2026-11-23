@@ -10,7 +10,7 @@ export function getAvailableAutomationGraphs(localAutomationGraphs: readonly Aut
 /**
  * プロジェクトの定義をTimelineへ渡す境界。保存状態を変更せず、評価用の一覧だけを作る。
  * 子Sceneは各Scene自身の定義から構成し、Group/Transformのローカル定義を子へ継承しない。
- * Inline Custom Node Graph Effectの内部にも入らないため、その定義はプロジェクトから独立する。
+ * Inline Nodes Effectの内部にも入らないため、その定義はプロジェクトから独立する。
  */
 export function getTimelineScenesWithProjectAutomationGraphs(scenes: TimelineScene[], automationGraphs: readonly AutomationGraph[]): TimelineScene[] {
 	if (automationGraphs.length === 0) return scenes;

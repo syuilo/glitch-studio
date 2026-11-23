@@ -786,7 +786,7 @@ onBeforeUnmount(() => {
 	disposeEffectPicker?.();
 });
 
-function showEffectPicker(placement: 'timelineLayer' | 'graphNode', chosen: (definition: EffectChoice) => void) {
+function showEffectPicker(placement: 'timelineLayer' | 'nodesEffectNode', chosen: (definition: EffectChoice) => void) {
 	disposeEffectPicker?.();
 	const { dispose } = ui.popup(GsEffectPicker, placement === 'timelineLayer' ? { selectedOutputType: 'color', requirePrimaryColorOutput: true } : {}, {
 		chosen,
@@ -800,14 +800,14 @@ function showEffectPicker(placement: 'timelineLayer' | 'graphNode', chosen: (def
 
 function showAddInlineEffectNodeMenu(layerId: string) {
 	const layer = sceneLayers.value.find(layer => layer.id === layerId);
-	if (layer?.layerType !== 'effect' || layer.effectSource.type !== 'inlineCustomNodeGraphEffect') return;
-	showEffectPicker('graphNode', effect => {
+	if (layer?.layerType !== 'effect' || layer.effectSource.type !== 'inlineNodesEffect') return;
+	showEffectPicker('nodesEffectNode', effect => {
 		// 選択変更やレイヤー削除を挟んでも、ピッカーを開いた対象にだけ追加する。
-		if (!isTimelineActive() || !sceneLayers.value.some(layer => layer.id === layerId && layer.layerType === 'effect' && layer.effectSource.type === 'inlineCustomNodeGraphEffect')) return;
-		stateManager.commit('createCustomNodeGraphEffectEffectNode', {
-			customNodeGraphEffect: { sceneId: props.sceneId, layerId: layerId },
+		if (!isTimelineActive() || !sceneLayers.value.some(layer => layer.id === layerId && layer.layerType === 'effect' && layer.effectSource.type === 'inlineNodesEffect')) return;
+		stateManager.commit('createNodesEffectEffectNode', {
+			nodesEffect: { sceneId: props.sceneId, layerId: layerId },
 			effectSource: effect.effectSource,
-			connectionMode: preferences.s.customNodeGraphEffectAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none',
+			connectionMode: preferences.s.nodesEffectAutoConnectOnNodeAdd ? 'appendToPrimaryOutput' : 'none',
 			connectionTypePolicy: preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch',
 
 		});

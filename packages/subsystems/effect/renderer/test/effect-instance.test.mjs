@@ -10,7 +10,7 @@ const base = { kind: 'generate', primaryInputParameter: null, primaryOutput: 'ma
 const sampling = { fitMode: 'contain', wrapMode: 'clamp', filterMode: 'nearest' };
 const wire = (nodeId, outputPort) => ({ inputSource: 'node', source: { nodeId, outputPort }, sampling });
 const native = id => ({ type: 'nativeEffect', id });
-const inline = customNodeGraphEffect => ({ type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect });
+const inline = nodesEffect => ({ type: 'inlineNodesEffect', nodesEffect });
 
 // 【入れ子の複数出力から到達する配置を一度だけ、上流から描画する】
 // 同じ登録の別配置には別の履歴が必要だが、同じ配置の出力をいくつ読んでも履歴は一度だけ進める。
@@ -22,7 +22,7 @@ test('plans nested ports once and keeps state per placement', async () => {
 		params: { value: { inputSource: 'expression', expression: 'TIME' } } }], outputSources: {
 		a: { nodeId: 'source', outputPort: 'a' }, b: { nodeId: 'source', outputPort: 'b' },
 	} };
-	const childSource = { type: 'customNodeGraphEffectReference', id: 'child' };
+	const childSource = { type: 'nodesEffectReference', id: 'child' };
 	const graph = { ...base, nodes: [
 		{ id: 'sum', effectSource: native('sum'), params: { a: wire('left', 'a'), b: wire('left', 'b') } },
 		{ id: 'left', effectSource: childSource, params: {} },
@@ -34,7 +34,7 @@ test('plans nested ports once and keeps state per placement', async () => {
 	const destroyed = [];
 	const resolutions = [];
 	const paths = [];
-	const definitions = { getNativeEffect(id) { resolutions.push(id); return { dual, sum }[id]; }, getCustomNodeGraphEffect: () => child };
+	const definitions = { getNativeEffect(id) { resolutions.push(id); return { dual, sum }[id]; }, getNodesEffect: () => child };
 	const instance = await createEffectInstance({
 		effectSource: inline(graph), definitions, resolution: { width: 10, height: 10 }, usedOutputPorts: new Set(['main', 'other']),
 		bindParameterValue(binding, _def, path) { paths.push(path); return frame => frame.time; },
@@ -66,10 +66,10 @@ test('plans nested ports once and keeps state per placement', async () => {
 
 // 【子グラフへの直結は借用textureだけを公開する】
 // GPUを確保せず元の寸法・参照・世代を読める。別の配置で同じ入力にuniformを渡した場合は出力も値の評価も不要。
-test('forwards changing borrowed textures through nested graphs and omits uniform outputs', async t => {
+test('forwards changing borrowed textures through nested Nodes Effects and omits uniform outputs', async t => {
 	const child = { ...base, paramDefs: { source: scalar }, nodes: [], outputSources: { main: { parameterId: 'source' } } };
 	const graph = { ...child, nodes: [{ id: 'child', effectSource: inline(child),
-		params: { source: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'source' } } }],
+		params: { source: { inputSource: 'nodesEffectPublicParameterReference', parameterId: 'source' } } }],
 		outputSources: { main: { nodeId: 'child', outputPort: 'main' } } };
 	const place = source => createEffectInstance({
 		effectSource: inline(graph), inputs: { source }, usedOutputPorts: new Set(['main']), definitions: {}, resolution: size,
@@ -95,7 +95,7 @@ test('forwards changing borrowed textures through nested graphs and omits unifor
 
 // 【出力がない子グラフに繋いだ入力は、受け取り側の既定値を使う】
 // 子のInに値を渡した配置では、その値が子のOutを越えて親側の描画に混入しない。
-test('uses the downstream default when a nested graph has no texture output', async t => {
+test('uses the downstream default when a nested Nodes Effect has no texture output', async t => {
 	const child = { ...base, paramDefs: { source: scalar }, nodes: [], outputSources: { main: { parameterId: 'source' } } };
 	const consumer = { ...base, paramDefs: { input: { ...scalar, defaultValue: 4 } } };
 	const graph = { ...base, nodes: [
@@ -120,7 +120,7 @@ test('uses the downstream default when a nested graph has no texture output', as
 test('fixes shader input kinds before allocation and releases partial initialization', async () => {
 	const shader = { ...base, paramDefs: { a: scalar, b: scalar }, code: '', shaderApiVersion: 1 };
 	const root = { ...base, nodes: [{ id: 'upstream', effectSource: native('n'), params: {} },
-		{ id: 'shader', effectSource: { type: 'customShaderEffectReference', id: 's' }, params: { a: wire('upstream', 'main'), b: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'invalid' } } }],
+		{ id: 'shader', effectSource: { type: 'customShaderEffectReference', id: 's' }, params: { a: wire('upstream', 'main'), b: { inputSource: 'nodesEffectPublicParameterReference', parameterId: 'invalid' } } }],
 		paramDefs: { invalid: scalar }, outputSources: { main: { nodeId: 'shader', outputPort: 'main' } } };
 	const placement = { effectSource: inline(root), definitions: { getCustomShaderEffect: () => shader, getNativeEffect: () => base },
 		inputs: { invalid: { kind: 'array', elements: [] } }, resolution: size, usedOutputPorts: new Set(['main']) };
@@ -135,9 +135,9 @@ test('fixes shader input kinds before allocation and releases partial initializa
 // 【描画に使われない定義も編集時に循環と非literalの既定値を検査する】
 // 到達ポートだけを描くレンダラーに、保存形式の正しさを保証する責任を持ち込まない。
 test('validates recursive references and defaults at the editing boundary', () => {
-	const source = { type: 'customNodeGraphEffectReference', id: 'g' };
+	const source = { type: 'nodesEffectReference', id: 'g' };
 	const graph = { ...base, nodes: [{ id: 'self', effectSource: source, params: {} }], outputSources: {} };
-	assert.throws(() => validateEffectSource(source, { getCustomNodeGraphEffect: () => graph }), /Cyclic Custom Node Graph Effect/);
+	assert.throws(() => validateEffectSource(source, { getNodesEffect: () => graph }), /Cyclic Nodes Effect/);
 	const array = { dataType: { kind: 'array', elementType: scalar.dataType }, ui: { label: '', control: { element: {} } }, element: scalar,
 		defaultValue: [{ inputSource: 'expression', expression: 'TIME' }] };
 	assert.throws(() => validateEffectSource(inline({ ...graph, nodes: [], paramDefs: { array } }), {}), /Invalid scalar default value/);

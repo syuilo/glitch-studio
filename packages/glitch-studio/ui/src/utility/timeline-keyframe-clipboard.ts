@@ -42,7 +42,7 @@ type ParameterUpdate = {
 };
 type UtteranceUpdate = { layerId: string; target: 'utterance'; after: VoicevoxUtterance[] };
 
-type ParameterState = Pick<ProjectState, 'customNodeGraphEffects'>;
+type ParameterState = Pick<ProjectState, 'nodesEffects'>;
 
 export function copyTimelineKeyframes(state: ParameterState, scene: TimelineScene, selection: readonly TimelineKeyframeSelection[]): TimelineKeyframeClipboard | null {
 	if (selection.length === 0) return null;

@@ -6,7 +6,7 @@ import type { Ref } from 'vue';
 import type { WorkspaceElement } from './workspace.ts';
 import type { MenuItem } from './types/menu.ts';
 import type { TimelineTickMode } from './utility/timeline-ticks.ts';
-import type { CustomNodeGraphEffectWireStyle } from './utility/custom-node-graph-effect-wire-path.ts';
+import type { NodesEffectWireStyle } from './utility/nodes-effect-wire-path.ts';
 import type { PreviewDisplayMode } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { TimelinePreviewFrameCachePrecision } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 import type { RgbGamut } from '@gs/shared/rgb-gamut.ts';
@@ -25,8 +25,8 @@ export const PREF_DEF = definePreferences({
 	animatedBgInPreview: { default: () => false },
 	previewVolume: { default: () => 0.5 },
 	forceTypeSafety: { default: () => false },
-	customNodeGraphEffectAutoConnectOnNodeAdd: { default: () => false },
-	customNodeGraphEffectWireStyle: { default: (): CustomNodeGraphEffectWireStyle => 'straight' },
+	nodesEffectAutoConnectOnNodeAdd: { default: () => false },
+	nodesEffectWireStyle: { default: (): NodesEffectWireStyle => 'straight' },
 	showTimecodeInPreview: { default: () => true },
 	showGridInPreview: { default: () => false },
 	showRulersInPreview: { default: () => true },
@@ -63,7 +63,7 @@ export const PREF_DEF = definePreferences({
 				type: 'tabs',
 				direction: 'vertical',
 				children: [{
-					name: 'Custom Node Graph Effect',
+					name: 'Nodes Effect',
 					element: {
 						id: '7e07309a8e0743ebaf4ddc9da4c4085f',
 						type: 'divider',
@@ -212,12 +212,12 @@ export const PREF_DEF = definePreferences({
 								type: 'tabs',
 								direction: 'horizontal',
 								children: [{
-									name: 'Custom Node Graph Effect',
+									name: 'Nodes Effect',
 									element: {
 										id: 'e329ef653d9b4742973426c99c431d68',
 										type: 'panel',
 										direction: 'horizontal',
-										contentType: 'customNodeGraphEffectEditor',
+										contentType: 'nodesEffectEditor',
 									},
 								}, {
 									name: 'TL',

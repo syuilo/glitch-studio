@@ -18,7 +18,7 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 - `src/rgb-gamut.ts`: sRGB・Display P3・Rec.2020・Adobe RGBのD65基準色域、linear RGB変換・色域判定とOKLCHの境界計算。固定色相での三次式の交点から、最大Cや指定C以下の境界を求める。プレビューの圧縮倍率とピッカーの選択制限で共有し、UI状態や表示先を所有しない。
 - `src/color-ramp.ts`: Color Rampの値・検証・CPU評価とGPU転送用の準備。正の小数回のWrap／Ping-pongとsRGB・Linear sRGB・Oklab・OKLCHの補間を扱い、OKLCHの色相経路は区間ごとに準備してGPUと共有する。繰り返し・alpha・色相の規約は[パラメータのドキュメント](../../docs/data-type-and-parameter.md#color-ramp)を参照。
 - `src/parameter`: パラメータ定義・Binding・初期値・ツリー操作・CPU値の評価。`parameter-path.ts`は編集対象を識別するIDパス、`parameter-tree.ts`は評価後の配列をたどるindexのパスを扱う。
-- `src/expression`: AiScriptの構文・ASTキャッシュ・式の実行。変数と関数は呼び出し側から明示し、Custom Node Graph EffectやTimelineを参照しない。
+- `src/expression`: AiScriptの構文・ASTキャッシュ・式の実行。変数と関数は呼び出し側から明示し、Nodes EffectやTimelineを参照しない。
 - `src/automation-graph`: グラフの定義・再生設定・補間。`GRAPH`への公開はパラメータ評価器が担当する。
 - `src/keyframes`: キーフレームの定義・再生設定・補間。TimelineのScene・レイヤー・クリップから独立し、再生設定はBindingから逆算しない。
 
@@ -34,11 +34,11 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 
 共通の`ParameterBindingBase`はツリー操作に必要な`inputSource`だけを定義する。`resolveParameter`・`walkParameters`・`mapParameterTree`・`walkParameterLeaves`の型引数には、ツリー全体で許可するBinding型を明示する。利用箇所では親がliteralでも子は式やドメイン固有方式になり得るため、親の具体型からは推論しない。走査結果・編集先と`ParameterArrayElement`は指定したBinding型を保持する。定義の`defaultValue`には配列・構造体の末端まで値を直接置き、必要な箇所で`createDefaultParameterBinding`を使って編集用IDを持つBindingを生成する。`walkParameters`は渡されたBindingを定義順でたどり、未設定のルートを飛ばす。
 
-`node`・`customNodeGraphEffectPublicParameterReference`はCustom Node Graph Effect、`lowerLayerOutput`はTimeline側が型を定義し、共通基盤から参照しない。各ドメインは共通方式に固有方式を組み合わせ、利用可否の検証と参照の解決を担当する。literalの内部値は完全には静的型付けしていないため、配列・構造体内のBindingも受け入れ時に検証する。
+`node`・`nodesEffectPublicParameterReference`はNodes Effect、`lowerLayerOutput`はTimeline側が型を定義し、共通基盤から参照しない。各ドメインは共通方式に固有方式を組み合わせ、利用可否の検証と参照の解決を担当する。literalの内部値は完全には静的型付けしていないため、配列・構造体内のBindingも受け入れ時に検証する。
 
 ## GPU共通基盤
 
-`src/gpu`には、Effect・Custom Node Graph Effect・Timelineやプロジェクトを知らずに使えるGPUデータ表現と処理を置く。
+`src/gpu`には、Effect・Nodes Effect・Timelineやプロジェクトを知らずに使えるGPUデータ表現と処理を置く。
 
 - `shader-buffer.ts`: ビルド時に確定した配置情報からuniform/storage用バッファと値の書き込み処理を生成する。WGSLの解析器は実行時に含めない。ソースの読み込み方は[WGSLローダー](build/README.md)を参照。
 - `uniform-or-texture.ts`: 空間的に一定の値、またはテクスチャを表す`UniformOrTexture`。生成元や接続先の情報、サンプリング設定は持たない。

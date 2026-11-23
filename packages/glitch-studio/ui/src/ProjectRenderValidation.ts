@@ -19,10 +19,10 @@ import type { TimelineImageInputReference } from '@gs/subsystems_timeline_shared
 import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import { customNodeGraphEffectTargetKey } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
-import type { CustomNodeGraphEffectTarget } from '@gs/glitch-studio_shared/project/custom-node-graph-effect-target.ts';
+import { nodesEffectTargetKey } from '@gs/glitch-studio_shared/project/nodes-effect-target.ts';
+import type { NodesEffectTarget } from '@gs/glitch-studio_shared/project/nodes-effect-target.ts';
 import type { EffectDefinitions } from '@gs/subsystems_effect_shared/effect-source.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
+import type { NodesEffect } from '@gs/subsystems_effect_shared/nodes-effect.ts';
 import type { EffectLivePreviewSource, EffectLivePreviewParamValues } from './types/effect-live-preview.ts';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { AppStateChange, ProjectState } from './Project.ts';
@@ -51,14 +51,14 @@ export class ProjectRenderValidation {
 
 	constructor(private state: ProjectState, private builtinDefinitions: NativeEffectDefinitions) {}
 
-	private get definitions() { return createProjectEffectDefinitions({ customShaderEffects: this.state.customShaderEffects?.value ?? [], customNodeGraphEffects: this.state.customNodeGraphEffects.value }, this.builtinDefinitions); }
+	private get definitions() { return createProjectEffectDefinitions({ customShaderEffects: this.state.customShaderEffects?.value ?? [], nodesEffects: this.state.nodesEffects.value }, this.builtinDefinitions); }
 
 	public reset(): void {
 		this.nodeValidationShapes.clear(); this.units.clear(); this.errors.clear(); this.dependents.clear();
 		this.sceneEdges.clear(); this.imageInputs.clear(); this.locations.clear();
 		this.effectLivePreviewInputs = null;
 		this.assets = new Map(this.state.assets.value.map(asset => [asset.id, asset.fileDataType]));
-		for (const customNodeGraphEffect of this.state.customNodeGraphEffects.value) this.replaceCustomNodeGraphEffect({ customNodeGraphEffectId: customNodeGraphEffect.id }, customNodeGraphEffect.definition);
+		for (const nodesEffect of this.state.nodesEffects.value) this.replaceNodesEffect({ nodesEffectId: nodesEffect.id }, nodesEffect.definition);
 		for (const scene of this.state.timelineScenes.value) this.replaceScene(scene);
 		this.checkRegistrations(); this.checkSettings(); this.checkSceneGraph(); this.publish();
 	}
@@ -72,23 +72,23 @@ export class ProjectRenderValidation {
 		}
 		// 削除・追加が同じCommandに含まれても、最終状態と最終参照先だけを検査する。
 		for (const change of changes) {
-			if (change.type === 'customNodeGraphEffectRegistration') {
-				const customNodeGraphEffect = this.state.customNodeGraphEffects.value.find(customNodeGraphEffect => customNodeGraphEffect.id === change.customNodeGraphEffectId);
-				this.replaceCustomNodeGraphEffect({ customNodeGraphEffectId: change.customNodeGraphEffectId }, customNodeGraphEffect?.definition);
-				this.recheckDependents('customNodeGraphEffect:' + change.customNodeGraphEffectId);
+			if (change.type === 'nodesEffectRegistration') {
+				const nodesEffect = this.state.nodesEffects.value.find(nodesEffect => nodesEffect.id === change.nodesEffectId);
+				this.replaceNodesEffect({ nodesEffectId: change.nodesEffectId }, nodesEffect?.definition);
+				this.recheckDependents('nodesEffect:' + change.nodesEffectId);
 				this.checkRegistrations();
-			} else if (change.type === 'customNodeGraphEffect' || change.type === 'node') {
+			} else if (change.type === 'nodesEffect' || change.type === 'node') {
 				// Inlineでは公開定義の型やcanNodeが変わると、同じBindingでも許可条件が変わるため、所有レイヤーを再検証する。
-				if ('customNodeGraphEffectId' in change.target) {
-					const id = change.target.customNodeGraphEffectId;
-					const graph = this.state.customNodeGraphEffects.value.find(entry => entry.id === id)?.definition;
-					if (change.type === 'node' && graph != null) {
-						const node = graph.nodes.find(node => node.id === change.nodeId);
+				if ('nodesEffectId' in change.target) {
+					const id = change.target.nodesEffectId;
+					const nodesEffect = this.state.nodesEffects.value.find(entry => entry.id === id)?.definition;
+					if (change.type === 'node' && nodesEffect != null) {
+						const node = nodesEffect.nodes.find(node => node.id === change.nodeId);
 						const shape = node == null ? null : this.nodeShape(node);
-						if (shape != null && this.nodeValidationShapes.get(customNodeGraphEffectTargetKey(change.target))?.get(change.nodeId) === shape) continue;
+						if (shape != null && this.nodeValidationShapes.get(nodesEffectTargetKey(change.target))?.get(change.nodeId) === shape) continue;
 					}
-					this.replaceCustomNodeGraphEffect(change.target, graph);
-					this.recheckDependents('customNodeGraphEffect:' + id);
+					this.replaceNodesEffect(change.target, nodesEffect);
+					this.recheckDependents('nodesEffect:' + id);
 				} else this.checkLayer(change.target.sceneId, change.target.layerId, true, true);
 			} else if (change.type === 'scene' || change.type === 'layerTree' || change.type === 'layerOrder') {
 				const scene = this.state.timelineScenes.value.find(scene => scene.id === change.sceneId);
@@ -106,7 +106,7 @@ export class ProjectRenderValidation {
 				this.recheckDependents('asset:' + change.assetId);
 			} else if (change.type === 'projectResolution' || change.type === 'timelineRenderSettings') this.checkSettings();
 		}
-		if (this.effectLivePreviewInputs?.effectSource.type === 'customNodeGraphEffectReference' && changes.some(change => change.type === 'customNodeGraphEffect' || change.type === 'customNodeGraphEffectRegistration')) {
+		if (this.effectLivePreviewInputs?.effectSource.type === 'nodesEffectReference' && changes.some(change => change.type === 'nodesEffect' || change.type === 'nodesEffectRegistration')) {
 			this.removeUnit('Effect Live Preview inputs');
 			this.setEffectLivePreviewInputs(this.effectLivePreviewInputs.effectSource, this.effectLivePreviewInputs.bindings);
 		}
@@ -116,7 +116,7 @@ export class ProjectRenderValidation {
 	public setEffectLivePreviewInputs(effectSource: EffectLivePreviewSource | null, bindings: EffectLivePreviewParamValues = {}) {
 		this.effectLivePreviewInputs = effectSource == null ? null : { effectSource, bindings };
 		const registrations = effectSource?.type === 'customShaderEffectReference'
-			? this.state.customShaderEffects.value : this.state.customNodeGraphEffects.value;
+			? this.state.customShaderEffects.value : this.state.nodesEffects.value;
 		const definition = registrations.find(entry => entry.id === effectSource?.id)?.definition;
 		if (definition == null) { this.removeUnit('Effect Live Preview inputs'); this.publish(); return; }
 		const values = Object.entries(definition.paramDefs).map(([id, def]) => [def, bindings[id] ?? createDefaultParameterBinding(def)] as const);
@@ -185,7 +185,7 @@ export class ProjectRenderValidation {
 		}
 	}
 
-	private nodeShape(node: CustomNodeGraphEffect['nodes'][number], definitions?: EffectDefinitions): string | null {
+	private nodeShape(node: NodesEffect['nodes'][number], definitions?: EffectDefinitions): string | null {
 		if (node.type === 'relay') return JSON.stringify(node);
 		try {
 			const { paramDefs } = resolveEffectSourceForValidation(node.effectSource, definitions ?? this.definitions).definition;
@@ -194,31 +194,31 @@ export class ProjectRenderValidation {
 		} catch { return null; }
 	}
 
-	private replaceCustomNodeGraphEffect(target: CustomNodeGraphEffectTarget, graph?: CustomNodeGraphEffect | null) {
-		const key = customNodeGraphEffectTargetKey(target);
+	private replaceNodesEffect(target: NodesEffectTarget, nodesEffect?: NodesEffect | null) {
+		const key = nodesEffectTargetKey(target);
 		this.removeUnit(key);
 		this.nodeValidationShapes.delete(key);
-		if (graph == null) return;
+		if (nodesEffect == null) return;
 		const dependencies = new Set<string>();
 		this.check(key, null, () => {
-			const source: EffectSource = { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph };
+			const source: EffectSource = { type: 'inlineNodesEffect', nodesEffect: nodesEffect };
 			const definitions = this.definitions;
 			this.checkEffectResources(source, dependencies, definitions);
 			validateEffectSource(source, definitions);
-			this.nodeValidationShapes.set(key, new Map(graph.nodes.flatMap(node => {
+			this.nodeValidationShapes.set(key, new Map(nodesEffect.nodes.flatMap(node => {
 				const shape = this.nodeShape(node, definitions);
 				return shape == null ? [] : [[node.id, shape]];
 			})));
 		}, dependencies);
 	}
 
-	private checkEffectResources(source: EffectSource, dependencies: Set<string>, definitions = this.definitions, visited = new Set<CustomNodeGraphEffect>()) {
-		if (source.type === 'customNodeGraphEffectReference') dependencies.add('customNodeGraphEffect:' + source.id);
+	private checkEffectResources(source: EffectSource, dependencies: Set<string>, definitions = this.definitions, visited = new Set<NodesEffect>()) {
+		if (source.type === 'nodesEffectReference') dependencies.add('nodesEffect:' + source.id);
 		const effect = resolveEffectSourceForValidation(source, definitions);
-		if (effect.type !== 'customNodeGraphEffect' || visited.has(effect.definition)) return;
-		const graph = effect.definition;
-		visited.add(graph);
-		for (const node of graph.nodes) {
+		if (effect.type !== 'nodesEffect' || visited.has(effect.definition)) return;
+		const nodesEffect = effect.definition;
+		visited.add(nodesEffect);
+		for (const node of nodesEffect.nodes) {
 			if (node.type === 'relay') continue;
 			this.checkEffectResources(node.effectSource, dependencies, definitions, visited);
 			const def = resolveEffectSourceForValidation(node.effectSource, definitions).definition;
@@ -239,7 +239,7 @@ export class ProjectRenderValidation {
 	private removeTimelineScene(id: string) {
 		for (const layerId of this.locations.get(id)?.keys() ?? []) {
 			this.removeUnit('scene:' + id + '/layer:' + layerId);
-			this.replaceCustomNodeGraphEffect({ sceneId: id, layerId: layerId });
+			this.replaceNodesEffect({ sceneId: id, layerId: layerId });
 		}
 		this.locations.delete(id); this.sceneEdges.delete(id); this.removeUnit('scene:' + id);
 		this.imageInputs.delete(id); this.removeUnit('scene:' + id + '/layer outputs');
@@ -326,8 +326,8 @@ export class ProjectRenderValidation {
 	}
 
 	private checkRegistrations() {
-		const registrations = { customShaderEffects: this.state.customShaderEffects?.value ?? [], customNodeGraphEffects: this.state.customNodeGraphEffects.value };
-		const ids = [registrations.customShaderEffects.map(entry => entry.id), registrations.customNodeGraphEffects.map(entry => entry.id)];
+		const registrations = { customShaderEffects: this.state.customShaderEffects?.value ?? [], nodesEffects: this.state.nodesEffects.value };
+		const ids = [registrations.customShaderEffects.map(entry => entry.id), registrations.nodesEffects.map(entry => entry.id)];
 		this.check('Effect registrations', ids, () => validateProjectEffectRegistrations(registrations));
 	}
 

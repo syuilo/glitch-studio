@@ -1,5 +1,5 @@
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
-import { testGraph } from './helpers/effect-graph.mjs';
+import { testNodesEffect } from './helpers/nodes-effect.mjs';
 import { nodeParameterTarget, timelineParameterTarget, customParameterTarget } from './helpers/command-inputs.mjs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -14,7 +14,7 @@ const bundle = await build({
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { createTextTimelineLayer } from './src/utility/text-timeline-layer.ts';
-		export { createInlineCustomNodeGraphEffectLayer } from './src/utility/inline-custom-node-graph-effect-layer.ts';
+		export { createInlineNodesEffectLayer } from './src/utility/inline-nodes-effect-layer.ts';
 		export { createInlineKeyframesTimeline } from './src/utility/keyframes-timeline.ts';
 		export { createInlineAutomationGraph } from './src/utility/automation-graph.ts';
 		export { default as definition } from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts';
@@ -29,7 +29,7 @@ const bundle = await build({
 });
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
-const { COMMAND_DEFS, UndoRedo, definition, createTextTimelineLayer, createInlineCustomNodeGraphEffectLayer, createInlineKeyframesTimeline, createInlineAutomationGraph } = loaded.exports;
+const { COMMAND_DEFS, UndoRedo, definition, createTextTimelineLayer, createInlineNodesEffectLayer, createInlineKeyframesTimeline, createInlineAutomationGraph } = loaded.exports;
 const defaultBuzzId = createDefaultParameterBinding(definition.paramDefs.buzzs).value[0].id;
 const literal = value => ({ inputSource: 'literal', value });
 const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: { controlType: 'number' } }, defaultValue: 0 };
@@ -38,23 +38,23 @@ function fixture(t) {
 	let now = 0;
 	t.mock.method(performance, 'now', () => now);
 	t.mock.method(console, 'log', () => {});
-	const createCustomNodeGraphEffect = id => ({ id, definition: testGraph({ nodes: ['first-node', 'second-node'].map(id => ({ id, type: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' },
+	const createNodesEffect = id => ({ id, definition: testNodesEffect({ nodes: ['first-node', 'second-node'].map(id => ({ id, type: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' },
 			params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])),
 		})), paramDefs: { "gain": { nameForReference: 'gain', canNode: false, ...scalar } }, customParameterDefs: { "gain": { nameForReference: 'gain', canNode: false, ...scalar } }, customParameterValues: {} }) });
-	const customNodeGraphEffects = [createCustomNodeGraphEffect('first-custom-node-graph-effect'), createCustomNodeGraphEffect('second-custom-node-graph-effect')];
+	const nodesEffects = [createNodesEffect('first-nodes-effect'), createNodesEffect('second-nodes-effect')];
 	const textLayer = { ...createTextTimelineLayer(0), id: 'text-layer' };
 	const timelineScenes = ['first-scene', 'second-scene'].map(id => ({ id, name: id, layers: [
-		structuredClone(textLayer), { ...createInlineCustomNodeGraphEffectLayer(0), id: 'inline-layer', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: createCustomNodeGraphEffect('inline-definition').definition } },
+		structuredClone(textLayer), { ...createInlineNodesEffectLayer(0), id: 'inline-layer', effectSource: { type: 'inlineNodesEffect', nodesEffect: createNodesEffect('inline-definition').definition } },
 	] }));
-	const state = { customNodeGraphEffects: { value: customNodeGraphEffects }, timelineScenes: { value: timelineScenes } };
+	const state = { nodesEffects: { value: nodesEffects }, timelineScenes: { value: timelineScenes } };
 	const manager = new UndoRedo(state, COMMAND_DEFS);
-	const target = { customNodeGraphEffectId: customNodeGraphEffects[0].id, nodeId: 'first-node', paramPath: ['buzzs', defaultBuzzId, 'x'] };
-	const value = () => customNodeGraphEffects[0].definition.nodes[0].params.buzzs.value[0].binding.value.x;
+	const target = { nodesEffectId: nodesEffects[0].id, nodeId: 'first-node', paramPath: ['buzzs', defaultBuzzId, 'x'] };
+	const value = () => nodesEffects[0].definition.nodes[0].params.buzzs.value[0].binding.value.x;
 	const notifications = [];
 	manager.onChange(changes => notifications.push({ changes: structuredClone(changes), value: structuredClone(value()) }));
-	return { state, manager, target, value, customNodeGraphEffects, timelineScenes, notifications,
+	return { state, manager, target, value, nodesEffects, timelineScenes, notifications,
 		at(time) { now = time; },
-		set(value, mergeKey = null) { manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: value } }, mergeKey); },
+		set(value, mergeKey = null) { manager.commit('setNodesEffectNodeParameterSource', { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: value } }, mergeKey); },
 	};
 }
 
@@ -88,19 +88,19 @@ test('starts another history entry after more than 2000ms of inactivity', t => {
 	f.manager.redo(); f.manager.redo(); assert.deepEqual(f.value(), literal(2));
 });
 
-// 【種類・Custom Node Graph Effectの所在・ノード・末端パスが違う編集を独立させる】
+// 【種類・Nodes Effectの所在・ノード・末端パスが違う編集を独立させる】
 // 同じローカルIDが登録先やSceneを跨いで現れたり、配列内の隣の項目へ移っても、
 // 最初と最後だけを履歴へ残すことで途中の編集が欠落してはならない。
 test('separates command types and complete node parameter addresses', t => {
 	const f = fixture(t);
 	const before = structuredClone(f.state);
 	const targets = [f.target, { ...f.target, paramPath: ['buzzs', defaultBuzzId, 'y'] },
-		{ ...f.target, nodeId: 'second-node' }, { ...f.target, customNodeGraphEffectId: 'second-custom-node-graph-effect' },
+		{ ...f.target, nodeId: 'second-node' }, { ...f.target, nodesEffectId: 'second-nodes-effect' },
 		{ sceneId: 'first-scene', layerId: 'inline-layer', nodeId: 'first-node', paramPath: f.target.paramPath },
 		{ sceneId: 'second-scene', layerId: 'inline-layer', nodeId: 'first-node', paramPath: f.target.paramPath }];
-	for (const target of targets) f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: 1 } });
-	f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...targets.at(-1) }), source: { inputSource: 'expression', expression: 'TIME' } });
-	f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...targets.at(-1) }), source: { inputSource: 'expression', expression: 'TIME * 2' } });
+	for (const target of targets) f.manager.commit('setNodesEffectNodeParameterSource', { ...nodeParameterTarget({ ...target }), source: { inputSource: 'literal', value: 1 } });
+	f.manager.commit('setNodesEffectNodeParameterSource', { ...nodeParameterTarget({ ...targets.at(-1) }), source: { inputSource: 'expression', expression: 'TIME' } });
+	f.manager.commit('setNodesEffectNodeParameterSource', { ...nodeParameterTarget({ ...targets.at(-1) }), source: { inputSource: 'expression', expression: 'TIME * 2' } });
 	assert.equal(f.manager.undoStack.value.length, targets.length + 1);
 	while (f.manager.canUndo.value) f.manager.undo();
 	assert.deepEqual(f.state, before);
@@ -143,15 +143,15 @@ test('normalizes the default timeline parameter target and restores omitted bind
 // 登録先や編集方式が変わった操作も独立したUndo単位にする。
 test('merges custom parameter values without changing definitions or losing omitted values', t => {
 	const f = fixture(t);
-	const target = { customNodeGraphEffectId: 'first-custom-node-graph-effect', parameterId: 'gain' };
-	for (const value of [1, 2]) f.manager.commit('setCustomNodeGraphEffectCustomParameterSource', { target: customParameterTarget({ ...target }), source: { inputSource: 'literal', value: value } });
+	const target = { nodesEffectId: 'first-nodes-effect', parameterId: 'gain' };
+	for (const value of [1, 2]) f.manager.commit('setNodesEffectCustomParameterSource', { target: customParameterTarget({ ...target }), source: { inputSource: 'literal', value: value } });
 	assert.equal(f.manager.undoStack.value.length, 1);
-	f.manager.undo(); assert.deepEqual(f.customNodeGraphEffects[0].definition.customParameterValues, {});
-	f.manager.redo(); assert.deepEqual(f.customNodeGraphEffects[0].definition.customParameterValues.gain, literal(2));
-	for (const value of ['TIME', 'TIME * 2']) f.manager.commit('setCustomNodeGraphEffectCustomParameterSource', { target: customParameterTarget({ ...target }), source: { inputSource: 'expression', expression: value } });
-	f.manager.commit('setCustomNodeGraphEffectCustomParameterSource', { target: customParameterTarget({ ...target, customNodeGraphEffectId: 'second-custom-node-graph-effect' }), source: { inputSource: 'literal', value: 3 } });
+	f.manager.undo(); assert.deepEqual(f.nodesEffects[0].definition.customParameterValues, {});
+	f.manager.redo(); assert.deepEqual(f.nodesEffects[0].definition.customParameterValues.gain, literal(2));
+	for (const value of ['TIME', 'TIME * 2']) f.manager.commit('setNodesEffectCustomParameterSource', { target: customParameterTarget({ ...target }), source: { inputSource: 'expression', expression: value } });
+	f.manager.commit('setNodesEffectCustomParameterSource', { target: customParameterTarget({ ...target, nodesEffectId: 'second-nodes-effect' }), source: { inputSource: 'literal', value: 3 } });
 	assert.equal(f.manager.undoStack.value.length, 3);
-	assert.deepEqual(f.customNodeGraphEffects[0].definition.customParameterDefs.gain.defaultValue, 0);
+	assert.deepEqual(f.nodesEffects[0].definition.customParameterDefs.gain.defaultValue, 0);
 });
 
 // 【キー・グラフ・リセット・定義変更は短時間に繰り返しても自動でまとめない】
@@ -162,10 +162,10 @@ test('keeps keyframe graph reset and definition commands out of automatic mergin
 	const keyframes = createInlineKeyframesTimeline(scalar);
 	const graph = createInlineAutomationGraph();
 	const operations = [
-		() => f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: keyframes }),
-		() => f.manager.commit('setCustomNodeGraphEffectNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: graph }),
-		() => f.manager.commit('resetCustomNodeGraphEffectNodeParameter', { ...nodeParameterTarget(f.target) }),
-		() => f.manager.commit('replaceCustomNodeGraphEffectPublicParameterDefinition', { target: { customNodeGraphEffect: { customNodeGraphEffectId: 'first-custom-node-graph-effect' }, parameterId: 'gain' }, definition: { ...f.customNodeGraphEffects[0].definition.paramDefs.gain, defaultValue: 1 } }),
+		() => f.manager.commit('setNodesEffectNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: keyframes }),
+		() => f.manager.commit('setNodesEffectNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: graph }),
+		() => f.manager.commit('resetNodesEffectNodeParameter', { ...nodeParameterTarget(f.target) }),
+		() => f.manager.commit('replaceNodesEffectPublicParameterDefinition', { target: { nodesEffect: { nodesEffectId: 'first-nodes-effect' }, parameterId: 'gain' }, definition: { ...f.nodesEffects[0].definition.paramDefs.gain, defaultValue: 1 } }),
 	];
 	for (const operation of operations) { operation(); operation(); }
 	assert.equal(f.manager.undoStack.value.length, operations.length);
@@ -191,17 +191,17 @@ test('preserves explicit merging and isolates it from automatic merging', t => {
 test('keeps explicit edit sessions independent and preserves redo on cancellation', t => {
 	const f = fixture(t);
 	f.set(1);
-	const cancelled = f.manager.beginEdit('setCustomNodeGraphEffectNodeParameterSource');
+	const cancelled = f.manager.beginEdit('setNodesEffectNodeParameterSource');
 	cancelled.update({ ...nodeParameterTarget(f.target), source: { inputSource: 'literal', value: 2 } }); cancelled.cancel();
 	f.set(3);
-	const empty = f.manager.beginEdit('setCustomNodeGraphEffectNodeParameterSource'); empty.finish();
+	const empty = f.manager.beginEdit('setNodesEffectNodeParameterSource'); empty.finish();
 	f.set(4);
-	const finished = f.manager.beginEdit('setCustomNodeGraphEffectNodeParameterSource');
+	const finished = f.manager.beginEdit('setNodesEffectNodeParameterSource');
 	finished.update({ ...nodeParameterTarget(f.target), source: { inputSource: 'literal', value: 5 } }); finished.finish();
 	f.set(6);
 	assert.equal(f.manager.undoStack.value.length, 5);
 	f.manager.undo();
-	const session = f.manager.beginEdit('setCustomNodeGraphEffectNodeParameterSource');
+	const session = f.manager.beginEdit('setNodesEffectNodeParameterSource');
 	session.update({ ...nodeParameterTarget(f.target), source: { inputSource: 'literal', value: 7 } }); session.cancel();
 	assert.equal(f.manager.redoStack.value.length, 1);
 	f.manager.redo(); assert.deepEqual(f.value(), literal(6));

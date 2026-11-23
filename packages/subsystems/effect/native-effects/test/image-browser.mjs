@@ -10,7 +10,7 @@ export async function renderStillImage() {
 			nodes: [
 				{ id: 'image', effectSource: { type: 'nativeEffect', id: 'image' }, staticSettings: { image: 'photo' },
 					resolution: { mode: 'context', scale: 1 },
-					params: { fit: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'fit' } } },
+					params: { fit: { inputSource: 'nodesEffectPublicParameterReference', parameterId: 'fit' } } },
 				{ id: 'invert', effectSource: { type: 'nativeEffect', id: 'invert' }, params: {
 					input: { inputSource: 'node', source: { nodeId: 'image', outputPort: 'output' },
 						sampling: { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' } },
@@ -23,7 +23,7 @@ export async function renderStillImage() {
 		device.queue.writeTexture({ texture }, new Uint8Array([255, 0, 0, 255, 255, 0, 0, 255]), {}, size);
 		const asset = { id: 'photo', ...size, fileData: new Blob(), fileDataType: 'image/png' };
 		const fit = { kind: 'value', value: 'cover' };
-		const instance = await create({ type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph }, ['output'], { fit }, {
+		const instance = await create({ type: 'inlineNodesEffect', nodesEffect: graph }, ['output'], { fit }, {
 			resolution: { width: 4, height: 4 }, resources: { assets: [asset], assetTextures: new Map([[asset.id, texture]]) },
 		});
 		try {

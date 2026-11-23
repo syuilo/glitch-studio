@@ -30,7 +30,7 @@ async function bundle(path) {
 					export const playVideoAfterFirstFrameIsReady = () => {};
 					export const alert = () => {};
 					export const displayCpuPreviewFrame = () => {};
-					export class CustomNodeGraphEffectLivePreviewEffectStateStore { stop() {} }
+					export class NodesEffectLivePreviewEffectStateStore { stop() {} }
 				` }));
 			},
 		}],
@@ -343,13 +343,13 @@ test('disposes after preview errors and restores edited settings on retry', asyn
 	await Promise.resolve();
 	assert.equal(controller.errorMessage.value, 'circular dependency detected');
 	assert.equal(controller.isReady.value, false);
-	initialOptions.dynamicOptions.customNodeGraphEffects = [{ id: 'repaired', nodes: [] }];
+	initialOptions.dynamicOptions.nodesEffects = [{ id: 'repaired', nodes: [] }];
 	assert.equal(controller.errorMessage.value, 'circular dependency detected');
 	instances[0].reportPreviewError('old frame failure');
 	await Promise.resolve();
 	assert.equal(controller.errorMessage.value, 'circular dependency detected');
 	await restart();
-	assert.equal(instances.at(-1).dynamicOptions.customNodeGraphEffects[0].id, 'repaired');
+	assert.equal(instances.at(-1).dynamicOptions.nodesEffects[0].id, 'repaired');
 	assert.equal(controller.errorMessage.value, null);
 	assert.deepEqual(notifications.filter(message => message.type === 'ev' && message.ev.type === 'renderError').map(message => message.ev.ctx.message), ['circular dependency detected', 'circular dependency detected', 'old frame failure']);
 });

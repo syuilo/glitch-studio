@@ -27,7 +27,7 @@ Glitch Studioは、リアルタイムな画像・動画の加工・編集・作�
 
 Glitch Studioはいくつかのサブシステムから構成されています。
 
-## Custom Node Graph Effect
+## Nodes Effect
 
 様々な「ノード」を配線して、データを加工していくシステムです。
 
@@ -49,11 +49,11 @@ Glitch Studioでは異なる型の出力と入力を繋げることも敢えて�
 
 「タイムライン」上にレイヤーを配置し、動画の作成が行えるシステムです。
 
-Custom Node Graph Effectを使用して合成を行うレイヤーも作成可能です。
+Nodes Effectを使用して合成を行うレイヤーも作成可能です。
 
 レイヤーのパラメータはキーフレームで制御でき、タイムラインに沿って内容を変化させることができます。
 
-TimelineはCustom Node Graph Effectの上位概念となりますが、Custom Node Graph Effect単体で動作(プレビュー)させることも可能です。
+TimelineはNodes Effectの上位概念となりますが、Nodes Effect単体で動作(プレビュー)させることも可能です。
 
 ## Credit
 

@@ -35,7 +35,7 @@ test('reproduces random and noise animation across seeking export and frame rate
 });
 
 // 【式・キー・公開変数の評価を共通のScene時刻へ揃える】
-// シェイプだけクリップ開始からの時刻で動くことや、Custom Node Graph Effectの終端・進捗を
+// シェイプだけクリップ開始からの時刻で動くことや、Nodes Effectの終端・進捗を
 // 誤って継承することを防ぐ。キーの補間結果も素の描画値へ変換する。
 test('evaluates expressions and interpolated keyframes in the timeline scope', () => {
 	const shape = createShape('rectangle');

@@ -38,7 +38,7 @@ function fixture(t) {
 	const layer = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, automationGraphs: [],
 		clips: [clip, { ...clip, id: 'next', startMs: 12000 }], compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] };
-	const state = { timelineScenes: { value: [scene] }, assets: { value: [{ id: 'movie', fileDataType: 'video/mp4', fileData: new Blob() }] }, customNodeGraphEffects: { value: [] } };
+	const state = { timelineScenes: { value: [scene] }, assets: { value: [{ id: 'movie', fileDataType: 'video/mp4', fileData: new Blob() }] }, nodesEffects: { value: [] } };
 	let mediaDurationMs = 6000.25;
 	const definitions = { ...api.COMMAND_DEFS, ...api.createTimelineCommandDefinitions({ inspectMedia: () => ({ durationMs: mediaDurationMs, audioAvailable: true, audioError: null }) }) };
 	const history = new api.UndoRedo(state, definitions);
@@ -85,7 +85,7 @@ test('undoes and persists audio-only clip settings through clipboard and source 
 	const paste = api.prepareTimelineClipPaste(f.scene, clipboard, 16000);
 	f.history.commit('insertTimelineClips', { sceneId: 'scene', clips: paste });
 	assert.deepEqual(f.layer.clips.at(-1), { ...original, videoEnabled: false, id: paste[0].clip.id, startMs: 16000 });
-	const encoded = await api.encodeProjectFile({ generatedSpeech: [], customNodeGraphEffects: [], timelineFps: 60,
+	const encoded = await api.encodeProjectFile({ generatedSpeech: [], nodesEffects: [], timelineFps: 60,
 		timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: [], timelineScenes: [f.scene] });
 	assert.deepEqual(api.decodeProjectFile(encoded).timelineScenes[0], f.scene);
 	f.setMediaDuration(4000);
@@ -154,7 +154,7 @@ test('preserves loops in clipboard and project files and resets them on source r
 	f.history.commit('insertTimelineClips', { sceneId: 'scene', clips: paste });
 	assert.equal((f.layer.clips.at(-1).sourceOutMs - f.layer.clips.at(-1).sourceInMs), 3000);
 	assert.equal(f.layer.clips.at(-1).durationMs, 8000);
-	const encoded = await api.encodeProjectFile({ generatedSpeech: [], customNodeGraphEffects: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: [], timelineScenes: [f.scene] });
+	const encoded = await api.encodeProjectFile({ generatedSpeech: [], nodesEffects: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: [], timelineScenes: [f.scene] });
 	assert.deepEqual(api.decodeProjectFile(encoded).timelineScenes[0], f.scene);
 	f.setMediaDuration(4000);
 	f.history.commit('setTimelineClipSource', { ...target, assetId: 'movie' });
@@ -228,7 +228,7 @@ test('persists and pastes held video and removes hold timing during source repla
 	f.setMediaDuration(6000.25);
 	f.history.commit('insertTimelineClips', { sceneId: 'scene', clips: paste });
 	assert.deepEqual(f.layer.clips.at(-1), { ...held, id: paste[0].clip.id, startMs: 16000 });
-	const encoded = await api.encodeProjectFile({ generatedSpeech: [], customNodeGraphEffects: [], timelineFps: 60,
+	const encoded = await api.encodeProjectFile({ generatedSpeech: [], nodesEffects: [], timelineFps: 60,
 		timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: [], timelineScenes: [f.scene] });
 	assert.deepEqual(api.decodeProjectFile(encoded).timelineScenes[0], f.scene);
 	f.setMediaDuration(4000);

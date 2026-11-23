@@ -162,12 +162,12 @@ const image = { dataType: { kind: 'color' }, ui: { label: 'Image', control: {} }
 const sampling = { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
 const wire = nodeId => ({ inputSource: 'node', source: { nodeId, outputPort: 'output' }, sampling });
 const node = (id, params = {}) => ({ id, params, effectSource: { type: 'nativeEffect', id } });
-async function tiledGraph(g, nodes, tiling, { heavy, init, onGpuTime, onFrameGpuTime } = {}) {
+async function createTiledNodesEffect(g, nodes, tiling, { heavy, init, onGpuTime, onFrameGpuTime } = {}) {
 	const metadata = { paramDefs: { left: image, right: image }, resolutionInputParameters: [], primaryInputParameter: 'left',
 		primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } } };
 	const graph = { ...metadata, nodes, outputSources: { output: { nodeId: nodes.at(-1).id, outputPort: 'output' } } };
 	const renders = [], hints = [];
-	const instance = await createEffectInstance({ effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph },
+	const instance = await createEffectInstance({ effectSource: { type: 'inlineNodesEffect', nodesEffect: graph },
 		definitions: { getNativeEffect: id => ({ ...metadata, canHaveLongRunningRenderPass: id === heavy }) }, resolution: { width: 16, height: 9 },
 		usedOutputPorts: new Set(['output']), tiling, onGpuTime, onFrameGpuTime }, g.wgpu, id => ({
 			createOutputTexture: (port, size, { device }) => device.createTexture({ size, port, format: 'rgba16float' }),
@@ -186,9 +186,9 @@ async function tiledGraph(g, nodes, tiling, { heavy, init, onGpuTime, onFrameGpu
 
 // 【統計の読み戻しが終わる前に通常描画を返す】
 // プレビューの応答時間をGPUのタイムスタンプ読み出しへ結び付けない。
-test('finishes an untiled graph frame before its GPU statistics readback completes', async t => {
+test('finishes an untiled Nodes Effect frame before its GPU statistics readback completes', async t => {
 	const g = gpu(), control = enableAsynchronousTimestampGpu(t, g), reports = [], frameReports = [];
-	const f = await tiledGraph(g, [node('effect')], { mode: 'disabled' }, {
+	const f = await createTiledNodesEffect(g, [node('effect')], { mode: 'disabled' }, {
 		onGpuTime: (...args) => reports.push(args), onFrameGpuTime: (...args) => frameReports.push(args),
 	});
 	t.after(() => f.instance.dispose());
@@ -209,7 +209,7 @@ test('discards unsubmitted Effect rendering and its GPU timings when recording c
 	const control = enableAsynchronousTimestampGpu(t, g);
 	const submit = t.mock.method(g.device.queue, 'submit');
 	const frameReports = [];
-	const f = await tiledGraph(g, [node('effect')], { mode: 'disabled' }, {
+	const f = await createTiledNodesEffect(g, [node('effect')], { mode: 'disabled' }, {
 		onFrameGpuTime: (_frame, result) => frameReports.push(result),
 	});
 	t.after(() => f.instance.dispose());
@@ -230,7 +230,7 @@ test('discards unsubmitted Effect rendering and its GPU timings when recording c
 test('retains cached Effect output when only consumer commands fail to record', async t => {
 	const g = gpu();
 	const control = enableControlledTiledGpu(g);
-	const f = await tiledGraph(g, [node('effect')], { mode: 'disabled' });
+	const f = await createTiledNodesEffect(g, [node('effect')], { mode: 'disabled' });
 	t.after(() => f.instance.dispose());
 	await f.instance.renderTiled(frame);
 	await assert.rejects(f.instance.renderTiled({ ...frame, time: 1 }, undefined, undefined, () => {
@@ -248,7 +248,7 @@ test('retains cached Effect output when only consumer commands fail to record', 
 test('sums ordinary and tiled passes into one GPU time per frame', async t => {
 	const g = gpu(), control = enableAsynchronousTimestampGpu(t, g);
 	const frameReports = [], passReports = [];
-	const f = await tiledGraph(g, [node('first'), node('heavy', { left: wire('first') }), node('last', { left: wire('heavy') })], { mode: 'auto' }, {
+	const f = await createTiledNodesEffect(g, [node('first'), node('heavy', { left: wire('first') }), node('last', { left: wire('heavy') })], { mode: 'auto' }, {
 		heavy: 'heavy',
 		onGpuTime: (path, index, milliseconds) => passReports.push([path[0], index, milliseconds]),
 		onFrameGpuTime: (...args) => frameReports.push(args),
@@ -273,7 +273,7 @@ test('sums ordinary and tiled passes into one GPU time per frame', async t => {
 test('reports an unavailable frame time when one tile timestamp readback fails', async t => {
 	const g = gpu(), control = enableAsynchronousTimestampGpu(t, g);
 	const frameReports = [];
-	const f = await tiledGraph(g, [node('effect')], { mode: 'manual', tileSize: 8 }, {
+	const f = await createTiledNodesEffect(g, [node('effect')], { mode: 'manual', tileSize: 8 }, {
 		onFrameGpuTime: (_frame, result) => frameReports.push(result),
 	});
 	t.after(() => f.instance.dispose());
@@ -290,9 +290,9 @@ test('reports an unavailable frame time when one tile timestamp readback fails',
 
 // 【共有された上流ツリーは全タイルの完了後に一度だけ公開する】
 // 後段は上流の未完成な画像を読まず、同じフレームを再度表示するときはGPUへ再送信しない。
-test('renders tiled graph dependencies once and caches only completed work', async t => {
+test('renders tiled Nodes Effect dependencies once and caches only completed work', async t => {
 	const g = gpu(), control = enableControlledTiledGpu(g);
-	const f = await tiledGraph(g, [node('a'), node('b', { left: wire('a'), right: wire('a') })], { mode: 'manual', tileSize: 8 });
+	const f = await createTiledNodesEffect(g, [node('a'), node('b', { left: wire('a'), right: wire('a') })], { mode: 'manual', tileSize: 8 });
 	t.after(() => f.instance.dispose());
 	const running = f.instance.renderTiled(frame); await tick();
 	assert.deepEqual(f.renders, ['a']);
@@ -308,7 +308,7 @@ test('renders tiled graph dependencies once and caches only completed work', asy
 // 中断した描画で履歴を進めず、GPUが使用中のテクスチャを早期に破棄しない。
 test('defers disposal of a cancelled tiled placement until submitted work drains', async () => {
 	const g = gpu(), control = enableControlledTiledGpu(g);
-	const f = await tiledGraph(g, [node('history')], { mode: 'manual', tileSize: 8 });
+	const f = await createTiledNodesEffect(g, [node('history')], { mode: 'manual', tileSize: 8 });
 	const running = assert.rejects(f.instance.renderTiled(frame, undefined, undefined, () => {
 		assert.fail('cancelled rendering must not record consumer commands');
 	}), { name: 'AbortError' });
@@ -322,7 +322,7 @@ test('defers disposal of a cancelled tiled placement until submitted work drains
 // 【軽量なNative Effectの通常描画はヒントを問い合わせない】
 // 自動分割を有効にしたグラフでも、対象外のEffectに計測や追加送信の費用を負わせない。
 test('keeps ordinary effects synchronous without consulting workload hints', async t => {
-	const g = gpu(), f = await tiledGraph(g, [node('ordinary')], { mode: 'auto' });
+	const g = gpu(), f = await createTiledNodesEffect(g, [node('ordinary')], { mode: 'auto' });
 	t.after(() => f.instance.dispose());
 	assert.equal(f.instance.render(frame, g.encoder), undefined); assert.deepEqual(f.renders, ['ordinary']); assert.deepEqual(f.hints, []);
 });
@@ -332,7 +332,7 @@ test('keeps ordinary effects synchronous without consulting workload hints', asy
 test('batches ordinary nodes and consumer commands around automatic tiling without timestamp queries', async t => {
 	const g = gpu(), control = enableControlledTiledGpu(g);
 	const ids = ['first', 'second', 'heavy', 'last'];
-	const f = await tiledGraph(g, ids.map((id, i) => node(id, i === 0 ? {} : { left: wire(ids[i - 1]) })), { mode: 'auto' }, { heavy: 'heavy' });
+	const f = await createTiledNodesEffect(g, ids.map((id, i) => node(id, i === 0 ? {} : { left: wire(ids[i - 1]) })), { mode: 'auto' }, { heavy: 'heavy' });
 	t.after(() => f.instance.dispose());
 	const submittedPasses = () => control.submissions.map(buffers => buffers.map(buffer => buffer.passLabels));
 	const running = f.instance.renderTiled(frame, undefined, undefined, encoder => {

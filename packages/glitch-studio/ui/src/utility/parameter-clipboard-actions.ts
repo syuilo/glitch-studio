@@ -1,8 +1,8 @@
 import { isEffectLivePreviewMediaBinding, type EffectLivePreviewParameterBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { preferences } from '@/preferences.ts';
-import { findCustomNodeGraphEffectOwner } from './custom-node-graph-effect-target.ts';
-import { getCustomNodeGraphEffectView } from './custom-node-graph-effect-view.ts';
+import { findNodesEffectOwner } from './nodes-effect-target.ts';
+import { getNodesEffectView } from './nodes-effect-view.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
@@ -11,7 +11,7 @@ import { createParameterClipboard, parseParameterClipboard, prepareParameterBind
 import { clipboardText } from './clipboard-text.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
-import type { CustomNodeGraphEffectParameterBinding, CustomNodeGraphEffectValueParameterBinding } from '@/types/custom-node-graph-effect-view.ts';
+import type { NodesEffectParameterBinding, NodesEffectValueParameterBinding } from '@/types/nodes-effect-view.ts';
 import type { EditableTimelineParameterBinding } from '../types/parameter-edit.ts';
 import type { ClipboardTextAccess } from './clipboard-text.ts';
 import type { ProjectParameterClipboardTarget } from './parameter-clipboard.ts';
@@ -40,9 +40,9 @@ export async function handleProjectParameterClipboard(
 	}
 	const findOwner = () => {
 		if (target.kind === 'timeline') return null;
-		const entry = findCustomNodeGraphEffectOwner(state, target.customNodeGraphEffectTarget);
+		const entry = findNodesEffectOwner(state, target.nodesEffectTarget);
 		if (entry == null) return null;
-		const definition = 'definition' in entry ? entry.definition : entry.customNodeGraphEffect;
+		const definition = 'definition' in entry ? entry.definition : entry.nodesEffect;
 		return target.kind === 'node' ? definition.nodes.find(node => node.id === target.nodeId) : definition.customParameterDefs?.[target.paramPath[0]];
 	};
 	const originalOwner = initial.context.kind === 'timeline' ? initial.context.layer : findOwner();
@@ -65,14 +65,14 @@ export async function handleProjectParameterClipboard(
 	// Commandへは編集対象と完成したBindingだけを渡し、他の呼び出し元と同じ検証を通す。
 	const parameterPath: ParamPath = [target.paramPath[0]];
 	if (target.kind === 'node') {
-		context.stateManager.commit('replaceCustomNodeGraphEffectNodeParameterBinding', {
-			target: { customNodeGraphEffect: target.customNodeGraphEffectTarget, nodeId: target.nodeId }, parameterPath,
-			binding: update.after as CustomNodeGraphEffectParameterBinding, connectionTypePolicy,
+		context.stateManager.commit('replaceNodesEffectNodeParameterBinding', {
+			target: { nodesEffect: target.nodesEffectTarget, nodeId: target.nodeId }, parameterPath,
+			binding: update.after as NodesEffectParameterBinding, connectionTypePolicy,
 		});
 	} else if (target.kind === 'customParameter') {
-		context.stateManager.commit('replaceCustomNodeGraphEffectCustomParameterBinding', {
-			target: { customNodeGraphEffect: target.customNodeGraphEffectTarget, parameterId: parameterPath[0] as string },
-			binding: update.after as CustomNodeGraphEffectValueParameterBinding,
+		context.stateManager.commit('replaceNodesEffectCustomParameterBinding', {
+			target: { nodesEffect: target.nodesEffectTarget, parameterId: parameterPath[0] as string },
+			binding: update.after as NodesEffectValueParameterBinding,
 		});
 	} else {
 		context.stateManager.commit('replaceTimelineLayerParameterBinding', {
@@ -97,18 +97,18 @@ export async function handlePreviewParameterClipboard(
 ): Promise<void> {
 	if (context.isDisposed || !isActive()) return;
 	const state = context.stateManager.state;
-	const customNodeGraphEffectEntry = effectSource.type === 'customNodeGraphEffectReference'
-		? state.customNodeGraphEffects.value.find(candidate => candidate.id === effectSource.id) : null;
+	const nodesEffectEntry = effectSource.type === 'nodesEffectReference'
+		? state.nodesEffects.value.find(candidate => candidate.id === effectSource.id) : null;
 	const customShaderEffectEntry = effectSource.type === 'customShaderEffectReference'
 		? state.customShaderEffects.value.find(candidate => candidate.id === effectSource.id) : null;
-	if (customNodeGraphEffectEntry == null && customShaderEffectEntry == null) return;
-	const readCustomNodeGraphEffect = () => customNodeGraphEffectEntry == null ? null : getCustomNodeGraphEffectView(customNodeGraphEffectEntry, state);
+	if (nodesEffectEntry == null && customShaderEffectEntry == null) return;
+	const readNodesEffect = () => nodesEffectEntry == null ? null : getNodesEffectView(nodesEffectEntry, state);
 	const path: ParamPath = [...requestedPath];
 	const rootId = path[0] as string;
 
 	const resolve = () => {
-		const customNodeGraphEffect = readCustomNodeGraphEffect();
-		const definition = customNodeGraphEffect?.paramDefs.find(candidate => candidate.id === rootId) ?? customShaderEffectEntry?.definition.paramDefs[rootId];
+		const nodesEffect = readNodesEffect();
+		const definition = nodesEffect?.paramDefs.find(candidate => candidate.id === rootId) ?? customShaderEffectEntry?.definition.paramDefs[rootId];
 		if (definition == null) throw new Error('Preview parameter not found');
 		const { binding, followsDefault } = readArgument(rootId);
 		const draft = { [rootId]: binding == null ? createDefaultParameterBinding(definition) : deepClone(binding) };
@@ -119,8 +119,8 @@ export async function handlePreviewParameterClipboard(
 	try { initial = resolve(); } catch { return; }
 	const source: ParameterClipboardSource = {
 		projectSessionId,
-		owner: effectSource.type === 'customNodeGraphEffectReference'
-			? { kind: 'customNodeGraphEffect', target: { customNodeGraphEffectId: effectSource.id } }
+		owner: effectSource.type === 'nodesEffectReference'
+			? { kind: 'nodesEffect', target: { nodesEffectId: effectSource.id } }
 			: { kind: 'customShaderEffect', customShaderEffectId: effectSource.id },
 		localAutomationGraphIds: [],
 	};
@@ -135,7 +135,7 @@ export async function handlePreviewParameterClipboard(
 	const usesDefaultArrayElement = initial.followsDefault && initial.parameter.hasArrayElementInPath;
 	const data = parseParameterClipboard(await clipboard.readText());
 	if (data == null || !isActive() || context.isDisposed) return;
-	if (customNodeGraphEffectEntry != null && !state.customNodeGraphEffects.value.includes(customNodeGraphEffectEntry)) return;
+	if (nodesEffectEntry != null && !state.nodesEffects.value.includes(nodesEffectEntry)) return;
 	if (customShaderEffectEntry != null && !state.customShaderEffects.value.includes(customShaderEffectEntry)) return;
 	let nextRoot: EffectLivePreviewParameterBinding;
 	try {
@@ -143,7 +143,7 @@ export async function handlePreviewParameterClipboard(
 		if (!areDataTypesEqual(originalType, current.parameter.def.dataType)) return;
 		if (usesDefaultArrayElement && !deepEqual(initialRoot, current.draft[rootId])) return;
 		const binding = prepareParameterBindingPaste(current.parameter.def, data, {
-			kind: 'preview', state, customNodeGraphEffect: readCustomNodeGraphEffect(), source,
+			kind: 'preview', state, nodesEffect: readNodesEffect(), source,
 		});
 		if (binding == null) return;
 		current.parameter.setValue(binding as ValueParameterBinding);

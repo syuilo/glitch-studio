@@ -13,16 +13,16 @@ const bundled = await build({
 		export { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect_native-effects/definitions.ts';
 		export { z } from 'zod';
 		export { parameterDefinitionSchema, staticSettingDefinitionSchema } from './src/commands/parameter-contract-schemas.ts';
-		export { customNodeGraphEffectCustomParameterInputSchema, customNodeGraphEffectSchema } from './src/commands/custom-node-graph-effect-contract-schemas.ts';
-		export { storedCustomNodeGraphEffectSchema } from './src/commands/effect-source-schema.ts';
+		export { nodesEffectCustomParameterInputSchema, nodesEffectSchema } from './src/commands/nodes-effect-contract-schemas.ts';
+		export { storedNodesEffectSchema } from './src/commands/effect-source-schema.ts';
 		export { parseProjectApiValue } from './src/project-api/contract.ts';
-		export { createProjectCustomNodeGraphEffect } from './src/utility/project-custom-node-graph-effect.ts';
+		export { createProjectNodesEffect } from './src/utility/project-nodes-effect.ts';
 	` },
 });
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
 const { z, effectDefinitions, parameterDefinitionSchema, staticSettingDefinitionSchema,
-	customNodeGraphEffectCustomParameterInputSchema, customNodeGraphEffectSchema, parseProjectApiValue, createProjectCustomNodeGraphEffect } = loaded.exports;
+	nodesEffectCustomParameterInputSchema, nodesEffectSchema, parseProjectApiValue, createProjectNodesEffect } = loaded.exports;
 
 // 【すべての内蔵エフェクトの定義を公開契約で読み取れる】
 // Query:getEffectの結果検証が、既存エフェクトの配列・構造体・Viewportや静的設定を
@@ -64,7 +64,7 @@ test('documents literal container defaults and custom parameter restrictions', (
 	assert.match(value.items.description, /plain array elements/);
 	assert.ok(array.properties.element);
 	assert.ok(array.properties.ui.properties.control.properties.element);
-	const customDocumentation = z.toJSONSchema(customNodeGraphEffectCustomParameterInputSchema, { io: 'input' });
+	const customDocumentation = z.toJSONSchema(nodesEffectCustomParameterInputSchema, { io: 'input' });
 	for (const branch of customDocumentation.anyOf) {
 		const restrictions = branch.properties;
 		assert.ok((restrictions.canNode.allOf ?? [restrictions.canNode]).some(schema => schema.const === false));
@@ -76,10 +76,10 @@ test('documents literal container defaults and custom parameter restrictions', (
 		ui: { label: 'Amount', control: { controlType: 'range', min: 0, max: 1 } },
 		defaultValue: 2.5,
 	};
-	assert.equal(customNodeGraphEffectCustomParameterInputSchema.safeParse(custom).success, true);
-	assert.equal(customNodeGraphEffectCustomParameterInputSchema.safeParse({ ...custom, canNode: true }).success, false);
+	assert.equal(nodesEffectCustomParameterInputSchema.safeParse(custom).success, true);
+	assert.equal(nodesEffectCustomParameterInputSchema.safeParse({ ...custom, canNode: true }).success, false);
 	const arrayDefinition = effectDefinitions.testStructArray.paramDefs.buzzs;
-	assert.equal(customNodeGraphEffectCustomParameterInputSchema.safeParse({ ...arrayDefinition, nameForReference: 'items', canNode: false }).success, false);
+	assert.equal(nodesEffectCustomParameterInputSchema.safeParse({ ...arrayDefinition, nameForReference: 'items', canNode: false }).success, false);
 	const expression = { inputSource: 'expression', expression: 'TIME' };
 	const invalidArray = structuredClone(arrayDefinition);
 	invalidArray.defaultValue[0] = expression;
@@ -93,32 +93,32 @@ test('documents literal container defaults and custom parameter restrictions', (
 // 【保存済みの参照・HDR値・省略された設定をQueryの契約で保持する】
 // 削除した公開入力の参照はUndo用に残り、既存UIの接続にはサンプリングの省略形もある。
 // 構造の検証で参照の実在性まで要求したり、資料にない追加情報を削除してはいけない。
-test('preserves persisted Custom Node Graph Effect bindings and nullable modifiers', () => {
-	const customNodeGraphEffect = createProjectCustomNodeGraphEffect(0).definition;
+test('preserves persisted Nodes Effect bindings and nullable modifiers', () => {
+	const nodesEffect = createProjectNodesEffect(0).definition;
 	const definition = effectDefinitions.testStructArray;
 	const parameters = Object.fromEntries(Object.entries(definition.paramDefs).map(([key, parameter]) => [key, createDefaultParameterBinding(parameter)]));
 	parameters.buzzs.value[0].binding.value.image = { inputSource: 'node', source: { nodeId: 'removed-node', outputPort: 'removed-output' }, sampling: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' } };
 	parameters.buzzs.value[0].binding.value.x = { inputSource: 'literal', value: 4.5, expressionModifier: null };
-	customNodeGraphEffect.nodes.push({
+	nodesEffect.nodes.push({
 		id: 'effect', type: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, params: parameters, staticSettings: {},
 		isBypass: false, resolution: { mode: 'auto', scale: 1 }, displayName: '',
 	});
-	customNodeGraphEffect.nodes.push({
+	nodesEffect.nodes.push({
 		id: 'fill', type: 'effect', effectSource: { type: 'nativeEffect', id: 'fill' }, staticSettings: {}, isBypass: false, displayName: '',
 		resolution: { mode: 'auto', scale: 1 },
 		params: { color: { inputSource: 'node', source: { nodeId: 'removed-node', outputPort: 'removed-output' }, sampling: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' } } },
 	});
-	customNodeGraphEffect.customParameterDefs['custom-color'] = { nameForReference: 'hdr', canNode: false, dataType: { kind: 'color' },
+	nodesEffect.customParameterDefs['custom-color'] = { nameForReference: 'hdr', canNode: false, dataType: { kind: 'color' },
 		ui: { label: 'HDR', control: {} }, defaultValue: [-1, 4.5, 0.5, 1],
 	};
-	customNodeGraphEffect.customParameterValues['custom-color'] = {
+	nodesEffect.customParameterValues['custom-color'] = {
 		inputSource: 'keyframesTimelineInline', expressionModifier: null, trimmedDurationMs: null, offsetMode: 'start', wrapMode: 'repeat',
 		keyframesTimeline: { dataType: { kind: 'color' }, isNormalized: true, keyframes: [
 			{ id: 'key', x: 0, value: [-1, 4.5, 0.5, 1], interpolation: { type: 'ease:cubic', direction: 'inOut' } },
 		] },
 	};
-	const original = structuredClone(customNodeGraphEffect);
-	assert.equal(parseProjectApiValue(loaded.exports.storedCustomNodeGraphEffectSchema, customNodeGraphEffect, 'Custom Node Graph Effect'), customNodeGraphEffect);
-	assert.deepEqual(customNodeGraphEffect, original);
-	assert.equal(Object.hasOwn(customNodeGraphEffect, 'primaryAudioInputId'), false);
+	const original = structuredClone(nodesEffect);
+	assert.equal(parseProjectApiValue(loaded.exports.storedNodesEffectSchema, nodesEffect, 'Nodes Effect'), nodesEffect);
+	assert.deepEqual(nodesEffect, original);
+	assert.equal(Object.hasOwn(nodesEffect, 'primaryAudioInputId'), false);
 });

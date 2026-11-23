@@ -116,7 +116,7 @@ const effectDefinitions = computed(() => Object.fromEntries(listSelectableEffect
 const props = defineProps<{
 	selectedOutputType?: TextureDataType['kind'] | null;
 	requirePrimaryColorOutput?: boolean;
-	parentCustomNodeGraphEffectId?: string;
+	parentNodesEffectId?: string;
 }>();
 
 const emit = defineEmits<{
@@ -140,8 +140,8 @@ const dataTypeItems: { value: TextureDataType['kind'] | null; label: string }[] 
 	{ value: 'any', label: i18n.ts._EffectPicker._DataTypes.any },
 ];
 const effects = computed(() => {
-	const wouldCreateCycle = props.parentCustomNodeGraphEffectId == null ? null : createEffectNodeCycleCheck(
-		projectSession.projectContext.stateManager.state.customNodeGraphEffects.value, props.parentCustomNodeGraphEffectId);
+	const wouldCreateCycle = props.parentNodesEffectId == null ? null : createEffectNodeCycleCheck(
+		projectSession.projectContext.stateManager.state.nodesEffects.value, props.parentNodesEffectId);
 	return Object.entries(effectDefinitions.value).filter(([, effect]) =>
 		(!props.requirePrimaryColorOutput || findTimelineEffectOutput(effect) != null)
 		&& (wouldCreateCycle == null || !wouldCreateCycle(effect.effectSource)));
@@ -193,7 +193,7 @@ const isInitialView = computed(() => effectSearchQuery.value.terms.length === 0 
 
 const effectSections = computed(() => [
 	{ id: 'customShaderEffects', label: i18n.ts._CustomShaderEffect.Title, effects: results.value.filter(([, effect]) => effect.effectSource.type === 'customShaderEffectReference') },
-	{ id: 'customNodeGraphEffects', label: i18n.ts.CustomNodeGraphEffect, effects: results.value.filter(([, effect]) => effect.effectSource.type === 'customNodeGraphEffectReference') },
+	{ id: 'nodesEffects', label: i18n.ts.NodesEffect, effects: results.value.filter(([, effect]) => effect.effectSource.type === 'nodesEffectReference') },
 	{ id: 'builtin', label: i18n.ts._EffectPicker.BuiltinEffects, effects: results.value.filter(([, effect]) => effect.effectSource.type === 'nativeEffect') },
 ].filter(section => section.effects.length > 0));
 

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 /** 開発時にTS・WGSL・npm依存を解決しておき、製品には再バンドル可能なESMを配布する。 */
-export async function buildPortableCustomNodeGraphEffectCatalog(outdir) {
+export async function buildPortableNodesEffectCatalog(outdir) {
 	const root = fileURLToPath(new URL('../', import.meta.url));
 	const createEffectInstance = fileURLToPath(import.meta.resolve('@gs/subsystems_effect_renderer/create-effect-instance.ts'));
 	const effectsRoot = path.dirname(fileURLToPath(import.meta.resolve('@gs/subsystems_effect_native-effects/definitions.ts')));

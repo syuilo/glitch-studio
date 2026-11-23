@@ -19,13 +19,13 @@ UI用の`data(type)`と`sourceData(type)`はComputedRefです。dragoverの読�
 - GsTimelineは`readSource`で同じTimeline内の並び替えだけを受け付け、`sourceData`から仮想スクロールに保持するレイヤーIDを算出します。挿入位置・階層の判定とCommandによる移動はTimelineが所有します。
 - GsDraggableは`data`で同じグループのドラッグ領域を表示し、空一覧への移動にも同じグループ条件を適用します。確定コールバックでインスタンス間の移動元を更新します。対象外のファイルイベントは伝播を止めず、App.vueの全体受付へ渡します。
 - GsWorkspacePanel・GsWorkspaceDividerはWorkspacePanelのセッションを共有し、パネル移動・交換を行います。app.tsに専用のドラッグ状態は置きません。
-- GsAssetはAsset IDと参照元の`ProjectSessionContext.id`をドラッグセッションへ渡し、Timeline・Custom Node Graph Effect Editorの素材受付が`getActiveDragData`で参照します。`useAssetDrop`は受付先の編集セッションIDと一致するAssetだけを受け付け、別セッションに同じAsset IDがあっても読み替えません。hover時とdrop時の両方で判定し、外部ファイルは従来どおり取り込めます。ファイル／Assetの判定とVueへの接続を担当し、受付状態の管理は共通の`utility/drop-target.ts`へ委ねます。受け付けたイベントをAppや内部の並び替えへ伝播させません。
+- GsAssetはAsset IDと参照元の`ProjectSessionContext.id`をドラッグセッションへ渡し、Timeline・Nodes Effect Editorの素材受付が`getActiveDragData`で参照します。`useAssetDrop`は受付先の編集セッションIDと一致するAssetだけを受け付け、別セッションに同じAsset IDがあっても読み替えません。hover時とdrop時の両方で判定し、外部ファイルは従来どおり取り込めます。ファイル／Assetの判定とVueへの接続を担当し、受付状態の管理は共通の`utility/drop-target.ts`へ委ねます。受け付けたイベントをAppや内部の並び替えへ伝播させません。
 
 ## ドロップ受付の共通処理
 
 `utility/drop-target.ts`の`createDropTargetHandlers`は、対象イベントの受付・伝播停止・ホバー状態・操作ロック・二重ドロップ防止・エラー通知・ウィンドウ終了イベントの購読を所有します。受け付ける種類の判定とdrop時のデータ読み取りは呼び出し側が渡し、プロジェクトへの取り込みや素材配置は扱いません。操作ロック中は受け付けられる種類でもdropEffectをnoneにし、処理を開始しません。有効でない受付や対象外のドラッグは既存の上位・下位の処理へ渡します。
 
-`installFileDropHandlers`は外部ファイルに限定したハンドラーをDOMの通常バブリングへ登録し、解除関数を返します。App・別ウィンドウ・モーダルで使います。`useAssetDrop`はファイルと既存Assetを扱い、ホバーをVueのrefへ反映し、マウント・アンマウントに購読と解除を接続します。TimelineとCustom Node Graph Effect Editorは返されたハンドラーをテンプレートのcaptureへ登録します。
+`installFileDropHandlers`は外部ファイルに限定したハンドラーをDOMの通常バブリングへ登録し、解除関数を返します。App・別ウィンドウ・モーダルで使います。`useAssetDrop`はファイルと既存Assetを扱い、ホバーをVueのrefへ反映し、マウント・アンマウントに購読と解除を接続します。TimelineとNodes Effect Editorは返されたハンドラーをテンプレートのcaptureへ登録します。
 
 どちらの入口もDataTransferはdrop中に読み取り、コールバックを最初のawaitより前に開始します。Dashboardの保存先ハンドル取得もこの同期部分で開始します。ホバーは子要素間の移動では維持し、領域外・drop・dragend・blur・破棄で解除します。windowのcaptureは表示だけを隠し、実際の受付まで届いた場合に再表示します。
 

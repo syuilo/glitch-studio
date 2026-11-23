@@ -10,7 +10,7 @@ const color = name => ({ nameForReference: name, dataType: { kind: 'color' }, ca
 const output = name => ({ dataType: { kind: 'color' }, nameForReference: name });
 const base = { kind: 'modify', primaryInputParameter: 'image', primaryOutput: 'main', resolutionInputParameters: [], paramDefs: { image: color('image') }, outputDefs: { main: output('mainColor') } };
 const wire = (nodeId, outputPort) => ({ inputSource: 'node', source: { nodeId, outputPort }, sampling: { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' } });
-const parameter = parameterId => ({ inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId });
+const parameter = parameterId => ({ inputSource: 'nodesEffectPublicParameterReference', parameterId });
 const shader = { ...base, shaderApiVersion: 1, paramDefs: { image: color('image'), gain: color('gain') },
 	outputDefs: { unused: output('unused'), main: output('mainColor'), aux: output('aux') },
 	code: 'fn main(p: vec2f) -> Output { return Output(vec4f(0), read_image(p), read_gain(p)); }' };
@@ -19,7 +19,7 @@ const child = { ...base, nodes: [
 	{ id: 'split', effectSource: { type: 'customShaderEffectReference', id: 'split' }, params: { image: wire('fill', 'output'), gain: parameter('image') } },
 ], outputDefs: { main: output('mainColor'), aux: output('aux') }, outputSources: { main: { nodeId: 'split', outputPort: 'main' }, aux: { nodeId: 'split', outputPort: 'aux' } } };
 const parent = { ...base, nodes: [
-	{ id: 'child', effectSource: { type: 'customNodeGraphEffectReference', id: 'child' }, params: { image: parameter('image') } },
+	{ id: 'child', effectSource: { type: 'nodesEffectReference', id: 'child' }, params: { image: parameter('image') } },
 	{ id: 'combine', effectSource: { type: 'inlineCustomShaderEffect', customShaderEffect: { ...base, shaderApiVersion: 1,
 		paramDefs: { a: color('a'), b: color('b') }, primaryInputParameter: 'a',
 		code: 'fn main(p: vec2f) -> Output { return Output(read_a(p) + read_b(p)); }' } }, params: { a: wire('child', 'main'), b: wire('child', 'aux') } },
@@ -32,10 +32,10 @@ export async function run(mismatchedPorts = false) {
 	const scalarOutput = { ...output('aux'), dataType: { kind: 'scalar' } };
 	const splitShader = mismatchedPorts ? { ...shader, outputDefs: { ...shader.outputDefs, aux: scalarOutput },
 		code: 'fn main(p: vec2f) -> Output { let gain = read_gain(p); return Output(vec4f(0), read_image(p) + vec4f(0, gain.gba), gain.r); }' } : shader;
-	const childGraph = mismatchedPorts ? { ...child, paramDefs: { image: scalarImage }, outputDefs: { ...child.outputDefs, aux: scalarOutput } } : child;
-	const parentGraph = mismatchedPorts ? { ...parent, paramDefs: { image: scalarImage } } : parent;
-	const definitions = { getNativeEffect: id => nativeEffectDefinitions[id], getCustomShaderEffect: () => splitShader, getCustomNodeGraphEffect: () => childGraph };
-	const effectSource = { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: parentGraph };
+	const childNodesEffect = mismatchedPorts ? { ...child, paramDefs: { image: scalarImage }, outputDefs: { ...child.outputDefs, aux: scalarOutput } } : child;
+	const parentNodesEffect = mismatchedPorts ? { ...parent, paramDefs: { image: scalarImage } } : parent;
+	const definitions = { getNativeEffect: id => nativeEffectDefinitions[id], getCustomShaderEffect: () => splitShader, getNodesEffect: () => childNodesEffect };
+	const effectSource = { type: 'inlineNodesEffect', nodesEffect: parentNodesEffect };
 	validateEffectSource(effectSource, definitions);
 	let gain = 0.5;
 	const instance = await createEffectInstance({ effectSource, definitions, resolution: size, usedOutputPorts: new Set(['main']),

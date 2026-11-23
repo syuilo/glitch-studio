@@ -19,7 +19,7 @@ export type TimelineLowerLayerOutputBinding = {
 };
 
 export type TimelineLayerOutputStage = 'source' | 'rendered' | 'composited';
-/** 参照先の画像と出力段階を固定する。Custom Node Graph Effect内部のサンプリングは各接続が所有する。 */
+/** 参照先の画像と出力段階を固定する。Nodes Effect内部のサンプリングは各接続が所有する。 */
 export type TimelineAnotherLayerOutputBinding = {
 	inputSource: 'anotherLayerOutput';
 	layerId: string | null;

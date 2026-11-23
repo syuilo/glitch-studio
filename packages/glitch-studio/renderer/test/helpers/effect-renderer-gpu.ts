@@ -118,12 +118,12 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		nodes: [{ id: 'source', effectSource: { type: 'nativeEffect' as const, id: 'colorMix' }, params: {
 			inputA: { inputSource: 'literal' as const, value: [1, 0, 0, 1] }, inputB: { inputSource: 'literal' as const, value: [0, 0, 0, 0] }, amount: { inputSource: 'literal' as const, value: 0 } } }, history],
 		outputSources: { out: { nodeId: 'history', outputPort: 'output' } } };
-	const createGraph = (size = 4) => createEffectInstance({ effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph },
+	const createNodesEffectInstance = (size = 4) => createEffectInstance({ effectSource: { type: 'inlineNodesEffect', nodesEffect: graph },
 		definitions: { getNativeEffect: id => id === 'feedback' ? feedbackDefinition : colorMixDefinition }, usedOutputPorts: new Set(['out']),
 		resolution: { width: size, height: size } }, gpu, id => id === 'feedback' ? feedback : colorMix);
-	let renderer = await createGraph();
+	let renderer = await createNodesEffectInstance();
 	const frame = () => ({ time: 1, timeDelta: 250 });
-	async function drawCustomNodeGraphEffect() {
+	async function drawNodesEffect() {
 		const ctx = frame();
 		await renderer.prepare(ctx, new AbortController().signal);
 		const encoder = device.createCommandEncoder();
@@ -149,19 +149,19 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		ports = await drawGradient(both, { width: 2, height: 2 });
 		check('EffectRenderer recreated output', await read((ports.get('scalar') as { texture: GPUTexture }).texture), [191, 64].flatMap(value => Array(2).fill([value, 0, 0, 255]).flat()));
 
-		// 【Custom Node Graph Effect経由の履歴とバイパス・リサイズを実画素で確認する】
+		// 【Nodes Effect経由の履歴とバイパス・リサイズを実画素で確認する】
 		// prepareだけで加算が進まず、バイパス解除・リサイズのどちらでも履歴を新しく始める。
-		check('Custom Node Graph Effect first history frame', await drawCustomNodeGraphEffect(), Array(16).fill([64, 0, 0, 64]).flat());
+		check('Nodes Effect first history frame', await drawNodesEffect(), Array(16).fill([64, 0, 0, 64]).flat());
 		await renderer.prepare(frame(), new AbortController().signal);
 		await renderer.prepare(frame(), new AbortController().signal);
 		history.isBypass = true;
-		renderer.dispose(); renderer = await createGraph();
-		check('Custom Node Graph Effect bypasses history', await drawCustomNodeGraphEffect(), Array(16).fill([255, 0, 0, 255]).flat());
+		renderer.dispose(); renderer = await createNodesEffectInstance();
+		check('Nodes Effect bypasses history', await drawNodesEffect(), Array(16).fill([255, 0, 0, 255]).flat());
 		history.isBypass = false;
-		renderer.dispose(); renderer = await createGraph();
-		check('Custom Node Graph Effect resets history after bypass', await drawCustomNodeGraphEffect(), Array(16).fill([64, 0, 0, 64]).flat());
-		renderer.dispose(); renderer = await createGraph(2);
-		check('Custom Node Graph Effect resets resized history', await drawCustomNodeGraphEffect(), Array(4).fill([64, 0, 0, 64]).flat());
+		renderer.dispose(); renderer = await createNodesEffectInstance();
+		check('Nodes Effect resets history after bypass', await drawNodesEffect(), Array(16).fill([64, 0, 0, 64]).flat());
+		renderer.dispose(); renderer = await createNodesEffectInstance(2);
+		check('Nodes Effect resets resized history', await drawNodesEffect(), Array(4).fill([64, 0, 0, 64]).flat());
 		return completed;
 	} finally {
 		single?.dispose();

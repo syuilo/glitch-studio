@@ -19,7 +19,7 @@ export type TimelineRendererManagerInitialOptions = {
 	resources: TimelineRendererManagerResources;
 };
 
-type TimelineRendererManagerRuntimeOptions = Omit<TimelineRendererManagerDynamicOptions, 'automationGraphs' | 'customNodeGraphEffects' | 'timelineScenes'>;
+type TimelineRendererManagerRuntimeOptions = Omit<TimelineRendererManagerDynamicOptions, 'automationGraphs' | 'nodesEffects' | 'timelineScenes'>;
 
 export class TimelineRendererManagerController extends RendererManagerControllerBase<TimelineRendererManager> {
 	public readonly canvasRevision = ref(0);

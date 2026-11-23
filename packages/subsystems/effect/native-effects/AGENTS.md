@@ -6,7 +6,7 @@
 
 - 1エフェクトを`src/fx/<effectId>/`に置き、`_def_.ts`で`defineNativeEffect(...)`の戻り値、`_impl_.ts`で`NativeEffectImplementation`型の実装をdefault exportする。ディレクトリ名と登録IDを一致させ、[定義一覧](src/definitions.ts)と[実装一覧](src/implementations.ts)に同じIDで登録する。
 - `_def_.ts`はUIからも参照するため、GPU処理や実装への依存を持たせない。WGSL・補助処理・内蔵アセット・固有仕様のREADMEは同じエフェクトのディレクトリで所有し、内蔵アセットは静的importする。
-- 他のエフェクトやCustom Node Graph Effect固有の処理、上位のTimeline・Glitch Studio層へ依存しない。別パッケージは`@gs/`経由で参照し、共通化は責務が一致する範囲に限る。
+- 他のエフェクトやNodes Effect固有の処理、上位のTimeline・Glitch Studio層へ依存しない。別パッケージは`@gs/`経由で参照し、共通化は責務が一致する範囲に限る。
 
 ## 定義とパラメータ
 

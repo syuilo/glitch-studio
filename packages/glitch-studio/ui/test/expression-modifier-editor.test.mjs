@@ -85,32 +85,32 @@ function fixture(t, timeline = null) {
 
 // 【ノードとカスタム値の両方から、種類とIDを指定して内部の共通値を選べる】
 // 公開引数のエディタへ内部参照を漏らさず、型変更・削除後も元の参照IDを表示して修正できるようにする。
-test('offers custom references only inside Custom Node Graph Effects and preserves unavailable selections', async t => {
+test('offers custom references only inside Nodes Effects and preserves unavailable selections', async t => {
 	const f = fixture(t, { context: computed(() => ({ layer: { id: 'layer', publicParameterDefs: [] }, ancestors: [] })), isPublicParameterValue: false });
 	f.props.paramValue = { inputSource: 'literal', value: 1 };
 	const custom = { ...f.props.paramDef, id: 'custom-id', nameForReference: 'speed', canNode: false };
-	f.props.customNodeGraphEffect = { customParameterValues: {}, nodes: [], paramDefs: [], customParameterDefs: [custom, { ...custom, id: 'text', dataType: { kind: 'string' } }], automationGraphs: [] };
+	f.props.nodesEffect = { customParameterValues: {}, nodes: [], paramDefs: [], customParameterDefs: [custom, { ...custom, id: 'text', dataType: { kind: 'string' } }], automationGraphs: [] };
 	await nextTick();
 	const menu = () => {
 		f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
 		return modifierUiTest.menu.find(item => item.type === 'parent').children;
 	};
-	assert.equal(menu().some(item => item.id === 'inputSource:customNodeGraphEffectCustomParameterValueReference'), false);
-	f.props.customNodeGraphEffectParameterReferencesEnabled = true;
+	assert.equal(menu().some(item => item.id === 'inputSource:nodesEffectCustomParameterValueReference'), false);
+	f.props.nodesEffectParameterReferencesEnabled = true;
 	await nextTick();
 	assert.equal(menu().some(item => item.id === 'inputSource:timelineLayerPublicParameterReference'), false);
 	assert.equal(modifierUiTest.menu.some(item => item.id === 'createPublicParameter'), false);
-	menu().find(item => item.id === 'inputSource:customNodeGraphEffectCustomParameterValueReference').action();
-	assert.equal(f.edits.at(-1).inputSource, 'customNodeGraphEffectCustomParameterValueReference');
-	f.props.paramValue = { inputSource: 'customNodeGraphEffectCustomParameterValueReference', parameterId: 'custom-id' };
+	menu().find(item => item.id === 'inputSource:nodesEffectCustomParameterValueReference').action();
+	assert.equal(f.edits.at(-1).inputSource, 'nodesEffectCustomParameterValueReference');
+	f.props.paramValue = { inputSource: 'nodesEffectCustomParameterValueReference', parameterId: 'custom-id' };
 	await nextTick();
-	let select = f.find('data-test-custom-node-graph-effect-custom-parameter-reference');
+	let select = f.find('data-test-nodes-effect-custom-parameter-reference');
 	assert.deepEqual(select.props.items.map(item => item.value), ['', 'custom-id']);
 	select.props['onUpdate:modelValue']('custom-id');
 	assert.equal(f.edits.at(-1).value, 'custom-id');
-	f.props.customNodeGraphEffect.customParameterDefs = [];
+	f.props.nodesEffect.customParameterDefs = [];
 	await nextTick();
-	select = f.find('data-test-custom-node-graph-effect-custom-parameter-reference');
+	select = f.find('data-test-nodes-effect-custom-parameter-reference');
 	assert.equal(select.props.modelValue, 'custom-id');
 	assert.equal(select.props.items.at(-1).value, 'custom-id');
 });
@@ -128,7 +128,7 @@ test('offers named parameter creation only for literal leaves with an owning sco
 	await nextTick();
 	assert.equal(action(), undefined);
 	assert.equal(action('createCustomParameter'), undefined);
-	f.props.customNodeGraphEffect = { customParameterDefs: [], customParameterValues: {}, paramDefs: [], nodes: [], automationGraphs: [] };
+	f.props.nodesEffect = { customParameterDefs: [], customParameterValues: {}, paramDefs: [], nodes: [], automationGraphs: [] };
 	f.props.node = { id: 'node', type: 'effect', params: {} };
 	f.props.paramPath = ['settings', 'amount'];
 	await nextTick();
@@ -140,7 +140,7 @@ test('offers named parameter creation only for literal leaves with an owning sco
 		{ inputSource: 'expression', expression: 'TIME' },
 		{ inputSource: 'keyframesTimelineInline', keyframesTimeline: { keyframes: [] } },
 		{ inputSource: 'automationGraphReference', automationGraphId: null },
-		{ inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: '' },
+		{ inputSource: 'nodesEffectPublicParameterReference', parameterId: '' },
 		{ inputSource: 'node', nodeId: null, outputPort: null },
 		{ inputSource: 'literal', value: 0.3, expressionModifier: { enabled: false, code: 'VALUE' } },
 	]) {
@@ -205,9 +205,9 @@ test('selects typed timeline references and retains unresolved saved identities'
 	assert.deepEqual(select().props.items.map(item => item.value), [null, '["child","local"]', '["root","shared"]']);
 });
 
-// 【公開パラメータの値では自身を除外し、Custom Node Graph Effect内部へ参照方式を公開しない】
+// 【公開パラメータの値では自身を除外し、Nodes Effect内部へ参照方式を公開しない】
 // 共用エディタの利用でも各スコープの制約を保ち、UIから循環やドメイン越境する接続を作らせない。
-test('excludes own public parameter values and keeps timeline sources out of Custom Node Graph Effect nodes', async t => {
+test('excludes own public parameter values and keeps timeline sources out of Nodes Effect nodes', async t => {
 	const scalar = { id: 'speed', nameForReference: 'speed', dataType: { kind: 'scalar' }, ui: { label: 'Speed', control: { controlType: 'number' } }, defaultValue: 0 };
 	const context = computed(() => ({ layer: { id: 'child', name: 'Child', publicParameterDefs: [scalar] }, ancestors: [{ id: 'root', name: 'Root', publicParameterDefs: [scalar] }] }));
 	const f = fixture(t, { context, isPublicParameterValue: true });
@@ -219,8 +219,8 @@ test('excludes own public parameter values and keeps timeline sources out of Cus
 	f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
 	const inputSourceItems = modifierUiTest.menu.find(item => item.type === 'parent').children;
 	assert.equal(inputSourceItems.some(item => item.id === 'inputSource:timelineLayerPublicParameterReference'), false);
-	inputSourceItems.find(item => item.id === 'inputSource:customNodeGraphEffectPublicParameterReference').action();
-	assert.equal(f.edits.at(-1).inputSource, 'customNodeGraphEffectPublicParameterReference');
+	inputSourceItems.find(item => item.id === 'inputSource:nodesEffectPublicParameterReference').action();
+	assert.equal(f.edits.at(-1).inputSource, 'nodesEffectPublicParameterReference');
 });
 
 // 【加工式の本文・無効化・削除を基準式とは独立した編集として通知する】

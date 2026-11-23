@@ -3,20 +3,20 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 /** パス・ソースコード・ビルド設定は受け取らず、同梱カタログ内の機能だけを選ぶ。 */
-export function validatePortableCustomNodeGraphEffectRuntimeRequirements(requirements, effectIds) {
+export function validatePortableNodesEffectRuntimeRequirements(requirements, effectIds) {
 	if (requirements == null || !Array.isArray(requirements.effectIds)
 		|| requirements.effectIds.some(id => typeof id !== 'string' || !effectIds.includes(id))
 		|| ['requiresExpressions', 'requiresCustomShaderEffects'].some(key => typeof requirements[key] !== 'boolean')) {
-		throw new Error('Invalid portable Custom Node Graph Effect runtime requirements');
+		throw new Error('Invalid portable Nodes Effect runtime requirements');
 	}
 	return { effectIds: [...new Set(requirements.effectIds)].sort(), requiresExpressions: requirements.requiresExpressions,
 		requiresCustomShaderEffects: requirements.requiresCustomShaderEffects };
 }
 
 /** 開発用workspaceやViteを参照せず、配布されたES Modulesだけから成果物を作る。 */
-export async function buildPortableCustomNodeGraphEffectRuntime(catalogDirectory, requestedRequirements, onBundle = () => {}) {
+export async function buildPortableNodesEffectRuntime(catalogDirectory, requestedRequirements, onBundle = () => {}) {
 	const manifest = JSON.parse(await readFile(path.join(catalogDirectory, 'manifest.json'), 'utf8'));
-	const requirements = validatePortableCustomNodeGraphEffectRuntimeRequirements(requestedRequirements, manifest.effectIds);
+	const requirements = validatePortableNodesEffectRuntimeRequirements(requestedRequirements, manifest.effectIds);
 	const bundle = async (contents, globalName) => {
 		const result = await build({
 			stdin: { contents, resolveDir: catalogDirectory, sourcefile: `${globalName}.js` },
@@ -32,16 +32,16 @@ export async function buildPortableCustomNodeGraphEffectRuntime(catalogDirectory
 		if (result.outputFiles.length !== 1) throw new Error('Portable runtime must be a self-contained JavaScript bundle');
 		return result.outputFiles[0].text;
 	};
-	const elementSource = await bundle("export { registerCustomNodeGraphEffectElement } from './element.js';", 'GlitchStudioCustomNodeGraphEffectEmbed');
+	const elementSource = await bundle("export { registerNodesEffectElement } from './element.js';", 'GlitchStudioNodesEffectEmbed');
 	const imports = requirements.effectIds.map((id, index) => `
 		import definition${index} from ${JSON.stringify(`./effects/${id}/definition.js`)};
 		import implementation${index} from ${JSON.stringify(`./effects/${id}/implementation.js`)};
 	`).join('\n');
 	const registry = prefix => `{ ${requirements.effectIds.map((id, index) => `[${JSON.stringify(id)}]: ${prefix}${index}`).join(',')} }`;
 	const workerSource = await bundle(`
-		import { startPortableCustomNodeGraphEffectWorker } from './worker.js';
+		import { startPortableNodesEffectWorker } from './worker.js';
 		${imports}
-		startPortableCustomNodeGraphEffectWorker(${registry('definition')}, ${registry('implementation')});
-	`, 'GlitchStudioCustomNodeGraphEffectWorker');
+		startPortableNodesEffectWorker(${registry('definition')}, ${registry('implementation')});
+	`, 'GlitchStudioNodesEffectWorker');
 	return { elementSource, workerSource };
 }

@@ -4,7 +4,7 @@ import type { ProjectEffectRegistrations } from './types.ts';
 export function validateProjectEffectRegistrations(project: ProjectEffectRegistrations): void {
 	for (const [kind, entries] of [
 		['Custom Shader Effect', project.customShaderEffects],
-		['Custom Node Graph Effect', project.customNodeGraphEffects],
+		['Nodes Effect', project.nodesEffects],
 	] as const) {
 		if (new Set(entries.map(entry => entry.id)).size !== entries.length) throw new Error('Duplicate ' + kind + ' ID');
 	}

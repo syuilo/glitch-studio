@@ -44,9 +44,9 @@ type EffectOutputDefinitions = NativeEffectDefinition['outputDefs'];
 import type { ParameterDefinition, ParameterDefaultValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { colorBlendModes, type BlendMode } from '@gs/shared/color-blend.ts';
 import type { NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectArgumentBindings, NodeOutputReference } from '../src/types/custom-node-graph-effect-view.ts';
+import type { NodesEffect, NodesEffectArgumentBindings, NodeOutputReference } from '../src/types/nodes-effect-view.ts';
 import type { DataType, TextureDataType } from '@gs/shared/data-type/data-type.ts';
-type CustomNodeGraphEffectParamDef = CustomNodeGraphEffect['paramDefs'][number];
+type NodesEffectParamDef = NodesEffect['paramDefs'][number];
 
 type AssertNever<T extends never> = T;
 type AllDataTypesHaveSchemas = AssertNever<Exclude<DataType, ParameterDefinition['dataType']>>;
@@ -60,7 +60,7 @@ defineEffect({ ...outputDefinition, tags: [], primaryOutput: null });
 defineEffect({ ...outputDefinition, tags: [], primaryOutput: 'missing' });
 // @ts-expect-error 主出力がない場合もnullを明示する
 defineEffect({ id: 'missing-output', displayName: 'Missing', summary, kind: 'generate', dependsOnRenderHistory: false, tags: [], paramDefs: {}, primaryInputParameter: null, resolutionInputParameters: [], outputDefs: {} });
-const customNodeGraphEffectOutput: CustomNodeGraphEffect['outputDefs'][number] = { ...scalarOutput, id: 'out', name: 'out', label: 'Out' };
+const nodesEffectOutput: NodesEffect['outputDefs'][number] = { ...scalarOutput, id: 'out', name: 'out', label: 'Out' };
 const textureType: TextureDataType = scalarOutput.dataType;
 // @ts-expect-error 旧numberデータ型は使用しない
 const oldNumber: DataType = 'number';
@@ -127,9 +127,9 @@ const badRuntimeBlend: BlendValues['blend']['value'] = 'invalid';
 defineEffect({ id: 'invalid-color', displayName: 'Invalid', summary, kind: 'generate', dependsOnRenderHistory: false, tags: [], paramDefs: { color: { ...color, ui: { control: { controlType: 'range', min: 0, max: 1 }, label: 'Invalid' } } }, primaryInputParameter: null, resolutionInputParameters: [], outputDefs: {}, primaryOutput: null });
 // @ts-expect-error rangeの範囲は必須
 const missingBounds: ParameterDefinition = { ...number, ui: { control: { controlType: 'range' }, label: 'Invalid' } };
-const external = { ...color, id: 'c', nameForReference: 'color', defaultValue: [1, 0, 0, 1], canNode: true } satisfies CustomNodeGraphEffectParamDef;
+const external = { ...color, id: 'c', nameForReference: 'color', defaultValue: [1, 0, 0, 1], canNode: true } satisfies NodesEffectParamDef;
 // @ts-expect-error 外部パラメータでも同じ組み合わせ制約を適用する
-const badExternal: CustomNodeGraphEffectParamDef = { ...external, dataType: { kind: 'scalar' }, ui: { control: { controlType: 'range' }, label: 'Invalid' } };
+const badExternal: NodesEffectParamDef = { ...external, dataType: { kind: 'scalar' }, ui: { control: { controlType: 'range' }, label: 'Invalid' } };
 const schemas = {
  amount: number,
  seed: { ...number, ui: { control: { controlType: 'seed' }, label: 'Seed' } },
@@ -157,14 +157,14 @@ defineEffect({ id: 'bad', displayName: 'Bad', summary, kind: 'generate', depends
 // @ts-expect-error パラメータ定義にはdefaultValueが必要
 const missingDefault: ParameterDefinition = { dataType: { kind: 'scalar' }, ui: { control: { controlType: 'number' }, label: 'Missing' } };
 // @ts-expect-error 真偽値をInノードの出力にできない
-const boolInput: CustomNodeGraphEffectParamDef = { ...external, dataType: { kind: 'bool' }, ui: { control: {}, label: 'Bool' }, defaultValue: false, canNode: true };
+const boolInput: NodesEffectParamDef = { ...external, dataType: { kind: 'bool' }, ui: { control: {}, label: 'Bool' }, defaultValue: false, canNode: true };
 // @ts-expect-error 接続のサンプリング設定は省略できない
 const missingSampling: NodeOutputReference = { nodeId: 'node', outputPort: 'output' };
-const externalValues: CustomNodeGraphEffectArgumentBindings = {};
-// @ts-expect-error Custom Node Graph Effectの外から内部ノードを参照できない
+const externalValues: NodesEffectArgumentBindings = {};
+// @ts-expect-error Nodes Effectの外から内部ノードを参照できない
 externalValues[external.id] = { inputSource: 'node', nodeId: null, outputPort: null };
-// @ts-expect-error Custom Node Graph Effectの外から内部公開パラメータを参照できない
-externalValues[external.id] = { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: external.id };
+// @ts-expect-error Nodes Effectの外から内部公開パラメータを参照できない
+externalValues[external.id] = { inputSource: 'nodesEffectPublicParameterReference', parameterId: external.id };
 
 // 表示範囲のUIは中心vector・倍率scalarを必須とし、回転scalarは省略できる。
 // 見た目の指定だけで、別の型や不足したフィールドをプレビュー編集へ渡さない。

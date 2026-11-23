@@ -1,9 +1,9 @@
-import type { PortableCustomNodeGraphEffectAssetFile } from './export.ts';
+import type { PortableNodesEffectAssetFile } from './export.ts';
 
 /** HTML・JS・素材を一回のダウンロードで渡すための非圧縮ZIP。 */
-export async function createPortableCustomNodeGraphEffectArchive(files: { html: string; javascript: string; readme: string; assetFiles: readonly PortableCustomNodeGraphEffectAssetFile[] }, signal?: AbortSignal): Promise<Blob> {
+export async function createPortableNodesEffectArchive(files: { html: string; javascript: string; readme: string; assetFiles: readonly PortableNodesEffectAssetFile[] }, signal?: AbortSignal): Promise<Blob> {
 	const encoder = new TextEncoder();
-	const entries: PortableCustomNodeGraphEffectAssetFile[] = [
+	const entries: PortableNodesEffectAssetFile[] = [
 		{ path: 'index.html', contents: new Blob([files.html]) },
 		{ path: 'artwork.js', contents: new Blob([files.javascript]) },
 		{ path: 'README.md', contents: new Blob([files.readme]) },

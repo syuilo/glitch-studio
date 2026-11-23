@@ -71,7 +71,7 @@ function fixture(t) {
 // 既存Assetのノード追加など同期で完了する操作では、showing=falseでコンポーネントが初めて生成される。
 test('closes progress completed before the popup first mounts and releases the application lock', async t => {
 	const f = fixture(t);
-	const dialog = progress({ text: 'Adding Custom Node Graph Effect nodes' });
+	const dialog = progress({ text: 'Adding Nodes Effect nodes' });
 	assert.equal(f.body.hasAttribute('inert'), true);
 	dialog.done();
 	await flush();

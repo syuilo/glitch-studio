@@ -102,7 +102,7 @@ test('rejects unsupported timeline keyframe timing modes', () => {
 });
 
 // 【タイムラインのキーにも整数msの保存規約を適用する】
-// Custom Node Graph Effect内部のキーにはこの検証を使わず、Scene上で編集するキーの精度だけを制限する。
+// Nodes Effect内部のキーにはこの検証を使わず、Scene上で編集するキーの精度だけを制限する。
 test('rejects fractional and unsafe saved timeline keyframe positions', () => {
 	const binding = x => ({ inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
 		keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [{ id: 'key', x, value: 1, interpolation: { type: 'linear' } }] } });

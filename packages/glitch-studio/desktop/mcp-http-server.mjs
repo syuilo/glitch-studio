@@ -19,9 +19,9 @@ Call search_scripting_api with a name or purpose, then get_scripting_api with th
 Example:
 ~~~aiscript
 let fill = Query:getEffect({ effectSource: { type: "nativeEffect", id: "fill" } })
-let customNodeGraphEffect = Command:createCustomNodeGraphEffect({ name: "Generated" })
-let node = Command:createCustomNodeGraphEffectEffectNode({
-  customNodeGraphEffect: customNodeGraphEffect
+let nodesEffect = Command:createNodesEffect({ name: "Generated" })
+let node = Command:createNodesEffectEffectNode({
+  nodesEffect: nodesEffect
   effectSource: fill.effectSource
   connectionMode: "appendToPrimaryOutput"
 })
@@ -30,7 +30,7 @@ let node = Command:createCustomNodeGraphEffectEffectNode({
 
 Use let for immutable variables and var for mutable variables. Objects use { key: value }; arrays use [value, value]. No JavaScript await is needed: Command and Query calls wait for their result. Output values with <: value. Each execution starts with fresh variables.
 Query:listEffects() lists Native Effects and registered Custom Shader Effects. Pass a listed entry's target to Query:getEffect to inspect its parameters and outputs. Use its effectSource when creating an Effect node or Timeline Effect layer.
-Query:listCustomNodeGraphEffects() lists graphs. For an entry whose target contains customNodeGraphEffectId, use { type: "customNodeGraphEffectReference", id: entry.target.customNodeGraphEffectId } as its effectSource.
+Query:listNodesEffects() lists registered Nodes Effects. For an entry whose target contains nodesEffectId, use { type: "nodesEffectReference", id: entry.target.nodesEffectId } as its effectSource.
 Color literals use linear sRGB; negative values and values above 1 can be valid HDR data. Public spatial coordinates use the full longer edge as 1, center [0, 0], right +X and up +Y. Consult each contract for time units.
 One script execution forms one Undo group. Successful changes remain when a later operation fails or is cancelled; review the result before retrying, since repeating a script can duplicate objects. Manual edits may join the same group. Only one script can run in a project at a time.
 Dialog APIs are unavailable through MCP. Script source is limited to 100,000 characters, execution to 30 seconds, and output is bounded. Scripts also have an interpreter step limit. They cannot save projects, import assets, access the filesystem or call Node.js APIs.

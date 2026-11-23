@@ -1,8 +1,8 @@
 import { normalizedToSpatialCoordinates } from '@gs/shared/spatial-coordinate.ts';
-import type { PortableCustomNodeGraphEffect, PortableCustomNodeGraphEffectSettings } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
+import type { PortableNodesEffect, PortableNodesEffectSettings } from '@gs/glitch-studio_shared/portable-nodes-effect.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 
-export type PortableCustomNodeGraphEffectFrame = {
+export type PortableNodesEffectFrame = {
 	resolution: Resolution;
 	time: number;
 	pointerElementPosition: { x: number; y: number } | null;
@@ -11,18 +11,18 @@ export type PortableCustomNodeGraphEffectFrame = {
 	resetHistory: boolean;
 };
 
-export type PortableCustomNodeGraphEffectRequest =
-	| { type: 'initialize'; canvas: OffscreenCanvas; artwork: PortableCustomNodeGraphEffect; artworkModuleUrl: string | null }
-	| { type: 'frame'; frame: PortableCustomNodeGraphEffectFrame }
+export type PortableNodesEffectRequest =
+	| { type: 'initialize'; canvas: OffscreenCanvas; artwork: PortableNodesEffect; artworkModuleUrl: string | null }
+	| { type: 'frame'; frame: PortableNodesEffectFrame }
 	| { type: 'dispose' };
 
-export type PortableCustomNodeGraphEffectResponse =
+export type PortableNodesEffectResponse =
 	| { type: 'ready' }
 	| { type: 'frame'; resolution: Resolution; time: number }
 	| { type: 'error'; message: string };
 
 /** GPU限界でも片軸だけを切り詰めず、公開座標の縦横比を維持する。 */
-export function getPortableRenderResolution(width: number, height: number, settings: PortableCustomNodeGraphEffectSettings, maxDimension = Infinity): Resolution | null {
+export function getPortableRenderResolution(width: number, height: number, settings: PortableNodesEffectSettings, maxDimension = Infinity): Resolution | null {
 	if (!(width > 0) || !(height > 0)) return null;
 	const scale = Math.min(settings.resolutionScale, Math.sqrt(settings.maxPixels / width / height), maxDimension / width, maxDimension / height);
 	const resolution = { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)) };

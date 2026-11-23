@@ -16,9 +16,9 @@ export function createTimelineEffectProbe({ paramDefs = {}, params = {}, primary
 		resolutionInputParameters: [], outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output' };
 	const graph = { ...definition, outputSources: { output: { nodeId: 'probe', outputPort: 'output' } },
 		nodes: [{ id: 'probe', effectSource: { type: 'nativeEffect', id: 'probe' },
-			params: Object.fromEntries(Object.keys(paramDefs).map(id => [id, { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: id }])) }] };
+			params: Object.fromEntries(Object.keys(paramDefs).map(id => [id, { inputSource: 'nodesEffectPublicParameterReference', parameterId: id }])) }] };
 	const renderer = createEffectTimelineLayer({
-		effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph }, effectParamValues: params, effectStaticSettings: {},
+		effectSource: { type: 'inlineNodesEffect', nodesEffect: graph }, effectParamValues: params, effectStaticSettings: {},
 		resolution: { mode: 'context', scale: 1 }, automationGraphs, compositingParamValues: {},
 	}, { sceneBaseResolution: resolution, resolutionScale: 1, getAudioInput,
 		definitions: { getNativeEffect: () => definition }, wgpu: { device, defaultVertexShaderModule: {}, enable32bitDataTextures: false },

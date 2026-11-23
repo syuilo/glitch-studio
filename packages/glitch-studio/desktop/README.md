@@ -1,6 +1,6 @@
 # Electron版
 
-ファイル選択・保存ダイアログの開始ディレクトリは、`FileDialogs`と`FileDialogDirectoryHistory`で用途別に記憶します。キーの割り当ては各IPCの責務で、`project-open`・`project-save`・`asset-import`・`asset-export`・`render-export`・`custom-node-graph-effect-web-export`を使います。同じキーの記憶は全編集ウィンドウで共有し、`userData/file-dialog-directories`へキー単位で原子的に保存します。開始位置は有効な明示ディレクトリ、記憶したディレクトリ、Documentsの順で、Documentsが利用できなければホームディレクトリへ戻します。ネイティブダイアログの確定時に更新し、キャンセルやダイアログを使わない操作では更新しません。記憶の読み書きに失敗しても作品の操作は続行します。
+ファイル選択・保存ダイアログの開始ディレクトリは、`FileDialogs`と`FileDialogDirectoryHistory`で用途別に記憶します。キーの割り当ては各IPCの責務で、`project-open`・`project-save`・`asset-import`・`asset-export`・`render-export`・`nodes-effect-web-export`を使います。同じキーの記憶は全編集ウィンドウで共有し、`userData/file-dialog-directories`へキー単位で原子的に保存します。開始位置は有効な明示ディレクトリ、記憶したディレクトリ、Documentsの順で、Documentsが利用できなければホームディレクトリへ戻します。ネイティブダイアログの確定時に更新し、キャンセルやダイアログを使わない操作では更新しません。記憶の読み書きに失敗しても作品の操作は続行します。
 
 通常の素材取り込みもElectron版では`chooseAssetFiles`を通ります。`mime-types`の表からメディアの拡張子フィルターと選択結果のMIMEを決め、複数選択・フォント・任意ファイルに対応します。IPCでは原本の内容を転送せず、UIの取り込み中に各原本のサイズを確認してから埋め込み・外部参照を選びます。ブラウザ版とドラッグ＆ドロップでは従来の`File`を扱います。
 
@@ -16,15 +16,15 @@ desktopのパッケージ名は`@gs/glitch-studio_desktop`です。electron-buil
 
 設定画面・クライアント接続例・公開ツールは[MCPサーバー](../../../docs/mcp.md)を参照してください。`GLITCH_ELECTRON_TEST=1`で`node --test packages/glitch-studio/desktop/test/mcp-electron.test.mjs`を実行すると、実際のmain・preload・IPCからAiScriptによる編集とUndoまでを検証します。テスト専用の一時プロファイルとループバックのポートを使います。
 
-## Custom Node Graph EffectのWeb書き出し
+## Nodes EffectのWeb書き出し
 
-HTML/JavaScriptの書き出しはElectron版限定です。UIで作品と素材を確定し、`portable-custom-node-graph-effect-ipc.mjs`が要求元ごとに一つのUtilityProcessを起動します。必要な機能の一覧だけをビルド処理へ渡し、生成結果をUIへ返します。キャンセル・画面破棄・プロセス異常で受付を解放します。HTML・ZIPの保存は既存のExportFilesによる一時保存と確定を使います。
+HTML/JavaScriptの書き出しはElectron版限定です。UIで作品と素材を確定し、`portable-nodes-effect-ipc.mjs`が要求元ごとに一つのUtilityProcessを起動します。必要な機能の一覧だけをビルド処理へ渡し、生成結果をUIへ返します。キャンセル・画面破棄・プロセス異常で受付を解放します。HTML・ZIPの保存は既存のExportFilesによる一時保存と確定を使います。
 
-`pnpm build:desktop`と`pnpm dev:desktop`は、`build-portable-custom-node-graph-effect.mjs`でESMカタログと専用Workerを生成します。開発中にランタイム・エフェクトを変更した場合は、デスクトップ開発プロセスを再起動するか、`pnpm --dir packages/glitch-studio/desktop build:portable`を実行します。カタログはネイティブバンドラーが読めるようASAR外に配置し、esbuildの実行ファイルもunpackします。Workerには実体パスを`ESBUILD_BINARY_PATH`で渡します。
+`pnpm build:desktop`と`pnpm dev:desktop`は、`build-portable-nodes-effect.mjs`でESMカタログと専用Workerを生成します。開発中にランタイム・エフェクトを変更した場合は、デスクトップ開発プロセスを再起動するか、`pnpm --dir packages/glitch-studio/desktop build:portable`を実行します。カタログはネイティブバンドラーが読めるようASAR外に配置し、esbuildの実行ファイルもunpackします。Workerには実体パスを`ESBUILD_BINARY_PATH`で渡します。
 
 pnpmの`supportedArchitectures`でホストOSのx64・arm64依存を用意し、macOSの両CPU向け配布に対応します。`afterPack`は対象CPUの実行ファイル・JS側とのバージョン一致・カタログの各入口を検査します。バンドラー・Node API・ビルド資材は生成したHTML/JavaScriptには含めません。
 
-`GLITCH_ELECTRON_TEST=1`で`node --test packages/glitch-studio/desktop/test/portable-custom-node-graph-effect-electron.test.mjs`を実行すると、別プロセスでのビルドとキャンセルを検証します。事前に`pnpm build:desktop`を実行してください。`GLITCH_PORTABLE_PACKAGED_RESOURCES`に配布アプリの`resources`ディレクトリを指定すると、ASAR内のWorkerと同梱資材だけでビルドできることも確認できます。
+`GLITCH_ELECTRON_TEST=1`で`node --test packages/glitch-studio/desktop/test/portable-nodes-effect-electron.test.mjs`を実行すると、別プロセスでのビルドとキャンセルを検証します。事前に`pnpm build:desktop`を実行してください。`GLITCH_PORTABLE_PACKAGED_RESOURCES`に配布アプリの`resources`ディレクトリを指定すると、ASAR内のWorkerと同梱資材だけでビルドできることも確認できます。
 
 ## 起動時の表示
 

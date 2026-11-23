@@ -177,7 +177,7 @@ export async function run() {
 				definitions: {
 					getNativeEffect: () => definition,
 					getCustomShaderEffect() { throw new Error('Unexpected shader reference'); },
-					getCustomNodeGraphEffect() { throw new Error('Unexpected graph reference'); },
+					getNodesEffect() { throw new Error('Unexpected graph reference'); },
 				}, usedOutputPorts: new Set(), resolution: { width: 8, height: 4 } },
 				{ device, defaultVertexShaderModule: vertex, enable32bitDataTextures: precise }, () => { throw new Error('Unused effect was initialized'); });
 			try {

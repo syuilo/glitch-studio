@@ -2,20 +2,20 @@ import { walkParameterLeaves } from '@gs/shared/parameter/parameter-tree.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { NativeEffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectParameterBinding } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
-import type { CustomNodeGraphEffectResources } from '@gs/glitch-studio_shared/custom-node-graph-effect-resources.ts';
-import type { CustomNodeGraphEffectEditorMetadata } from '@gs/glitch-studio_shared/project/types.ts';
+import type { NodesEffect, NodesEffectParameterBinding } from '@gs/subsystems_effect_shared/nodes-effect.ts';
+import type { NodesEffectResources } from '@gs/glitch-studio_shared/nodes-effect-resources.ts';
+import type { NodesEffectEditorMetadata } from '@gs/glitch-studio_shared/project/types.ts';
 
-export type PortableCustomNodeGraphEffectRuntimeRequirements = {
+export type PortableNodesEffectRuntimeRequirements = {
 	effectIds: string[];
 	requiresExpressions: boolean;
 	requiresCustomShaderEffects: boolean;
 };
 
-function usesExpressions(definitions: Readonly<Record<string, ParameterDefinition>>, bindings: Readonly<Record<string, CustomNodeGraphEffectParameterBinding>>) {
+function usesExpressions(definitions: Readonly<Record<string, ParameterDefinition>>, bindings: Readonly<Record<string, NodesEffectParameterBinding>>) {
 	// 省略された入力は末端までliteralの既定値なので、配置で指定されたBindingだけを調べる。
 	for (const [key, binding] of Object.entries(bindings)) {
-		for (const { param } of walkParameterLeaves<CustomNodeGraphEffectParameterBinding>({ value: definitions[key] }, { value: binding })) {
+		for (const { param } of walkParameterLeaves<NodesEffectParameterBinding>({ value: definitions[key] }, { value: binding })) {
 			if (isValueParameterBinding(param) && (param.inputSource === 'expression' || param.expressionModifier?.enabled === true)) return true;
 		}
 	}
@@ -24,22 +24,22 @@ function usesExpressions(definitions: Readonly<Record<string, ParameterDefinitio
 
 /**
  * 式から動的に参照されるCUSTOMの値も扱えるよう、スナップショットに含む全配置を調べる。
- * 同じ登録のCustom Node Graph Effectの内部は一度で十分だが、各配置の入力は個別に調べる。
+ * 同じ登録のNodes Effectの内部は一度で十分だが、各配置の入力は個別に調べる。
  */
-export function analyzePortableCustomNodeGraphEffectRuntime(resources: CustomNodeGraphEffectResources, nativeDefinitions: Readonly<Record<string, NativeEffectDefinition>>) {
+export function analyzePortableNodesEffectRuntime(resources: NodesEffectResources, nativeDefinitions: Readonly<Record<string, NativeEffectDefinition>>) {
 	const shaders = new Map(resources.customShaderEffects.map(entry => [entry.id, entry]));
-	const graphs = new Map(resources.customNodeGraphEffects.map(entry => [entry.id, entry]));
-	const visited = new Set<CustomNodeGraphEffect>();
+	const nodesEffects = new Map(resources.nodesEffects.map(entry => [entry.id, entry]));
+	const visited = new Set<NodesEffect>();
 	const effectIds = new Set<string>();
 	const resolutionNodes: string[] = [];
 	let requiresExpressions = false;
 	let requiresCustomShaderEffects = false;
 
-	function visit(graph: CustomNodeGraphEffect, metadata?: CustomNodeGraphEffectEditorMetadata) {
-		if (visited.has(graph)) return;
-		visited.add(graph);
-		requiresExpressions ||= usesExpressions(graph.customParameterDefs ?? {}, graph.customParameterValues ?? {});
-		for (const node of graph.nodes) {
+	function visit(nodesEffect: NodesEffect, metadata?: NodesEffectEditorMetadata) {
+		if (visited.has(nodesEffect)) return;
+		visited.add(nodesEffect);
+		requiresExpressions ||= usesExpressions(nodesEffect.customParameterDefs ?? {}, nodesEffect.customParameterValues ?? {});
+		for (const node of nodesEffect.nodes) {
 			if (node.type === 'relay') continue;
 			const source = node.effectSource;
 			const editor = metadata?.nodeMetadata?.[node.id];
@@ -62,12 +62,12 @@ export function analyzePortableCustomNodeGraphEffectRuntime(resources: CustomNod
 					name = entry.name;
 					break;
 				}
-				case 'inlineCustomNodeGraphEffect':
-					definition = source.customNodeGraphEffect;
-					visit(definition, editor?.inlineCustomNodeGraphEffect);
+				case 'inlineNodesEffect':
+					definition = source.nodesEffect;
+					visit(definition, editor?.inlineNodesEffect);
 					break;
-				case 'customNodeGraphEffectReference': {
-					const entry = graphs.get(source.id)!;
+				case 'nodesEffectReference': {
+					const entry = nodesEffects.get(source.id)!;
 					definition = entry.definition;
 					name = entry.name;
 					visit(definition, entry);
@@ -81,6 +81,6 @@ export function analyzePortableCustomNodeGraphEffectRuntime(resources: CustomNod
 		}
 	}
 
-	visit(resources.customNodeGraphEffect, resources);
+	visit(resources.nodesEffect, resources);
 	return { runtimeRequirements: { effectIds: [...effectIds].sort(), requiresExpressions, requiresCustomShaderEffects }, resolutionNodes };
 }

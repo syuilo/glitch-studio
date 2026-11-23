@@ -11,7 +11,7 @@ import { createStaticSettingValues } from '@gs/shared/static-setting.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { resolveEffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
 import { getEffectIntrinsicResolution, type EffectStaticResourceContext } from './effect-static-settings.ts';
-import { createGraphEvaluation, type ReadFrameValue } from './graph-evaluation.ts';
+import { createEffectParameterEvaluation, type ReadFrameValue } from './effect-parameter-evaluation.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { EffectRenderTiling } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
@@ -22,8 +22,8 @@ import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definit
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { EffectSource, EffectDefinitions, ResolvedEffect } from '@gs/subsystems_effect_shared/effect-source.ts';
-import { isUnselectedGraphParameterReference, type CustomNodeGraphEffect, type CustomNodeGraphEffectEffectNode, type CustomNodeGraphEffectParameterBinding, type NodeOutputReference } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
-import type { CustomNodeGraphEffectValueUpdate, EffectParameterInput, EffectTextureOutput, EffectFrameContext, EffectPreparationStatus } from './effect-instance.ts';
+import { isUnselectedNodesEffectParameterReference, type NodesEffect, type NodesEffectEffectNode, type NodesEffectParameterBinding, type NodeOutputReference } from '@gs/subsystems_effect_shared/nodes-effect.ts';
+import type { NodesEffectValueUpdate, EffectParameterInput, EffectTextureOutput, EffectFrameContext, EffectPreparationStatus } from './effect-instance.ts';
 
 /** テクスチャを借用して転送する経路では、サンプリングを省略できる。 */
 export type EffectPlacementInput = EffectParameterInput<EffectTextureOutput & { readonly sampling?: Readonly<ShaderInputSampling> }>;
@@ -62,7 +62,7 @@ interface PlannedInput<Input extends EffectPlacementInput = EffectPlacementInput
 }
 
 interface PlannedEffectRenderer {
-	readonly effect: Exclude<ResolvedEffect, { type: 'customNodeGraphEffect' }>;
+	readonly effect: Exclude<ResolvedEffect, { type: 'nodesEffect' }>;
 	readonly resolution: Resolution;
 	readonly inputs: Record<string, EffectParameterInput>;
 	readonly staticSettings: StaticSettingValues;
@@ -76,8 +76,8 @@ export type EvaluateStep = { readonly active: boolean; evaluate: (frame: EffectF
 type RenderStep = PlannedEffectRenderer | EvaluateStep;
 type ResolvePort = (port: string) => PlannedInput | null;
 type ResolveEffectOutput = (port: string) => PlannedInput<EffectTextureOutput> | null;
-type ObserveBinding = (update: (binding: CustomNodeGraphEffectParameterBinding) => boolean) => void;
-type EvaluatedBinding = Exclude<CustomNodeGraphEffectParameterBinding, { inputSource: 'node' | 'customNodeGraphEffectPublicParameterReference' }>;
+type ObserveBinding = (update: (binding: NodesEffectParameterBinding) => boolean) => void;
+type EvaluatedBinding = Exclude<NodesEffectParameterBinding, { inputSource: 'node' | 'nodesEffectPublicParameterReference' }>;
 
 function prepareCpuReader(source: PlannedInput): ReadFrameValue {
 	if (source.prepareRead != null) return source.prepareRead();
@@ -146,24 +146,24 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 	let evaluator: ParameterBindingEvaluator | null = null;
 	const getEvaluator = () => evaluator ??= new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const bindScopes = new Set<() => void>();
-	const graphValueUpdates = new Map<string | null, ((change: CustomNodeGraphEffectValueUpdate) => boolean)[]>();
+	const nodesEffectValueUpdates = new Map<string | null, ((change: NodesEffectValueUpdate) => boolean)[]>();
 	let preparationLayoutRevision = 0;
 	type Evaluation = {
-		graph: () => ReturnType<typeof createGraphEvaluation>;
+		parameterEvaluation: () => ReturnType<typeof createEffectParameterEvaluation>;
 		resolution: () => Resolution;
-		publicParameterDefs?: CustomNodeGraphEffect['paramDefs'];
+		publicParameterDefs?: NodesEffect['paramDefs'];
 	};
 
-	function planBinding(definition: ParameterDefinition, binding: CustomNodeGraphEffectParameterBinding | null | undefined,
+	function planBinding(definition: ParameterDefinition, binding: NodesEffectParameterBinding | null | undefined,
 		publicInput: (id: string) => PlannedInput, nodeOutput: (reference: NodeOutputReference) => PlannedInput | null,
 		path: readonly string[], evaluation: Evaluation, observe: ObserveBinding | null = null, isDefault = binding == null): PlannedInput {
 		binding ??= createDefaultParameterBinding(definition);
-		if (isUnselectedGraphParameterReference(binding)) {
+		if (isUnselectedNodesEffectParameterReference(binding)) {
 			binding = createDefaultParameterBinding(definition);
 			observe = null;
 			isDefault = true;
 		}
-		if (binding.inputSource === 'customNodeGraphEffectPublicParameterReference') {
+		if (binding.inputSource === 'nodesEffectPublicParameterReference') {
 			const source = publicInput(binding.parameterId);
 			const input = source.input;
 			if (input.kind === 'value') {
@@ -195,12 +195,12 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 			const literal = binding;
 			// 要素の並びとフィールドは配置中固定。編集時も同じ位置のBindingを各末端に渡す。
 			const observeParent = observe;
-			const child = (def: ParameterDefinition, select: (parent: typeof literal) => CustomNodeGraphEffectParameterBinding) => planBinding(
+			const child = (def: ParameterDefinition, select: (parent: typeof literal) => NodesEffectParameterBinding) => planBinding(
 				def, select(literal), publicInput, nodeOutput, path, evaluation,
 				observeParent == null ? null : update => observeParent(next => update(select(next as typeof literal))), isDefault);
 			if (isParameterType(definition, 'array')) {
 				const elementDefinition = getArrayElementDefinition(definition);
-				const elements = (literal.value as ParameterArrayElement<CustomNodeGraphEffectParameterBinding>[]).map((_, index) => child(elementDefinition, parent => parent.value[index].binding));
+				const elements = (literal.value as ParameterArrayElement<NodesEffectParameterBinding>[]).map((_, index) => child(elementDefinition, parent => parent.value[index].binding));
 				return {
 					input: { kind: 'array', elements: elements.map(element => element.input) },
 					use: deps => elements.forEach(element => element.use?.(deps)),
@@ -254,14 +254,14 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 				return null;
 			}
 			setValue(definition.defaultValue);
-			if (source.inputSource === 'customNodeGraphEffectCustomParameterValueReference') {
-				const graph = evaluation.graph();
-				return frame => graph.readCustom(source.parameterId, frame);
+			if (source.inputSource === 'nodesEffectCustomParameterValueReference') {
+				const parameterEvaluation = evaluation.parameterEvaluation();
+				return frame => parameterEvaluation.readCustom(source.parameterId, frame);
 			}
 			if (placement.bindParameterValue != null) return placement.bindParameterValue(source, definition, path);
-			const graph = evaluation.graph();
-			const scope = graph.nodeScope(contextResolution, evaluation.resolution());
-			const evaluate = getEvaluator().bind(source, definition.defaultValue, definition, graph.automationGraphs);
+			const parameterEvaluation = evaluation.parameterEvaluation();
+			const scope = parameterEvaluation.nodeScope(contextResolution, evaluation.resolution());
+			const evaluate = getEvaluator().bind(source, definition.defaultValue, definition, parameterEvaluation.automationGraphs);
 			return frame => evaluate(scope(frame));
 		}
 
@@ -309,7 +309,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 			if (input == null) {
 				input = bind(id, getResolution);
 				// 公開画像はそのまま転送し、実際に画像を読む内部接続がFit/Wrap/Filterを所有する。
-				if (effect.type === 'customNodeGraphEffect') input = withSampling(input);
+				if (effect.type === 'nodesEffect') input = withSampling(input);
 				inputs.set(id, input);
 			}
 			return input;
@@ -345,18 +345,18 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 			return id => id === primaryOutput ? textureOutput(parameter(primaryInputParameter)) : null;
 		}
 
-		if (effect.type === 'customNodeGraphEffect') {
-			const graph = effect.definition;
-			let scope: ReturnType<typeof createGraphEvaluation> | null = null;
-			let customParameterValues = graph.customParameterValues;
-			type NodeParams = CustomNodeGraphEffectEffectNode['params'];
+		if (effect.type === 'nodesEffect') {
+			const nodesEffect = effect.definition;
+			let scope: ReturnType<typeof createEffectParameterEvaluation> | null = null;
+			let customParameterValues = nodesEffect.customParameterValues;
+			type NodeParams = NodesEffectEffectNode['params'];
 			// 登録IDは複数の配置に対応する。nullは呼び出し元が直接所有するルートのインライン定義に限る。
-			const acceptsValueUpdates = source.type === 'customNodeGraphEffectReference' || path.length === 0;
+			const acceptsValueUpdates = source.type === 'nodesEffectReference' || path.length === 0;
 			const nodeValueUpdates = new Map<string, (params: NodeParams) => boolean>();
 			if (acceptsValueUpdates) {
-				const id = source.type === 'customNodeGraphEffectReference' ? source.id : null;
-				let updates = graphValueUpdates.get(id);
-				if (updates == null) graphValueUpdates.set(id, updates = []);
+				const id = source.type === 'nodesEffectReference' ? source.id : null;
+				let updates = nodesEffectValueUpdates.get(id);
+				if (updates == null) nodesEffectValueUpdates.set(id, updates = []);
 				updates.push(change => {
 					if ('nodeId' in change) return nodeValueUpdates.get(change.nodeId)?.(change.params) ?? false;
 					customParameterValues = change.customParameterValues;
@@ -364,15 +364,15 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 				});
 			}
 
-			function graphScope() {
+			function nodesEffectEvaluation() {
 				if (scope == null) {
-					scope = createGraphEvaluation({ ...graph, customParameterValues }, getEvaluator(), id => prepareCpuReader(parameter(id)));
+					scope = createEffectParameterEvaluation({ ...nodesEffect, customParameterValues }, getEvaluator(), id => prepareCpuReader(parameter(id)));
 					bindScopes.add(scope.bindPublicValues);
 				}
 				return scope;
 			}
 
-			const nodes = new Map(graph.nodes.map(node => [node.id, node]));
+			const nodes = new Map(nodesEffect.nodes.map(node => [node.id, node]));
 			const placements = new Map<string, ResolvePort>();
 
 			function nodeOutput(reference: NodeOutputReference): PlannedInput | null {
@@ -400,7 +400,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 						let defaultBinding: ReturnType<typeof createDefaultParameterBinding> | null = null;
 						const read = (bindings: NodeParams) => bindings[id] ?? (defaultBinding ??= createDefaultParameterBinding(def));
 						return planBinding(def, read(params), parameter, nodeOutput, childPath,
-							{ graph: graphScope, resolution: nodeResolution, publicParameterDefs: graph.paramDefs },
+							{ parameterEvaluation: nodesEffectEvaluation, resolution: nodeResolution, publicParameterDefs: nodesEffect.paramDefs },
 							acceptsValueUpdates ? update => updateBindings.push(next => update(read(next))) : null, params[id] == null);
 					};
 					resolve = planPlacement(node.effectSource, child, childInput, getResolution, node.resolution ?? null, node.staticSettings ?? {}, childPath, node.isBypass);
@@ -410,7 +410,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 			}
 
 			return id => {
-				const source = graph.outputSources[id];
+				const source = nodesEffect.outputSources[id];
 				if (source == null) return null;
 				// Relayを含めて配線を解決した後、テクスチャを持つ配置だけがOutから出力する。
 				return textureOutput('parameterId' in source ? parameter(source.parameterId) : nodeOutput(source));
@@ -453,12 +453,12 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 
 	const root = resolveEffectSource(placement.effectSource, placement.definitions);
 	const noParent = (): never => { throw new Error('Effect defaults must be literal'); };
-	let rootEvaluation: ReturnType<typeof createGraphEvaluation> | null = null;
-	const rootScope = () => rootEvaluation ??= createGraphEvaluation({ paramDefs: {}, automationGraphs: placement.automationGraphs }, getEvaluator(), noParent);
+	let rootEvaluation: ReturnType<typeof createEffectParameterEvaluation> | null = null;
+	const rootScope = () => rootEvaluation ??= createEffectParameterEvaluation({ paramDefs: {}, automationGraphs: placement.automationGraphs }, getEvaluator(), noParent);
 	const resolve = planPlacement(placement.effectSource, root, (id, resolution) => {
 		const input = placement.inputs?.[id];
 		const def = root.definition.paramDefs[id];
-		return input != null ? { input } : planBinding(def, placement.params?.[id], noParent, noParent, [], { graph: rootScope, resolution });
+		return input != null ? { input } : planBinding(def, placement.params?.[id], noParent, noParent, [], { parameterEvaluation: rootScope, resolution });
 	}, () => contextResolution, placement.resolutionSetting ?? { mode: 'context', scale: 1 }, placement.staticSettings ?? {}, []);
 	const outputs = new Map<string, EffectTextureOutput>();
 	const roots = new Set<RenderStep>();
@@ -487,15 +487,15 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 	bindPublicValues();
 	const valueUpdates = {
 		get preparationLayoutRevision() { return preparationLayoutRevision; },
-		apply(id: string | null, change: CustomNodeGraphEffectValueUpdate) {
-			const updates = graphValueUpdates.get(id);
+		apply(id: string | null, change: NodesEffectValueUpdate) {
+			const updates = nodesEffectValueUpdates.get(id);
 			if (updates == null) return false;
 			let affected = false;
 			for (const update of updates) if (update(change)) affected = true;
 			bindPublicValues();
 			return affected;
 		},
-		clear() { graphValueUpdates.clear(); },
+		clear() { nodesEffectValueUpdates.clear(); },
 	};
 	return { steps: ordered, outputs, contextResolution, resources, valueUpdates };
 }

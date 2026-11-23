@@ -4,7 +4,7 @@ export function createTestProject(overrides = {}) {
 		gsVersion: '2.0.0-alpha', name: 'Project', description: '', author: '',
 		timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
 		resolution: { width: 1024, height: 1024 }, exportSettings: null,
-		customShaderEffects: [], automationGraphs: [], assets: [], generatedSpeech: [], customNodeGraphEffects: [], timelineScenes: [],
+		customShaderEffects: [], automationGraphs: [], assets: [], generatedSpeech: [], nodesEffects: [], timelineScenes: [],
 		...overrides,
 	};
 }

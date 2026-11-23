@@ -36,9 +36,9 @@ function renderer() {
 // 【モード・波形方向・Workerの交換に応じてCanvasを切り替える】
 // Offscreen転送済みCanvasの複製や再転送をせず、非表示中に再生成した要素も表示できる必要がある。
 test('selects the current canvas after mode, orientation and worker changes', async () => {
-	const customNodeGraphEffectLivePreview = renderer();
+	const nodesEffectLivePreview = renderer();
 	const timeline = renderer();
-	const selected = shallowRef(customNodeGraphEffectLivePreview);
+	const selected = shallowRef(nodesEffectLivePreview);
 	const name = ref('waveformHorizontalCanvas');
 	const target = element();
 	const container = shallowRef(null);
@@ -48,10 +48,10 @@ test('selects the current canvas after mode, orientation and worker changes', as
 		await nextTick();
 		container.value = target;
 		await nextTick();
-		assert.deepEqual(target.children, [customNodeGraphEffectLivePreview.waveformHorizontalCanvas]);
+		assert.deepEqual(target.children, [nodesEffectLivePreview.waveformHorizontalCanvas]);
 		selected.value = timeline;
 		await nextTick();
-		assert.equal(customNodeGraphEffectLivePreview.waveformHorizontalCanvas.parentNode, null);
+		assert.equal(nodesEffectLivePreview.waveformHorizontalCanvas.parentNode, null);
 		assert.deepEqual(target.children, [timeline.waveformHorizontalCanvas]);
 		name.value = 'waveformVerticalCanvas';
 		await nextTick();
@@ -62,11 +62,11 @@ test('selects the current canvas after mode, orientation and worker changes', as
 		await nextTick();
 		assert.equal(previous.parentNode, null);
 		assert.deepEqual(target.children, [timeline.waveformVerticalCanvas]);
-		customNodeGraphEffectLivePreview.waveformVerticalCanvas = element();
-		customNodeGraphEffectLivePreview.canvasRevision.value++;
-		selected.value = customNodeGraphEffectLivePreview;
+		nodesEffectLivePreview.waveformVerticalCanvas = element();
+		nodesEffectLivePreview.canvasRevision.value++;
+		selected.value = nodesEffectLivePreview;
 		await nextTick();
-		assert.deepEqual(target.children, [customNodeGraphEffectLivePreview.waveformVerticalCanvas]);
+		assert.deepEqual(target.children, [nodesEffectLivePreview.waveformVerticalCanvas]);
 	} finally {
 		scope.stop();
 	}

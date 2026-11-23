@@ -65,7 +65,7 @@ export function getLayerParameterValues(layer: TimelineLayer, target: TimelinePa
 /**
  * キーの値編集・挿入は、保存した型の古い選択肢ではなく現在の定義を使う。
  */
-export function getLayerParameterDefinitions(state: Pick<ProjectState, 'customNodeGraphEffects'> & Partial<Pick<ProjectState, 'customShaderEffects'>>, layer: TimelineLayer, target: TimelineParameterTarget): Record<string, ParameterDefinition> {
+export function getLayerParameterDefinitions(state: Pick<ProjectState, 'nodesEffects'> & Partial<Pick<ProjectState, 'customShaderEffects'>>, layer: TimelineLayer, target: TimelineParameterTarget): Record<string, ParameterDefinition> {
 	if (!getLayerParameterTargets(layer).includes(target)) throw new Error('Invalid layer parameter target');
 	if (target === 'publicParameter' && hasTimelineLayerParameters(layer)) return Object.fromEntries((layer.publicParameterDefs ?? []).map(def => [def.id, def]));
 	if (target === 'audio') return timelineAudioParamDefs;
@@ -79,7 +79,7 @@ export function getLayerParameterDefinitions(state: Pick<ProjectState, 'customNo
 	throw new Error('Unknown timeline parameter target');
 }
 
-export function resolveLayerParameter(state: Pick<ProjectState, 'customNodeGraphEffects'> & Partial<Pick<ProjectState, 'customShaderEffects'>>, layer: TimelineLayer, target: TimelineParameterTarget, path: ParamPath) {
+export function resolveLayerParameter(state: Pick<ProjectState, 'nodesEffects'> & Partial<Pick<ProjectState, 'customShaderEffects'>>, layer: TimelineLayer, target: TimelineParameterTarget, path: ParamPath) {
 	const defs = getLayerParameterDefinitions(state, layer, target);
 	const values = getLayerParameterValues(layer, target);
 	// 未編集の引数は、表示や編集が使う配列要素IDと同じIDで参照する。読み出しだけでは保存値を増やさない。
@@ -92,11 +92,11 @@ export function resolveLayerParameter(state: Pick<ProjectState, 'customNodeGraph
 	return { def, value };
 }
 
-export function getLayerParameterDefinition(state: Pick<ProjectState, 'customNodeGraphEffects'> & Partial<Pick<ProjectState, 'customShaderEffects'>>, layer: TimelineLayer, target: TimelineParameterTarget, path: ParamPath): ParameterDefinition | null {
+export function getLayerParameterDefinition(state: Pick<ProjectState, 'nodesEffects'> & Partial<Pick<ProjectState, 'customShaderEffects'>>, layer: TimelineLayer, target: TimelineParameterTarget, path: ParamPath): ParameterDefinition | null {
 	try { return resolveLayerParameter(state, layer, target, path).def; } catch { return null; }
 }
 
-export function getLayerKeyframeParameters(state: Pick<ProjectState, 'customNodeGraphEffects'> & Partial<Pick<ProjectState, 'customShaderEffects'>>, layer: TimelineLayer) {
+export function getLayerKeyframeParameters(state: Pick<ProjectState, 'nodesEffects'> & Partial<Pick<ProjectState, 'customShaderEffects'>>, layer: TimelineLayer) {
 	const targetLabels: Record<TimelineParameterTarget, string> = {
 		publicParameter: 'Public Parameters',
 		effect: 'Effect',

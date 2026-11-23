@@ -10,7 +10,7 @@
 		"test": "node --test test/*.test.mjs",
 		"dist:win": "electron-builder --config electron-builder.config.cjs --win nsis --x64 --publish never",
 		"dist:mac": "electron-builder --config electron-builder.config.cjs --mac dmg --arm64 --x64 --publish never",
-		"build:portable": "node build-portable-custom-node-graph-effect.mjs"
+		"build:portable": "node build-portable-nodes-effect.mjs"
 	},
 	"devDependencies": {
 		"@electron/asar": "4.3.1",

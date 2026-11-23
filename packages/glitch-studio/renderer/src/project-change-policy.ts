@@ -1,19 +1,19 @@
-import type { CustomNodeGraphEffectNodeChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
+import type { NodesEffectNodeChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { TimelineLayerChange } from '@gs/subsystems_timeline_shared/types.ts';
 import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
-import type { CustomNodeGraphEffectEffectNode } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
+import type { NodesEffectEffectNode } from '@gs/subsystems_effect_shared/nodes-effect.ts';
 
-export type CustomNodeGraphEffectValueChange =
-	| (Extract<RendererProjectChange, { type: 'node' }> & { node: CustomNodeGraphEffectEffectNode; changes: { type: 'parameter'; kind: 'value' }[] })
-	| (Extract<RendererProjectChange, { type: 'customNodeGraphEffect' }> & { customParameterValuesOnly: true });
+export type NodesEffectValueChange =
+	| (Extract<RendererProjectChange, { type: 'node' }> & { node: NodesEffectEffectNode; changes: { type: 'parameter'; kind: 'value' }[] })
+	| (Extract<RendererProjectChange, { type: 'nodesEffect' }> & { customParameterValuesOnly: true });
 
 /** 描画資源と配線を変えず、実行中フレームの完了後にまとめて反映できる変更。 */
-export function isCustomNodeGraphEffectValueChange(change: RendererProjectChange): change is CustomNodeGraphEffectValueChange {
+export function isNodesEffectValueChange(change: RendererProjectChange): change is NodesEffectValueChange {
 	return change.type === 'node' ? change.node.type !== 'relay' && canPreserveNodeStaticState(change.changes)
-		: change.type === 'customNodeGraphEffect' && change.customParameterValuesOnly === true;
+		: change.type === 'nodesEffect' && change.customParameterValuesOnly === true;
 }
 
-function canPreserveNodeStaticState(changes: readonly CustomNodeGraphEffectNodeChange[]): boolean {
+function canPreserveNodeStaticState(changes: readonly NodesEffectNodeChange[]): boolean {
 	return changes.length > 0 && changes.every(change => change.type === 'parameter' && change.kind === 'value');
 }
 

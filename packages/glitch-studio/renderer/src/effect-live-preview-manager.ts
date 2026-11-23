@@ -6,8 +6,8 @@ import { resolveEffectSource, type EffectDefinitions, type EffectSource } from '
 import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import { normalizedToSpatialCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { changedEffectReferences, diffEffectRegistrationSnapshots } from './effect-registration-changes.ts';
-import { isCustomNodeGraphEffectValueChange } from './project-change-policy.ts';
-import { PendingCustomNodeGraphEffectValues } from './pending-custom-node-graph-effect-values.ts';
+import { isNodesEffectValueChange } from './project-change-policy.ts';
+import { PendingNodesEffectValues } from './pending-nodes-effect-values.ts';
 import { createEffectLivePreviewInputs, type EffectLivePreviewParameters } from './effect-live-preview-inputs.ts';
 import type { EffectRenderTiling, EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
@@ -17,7 +17,7 @@ import type { PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-
 import type { PreviewGamutCompressionSettings } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
 import type { PreviewGamutWarningSettings } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
 import type { PreviewImageSource } from '@gs/glitch-studio_shared/preview-image-source.ts';
-import type { ProjectCustomShaderEffect, ProjectCustomNodeGraphEffect } from '@gs/glitch-studio_shared/project/types.ts';
+import type { ProjectCustomShaderEffect, ProjectNodesEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { applyRendererProjectChanges, isEffectLivePreviewProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { genId } from '@gs/shared/utility/id.ts';
@@ -89,7 +89,7 @@ export type EffectLivePreviewManagerDynamicOptions = {
 	effectLivePreviewTimeFactor: number;
 	/** Effect Live Preview専用の描画頻度上限。タイムラインには適用しない。 */
 	fpsLimit: number | null;
-	customNodeGraphEffects: ProjectCustomNodeGraphEffect[];
+	nodesEffects: ProjectNodesEffect[];
 	customShaderEffects: ProjectCustomShaderEffect[];
 	automationGraphs: AutomationGraph[];
 };
@@ -159,7 +159,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		instance: EffectInstance | null;
 		port: string | null;
 		inputs: ReturnType<typeof createEffectLivePreviewInputs>;
-		pendingValues: PendingCustomNodeGraphEffectValues;
+		pendingValues: PendingNodesEffectValues;
 		gpuTiming: {
 			frameTimes: WeakMap<EffectFrameContext, Promise<number | null>>;
 			pending: Promise<void>;
@@ -212,7 +212,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		analysisWaveformCanvasSizes: null,
 		analysisWaveformViewports: null,
 		analysisHistogramViewport: null,
-		customNodeGraphEffects: [],
+		nodesEffects: [],
 		customShaderEffects: [],
 		automationGraphs: [],
 	};
@@ -345,7 +345,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		const previous = this.dynamicOptions;
 		this.dynamicOptions = { ...previous, ...newOptions };
 		let reinitialize = Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale');
-		if (Object.hasOwn(newOptions, 'customNodeGraphEffects') || Object.hasOwn(newOptions, 'customShaderEffects')) {
+		if (Object.hasOwn(newOptions, 'nodesEffects') || Object.hasOwn(newOptions, 'customShaderEffects')) {
 			this.definitions = createProjectEffectDefinitions(this.dynamicOptions, this.nativeEffectDefinitions);
 			if (!reinitialize && this.placement != null) {
 				const changes = diffEffectRegistrationSnapshots(previous, newOptions);
@@ -392,9 +392,9 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		if (relevant.length === 0) return;
 		const { timelineScenes, ...next } = applyRendererProjectChanges({ ...this.dynamicOptions, timelineScenes: [] }, relevant);
 		// 初期化失敗後はインスタンスがないので、参照先の値修正からも選択中の配置を復旧する。
-		const changesRequiringInitialization = this.activeEffect == null ? relevant : relevant.filter(change => !isCustomNodeGraphEffectValueChange(change));
+		const changesRequiringInitialization = this.activeEffect == null ? relevant : relevant.filter(change => !isNodesEffectValueChange(change));
 		const affected = changedEffectReferences(changesRequiringInitialization, next);
-		if (next.customNodeGraphEffects !== this.dynamicOptions.customNodeGraphEffects || next.customShaderEffects !== this.dynamicOptions.customShaderEffects) {
+		if (next.nodesEffects !== this.dynamicOptions.nodesEffects || next.customShaderEffects !== this.dynamicOptions.customShaderEffects) {
 			this.definitions = createProjectEffectDefinitions(next, this.nativeEffectDefinitions);
 		}
 		Object.assign(this.dynamicOptions, next);
@@ -402,7 +402,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 			this.initializePlacement();
 		} else if (this.activeEffect != null) {
 			for (const change of relevant) {
-				if (isCustomNodeGraphEffectValueChange(change)) this.activeEffect.pendingValues.enqueue(change);
+				if (isNodesEffectValueChange(change)) this.activeEffect.pendingValues.enqueue(change);
 				if (change.type === 'automationGraphs') this.activeEffect.inputs.updateAutomationGraphs(next.automationGraphs);
 			}
 		}
@@ -443,7 +443,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		const placement = this.placement;
 		if (placement == null) return;
 		const { effectSource } = placement;
-		if ((effectSource.type === 'customNodeGraphEffectReference' && !this.dynamicOptions.customNodeGraphEffects.some(entry => entry.id === effectSource.id))
+		if ((effectSource.type === 'nodesEffectReference' && !this.dynamicOptions.nodesEffects.some(entry => entry.id === effectSource.id))
 			|| (effectSource.type === 'customShaderEffectReference' && !this.dynamicOptions.customShaderEffects.some(entry => entry.id === effectSource.id))) {
 			this.stopRenderLoop();
 			return;
@@ -474,7 +474,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 			onFrameGpuTime: gpuTiming == null ? undefined : (frame, result) => { gpuTiming.frameTimes.set(frame, result); },
 		}, { device: this.gpuDevice, defaultVertexShaderModule: this.vertex, enable32bitDataTextures: this.staticOptions.enable32bitDataTextures },
 		id => this.nativeEffectImplementations[id], lifetime.signal);
-		const active: NonNullable<EffectLivePreviewManager['activeEffect']> = { lifetime, inputs, ready, port, instance: null, gpuTiming, pendingValues: new PendingCustomNodeGraphEffectValues(null) };
+		const active: NonNullable<EffectLivePreviewManager['activeEffect']> = { lifetime, inputs, ready, port, instance: null, gpuTiming, pendingValues: new PendingNodesEffectValues(null) };
 		this.activeEffect = active;
 		void ready.then(instance => {
 			if (lifetime.signal.aborted) instance.dispose();

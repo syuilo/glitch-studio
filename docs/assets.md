@@ -30,7 +30,7 @@ GsAssetのメニューから、リロード、再リンク、外部参照から�
 
 Web版は外部参照の作成・解決に対応せず、参照情報を保持して利用不可を表示します。Webでの保存はパス表記を変更せず、別フォルダーへ移した場合の相対パスの再計算は行いません。
 
-`.gscnge`書き出しでは外部参照も原本を埋め込み、プロジェクト内のモードは変更しません。参照切れなら書き出しに失敗します。外部参照から埋め込みへの変換と`.gscnge`書き出しには、原本全体を読み込むメモリ制約が残ります。プロジェクトのバックアップは外部原本を含まず、参照情報だけを保存します。
+`.gsne`書き出しでは外部参照も原本を埋め込み、プロジェクト内のモードは変更しません。参照切れなら書き出しに失敗します。外部参照から埋め込みへの変換と`.gsne`書き出しには、原本全体を読み込むメモリ制約が残ります。プロジェクトのバックアップは外部原本を含まず、参照情報だけを保存します。
 
 ## ファイルの取り込み
 
@@ -52,11 +52,11 @@ Web版は外部参照の作成・解決に対応せず、参照情報を保持�
 
 App.vueの全体受付でも、ファイルのホバー中は「Drop here」を表示します。専用受付で伝播が止められた場合や、アプリ外へ離れた場合は全体表示を消します。windowのcaptureでは表示状態だけをリセットし、ファイルの受付自体はルートの通常バブリングで行います。
 
-## Custom Node Graph Effect Editorへのドロップ
+## Nodes Effect Editorへのドロップ
 
-`GsCustomNodeGraphEffectEditor.vue`はTimelineと共通の`useAssetDrop`でファイル・Assetを受け付けます。画像はImageノードとして通常ノード一覧の末尾（出力ノードの直前）へ追加し、既存の配線と出力接続を保持します。グラフでの動画・音声ドロップの受付は廃止しました。
+`GsNodesEffectEditor.vue`はTimelineと共通の`useAssetDrop`でファイル・Assetを受け付けます。画像はImageノードとして通常ノード一覧の末尾（出力ノードの直前）へ追加し、既存の配線と出力接続を保持します。Nodes Effectエディターでの動画・音声ドロップの受付は廃止しました。
 
-ファイルの読み込み・サムネイル生成からノード反映まで同じ進捗ダイアログを維持します。`AssetImportPlacement`でTimelineまたはCustom Node Graph Effectへの配置を指定し、Assetと配置を一つのCommandで反映します。参照の検証が失敗した場合は部分追加しません。ノードに対応しないフォントなどのファイルはAssetsへ取り込んでパネルを開きます。
+ファイルの読み込み・サムネイル生成からノード反映まで同じ進捗ダイアログを維持します。`AssetImportPlacement`でTimelineまたはNodes Effectへの配置を指定し、Assetと配置を一つのCommandで反映します。参照の検証が失敗した場合は部分追加しません。ノードに対応しないフォントなどのファイルはAssetsへ取り込んでパネルを開きます。
 
 ## 静的設定からのAsset参照
 
@@ -70,7 +70,7 @@ App.vueの全体受付でも、ファイルのホバー中は「Drop here」を�
 
 `.cube`は取り込み時に`application/x-cube-lut`へ正規化し、原本のBlobを保存します。表示名の拡張子を再判定しないため、改名後も種類は維持されます。内容の解析・検証はエフェクトが使用する際に行い、取り込み時にはデコードしません。
 
-`{ kind: 'assetReference', assetType: 'lut' }`はAsset IDまたはnullを保存し、LUTだけを選択候補に表示します。Asset差し替え、Custom Node Graph Effect内の参照解除とUndo/Redo、`.gsproj`の原本保存、`.gscnge`の参照収集とID再割り当てに対応します。未選択は入力を通し、不正なファイルは描画エラーになります。その他のAsset参照と同様に、タイムラインの静的設定などに残った参照切れは描画前の検証で通知します。
+`{ kind: 'assetReference', assetType: 'lut' }`はAsset IDまたはnullを保存し、LUTだけを選択候補に表示します。Asset差し替え、Nodes Effect内の参照解除とUndo/Redo、`.gsproj`の原本保存、`.gsne`の参照収集とID再割り当てに対応します。未選択は入力を通し、不正なファイルは描画エラーになります。その他のAsset参照と同様に、タイムラインの静的設定などに残った参照切れは描画前の検証で通知します。
 
 LUTの解析・GPU処理はEffect subsystemのApply LUTで完結します。対応形式と制約は[Apply LUTの仕様](../packages/subsystems/effect/native-effects/src/fx/applyLut/README.md)を参照してください。
 
@@ -78,7 +78,7 @@ LUTの解析・GPU処理はEffect subsystemのApply LUTで完結します。対�
 
 動画の取り込み・差し替え時には、主映像トラックの0%から100%まで10%間隔でサムネイルを生成します。100%は最後のフレームです。長辺を320px以下に縮小し、小さな動画は拡大しません。同じtimestampに対応する地点は重複保存しません。
 
-`ProjectAsset.thumbnailSequence`は寸法と、実際のフレーム時刻・画像Blobの列を所有します。レンダリング用の`Asset`には追加せず、Workerへの素材同期・書き出しでは表示用情報を除きます。`.gsproj`では画像バイト列と実際のMIMEを保存します。`.gscnge`には含めません。
+`ProjectAsset.thumbnailSequence`は寸法と、実際のフレーム時刻・画像Blobの列を所有します。レンダリング用の`Asset`には追加せず、Workerへの素材同期・書き出しでは表示用情報を除きます。`.gsproj`では画像バイト列と実際のMIMEを保存します。`.gsne`には含めません。
 
 `api.ts`が取り込み完了前に生成を待ち、`utility/open-media-file.ts`が`ui.progress()`で取り込み全体とファイル単位の進捗を表示します。生成失敗は素材本体の取り込みを妨げず、サムネイルなしとして扱います。`importAssets`・`addAsset`・`replaceAsset` Commandは原本とサムネイル列を一緒に扱います。
 

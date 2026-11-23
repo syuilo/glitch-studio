@@ -155,11 +155,11 @@ test('separates content time from visible time without preroll', async () => {
 	assert.deepEqual(f.destroyed, ['trimmed']);
 });
 
-// 【Custom Node Graph Effectの左トリムでは終了基準を保ち、右端の伸縮でだけ変更する】
+// 【Nodes Effectの左トリムでは終了基準を保ち、右端の伸縮でだけ変更する】
 // 内容時刻とEND_TIMEは同じ座標系に置く。PROGRESSは別途、トリム後の表示区間から求める。
-test('changes the Custom Node Graph Effect end time only when its right edge changes', async () => {
+test('changes the Nodes Effect end time only when its right edge changes', async () => {
 	const f = fixture();
-	const original = entry('customNodeGraphEffect', 100, 1100);
+	const original = entry('nodesEffect', 100, 1100);
 	await f.renderer.renderAt(500, [original]);
 	await f.renderer.renderAt(500, [{ ...original, clips: [{ id: 'clip', startMs: 300, contentOffsetMs: 200, durationMs: 800 }] }]);
 	await f.renderer.renderAt(500, [{ ...original, clips: [{ id: 'clip', startMs: 300, contentOffsetMs: 200, durationMs: 1000 }] }]);
@@ -257,12 +257,12 @@ test('uses half-open intervals and clears the display when no layers are active'
 });
 
 for (const outsideTime of [99, 200]) {
-	// 表示期間外へ移動するとCustom Node Graph Effect用アダプターが内部rendererを一度だけ破棄する
-	test(`destroys the wrapped Custom Node Graph Effect renderer when seeking outside its interval to ${outsideTime}ms`, async t => {
+	// 表示期間外へ移動するとNodes Effect用アダプターが内部rendererを一度だけ破棄する
+	test(`destroys the wrapped Nodes Effect renderer when seeking outside its interval to ${outsideTime}ms`, async t => {
 		const instances = [];
 		const timeline = [{
 			...entry('effect', 100, 200),
-			layer: { type: 'customNodeGraphEffect', customNodeGraphEffectId: 'customNodeGraphEffect', customNodeGraphEffectParamValues: {} },
+			layer: { type: 'nodesEffect', nodesEffectId: 'nodesEffect', nodesEffectParamValues: {} },
 		}];
 		const renderer = new TimelineRenderer({
 			fallbackOutput: { kind: 'texture', texture: { width: 1, height: 1, createView: () => ({}) } },
@@ -508,7 +508,7 @@ test('separates clip instances and distinguishes transparent output from a gap',
 // 【進行率は内容時刻と独立して表示区間から求め、引数はScene時刻で評価する】
 // 左トリム後も同じ内容時刻・終端を使いながら、表示区間内でのPROGRESSは変化する。
 // TIME / END_TIMEで進行率を再計算する実装へ戻さないための契約。
-test('passes clip progress separately from Custom Node Graph Effect content time and scene arguments', async () => {
+test('passes clip progress separately from Nodes Effect content time and scene arguments', async () => {
 	const contexts = [];
 	const adapter = createTimelineEffectProbe({ paramDefs: { time: { dataType: { kind: 'scalar' }, defaultValue: 0 } },
 		params: { time: { inputSource: 'expression', expression: 'TIME_MS' } }, render(frame, values) { contexts.push([frame.time, frame.endTime, frame.progress, values.time]); } });

@@ -10,7 +10,7 @@ import type { TimelineScene, TimelineVoicevoxLayer } from '@gs/subsystems_timeli
 import type { ProjectState } from '../Project.ts';
 
 /** Commandが分離したSceneを編集する。クリップとキーに対する検証がすべて成功した時点で反映される。 */
-export function moveTimelineKeyframesInDraft(state: Pick<ProjectState, 'customNodeGraphEffects'>, draftScene: TimelineScene,
+export function moveTimelineKeyframesInDraft(state: Pick<ProjectState, 'nodesEffects'>, draftScene: TimelineScene,
 	positions: readonly TimelineKeyframePosition[]): void {
 	if (new Set(positions.map(keyframeSelectionKey)).size !== positions.length) throw new Error('Duplicate keyframe move target');
 	const movedUtteranceLayers = new Set<TimelineVoicevoxLayer>();

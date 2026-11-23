@@ -2,10 +2,10 @@ import { nativeEffectDefinitions } from '../src/definitions.ts';
 import { check, near, withGpu } from './native-effect-gpu-fixture.mjs';
 
 const native = id => ({ type: 'nativeEffect', id });
-const inlineGraph = customNodeGraphEffect => ({ type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect });
+const inlineNodesEffectSource = nodesEffect => ({ type: 'inlineNodesEffect', nodesEffect });
 const literal = value => ({ inputSource: 'literal', value });
 const wire = (nodeId, outputPort) => ({ inputSource: 'node', source: { nodeId, outputPort }, sampling: { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' } });
-const publicParameter = parameterId => ({ inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId });
+const publicParameter = parameterId => ({ inputSource: 'nodesEffectPublicParameterReference', parameterId });
 const size = { width: 32, height: 16 };
 
 export async function vignette() {
@@ -14,14 +14,14 @@ export async function vignette() {
 		{ id: 'image', effectSource: native('fill'), resolution: size, params: { color: literal([4, -2, 0.5, 0.5]) } },
 		{ id: 'shade', effectSource: native('vignette'), params: { input: wire('image', 'output'), strength: literal(0.75), size: literal([0.5, 0.5]) } },
 	], outputSources: { output: { nodeId: 'shade', outputPort: 'output' }, mask: { nodeId: 'shade', outputPort: 'mask' } } };
-	const parent = { ...child, nodes: [{ id: 'child', effectSource: inlineGraph(child), params: {} }],
+	const parent = { ...child, nodes: [{ id: 'child', effectSource: inlineNodesEffectSource(child), params: {} }],
 		outputSources: { output: { nodeId: 'child', outputPort: 'output' }, mask: { nodeId: 'child', outputPort: 'mask' } } };
 	await withGpu(async ({ create, render, read, textures, gpu }) => {
 		let colorOnly, maskOnly;
 		for (const ports of [['output'], ['mask'], ['mask', 'output']]) {
 			const before = textures.length;
 			gpu.enable32bitDataTextures = ports.length === 2;
-			const instance = await create(inlineGraph(parent), ports);
+			const instance = await create(inlineNodesEffectSource(parent), ports);
 			try {
 				const hasColor = ports.includes('output');
 				const hasMask = ports.includes('mask');
@@ -61,7 +61,7 @@ export async function vignetteIntoFeedback() {
 		], outputDefs: { color: definition.outputDefs.output, history: nativeEffectDefinitions.feedback.outputDefs.output },
 		outputSources: { color: { nodeId: 'shade', outputPort: 'output' }, history: { nodeId: 'history', outputPort: 'output' } } };
 		let color = [2, -1, 0.25, 0.5];
-		const instance = await create(inlineGraph(graph), ['color', 'history'], { input: { kind: 'uniform', get value() { return color; } } });
+		const instance = await create(inlineNodesEffectSource(graph), ['color', 'history'], { input: { kind: 'uniform', get value() { return color; } } });
 		try {
 			render(instance, 1000);
 			const image = await read(instance.outputs.get('color').texture);
@@ -82,7 +82,7 @@ export async function vignetteIntoFeedback() {
 export async function tiledHistory() {
 	await withGpu(async ({ create, render, read, gpu }) => {
 		const definition = nativeEffectDefinitions.feedback;
-		const graph = inlineGraph({ ...definition, nodes: [
+		const graph = inlineNodesEffectSource({ ...definition, nodes: [
 			{ id: 'shade', effectSource: native('vignette'), params: { input: literal([2, -1, 0.5, 0.5]) } },
 			{ id: 'history', effectSource: native('feedback'), params: { input: wire('shade', 'output'), mode: literal('interpolate') } },
 		], outputSources: { output: { nodeId: 'history', outputPort: 'output' } } });
@@ -166,13 +166,13 @@ export async function feedback() {
 			input: publicParameter('input'), mode: literal('interpolate'), halfLife: literal(1000),
 		} }], outputSources: { output: { nodeId: 'history', outputPort: 'output' } } };
 		const graph = { ...child, nodes: [
-			{ id: 'first', effectSource: inlineGraph(child), params: { input: publicParameter('input') } },
-			{ id: 'second', effectSource: inlineGraph(child), params: { input: literal([-3, 0, 0, 0]) } },
+			{ id: 'first', effectSource: inlineNodesEffectSource(child), params: { input: publicParameter('input') } },
+			{ id: 'second', effectSource: inlineNodesEffectSource(child), params: { input: literal([-3, 0, 0, 0]) } },
 			{ id: 'sum', effectSource: { type: 'inlineCustomShaderEffect', customShaderEffect: shader }, params: { a: wire('first', 'output'), b: wire('first', 'output') } },
 		], outputDefs: { first: definition.outputDefs.output, second: definition.outputDefs.output, sum: shader.outputDefs.sum },
 		outputSources: { first: { nodeId: 'first', outputPort: 'output' }, second: { nodeId: 'second', outputPort: 'output' }, sum: { nodeId: 'sum', outputPort: 'sum' } } };
 		let input = 4;
-		const instance = await create(inlineGraph(graph), ['sum', 'first', 'second'], { input: { kind: 'uniform', get value() { return [input, 0, 0, 0]; } } });
+		const instance = await create(inlineNodesEffectSource(graph), ['sum', 'first', 'second'], { input: { kind: 'uniform', get value() { return [input, 0, 0, 0]; } } });
 		try {
 			const first = instance.outputs.get('first');
 			const initialTexture = first.texture;
@@ -231,17 +231,17 @@ export async function editFeedbackInput() {
 		const params = { input: literal([4, 0, 0, 0]), mode: literal('interpolate'), halfLife: literal(1000) };
 		const graph = { ...definition, nodes: [{ id: 'history', effectSource: native('feedback'), params }],
 			outputSources: { output: { nodeId: 'history', outputPort: 'output' } } };
-		const instance = await create(inlineGraph(graph), ['output']);
+		const instance = await create(inlineNodesEffectSource(graph), ['output']);
 		try {
 			const output = instance.outputs.get('output');
 			render(instance, 1000);
 			near((await read(output.texture))[0], 4, 'initial history');
 			const initialTextures = textures.length;
 			const initialPipelines = pipelines();
-			instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'history', params: { ...params, input: literal([0, 0, 0, 0]) } });
+			instance.updateNodesEffectValues(null, { nodeId: 'history', params: { ...params, input: literal([0, 0, 0, 0]) } });
 			render(instance, 1000);
 			near((await read(output.texture))[0], 2, 'decay from the value before the edit');
-			instance.updateCustomNodeGraphEffectValues(null, { nodeId: 'history', params });
+			instance.updateNodesEffectValues(null, { nodeId: 'history', params });
 			render(instance, 1000);
 			near((await read(output.texture))[0], 3, 'interpolate from existing history after undo');
 			check(textures.length === initialTextures && pipelines() === initialPipelines, 'reuse Feedback textures and pipeline');

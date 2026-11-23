@@ -315,7 +315,7 @@ export const setTimelineLayerTransformTargetCommandDef = defineTimelineCommand<{
 	edit: (state, payload) => {
 		const getLayer = (state: ProjectState) => {
 			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
-			if (layer.layerType !== 'effect') throw new Error('Transform target requires an effect or Custom Node Graph Effect layer');
+			if (layer.layerType !== 'effect') throw new Error('Transform target requires an effect or Nodes Effect layer');
 			return layer;
 		};
 		if (!isTimelineLayerTransformTarget(payload.transformTarget)) throw new Error('Invalid timeline layer transform target');

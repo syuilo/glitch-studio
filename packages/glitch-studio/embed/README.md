@@ -1,10 +1,10 @@
-# Custom Node Graph Effect Web export
+# Nodes Effect Web export
 
-Custom Node Graph Effectをエディタから独立したWeb Componentとして配布するGlitch Studio層です。Native Effect、Custom Shader Effect、入れ子のCustom Node Graph Effectを `effectSource` から解決し、作品の主カラー出力を描画します。
+Nodes Effectをエディタから独立したWeb Componentとして配布するGlitch Studio層です。Native Effect、Custom Shader Effect、入れ子のNodes Effectを `effectSource` から解決し、作品の主カラー出力を描画します。
 
 ## 構成
 
-- `src/export.ts`: 依存収集・静的検証・素材の読み出し・HTML/JavaScript/利用案内の生成。収集規則は`.gscnge`と`glitch-studio/shared/custom-node-graph-effect-resources.ts`を共有します。
+- `src/export.ts`: 依存収集・静的検証・素材の読み出し・HTML/JavaScript/利用案内の生成。収集規則は`.gsne`と`glitch-studio/shared/nodes-effect-resources.ts`を共有します。
 - `src/archive.ts`: HTML・JavaScript・利用案内・素材原本をまとめる非圧縮ZIPの生成。
 - `src/element.ts`: Custom Elementの登録、Shadow DOM、表示サイズ・可視性・時間・ポインター・公開値とWorkerの管理。
 - `src/frame-rate-limiter.ts`: 表示周期の端数を持ち越すFPS制限。rAF時刻の丸めによる余分な間引きを防ぎ、失った描画枠は再実行しません。
@@ -46,24 +46,24 @@ Workerにはノードまたはカスタムパラメータが式や有効な式Mo
 
 ```html
 <script type="module" src="./artwork.js"></script>
-<gs-custom-node-graph-effect-example
+<gs-nodes-effect-example
   id="artwork"
   style="width: 100%; height: 60vh"
   parameters='{"speed": 0.8}'
-></gs-custom-node-graph-effect-example>
+></gs-nodes-effect-example>
 ```
 
 ```js
-await customElements.whenDefined('gs-custom-node-graph-effect-example');
-const customNodeGraphEffectElement = document.querySelector('#artwork');
-await customNodeGraphEffectElement.ready;
-customNodeGraphEffectElement.setParameter('speed', 1.2);
-customNodeGraphEffectElement.setParameters({ speed: 0.5, color: [1, 0.2, 0, 1] });
-const speed = customNodeGraphEffectElement.getParameter('speed');
-customNodeGraphEffectElement.resetParameter('speed');
-customNodeGraphEffectElement.pause();
-customNodeGraphEffectElement.play();
-customNodeGraphEffectElement.restart();
+await customElements.whenDefined('gs-nodes-effect-example');
+const nodesEffectElement = document.querySelector('#artwork');
+await nodesEffectElement.ready;
+nodesEffectElement.setParameter('speed', 1.2);
+nodesEffectElement.setParameters({ speed: 0.5, color: [1, 0.2, 0, 1] });
+const speed = nodesEffectElement.getParameter('speed');
+nodesEffectElement.resetParameter('speed');
+nodesEffectElement.pause();
+nodesEffectElement.play();
+nodesEffectElement.restart();
 ```
 
 公開パラメータは `nameForReference`（省略時はパラメータID）で指定し、大小文字を区別します。APIで設定した値、`parameters`属性、書き出し時の初期値、公開定義の既定値の順に優先します。`resetParameter`はAPIの上書きだけを取り消します。属性の削除は属性の上書きをすべて取り消します。
@@ -101,7 +101,7 @@ customNodeGraphEffectElement.restart();
 - 一要素につき一Worker・一GPUDeviceです。GPU完了まで次のフレームを送らず、描画が遅い場合のキュー蓄積を防ぎます。
 - primary pointerの移動・押下を受け取り、`POINTER_POSITION`へ既存の等方座標規約で渡します。余白の位置も出力座標へ換算し、最後の位置を保持します。タッチのスクロールを妨げず、複数ポインター・筆圧・押下状態の新しい環境変数は追加しません。
 - 音声入力は未接続です。Video Frameは同梱した動画Assetを読み出せます。Timeline・音声出力・タイルレンダリング・パフォーマンス統計は含めません。
-- Custom Node Graph Effect内の環境変数は`IS_EXPORT=false`、`END_TIME=Infinity`、`PROGRESS=0`です。
+- Nodes Effect内の環境変数は`IS_EXPORT=false`、`END_TIME=Infinity`、`PROGRESS=0`です。
 
 ## 検証
 

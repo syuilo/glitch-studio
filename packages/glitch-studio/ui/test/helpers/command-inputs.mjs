@@ -4,13 +4,13 @@ export function assetSource(asset) {
 	return source;
 }
 
-export function customNodeGraphEffectTarget(input) {
-	return input.customNodeGraphEffectId != null ? { customNodeGraphEffectId: input.customNodeGraphEffectId }
+export function nodesEffectTarget(input) {
+	return input.nodesEffectId != null ? { nodesEffectId: input.nodesEffectId }
 		: { sceneId: input.sceneId, layerId: input.layerId };
 }
 
 export function nodeTarget(input) {
-	return { customNodeGraphEffect: customNodeGraphEffectTarget(input), nodeId: input.nodeId };
+	return { nodesEffect: nodesEffectTarget(input), nodeId: input.nodeId };
 }
 
 export function nodeParameterTarget(input) {
@@ -18,7 +18,7 @@ export function nodeParameterTarget(input) {
 }
 
 export function customParameterTarget(input) {
-	return { customNodeGraphEffect: customNodeGraphEffectTarget(input), parameterId: input.parameterId };
+	return { nodesEffect: nodesEffectTarget(input), parameterId: input.parameterId };
 }
 
 export function timelineParameterTarget(input) {

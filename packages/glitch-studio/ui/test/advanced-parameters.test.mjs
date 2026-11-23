@@ -1,5 +1,5 @@
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
-import { testGraph } from './helpers/effect-graph.mjs';
+import { testNodesEffect } from './helpers/nodes-effect.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -105,7 +105,7 @@ for (const target of ['node', 'layer']) {
 		if (target === 'layer') params.input = { inputSource: 'lowerLayerOutput' };
 		const owner = { id: 'effect', type: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, resolution: { mode: 'auto', scale: 1 }, automationGraphs: [], params, effectParamValues: params, isBypass: false };
 		const f = fixture(t, target === 'node' ? NodeSettings : LayerSettings, target === 'node'
-			? { node: owner, customNodeGraphEffect: testGraph({ customParameterValues: {}, nodes: [owner], automationGraphs: [] }) }
+			? { node: owner, nodesEffect: testNodesEffect({ customParameterValues: {}, nodes: [owner], automationGraphs: [] }) }
 			: { layer: owner, contextResolution: { width: 1920, height: 1080 }, imageLayerOptions: [], anotherLayerAudioOptions: [] });
 		const saved = structuredClone(params);
 		assert.deepEqual(f.paths(), [['amount'], ['end']]);

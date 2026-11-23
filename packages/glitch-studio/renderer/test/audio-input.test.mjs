@@ -30,7 +30,7 @@ async function audioPlacement(bindings, publicAudio = null) {
 		nodes: bindings.map((params, i) => ({ id: String(i), effectSource: native, params })),
 		outputSources: Object.fromEntries(bindings.map((_, i) => [i, { nodeId: String(i), outputPort: 'output' }])) };
 	const observed = [];
-	const instance = await createEffectInstance({ effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph },
+	const instance = await createEffectInstance({ effectSource: { type: 'inlineNodesEffect', nodesEffect: graph },
 		resolution: { width: 2, height: 2 }, usedOutputPorts: new Set(Object.keys(graph.outputDefs)),
 		inputs: { sound: { kind: 'value', value: publicAudio } }, definitions: { getNativeEffect: () => ({ ...metadata, paramDefs: { audio: audioDef, amount } }) } },
 		{}, () => ({ createOutputTexture: () => ({ destroy() {} }), init({ inputs }) { return { render() { observed.push(inputs.audio.value); }, dispose() {} }; } }));
@@ -150,11 +150,11 @@ test('decodes preview audio at the playback position after seeking', async t => 
 });
 
 // 【音声公開パラメータは専用入力として渡し、PUBLIC式には公開しない】
-// 下層入力の解決をCustom Node Graph Effectの外側に保ち、内部エフェクトはSceneやレイヤーを知らずに使える。
+// 下層入力の解決をNodes Effectの外側に保ち、内部エフェクトはSceneやレイヤーを知らずに使える。
 // canNodeを無効にしても、音声リソースを通常の数値・画像の参照へ流してはいけない。
 test('resolves public audio inputs independently of PUBLIC and image parameters', async t => {
 	const source = { cacheKey: 'lower', readWindow: () => window() };
-	const audio = { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'sound' };
+	const audio = { inputSource: 'nodesEffectPublicParameterReference', parameterId: 'sound' };
 	const invalid = await audioPlacement([{ audio, amount: { inputSource: 'expression', expression: 'PUBLIC("sound")' } }], source);
 	t.after(() => invalid.instance.dispose());
 	assert.throws(() => invalid.instance.render({ time: 0, timeDelta: 0 }, {}), /unknown parameter/);
@@ -167,10 +167,10 @@ test('resolves public audio inputs independently of PUBLIC and image parameters'
 
 
 
-// 【Custom Node Graph Effectの主音声入力はScene時刻で解決し、内容時刻と分離する】
-// トリムやCustom Node Graph Effect内のTIMEを変えても、同じ場所の下層音声が選ばれる必要がある。
+// 【Nodes Effectの主音声入力はScene時刻で解決し、内容時刻と分離する】
+// トリムやNodes Effect内のTIMEを変えても、同じ場所の下層音声が選ばれる必要がある。
 // Noneを明示した場合は自動割り当てを上書きし、音声の読み出しも行わない。
-test('anchors Custom Node Graph Effect audio to scene time while preserving content time and explicit none', async () => {
+test('anchors Nodes Effect audio to scene time while preserving content time and explicit none', async () => {
 	const publicAudio = { ...audioDef, id: 'audio-id', nameForReference: 'sound' };
 	const calls = [];
 	const input = { cacheKey: 'lower', readWindow: () => window() };
@@ -193,7 +193,7 @@ test('anchors Custom Node Graph Effect audio to scene time while preserving cont
 });
 
 // 【公開音声パラメータごとに参照先を解決し、同じ参照だけをフレーム内で共有する】
-// 単一の入力を使い回すと、下層音声と指定レイヤーを同時に使うCustom Node Graph Effectで誤った波形になる。
+// 単一の入力を使い回すと、下層音声と指定レイヤーを同時に使うNodes Effectで誤った波形になる。
 // 欠落参照のnullもキャッシュし、次のフレームでは再解決してUndoや編集を反映する。
 test('resolves independent public audio sources and shares only matching frame inputs', async () => {
 	const bindings = {

@@ -7,7 +7,7 @@ import type { TimelineContainerLayer, TimelineLayer } from '@gs/subsystems_timel
 import type { ProjectState } from '../Project.ts';
 
 /** コンテナに含まれる全キーを対象にし、クリップ内への所属判定や別Sceneへの再帰は行わない。 */
-export function prepareTimelineContainerMove(state: Pick<ProjectState, 'customNodeGraphEffects'>, container: TimelineContainerLayer) {
+export function prepareTimelineContainerMove(state: Pick<ProjectState, 'nodesEffects'>, container: TimelineContainerLayer) {
 	const layers = flattenTimelineLayers([container]);
 	const clips = getTimelineClipLayers([container]).flatMap(layer => layer.clips.map(clip => ({
 		layerId: layer.id,
@@ -32,7 +32,7 @@ export function prepareTimelineContainerMove(state: Pick<ProjectState, 'customNo
 
 export type TimelineContainerMove = ReturnType<typeof prepareTimelineContainerMove>;
 
-/** 保存されたBinding内の参照だけを付け替え、式・共有Custom Node Graph Effect・参照先Sceneは変更しない。 */
+/** 保存されたBinding内の参照だけを付け替え、式・共有Nodes Effect・参照先Sceneは変更しない。 */
 export function duplicateTimelineLayers(source: readonly TimelineLayer[]): TimelineLayer[] {
 	const result = deepClone([...source]);
 	const layers = flattenTimelineLayers(result);

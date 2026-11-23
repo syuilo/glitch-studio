@@ -149,9 +149,9 @@ test('renders cube LUTs on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 6
 	t.diagnostic(`${checks.length} checks: ${checks.join(', ')}`);
 });
 
-// 【分離したエフェクト・Custom Node Graph Effect・エフェクトレイヤーの描画を実GPUで検証する】
+// 【分離したエフェクト・Nodes Effect・エフェクトレイヤーの描画を実GPUで検証する】
 // 複数出力・履歴交換・バイパス・リサイズに加え、レイヤーの下層入力・キー・合成後の画素を確認する。
-test('renders extracted effects, Custom Node Graph Effects and timeline effects on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/effect-renderer-gpu.ts', 14));
+test('renders extracted effects, Nodes Effects and timeline effects on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/effect-renderer-gpu.ts', 14));
 
 // 【グループの入れ子・空白・透明出力をChromeのWebGPUで検証する】
 // Scene時刻と背景の分離、各段階のopacity、replace、無効化時の資源解放を実装経由で確認する。

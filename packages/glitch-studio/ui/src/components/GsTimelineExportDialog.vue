@@ -287,7 +287,7 @@ async function doExport() {
 			assets: getRendererAssets(stateManager.state.assets.value),
 			generatedSpeech: stateManager.state.generatedSpeech.value,
 			customShaderEffects: stateManager.state.customShaderEffects.value,
-			customNodeGraphEffects: stateManager.state.customNodeGraphEffects.value,
+			nodesEffects: stateManager.state.nodesEffects.value,
 			automationGraphs: stateManager.state.automationGraphs.value,
 			timelineScenes: stateManager.state.timelineScenes.value,
 			sceneId: exportSceneId,

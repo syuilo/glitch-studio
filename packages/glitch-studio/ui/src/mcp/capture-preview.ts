@@ -62,7 +62,7 @@ export async function captureProjectPreview(session: ProjectSessionContext, maxi
 	const target = playback.mode === 'timeline' ? { kind: 'timeline' as const, sceneId: session.activeSceneId.value }
 		: playback.effectSource.type === 'customShaderEffectReference'
 			? { kind: 'customShaderEffect' as const, customShaderEffectId: playback.effectSource.id }
-			: { kind: 'customNodeGraphEffect' as const, customNodeGraphEffectId: playback.effectSource.id };
+			: { kind: 'nodesEffect' as const, nodesEffectId: playback.effectSource.id };
 	const controller = session.activePreviewRenderer.value;
 	const canvasRevision = controller.canvasRevision.value;
 	const captured = await waitFor(playback.mode === 'effectLivePreview'

@@ -111,7 +111,7 @@ import { projectSessions, newProject, newProjectFromImageOrVideo, openProject } 
 import { useHeaderEditActions } from '@/composables/useHeaderEditActions.ts';
 import { preferences } from '@/preferences.ts';
 import { desktopUpdateUi } from '@/desktop-update-ui.ts';
-import { importCustomNodeGraphEffectFile } from '@/utility/custom-node-graph-effect-file.ts';
+import { importNodesEffectFile } from '@/utility/nodes-effect-file.ts';
 import { importAssetsAndRevealPanel } from '@/utility/import-assets.ts';
 import { workspacePanelChoices } from '@/workspace.ts';
 import GsWindowTitlebar from '@/components/common/GsWindowTitlebar.vue';
@@ -211,9 +211,9 @@ function openHeaderFileMenu(ev: PointerEvent) {
 		icon: 'ti ti-download',
 		children: [{
 			disabled: projectSession == null,
-			text: i18n.ts._App.ImportCustomNodeGraphEffect,
+			text: i18n.ts._App.ImportNodesEffect,
 			icon: 'ti ti-binary-tree-2',
-			action: () => { if (projectSession != null) void importCustomNodeGraphEffectFile(projectSession.projectContext); },
+			action: () => { if (projectSession != null) void importNodesEffectFile(projectSession.projectContext); },
 		}],
 	}, {
 		disabled: projectSession == null,

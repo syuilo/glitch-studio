@@ -78,7 +78,7 @@ ui: {
 - `linear`以外の連続補間は、隣接stop間の進行率`t`（0〜1）を変換してから色・alpha・OKLCHの色相へ同じ進行率を適用します。`smoothstep`は`t²(3−2t)`、`smootherstep`は`t³(6t²−15t＋10)`で、後者は両端の1階・2階微分が0です。`easeIn`は`t²`で始点の色を長く保ち、`easeOut`は`t(2−t)`で早めに終点の色へ移る二次補間です。
 - 選択した色空間へ変換してからalphaを乗算して補間します。OKLCHではCSS Color 4と同様にL・Cだけへalphaを乗算し、色相はalphaと独立に補間します。完全透明な有彩色stopも色相を保持するため、alphaの0と微小な正値で色相の経路が切り替わりません。補間後は乗算した成分を未乗算へ戻し、linear sRGBへ変換して再びalphaを乗算します。RGBはclampしません。alphaが0の場合は透明色を返します。端点とConstantでは色空間変換の往復を省略します。
 - OKLCHの色相経路は省略可能な`hueInterpolation`で指定します。`shorter`（既定）・`longer`・`increasing`・`decreasing`に対応し、他の色空間ではこの設定を使いません。変換後のCが0.000004以下の場合は無彩色としてCを0に揃え、補間区間の相手の色相を借ります。色相経路はalphaを乗算する前に区間ごとに準備し、CPUプレビューとGPUで共有します。
-- 固定値・環境変数・ランプ全体を返す基準式と加工式・Custom Node Graph Effectの公開入力で利用できます。キーフレーム・Automation Graph・テクスチャとしてのノード接続は扱いません。
+- 固定値・環境変数・ランプ全体を返す基準式と加工式・Nodes Effectの公開入力で利用できます。キーフレーム・Automation Graph・テクスチャとしてのノード接続は扱いません。
 - 式は各stopのIDを安定した文字列で返してください。加工式の`VALUE`もランプ全体で、式の内部変更は保存値へ書き戻されません。不正な構造や非有限値はエラーとして報告します。
 
 専用UIはプレビューをクリックすると編集用ポップアップを開き、stopの追加・削除・選択・色・位置と繰り返し設定を編集します。バーは繰り返し後の結果を表示しますが、stopのハンドルは繰り返し前の位置を保ちます。「繰り返し前を表示」はエディタのバーだけを切り替え、保存値やUndoには影響しません。プリセットのプレビューにも現在の繰り返し設定を反映し、適用時は設定を維持してstopだけを置き換えます。
@@ -109,13 +109,13 @@ VALUE
 
 ## パラメータの参照スコープ
 
-- Custom Node Graph Effectの公開パラメータの `id` は接続・引数・直接参照の識別子、`nameForReference` は `PUBLIC` 式から参照する名前、`ui.label` は表示名です。IDと参照名のブランド型を相互に代用せず、表示名を接続のキーにしないでください。Timelineの公開パラメータIDはTimeline固有の型で、Custom Node Graph EffectのIDとは区別します。
+- Nodes Effectの公開パラメータの `id` は接続・引数・直接参照の識別子、`nameForReference` は `PUBLIC` 式から参照する名前、`ui.label` は表示名です。IDと参照名のブランド型を相互に代用せず、表示名を接続のキーにしないでください。Timelineの公開パラメータIDはTimeline固有の型で、Nodes EffectのIDとは区別します。
 - コードで用意する `nameForReference` の初期値・自動生成名・テストデータは、`my_input`・`my_param_2`・`scene_time` のようなsnake caseに統一します。
 - `AutomationGraph` の `nameForReference` は `GRAPH("graph_name", 座標, "clamp")` で照合する参照名で、UIのグラフ選択にも表示します。`automationGraphReference` は `automationGraphId` とグラフの `id` で参照するため、参照名を変更してもその接続は維持されます。インラインの `AutomationGraphData` は参照名・IDを持ちません。
-- Custom Node Graph Effectの公開パラメータの `canNode: true` はInノードの出力として公開することを表します。内部からはInノードへの配線で参照し、`customNodeGraphEffectPublicParameterReference` や `PUBLIC` による直接参照は `canNode: false` の公開パラメータに限定する仕様です。ただし音声は`customNodeGraphEffectPublicParameterReference`だけで参照し、`PUBLIC`には公開しません。入力が定数かテクスチャかによって参照方法を変えません。
-- レイヤーの引数・合成設定と、Custom Node Graph Effect内部の式は別の評価スコープです。変数・automation graph・参照可能なパラメータを呼び出し側から明示し、親スコープを暗黙に継承しません。グラフの再生時刻を渡すことと、同名の変数を式に公開することも別です。
+- Nodes Effectの公開パラメータの `canNode: true` はInノードの出力として公開することを表します。内部からはInノードへの配線で参照し、`nodesEffectPublicParameterReference` や `PUBLIC` による直接参照は `canNode: false` の公開パラメータに限定する仕様です。ただし音声は`nodesEffectPublicParameterReference`だけで参照し、`PUBLIC`には公開しません。入力が定数かテクスチャかによって参照方法を変えません。
+- レイヤーの引数・合成設定と、Nodes Effect内部の式は別の評価スコープです。変数・automation graph・参照可能なパラメータを呼び出し側から明示し、親スコープを暗黙に継承しません。グラフの再生時刻を渡すことと、同名の変数を式に公開することも別です。
 
-Custom Node Graph Effect内部の共通値には、公開入力と独立したカスタムパラメータを使います。`PUBLIC(name)`と`CUSTOM(name)`で参照先を明示し、`PARAM`による優先順位の探索は行いません。カスタム同士の参照・評価環境・エラーの扱いは[Custom Node Graph Effect](./custom-node-graph-effect.md#カスタムパラメータ)を参照してください。Timelineの公開パラメータも関数名は`PUBLIC`とし、以下の参照スコープは維持します。Timelineに`CUSTOM`は公開しません。
+Nodes Effect内部の共通値には、公開入力と独立したカスタムパラメータを使います。`PUBLIC(name)`と`CUSTOM(name)`で参照先を明示し、`PARAM`による優先順位の探索は行いません。カスタム同士の参照・評価環境・エラーの扱いは[Nodes Effect](./nodes-effect.md#カスタムパラメータ)を参照してください。Timelineの公開パラメータも関数名は`PUBLIC`とし、以下の参照スコープは維持します。Timelineに`CUSTOM`は公開しません。
 
 ## Timelineレイヤーの公開パラメータ
 
@@ -123,7 +123,7 @@ Custom Node Graph Effect内部の共通値には、公開入力と独立した�
 
 対応する型は数値・真理値・文字列・色・ベクトル・enum・Color Ramp・Size Referenceです。画像・Asset・音声・配列・構造体やノード入力は公開しません。固定値・環境変数・式・キー・Automation Graph・加工式の対応範囲は、それぞれの型の通常の値Bindingに従います。
 
-型の種類を変更すると、所有する保存Bindingを外して新しい定義の既定値へ戻します。Undo/Redoでは定義と保存Bindingをまとめて復元します。表示名・編集UI・既定値だけの変更では保存Bindingを維持し、enumの選択肢の削除・改名も既存の値を残して評価時に検証します。Custom Node Graph Effectレイヤーの公開パラメータ値だけを編集する場合は、内部の履歴とインスタンスを維持します。
+型の種類を変更すると、所有する保存Bindingを外して新しい定義の既定値へ戻します。Undo/Redoでは定義と保存Bindingをまとめて復元します。表示名・編集UI・既定値だけの変更では保存Bindingを維持し、enumの選択肢の削除・改名も既存の値を残して評価時に検証します。Nodes Effectレイヤーの公開パラメータ値だけを編集する場合は、内部の履歴とインスタンスを維持します。
 
 | 参照する場所 | 式の`PUBLIC("reference_name")` | 入力方式からの直接参照 |
 | --- | --- | --- |
@@ -132,17 +132,17 @@ Custom Node Graph Effect内部の共通値には、公開入力と独立した�
 
 親は、同じScene内でフォルダを除いた直近の祖先（パラメータコンテナ・Transform・Group）です。フォルダはスコープを作らず、その挿入で式の親が変わることはありません。空のパラメータコンテナもスコープとなり、目的の定義がなければ外側へ探索せずエラーです。Scene最上位には親がなく、同じレイヤーの別公開パラメータも参照できないため、公開パラメータ間の循環は構造的に発生しません。親の値を子で加工する場合、子の公開パラメータの式を`PUBLIC("speed") * 2`とし、子の通常のパラメータからその子自身の定義を参照できます。
 
-直接参照は`{ inputSource: 'timelineLayerPublicParameterReference', layerId, parameterId }`を保存し、Custom Node Graph Effect内部の参照とは共有しません。未選択では両IDをnullにします。UIには所有レイヤーと表示名・参照名を表示し、型が一致する定義だけを候補にします。参照名はレイヤー内で一意とし、名前変更でも直接参照は維持します。`PUBLIC`内の文字列は自動変更せず、未知の名前・不正な引数は式エラーです。
+直接参照は`{ inputSource: 'timelineLayerPublicParameterReference', layerId, parameterId }`を保存し、Nodes Effect内部の参照とは共有しません。未選択では両IDをnullにします。UIには所有レイヤーと表示名・参照名を表示し、型が一致する定義だけを候補にします。参照名はレイヤー内で一意とし、名前変更でも直接参照は維持します。`PUBLIC`内の文字列は自動変更せず、未知の名前・不正な引数は式エラーです。
 
 直接参照先の削除・階層移動ではIDを保持し、UIに欠落・範囲外を表示します。未選択・未解決の参照は受け取り側のパラメータ定義の既定値を使い、存在する参照先の型不一致は評価エラーにします。Group複製では範囲内のレイヤーIDだけを付け替えます。直接参照Binding自体への加工式は提供せず、加工したい値は公開パラメータへ受けて通常の式から参照します。
 
 値は所有レイヤーの式環境・Automation Graphを使い、評価サンプルの所属Scene時刻で評価します。子のグラフやクリップの内容時刻は継承しません。参照値はコピーして渡し、式から変更しても保存値や他の利用者へ漏らしません。評価値をシーク間で共有しません。
 
-参照先Sceneの内部とCustom Node Graph Effect内部は別スコープです。Scene最上位には呼び出し元Sceneレイヤーのパラメータを渡しません。Custom Node Graph Effectへはレイヤー側で評価した値を既存の公開入力へ渡します。合成・Transform・カメラと音量にも同じ参照規則を適用し、音声では参照先のキーも通常の音量キーと同じ時刻で評価します。
+参照先Sceneの内部とNodes Effect内部は別スコープです。Scene最上位には呼び出し元Sceneレイヤーのパラメータを渡しません。Nodes Effectへはレイヤー側で評価した値を既存の公開入力へ渡します。合成・Transform・カメラと音量にも同じ参照規則を適用し、音声では参照先のキーも通常の音量キーと同じ時刻で評価します。
 
 ## 乱数とノイズの式関数
 
-パラメータの式では、TimelineとCustom Node Graph Effectに共通の数値関数を利用できます。
+パラメータの式では、TimelineとNodes Effectに共通の数値関数を利用できます。
 
 | 関数 | 引数 | 戻り値 |
 | --- | --- | --- |
@@ -200,23 +200,23 @@ NOISE(TIME * 3, 1) * 0.03
 
 キー追加時に保存する値は加工前の補間値です。プレビュー上のドラッグでは、位置・回転の操作量や拡縮率を基準値へ反映し、加工式を保持します。任意の式を逆算しないため、加工後の最終値がポインターの指定値になるとは限りません。操作終了後の枠は、最終編集が反映されたプレビュー応答で加工後の実際の位置・倍率・回転へ確定します。
 
-加工対象は共通のCPU値の末端Bindingです。配列・構造体のコンテナ、音声、ノード接続・レイヤー画像参照・Custom Node Graph Effect公開パラメータ参照（`customNodeGraphEffectPublicParameterReference`）などのドメイン固有入力は対象外です。対応する入力方式から対象外の方式へ切り替えた場合、加工式は引き継ぎません。`VALUE_AT`・`WIGGLE`や式の多段適用は提供しません。
+加工対象は共通のCPU値の末端Bindingです。配列・構造体のコンテナ、音声、ノード接続・レイヤー画像参照・Nodes Effect公開パラメータ参照（`nodesEffectPublicParameterReference`）などのドメイン固有入力は対象外です。対応する入力方式から対象外の方式へ切り替えた場合、加工式は引き継ぎません。`VALUE_AT`・`WIGGLE`や式の多段適用は提供しません。
 
 ## プロジェクト共通のAutomation Graph
 
-プロジェクトの`automationGraphs`は曲線の定義（ID・`nameForReference`・点・時間軸の種類）だけを共有する。再生設定は各Binding、評価時刻・終了時刻は参照元の評価スコープが所有する。Timelineでは所属Sceneの時刻を使い、Custom Node Graph Effect Live Previewの公開パラメータへの入力ではLive Previewの時刻を使う。
+プロジェクトの`automationGraphs`は曲線の定義（ID・`nameForReference`・点・時間軸の種類）だけを共有する。再生設定は各Binding、評価時刻・終了時刻は参照元の評価スコープが所有する。Timelineでは所属Sceneの時刻を使い、Nodes Effect Live Previewの公開パラメータへの入力ではLive Previewの時刻を使う。
 
 `automationGraphReference`はIDで解決する。レイヤー内とプロジェクト共通の両方を候補に残すので、同じ参照名でも共通定義をIDで選べる。式の`GRAPH(nameForReference, coordinate, wrapMode)`はローカル定義を優先し、見つからない場合にプロジェクト共通の定義を使う。Group・Transform・パラメータコンテナのローカル定義を子レイヤーへ継承しない。
 
 共通定義の`nameForReference`はプロジェクト内で一意とし、名前変更でID参照は変わらない。`GRAPH()`内の文字列は自動変更しない。削除後もBindingの参照IDを保持し、未解決のID参照には既定値を使う。一方、式の`GRAPH()`で参照名が見つからない場合は式エラーにする。Undoで同じID・参照名を復元すれば再び解決される。
 
-プロジェクト共通の定義はCustom Node Graph Effect内部のノード・式へ直接公開しない。Custom Node Graph Effect自身のローカル定義は維持し、プロジェクト共通の曲線を使う値は公開パラメータへの引数として渡す。
+プロジェクト共通の定義はNodes Effect内部のノード・式へ直接公開しない。Nodes Effect自身のローカル定義は維持し、プロジェクト共通の曲線を使う値は公開パラメータへの引数として渡す。
 
 ## Other
 
-Bindingは利用可能な入力方式を所有するドメインで定義します。共通の `ValueParameterBinding` はliteral・環境変数・式・automation・キーフレームだけを扱います。Custom Node Graph Effect内部の `CustomNodeGraphEffectParameterBinding` は共通方式に `node` / `customNodeGraphEffectPublicParameterReference` を加えます。Timelineの `TimelineParameterBinding` は共通方式に `timelineLayerPublicParameterReference` を加えます。
+Bindingは利用可能な入力方式を所有するドメインで定義します。共通の `ValueParameterBinding` はliteral・環境変数・式・automation・キーフレームだけを扱います。Nodes Effect内部の `NodesEffectParameterBinding` は共通方式に `node` / `nodesEffectPublicParameterReference` を加えます。Timelineの `TimelineParameterBinding` は共通方式に `timelineLayerPublicParameterReference` を加えます。
 
-Effect Layerは3種類のEffectすべてに `TimelineEffectParameterBinding` を使います。Timelineの入力方式に加え、音声用の `lowerLayerAudio` / `anotherLayerAudio` と画像用の `lowerLayerOutput` / `anotherLayerOutput` を持ちます。画像Bindingにはfit・wrap・filterを保存でき、Custom Node Graph Effect内のサンプリングは内部接続が指定します。Custom Node Graph Effect Live Previewから渡す `CustomNodeGraphEffectArgumentBindings` は共通方式だけを許可し、タイムラインの合成設定・音量にはTimelineの方式を許可します。
+Effect Layerは3種類のEffectすべてに `TimelineEffectParameterBinding` を使います。Timelineの入力方式に加え、音声用の `lowerLayerAudio` / `anotherLayerAudio` と画像用の `lowerLayerOutput` / `anotherLayerOutput` を持ちます。画像Bindingにはfit・wrap・filterを保存でき、Nodes Effect内のサンプリングは内部接続が指定します。Nodes Effect Live Previewから渡す `NodesEffectArgumentBindings` は共通方式だけを許可し、タイムラインの合成設定・音量にはTimelineの方式を許可します。
 
 共通の `ParameterBindingBase` はツリー操作に必要な `inputSource` だけを持ち、保存用の全方式を集めたunionにはしません。共通の走査・IDパスによる編集処理はジェネリックにし、呼び出し側のBinding型を保持します。`walkParameters` は渡されたBindingを定義順でたどり、未設定のルートを飛ばします。ノード接続やレイヤー入力は利用ドメイン側で設定します。複数ドメインを扱う編集用unionはUI側に置き、各Commandへ渡す境界で対象を絞り込みます。literalの内部値の完全な静的型付けは行っていないため、配列・構造体内部の入力方式の実行時検証も維持します。
 

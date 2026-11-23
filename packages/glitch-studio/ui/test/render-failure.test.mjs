@@ -202,7 +202,7 @@ test('keeps explicit suspension independent of resource completion and cancellat
 // 発生元は別の診断として破棄前に保存し、再生成開始時にだけ解除する。
 test('retains failure locations independently of disposed execution state and clears them on retry', async () => {
 	const source = { type: 'timelineLayer', instanceId: 'instance', rootSceneId: 'root',
-		layerId: 'customNodeGraphEffectLayer', clipId: 'clip', layerPath: ['sceneLayer', 'placement', 'customNodeGraphEffectLayer'] };
+		layerId: 'nodesEffectLayer', clipId: 'clip', layerPath: ['sceneLayer', 'placement', 'nodesEffectLayer'] };
 	const states = new Map([['node', { status: 'error' }]]);
 	let reason;
 	const engine = new PreviewRenderEngine({ create: async () => {}, dispose: error => { states.clear(); reason = error; } });
@@ -222,7 +222,7 @@ test('retains failure locations independently of disposed execution state and cl
 });
 
 // 【Effect Live Previewの発生元をプレビューの現在の選択から独立して表示する】
-// 停止後に別のCustom Node Graph Effectを選択しても、元の失敗通知のIDから場所を表示する。
+// 停止後に別のNodes Effectを選択しても、元の失敗通知のIDから場所を表示する。
 test('identifies an Effect Live Preview failure after stopping its instance', () => {
 	const origin = { source: { type: 'effectLivePreview', instanceId: 'instance' } };
 	assert.equal(formatRenderFailureOrigin(origin, []), 'Effect Live Preview');
@@ -231,10 +231,10 @@ test('identifies an Effect Live Preview failure after stopping its instance', ()
 // 【子Scene内のノードの発生元を配置クリップまで区別する】
 // 同じ子Sceneを複数のクリップで使っても原因の配置を特定できる必要がある。
 // Group配下のレイヤーも同じSceneのID探索で解決し、登録・Inline双方のノードを表示する。
-for (const layerType of ['customNodeGraphEffect', 'inlineCustomNodeGraphEffect']) {
+for (const layerType of ['nodesEffect', 'inlineNodesEffect']) {
 	test(`describes nested scene placements and grouped nodes in a ${layerType} layer`, () => {
-		const customNodeGraphEffect = { id: 'customNodeGraphEffect', nodes: [{ id: 'node', type: 'effect', displayName: 'Noise' }] };
-		const childLayer = { id: 'childLayer', name: 'Effects', layerType, customNodeGraphEffectId: customNodeGraphEffect.id, customNodeGraphEffect,
+		const nodesEffect = { id: 'nodesEffect', nodes: [{ id: 'node', type: 'effect', displayName: 'Noise' }] };
+		const childLayer = { id: 'childLayer', name: 'Effects', layerType, nodesEffectId: nodesEffect.id, nodesEffect,
 			clips: [{ id: 'childClip', startMs: 500 }] };
 		const scenes = [{ id: 'root', name: 'Main', layers: [{ id: 'sceneLayer', name: 'Child scene', layerType: 'scene',
 			clips: [{ id: 'first', sceneId: 'child', startMs: 0 }, { id: 'second', sceneId: 'child', startMs: 2000 }] }] },

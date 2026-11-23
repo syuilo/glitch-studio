@@ -87,7 +87,7 @@ function values(node) {
 }
 
 // 【Timelineの平均と最大値をmsのまま表示し、未計測や停止中の値を新しいサンプルにしない】
-// Custom Node Graph Effectの統計は別の単位で渡されるため、共通の単位変換を通すとTimelineが1000分の1になる。
+// Nodes Effectの統計は別の単位で渡されるため、共通の単位変換を通すとTimelineが1000分の1になる。
 // 待機中は0と断定せず未計測表示とし、一時停止中の重複通知で履歴を埋めない。
 test('displays timeline averages and maxima in milliseconds without duplicating idle samples', async t => {
 	const f = await fixture(t);
@@ -112,7 +112,7 @@ test('displays timeline averages and maxima in milliseconds without duplicating 
 // 【プレビュー表示を切り替えたら異なる指標の履歴を混ぜず、従来のGPU移動平均も維持する】
 // 同じパネルを両モードで使うため、切り替え後に動画の待ち時間をGPUの値として描かない。
 // アンマウント後にサンプリングタイマーが残らないことも確認する。
-test('switches between timeline timings and Custom Node Graph Effect GPU averages with separate histories', async t => {
+test('switches between timeline timings and Nodes Effect GPU averages with separate histories', async t => {
 	const f = await fixture(t);
 	f.state.value = { mode: 'effectLivePreview', playing: true };
 	await nextTick();

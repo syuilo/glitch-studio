@@ -51,7 +51,7 @@ export async function checkBlurRegionTimelineLayer(device: GPUDevice, vertex: GP
 		},
 	};
 	const renderer = createEffectTimelineLayer(layer, {
-		definitions: { getNativeEffect: () => blurDefinition, getCustomShaderEffect: () => { throw new Error('Unexpected shader'); }, getCustomNodeGraphEffect: () => { throw new Error('Unexpected graph'); } },
+		definitions: { getNativeEffect: () => blurDefinition, getCustomShaderEffect: () => { throw new Error('Unexpected shader'); }, getNodesEffect: () => { throw new Error('Unexpected graph'); } },
 		getNativeEffectImplementation: () => blur,
 		wgpu: {
 			device,
@@ -143,7 +143,7 @@ export async function checkEffectTimelineLayers(device: GPUDevice, vertex: GPUSh
 		fallbackOutput: fallback,
 		createLayer: layer => createEffectTimelineLayer(layer, {
 			wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false },
-			definitions: { getNativeEffect: id => definitions[id], getCustomShaderEffect: () => { throw new Error('Unexpected shader'); }, getCustomNodeGraphEffect: () => { throw new Error('Unexpected graph'); } },
+			definitions: { getNativeEffect: id => definitions[id], getCustomShaderEffect: () => { throw new Error('Unexpected shader'); }, getNodesEffect: () => { throw new Error('Unexpected graph'); } },
 			getNativeEffectImplementation: id => implementations[id as keyof typeof implementations],
 			sceneBaseResolution: { width: 4, height: 4 }, resolutionScale: 1,
 		}),

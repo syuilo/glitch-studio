@@ -27,8 +27,8 @@ export function getParameterBindingChangeKind(definition: ParameterDefinition, b
 	}
 	switch (after.inputSource) {
 		case 'node':
-		case 'customNodeGraphEffectPublicParameterReference':
-		case 'customNodeGraphEffectCustomParameterValueReference':
+		case 'nodesEffectPublicParameterReference':
+		case 'nodesEffectCustomParameterValueReference':
 		case 'timelineLayerPublicParameterReference':
 		case 'anotherLayerOutput':
 		case 'lowerLayerOutput':

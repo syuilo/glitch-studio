@@ -6,22 +6,22 @@ import { createPortableEffectInputs } from './effect-inputs.ts';
 import { AssetTextures } from '@gs/glitch-studio_renderer/asset-textures.ts';
 import { PortableCanvasRenderer } from '@gs/glitch-studio_renderer/portable-canvas-renderer.ts';
 import { getPortableRenderResolution, getPortablePointerPosition } from './protocol.ts';
-import type { PortableCustomNodeGraphEffectRequest, PortableCustomNodeGraphEffectResponse, PortableCustomNodeGraphEffectFrame } from './protocol.ts';
-import type { PortableCustomNodeGraphEffect } from '@gs/glitch-studio_shared/portable-custom-node-graph-effect.ts';
+import type { PortableNodesEffectRequest, PortableNodesEffectResponse, PortableNodesEffectFrame } from './protocol.ts';
+import type { PortableNodesEffect } from '@gs/glitch-studio_shared/portable-nodes-effect.ts';
 import type { Asset } from '@gs/shared/types.ts';
 
 /** 作品に配置されたNative Effectだけをカタログから受け取る。 */
-export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffectDefinitions, implementations: Readonly<Record<string, NativeEffectImplementation>>) {
+export function startPortableNodesEffectWorker(definitions: NativeEffectDefinitions, implementations: Readonly<Record<string, NativeEffectImplementation>>) {
 	const worker = globalThis as unknown as {
-		onmessage: (event: MessageEvent<PortableCustomNodeGraphEffectRequest>) => void;
-		postMessage: (message: PortableCustomNodeGraphEffectResponse) => void;
+		onmessage: (event: MessageEvent<PortableNodesEffectRequest>) => void;
+		postMessage: (message: PortableNodesEffectResponse) => void;
 	};
 	const controller = new AbortController();
 	let device: GPUDevice | null = null;
 	let assetTextures: AssetTextures | null = null;
 	let effect: EffectInstance | null = null;
 	let presenter: PortableCanvasRenderer | null = null;
-	let renderFrame: ((frame: PortableCustomNodeGraphEffectFrame) => Promise<void>) | null = null;
+	let renderFrame: ((frame: PortableNodesEffectFrame) => Promise<void>) | null = null;
 	let processingFrame = false;
 
 	function dispose() {
@@ -41,7 +41,7 @@ export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffe
 		dispose();
 	}
 
-	async function initialize(canvas: OffscreenCanvas, data: PortableCustomNodeGraphEffect, artworkModuleUrl: string | null) {
+	async function initialize(canvas: OffscreenCanvas, data: PortableNodesEffect, artworkModuleUrl: string | null) {
 		if (navigator.gpu == null) throw new Error('WebGPU requires a supported browser and a secure context (HTTPS or localhost)');
 		const adapter = await navigator.gpu.requestAdapter();
 		controller.signal.throwIfAborted();
@@ -71,8 +71,8 @@ export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffe
 		assetTextures = new AssetTextures(device, assets);
 		await assetTextures.waitUntilReady(controller.signal);
 		controller.signal.throwIfAborted();
-		const customNodeGraphEffect = data.customNodeGraphEffect;
-		const port = customNodeGraphEffect.primaryOutput!;
+		const nodesEffect = data.nodesEffect;
+		const port = nodesEffect.primaryOutput!;
 		const effectDefinitions = createProjectEffectDefinitions(data, definitions);
 		const gpu = { device, defaultVertexShaderModule: device.createShaderModule({ code: vertexCode }), enable32bitDataTextures: false };
 		// Web書き出しの音声入力は未接続として扱う。
@@ -87,12 +87,12 @@ export function startPortableCustomNodeGraphEffectWorker(definitions: NativeEffe
 			const resized = canvas.width !== resolution.width || canvas.height !== resolution.height;
 			if (resized) { canvas.width = resolution.width; canvas.height = resolution.height; }
 			const layoutChanged = frame.parameters != null && inputs != null && !inputs.update(frame.parameters);
-			if (inputs == null || layoutChanged) inputs = createPortableEffectInputs(customNodeGraphEffect.paramDefs, frame.parameters!);
+			if (inputs == null || layoutChanged) inputs = createPortableEffectInputs(nodesEffect.paramDefs, frame.parameters!);
 			// 実際の表示寸法と公開配列の構造が確定してから配置を生成する。値だけの更新では履歴を保つ。
 			if (effect == null || resized || layoutChanged) {
 				effect?.dispose();
 				effect = await createEffectInstance({
-					effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect }, definitions: effectDefinitions,
+					effectSource: { type: 'inlineNodesEffect', nodesEffect }, definitions: effectDefinitions,
 					resolution, resources, inputs: inputs.inputs, usedOutputPorts: new Set([port]),
 				}, gpu, id => implementations[id], controller.signal);
 				previousPointer = null;

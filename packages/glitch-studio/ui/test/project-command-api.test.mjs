@@ -25,7 +25,7 @@ function fixture() {
 	const state = {
 		name: { value: 'Original' }, description: { value: '' }, author: { value: '' },
 		resolution: { value: { width: 1920, height: 1080 } }, automationGraphs: { value: [] },
-		assets: { value: [] }, customNodeGraphEffects: { value: [] }, timelineScenes: { value: [] },
+		assets: { value: [] }, nodesEffects: { value: [] }, timelineScenes: { value: [] },
 	};
 	return { state, manager: new UndoRedo(state, { ...PROJECT_COMMAND_DEFS, ...RESOURCES_COMMAND_DEFS }) };
 }

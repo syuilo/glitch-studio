@@ -5,7 +5,7 @@ import type { TimelineKeyTarget, TimelineKeyframeSelection } from './timeline-se
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 
 /** 選択・スナップ・前後移動に必要な位置だけを公開し、発話を通常のBindingとして扱わない。 */
-export function getTimelineKeyframeLanes(state: Pick<ProjectState, 'customNodeGraphEffects'>, layer: TimelineLayer): {
+export function getTimelineKeyframeLanes(state: Pick<ProjectState, 'nodesEffects'>, layer: TimelineLayer): {
 	target: TimelineKeyTarget; paramPath: ParamPath; keyframes: { id: string; x: number }[];
 }[] {
 	const lanes = getLayerKeyframeParameters(state, layer).map(param => ({ target: param.target, paramPath: param.paramPath, keyframes: param.binding.keyframesTimeline.keyframes }));
@@ -15,7 +15,7 @@ export function getTimelineKeyframeLanes(state: Pick<ProjectState, 'customNodeGr
 	] : lanes;
 }
 
-export function getTimelineKeyframeEntries(state: Pick<ProjectState, 'customNodeGraphEffects'>, layers: readonly TimelineLayer[]) {
+export function getTimelineKeyframeEntries(state: Pick<ProjectState, 'nodesEffects'>, layers: readonly TimelineLayer[]) {
 	return layers.flatMap(layer => getTimelineKeyframeLanes(state, layer).flatMap(lane => lane.keyframes.map(point => ({
 		selection: {
 			layerId: layer.id,

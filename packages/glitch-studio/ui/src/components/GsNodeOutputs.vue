@@ -12,10 +12,10 @@
 import { useProjectSession } from '@/project-session.ts';
 import { getEffectDefinitions } from '@/utility/project-effects.ts';
 import { computed, onUnmounted } from 'vue';
-import { getNodeOutputs } from '@/utility/custom-node-graph-effect-node-outputs.ts';
+import { getNodeOutputs } from '@/utility/nodes-effect-node-outputs.ts';
 import GsNodePort from './GsNodePort.vue';
-import type { CustomNodeGraphEffectNode, CustomNodeGraphEffect } from '@/types/custom-node-graph-effect-view.ts';
-import { useCustomNodeGraphEffectWires } from '@/utility/custom-node-graph-effect-wires.ts';
+import type { NodesEffectNode, NodesEffect } from '@/types/nodes-effect-view.ts';
+import { useNodesEffectWires } from '@/utility/nodes-effect-wires.ts';
 import { startWireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 
@@ -23,11 +23,11 @@ const projectSession = useProjectSession();
 
 const effectDefinitions = computed(() => getEffectDefinitions(projectSession.projectContext.stateManager.state));
 
-const wireMap = useCustomNodeGraphEffectWires();
+const wireMap = useNodesEffectWires();
 
 const props = defineProps<{
-	node: CustomNodeGraphEffectNode;
-	paramDefs?: CustomNodeGraphEffect['paramDefs'];
+	node: NodesEffectNode;
+	paramDefs?: NodesEffect['paramDefs'];
 }>();
 
 const ports = computed(() => getNodeOutputs(props.node, props.paramDefs, effectDefinitions.value));

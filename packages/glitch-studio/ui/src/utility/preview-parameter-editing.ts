@@ -8,7 +8,7 @@ import type { ComputedRef, InjectionKey } from 'vue';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
-import type { CustomNodeGraphEffectTarget } from './custom-node-graph-effect-target.ts';
+import type { NodesEffectTarget } from './nodes-effect-target.ts';
 import type { EditableParameterBinding, ValueParameterEdit } from '../types/parameter-edit.ts';
 import type { ProjectContext } from '../Project.ts';
 import type { PreviewViewportHandle, PreviewViewportEdit } from './preview-viewport.ts';
@@ -23,9 +23,9 @@ export type PreviewParameterBindingEdit = {
 	cancel(): void;
 };
 
-// 所有者の所在はUIだけが知る。エフェクトやCustom Node Graph Effectの保存形式には持ち込まない。
+// 所有者の所在はUIだけが知る。エフェクトやNodes Effectの保存形式には持ち込まない。
 export type PreviewParameterScope =
-	| { kind: 'customNodeGraphEffect'; target: CustomNodeGraphEffectTarget }
+	| { kind: 'nodesEffect'; target: NodesEffectTarget }
 	| { kind: 'timelineLayer'; sceneId: string; layerId: string }
 	| { kind: 'livePreview'; effectSource: EffectLivePreviewSource };
 export const previewParameterContextKey: InjectionKey<{
@@ -120,13 +120,13 @@ export function beginPreviewParameterBindingEdit(manager: ProjectContext['stateM
 			update: edit => session.update(getTimelineParameterEditBinding(manager.state, { sceneId: scope.sceneId, layerId: scope.layerId, target: group, paramPath, edit })) };
 	}
 	if (nodeId == null) return null;
-	const target = { target: { customNodeGraphEffect: scope.target, nodeId }, parameterPath: paramPath };
+	const target = { target: { nodesEffect: scope.target, nodeId }, parameterPath: paramPath };
 	if (inputSource === 'literal') {
-		const session = manager.beginEdit('setCustomNodeGraphEffectNodeParameterSource');
+		const session = manager.beginEdit('setNodesEffectNodeParameterSource');
 		return { get active() { return session.active; }, finish: session.finish, cancel: session.cancel,
 			update: edit => { if (edit.kind === 'literal') session.update({ ...target, source: { inputSource: 'literal', value: edit.value } }); } };
 	}
-	const session = manager.beginEdit('setCustomNodeGraphEffectNodeParameterSource');
+	const session = manager.beginEdit('setNodesEffectNodeParameterSource');
 	return { get active() { return session.active; }, finish: session.finish, cancel: session.cancel,
 		update: edit => { if (edit.kind === 'keyframesTimelineInline') session.update({ ...target, source: edit.value }); } };
 }
@@ -141,8 +141,8 @@ export function beginPreviewViewportBindingEdit(manager: ProjectContext['stateMa
 			update: fields => session.update(getTimelineParameterEditBinding(manager.state, { sceneId: scope.sceneId, layerId: scope.layerId, target: group, paramPath, edit: { kind: 'structFields', fields } })) };
 	}
 	if (nodeId == null) return null;
-	const target = { target: { customNodeGraphEffect: scope.target, nodeId }, parameterPath: paramPath };
-	const session = manager.beginEdit('setCustomNodeGraphEffectNodeParameterFields');
+	const target = { target: { nodesEffect: scope.target, nodeId }, parameterPath: paramPath };
+	const session = manager.beginEdit('setNodesEffectNodeParameterFields');
 	return { get active() { return session.active; }, finish: session.finish, cancel: session.cancel,
 		update: fields => session.update({ ...target, fields }) };
 }

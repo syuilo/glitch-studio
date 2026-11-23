@@ -5,7 +5,7 @@ import { createEffectTimelineLayer } from '../../src/layers/effect/effect-timeli
 import { testEffectLayer, testLayerContext } from './effect-layer-fixture.ts';
 import { createTextureReader } from './read-texture.ts';
 import type { CustomShaderEffect } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
+import type { NodesEffect } from '@gs/subsystems_effect_shared/nodes-effect.ts';
 import type { EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
 import { acquireTransparentTimelineImage, type TimelineImage } from '../../src/timeline-image.ts';
 
@@ -18,11 +18,11 @@ const shader: CustomShaderEffect = {
 	paramDefs: { a: { ...color, nameForReference: 'a' }, b: { ...color, nameForReference: 'b' } },
 	code: 'fn main(pos: vec2f) -> Output { return Output((read_a(pos) + read_b(pos)) * 0.5); }',
 };
-const direct: CustomNodeGraphEffect = { ...common, paramDefs: { color }, nodes: [], outputSources: { out: { parameterId: 'color' } } };
-const solid: CustomNodeGraphEffect = {
+const direct: NodesEffect = { ...common, paramDefs: { color }, nodes: [], outputSources: { out: { parameterId: 'color' } } };
+const solid: NodesEffect = {
 	...common, paramDefs: { color: { ...color, canNode: false } },
 	nodes: [{ id: 'fill', effectSource: { type: 'nativeEffect', id: 'fill' },
-		params: { color: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'color' } } }],
+		params: { color: { inputSource: 'nodesEffectPublicParameterReference', parameterId: 'color' } } }],
 	outputSources: { out: { nodeId: 'fill', outputPort: 'output' } },
 };
 
@@ -34,7 +34,7 @@ export async function run() {
 	const options = {
 		wgpu: { device, defaultVertexShaderModule: device.createShaderModule({ code: vertex }), enable32bitDataTextures: false },
 		sceneBaseResolution: { width: 16, height: 12 }, resolutionScale: 0.5,
-		definitions: { getNativeEffect: (id: string) => id === 'fill' ? fillDefinition : unexpected(), getCustomNodeGraphEffect: () => solid, getCustomShaderEffect: () => shader },
+		definitions: { getNativeEffect: (id: string) => id === 'fill' ? fillDefinition : unexpected(), getNodesEffect: () => solid, getCustomShaderEffect: () => shader },
 		getNativeEffectImplementation: (id: string) => id === 'fill' ? fillImplementation : unexpected(),
 	};
 	function unexpected(): never { throw new Error('Unexpected Effect lookup'); }
@@ -56,7 +56,7 @@ export async function run() {
 	}
 	device.pushErrorScope('validation');
 	const context = testLayerContext();
-	const backgroundLayer = testEffectLayer({ type: 'customNodeGraphEffectReference', id: 'color' });
+	const backgroundLayer = testEffectLayer({ type: 'nodesEffectReference', id: 'color' });
 	backgroundLayer.effectParamValues.color = literal([1, 0, 0, 1]);
 	backgroundLayer.resolution = { mode: 'customAbsolute', width: 8, height: 6 };
 	const background = createEffectTimelineLayer(backgroundLayer, options);
@@ -70,9 +70,9 @@ export async function run() {
 		finally { second.release(); }
 		const red = (await background.evaluate(context, signal)).source!;
 		await check(red, 4, 3, [255, 0, 0, 255]);
-		// 加工系Custom Node Graph Effectの主入力は下層へ接続され、原寸の素材を有限のScene画像へ確定して渡す。
-		const passthrough = createEffectTimelineLayer(testEffectLayer({ type: 'inlineCustomNodeGraphEffect',
-			customNodeGraphEffect: { ...direct, kind: 'modify', primaryInputParameter: 'color' } }), options);
+		// 加工系Nodes Effectの主入力は下層へ接続され、原寸の素材を有限のScene画像へ確定して渡す。
+		const passthrough = createEffectTimelineLayer(testEffectLayer({ type: 'inlineNodesEffect',
+			nodesEffect: { ...direct, kind: 'modify', primaryInputParameter: 'color' } }), options);
 		try {
 			const image = (await passthrough.evaluate({ ...context, getInput: async () => red }, signal)).source;
 			await check(image, 8, 6, upsampledRed);
@@ -94,7 +94,7 @@ export async function run() {
 			} finally { renderer.destroy(); }
 		}
 		// 同じShaderでも内部の式にはクリップの内容時刻、終端、進捗を渡す。未使用の公開入力は評価しない。
-		const nestedGraph: CustomNodeGraphEffect = {
+		const nestedNodesEffect: NodesEffect = {
 			...common, paramDefs: { unused: color }, resolutionInputParameters: ['unused'],
 			nodes: [{
 				id: 'shader', effectSource: { type: 'customShaderEffectReference', id: 'mix' },
@@ -103,12 +103,12 @@ export async function run() {
 			}],
 			outputSources: { out: { nodeId: 'shader', outputPort: 'out' } },
 		};
-		const nestedLayer = testEffectLayer({ type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: nestedGraph });
+		const nestedLayer = testEffectLayer({ type: 'inlineNodesEffect', nodesEffect: nestedNodesEffect });
 		nestedLayer.effectParamValues.unused = { inputSource: 'lowerLayerOutput' };
 		const nested = createEffectTimelineLayer(nestedLayer, options);
 		try { await check((await nested.evaluate(context, signal)).source, 8, 6, [64, 128, 32, 255]); }
 		finally { nested.destroy(); }
-		const layer = testEffectLayer({ type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: solid });
+		const layer = testEffectLayer({ type: 'inlineNodesEffect', nodesEffect: solid });
 		layer.resolution = { mode: 'customAbsolute', width: 8, height: 6 };
 		layer.compositingParamValues.blendMode = literal('replace');
 		layer.effectParamValues.color = { inputSource: 'expression', expression: '[TIME, 0, 0, 0.5]' };
@@ -124,8 +124,8 @@ export async function run() {
 		} finally { renderer.destroy(); }
 		// 【Outに直結した値や空のOutは、透明なFillと違って背景を置き換えない】
 		// 合成を起動すると、replaceのレイヤーが下層画像を消してしまう。
-		for (const customNodeGraphEffect of [direct, { ...direct, outputSources: {} }]) {
-			const layer = testEffectLayer({ type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect });
+		for (const nodesEffect of [direct, { ...direct, outputSources: {} }]) {
+			const layer = testEffectLayer({ type: 'inlineNodesEffect', nodesEffect });
 			layer.compositingParamValues.blendMode = literal('replace');
 			layer.effectParamValues.color = literal([1, 0, 0, 1]);
 			const disconnected = createEffectTimelineLayer(layer, options);

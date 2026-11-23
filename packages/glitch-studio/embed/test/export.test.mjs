@@ -5,7 +5,7 @@ import { crc32 } from 'node:zlib';
 import { implementation } from './helpers/load.mjs';
 import { fixture, parameter, shaderDefinition } from './helpers/fixture.mjs';
 
-const { preparePortableCustomNodeGraphEffect, encodePortableCustomNodeGraphEffect, createPortableCustomNodeGraphEffectFiles, createPortableCustomNodeGraphEffectArchive,
+const { preparePortableNodesEffect, encodePortableNodesEffect, createPortableNodesEffectFiles, createPortableNodesEffectArchive,
 	getPortableParameterDefinitions, getPortableParameterDefaults, getPortableRenderResolution, fill, image } = implementation;
 const definitions = { fill, image };
 
@@ -14,14 +14,14 @@ const definitions = { fill, image };
 test('exports nested audio defaults as unselected public values', () => {
 	const input = fixture();
 	const audioSource = parameter('audioSource', null, 'Audio');
-	input.customNodeGraphEffect.paramDefs.tracksId = {
+	input.nodesEffect.paramDefs.tracksId = {
 		...parameter('array', [{ audio: null }], 'tracks'),
 		dataType: { kind: 'array', elementType: { kind: 'struct', fields: { audio: audioSource.dataType } } },
 		ui: { label: 'Tracks', control: { element: { fields: { audio: audioSource.ui } } } },
 		element: { defaultValue: { audio: null }, fields: { audio: { defaultValue: null } } },
 	};
-	const prepared = preparePortableCustomNodeGraphEffect(input, definitions);
-	const parameterDefinitions = getPortableParameterDefinitions(prepared.customNodeGraphEffect);
+	const prepared = preparePortableNodesEffect(input, definitions);
+	const parameterDefinitions = getPortableParameterDefinitions(prepared.nodesEffect);
 	assert.deepEqual(getPortableParameterDefaults(parameterDefinitions).tracks, [{ audio: null }]);
 });
 
@@ -30,28 +30,28 @@ test('exports nested audio defaults as unselected public values', () => {
 test('collects immutable resources and custom shaders without local paths or devices', async () => {
 	const input = fixture();
 	input.assets = [{ id: 'image', name: 'image', width: 2, height: 1, fileDataType: 'image/png', fileData: new Blob([new Uint8Array([1, 2, 3])]), sourceFilePath: 'C:/private/image.png', sourceFileName: 'original.PNG' }];
-	const child = fixture().customNodeGraphEffect;
+	const child = fixture().nodesEffect;
 	child.nodes.push(
 		{ id: 'image', effectSource: { type: 'nativeEffect', id: 'image' }, params: {}, staticSettings: { [Object.keys(image.staticSettingDefs)[0]]: 'image' } },
 		{ id: 'shader', effectSource: { type: 'customShaderEffectReference', id: 'shared-id' }, params: {} },
 	);
 	const shader = shaderDefinition('fn main(position: vec2f) -> Output { return Output(vec4f(1)); }');
 	input.customShaderEffects = [{ id: 'shared-id', name: 'Shader', summary: '', definition: shader }, { id: 'unused', definition: shader }];
-	input.customNodeGraphEffects = [{ id: 'shared-id', name: 'Child', definition: child, nodeMetadata: { fill: { displayName: 'editor-only' } } },
+	input.nodesEffects = [{ id: 'shared-id', name: 'Child', definition: child, nodeMetadata: { fill: { displayName: 'editor-only' } } },
 		{ id: 'unused', definition: child }];
-	input.customNodeGraphEffect.nodes[0] = { id: 'fill', effectSource: { type: 'customNodeGraphEffectReference', id: 'shared-id' }, params: {} };
-	const prepared = preparePortableCustomNodeGraphEffect(input, definitions);
-	input.customNodeGraphEffect.nodes[0].id = 'changed';
+	input.nodesEffect.nodes[0] = { id: 'fill', effectSource: { type: 'nodesEffectReference', id: 'shared-id' }, params: {} };
+	const prepared = preparePortableNodesEffect(input, definitions);
+	input.nodesEffect.nodes[0].id = 'changed';
 	shader.code = 'changed';
-	const { artwork: encoded } = await encodePortableCustomNodeGraphEffect(prepared, 'html');
-	const { artwork: zipped } = await encodePortableCustomNodeGraphEffect(prepared, 'zip');
+	const { artwork: encoded } = await encodePortableNodesEffect(prepared, 'html');
+	const { artwork: zipped } = await encodePortableNodesEffect(prepared, 'zip');
 	assert.equal(encoded.assets[0].fileDataBase64, 'AQID');
 	assert.equal(zipped.assets[0].fileDataPath, 'assets/1.PNG');
 	assert.doesNotMatch(JSON.stringify(zipped), /original\.PNG|C:\/private/);
 	assert.equal(encoded.customShaderEffects.length, 1);
 	assert.notEqual(encoded.customShaderEffects[0].definition.code, 'changed');
-	assert.equal(encoded.customNodeGraphEffect.nodes[0].id, 'fill');
-	assert.deepEqual(encoded.customNodeGraphEffects.map(entry => entry.id), ['shared-id']);
+	assert.equal(encoded.nodesEffect.nodes[0].id, 'fill');
+	assert.deepEqual(encoded.nodesEffects.map(entry => entry.id), ['shared-id']);
 	assert.deepEqual(prepared.runtimeRequirements, { effectIds: ['fill', 'image'], requiresExpressions: true, requiresCustomShaderEffects: true });
 	assert.doesNotMatch(JSON.stringify(encoded), /editor-only|private-device|C:\/private/);
 });
@@ -65,15 +65,15 @@ test('preserves HDR colors and nested public values in independent export snapsh
 		ui: { label: 'Points', control: { element: {} } } };
 	array.defaultValue = [[0.1, 0.2]];
 	const input = fixture();
-	input.customNodeGraphEffect.paramDefs = { speedId: scalar, colorId: color, arrayId: array };
-	const parameterDefinitions = getPortableParameterDefinitions(input.customNodeGraphEffect);
+	input.nodesEffect.paramDefs = { speedId: scalar, colorId: color, arrayId: array };
+	const parameterDefinitions = getPortableParameterDefinitions(input.nodesEffect);
 	const defaults = getPortableParameterDefaults(parameterDefinitions);
 	assert.deepEqual(defaults.Points, [[0.1, 0.2]]);
 	defaults.Points[0][0] = 99;
 	assert.deepEqual(array.defaultValue, [[0.1, 0.2]]);
 	const values = { Speed: 2, Color: [-1, 3, 0.25, 0.5], Points: [[0.2, -0.1]] };
 	input.initialParameters = values;
-	const prepared = preparePortableCustomNodeGraphEffect(input, definitions);
+	const prepared = preparePortableNodesEffect(input, definitions);
 	assert.deepEqual(prepared.initialParameters, values);
 	values.Color[0] = 123;
 	values.Points[0][0] = 99;
@@ -95,9 +95,9 @@ test('preserves aspect ratio under scale pixel and device limits', () => {
 test('round trips script-like strings through standalone HTML without executing artwork data', async () => {
 	const input = fixture();
 	input.name = '</script><script>throw 123</script><!--';
-	const artwork = await encodePortableCustomNodeGraphEffect(preparePortableCustomNodeGraphEffect(input, definitions), 'html');
-	const runtime = { elementSource: 'const GlitchStudioCustomNodeGraphEffectEmbed = { registerCustomNodeGraphEffectElement: capture };', workerSource: '// </script> and unicode 日本語' };
-	const files = createPortableCustomNodeGraphEffectFiles(artwork, runtime, 'gs-custom-node-graph-effect-test');
+	const artwork = await encodePortableNodesEffect(preparePortableNodesEffect(input, definitions), 'html');
+	const runtime = { elementSource: 'const GlitchStudioNodesEffectEmbed = { registerNodesEffectElement: capture };', workerSource: '// </script> and unicode 日本語' };
+	const files = createPortableNodesEffectFiles(artwork, runtime, 'gs-nodes-effect-test');
 	const script = files.html.match(/<script type="module">([\s\S]*?)<\/script>/)[1];
 	let captured;
 	runInNewContext(script, { capture: (...args) => { captured = args; } });
@@ -109,18 +109,18 @@ test('round trips script-like strings through standalone HTML without executing 
 // 【ZIPには各Assetの原本を独立したファイルとして格納する】
 // 表示名が重複しても参照先を区別し、テキスト変換で素材のバイト列が変わらないことを検証する。
 test('stores original binary assets under distinct paths with valid ZIP checksums', async () => {
-	const prepared = preparePortableCustomNodeGraphEffect(fixture(), definitions);
+	const prepared = preparePortableNodesEffect(fixture(), definitions);
 	const originals = [Uint8Array.of(0, 255, 128, 10), Uint8Array.of(254, 0, 13), Uint8Array.of(5, 6)];
 	const sourceFileNames = ['画像.PNG', '画像.PNG', 'asset.php'];
 	prepared.assets = originals.map((contents, index) => ({ id: `image-${index}`, name: '画像.png',
 		sourceFileName: sourceFileNames[index], width: 1, height: 1, fileDataType: 'image/png', fileData: new Blob([contents]) }));
-	const encoded = await encodePortableCustomNodeGraphEffect(prepared, 'zip');
+	const encoded = await encodePortableNodesEffect(prepared, 'zip');
 	const assetPaths = ['assets/1.PNG', 'assets/2.PNG', 'assets/3.bin'];
 	assert.deepEqual(encoded.artwork.assets.map(asset => asset.fileDataPath), assetPaths);
 	assert.ok(encoded.artwork.assets.every(asset => asset.fileDataType === 'image/png'));
 	assert.ok(encoded.artwork.assets.every(asset => !('fileDataBase64' in asset)));
-	const files = createPortableCustomNodeGraphEffectFiles(encoded, { elementSource: '', workerSource: '' });
-	const zip = new Uint8Array(await (await createPortableCustomNodeGraphEffectArchive(files)).arrayBuffer());
+	const files = createPortableNodesEffectFiles(encoded, { elementSource: '', workerSource: '' });
+	const zip = new Uint8Array(await (await createPortableNodesEffectArchive(files)).arrayBuffer());
 	const view = new DataView(zip.buffer);
 	let offset = 0;
 	const paths = ['index.html', 'artwork.js', 'README.md', ...assetPaths];
@@ -152,14 +152,14 @@ test('stores original binary assets under distinct paths with valid ZIP checksum
 
 // 【素材不足・循環・表示できない出力はダウンロード前に報告する】
 // 壊れた成果物を配布先で初めて発見することを避け、編集すべき箇所を明示する。
-test('rejects invalid output and cyclic graphs before encoding', () => {
+test('rejects invalid output and cyclic Nodes Effect references before encoding', () => {
 	const input = fixture();
-	input.customNodeGraphEffect.outputSources = {};
-	input.customNodeGraphEffect.outputDefs.output.dataType = { kind: 'scalar' };
-	assert.throws(() => preparePortableCustomNodeGraphEffect(input, definitions), /primary color output/);
+	input.nodesEffect.outputSources = {};
+	input.nodesEffect.outputDefs.output.dataType = { kind: 'scalar' };
+	assert.throws(() => preparePortableNodesEffect(input, definitions), /primary color output/);
 	const cyclic = fixture();
-	cyclic.customNodeGraphEffect.nodes.unshift({ id: 'relay', type: 'relay', dataType: { kind: 'color' }, input: { nodeId: 'relay', outputPort: 'output' } });
-	assert.throws(() => preparePortableCustomNodeGraphEffect(cyclic, definitions), /Cyclic/);
+	cyclic.nodesEffect.nodes.unshift({ id: 'relay', type: 'relay', dataType: { kind: 'color' }, input: { nodeId: 'relay', outputPort: 'output' } });
+	assert.throws(() => preparePortableNodesEffect(cyclic, definitions), /Cyclic/);
 });
 
 // 【配列長が変わるまで公開入力の束縛を再利用し、未使用の配列を配置の寿命から切り離す】

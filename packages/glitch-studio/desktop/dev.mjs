@@ -1,4 +1,4 @@
-import { buildDesktopPortableCustomNodeGraphEffect } from './build-portable-custom-node-graph-effect.mjs';
+import { buildDesktopPortableNodesEffect } from './build-portable-nodes-effect.mjs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import electron from 'electron';
@@ -26,7 +26,7 @@ process.on('SIGINT', () => { void stop(130); });
 process.on('SIGTERM', () => { void stop(143); });
 
 try {
-	await buildDesktopPortableCustomNodeGraphEffect();
+	await buildDesktopPortableNodesEffect();
 	await server.listen();
 	const address = server.httpServer.address();
 	const env = { ...process.env, GLITCH_DESKTOP_DEV_URL: 'http://127.0.0.1:' + address.port + '/' };

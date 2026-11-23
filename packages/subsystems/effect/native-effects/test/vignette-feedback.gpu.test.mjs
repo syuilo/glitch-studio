@@ -18,7 +18,7 @@ test('publishes alternating Feedback textures and resets nested history on WebGP
 
 // 【グラフ内のFeedback入力の編集とUndoをまたいで蓄積した画素を維持する】
 // 既存の履歴と新しい入力が半減期に従って混ざることをGPUから読み戻し、再初期化による履歴の消失を検出する。
-test('keeps Feedback pixels across graph node value edits and undo on WebGPU', options, () => runEffectGpuTest(browserTests, 'editFeedbackInput'));
+test('keeps Feedback pixels across Nodes Effect node value edits and undo on WebGPU', options, () => runEffectGpuTest(browserTests, 'editFeedbackInput'));
 
 // 【タイル描画を中断して再開し、全画素・履歴・パス計測を確認する】
 // 未送信のタイルや中断したフレームのキャッシュが残ると、再開後に古い画像が混ざる。

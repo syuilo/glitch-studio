@@ -207,7 +207,7 @@ test('keeps stretched replace outputs in scene coordinates without copying the s
 });
 
 // 【ノード入力は同じ縦横比でもSceneの宣言寸法へ揃える】
-// EffectとCustom Node Graph EffectはTimelineのregionを知らないため、正方形の物理テクスチャを
+// EffectとNodes EffectはTimelineのregionを知らないため、正方形の物理テクスチャを
 // 横長の合成結果としてそのまま渡すと入力サンプリングで再びFitされてしまう。
 // 確定済み画像では、空のencoder作成・GPU送信も省く必要がある。
 test('normalizes node inputs to declared scene dimensions while borrowing already matching frames', () => {
@@ -318,9 +318,9 @@ test('only bypasses anchor placement when position cancels the fitted origin', (
 });
 
 // 【描画時の主出力選択】
-// Custom Node Graph Effectの主出力IDを変更すると描画対象が切り替わり、nullなら主出力を返さない。
+// Nodes Effectの主出力IDを変更すると描画対象が切り替わり、nullなら主出力を返さない。
 // 出力配列の先頭や以前の主出力を暗黙に使い続ける不具合を防ぐ。
-test('renders the selected Custom Node Graph Effect primary output after updates', async t => {
+test('renders the selected Nodes Effect primary output after updates', async t => {
 	const { device, encoder } = gpuFixture();
 	const resolution = { width: 3, height: 2 };
 	const inputs = {
@@ -407,7 +407,7 @@ test('exposes planned output dimensions independently of preparation status', as
 
 // 【Timelineの下層textureをGraphの公開入力へ渡す】
 // 下層で既に乗算した色を再変換せず、Scene寸法の同じtextureを借用する。
-test('borrows the scene texture through a public graph input', async t => {
+test('borrows the scene texture through a public Nodes Effect input', async t => {
 	let received;
 	const layer = createTimelineEffectProbe({ primaryInputParameter: 'image',
 		paramDefs: { image: { canNode: true, dataType: { kind: 'color' }, defaultValue: [0, 0, 0, 0] } },
@@ -425,7 +425,7 @@ test('borrows the scene texture through a public graph input', async t => {
 test('omits bypassed constants without allocating textures', async t => {
 	const { device, calls, encoder } = gpuFixture();
 	const graph = { ...publicGraph, nodes: [{ id: 'bypass', effectSource: native('colorMix'), isBypass: true,
-		params: { inputA: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'a' } } }], outputSources: { a: { nodeId: 'bypass', outputPort: 'output' } } };
+		params: { inputA: { inputSource: 'nodesEffectPublicParameterReference', parameterId: 'a' } } }], outputSources: { a: { nodeId: 'bypass', outputPort: 'output' } } };
 	const input = { kind: 'uniform', value: [0.125, 0.25, 0.5, 0.5] };
 	const renderer = await place(device, inline(graph), { inputs: { a: input }, usedOutputPorts: new Set(['a']) }); t.after(() => renderer.dispose());
 	renderer.render(shaderFrame(), encoder);
@@ -435,7 +435,7 @@ test('omits bypassed constants without allocating textures', async t => {
 
 // 【別配置の公開入力を切り替える】
 // 同じInポートに定数を渡した配置は出力を持たず、画像を渡した配置では借用した出力を返す。
-test('publishes direct graph outputs in placements with a texture input', async () => {
+test('publishes direct Nodes Effect outputs in placements with a texture input', async () => {
 	const { device, encoder } = gpuFixture();
 	const texture = device.createTexture({ size: [3, 2] });
 	for (const input of [{ kind: 'uniform', value: [1, 0, 0, 1] }, { kind: 'texture', texture, resolution: texture }]) {
@@ -461,7 +461,7 @@ test('resolves nested array inputs and invalidates sampling changes', async t =>
 	for (const sampling of [undefined, { fitMode: 'contain', wrapMode: 'transparent', filterMode: 'linear' },
 		{ fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' }]) {
 		const graph = { ...publicGraph, nodes: [{ id: 'probe', effectSource: native('probe'), params: { items: literal([{ id: 'item',
-			binding: { inputSource: 'customNodeGraphEffectPublicParameterReference', parameterId: 'a', sampling } }]) } }],
+			binding: { inputSource: 'nodesEffectPublicParameterReference', parameterId: 'a', sampling } }]) } }],
 			outputSources: { a: { nodeId: 'probe', outputPort: 'output' } } };
 		let captured;
 		const renderer = await place(device, inline(graph), {
@@ -480,7 +480,7 @@ function place(device, effectSource, options = {}, implementations = {}) {
 		usedOutputPorts: new Set(['output']), ...options }, { device, defaultVertexShaderModule: {}, enable32bitDataTextures: false }, id => registry[id][1]);
 }
 const native = id => ({ type: 'nativeEffect', id });
-const inline = graph => ({ type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph });
+const inline = graph => ({ type: 'inlineNodesEffect', nodesEffect: graph });
 const publicGraph = { paramDefs: { a: definition.paramDefs.inputA, b: definition.paramDefs.inputB }, resolutionInputParameters: [],
 	primaryInputParameter: 'a', primaryOutput: 'a', nodes: [], outputDefs: { a: definition.outputDefs.output, b: definition.outputDefs.output },
 	outputSources: { a: { parameterId: 'a' }, b: { parameterId: 'b' } } };

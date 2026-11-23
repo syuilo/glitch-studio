@@ -1,0 +1,166 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { collectNodesEffectResources } from '../src/nodes-effect-resources.ts';
+import { createProjectEffectDefinitions } from '../src/project/effects.ts';
+
+const colorOutput = { dataType: { kind: 'color' }, nameForReference: 'color' };
+const definition = { kind: 'generate', paramDefs: {}, outputDefs: { color: colorOutput },
+	primaryInputParameter: null, primaryOutput: 'color', resolutionInputParameters: [] };
+const createNodesEffect = (nodes, outputNode) => ({ ...definition, nodes, outputSources: { color: { nodeId: outputNode, outputPort: 'color' } } });
+const node = (id, effectSource) => ({ id, effectSource, params: {} });
+const shader = { ...definition, shaderApiVersion: 1, code: 'fn main(position: vec2f) -> Output { return Output(vec4f(1.)); }' };
+const nodesEffectReference = { type: 'nodesEffectReference', id: 'shared-id' };
+const shaderReference = { type: 'customShaderEffectReference', id: 'shared-id' };
+const nativeReference = { type: 'nativeEffect', id: 'shared-id' };
+const literal = value => ({ inputSource: 'literal', value });
+const assetSetting = { dataType: { kind: 'assetReference', assetType: 'image' }, ui: { label: 'Image' }, defaultValue: 'shared-id' };
+const audio = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null };
+const audioList = {
+	dataType: { kind: 'array', elementType: { kind: 'struct', fields: { audio: audio.dataType } } },
+	ui: { label: 'Tracks', control: { element: { fields: { audio: audio.ui } } } },
+	defaultValue: [],
+	element: { defaultValue: { audio: null }, fields: { audio: { defaultValue: null } } },
+};
+const nativeDefinitions = { 'shared-id': { ...definition, paramDefs: { tracks: audioList }, staticSettingDefs: { image: assetSetting } } };
+
+function resources() {
+	const audioNode = { ...node('native', nativeReference), params: {
+		tracks: literal([{ id: 'track', binding: literal({ audio: literal(null) }) }]),
+	} };
+	const child = createNodesEffect([audioNode, node('shader', shaderReference)], 'shader');
+	const inner = createNodesEffect([node('first', nodesEffectReference), node('second', nodesEffectReference)], 'second');
+	const root = createNodesEffect([
+		node('inner', { type: 'inlineNodesEffect', nodesEffect: inner }),
+		node('inline-shader', { type: 'inlineCustomShaderEffect', customShaderEffect: shader }),
+		node('shader', shaderReference),
+	], 'inner');
+	return {
+		nodesEffect: root,
+		nodeMetadata: { inner: { inlineNodesEffect: { nodeMetadata: { first: { position: { x: 3, y: 4 } } } } } },
+		nodesEffects: [
+			{ id: 'shared-id', name: 'Child', definition: child, nodeMetadata: { native: { displayName: 'Input' } } },
+			{ id: 'unused', name: 'Unused', definition: createNodesEffect([node('unused', { type: 'nativeEffect', id: 'missing' })], 'unused') },
+		],
+		customShaderEffects: [
+			{ id: 'shared-id', name: 'Shader', summary: '', definition: { ...shader, staticSettingDefs: { image: assetSetting } } },
+			{ id: 'unused', name: 'Unused', summary: '', definition: shader },
+		],
+		assets: ['shared-id', 'unused'].map(id => ({ id, name: id, width: 1, height: 1, fileDataType: 'image/png',
+			fileData: { url: 'blob:image', size: 1, error: null }, originalFilePath: '/source' })),
+	};
+}
+
+// 【参照型とインライン型をまたいで必要な登録と素材だけを一度ずつ収集する】
+// 入れ子で同じ登録を繰り返し使っても、所属プロジェクトの全定義や取り込み元の情報を配布物に含めない。
+test('collects the transitive Nodes Effect and asset dependencies into a detached snapshot', () => {
+	const input = resources();
+	const output = collectNodesEffectResources(input, nativeDefinitions);
+	for (const entries of [output.customShaderEffects, output.nodesEffects, output.assets]) {
+		assert.deepEqual(entries.map(entry => entry.id), ['shared-id']);
+	}
+	assert.deepEqual(output.nodesEffect, input.nodesEffect);
+	assert.deepEqual(output.nodeMetadata, input.nodeMetadata);
+	assert.notEqual(output.nodeMetadata.inner.inlineNodesEffect, input.nodeMetadata.inner.inlineNodesEffect);
+	assert.deepEqual(output.nodesEffects[0].nodeMetadata, input.nodesEffects[0].nodeMetadata);
+	assert.equal(Object.hasOwn(output.assets[0], 'originalFilePath'), false);
+	assert.notEqual(output.assets[0].fileData, input.assets[0].fileData);
+	assert.notEqual(output.nodesEffect.nodes[1].effectSource.customShaderEffect, shader);
+});
+
+// 【種類ごとにIDを割り当てて、配置・既定値を同時に再マップする】
+// 同じ文字列をNative Effectやノード内部のIDにも使用できるため、単純な文字列置換では配線が壊れる。
+test('remaps each resource once by kind while preserving native references and local wiring', () => {
+	const input = resources();
+	const original = structuredClone(input);
+	const calls = [];
+	const output = collectNodesEffectResources(input, nativeDefinitions, (kind, id) => {
+		calls.push([kind, id]);
+		return 'new-' + kind;
+	});
+	assert.deepEqual(calls.sort(), ['asset', 'customShaderEffect', 'nodesEffect'].map(kind => [kind, 'shared-id']));
+	const inner = output.nodesEffect.nodes[0].effectSource.nodesEffect;
+	assert.deepEqual(inner.nodes.map(node => node.effectSource.id), ['new-nodesEffect', 'new-nodesEffect']);
+	assert.deepEqual(inner.outputSources.color, { nodeId: 'second', outputPort: 'color' });
+	const child = output.nodesEffects[0];
+	assert.equal(child.id, 'new-nodesEffect');
+	assert.deepEqual(child.definition.nodes[0].effectSource, nativeReference);
+	assert.equal(child.definition.nodes[0].staticSettings.image, 'new-asset');
+	assert.equal(child.definition.nodes[0].params.tracks.value[0].binding.value.audio.value, null);
+	assert.equal(child.definition.nodes[1].effectSource.id, output.customShaderEffects[0].id);
+	assert.equal(output.nodesEffect.nodes[2].effectSource.id, 'new-customShaderEffect');
+	assert.equal(output.customShaderEffects[0].definition.staticSettingDefs.image.defaultValue, 'new-asset');
+	assert.deepEqual(input, original);
+	assert.deepEqual(collectNodesEffectResources(output, nativeDefinitions), output);
+});
+
+
+// 【明示的な未選択で素材の既定値を上書きする】
+// Native Effectの既定素材が配置側で明示的に解除されたときは、その素材を要求しない。
+test('honors null overrides and includes the other asset references', () => {
+	const input = resources();
+	const pictureSetting = { ...assetSetting, defaultValue: 'shared-id' };
+	input.nodesEffect = createNodesEffect([{ ...node('native', nativeReference), staticSettings: { image: null } }], 'native');
+	const definitions = { 'shared-id': { ...definition, staticSettingDefs: {
+		picture: pictureSetting, image: { ...assetSetting, defaultValue: 'missing' },
+	} } };
+	const output = collectNodesEffectResources(input, definitions);
+	assert.deepEqual(output.nodesEffect.nodes[0].staticSettings, { image: null, picture: 'shared-id' });
+	assert.deepEqual(output.assets.map(asset => asset.id), ['shared-id']);
+	input.assets = [];
+	assert.throws(() => collectNodesEffectResources(input, definitions), /Missing Asset: shared-id/);
+});
+
+// 【インライン定義のポートIDを保持し、既定の素材参照を取り込み先へ向ける】
+// ポートには任意の文字列IDを使用できる。配線とレコードのキーを対応させたまま、素材の参照だけを更新する。
+test('preserves arbitrary inline port IDs and remaps defaults in embedded definitions', () => {
+	const input = resources();
+	const port = '__proto__';
+	const pictureSetting = { ...assetSetting, defaultValue: 'shared-id' };
+	const inlineShader = { ...shader, outputDefs: { [port]: colorOutput }, primaryOutput: port, staticSettingDefs: { picture: pictureSetting } };
+	input.nodesEffect = { ...definition, nodes: [node('inline', { type: 'inlineCustomShaderEffect', customShaderEffect: inlineShader })],
+		outputSources: { color: { nodeId: 'inline', outputPort: port } } };
+	const output = collectNodesEffectResources(input, {}, (kind, id) => kind + '-' + id);
+	const embedded = output.nodesEffect.nodes[0].effectSource.customShaderEffect;
+	assert.equal(Object.hasOwn(embedded.outputDefs, port), true);
+	assert.equal(output.nodesEffect.outputSources.color.outputPort, port);
+	assert.equal(embedded.staticSettingDefs.picture.defaultValue, output.assets[0].id);
+	assert.deepEqual(output.customShaderEffects, []);
+});
+
+// 【壊れた登録参照と循環参照を読み込み境界で報告する】
+// 描画できない保存データを部分的に取り込まないよう、参照先と有向グラフを検証する。
+test('reports missing and cyclic registrations before allocating destination IDs', () => {
+	const input = resources();
+	const assignId = () => assert.fail('unexpected ID allocation');
+	input.customShaderEffects = [];
+	assert.throws(() => collectNodesEffectResources(input, nativeDefinitions, assignId), /Unknown Custom Shader Effect/);
+	input.nodesEffects[0].definition = createNodesEffect([node('self', nodesEffectReference)], 'self');
+	assert.throws(() => collectNodesEffectResources(input, nativeDefinitions, assignId), /Cyclic Nodes Effect/);
+});
+
+// 【同一IDのNative Effect・Custom Shader Effect・Nodes Effectを独立に解決する】
+// 表示名やIDの衝突で別種の定義を引いてはならない。検証済みの登録から種類別に解決する。
+test('resolves each effect kind in its own registry', () => {
+	const input = resources();
+	const definitions = createProjectEffectDefinitions(input, nativeDefinitions);
+	assert.equal(definitions.getNativeEffect('shared-id'), nativeDefinitions['shared-id']);
+	assert.equal(definitions.getCustomShaderEffect('shared-id'), input.customShaderEffects[0].definition);
+	assert.equal(definitions.getNodesEffect('shared-id'), input.nodesEffects[0].definition);
+});
+
+// 【登録内の重複と未知のNative Effectは書き出し前に拒否する】
+// ランタイムの索引では再検証しないため、IDを割り当てる前に静的な条件を確定する。
+test('rejects duplicate registrations and missing native references before export', () => {
+	const input = resources();
+	const assignId = () => assert.fail('unexpected ID allocation');
+	input.customShaderEffects.push(input.customShaderEffects[0]);
+	assert.throws(() => collectNodesEffectResources(input, nativeDefinitions, assignId), /Duplicate Custom Shader Effect/);
+	input.customShaderEffects.pop();
+	input.nodesEffects.push(input.nodesEffects[0]);
+	assert.throws(() => collectNodesEffectResources(input, nativeDefinitions, assignId), /Duplicate Nodes Effect/);
+	input.nodesEffects.pop();
+	for (const id of ['missing', 'constructor', '__proto__']) {
+		input.nodesEffect = createNodesEffect([node('missing', { type: 'nativeEffect', id })], 'missing');
+		assert.throws(() => collectNodesEffectResources(input, nativeDefinitions, assignId), /Unknown Native Effect/);
+	}
+});

@@ -1,5 +1,5 @@
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
-import { testGraph } from './helpers/effect-graph.mjs';
+import { testNodesEffect } from './helpers/nodes-effect.mjs';
 import { createDragActionsFixture } from './helpers/timeline-drag-actions.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -50,7 +50,7 @@ const times = layer => layer.audioParamValues.volume.keyframesTimeline.keyframes
 function fixture(t, layers) {
 	t.mock.method(console, 'log', () => {});
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers };
-	const state = { timelineScenes: { value: [scene] }, customNodeGraphEffects: { value: [] }, assets: { value: [] } };
+	const state = { timelineScenes: { value: [scene] }, nodesEffects: { value: [] }, assets: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const changes = [];
 	history.onChange(value => changes.push(value));
@@ -167,7 +167,7 @@ test('moves speech and empty stop keys with parameters while preserving speech s
 	f.history.redo(); assert.deepEqual(f.scene, after);
 });
 
-// 【保存済みのCustom Node Graph Effect引数のキーをクリップと一緒に移動する】
+// 【保存済みのNodes Effect引数のキーをクリップと一緒に移動する】
 // 同じ配列要素の複数フィールドを追従させても互いの編集を保持し、共有定義や未編集の配置に波及させない。
 // ドラッグの履歴をマージしても、クリップと全レーンを同じUndo/Redoで復元する。
 test('moves saved scalar and nested lanes with clips through merged undo and redo', t => {
@@ -180,8 +180,8 @@ test('moves saved scalar and nested lanes with clips through merged undo and red
 			placement.value[0].binding.value.x = keys([100, 200]);
 			placement.value[0].binding.value.y = keys([100, 200]);
 		}
-		f.state.customNodeGraphEffects.value.push({ id: 'customNodeGraphEffect', definition: testGraph({ paramDefs: { [def.id]: def } }) });
-		for (const id of ['edited', 'untouched']) f.scene.layers.push({ id, layerType: 'effect', effectSource: { type: 'customNodeGraphEffectReference', id: 'customNodeGraphEffect' }, effectParamValues: id === 'edited' ? { value: placement } : {}, clips: [clip('clip', 100, 200)], compositingParamValues: {} });
+		f.state.nodesEffects.value.push({ id: 'nodesEffect', definition: testNodesEffect({ paramDefs: { [def.id]: def } }) });
+		for (const id of ['edited', 'untouched']) f.scene.layers.push({ id, layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'nodesEffect' }, effectParamValues: id === 'edited' ? { value: placement } : {}, clips: [clip('clip', 100, 200)], compositingParamValues: {} });
 		const before = structuredClone(f.scene);
 		const defaultBefore = structuredClone(def.defaultValue);
 		const targets = [{ layerId: 'edited', clipId: 'clip' }];

@@ -35,7 +35,7 @@ const session = useProjectSession();
 const controller = session.effectLivePreviewManagerController;
 const assets = session.projectContext.stateManager.state.assets;
 const selection = computed(() => session.getEffectLivePreviewMediaSelection(props.effectSource));
-const supportsAudio = computed(() => props.effectSource.type === 'customNodeGraphEffectReference');
+const supportsAudio = computed(() => props.effectSource.type === 'nodesEffectReference');
 const eligibleAssets = computed(() => assets.value.filter(asset => /^(image|video)\//.test(asset.fileDataType)
 	|| (supportsAudio.value && asset.fileDataType.startsWith('audio/'))));
 const selectedAsset = computed(() => {

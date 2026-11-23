@@ -1,7 +1,7 @@
 import { createEffectInstance } from '@gs/subsystems_effect_renderer/create-effect-instance.ts';
 import type { EffectParameterInput } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import type { CustomShaderEffect } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
-import type { CustomNodeGraphEffect } from '@gs/subsystems_effect_shared/custom-node-graph-effect.ts';
+import type { NodesEffect } from '@gs/subsystems_effect_shared/nodes-effect.ts';
 import type { EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
 import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { EffectLivePreviewManager } from '@gs/glitch-studio_renderer/effect-live-preview-manager.ts';
@@ -51,7 +51,7 @@ export async function runCustomShaderEffectLivePreview() {
 	{ enableStats: false, enableWaveformAndHistogram: false, enable32bitDataTextures: false }, { assets: [] });
 	const errors = Promise.withResolvers<never>();
 	manager.on('ev', event => { if (event.type === 'renderError') errors.reject(new Error(event.ctx.message)); });
-	function graph(port: string): CustomNodeGraphEffect {
+	function graph(port: string): NodesEffect {
 		return { kind: 'generate', primaryInputParameter: null, primaryOutput: 'image', resolutionInputParameters: [], paramDefs: {},
 			outputDefs: { image: { dataType: { kind: 'color' } } }, outputSources: { image: { nodeId: 'shader', outputPort: port } },
 			nodes: [{ id: 'fill', effectSource: { type: 'nativeEffect', id: 'fill' }, params: { color: { inputSource: 'literal', value: [1, 0, 1, 1] } } },
@@ -69,12 +69,12 @@ export async function runCustomShaderEffectLivePreview() {
 		} finally { bitmap.close(); }
 	}
 	try {
-		manager.updateDynamicOptions({ resolution, customShaderEffects: [registeredShader(copy)], customNodeGraphEffects: [{ id: 'graph', name: 'Graph', definition: graph('color') }] });
-		manager.startEffectLivePreview({ effectSource: { type: 'customNodeGraphEffectReference', id: 'graph' } });
+		manager.updateDynamicOptions({ resolution, customShaderEffects: [registeredShader(copy)], nodesEffects: [{ id: 'graph', name: 'Graph', definition: graph('color') }] });
+		manager.startEffectLivePreview({ effectSource: { type: 'nodesEffectReference', id: 'graph' } });
 		await pixel([255, 0, 255, 255]);
 		for (const [code, port, expected] of [[green, 'updated', [0, 255, 0, 255]], [copy, 'color', [255, 0, 255, 255]]] as const) {
 			manager.applyProjectChanges([{ type: 'customShaderEffectRegistration', customShaderEffectId: 'shader', customShaderEffect: registeredShader(code, port) },
-				{ type: 'customNodeGraphEffect', customNodeGraphEffectId: 'graph', customNodeGraphEffect: graph(port) }]);
+				{ type: 'nodesEffect', nodesEffectId: 'graph', nodesEffect: graph(port) }]);
 			await pixel([...expected]);
 		}
 		manager.startEffectLivePreview({ effectSource: shaderSource, params: { source: { inputSource: 'literal', value: [0, 0, 1, 1] } } });
@@ -135,7 +135,7 @@ export async function checkCustomShaderEffects(device: GPUDevice, vertex: GPUSha
 	const frame = { time: 1, endTime: Infinity, timeDelta: 0 };
 	async function draw(source: EffectSource, ports: string[], inputs: Record<string, EffectParameterInput>, enable32bitDataTextures: boolean) {
 		const instance = await createEffectInstance({ effectSource: source, definitions: { getCustomShaderEffect: () => definition,
-			getNativeEffect: () => fillDefinition, getCustomNodeGraphEffect: () => { throw new Error('Missing graph'); } },
+			getNativeEffect: () => fillDefinition, getNodesEffect: () => { throw new Error('Missing graph'); } },
 			resolution, inputs, usedOutputPorts: new Set(ports) }, { device, defaultVertexShaderModule: vertex, enable32bitDataTextures }, () => fillImplementation);
 		try {
 			await instance.renderTiled(frame);

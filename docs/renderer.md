@@ -29,7 +29,7 @@
 - マスク・補間係数・確率・LUTの参照範囲や、Color Clamp・色域変換・コーデック等の処理自体が必要とする制限は維持します。解析用に値域を正規化する処理と、最終的な画像のRGB制限は別に判断します。
 - float16の有限な保存範囲への制限や、0除算・非有限値・蓄積のオーバーフローを防ぐ処理は、0〜1への制限とは目的が異なるため維持します。
 
-## エフェクト入力の参照とCustom Node Graph Effectの出力
+## エフェクト入力の参照とNodes Effectの出力
 
 Native Effectの `canNode: true` パラメータは、構造体・配列内も含めて `ShaderInput` として受け取ります。通常の入力参照は、JS側で生成するWGSL関数 `read_<入力名>(position)` を使います。この関数が定数とテクスチャを処理し、テクスチャ入力のアスペクト比を補正します。
 
@@ -57,7 +57,7 @@ let amount = read_amount(position);
 
 ### Effectの出力
 
-`EffectInstance.outputs` にはテクスチャを持つポートだけが含まれます。Custom Node Graph EffectのInがOutまで直結されている場合は、Relay経由も含め、入力がtextureの配置で元のテクスチャとその寸法・世代を借用します。Bypassは型が互換な主入力と主出力の間でテクスチャを転送します。副出力とuniformを転送する経路は未接続として扱います。
+`EffectInstance.outputs` にはテクスチャを持つポートだけが含まれます。Nodes EffectのInがOutまで直結されている場合は、Relay経由も含め、入力がtextureの配置で元のテクスチャとその寸法・世代を借用します。Bypassは型が互換な主入力と主出力の間でテクスチャを転送します。副出力とuniformを転送する経路は未接続として扱います。
 
 未接続の出力を読むノードは入力の既定値を使います。Timelineはそのレイヤーの合成を省き、Effect Live PreviewとWeb書き出しは透明なフレームを表示します。
 

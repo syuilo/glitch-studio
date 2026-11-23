@@ -34,7 +34,7 @@ async function fixture(t, implementation) {
 	manager.on('ev', event => { if (event.type === 'renderError') errors.push(event.ctx.message); });
 	manager.updateDynamicOptions({ resolution: { width: 5, height: 3 },
 		customShaderEffects: [{ id: 'shared', name: 'Shader', summary: '', definition: shader }],
-		customNodeGraphEffects: [{ id: 'shared', name: 'Graph', definition: graph(reference) }] });
+		nodesEffects: [{ id: 'shared', name: 'Graph', definition: graph(reference) }] });
 	manager.canvasRenderer.renderToCanvas = (texture, _encoder, time) => submitted.push({ texture, time });
 	return { manager, device, submitted, errors, async frame(time) { frame(time); await new Promise(resolve => setImmediate(resolve)); } };
 }
@@ -45,7 +45,7 @@ test('previews every source kind with a fixed output port and native channel for
 	const ports = [];
 	const f = await fixture(t, { init({ outputTextures }) { ports.push([...outputTextures.keys()]); return { render() {}, dispose() {} }; } });
 	for (const effectSource of [{ type: 'nativeEffect', id: 'shared' }, reference, { type: 'inlineCustomShaderEffect', customShaderEffect: shader },
-		{ type: 'customNodeGraphEffectReference', id: 'shared' }, { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph(reference) }]) {
+		{ type: 'nodesEffectReference', id: 'shared' }, { type: 'inlineNodesEffect', nodesEffect: graph(reference) }]) {
 		f.manager.startEffectLivePreview({ effectSource, outputPort: 'scalar' }, 'instance');
 		await f.frame(25);
 		assert.deepEqual(f.errors, []);
@@ -100,7 +100,7 @@ test('preserves history for parameter edits and rebuilds only transitive dependa
 	await f.frame(20);
 	assert.deepEqual(values, [3, 7]);
 	assert.equal(disposals, 0);
-	f.manager.startEffectLivePreview({ effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph({ type: 'customNodeGraphEffectReference', id: 'shared' }) } }, 'id');
+	f.manager.startEffectLivePreview({ effectSource: { type: 'inlineNodesEffect', nodesEffect: graph({ type: 'nodesEffectReference', id: 'shared' }) } }, 'id');
 	await f.frame(30);
 	const before = f.submitted.at(-1).texture;
 	f.manager.applyProjectChanges([{ type: 'customShaderEffectRegistration', customShaderEffectId: 'shared',
@@ -116,20 +116,20 @@ test('preserves history for parameter edits and rebuilds only transitive dependa
 test('preserves unrelated history on snapshot sync and applies a changed definition', async t => {
 	let disposed = 0;
 	const f = await fixture(t, { init() { return { render() {}, dispose() { disposed++; } }; } });
-	const graphSource = { type: 'customNodeGraphEffectReference', id: 'shared' };
+	const nodesEffectSource = { type: 'nodesEffectReference', id: 'shared' };
 	const registered = { id: 'shared', name: 'Graph', definition: graph({ type: 'nativeEffect', id: 'shared' }) };
-	f.manager.updateDynamicOptions({ customNodeGraphEffects: [registered] });
-	f.manager.startEffectLivePreview({ effectSource: graphSource });
+	f.manager.updateDynamicOptions({ nodesEffects: [registered] });
+	f.manager.startEffectLivePreview({ effectSource: nodesEffectSource });
 	await f.frame(10);
-	f.manager.updateDynamicOptions({ customNodeGraphEffects: [structuredClone(registered), { ...registered, id: 'other' }] });
+	f.manager.updateDynamicOptions({ nodesEffects: [structuredClone(registered), { ...registered, id: 'other' }] });
 	await f.frame(20);
 	assert.equal(disposed, 0);
 	const changed = structuredClone(registered);
 	changed.definition.nodes[0].params.value = literal(1);
-	f.manager.updateDynamicOptions({ customNodeGraphEffects: [changed] });
+	f.manager.updateDynamicOptions({ nodesEffects: [changed] });
 	await f.frame(30);
 	assert.equal(disposed, 1);
-	f.manager.updateDynamicOptions({ customNodeGraphEffects: [registered] });
+	f.manager.updateDynamicOptions({ nodesEffects: [registered] });
 	await f.frame(40);
 	assert.deepEqual(f.errors, []);
 	assert.equal(f.submitted.at(-1).time, 40);
@@ -151,9 +151,9 @@ test('applies nested registration edits received during initialization and prese
 	} });
 	const child = graph({ type: 'nativeEffect', id: 'shared' });
 	child.nodes[0].params.value = literal(1);
-	f.manager.updateDynamicOptions({ customNodeGraphEffects: [{ id: 'inner', name: 'Inner', definition: child }] });
-	f.manager.startEffectLivePreview({ effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph({ type: 'customNodeGraphEffectReference', id: 'inner' }) } });
-	const edit = value => f.manager.applyProjectChanges([{ type: 'node', customNodeGraphEffectId: 'inner',
+	f.manager.updateDynamicOptions({ nodesEffects: [{ id: 'inner', name: 'Inner', definition: child }] });
+	f.manager.startEffectLivePreview({ effectSource: { type: 'inlineNodesEffect', nodesEffect: graph({ type: 'nodesEffectReference', id: 'inner' }) } });
+	const edit = value => f.manager.applyProjectChanges([{ type: 'node', nodesEffectId: 'inner',
 		node: { ...child.nodes[0], params: { value: literal(value) } }, changes: [{ type: 'parameter', kind: 'value' }] }]);
 	await f.frame(10);
 	edit(2);
@@ -173,7 +173,7 @@ test('applies nested registration edits received during initialization and prese
 // 【初期化に失敗した配置は、参照先のノードの値を直すと同じ選択で復帰する】
 // GPUの準備を待つ間に編集が先着する場合と、エラーを見てから修正する場合の両方で、
 // 新しい定義を使って再開する。無関係な登録の編集は失敗した配置の再試行を起動しない。
-test('recovers the selected graph when its node value is corrected during or after failed initialization', async t => {
+test('recovers the selected Nodes Effect when its node value is corrected during or after failed initialization', async t => {
 	for (const editDuringInitialization of [true, false]) {
 		const initialization = Promise.withResolvers();
 		const initialized = [];
@@ -188,9 +188,9 @@ test('recovers the selected graph when its node value is corrected during or aft
 			return { render() { rendered.push(inputs.value.value); }, dispose() {} };
 		} });
 		const child = graph({ type: 'nativeEffect', id: 'shared' });
-		f.manager.updateDynamicOptions({ customNodeGraphEffects: ['selected', 'other'].map(id => ({ id, name: id, definition: structuredClone(child) })) });
-		f.manager.startEffectLivePreview({ effectSource: { type: 'customNodeGraphEffectReference', id: 'selected' } });
-		const edit = id => f.manager.applyProjectChanges([{ type: 'node', customNodeGraphEffectId: id,
+		f.manager.updateDynamicOptions({ nodesEffects: ['selected', 'other'].map(id => ({ id, name: id, definition: structuredClone(child) })) });
+		f.manager.startEffectLivePreview({ effectSource: { type: 'nodesEffectReference', id: 'selected' } });
+		const edit = id => f.manager.applyProjectChanges([{ type: 'node', nodesEffectId: id,
 			node: { ...child.nodes[0], params: { value: literal(3) } }, changes: [{ type: 'parameter', kind: 'value' }] }]);
 		await f.frame(10);
 		if (editDuringInitialization) edit('selected');

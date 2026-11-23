@@ -47,11 +47,11 @@ fn main(position: vec2f) -> Output {
 
 ## Node・Layerでの使用
 
-Custom Node Graph EffectのEffect追加画面にプロジェクトのCustom Shader Effectも表示します。TimelineのEffect追加画面では主出力がcolorの定義を選べます。加工系のLayerは主入力へ下層の合成結果を割り当て、生成系では定義の既定値を使います。式・キー・サンプリング・解像度・バイパス・合成は既存Effectの規則に従います。
+Nodes EffectのEffect追加画面にプロジェクトのCustom Shader Effectも表示します。TimelineのEffect追加画面では主出力がcolorの定義を選べます。加工系のLayerは主入力へ下層の合成結果を割り当て、生成系では定義の既定値を使います。式・キー・サンプリング・解像度・バイパス・合成は既存Effectの規則に従います。
 
 Effect Node・Effect Layerから登録済みの定義を使う場合は、`effectSource: { type: "customShaderEffectReference", id: "<登録ID>" }`で参照します。配置に定義を直接持たせる場合は`{ type: "inlineCustomShaderEffect", customShaderEffect: 定義 }`を指定します。Timelineではどちらも`layerType: "effect"`です。パラメータと出力のキーは固定IDなので、WGSL参照名や表示名を変更してもBindingと配線は維持されます。
 
-定義の適用時には、登録済みCustom Node Graph Effect、Inline Custom Node Graph Effect、Timeline Layerの使用箇所をまとめて更新します。同じ型の保存値は維持し、入力・出力の接続には既存の型互換規則を使います。型間の値変換は行いません。非互換の値は新しい既定値へ戻し、削除された入力の保存値と、削除・非互換になった出力への接続は解除します。既定値だけの編集では保存値を変更しません。これらの変更は定義と同じUndo単位で復元します。
+定義の適用時には、登録済みNodes Effect、Inline Nodes Effect、Timeline Layerの使用箇所をまとめて更新します。同じ型の保存値は維持し、入力・出力の接続には既存の型互換規則を使います。型間の値変換は行いません。非互換の値は新しい既定値へ戻し、削除された入力の保存値と、削除・非互換になった出力への接続は解除します。既定値だけの編集では保存値を変更しません。これらの変更は定義と同じUndo単位で復元します。
 
 既存Layerが参照する主color出力を削除・解除した場合は描画前の検証エラーにし、別出力へ暗黙に切り替えません。
 
@@ -75,7 +75,7 @@ WGSLの構文・型検査はWebGPUコンパイラに任せます。ユーザー�
 
 プロジェクト保存・読み込みには定義と参照するNode・Layerを含めます。画像・動画の書き出しにも同じ定義を渡します。
 
-初期実装では、Custom Shader Effect Nodeを含むCustom Node Graph Effectの単体exportはエラーにします。未接続・バイパス中も対象で、部分的なファイルを作成しません。Custom Shader Effect単体のimport／exportは未対応です。
+初期実装では、Custom Shader Effect Nodeを含むNodes Effectの単体exportはエラーにします。未接続・バイパス中も対象で、部分的なファイルを作成しません。Custom Shader Effect単体のimport／exportは未対応です。
 
 ## 責務
 

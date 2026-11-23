@@ -38,7 +38,7 @@ const literal = value => ({ inputSource: 'literal', value });
 function fixture(t) {
 	t.mock.method(console, 'log', () => {});
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] };
-	const state = { timelineScenes: { value: [scene] }, resolution: { value: { width: 1000, height: 1000 } }, customNodeGraphEffects: { value: [] }, assets: { value: [] } };
+	const state = { timelineScenes: { value: [scene] }, resolution: { value: { width: 1000, height: 1000 } }, nodesEffects: { value: [] }, assets: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const changes = [];
 	history.onChange(value => changes.push(value));
@@ -171,7 +171,7 @@ test('round-trips camera layers and duplicates independent camera settings', asy
 	const { layerId: wrappedLayerId } = f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: [copy.id, f.layer.id], containerType: 'group' });
 	const project = { id: 'project', gsVersion: '2.0.0-alpha', name: 'Cameras', description: '', author: '',
 		resolution: { width: 1920, height: 1080 }, timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
-		assets: [], generatedSpeech: [], customNodeGraphEffects: [], timelineScenes: f.state.timelineScenes.value };
+		assets: [], generatedSpeech: [], nodesEffects: [], timelineScenes: f.state.timelineScenes.value };
 	assert.deepEqual(decodeProjectFile(await encodeProjectFile(project)), project);
 });
 
@@ -247,7 +247,7 @@ test('preserves Transform descendants through renderer patches, duplication and 
 	const transform = createTransformTimelineLayer();
 	transform.id = f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: [f.layer.id], containerType: 'transform' }).layerId;
 	const original = f.scene.layers[0];
-	const renderer = { timelineScenes: [structuredClone(f.scene)], customNodeGraphEffects: [] };
+	const renderer = { timelineScenes: [structuredClone(f.scene)], nodesEffects: [] };
 	const settings = getRendererLayerState(original);
 	assert.equal('layers' in settings, false);
 	settings.transformParamValues = { ...settings.transformParamValues, position: { inputSource: 'expression', expression: '[TIME, 0]' },
@@ -264,7 +264,7 @@ test('preserves Transform descendants through renderer patches, duplication and 
 	assert.deepEqual(original.transformParamValues.scale.value, [1, 1]);
 	const project = { id: 'project', gsVersion: '2.0.0-alpha', name: 'Transforms', description: '', author: '',
 		resolution: { width: 1920, height: 1080 }, timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
-		assets: [], generatedSpeech: [], customNodeGraphEffects: [], timelineScenes: patched.timelineScenes };
+		assets: [], generatedSpeech: [], nodesEffects: [], timelineScenes: patched.timelineScenes };
 	assert.deepEqual(decodeProjectFile(await encodeProjectFile(project)), project);
 });
 

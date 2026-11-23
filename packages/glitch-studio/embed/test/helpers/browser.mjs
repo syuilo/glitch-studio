@@ -16,7 +16,7 @@ function rendered(element, action = () => {}) {
 }
 async function mount(name, parameters = null) {
 	await import('/' + name + '/artwork.js');
-	const element = document.createElement('gs-custom-node-graph-effect-' + name);
+	const element = document.createElement('gs-nodes-effect-' + name);
 	element.style.cssText = 'display:block;width:200px;height:100px';
 	element.pause();
 	if (parameters != null) element.setAttribute('parameters', JSON.stringify(parameters));
@@ -166,7 +166,7 @@ try {
 	const { element: noOutput } = await mount('nooutput');
 	check((await pixel(noOutput))[3] === 0, 'uniform wired directly to Out presents a transparent frame');
 	noOutput.remove();
-	const transient = document.createElement('gs-custom-node-graph-effect-test');
+	const transient = document.createElement('gs-nodes-effect-test');
 	transient.style.cssText = 'width:100px;height:50px';
 	document.body.append(transient); const abandoned = transient.ready.catch(() => 'aborted'); transient.remove();
 	check(await abandoned === 'aborted', 'removal during initialization rejects the abandoned ready promise');
@@ -185,7 +185,7 @@ try {
 	for (const name of ['standalone', 'symbols', 'image']) {
 		const iframe = document.createElement('iframe'); iframe.style.cssText = 'width:300px;height:150px';
 		await new Promise(resolve => { iframe.onload = resolve; iframe.src = '/' + name + '.html'; document.body.append(iframe); });
-		const standalone = iframe.contentDocument.querySelector('gs-custom-node-graph-effect-' + name);
+		const standalone = iframe.contentDocument.querySelector('gs-nodes-effect-' + name);
 		await standalone.ready; await rendered(standalone);
 		if (name === 'symbols') await checkSymbolTextureRendering(standalone, 'single HTML');
 		else if (name === 'image') check((await pixel(standalone, 0.5, 0.1))[0] > 250, 'single HTML renders its embedded image');

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { applyRendererProjectChanges, findRendererCustomNodeGraphEffect } from '../src/project/renderer-state.ts';
-import { customNodeGraphEffectTargetKey } from '../src/project/custom-node-graph-effect-target.ts';
+import { applyRendererProjectChanges, findRendererNodesEffect } from '../src/project/renderer-state.ts';
+import { nodesEffectTargetKey } from '../src/project/nodes-effect-target.ts';
 
-const registeredTarget = { customNodeGraphEffectId: 'graph' };
+const registeredTarget = { nodesEffectId: 'graph' };
 const layerTarget = { sceneId: 'scene', layerId: 'layer' };
 const graph = { kind: 'generate', paramDefs: {}, outputDefs: {}, primaryInputParameter: null, primaryOutput: null,
 	resolutionInputParameters: [], nodes: [], outputSources: {} };
@@ -12,10 +12,10 @@ const shader = { ...graph, outputDefs: { color: { dataType: { kind: 'color' }, n
 const node = { id: 'node', effectSource: { type: 'nativeEffect', id: 'image' }, params: {} };
 const state = {
 	automationGraphs: [],
-	customNodeGraphEffects: [{ id: 'graph', name: 'Main', nodeMetadata: { node: { displayName: 'Input' } }, definition: { ...graph, nodes: [node] } }],
+	nodesEffects: [{ id: 'graph', name: 'Main', nodeMetadata: { node: { displayName: 'Input' } }, definition: { ...graph, nodes: [node] } }],
 	customShaderEffects: [],
 	timelineScenes: [{ id: 'scene', layers: [{ id: 'folder', layerType: 'folder', layers: [
-		{ id: 'layer', layerType: 'effect', effectSource: { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph } },
+		{ id: 'layer', layerType: 'effect', effectSource: { type: 'inlineNodesEffect', nodesEffect: graph } },
 	] }] }],
 };
 
@@ -26,12 +26,12 @@ test('applies registration and placement changes in one immutable batch', () => 
 	const replacement = { ...node, effectSource: { type: 'customShaderEffectReference', id: 'graph' } };
 	const changes = [
 		{ type: 'customShaderEffectRegistration', customShaderEffectId: 'graph', customShaderEffect: registration },
-		{ type: 'node', customNodeGraphEffectId: 'graph', node: replacement, changes: [{ type: 'effectSource' }] },
+		{ type: 'node', nodesEffectId: 'graph', node: replacement, changes: [{ type: 'effectSource' }] },
 	];
 	const next = applyRendererProjectChanges(state, changes);
-	assert.equal(findRendererCustomNodeGraphEffect(next, registeredTarget).nodes[0], replacement);
-	assert.equal(findRendererCustomNodeGraphEffect(state, registeredTarget).nodes[0], node);
-	assert.equal(next.customNodeGraphEffects[0].nodeMetadata, state.customNodeGraphEffects[0].nodeMetadata);
+	assert.equal(findRendererNodesEffect(next, registeredTarget).nodes[0], replacement);
+	assert.equal(findRendererNodesEffect(state, registeredTarget).nodes[0], node);
+	assert.equal(next.nodesEffects[0].nodeMetadata, state.nodesEffects[0].nodeMetadata);
 	assert.equal(next.customShaderEffects[0], registration);
 	assert.deepEqual(state.customShaderEffects, []);
 	assert.equal(next.timelineScenes, state.timelineScenes);
@@ -40,10 +40,10 @@ test('applies registration and placement changes in one immutable batch', () => 
 	assert.deepEqual(edited.customShaderEffects, [updated]);
 	const removed = applyRendererProjectChanges(edited, [
 		{ ...changes[0], customShaderEffect: null },
-		{ type: 'customNodeGraphEffectRegistration', customNodeGraphEffectId: 'graph', customNodeGraphEffect: null },
+		{ type: 'nodesEffectRegistration', nodesEffectId: 'graph', nodesEffect: null },
 	]);
 	assert.deepEqual(removed.customShaderEffects, []);
-	assert.deepEqual(removed.customNodeGraphEffects, []);
+	assert.deepEqual(removed.nodesEffects, []);
 	assert.equal(next.customShaderEffects[0], registration);
 });
 
@@ -52,24 +52,24 @@ test('applies registration and placement changes in one immutable batch', () => 
 test('leaves the previous state intact when a later change in a batch fails', () => {
 	const original = structuredClone(state);
 	assert.throws(() => applyRendererProjectChanges(state, [
-		{ type: 'customNodeGraphEffect', customNodeGraphEffectId: 'graph', customNodeGraphEffect: graph },
-		{ type: 'node', customNodeGraphEffectId: 'graph', node, changes: [{ type: 'effectSource' }] },
+		{ type: 'nodesEffect', nodesEffectId: 'graph', nodesEffect: graph },
+		{ type: 'node', nodesEffectId: 'graph', node, changes: [{ type: 'effectSource' }] },
 	]), /Node not found/);
 	assert.deepEqual(state, original);
 });
 
 // 【インラインの編集は所有するEffectレイヤーの差分で反映する】
 // 同じSceneのフォルダ内も探索し、配置が登録参照に切り替わったら古いインライン定義を返さない。
-test('locates inline graphs through nested effect layers and replaces their owner', () => {
-	assert.equal(findRendererCustomNodeGraphEffect(state, layerTarget), graph);
-	assert.notEqual(customNodeGraphEffectTargetKey(registeredTarget), customNodeGraphEffectTargetKey(layerTarget));
+test('locates inline Nodes Effects through nested effect layers and replaces their owner', () => {
+	assert.equal(findRendererNodesEffect(state, layerTarget), graph);
+	assert.notEqual(nodesEffectTargetKey(registeredTarget), nodesEffectTargetKey(layerTarget));
 	const editLayer = effectSource => ({ type: 'layer', ...layerTarget, layer: { id: 'layer', layerType: 'effect', effectSource },
 		changes: [{ type: 'definition' }] });
 	const replacement = { ...graph, nodes: [node] };
-	const next = applyRendererProjectChanges(state, [editLayer({ type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: replacement })]);
-	assert.equal(findRendererCustomNodeGraphEffect(next, layerTarget), replacement);
-	assert.equal(findRendererCustomNodeGraphEffect(state, layerTarget), graph);
-	const referenced = applyRendererProjectChanges(next, [editLayer({ type: 'customNodeGraphEffectReference', id: 'graph' })]);
-	assert.equal(findRendererCustomNodeGraphEffect(referenced, layerTarget), null);
-	assert.equal(findRendererCustomNodeGraphEffect(referenced, registeredTarget), state.customNodeGraphEffects[0].definition);
+	const next = applyRendererProjectChanges(state, [editLayer({ type: 'inlineNodesEffect', nodesEffect: replacement })]);
+	assert.equal(findRendererNodesEffect(next, layerTarget), replacement);
+	assert.equal(findRendererNodesEffect(state, layerTarget), graph);
+	const referenced = applyRendererProjectChanges(next, [editLayer({ type: 'nodesEffectReference', id: 'graph' })]);
+	assert.equal(findRendererNodesEffect(referenced, layerTarget), null);
+	assert.equal(findRendererNodesEffect(referenced, registeredTarget), state.nodesEffects[0].definition);
 });

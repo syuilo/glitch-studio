@@ -93,23 +93,23 @@ function mountSettingsDialog(t) {
 // 未設定では従来の直線を保ち、ダイアログを開いただけでは保存しない。
 test('persists wire style changes and resets the reactive selection to straight', async t => {
 	const { find, preferences, storage, writes, PreferencesManager } = mountSettingsDialog(t);
-	const control = find('data-test-custom-node-graph-effect-wire-style');
+	const control = find('data-test-nodes-effect-wire-style');
 	assert.equal(control.props.modelValue, 'straight');
 	assert.deepEqual(control.props.items.map(item => item.value), ['straight', 'curved']);
 	assert.deepEqual(writes, []);
 	for (const value of ['curved', 'straight', 'curved']) {
 		control.props['onUpdate:modelValue'](value);
 		await nextTick();
-		assert.equal(preferences.r.customNodeGraphEffectWireStyle.value, value);
+		assert.equal(preferences.r.nodesEffectWireStyle.value, value);
 		assert.equal(control.props.modelValue, value);
-		assert.equal(storage.get('preferences:customNodeGraphEffectWireStyle'), JSON.stringify(value));
-		assert.equal(new PreferencesManager().s.customNodeGraphEffectWireStyle, value);
+		assert.equal(storage.get('preferences:nodesEffectWireStyle'), JSON.stringify(value));
+		assert.equal(new PreferencesManager().s.nodesEffectWireStyle, value);
 	}
 	preferences.reset();
 	await nextTick();
 	assert.equal(control.props.modelValue, 'straight');
-	assert.equal(preferences.r.customNodeGraphEffectWireStyle.value, 'straight');
-	assert.equal(storage.has('preferences:customNodeGraphEffectWireStyle'), false);
+	assert.equal(preferences.r.nodesEffectWireStyle.value, 'straight');
+	assert.equal(storage.has('preferences:nodesEffectWireStyle'), false);
 });
 
 // 【リセットは確認でOKを選んだ場合だけ行い、完了後に再起動を案内する】
@@ -249,11 +249,11 @@ test('saves settings individually', async t => {
 	// 【数値とスイッチを個別に保存する】
 	// 数値の確定操作とスイッチの即時保存が、全体の適用操作を必要としないことを確認する。
 	find('data-test-backup-auto-interval').props['onUpdate:modelValue'](10);
-	find('data-test-custom-node-graph-effect-auto-connect-on-node-add').props['onUpdate:modelValue'](true);
+	find('data-test-nodes-effect-auto-connect-on-node-add').props['onUpdate:modelValue'](true);
 	await nextTick();
 	assert.equal(preferences.s.timelineFrameCacheMaxGiB, 1);
 	assert.equal(preferences.s.projectBackupAutoIntervalMinutes, 10);
-	assert.equal(preferences.s.customNodeGraphEffectAutoConnectOnNodeAdd, true);
+	assert.equal(preferences.s.nodesEffectAutoConnectOnNodeAdd, true);
 	// 【型安全設定の既定値は無効で、切り替えを即時保存する】
 	// 新規環境では警告付き接続を利用できる。両方向の変更を従来の保存キーへ反映する。
 	const forceTypeSafety = find('data-test-force-type-safety');

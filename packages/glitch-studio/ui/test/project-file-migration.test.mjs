@@ -20,10 +20,10 @@ test('preserves Effect source discriminators and inline definitions on disk', as
 	const graph = { kind: 'generate', paramDefs: {}, outputDefs: { color: { dataType: { kind: 'color' } } },
 		primaryInputParameter: null, primaryOutput: 'color', resolutionInputParameters: [], nodes: [], outputSources: {} };
 	const sources = [{ type: 'nativeEffect', id: 'same' }, { type: 'customShaderEffectReference', id: 'same' },
-		{ type: 'customNodeGraphEffectReference', id: 'registered' }, { type: 'inlineCustomNodeGraphEffect', customNodeGraphEffect: graph }];
-	const project = { gsVersion: '1.0.0', assets: [], generatedSpeech: [], customShaderEffects: [], customNodeGraphEffects: [{ id: 'registered', name: 'Registered', definition: graph }],
+		{ type: 'nodesEffectReference', id: 'registered' }, { type: 'inlineNodesEffect', nodesEffect: graph }];
+	const project = { gsVersion: '1.0.0', assets: [], generatedSpeech: [], customShaderEffects: [], nodesEffects: [{ id: 'registered', name: 'Registered', definition: graph }],
 		timelineScenes: [{ id: 'scene', layers: sources.map((effectSource, index) => ({ id: String(index), layerType: 'effect', effectSource })) }] };
 	const restored = await decodeProjectFile(await encodeProjectFile(project), '1.0.0');
 	assert.deepEqual(restored.timelineScenes[0].layers.map(layer => layer.effectSource), sources);
-	assert.deepEqual(restored.customNodeGraphEffects, project.customNodeGraphEffects);
+	assert.deepEqual(restored.nodesEffects, project.nodesEffects);
 });

@@ -6,7 +6,7 @@
 
 - Glitch Studioは、ノードベースのエディタやタイムラインを通じてリアルタイムな画像・動画・音声の加工・編集・作成を行えるWebベースのソフトウェアです。
 - WebWorkers上で動くWebGPUを用いたレンダラーを、Command patternを使用して状態管理を行うVue製WebUIから操作する構成です。
-- レンダラーにはノードグラフ(Custom Node Graph Effect)情報やタイムライン情報が与えられます。各ノードは、それがどのような処理(エフェクト)を行うかという情報や、エフェクトに対するパラメータ情報(他のノードへの接続情報も含む)などを持ちます。
+- レンダラーにはノードグラフ(Nodes Effect)情報やタイムライン情報が与えられます。各ノードは、それがどのような処理(エフェクト)を行うかという情報や、エフェクトに対するパラメータ情報(他のノードへの接続情報も含む)などを持ちます。
 - ユーザーは、各パラメータをUI上のスライダーなどを通じて設定できるほか、パラメータに式を記述することもできます。そのような式を評価したりする作業もレンダラーの役目です。
 - パラメータの型は、数値、真理値、色、ベクトル、ノード入力など様々です。
 - パーリンノイズなど、画像以外のデータ(スカラー場やベクトル場)を生成するエフェクトもあります。そのようなデータは直接最終結果に表示するというよりは、別のエフェクトの入力として使用することが想定されています。
@@ -17,7 +17,7 @@
 - タイルレンダリングを行い、GPUデバイスがHUNGするのを防ぐ機能もあります。
 - レンダリングのパフォーマンス(フレームのレンダリングにかかった時間等)を計測する機能もあります。
 - 作業色空間はlinear sRGB・rgba16floatで統一されています。負値や1を超える値も保持され、HDRに対応しています。
-- 作成したCustom Node Graph Effectを、任意のWebサイトに埋め込めるWeb Componentとしてエクスポートできる機能もあります。
+- 作成したNodes Effectを、任意のWebサイトに埋め込めるWeb Componentとしてエクスポートできる機能もあります。
 - UIにもこだわっていて、複数のパネルを自由なレイアウトで配置したり、プレビューを別ウィンドウで開けたり、ヒストグラム・波形を表示する機能があったりします。
 - ひとつのウィンドウ内で複数のプロジェクトを開けます。
 - AiScriptでスクリプトを記述し、プロジェクトを操作できる仕組み(Scripting)もあります。
@@ -35,11 +35,11 @@
 
 - [**`glitch-studio`**](./packages/glitch-studio) ... Glitch Studioドメイン固有の層
 	- [**`glitch-studio/shared`**](./packages/glitch-studio/shared) ... Glitch Studioドメイン内で共通の型や処理などを置きます。
-		- portable-custom-node-graph-effect.ts ... Web書き出しで受け渡すCustom Node Graph Effect・同梱Asset・公開値・設定の型と、設定の既定値・検証を定義します。
-	- [**`glitch-studio/desktop`**](./packages/glitch-studio/desktop) ... Electron上で動かす場合のAPI実装などが含まれます。Custom Node Graph EffectのWeb書き出しでは、別プロセスでのランタイムのビルドと、成果物の保存・キャンセルを担当します。
+		- portable-nodes-effect.ts ... Web書き出しで受け渡すNodes Effect・同梱Asset・公開値・設定の型と、設定の既定値・検証を定義します。
+	- [**`glitch-studio/desktop`**](./packages/glitch-studio/desktop) ... Electron上で動かす場合のAPI実装などが含まれます。Nodes EffectのWeb書き出しでは、別プロセスでのランタイムのビルドと、成果物の保存・キャンセルを担当します。
 	- [**`glitch-studio/renderer`**](./packages/glitch-studio/renderer) ... Glitch Studioとして、各subsystemのレンダラーを利用する統括層
-		- portable-canvas-renderer.ts ... Web書き出し用の表示境界として、Custom Node Graph Effectの出力をCanvasへ描画します。
-	- [**`glitch-studio/embed`**](./packages/glitch-studio/embed) ... Custom Node Graph Effectを、素材を同梱したHTML・JavaScriptとWeb Componentとして配布する層。依存収集・成果物の生成と、Custom Element・Workerの実行コードを所有します。プロジェクトやPlayerの起動は行わず、書き出しダイアログ・スナップショット・素材読み出しはui、ビルドの実行と保存はdesktopが担当します。
+		- portable-canvas-renderer.ts ... Web書き出し用の表示境界として、Nodes Effectの出力をCanvasへ描画します。
+	- [**`glitch-studio/embed`**](./packages/glitch-studio/embed) ... Nodes Effectを、素材を同梱したHTML・JavaScriptとWeb Componentとして配布する層。依存収集・成果物の生成と、Custom Element・Workerの実行コードを所有します。プロジェクトやPlayerの起動は行わず、書き出しダイアログ・スナップショット・素材読み出しはui、ビルドの実行と保存はdesktopが担当します。
 		- build/catalog.mjs ... アプリのビルド時に、エフェクト・実行コードの依存を解決したES Modulesのカタログを生成します。
 		- build/runtime.mjs ... 書き出し時に、カタログから作品で使用するエフェクトと必要な式評価機能などを選び、独立したElement・WorkerのJavaScriptへバンドルします。
 	- [**`glitch-studio/ui`**](./packages/glitch-studio/ui) ... UI実装が含まれます。状態の管理・レンダラーの呼び出し、表示、ファイルの入出力などを行います。状態の操作は原則Command patternで行うようになっていてUndo/Redoを可能にしています。
@@ -57,7 +57,7 @@
 	- [**`shared/src/gpu`**](./packages/shared/src/gpu) ... 各ドメインから独立したGPUデータ表現・処理・共通WGSLを置きます。`shader-buffer.ts`は事前解析した配置情報からバッファを作り、値を書き込む実行時の処理を担当します。
 - [**`subsystems`**](./packages/subsystems) ... 個々の独立した機能が入る層。これらのパッケージは一機能にすぎず、「プロジェクト」の状態などの上位概念を知っていてはならない。Glitch Studioとは関係ないライブラリとして提供できるレベルで、Glitch Studioのコンテキストから分離されているのが理想。もちろんglitch-studio層へは依存しないが、他のsubsystemへの一方向への依存や、トップレベルのsharedへの依存はあってもいい。
 	- [**`subsystems/audio`**](./packages/subsystems/audio) ... 取得元に依存しないPCM・キャプチャメッセージ・読み取り専用ビューの型をsharedに、音声履歴・FFT解析・音声ファイルのデコード・リサンプリング・PCMキャッシュをrendererに置きます。Asset・Player・Scene・レイヤーの定義や再生状態を知りません。Asset IDからファイルを解決する処理はGlitch Studio層が注入します。
-	- [**`subsystems/effect`**](./packages/subsystems/effect) ... Native Effect、Custom Shader Effect、Custom Node Graph Effectを共通のEffectとして扱います。
+	- [**`subsystems/effect`**](./packages/subsystems/effect) ... Native Effect、Custom Shader Effect、Nodes Effectを共通のEffectとして扱います。
 		- [**`subsystems/effect/shared`**](./packages/subsystems/effect/shared) ... Effectの公開定義、保存形式、検証を担当します。
 		- [**`subsystems/effect/renderer`**](./packages/subsystems/effect/renderer) ... Effectの配置ごとに実行状態を生成し、描画を行います。
 		- [**`subsystems/effect/native-effects`**](./packages/subsystems/effect/native-effects) ... Native Effectごとにディレクトリを設け、定義と実装をそれぞれ`_def_.ts`と`_impl_.ts`に分けます。シェーダーコードは通常WGSLファイルとして分離します。
@@ -113,7 +113,7 @@
 	- ただし、大規模なリファクタリングについては、変更が大きくなるのでその場では行わず、作業完了後に提案を行う。
 - 実装を行うときは、それが「どのドメイン・スコープに属するのか？」を考え、適切なドメインのディレクトリに置く(Directory Structureセクションを参照)。安易により広い上位の層に置かない。
 - 文章中でもコード上でも、Glitch Studio固有のワードを統一する。略したり、表記ゆれさせない。
-	- 例えば、"CustomNodeGraphEffect"を単に"Effect"と略したりしてはならない。一時的な変数の名前であってもこの規則を守る。
+	- 例えば、"NodesEffect"を単に"Effect"と略したりしてはならない。一時的な変数の名前であってもこの規則を守る。
 	- そうしないと、何を指しているのか場合によっては曖昧になり、コード検索も行いにくくなる。
 	- コード上のコメントなどでも、それらのワードは日本語にしない。
 - 変数名・プロパティ名・クラス名・ファイル名などは、長くなったとしても、曖昧性がなく明確で説明的・具体的な名前にする。

@@ -61,9 +61,9 @@
 		>
 			<template #default="{ parameterKey }">
 				<GsVisualParam
-					:availableVariables="IN_CUSTOM_NODE_GRAPH_EFFECT_VAR_DEFS"
-					:customNodeGraphEffect="customNodeGraphEffect"
-					:automationGraphs="customNodeGraphEffect.automationGraphs"
+					:availableVariables="IN_NODES_EFFECT_VAR_DEFS"
+					:nodesEffect="nodesEffect"
+					:automationGraphs="nodesEffect.automationGraphs"
 					:node="node"
 					:paramPath="[parameterKey]"
 					:paramDef="effectDefinitions.describe(node.effectSource).paramDefs[parameterKey]"
@@ -79,7 +79,7 @@
 </template>
 
 <script lang="ts" setup>
-import { IN_CUSTOM_NODE_GRAPH_EFFECT_VAR_DEFS } from '@/utility/custom-node-graph-effect-expression.ts';
+import { IN_NODES_EFFECT_VAR_DEFS } from '@/utility/nodes-effect-expression.ts';
 import { ref, computed, provide, shallowRef, watchEffect } from 'vue';
 import { prettyId } from '@gs/shared/utility/id.ts';
 import { getEffectDefinitions } from '@/utility/project-effects.ts';
@@ -94,13 +94,13 @@ import GsInput from './common/GsInput.vue';
 import GsFolder from './common/GsFolder.vue';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
-import type { CustomNodeGraphEffect, CustomNodeGraphEffectEffectNode } from '@/types/custom-node-graph-effect-view.ts';
+import type { NodesEffect, NodesEffectEffectNode } from '@/types/nodes-effect-view.ts';
 import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
-import { connectedNodeParameterPathKeysKey, useCustomNodeGraphEffectWires } from '@/utility/custom-node-graph-effect-wires.ts';
+import { connectedNodeParameterPathKeysKey, useNodesEffectWires } from '@/utility/nodes-effect-wires.ts';
 import { paramPathKey, walkNodeParams } from '@/utility/node-params.ts';
 import { getEffectNodeName } from '@/utility/node-name.ts';
-import { getCustomNodeGraphEffectNodeHeaderMenuItems } from '@/utility/custom-node-graph-effect-node-menu.ts';
+import { getNodesEffectNodeHeaderMenuItems } from '@/utility/nodes-effect-node-menu.ts';
 import * as ui from '@/ui.ts';
 
 const projectSession = useProjectSession();
@@ -109,11 +109,11 @@ const effectDefinitions = computed(() => getEffectDefinitions(projectSession.pro
 
 const { stateManager } = projectSession.projectContext;
 
-const wireMap = useCustomNodeGraphEffectWires();
+const wireMap = useNodesEffectWires();
 
 const props = defineProps<{
-	customNodeGraphEffect: CustomNodeGraphEffect;
-	node: CustomNodeGraphEffectEffectNode;
+	nodesEffect: NodesEffect;
+	node: NodesEffectEffectNode;
 }>();
 
 const emit = defineEmits<{
@@ -168,7 +168,7 @@ function setDimension(axis: 'width' | 'height', value: number | null) {
 }
 
 function onHeaderContextmenu(ev: PointerEvent) {
-	const items = getCustomNodeGraphEffectNodeHeaderMenuItems(props.node, name => emit('setDisplayName', name));
+	const items = getNodesEffectNodeHeaderMenuItems(props.node, name => emit('setDisplayName', name));
 	items.push({
 		id: 'resetNodeParameters',
 		text: i18n.ts.Reset,

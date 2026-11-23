@@ -50,7 +50,7 @@ function fixture(t) {
 	new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(name => mocks[name] ?? require(name), module, module.exports);
 	const { createTimelineDropActions, createTimelineAssetLayer, UndoRedo, COMMAND_DEFS } = module.exports;
 	const state = { timelineScenes: ref([{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }]),
-		assets: ref([]), customNodeGraphEffects: ref([]) };
+		assets: ref([]), nodesEffects: ref([]) };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const changes = [];
 	history.onChange(value => { changes.push(value); events.push(['commit', dialogs]); });
