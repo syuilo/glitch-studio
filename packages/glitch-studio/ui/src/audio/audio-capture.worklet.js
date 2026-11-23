@@ -62,7 +62,7 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
 		if (this.disposed) return false;
 		const channels = inputs[0];
 		// PCM転送用バッファの空きに依存せず、音量調整前の入力ピークを計測する。
-		if (this.active) {
+		if (this.active && this.meterPort != null) {
 			const frames = channels?.[0]?.length ?? outputs[0][0].length;
 			for (let i = 0; i < (channels?.[0]?.length ?? 0); i++) {
 				this.meterLeft = Math.max(this.meterLeft, Math.abs(channels[0][i]));
@@ -71,7 +71,7 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
 			this.meterFrames += frames;
 			if (this.meterFrames >= sampleRate / 30) {
 				// UIが停止していても通知を積み上げない。
-				if (this.meterPort && !this.meterPending) {
+				if (!this.meterPending) {
 					this.meterPending = true;
 					this.meterPort.postMessage({ type: 'levels', generation: this.meterGeneration, left: this.meterLeft, right: this.meterRight });
 					this.meterLeft = this.meterRight = 0;

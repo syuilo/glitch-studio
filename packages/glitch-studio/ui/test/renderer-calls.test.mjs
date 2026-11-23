@@ -19,6 +19,7 @@ async function bundle(path) {
 				build.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: `
 					export const ref = value => ({ value });
 					export const shallowRef = ref;
+					export const computed = getter => ({ get value() { return getter(); } });
 					export const shallowReactive = value => value;
 					export const createEffectLivePreviewManagerWorker = () => dependencies.createWorker();
 					export const EffectLivePreviewManager = dependencies.EffectLivePreviewManager;
@@ -167,14 +168,16 @@ function liveStream(...kinds) {
 
 // 【Webカメラ映像と音声を同時に接続し、マイクへの切り替えで両方を解放する】
 // 映像再生はミュートしたまま、同じストリームの音声をWorkerへ渡す。
-// マイクだけの場合は映像要素を作らず、選択解除で音声キャプチャも解放する。
+// 試聴を有効にしてもWorkerの入力は継続し、別の機器へ切り替えると試聴はオフへ戻る。
+// マイクだけの場合は映像要素を作らず、トラックの終了で音声キャプチャと試聴を解放する。
 test('attaches webcam and microphone audio to the preview worker', async t => {
 	const requests = [];
 	const streams = [liveStream('video', 'audio'), liveStream('audio')];
 	const captures = [];
+	const monitoringConnections = [];
 	const audioOutput = {
 		async getOutput() { return { context: { createMediaStreamSource: stream => ({ stream }) } }; },
-		captureSource(_id, source, { attach, reset }) {
+		captureSource(source, { pcm: { attach, reset } }) {
 			const { port1, port2 } = new MessageChannel();
 			t.after(() => port1.close());
 			attach(port2);
@@ -185,6 +188,15 @@ test('attaches webcam and microphone audio to the preview worker', async t => {
 			};
 			captures.push(capture);
 			return capture;
+		},
+		connectLivePreviewAudio(source) {
+			const monitoring = {
+				source, enabled: false, disposed: false,
+				setEnabled(enabled) { this.enabled = enabled; },
+				dispose() { this.disposed = true; },
+			};
+			monitoringConnections.push(monitoring);
+			return monitoring;
 		},
 	};
 	const { controller, instances } = await fixture(t, {
@@ -200,6 +212,14 @@ test('attaches webcam and microphone audio to the preview worker', async t => {
 	assert.equal(instances[0].capturePorts.length, 1);
 	assert.equal(captures[0].source.stream, streams[0]);
 	assert.equal(captures[0].started, true);
+	assert.equal(monitoringConnections[0].source, captures[0].source);
+	assert.equal(controller.livePreviewAudioMonitoringAvailable.value, true);
+	assert.equal(controller.livePreviewAudioMonitoringEnabled.value, false);
+	controller.setLivePreviewAudioMonitoringEnabled(true);
+	assert.equal(monitoringConnections[0].enabled, true);
+	assert.equal(controller.livePreviewAudioMonitoringEnabled.value, true);
+	assert.equal(captures.length, 1);
+	assert.equal(captures[0].disposed, false);
 
 	controller.setPreviewInput({ kind: 'microphone' });
 	await new Promise(resolve => setImmediate(resolve));
@@ -207,15 +227,23 @@ test('attaches webcam and microphone audio to the preview worker', async t => {
 	assert.equal(controller.previewMediaElement.value, null);
 	assert.ok(streams[0].getTracks().every(track => track.readyState === 'ended'));
 	assert.equal(captures[0].disposed, true);
+	assert.equal(monitoringConnections[0].disposed, true);
 	assert.equal(instances[0].capturePorts.length, 2);
 	assert.equal(captures[1].source.stream, streams[1]);
 	assert.equal(captures[1].started, true);
+	assert.equal(monitoringConnections[1].source, captures[1].source);
+	assert.equal(monitoringConnections[1].enabled, false);
+	assert.equal(controller.livePreviewAudioMonitoringEnabled.value, false);
+	controller.setLivePreviewAudioMonitoringEnabled(true);
 
 	const microphoneTrack = streams[1].getAudioTracks()[0];
 	microphoneTrack.stop();
 	microphoneTrack.dispatchEvent(new Event('ended'));
 	await new Promise(resolve => setImmediate(resolve));
 	assert.equal(captures[1].disposed, true);
+	assert.equal(monitoringConnections[1].disposed, true);
+	assert.equal(controller.livePreviewAudioMonitoringAvailable.value, false);
+	assert.equal(controller.livePreviewAudioMonitoringEnabled.value, false);
 	assert.equal(instances[0].audioSourceUpdates.at(-1), null);
 });
 
@@ -239,6 +267,7 @@ test('falls back to video and stops device streams that arrive after deselection
 	assert.deepEqual(requests, [{ video: true, audio: true }, { video: true, audio: false }]);
 	assert.equal(controller.previewMediaElement.value.srcObject, camera);
 	assert.equal(controller.previewMediaError.value, i18n.ts._EffectPreview.WebcamAudioUnavailable);
+	assert.equal(controller.livePreviewAudioMonitoringAvailable.value, false);
 
 	controller.setPreviewInput({ kind: 'microphone' });
 	controller.setPreviewInput(null);

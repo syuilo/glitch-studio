@@ -873,6 +873,7 @@
 		"ImageInput": "Preview Input Image",
 		"AudioInput": "Preview Input Audio",
 		"Microphone": "Microphone",
+		"MonitorInputAudio": "Monitor Input Audio",
 		"WebcamAudioUnavailable": "Webcam audio is unavailable."
 	},
 	"_Parameter": {

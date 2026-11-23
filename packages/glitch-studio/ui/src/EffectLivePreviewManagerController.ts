@@ -1,4 +1,4 @@
-import { ref, shallowRef } from 'vue';
+import { computed, ref, shallowRef } from 'vue';
 import { getFileSourceUrl, getFileSourceError, releaseFileSourceUrl } from '@gs/shared/file-source.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
@@ -41,6 +41,9 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 	public readonly previewMediaError = ref<string | null>(null);
 	private releaseMedia: (() => void) | null = null;
 	private liveCapture: AbortController | null = null;
+	private readonly livePreviewAudioMonitoring = shallowRef<ReturnType<AudioOutput['connectLivePreviewAudio']> | null>(null);
+	public readonly livePreviewAudioMonitoringAvailable = computed(() => this.livePreviewAudioMonitoring.value != null);
+	public readonly livePreviewAudioMonitoringEnabled = ref(false);
 	private mediaAudioNode: MediaElementAudioSourceNode | null = null;
 	private pendingVideoFrame: VideoFrame | null = null;
 	private inFlightVideoFrame: number | null = null;
@@ -360,14 +363,20 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 			const output = await this.audioOutput.getOutput();
 			if (signal.aborted) return;
 			const source = (output.context as AudioContext).createMediaStreamSource(stream);
-			// ライブ音声は無音を出力するWorkletにだけ接続し、スピーカーへの回り込みを防ぐ。
-			const capture = this.audioOutput.captureSource('preview:input', source, {
-				attach: port => this.call('attachPreviewAudioCapture', [port], [port]),
-				reset: () => { if (!signal.aborted && this.isReady.value) this.call('setPreviewAudioSource', [null]); },
+			// プレビュー入力パラメータには、他の再生音が混ざる前のPCMを渡す。
+			const capture = this.audioOutput.captureSource(source, {
+				meterId: 'preview:input',
+				pcm: {
+					attach: port => this.call('attachPreviewAudioCapture', [port], [port]),
+					reset: () => { if (!signal.aborted && this.isReady.value) this.call('setPreviewAudioSource', [null]); },
+				},
 			});
 			const releaseAudio = () => {
 				signal.removeEventListener('abort', releaseAudio);
 				for (const track of audioTracks) track.removeEventListener('ended', onAudioEnded);
+				this.livePreviewAudioMonitoring.value?.dispose();
+				this.livePreviewAudioMonitoring.value = null;
+				this.livePreviewAudioMonitoringEnabled.value = false;
 				capture.dispose();
 			};
 			const onAudioEnded = () => {
@@ -375,7 +384,13 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 			};
 			signal.addEventListener('abort', releaseAudio, { once: true });
 			for (const track of audioTracks) track.addEventListener('ended', onAudioEnded);
-			capture.setState(true, 0);
+			try {
+				this.livePreviewAudioMonitoring.value = this.audioOutput.connectLivePreviewAudio(source);
+				capture.setState(true, 0);
+			} catch (error) {
+				releaseAudio();
+				throw error;
+			}
 			onAudioEnded();
 		} catch (error) {
 			if (signal.aborted) return;
@@ -384,6 +399,13 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 			for (const track of audioTracks) track.stop();
 			this.previewMediaError.value = i18n.ts._EffectPreview.WebcamAudioUnavailable;
 		}
+	}
+
+	public setLivePreviewAudioMonitoringEnabled(enabled: boolean) {
+		const monitoring = this.livePreviewAudioMonitoring.value;
+		if (monitoring == null) return;
+		monitoring.setEnabled(enabled);
+		this.livePreviewAudioMonitoringEnabled.value = enabled;
 	}
 
 	public async playPreviewMedia() {

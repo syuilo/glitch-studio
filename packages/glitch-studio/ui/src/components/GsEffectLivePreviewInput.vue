@@ -15,6 +15,15 @@
 			:play="() => controller.playPreviewMedia()"
 		/>
 	</div>
+	<GsSwitch
+		v-if="hasLiveAudioSource"
+		data-test-effect-preview-monitor-audio
+		:modelValue="active && controller.livePreviewAudioMonitoringEnabled.value"
+		:disabled="!active || !controller.livePreviewAudioMonitoringAvailable.value"
+		@update:modelValue="controller.setLivePreviewAudioMonitoringEnabled($event)"
+	>
+		<template #label>{{ i18n.ts._EffectPreview.MonitorInputAudio }}</template>
+	</GsSwitch>
 	<div v-if="active && controller.previewMediaError.value != null" :class="$style.error">
 		{{ controller.previewMediaError.value }}
 	</div>
@@ -24,6 +33,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import GsSelect from './common/GsSelect.vue';
+import GsSwitch from './common/GsSwitch.vue';
 import GsVideoControls from './common/GsVideoControls.vue';
 import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
@@ -58,6 +68,7 @@ const active = computed(() => {
 	return source?.type === props.effectSource.type && source.id === props.effectSource.id;
 });
 const hasPlayback = computed(() => /^(video|audio)\//.test(selectedAsset.value?.fileDataType ?? ''));
+const hasLiveAudioSource = computed(() => supportsAudio.value && (selectedValue.value === 'webcam' || selectedValue.value === 'microphone'));
 
 function select(value: string | null) {
 	const selection = value === 'webcam' || value === 'microphone' ? { kind: value } as const

@@ -873,6 +873,7 @@
 		"ImageInput": "プレビュー入力画像",
 		"AudioInput": "プレビュー入力音声",
 		"Microphone": "マイク",
+		"MonitorInputAudio": "入力音声を試聴",
 		"WebcamAudioUnavailable": "Webカメラの音声を取得できませんでした。"
 	},
 	"_Parameter": {

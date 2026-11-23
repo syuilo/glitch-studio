@@ -6,6 +6,13 @@ import type { AudioSourceId } from '@gs/shared/audio.ts';
 
 const silentLevels = [0, 0] as const;
 
+function rampPreviewGain(node: GainNode, value: number) {
+	const now = node.context.currentTime;
+	// 操作途中の値から短く補間し、急なゲイン変更によるクリック音を避ける。
+	node.gain.cancelAndHoldAtTime(now);
+	node.gain.linearRampToValueAtTime(value, now + 0.015);
+}
+
 export type AudioCapture = {
 	setState: (active: boolean, generation: number) => void;
 	dispose: () => void;
@@ -16,7 +23,9 @@ export class AudioOutput {
 	private disposal: Promise<void> | null = null;
 	private context: AudioContext | null = null;
 	private output: GainNode | null = null;
-	private outputCapture: AudioCapture | null = null;
+	private analysisMix: GainNode | null = null;
+	private playbackMix: GainNode | null = null;
+	private readonly outputCaptures: AudioCapture[] = [];
 	private outputCaptureUsers = 0;
 	public readonly preview = new AudioPreview();
 	private previewGain: GainNode | null = null;
@@ -26,9 +35,12 @@ export class AudioOutput {
 
 	public get outputLevels() { return this.getLevels(projectAudioSourceId); }
 
-	// 任意のAudioNodeからモニター用のPCMを取得する。
+	// 任意のAudioNodeからPCMやピークレベルを取得する。
 	// prepare(context)の完了後に呼ぶ。接続中にawaitせず、解放済みの入力の再接続を防ぐ。
-	public captureSource(id: AudioSourceId, source: AudioNode, handlers: { attach: (port: MessagePort) => void; reset: () => void; running?: (running: boolean) => void }): AudioCapture {
+	public captureSource(source: AudioNode, { pcm, meterId }: {
+		pcm?: { attach: (port: MessagePort) => void; reset: () => void; running?: (running: boolean) => void };
+		meterId?: AudioSourceId;
+	}): AudioCapture {
 		const context = source.context as AudioContext;
 		const capture = new AudioWorkletNode(context, 'glitch-audio-capture', {
 			numberOfInputs: 1,
@@ -37,40 +49,47 @@ export class AudioOutput {
 			channelCountMode: 'max',
 			channelInterpretation: 'discrete',
 		});
-		const channel = new MessageChannel();
-		const reset = handlers.reset;
-		try {
-			handlers.attach(channel.port2);
-		} catch (error) {
-			channel.port1.close();
-			channel.port2.close();
-			capture.port.close();
-			throw error;
+		if (pcm != null) {
+			const channel = new MessageChannel();
+			try {
+				pcm.attach(channel.port2);
+			} catch (error) {
+				channel.port1.close();
+				channel.port2.close();
+				capture.port.close();
+				throw error;
+			}
+			capture.port.postMessage({ type: 'connect', port: channel.port1 }, [channel.port1]);
 		}
-		capture.port.postMessage({ type: 'connect', port: channel.port1 }, [channel.port1]);
 		let active = false;
 		let generation = 0;
 		let meterGeneration = 0;
-		const clearLevels = () => this.levels.set(id, silentLevels);
-		clearLevels();
-		const meter = new MessageChannel();
-		const releaseMeter = this.preview.attachMeter(meter.port2, data => {
-			if (active && data.generation === meterGeneration && context.state === 'running') {
-				this.levels.set(id, [data.left, data.right]);
-			}
-		});
-		capture.port.postMessage({ type: 'meter', port: meter.port1 }, [meter.port1]);
+		const clearLevels = () => { if (meterId != null) this.levels.set(meterId, silentLevels); };
+		let releaseMeter: (() => void) | null = null;
+		if (meterId != null) {
+			clearLevels();
+			const meter = new MessageChannel();
+			releaseMeter = this.preview.attachMeter(meter.port2, data => {
+				if (active && data.generation === meterGeneration && context.state === 'running') {
+					this.levels.set(meterId, [data.left, data.right]);
+				}
+			});
+			capture.port.postMessage({ type: 'meter', port: meter.port1 }, [meter.port1]);
+		}
 		const onContextState = () => {
 			// 停止前のバッチが再開後に届いても表示しない。PCMの世代とは独立に進める。
-			capture.port.postMessage({ type: 'meterState', generation: ++meterGeneration });
-			if (context.state !== 'running') clearLevels();
-			handlers.running?.(context.state === 'running');
+			const running = context.state === 'running';
+			if (meterId != null) {
+				capture.port.postMessage({ type: 'meterState', generation: ++meterGeneration });
+				if (!running) clearLevels();
+			}
+			pcm?.running?.(running);
 		};
 		context.addEventListener('statechange', onContextState);
 		onContextState();
 		source.connect(capture);
 		capture.connect(context.destination);
-		capture.onprocessorerror = () => { active = false; clearLevels(); reset(); };
+		capture.onprocessorerror = () => { active = false; clearLevels(); pcm?.reset(); };
 		return {
 			setState: (nextActive, nextGeneration) => {
 				if (!nextActive || generation !== nextGeneration) clearLevels();
@@ -86,14 +105,14 @@ export class AudioOutput {
 			dispose: () => {
 				active = false;
 				context.removeEventListener('statechange', onContextState);
-				releaseMeter();
-				this.levels.delete(id);
+				releaseMeter?.();
+				if (meterId != null) this.levels.delete(meterId);
 				capture.onprocessorerror = null;
 				capture.port.postMessage({ type: 'dispose' });
 				source.disconnect(capture);
 				capture.disconnect();
 				capture.port.close();
-				reset();
+				pcm?.reset();
 			},
 		};
 	}
@@ -122,31 +141,44 @@ export class AudioOutput {
 		return () => {
 			if (released) return;
 			released = true;
-			if (--this.outputCaptureUsers === 0) {
-				this.outputCapture?.dispose();
-				this.outputCapture = null;
-			}
+			if (--this.outputCaptureUsers === 0) this.disposeOutputCaptures();
 		};
 	}
 
+	private disposeOutputCaptures() {
+		for (const capture of this.outputCaptures.splice(0)) capture.dispose();
+	}
+
 	private ensureOutputCapture() {
-		if (!this.output || this.outputCapture || this.outputCaptureUsers === 0) return;
-		// 複数パネルでPCM履歴を共有し、試聴音量には影響されない位置で分岐する。
-		this.outputCapture = this.captureSource(projectAudioSourceId, this.output, {
-			attach: port => this.preview.attachAudio(port),
-			reset: () => this.preview.resetAudio(),
-			running: running => this.preview.setRunning(running),
-		});
-		this.outputCapture.setState(true, 0);
+		if (this.analysisMix == null || this.playbackMix == null || this.outputCaptures.length > 0 || this.outputCaptureUsers === 0) return;
+		try {
+			// パネルは試聴設定に関係なくライブ入力も解析する。フッターは試聴へ送る信号のピークを表示する。
+			this.outputCaptures.push(this.captureSource(this.analysisMix, {
+				pcm: {
+					attach: port => this.preview.attachAudio(port),
+					reset: () => this.preview.resetAudio(),
+					running: running => this.preview.setRunning(running),
+				},
+			}));
+			this.outputCaptures.push(this.captureSource(this.playbackMix, { meterId: projectAudioSourceId }));
+			for (const capture of this.outputCaptures) capture.setState(true, 0);
+		} catch (error) {
+			this.disposeOutputCaptures();
+			throw error;
+		}
 	}
 
 	private ensureOutput(context: AudioContext) {
 		if (!this.output) {
-			// 全試聴音が通るプロジェクト出力。モノラルは左右へ複製する。
-			this.output = new GainNode(context, { channelCount: 2, channelCountMode: 'explicit', channelInterpretation: 'speakers' });
-			// 解析はoutputから分岐する。試聴音量はスピーカーへ向かう経路だけに適用する。
+			// 両方のミックスでモノラルを左右へ複製し、ステレオのレベルを測れるようにする。
+			const stereo: GainOptions = { channelCount: 2, channelCountMode: 'explicit', channelInterpretation: 'speakers' };
+			this.output = new GainNode(context, stereo);
+			this.analysisMix = new GainNode(context, stereo);
+			this.playbackMix = new GainNode(context, stereo);
 			this.previewGain = new GainNode(context, { gain: this.previewVolume.value });
-			this.output.connect(this.previewGain);
+			this.output.connect(this.analysisMix);
+			this.output.connect(this.playbackMix);
+			this.playbackMix.connect(this.previewGain);
 			this.previewGain.connect(context.destination);
 		}
 		return this.output!;
@@ -163,15 +195,29 @@ export class AudioOutput {
 		return output;
 	}
 
+	/** getOutput()で準備済みのContextに、現在のライブ入力を接続する。 */
+	public connectLivePreviewAudio(source: AudioNode) {
+		const analysisMix = this.analysisMix!;
+		const monitoringGain = new GainNode(source.context, { gain: 0 });
+		source.connect(analysisMix);
+		source.connect(monitoringGain);
+		// 試聴オンのライブ入力を通常の再生音と合流させ、共通のプレビュー音量の手前で計測する。
+		monitoringGain.connect(this.playbackMix!);
+		return {
+			setEnabled: (enabled: boolean) => rampPreviewGain(monitoringGain, enabled ? 1 : 0),
+			dispose: () => {
+				source.disconnect(analysisMix);
+				source.disconnect(monitoringGain);
+				monitoringGain.disconnect();
+			},
+		};
+	}
+
 	public setPreviewVolume(volume: number) {
 		if (!Number.isFinite(volume)) return;
 		this.previewVolume.value = Math.min(1, Math.max(0, volume));
 		if (!this.previewGain) return;
-		const gain = this.previewGain.gain;
-		const now = this.previewGain.context.currentTime;
-		// 操作途中の値から短く補間し、急なゲイン変更によるクリック音を避ける。
-		gain.cancelAndHoldAtTime(now);
-		gain.linearRampToValueAtTime(this.previewVolume.value, now + 0.015);
+		rampPreviewGain(this.previewGain, this.previewVolume.value);
 	}
 
 	public getLevels(id: AudioSourceId): readonly [number, number] {
@@ -181,11 +227,14 @@ export class AudioOutput {
 	/** 再生元を停止・切断した後、編集セッションの終了時に呼ぶ。 */
 	public dispose(): Promise<void> {
 		if (this.disposal != null) return this.disposal;
-		this.outputCapture?.dispose();
-		this.outputCapture = null;
+		this.disposeOutputCaptures();
 		this.preview.dispose();
 		this.output?.disconnect();
 		this.output = null;
+		this.analysisMix?.disconnect();
+		this.analysisMix = null;
+		this.playbackMix?.disconnect();
+		this.playbackMix = null;
 		this.previewGain?.disconnect();
 		this.previewGain = null;
 		this.disposal = this.context?.close() ?? Promise.resolve();
