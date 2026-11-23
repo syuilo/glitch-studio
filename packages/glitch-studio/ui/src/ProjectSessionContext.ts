@@ -332,9 +332,10 @@ export class ProjectSessionContext {
 			([isReady, _key, media, asset]) => {
 				if (!isReady) return;
 				const supportsAudio = this.previewPlayback.livePreviewEffectSource.value?.type === 'nodesEffectReference';
-				const input = media?.kind === 'webcam' ? { kind: 'webcam' as const, captureAudio: supportsAudio }
-					: media?.kind === 'microphone' && supportsAudio ? media
-					: asset == null ? null : { kind: 'asset' as const, asset };
+				const input = asset != null ? { kind: 'asset' as const, asset }
+					: media?.kind === 'webcam' && media.deviceId != null ? { kind: 'webcam' as const, deviceId: media.deviceId, captureAudio: supportsAudio }
+					: media?.kind === 'microphone' && media.deviceId != null ? { kind: 'microphone' as const, deviceId: media.deviceId }
+					: null;
 				this.effectLivePreviewManagerController.setPreviewInput(input);
 			}, { flush: 'post' }));
 		this.sessionDisposers.push(watch(this.previewPlayback.livePreviewEffectSource, effectSource => {

@@ -15,7 +15,7 @@ async function bundle(path) {
 		plugins: [i18nPlugin, {
 			name: 'renderer-call-dependencies',
 			setup(build) {
-				build.onResolve({ filter: /.*/ }, args => args.kind === 'entry-point' || args.path === './RendererManagerControllerBase.ts' || args.path === '@gs/subsystems_timeline_shared/layer-tree.ts' || args.path === '@gs/subsystems_timeline_shared/types.ts' || args.path === './types.ts' || args.path === '@gs/shared/resolution.ts' || args.path === '@gs/shared/file-source.ts' || args.path === '@gs/shared/utility/deep-clone.ts' || args.path === '@gs/shared/utility/deep-equal.ts' || args.path === '@gs/glitch-studio_shared/project/renderer-state.ts' ? undefined : { path: args.path, namespace: 'stub' });
+				build.onResolve({ filter: /.*/ }, args => args.kind === 'entry-point' || args.path === './RendererManagerControllerBase.ts' || args.path === './types/effect-live-preview.ts' || args.path === '@gs/subsystems_timeline_shared/layer-tree.ts' || args.path === '@gs/subsystems_timeline_shared/types.ts' || args.path === './types.ts' || args.path === '@gs/shared/resolution.ts' || args.path === '@gs/shared/file-source.ts' || args.path === '@gs/shared/utility/deep-clone.ts' || args.path === '@gs/shared/utility/deep-equal.ts' || args.path === '@gs/glitch-studio_shared/project/renderer-state.ts' ? undefined : { path: args.path, namespace: 'stub' });
 				build.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: `
 					export const ref = value => ({ value });
 					export const shallowRef = ref;
@@ -122,7 +122,7 @@ async function fixture(t, options = {}) {
 	};
 	const context = {
 		dependencies, structuredClone, console, Error, Blob, URL, module: { exports: {} },
-		AbortController, HTMLMediaElement: options.mediaElement ?? class {}, HTMLVideoElement: options.videoElement ?? class {},
+		AbortController, AbortSignal, HTMLMediaElement: options.mediaElement ?? class {}, HTMLVideoElement: options.videoElement ?? class {},
 		navigator: { mediaDevices: { getUserMedia: options.getUserMedia }, gpu: { getPreferredCanvasFormat: () => 'rgba8unorm' } },
 		window: { requestAnimationFrame() { return 1; }, cancelAnimationFrame() {}, document: { createElement(tag) {
 			if (tag === 'audio' && options.mediaElement != null) return new options.mediaElement();
@@ -156,23 +156,30 @@ class LiveVideoElement extends EventTarget {
 	removeAttribute() {}
 }
 
-function liveStream(...kinds) {
+function liveStream(kind, groupId) {
 	class Track extends EventTarget {
 		readyState = 'live';
-		constructor(kind) { super(); this.kind = kind; }
+		getSettings() { return { groupId }; }
 		stop() { this.readyState = 'ended'; }
 	}
-	const tracks = kinds.map(kind => new Track(kind));
-	return { getTracks: () => tracks, getAudioTracks: () => tracks.filter(track => track.kind === 'audio') };
+	const track = new Track();
+	return {
+		getTracks: () => [track],
+		getAudioTracks: () => kind === 'audio' ? [track] : [],
+		getVideoTracks: () => kind === 'video' ? [track] : [],
+	};
 }
 
 // 【Webカメラ映像と音声を同時に接続し、マイクへの切り替えで両方を解放する】
-// 映像再生はミュートしたまま、同じストリームの音声をWorkerへ渡す。
+// 選択したカメラの映像をミュートで再生し、同じ機器のマイクだけをWorkerへ渡す。
 // 試聴を有効にしてもWorkerの入力は継続し、別の機器へ切り替えると試聴はオフへ戻る。
 // マイクだけの場合は映像要素を作らず、トラックの終了で音声キャプチャと試聴を解放する。
 test('attaches webcam and microphone audio to the preview worker', async t => {
 	const requests = [];
-	const streams = [liveStream('video', 'audio'), liveStream('audio')];
+	const camera = liveStream('video', 'webcam-group');
+	const webcamAudio = liveStream('audio', 'webcam-group');
+	const microphone = liveStream('audio', 'microphone-group');
+	const streams = [camera, webcamAudio, microphone];
 	const captures = [];
 	const monitoringConnections = [];
 	const audioOutput = {
@@ -201,16 +208,19 @@ test('attaches webcam and microphone audio to the preview worker', async t => {
 	};
 	const { controller, instances } = await fixture(t, {
 		videoElement: LiveVideoElement, audioOutput,
-		async getUserMedia(constraints) { requests.push({ ...constraints }); return streams[requests.length - 1]; },
+		async getUserMedia(constraints) { requests.push(structuredClone(constraints)); return streams[requests.length - 1]; },
 	});
 	t.after(() => instances[0].capturePorts.forEach(port => port.close()));
-	controller.setPreviewInput({ kind: 'webcam', captureAudio: true });
+	controller.setPreviewInput({ kind: 'webcam', deviceId: 'usb-webcam', captureAudio: true });
 	await new Promise(resolve => setImmediate(resolve));
-	assert.deepEqual(requests, [{ video: true, audio: true }]);
-	assert.equal(controller.previewMediaElement.value.srcObject, streams[0]);
+	assert.deepEqual(requests, [
+		{ video: { deviceId: { exact: 'usb-webcam' } }, audio: false },
+		{ video: false, audio: { groupId: { exact: 'webcam-group' } } },
+	]);
+	assert.equal(controller.previewMediaElement.value.srcObject, camera);
 	assert.equal(controller.previewMediaElement.value.muted, true);
 	assert.equal(instances[0].capturePorts.length, 1);
-	assert.equal(captures[0].source.stream, streams[0]);
+	assert.equal(captures[0].source.stream, webcamAudio);
 	assert.equal(captures[0].started, true);
 	assert.equal(monitoringConnections[0].source, captures[0].source);
 	assert.equal(controller.livePreviewAudioMonitoringAvailable.value, true);
@@ -221,22 +231,23 @@ test('attaches webcam and microphone audio to the preview worker', async t => {
 	assert.equal(captures.length, 1);
 	assert.equal(captures[0].disposed, false);
 
-	controller.setPreviewInput({ kind: 'microphone' });
+	controller.setPreviewInput({ kind: 'microphone', deviceId: 'usb-microphone' });
 	await new Promise(resolve => setImmediate(resolve));
-	assert.deepEqual(requests.at(-1), { video: false, audio: true });
+	assert.deepEqual(requests.at(-1), { video: false, audio: { deviceId: { exact: 'usb-microphone' } } });
 	assert.equal(controller.previewMediaElement.value, null);
-	assert.ok(streams[0].getTracks().every(track => track.readyState === 'ended'));
+	assert.equal(camera.getTracks()[0].readyState, 'ended');
+	assert.equal(webcamAudio.getTracks()[0].readyState, 'ended');
 	assert.equal(captures[0].disposed, true);
 	assert.equal(monitoringConnections[0].disposed, true);
 	assert.equal(instances[0].capturePorts.length, 2);
-	assert.equal(captures[1].source.stream, streams[1]);
+	assert.equal(captures[1].source.stream, microphone);
 	assert.equal(captures[1].started, true);
 	assert.equal(monitoringConnections[1].source, captures[1].source);
 	assert.equal(monitoringConnections[1].enabled, false);
 	assert.equal(controller.livePreviewAudioMonitoringEnabled.value, false);
 	controller.setLivePreviewAudioMonitoringEnabled(true);
 
-	const microphoneTrack = streams[1].getAudioTracks()[0];
+	const microphoneTrack = microphone.getAudioTracks()[0];
 	microphoneTrack.stop();
 	microphoneTrack.dispatchEvent(new Event('ended'));
 	await new Promise(resolve => setImmediate(resolve));
@@ -248,28 +259,32 @@ test('attaches webcam and microphone audio to the preview worker', async t => {
 });
 
 // 【Webカメラの音声を取得できなければ映像のみを利用し、切り替え後に届いたストリームも停止する】
+// 制約と異なるマイクが返っても、カメラの音声として別の機器を接続してはいけない。
 // デバイス権限の待機中に選択解除した場合に、裏でマイクやカメラが動き続けるのを防ぐ。
 test('falls back to video and stops device streams that arrive after deselection', async t => {
 	const requests = [];
-	const camera = liveStream('video');
-	const lateStream = liveStream('audio');
+	const camera = liveStream('video', 'webcam-group');
+	const unmatchedMicrophone = liveStream('audio', 'other-group');
+	const mediaStreams = [camera, unmatchedMicrophone];
+	const lateStream = liveStream('audio', 'microphone-group');
 	const permission = Promise.withResolvers();
 	const { controller, instances } = await fixture(t, {
 		videoElement: LiveVideoElement,
 		async getUserMedia(constraints) {
-			requests.push({ ...constraints });
-			if (requests.length === 1) throw new Error('Microphone unavailable');
-			return constraints.video ? camera : permission.promise;
+			requests.push(structuredClone(constraints));
+			return mediaStreams[requests.length - 1] ?? permission.promise;
 		},
 	});
-	controller.setPreviewInput({ kind: 'webcam', captureAudio: true });
+	controller.setPreviewInput({ kind: 'webcam', deviceId: 'default', captureAudio: true });
 	await new Promise(resolve => setImmediate(resolve));
-	assert.deepEqual(requests, [{ video: true, audio: true }, { video: true, audio: false }]);
+	assert.deepEqual(requests, [{ video: true, audio: false }, { video: false, audio: { groupId: { exact: 'webcam-group' } } }]);
 	assert.equal(controller.previewMediaElement.value.srcObject, camera);
+	assert.equal(unmatchedMicrophone.getTracks()[0].readyState, 'ended');
 	assert.equal(controller.previewMediaError.value, i18n.ts._EffectPreview.WebcamAudioUnavailable);
 	assert.equal(controller.livePreviewAudioMonitoringAvailable.value, false);
 
-	controller.setPreviewInput({ kind: 'microphone' });
+	controller.setPreviewInput({ kind: 'microphone', deviceId: 'default' });
+	assert.deepEqual(requests.at(-1), { video: false, audio: true });
 	controller.setPreviewInput(null);
 	permission.resolve(lateStream);
 	await new Promise(resolve => setImmediate(resolve));

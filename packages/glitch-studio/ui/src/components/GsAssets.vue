@@ -41,8 +41,8 @@ import { localFontErrorMessage, queryLocalFonts, supportsLocalFonts } from '@/ut
 const projectSession = useProjectSession();
 
 const props = withDefaults(defineProps<{
-	/** 完全なMIMEタイプ、image/*などのワイルドカード、またはnull（絞り込みなし）。 */
-	mimeType?: string | null;
+	/** MIMEタイプまたはワイルドカードの指定。配列はOR条件、nullは絞り込みなし。 */
+	mimeType?: string | readonly string[] | null;
 	multiple?: boolean;
 	select?: 'asset' | 'folder' | null;
 }>(), {
@@ -69,13 +69,13 @@ const isEditMode = ref(false);
 const query = ref('');
 
 const assetsByMimeType = computed(() => {
-	const mimeType = props.mimeType?.trim().toLowerCase() ?? null;
+	const filter = props.mimeType;
+	const mimeTypes = (typeof filter === 'string' ? [filter] : filter ?? ['*/*']).map(mimeType => mimeType.trim().toLowerCase());
 	return stateManager.state.assets.value.filter(asset => {
-		if (mimeType == null || mimeType === '' || mimeType === '*/*') return true;
 		const assetMimeType = asset.fileDataType.toLowerCase();
-		return mimeType.endsWith('/*')
+		return mimeTypes.some(mimeType => mimeType === '' || mimeType === '*/*' || (mimeType.endsWith('/*')
 			? assetMimeType.startsWith(mimeType.slice(0, -1))
-			: assetMimeType === mimeType;
+			: assetMimeType === mimeType));
 	});
 });
 

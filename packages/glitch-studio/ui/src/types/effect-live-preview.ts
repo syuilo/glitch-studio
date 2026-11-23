@@ -3,4 +3,8 @@ import type { EffectLivePreviewPlacement } from '@gs/glitch-studio_renderer/effe
 
 export type EffectLivePreviewSource = Extract<EffectSource, { type: 'nodesEffectReference' | 'customShaderEffectReference' }>;
 export type EffectLivePreviewParamValues = NonNullable<EffectLivePreviewPlacement['params']>;
-export type EffectLivePreviewMediaSelection = { kind: 'asset'; assetId: string } | { kind: 'webcam' } | { kind: 'microphone' };
+export type EffectLivePreviewMediaSelection =
+	| { kind: 'asset'; assetId: string | null }
+	| { kind: 'webcam' | 'microphone'; deviceId: string | null };
+
+export const defaultPreviewDeviceId = 'default';

@@ -873,6 +873,13 @@
 		"ImageInput": "Preview Input Image",
 		"AudioInput": "Preview Input Audio",
 		"Microphone": "Microphone",
+		"DeviceUnselected": "Select a Device",
+		"DefaultDevice": "Default",
+		"UnnamedDevice": "Device",
+		"AllowDeviceAccess": "Allow Device Access",
+		"DeviceListFailed": "Could not list devices.",
+		"DeviceAccessFailed": "Could not access the device.",
+		"DeviceUnavailable": "The device is unavailable.",
 		"MonitorInputAudio": "Monitor Input Audio",
 		"WebcamAudioUnavailable": "Webcam audio is unavailable."
 	},

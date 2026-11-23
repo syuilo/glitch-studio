@@ -43,7 +43,7 @@ const projectSession = useProjectSession();
 
 const props = withDefaults(defineProps<{
 	multiple: boolean;
-	mimeType: string | null;
+	mimeType: string | readonly string[] | null;
 }>(), {
 });
 

@@ -873,6 +873,13 @@
 		"ImageInput": "プレビュー入力画像",
 		"AudioInput": "プレビュー入力音声",
 		"Microphone": "マイク",
+		"DeviceUnselected": "機器を選択",
+		"DefaultDevice": "既定",
+		"UnnamedDevice": "機器",
+		"AllowDeviceAccess": "機器へのアクセスを許可",
+		"DeviceListFailed": "機器の一覧を取得できませんでした。",
+		"DeviceAccessFailed": "機器へのアクセスを開始できませんでした。",
+		"DeviceUnavailable": "機器を利用できません。",
 		"MonitorInputAudio": "入力音声を試聴",
 		"WebcamAudioUnavailable": "Webカメラの音声を取得できませんでした。"
 	},

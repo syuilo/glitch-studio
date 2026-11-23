@@ -421,7 +421,7 @@ export function progress(options: { text?: string } = { }) {
 
 export function selectAsset(projectSession: ProjectSessionContext, options: {
 	multiple: boolean;
-	mimeType: string | null;
+	mimeType: string | readonly string[] | null;
 }): Promise<ProjectAsset[]> {
 	return new Promise(resolve => {
 		const { dispose } = popup(GsAssetSelectDialog, {
