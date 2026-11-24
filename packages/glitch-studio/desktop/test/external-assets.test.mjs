@@ -117,7 +117,7 @@ test('shares asset import history with relinking while separating exports and pr
 	const invoke = (name, ...args) => handlers.get(`desktop:${name}`)(trusted, ...args);
 	const selection = await invoke('choose-asset-files', { multiple: true, includeFonts: true, allowAnyFile: false });
 	assert.deepEqual(selection.map(file => file.path), selected);
-	assert.deepEqual(selection.map(file => file.type), ['image/jpeg', 'audio/wave', 'font/woff2', '']);
+	assert.deepEqual(selection.map(file => file.type), ['image/jpeg', 'audio/wav', 'font/woff2', '']);
 	assert.deepEqual(calls.at(-1).properties, ['openFile', 'multiSelections']);
 	for (const extension of ['png', 'jfif', 'pjpeg', 'pjp', 'wav', 'mp4', 'woff2']) assert.ok(calls.at(-1).filters[0].extensions.includes(extension));
 	selected = [path.join(assetDirectory, 'new.cube')];

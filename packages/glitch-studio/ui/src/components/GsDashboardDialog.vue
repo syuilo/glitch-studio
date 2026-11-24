@@ -187,7 +187,7 @@ async function _newProjectFromImageOrVideo() {
 }
 
 async function onFileDrop(files: File[], event: DragEvent) {
-	let opened = false;
+	let opened: boolean;
 	if (files.length === 1 && files[0].name.toLowerCase().endsWith('.gsproj')) {
 		if (fileOperationBusy.value) return;
 		// ユーティリティからdrop中に呼び出される。await前にハンドル取得を開始し、

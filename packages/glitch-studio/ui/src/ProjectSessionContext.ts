@@ -36,7 +36,8 @@ import type { MediaPlayerPreviewOptions } from '@gs/glitch-studio_renderer/media
 import { preferences } from './preferences.ts';
 import { TimelineRendererManagerController } from './TimelineRendererManagerController.ts';
 import { TimelineAudioPreview } from './audio/timeline-audio-preview.ts';
-import { PreviewPlaybackController, type PreviewPlaybackState } from './PreviewPlaybackController.ts';
+import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
+import type { PreviewPlaybackState } from './PreviewPlaybackController.ts';
 import { RendererProjectSynchronizer } from './RendererProjectSynchronizer.ts';
 import { ProjectRenderValidation } from './ProjectRenderValidation.ts';
 import { PreviewRenderEngine } from './PreviewRenderEngine.ts';

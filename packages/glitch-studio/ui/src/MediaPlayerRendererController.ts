@@ -13,7 +13,7 @@ type RenderSession = { pendingFrame: VideoFrameRequest | null; sendingFrame: boo
 const canvasNames = ['canvas', 'histogramCanvas', 'waveformHorizontalCanvas', 'waveformVerticalCanvas'] as const;
 
 function createCanvas(name: typeof canvasNames[number]) {
-	const canvas = document.createElement('canvas');
+	const canvas = window.document.createElement('canvas');
 	canvas.width = canvas.height = 1;
 	canvas.style.display = 'block';
 	if (name === 'canvas') {

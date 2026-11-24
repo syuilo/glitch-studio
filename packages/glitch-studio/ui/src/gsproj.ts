@@ -220,7 +220,7 @@ export async function selectProjectFile({ file = null, handle = null, reservatio
 		return selectProjectFile({ handle: desktopProjectFile(descriptor), reservationId });
 	}
 	if (typeof window.showOpenFilePicker === 'function') {
-		let selectedHandle: FileSystemFileHandle | null = null;
+		let selectedHandle: FileSystemFileHandle;
 		try {
 			[selectedHandle] = await window.showOpenFilePicker({ ...projectFilePickerOptions, multiple: false });
 		} catch (error) {

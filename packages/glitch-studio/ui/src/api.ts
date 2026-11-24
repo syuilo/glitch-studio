@@ -104,7 +104,7 @@ export async function openMediaFile(options: OpenMediaFileOptions = {}): Promise
 		// ネイティブ選択の実パス、または元のFileから取得した実パスだけを使う。
 		// ブラウザのfakepathやJSで生成したFileから、原本の場所を推測しない。
 		const sourceFilePath = 'kind' in file ? file.path : options.sourceFilePath ?? (window.desktop?.getPathForFile(file) || null);
-		let isExternalReference = false;
+		let isExternalReference: boolean;
 		// 埋め込みは取り込み時の原本をコピーして外部変更から独立させる。
 		// 外部参照だけはコピーせず、Electronが発行した範囲読み取り用URLを保持する。
 		let fileData: FileSource;

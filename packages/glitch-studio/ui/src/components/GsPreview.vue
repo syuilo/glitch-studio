@@ -192,6 +192,7 @@ function retryPreview() {
 	if (isMediaPlayer.value) void mediaPlayer.restartRenderer();
 	else void renderEngine.retry();
 }
+
 const renderFailureLocation = computed(() => {
 	const origin = renderEngine.runtimeDiagnostic.value?.origin;
 	return origin && renderValidation.errorMessage.value == null

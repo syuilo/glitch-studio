@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import semver from 'semver';
-import yaml from 'js-yaml';
+import { load } from 'js-yaml';
 import * as asar from '@electron/asar';
 import { buildSync } from 'esbuild';
 import { UPDATE_REPOSITORY } from './github-updates.mjs';
@@ -131,7 +131,7 @@ export async function verifyReleaseArtifacts(directory, version, platform = 'all
 	if (platform !== 'macos') {
 		const installerName = `Glitch-Studio-${version}-x64-Setup.exe`;
 		files.push(installerName, `${installerName}.blockmap`, 'latest.yml');
-		const metadata = yaml.load(await fs.readFile(path.join(directory, 'latest.yml'), 'utf8'));
+		const metadata = load(await fs.readFile(path.join(directory, 'latest.yml'), 'utf8'));
 		if (metadata?.version !== version || metadata.files?.length !== 1) throw new Error('Unexpected update metadata version or files');
 		const installer = await fs.readFile(path.join(directory, installerName));
 		const digest = createHash('sha512').update(installer).digest('base64');

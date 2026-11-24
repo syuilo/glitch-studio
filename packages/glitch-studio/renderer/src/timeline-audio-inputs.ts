@@ -43,7 +43,7 @@ export class TimelineAudioInputs {
 			const asset = assets.find(asset => asset.id === id);
 			if (!asset) throw new Error(`Audio asset not found: ${id}`);
 			try { return await this.openFile(asset.fileData); } catch (error) {
-				throw new Error(`${asset.name}: ${error instanceof Error ? error.message : String(error)}`);
+				throw new Error(`${asset.name}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
 			}
 		});
 		let pending: Promise<unknown> = Promise.resolve();

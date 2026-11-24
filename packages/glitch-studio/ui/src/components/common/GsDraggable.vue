@@ -121,12 +121,11 @@ function onDrop(ev: DragEvent, item: T, backward: boolean) {
 	ev.stopPropagation();
 
 	const fromIndex = props.modelValue.findIndex(x => x.id === dragged.item.id);
-	let toIndex = props.modelValue.findIndex(x => x.id === item.id);
 
 	const newValue = [...props.modelValue];
 	const movedItem = fromIndex > -1 ? newValue[fromIndex] : dragged.item as T;
 	if (fromIndex > -1) newValue.splice(fromIndex, 1);
-	toIndex = newValue.findIndex(x => x.id === item.id);
+	let toIndex = newValue.findIndex(x => x.id === item.id);
 	if (backward) toIndex += 1;
 	newValue.splice(toIndex, 0, movedItem);
 

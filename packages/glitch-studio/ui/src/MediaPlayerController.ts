@@ -193,7 +193,7 @@ export class MediaPlayerController {
 	}
 
 	private createMediaElement<K extends 'audio' | 'video'>(tagName: K, signal: AbortSignal): HTMLElementTagNameMap[K] {
-		const media = document.createElement(tagName);
+		const media = window.document.createElement(tagName);
 		media.preload = 'auto';
 		signal.addEventListener('abort', () => {
 			media.pause();

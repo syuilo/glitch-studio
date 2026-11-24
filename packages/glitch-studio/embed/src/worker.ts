@@ -61,7 +61,9 @@ export function startPortableNodesEffectWorker(definitions: NativeEffectDefiniti
 					const contents = await response.blob();
 					// サーバーのMIME判定によらず、デコーダーには書き出し時の型を渡す。
 					assets.push({ ...asset, fileData: contents.slice(0, contents.size, asset.fileDataType) });
-				} catch (error) { throw new Error(`Could not load Asset ${JSON.stringify(asset.name)} (${fileDataPath}): ${error instanceof Error ? error.message : String(error)}`); }
+				} catch (error) {
+					throw new Error(`Could not load Asset ${JSON.stringify(asset.name)} (${fileDataPath}): ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+				}
 			} else {
 				const { fileDataBase64, ...asset } = encodedAsset;
 				assets.push({ ...asset, fileData: new Blob([Uint8Array.fromBase64(fileDataBase64)], { type: asset.fileDataType }) });

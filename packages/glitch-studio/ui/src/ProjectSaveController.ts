@@ -128,7 +128,7 @@ export class ProjectSaveController {
 		const releaseOperation = this.fileOperations.tryBegin();
 		if (releaseOperation == null) return;
 		this.saving.value = true;
-		let saveFailure: { error: unknown } | null = null;
+		let saveFailure: { error: unknown } | null;
 		try {
 			const project = this.getSnapshot();
 			if (project == null) return;

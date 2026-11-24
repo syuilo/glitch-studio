@@ -92,7 +92,7 @@ export function calcPopupPosition(el: HTMLElement, props: {
 	};
 
 	const calcPosWhenRight = () => {
-		let left = 0; // TSを黙らすためとりあえず初期値を0に
+		let left: number;
 		let top = 0; // TSを黙らすためとりあえず初期値を0に
 
 		if (props.anchorElement) {

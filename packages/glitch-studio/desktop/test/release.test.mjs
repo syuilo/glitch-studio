@@ -6,7 +6,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import yaml from 'js-yaml';
+import { dump } from 'js-yaml';
 import * as asar from '@electron/asar';
 import { validateReleaseVersion, resolveReleaseVersion, formatReleaseDate, updateReleaseDownloadLinks, updateReleaseDownloadPage, verifyPreparedDownloadPage, verifyReleaseArtifacts, verifyPackagedApplication } from '../release.mjs';
 
@@ -215,7 +215,7 @@ test('verifies release artifacts and rejects altered installers or mismatched me
 	const metadata = { version, path: installerName, sha512, files: [{ url: installerName, sha512 }] };
 	await fs.writeFile(path.join(directory, installerName), installer);
 	await fs.writeFile(path.join(directory, `${installerName}.blockmap`), 'blockmap');
-	await fs.writeFile(path.join(directory, 'latest.yml'), yaml.dump(metadata));
+	await fs.writeFile(path.join(directory, 'latest.yml'), dump(metadata));
 	const windowsFiles = [installerName, `${installerName}.blockmap`, 'latest.yml'];
 	assert.deepEqual(await verifyReleaseArtifacts(directory, version, 'windows'), windowsFiles);
 	await assert.rejects(verifyReleaseArtifacts(directory, version), /mac-arm64\.dmg/);

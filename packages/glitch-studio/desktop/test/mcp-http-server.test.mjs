@@ -143,8 +143,15 @@ test('bounds request bodies, script inputs, API batches and result sizes', async
 		assert.ok(result.error != null || result.result?.isError === true);
 	}
 	assert.equal(calls, 0);
-	const oversized = await api.send('tools/list', {}, { body: 'x'.repeat(1024 * 1024 + 1) });
-	assert.equal(oversized.status, 413);
+	// Content-Lengthだけで拒否できることを確認する。本文を送ると、413を返した直後の切断と送信が競合する。
+	const oversizedStatus = await new Promise((resolve, reject) => {
+		const request = httpRequest(api.url, { method: 'POST', headers: {
+			Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Content-Length': 1024 * 1024 + 1,
+		} }, response => { response.resume(); resolve(response.statusCode); });
+		request.on('error', reject);
+		request.end();
+	});
+	assert.equal(oversizedStatus, 413);
 	const result = await api.call('search_scripting_api', { query: '' });
 	assert.equal(result.result.isError, true);
 	assert.match(result.result.content[0].text, /too large/);

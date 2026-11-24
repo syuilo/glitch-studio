@@ -2,7 +2,7 @@ import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts'
 import type { DeepReadonly } from 'vue';
 import type { EffectLivePreviewStatusSource } from '@gs/glitch-studio_renderer/effect-live-preview-manager.ts';
 import type { TimelineLayerStatusSource } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
-import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
+import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 
 export type RenderFailureOrigin =
 	| { source: EffectLivePreviewStatusSource }
@@ -24,12 +24,11 @@ export function formatRenderFailureOrigin(origin: DeepReadonly<RenderFailureOrig
 	if (source.type === 'effectLivePreview') return 'Effect Live Preview';
 	let currentScene = scenes.find(scene => scene.id === source.rootSceneId);
 	const parts = [label('Scene', source.rootSceneId, currentScene?.name)];
-	let layer: TimelineLayer | null = null;
 	// layerPathは[レイヤーID, 子Sceneを配置するクリップID, レイヤーID, ...]。
 	// Group・TransformはSceneを変えないため、その子のIDを同じScene内から探す。
 	for (let index = 0; index < source.layerPath.length; index += 2) {
 		const layerId = source.layerPath[index];
-		layer = currentScene == null ? null : findTimelineLayer(currentScene.layers, layerId);
+		const layer = currentScene == null ? null : findTimelineLayer(currentScene.layers, layerId);
 		parts.push(label('Layer', layerId, layer?.name));
 		const clipId = source.layerPath[index + 1] ?? source.clipId;
 		const placementClip = layer && 'clips' in layer ? layer.clips.find(clip => clip.id === clipId) : null;

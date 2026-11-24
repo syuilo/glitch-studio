@@ -48,12 +48,11 @@ function deltaCubicBezier(t: number, cps_p0: number, cps_p1: number, cps_p2: num
 }
 
 function subdiv(x: number, a: number, b: number, cps_p0: number, cps_p1: number, cps_p2: number, cps_p3: number): number {
-	let candidateX = 0;
 	let t = 0;
 
 	for (let i = 0; i < SUBDIV_ITER; i ++) {
 		t = a + (b - a) / 2.0;
-		candidateX = cubicBezier(t, cps_p0, cps_p1, cps_p2, cps_p3) - x;
+		const candidateX = cubicBezier(t, cps_p0, cps_p1, cps_p2, cps_p3) - x;
 		// eslint-disable-next-line @typescript-eslint/no-unused-expressions
 		(0.0 < candidateX) ? (b = t) : (a = t);
 		if (SUBDIV_EPSILON < Math.abs(candidateX)) break;
