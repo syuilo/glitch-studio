@@ -30,11 +30,12 @@
 	>
 		<template #preview>
 			<div :class="$style.previewParams">
-			<GsEffectLivePreviewResolution
-				:key="nodesEffect.id"
-				:effectSource="{ type: 'nodesEffectReference', id: nodesEffect.id }"
-				@activate="previewNodesEffectLivePreview"
-			/>
+				<GsEffectLivePreviewResolution
+					:key="nodesEffect.id"
+					:effectSource="{ type: 'nodesEffectReference', id: nodesEffect.id }"
+					@activate="previewNodesEffectLivePreview"
+				/>
+				<GsEffectLivePreviewTimeFactor/>
 				<GsEffectLivePreviewInput
 					:effectSource="{ type: 'nodesEffectReference', id: nodesEffect.id }"
 					@activate="previewNodesEffectLivePreview"
@@ -72,6 +73,7 @@ import { canUseEffectLivePreviewInput, isEffectLivePreviewMediaBinding } from '@
 import GsNodesEffectEditor from './GsNodesEffectEditor.vue';
 import GsEffectLivePreviewInput from './GsEffectLivePreviewInput.vue';
 import GsEffectLivePreviewResolution from './GsEffectLivePreviewResolution.vue';
+import GsEffectLivePreviewTimeFactor from './GsEffectLivePreviewTimeFactor.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
 import GsButton from './common/GsButton.vue';

@@ -135,15 +135,40 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 			find('viewport').props.onWheel({ clientX, clientY, deltaY, preventDefault() {} });
 			await nextTick();
 		},
-		async frame(target = view) {
+		async frame(target = view, time = 1000) {
 			const callbacks = [...target.frames.values()];
 			target.frames.clear();
-			for (const callback of callbacks) callback(1000);
+			for (const callback of callbacks) callback(time);
 			await nextTick();
 		},
 		get style() { return find('canvas-container').props.style; },
 	};
 }
+
+// 【通常以外の時間倍率を示し、逆方向で0をまたいだら時刻全体に負号を付ける】
+// 時間が固定・逆行する理由をプレビューから確認でき、Timelineへ戻ると表示が消える。
+test('shows non-default effect preview time factors beside a signed timecode', async t => {
+	const f = await fixture(t);
+	const { previewPlayback, effectLivePreviewTimeFactor } = f.projectSession;
+	f.preferences.model('showTimecodeInPreview').value = true;
+	previewPlayback.state.value = { mode: 'effectLivePreview', effectSource: { type: 'nodesEffectReference', id: 'nodes-effect' } };
+	await f.frame();
+	assert.equal(f.find('time-factor'), undefined);
+
+	effectLivePreviewTimeFactor.value = 0;
+	await f.frame(f.view, 1100);
+	assert.equal(f.find('time-factor').children[0].text, '0×');
+	assert.match(f.find('timecode').children[0].text, /00:00:00\.000$/);
+
+	effectLivePreviewTimeFactor.value = -8;
+	await f.frame(f.view, 1250);
+	assert.equal(f.find('time-factor').children[0].text, '-8×');
+	assert.match(f.find('timecode').children[0].text, /-00:00:01\.200$/);
+
+	previewPlayback.state.value = { mode: 'timeline' };
+	await nextTick();
+	assert.equal(f.find('time-factor'), undefined);
+});
 
 // 【両プレビューの描画遅延だけを表示し、即時のシーク状態や停止中の古い通知では表示しない】
 // Timelineの再生中とEffect Live Previewも同じ表示条件に揃える。

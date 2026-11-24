@@ -4,7 +4,12 @@
 		<div :class="$style.header">
 			<div :class="$style.left">
 				<div v-if="showTimecodeInPreview" :class="$style.time" class="_monospace">
-					<span>T: {{ formatTime(time) }}<span v-if="currentFrameNumber != null"> F: {{ currentFrameNumber }}</span></span>
+					<span data-test-preview-timecode>T: {{ formatTime(time) }}<span v-if="currentFrameNumber != null"> F: {{ currentFrameNumber }}</span></span>
+					<span
+						v-if="previewPlayback.state.value.mode === 'effectLivePreview' && effectLivePreviewTimeFactor !== 1"
+						v-tooltip="i18n.ts._EffectPreview.TimeFactor"
+						data-test-preview-time-factor
+					>{{ Number(effectLivePreviewTimeFactor.toPrecision(10)) }}×</span>
 				</div>
 			</div>
 			<div :class="$style.center">
@@ -526,12 +531,13 @@ function fitZoom() {
 }
 
 function formatTime(timeMs: number): string {
-	const ms = Math.floor(timeMs);
+	const ms = Math.floor(Math.abs(timeMs));
+	const sign = timeMs < 0 && ms > 0 ? '-' : '';
 	const hours = String(Math.floor(ms / 3600000)).padStart(2, '0');
 	const minutes = String(Math.floor(ms / 60000) % 60).padStart(2, '0');
 	const seconds = String(Math.floor(ms / 1000) % 60).padStart(2, '0');
 	const milliseconds = String(ms % 1000).padStart(3, '0');
-	return `${hours}:${minutes}:${seconds}.${milliseconds}`;
+	return `${sign}${hours}:${minutes}:${seconds}.${milliseconds}`;
 }
 
 const animatedBgInPreview = preferences.model('animatedBgInPreview');
@@ -826,10 +832,12 @@ function showMenu(ev: PointerEvent) {
 }
 
 .time {
+	display: flex;
+	gap: 8px;
 	padding: 0 8px;
 	color: var(--THEME-accent);
 	font-variant-numeric: tabular-nums;
-	text-align: right;
+	white-space: nowrap;
 }
 
 .zoom {
