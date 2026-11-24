@@ -16,13 +16,13 @@
 	"devDependencies": {
 		"esbuild": "0.28.2",
 		"webgpu-utils": "2.1.1",
-		"@types/web": "0.0.359",
-		"@typescript-eslint/parser": "8.72.1",
+		"@types/web": "0.0.367",
+		"@typescript-eslint/parser": "8.73.0",
 		"@webgpu/types": "0.1.74",
-		"vite": "8.3.5"
+		"vite": "8.3.8"
 	},
 	"dependencies": {
 		"@syuilo/aiscript": "1.2.1",
-		"mediabunny": "1.65.0"
+		"mediabunny": "1.66.0"
 	}
 }
