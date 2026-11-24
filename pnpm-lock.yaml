@@ -503,9 +503,6 @@ importers:
       harfbuzzjs:
         specifier: 1.6.4
         version: 1.6.4
-      sass:
-        specifier: 1.108.2
-        version: 1.108.2
       typescript:
         specifier: npm:@typescript/typescript6@6.0.2
         version: '@typescript/typescript6@6.0.2'
@@ -1951,10 +1948,6 @@ packages:
     peerDependencies:
       eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
       typescript: '>=4.8.4 <6.1.0'
-
-  '@typescript-eslint/types@8.72.1':
-    resolution: {integrity: sha512-LmE5IhQet1BWOWEXqBrVtBPsMAOQ6Nzk35d+WLh3mk4EUF33sqlfxjio1MdYeSvKSG5skactKKuixBIKXhL4Rw==}
-    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
   '@typescript-eslint/types@8.73.0':
     resolution: {integrity: sha512-O/1ytYzflF16QDKXx4/qOXg1IuZp+n7hr9t+S0nv7N/2Tl8rJiNCshztV1gcSUvHbPtoX3+zmNbtSAyVbzxVfw==}
@@ -5131,7 +5124,7 @@ snapshots:
   '@stylistic/eslint-plugin@5.10.0(eslint@10.15.0(jiti@2.7.0)(supports-color@7.2.0))':
     dependencies:
       '@eslint-community/eslint-utils': 4.10.1(eslint@10.15.0(jiti@2.7.0)(supports-color@7.2.0))
-      '@typescript-eslint/types': 8.72.1
+      '@typescript-eslint/types': 8.73.0
       eslint: 10.15.0(jiti@2.7.0)(supports-color@7.2.0)
       eslint-visitor-keys: 4.2.1
       espree: 10.4.0
@@ -5301,8 +5294,6 @@ snapshots:
     transitivePeerDependencies:
       - '@typescript/native'
       - supports-color
-
-  '@typescript-eslint/types@8.72.1': {}
 
   '@typescript-eslint/types@8.73.0': {}
 
@@ -5838,6 +5829,7 @@ snapshots:
   chokidar@5.0.0:
     dependencies:
       readdirp: 5.1.1
+    optional: true
 
   chownr@3.0.0: {}
 
@@ -6663,7 +6655,8 @@ snapshots:
 
   ignore@7.0.8: {}
 
-  immutable@5.1.9: {}
+  immutable@5.1.9:
+    optional: true
 
   import-fresh@3.3.1:
     dependencies:
@@ -7298,7 +7291,8 @@ snapshots:
       string_decoder: 1.1.1
       util-deprecate: 1.0.2
 
-  readdirp@5.1.1: {}
+  readdirp@5.1.1:
+    optional: true
 
   reflect.getprototypeof@1.0.10:
     dependencies:
@@ -7459,6 +7453,7 @@ snapshots:
       source-map-js: 1.2.2
     optionalDependencies:
       '@parcel/watcher': 2.6.0
+    optional: true
 
   sax@1.6.1: {}
 
