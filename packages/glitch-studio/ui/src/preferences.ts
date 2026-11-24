@@ -167,7 +167,7 @@ export const PREF_DEF = definePreferences({
 											element: {
 												id: '9fa7af18c11e42e78ef277c26aab5fa5',
 												type: 'panel',
-												direction: 'horizontal',
+												direction: 'vertical',
 												contentType: 'timeline',
 											},
 										}, {
@@ -175,7 +175,7 @@ export const PREF_DEF = definePreferences({
 											element: {
 												id: '824a5486145c4ba4911518b2bfc74a7c',
 												type: 'panel',
-												direction: 'horizontal',
+												direction: 'vertical',
 												contentType: 'assets',
 											},
 										}, {
@@ -183,7 +183,7 @@ export const PREF_DEF = definePreferences({
 											element: {
 												id: '8d5628e4e3ca4404b4f3cbb905dc35d7',
 												type: 'panel',
-												direction: 'horizontal',
+												direction: 'vertical',
 												contentType: 'scripting',
 											},
 										}, {
@@ -191,7 +191,7 @@ export const PREF_DEF = definePreferences({
 											element: {
 												id: 'da1be20a82c84a2f964760fab25c75a3',
 												type: 'panel',
-												direction: 'horizontal',
+												direction: 'vertical',
 												contentType: 'commandLog',
 											},
 										}, {
@@ -199,7 +199,7 @@ export const PREF_DEF = definePreferences({
 											element: {
 												id: '1a329690fb7b4987a4be5868d0a043ce',
 												type: 'panel',
-												direction: 'horizontal',
+												direction: 'vertical',
 												contentType: 'projectInfo',
 											},
 										}],
