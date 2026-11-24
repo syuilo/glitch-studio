@@ -143,7 +143,7 @@ const headerEditActions = useHeaderEditActions({
 
 // 現在表示中の画像を保存する機能。元解像度での書き出しは独立したExport経路で行う。
 function savePreviewSnapshot(projectSession: ProjectSessionContext) {
-	projectSession.activePreviewRenderer.value.canvas.toBlob(blob => {
+	projectSession.activePreviewRenderer.value.canvas?.toBlob(blob => {
 		if (blob == null) return;
 		const url = URL.createObjectURL(blob);
 		const link = window.document.createElement('a');

@@ -74,6 +74,10 @@ test('renders generated shader inputs on WebGPU', { skip: process.env.CHROME_PAT
 // 実GPUでの読み戻しとCanvas 2Dのalpha変換はモックだけでは検証できない。
 test('presents preview and analysis canvases through CPU readback', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/cpu-preview-gpu.ts', 4));
 
+// 【Media Playerの画像と動画を表示・映像解析へ渡す】
+// EffectやTimelineを経由せず、入力フレームの画素と寸法がプレビュー・ヒストグラム・縦横の波形へ届くことを確認する。
+test('presents Media Player image and video frames with image analysis', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/media-player-renderer-gpu.ts', 8));
+
 // 【linearの表示背景は停止中も動作し、解析軸は表示sRGBと作業値を区別する】
 // CSS合成への逆戻りや、借用テクスチャ破棄後のGPU参照・CPU表示枠の漏れを検出する。
 test('animates owned linear preview backgrounds and distinguishes analysis scales', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/linear-display-gpu.ts', 9));

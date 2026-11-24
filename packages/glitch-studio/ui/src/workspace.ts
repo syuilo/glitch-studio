@@ -6,6 +6,7 @@ import { i18n } from '@/i18n.ts';
 import { preferences } from '@/preferences.ts';
 import XBlank from '@/components/GsWorkspacePanel.Blank.vue';
 import XPreview from '@/components/GsWorkspacePanel.Preview.vue';
+import XMediaPlayer from '@/components/GsWorkspacePanel.MediaPlayer.vue';
 import XNodesEffectEditor from '@/components/GsWorkspacePanel.NodesEffectEditor.vue';
 import XHistogram from '@/components/GsWorkspacePanel.Histogram.vue';
 import XWaveform from '@/components/GsWorkspacePanel.Waveform.vue';
@@ -31,6 +32,7 @@ const panelDefinitions = {
 	waveformHorizontal: { label: i18n.ts._Workspace.WaveformX, icon: 'ti ti-chart-column', component: XWaveform },
 	waveformVertical: { label: i18n.ts._Workspace.WaveformY, icon: 'ti ti-chart-column', component: XWaveform },
 	preview: { label: i18n.ts.Preview, icon: 'ti ti-device-desktop', component: XPreview },
+	mediaPlayer: { label: i18n.ts._MediaPlayer.Title, icon: 'ti ti-player-play', component: XMediaPlayer },
 	nodesEffectEditor: { label: i18n.ts._Workspace.NodesEffectEditor, icon: 'ti ti-binary-tree-2', component: XNodesEffectEditor },
 	stats: { label: i18n.ts._Workspace.Stats, icon: 'ti ti-activity', component: XStats },
 	commandLog: { label: i18n.ts._Workspace.CommandLog, icon: 'ti ti-logs', component: XCommandLog },

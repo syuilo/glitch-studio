@@ -15,6 +15,7 @@
 		"./srgb-image-readback.ts": "./src/srgb-image-readback.ts",
 		"./client.ts": "./src/client.ts",
 		"./effect-live-preview-manager.ts": "./src/effect-live-preview-manager.ts",
+		"./media-player-renderer.ts": "./src/media-player-renderer.ts",
 		"./timeline-renderer-manager.ts": "./src/timeline-renderer-manager.ts",
 		"./asset-textures.ts": "./src/asset-textures.ts",
 		"./portable-canvas-renderer.ts": "./src/portable-canvas-renderer.ts"

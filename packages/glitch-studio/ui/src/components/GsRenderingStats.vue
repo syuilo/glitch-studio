@@ -1,7 +1,8 @@
 <template>
 <div :class="$style.root">
 	<div v-if="!renderingStatsEnabled" data-test-rendering-stats-disabled>{{ i18n.ts.StatsDisabled }}</div>
-	<div v-show="renderingStatsEnabled" :class="$style.legend">
+	<div v-else-if="isMediaPlayer">{{ i18n.ts._MediaPlayer.StatsUnavailable }}</div>
+	<div v-show="renderingStatsEnabled && !isMediaPlayer" :class="$style.legend">
 		<div v-for="item in series" :key="item.key" :title="item.description" :data-test-rendering-stat="item.key" :class="$style.legendItem">
 			<span style="width: 8px; height: 2px;" :style="{ backgroundColor: item.color }"></span>
 			<span style="opacity: 0.7;">{{ item.label }}</span>
@@ -10,7 +11,7 @@
 		</div>
 		<div v-if="renderingStatsEnabled && isTimeline" data-test-timeline-statistics-hint :title="i18n.ts._Stats.TimelineTimingHint" :class="$style.hint">{{ i18n.ts._Stats.TimelineTimingSummary }}</div>
 	</div>
-	<div v-show="renderingStatsEnabled" ref="chartEl" :class="$style.chart">
+	<div v-show="renderingStatsEnabled && !isMediaPlayer" ref="chartEl" :class="$style.chart">
 		<svg :viewBox="`0 0 ${chartWidth} ${chartHeight}`" :class="$style.svg">
 			<g :class="$style.grid">
 				<template v-for="tick in yTicks" :key="tick.value">
@@ -68,6 +69,7 @@ const plotWidth = computed(() => chartWidth.value - plotLeft - plotRight);
 const plotHeight = computed(() => chartHeight.value - plotTop - plotBottom);
 
 const isTimeline = computed(() => previewPlayback.state.value.mode === 'timeline');
+const isMediaPlayer = computed(() => previewPlayback.state.value.mode === 'mediaPlayer');
 const series = computed(() => isTimeline.value ? [
 	{
 		key: 'frameDurationMs',
@@ -148,7 +150,7 @@ function clearSamples() {
 }
 
 function recordSample() {
-	if (!renderingStatsEnabled.value) return;
+	if (!renderingStatsEnabled.value || isMediaPlayer.value) return;
 	const timestamp = performance.now();
 	if (isTimeline.value) {
 		const statistics = timelineRendererManagerController.previewStatistics.value;
@@ -192,7 +194,7 @@ function updateSampling() {
 	if (timer != null) window.clearInterval(timer);
 	timer = null;
 	clearSamples();
-	if (!renderingStatsEnabled.value) return;
+	if (!renderingStatsEnabled.value || isMediaPlayer.value) return;
 	recordSample();
 	// TimelineはWorkerからの通知時だけ更新する。Live Previewの移動平均を読む
 	// タイマーも、計測無効時には作らず、切替後に前回の履歴を持ち越さない。

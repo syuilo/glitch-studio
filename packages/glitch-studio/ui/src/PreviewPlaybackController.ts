@@ -8,6 +8,7 @@ import type { TimelineRendererManagerController } from './TimelineRendererManage
 
 export type PreviewPlaybackState =
 	| { mode: 'effectLivePreview'; effectSource: EffectLivePreviewSource }
+	| { mode: 'mediaPlayer' }
 	| { mode: 'timeline'; playing: boolean };
 
 type EffectLivePreviewRenderer = Pick<EffectLivePreviewManagerController, 'startEffectLivePreviewRenderLoop' | 'updateEffectLivePreviewParamValues' | 'stopRenderLoop' | 'resetRenderHistory'>;
@@ -19,7 +20,7 @@ type TimelineAudio = {
 };
 type TimelineRenderer = Pick<TimelineRendererManagerController, 'renderTimelineAt' | 'renderTimelineAtAndWait' | 'cancelSeek' | 'isReady' | 'errorMessage' | 'isFrameCacheEnabled' | 'frameCacheUsageRatio' | 'resetRenderHistory'>;
 
-/** プレビューの切り替えと時刻更新を所有し、Effect Live Previewとタイムラインの同時再生を防ぐ。 */
+/** プレビューの切り替えとTimelineの時刻更新を所有する。 */
 export class PreviewPlaybackController {
 	private disposed = false;
 	private readonly playbackState = shallowRef<PreviewPlaybackState>({ mode: 'timeline', playing: false });
@@ -78,7 +79,7 @@ export class PreviewPlaybackController {
 		if (this.isTimelinePlaying.value) return;
 		this.pendingTimelineSeek = false;
 		this.timelineRenderer.cancelSeek();
-		this.leaveEffectLivePreview();
+		this.switchToTimeline();
 		// 同じエラー文は再通知されない。既に失敗している場合は描画の再試行だけを行い、
 		// 成功でエラーが解除されるまで音声時計を開始しない。
 		if (this.timelineRenderer.errorMessage.value) { this.refresh(); return; }
@@ -140,14 +141,23 @@ export class PreviewPlaybackController {
 
 	public showTimeline() {
 		if (this.disposed) return;
-		this.leaveEffectLivePreview();
+		this.switchToTimeline();
 		this.refresh();
+	}
+
+	public showMediaPlayer() {
+		if (this.disposed || this.playbackState.value.mode === 'mediaPlayer') return;
+		this.pendingTimelineSeek = false;
+		this.timelineRenderer.cancelSeek();
+		this.stopTimelinePlayback();
+		this.stopEffectLivePreview();
+		this.playbackState.value = { mode: 'mediaPlayer' };
 	}
 
 	public seekTimeline(time: number, isManualSeek = true, seekMode: TimelinePreviewSeekMode = 'frame') {
 		if (this.disposed) return;
 		this.cancelTimelineBake();
-		this.leaveEffectLivePreview();
+		this.switchToTimeline();
 		this.timelineSeekMode = seekMode;
 		this.timelineTime.value = seekMode === 'precise' ? Math.max(0, time) : this.snapTimelineTime(time);
 		this.pendingTimelineSeek = isManualSeek && !this.isTimelinePlaying.value;
@@ -192,7 +202,7 @@ export class PreviewPlaybackController {
 			|| this.timelineRenderer.errorMessage.value != null || fps == null || !Number.isFinite(fps) || fps <= 0
 			|| !Number.isFinite(duration) || duration <= 0) return;
 		this.stopTimelinePlayback();
-		this.leaveEffectLivePreview();
+		this.switchToTimeline();
 		this.pendingTimelineSeek = false;
 		this.timelineRenderer.cancelSeek();
 		if (this.timelineTime.value >= duration) return;
@@ -317,7 +327,7 @@ export class PreviewPlaybackController {
 		const state = this.playbackState.value;
 		if (state.mode === 'effectLivePreview') {
 			this.effectLivePreviewRenderer.startEffectLivePreviewRenderLoop(state.effectSource, this.effectLivePreviewParams);
-		} else if (state.playing) {
+		} else if (state.mode === 'timeline' && state.playing) {
 			this.playbackState.value = { mode: 'timeline', playing: false };
 			this.playTimeline();
 		} else {
@@ -332,13 +342,17 @@ export class PreviewPlaybackController {
 		this.timelineRenderer.cancelSeek();
 		// 終了時には再描画せず、遅れて届く操作でも再開できない状態にする。
 		this.stopTimelinePlayback();
-		this.leaveEffectLivePreview();
+		this.switchToTimeline();
 		this.suspended.value = true;
 	}
 
-	private leaveEffectLivePreview() {
-		if (this.playbackState.value.mode !== 'effectLivePreview') return;
-		if (!this.suspended.value) this.effectLivePreviewRenderer.stopRenderLoop();
+	private switchToTimeline() {
+		if (this.playbackState.value.mode === 'timeline') return;
+		this.stopEffectLivePreview();
 		this.playbackState.value = { mode: 'timeline', playing: false };
+	}
+
+	private stopEffectLivePreview() {
+		if (!this.suspended.value && this.playbackState.value.mode === 'effectLivePreview') this.effectLivePreviewRenderer.stopRenderLoop();
 	}
 }

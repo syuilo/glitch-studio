@@ -867,6 +867,21 @@
 		"Primary": "主入力",
 		"AddParameter": "パラメータを追加"
 	},
+	"_MediaPlayer": {
+		"Title": "Media Player",
+		"Source": "ソース",
+		"ShowPreview": "プレビューに表示",
+		"ChooseSource": "Media Playerパネルでソースを選択してください。",
+		"StartCapture": "Media Playerパネルで取得を開始してください。",
+		"Connecting": "デバイスに接続中…",
+		"Live": "ライブ",
+		"AssetUnavailable": "選択したアセットを利用できません。",
+		"CaptureWebcamAudio": "同じデバイスの音声を取得",
+		"EchoCancellation": "エコー除去",
+		"AutoGainControl": "自動ゲイン制御",
+		"NoiseSuppression": "ノイズ抑制",
+		"StatsUnavailable": "Media Playerのレンダリング統計はありません。"
+	},
 	"_EffectPreview": {
 		"Input": "プレビュー入力",
 		"InputPlayback": "入力の再生",

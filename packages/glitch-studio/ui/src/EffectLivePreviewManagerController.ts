@@ -8,7 +8,7 @@ import { isVideoFrameAvailable } from './utility/video.ts';
 import { i18n } from './i18n.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import { displayCpuPreviewFrame } from './utility/cpu-preview-display.ts';
-import { defaultPreviewDeviceId } from './types/effect-live-preview.ts';
+import { openPreviewDevice, previewDeviceConstraint } from './utility/preview-device.ts';
 import type { PreviewImageAnalysisSettings, PreviewImageAnalysisDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
 import type { AudioOutput } from './audio/audio-output.ts';
 import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
@@ -340,23 +340,12 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 		this.previewMediaError.value = message;
 	}
 
-	private async openPreviewDevice(constraints: MediaStreamConstraints, signal: AbortSignal) {
-		const stream = await navigator.mediaDevices.getUserMedia(constraints);
-		const stopTracks = () => { for (const track of stream.getTracks()) track.stop(); };
-		if (signal.aborted) {
-			stopTracks();
-			return null;
-		}
-		signal.addEventListener('abort', stopTracks, { once: true });
-		this.previewDeviceRevision.value++;
-		return stream;
-	}
-
 	private async openLiveCapture(deviceId: string, video: HTMLVideoElement | null, captureWebcamAudio: boolean, signal: AbortSignal) {
-		const device = deviceId === defaultPreviewDeviceId ? true : { deviceId: { exact: deviceId } };
+		const device = previewDeviceConstraint(deviceId);
 		const constraints = video == null ? { video: false, audio: device } : { video: device, audio: false };
-		const stream = await this.openPreviewDevice(constraints, signal);
+		const stream = await openPreviewDevice(constraints, signal);
 		if (stream == null || signal.aborted) return;
+		this.previewDeviceRevision.value++;
 		if (video == null) {
 			await this.attachLiveAudio(stream, signal);
 			return;
@@ -375,8 +364,9 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 		try {
 			if (groupId != null && groupId !== '') {
 				const audioSignal = AbortSignal.any([signal, audioLifetime.signal]);
-				const audioStream = await this.openPreviewDevice({ video: false, audio: { groupId: { exact: groupId } } }, audioSignal);
+				const audioStream = await openPreviewDevice({ video: false, audio: { groupId: { exact: groupId } } }, audioSignal);
 				if (audioSignal.aborted || audioStream == null) return;
+				this.previewDeviceRevision.value++;
 				if (audioStream.getAudioTracks()[0]?.getSettings().groupId === groupId) {
 					await this.attachLiveAudio(audioStream, audioSignal);
 					return;

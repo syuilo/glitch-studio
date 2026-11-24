@@ -6,5 +6,3 @@ export type EffectLivePreviewParamValues = NonNullable<EffectLivePreviewPlacemen
 export type EffectLivePreviewMediaSelection =
 	| { kind: 'asset'; assetId: string | null }
 	| { kind: 'webcam' | 'microphone'; deviceId: string | null };
-
-export const defaultPreviewDeviceId = 'default';

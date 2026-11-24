@@ -15,7 +15,7 @@
 	>
 		{{ selectedAsset?.name ?? i18n.ts._Assets.Select }}
 	</GsButton>
-	<GsEffectLivePreviewDeviceSelect
+	<GsPreviewDeviceSelect
 		v-if="selection?.kind === 'webcam' || selection?.kind === 'microphone'"
 		:key="`${effectSource.type}:${effectSource.id}:${selection.kind}`"
 		:kind="selection.kind"
@@ -51,7 +51,7 @@ import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsSwitch from './common/GsSwitch.vue';
 import GsVideoControls from './common/GsVideoControls.vue';
-import GsEffectLivePreviewDeviceSelect from './GsEffectLivePreviewDeviceSelect.vue';
+import GsPreviewDeviceSelect from './GsPreviewDeviceSelect.vue';
 import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
 import { selectAsset } from '@/ui.ts';

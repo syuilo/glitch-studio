@@ -10,7 +10,8 @@
 			<div :class="$style.center">
 				<button v-if="previewTargetName" :class="$style.previewTargetName" class="_button" @click="showPreviewTargetMenu">
 					<i v-if="previewPlayback.state.value.mode === 'timeline'" class="ti ti-memory"></i>
-					<i v-else-if="previewPlayback.state.value.effectSource.type === 'customShaderEffectReference'" class="ti ti-code"></i>
+					<i v-else-if="isMediaPlayer" class="ti ti-player-play"></i>
+					<i v-else-if="previewPlayback.state.value.mode === 'effectLivePreview' && previewPlayback.state.value.effectSource.type === 'customShaderEffectReference'" class="ti ti-code"></i>
 					<i v-else class="ti ti-binary-tree-2"></i>
 					{{ previewTargetName }} <i class="ti ti-chevron-down"></i>
 				</button>
@@ -50,6 +51,7 @@
 				@auxclick.prevent
 			>
 				<div v-show="!renderEngine.isSuspended.value" ref="canvasContainer" :style="{ scale: zoom / previewDevicePixelRatio, translate: `${pan[0]}px ${pan[1]}px` }" data-test-preview-canvas-container></div>
+				<div v-if="mediaPlayerStatus != null" :class="$style.mediaPlayerStatus">{{ mediaPlayerStatus }}</div>
 				<div v-if="showGridInPreview && !renderEngine.isSuspended.value" ref="gridOverlay" :class="$style.grid">
 					<div v-for="(line, index) in gridLines" :key="index" :class="$style.gridLine" :style="line"></div>
 				</div>
@@ -57,7 +59,7 @@
 				<GsPreviewParameterPositions :canvasRect="previewCanvasRect" :showGrid="showGridInPreview"/>
 				<GsPreviewViewport :canvasRect="previewCanvasRect"/>
 				<div
-					v-if="!renderEngine.isSuspended.value && activePreviewRenderer.isRenderDelayed.value"
+					v-if="!renderEngine.isSuspended.value && isRenderDelayed"
 					:class="[$style.renderLoading, { [$style.withRenderProgress]: renderTilingProgressText != null }]"
 					data-test-preview-render-loading
 				>
@@ -90,10 +92,15 @@
 			</div>
 		</div>
 
-		<div v-if="renderEngine.errorMessage.value" :class="$style.renderError" class="_gaps_s _selectable">
-			<div v-if="renderFailureLocation">{{ renderFailureLocation }}</div>
-			<div>{{ renderEngine.errorMessage.value }}</div>
-			<button class="_button" :disabled="renderValidationErrorMessage != null" @click="renderEngine.retry()">{{ i18n.ts._Preview.Retry }}</button>
+		<div v-if="previewError != null" :class="$style.renderError" class="_gaps_s _selectable">
+			<div v-if="!isMediaPlayer && renderFailureLocation">{{ renderFailureLocation }}</div>
+			<div>{{ previewError }}</div>
+			<button
+				v-if="!isMediaPlayer || mediaPlayer.renderer.errorMessage.value != null"
+				class="_button"
+				:disabled="!isMediaPlayer && renderValidationErrorMessage != null"
+				@click="retryPreview"
+			>{{ i18n.ts._Preview.Retry }}</button>
 		</div>
 	</div>
 </GsDetachableView>
@@ -129,9 +136,15 @@ import * as ui from '@/ui.ts';
 
 const projectSession = useProjectSession();
 
-const { activePreviewRenderer, effectLivePreviewManagerController, previewPlayback, highlightClipping, previewWarningImageSource, previewGamutWarning, previewExposure, resolutionFactor, effectLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = projectSession;
+const { activePreviewRenderer, effectLivePreviewManagerController, mediaPlayer, previewPlayback, highlightClipping, previewWarningImageSource, previewGamutWarning, previewExposure, resolutionFactor, effectLivePreviewTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = projectSession;
+const isMediaPlayer = computed(() => previewPlayback.state.value.mode === 'mediaPlayer');
+const isRenderDelayed = computed(() => {
+	const renderer = activePreviewRenderer.value;
+	return 'isRenderDelayed' in renderer && renderer.isRenderDelayed.value;
+});
 const renderTilingProgressText = computed(() => {
-	const progress = activePreviewRenderer.value.renderTilingProgress.value;
+	const renderer = activePreviewRenderer.value;
+	const progress = 'renderTilingProgress' in renderer ? renderer.renderTilingProgress.value : null;
 	if (progress == null || progress.totalTiles === 0) return null;
 	// 四捨五入で未完了を100%にしない。自動分割による総数の変化もそのまま反映する。
 	return `${progress.completedTiles} / ${progress.totalTiles} (${Math.floor(progress.completedTiles / progress.totalTiles * 100)}%)`;
@@ -157,6 +170,23 @@ const previewGamutWarningBoundsLabels = computed<Record<RgbGamutBounds, string>>
 }));
 const { stateManager } = projectSession.projectContext;
 const renderValidationErrorMessage = renderValidation.errorMessage;
+const previewError = computed(() => isMediaPlayer.value ? mediaPlayer.errorMessage.value ?? mediaPlayer.renderer.errorMessage.value : renderEngine.errorMessage.value);
+const mediaPlayerStatus = computed(() => {
+	if (!isMediaPlayer.value || mediaPlayer.renderer.outputResolution.value != null || previewError.value != null) return null;
+	const selection = mediaPlayer.selection.value;
+	if (selection.kind === 'asset') return mediaPlayer.selectedAsset.value?.name ?? i18n.ts._MediaPlayer.ChooseSource;
+	if (mediaPlayer.captureStatus.value === 'live') {
+		const sourceName = selection.kind === 'webcam' ? i18n.ts._Webcam.Title : i18n.ts._EffectPreview.Microphone;
+		return `${sourceName} · ${i18n.ts._MediaPlayer.Live}`;
+	}
+	if (mediaPlayer.captureStatus.value === 'connecting') return i18n.ts._MediaPlayer.Connecting;
+	return i18n.ts._MediaPlayer.StartCapture;
+});
+
+function retryPreview() {
+	if (isMediaPlayer.value) void mediaPlayer.restartRenderer();
+	else void renderEngine.retry();
+}
 const renderFailureLocation = computed(() => {
 	const origin = renderEngine.runtimeDiagnostic.value?.origin;
 	return origin && renderValidation.errorMessage.value == null
@@ -210,7 +240,10 @@ function updateEditingDocument() {
 watch(containerContainer, updateEditingDocument);
 onBeforeUnmount(() => { for (const doc of editingDocuments) doc.removeEventListener('keydown', onEditingKeydown); });
 const effectLivePreviewTime = ref(0);
-const time = computed(() => previewPlayback.state.value.mode === 'timeline' ? previewPlayback.currentTimelineTime.value : effectLivePreviewTime.value);
+const time = computed(() => {
+	if (isMediaPlayer.value) return mediaPlayer.currentTime.value * 1000;
+	return previewPlayback.state.value.mode === 'timeline' ? previewPlayback.currentTimelineTime.value : effectLivePreviewTime.value;
+});
 const currentFrameNumber = computed(() => {
 	if (previewPlayback.state.value.mode !== 'timeline') return null;
 	// シーク・コマ送り・キャッシュと同じプレビューの時計で番号を表示する。
@@ -219,11 +252,13 @@ const currentFrameNumber = computed(() => {
 const previewTargetName = computed(() => {
 	const state = previewPlayback.state.value;
 	if (state.mode === 'timeline') return activeScene.value?.name ?? null;
+	if (state.mode === 'mediaPlayer') return i18n.ts._MediaPlayer.Title;
 	const registrations = state.effectSource.type === 'customShaderEffectReference'
 		? stateManager.state.customShaderEffects.value : stateManager.state.nodesEffects.value;
 	return registrations.find(registration => registration.id === state.effectSource.id)?.name ?? null;
 });
 const previewResolution = computed(() => {
+	if (isMediaPlayer.value) return mediaPlayer.renderer.outputResolution.value;
 	if (previewPlayback.state.value.mode === 'effectLivePreview') return effectLivePreviewManagerController.outputResolution.value;
 	const scene = activeScene.value;
 	if (scene == null) return null;
@@ -264,8 +299,11 @@ function update(t: number) {
 }
 
 watch(resolutionFactor, (newFactor, oldFactor) => {
-	zoom.value *= (oldFactor ?? 1) / newFactor;
+	if (!isMediaPlayer.value) zoom.value *= (oldFactor ?? 1) / newFactor;
 }, { immediate: true });
+watch(() => isMediaPlayer.value ? mediaPlayer.selection.value : null, selection => {
+	if (selection != null) initialZoomPending = true;
+});
 
 useRendererCanvas(canvasContainer, activePreviewRenderer, () => 'canvas', renderEngine.isSuspended);
 watch(renderEngine.isSuspended, updateTimecodeLoop, { immediate: true });
@@ -538,6 +576,14 @@ function showPreviewTargetMenu(ev: PointerEvent) {
 				if (previewPlayback.livePreviewCustomShaderEffectId.value !== customShaderEffect.id) projectSession.startCustomShaderEffectLivePreview(customShaderEffect.id);
 			},
 		})),
+	}, {
+		text: i18n.ts._MediaPlayer.Title,
+		icon: 'ti ti-player-play',
+		active: isMediaPlayer.value,
+		action: () => {
+			previewPlayback.showMediaPlayer();
+			projectSession.workspacePanelRevealRequest.value = { contentType: 'mediaPlayer', sourcePanelId: null };
+		},
 	}], ev.currentTarget ?? ev.target);
 }
 
@@ -659,6 +705,15 @@ function showMenu(ev: PointerEvent) {
 	border-radius: 50%;
 	background: #0008;
 	color: #fff;
+	pointer-events: none;
+}
+
+.mediaPlayerStatus {
+	position: absolute;
+	inset: 0;
+	display: grid;
+	place-content: center;
+	text-align: center;
 	pointer-events: none;
 }
 

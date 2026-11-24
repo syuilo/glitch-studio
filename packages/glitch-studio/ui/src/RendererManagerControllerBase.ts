@@ -1,13 +1,14 @@
 import { ref } from 'vue';
 import type { EffectLivePreviewManager } from '@gs/glitch-studio_renderer/effect-live-preview-manager.ts';
 import type { TimelineRendererManager } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
+import type { MediaPlayerRenderer } from '@gs/glitch-studio_renderer/media-player-renderer.ts';
 import type { RenderFailureOrigin } from './utility/render-failure.ts';
 
 type ManagerMethods<T> = {
 	[K in keyof T as T[K] extends (...args: never[]) => unknown ? K : never]: Extract<T[K], (...args: never[]) => unknown>;
 };
 
-type RendererManager = EffectLivePreviewManager | TimelineRendererManager;
+type RendererManager = EffectLivePreviewManager | TimelineRendererManager | MediaPlayerRenderer;
 type ManagerEvent<T extends RendererManager> = Parameters<T['emit']>[1];
 type ManagerEventHandlers<T extends RendererManager> = {
 	[E in ManagerEvent<T> as E['type']]: (ctx: E['ctx']) => void;

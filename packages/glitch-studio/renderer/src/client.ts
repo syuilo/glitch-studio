@@ -9,3 +9,9 @@ export function createEffectLivePreviewManagerWorker() {
 		type: 'module',
 	});
 }
+
+export function createMediaPlayerRendererWorker() {
+	return new Worker(new URL('./media-player-renderer-worker.ts', import.meta.url), {
+		type: 'module',
+	});
+}

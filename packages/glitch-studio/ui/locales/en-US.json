@@ -867,6 +867,21 @@
 		"Primary": "Primary",
 		"AddParameter": "Add Parameter"
 	},
+	"_MediaPlayer": {
+		"Title": "Media Player",
+		"Source": "Source",
+		"ShowPreview": "Show in Preview",
+		"ChooseSource": "Choose a source in the Media Player panel.",
+		"StartCapture": "Start capture in the Media Player panel.",
+		"Connecting": "Connecting to device…",
+		"Live": "Live",
+		"AssetUnavailable": "The selected asset is unavailable.",
+		"CaptureWebcamAudio": "Capture audio from the same device",
+		"EchoCancellation": "Echo cancellation",
+		"AutoGainControl": "Automatic gain control",
+		"NoiseSuppression": "Noise suppression",
+		"StatsUnavailable": "Rendering statistics are unavailable for Media Player."
+	},
 	"_EffectPreview": {
 		"Input": "Preview Input",
 		"InputPlayback": "Input Playback",

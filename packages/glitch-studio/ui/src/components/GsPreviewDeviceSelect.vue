@@ -23,7 +23,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
-import { defaultPreviewDeviceId } from '@/types/effect-live-preview.ts';
+import { defaultPreviewDeviceId } from '@/utility/preview-device.ts';
 import { i18n } from '@/i18n.ts';
 
 const props = defineProps<{ kind: 'webcam' | 'microphone'; deviceId: string | null; deviceRevision: number }>();

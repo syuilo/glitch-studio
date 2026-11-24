@@ -44,6 +44,8 @@ export async function captureProjectPreview(session: ProjectSessionContext, maxi
 	lifetime.throwIfAborted();
 	if (!Number.isSafeInteger(maximumSize) || maximumSize < 64 || maximumSize > 2048) throw new Error('maximumSize must be an integer between 64 and 2048.');
 	await nextTick();
+	const initialPlayback = session.previewPlayback.state.value;
+	if (initialPlayback.mode === 'mediaPlayer') throw new Error('PREVIEW_UNAVAILABLE: Select a Scene or Effect preview to capture a project image.');
 	await waitFor(session.flushRendererProjectChanges(), lifetime);
 	if (!session.renderEngine.canRender.value && session.renderEngine.errorMessage.value == null && !session.renderEngine.isSuspended.value) {
 		// 解像度などの静的設定変更ではWorkerを再生成する。旧Canvasを撮らず、新世代の
@@ -59,6 +61,7 @@ export async function captureProjectPreview(session: ProjectSessionContext, maxi
 	if (session.isDisposed || !session.renderEngine.canRender.value) throw new Error(session.renderEngine.errorMessage.value ?? 'PREVIEW_UNAVAILABLE: The preview is not ready.');
 	await waitFor(session.flushRendererProjectChanges(), lifetime);
 	const playback = session.previewPlayback.state.value;
+	if (playback.mode === 'mediaPlayer') throw new Error('PREVIEW_CHANGED: The preview changed while capturing an image.');
 	const target = playback.mode === 'timeline' ? { kind: 'timeline' as const, sceneId: session.activeSceneId.value }
 		: playback.effectSource.type === 'customShaderEffectReference'
 			? { kind: 'customShaderEffect' as const, customShaderEffectId: playback.effectSource.id }

@@ -29,10 +29,13 @@ import { getSceneAudioClips } from '@gs/subsystems_timeline_shared/scene-audio.j
 import { VoicevoxGeneration } from './audio/voicevox-generation.ts';
 import { AudioOutput } from './audio/audio-output.ts';
 import { EffectLivePreviewManagerController } from './EffectLivePreviewManagerController.ts';
+import { MediaPlayerController } from './MediaPlayerController.ts';
+import type { MediaPlayerRendererController } from './MediaPlayerRendererController.ts';
+import type { MediaPlayerPreviewOptions } from '@gs/glitch-studio_renderer/media-player-renderer.ts';
 import { preferences } from './preferences.ts';
 import { TimelineRendererManagerController } from './TimelineRendererManagerController.ts';
 import { TimelineAudioPreview } from './audio/timeline-audio-preview.ts';
-import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
+import { PreviewPlaybackController, type PreviewPlaybackState } from './PreviewPlaybackController.ts';
 import { RendererProjectSynchronizer } from './RendererProjectSynchronizer.ts';
 import { ProjectRenderValidation } from './ProjectRenderValidation.ts';
 import { PreviewRenderEngine } from './PreviewRenderEngine.ts';
@@ -78,7 +81,7 @@ export class ProjectSessionContext {
 	private readonly onWindowFocus = () => {
 		if (!this.disposed) void resolveExternalAssets(this.projectContext.stateManager.state.assets.value);
 	};
-	private synchronizedPreviewDisplayMode: 'effectLivePreview' | 'timeline' | null = null;
+	private synchronizedPreviewDisplayMode: PreviewPlaybackState['mode'] | null = null;
 	// 複数のパネルやプレビュー対象メニューから、同じ一時的な入力値を使う。
 	private readonly effectLivePreviewMediaSelections = shallowReactive(new Map<string, EffectLivePreviewMediaSelection>());
 	private readonly nodesEffectPreviewParamValues = shallowReactive(new Map<string, EffectLivePreviewParamValues>());
@@ -120,7 +123,7 @@ export class ProjectSessionContext {
 	public analysisRangePreset = ref<ImageAnalysisRangePreset>('zeroToOne');
 	public analysisCustomRange = ref<ImageValueRange>({ minimum: 0, maximum: 1 });
 	public analysisValueRange = computed(() => getImageAnalysisValueRange(this.analysisRangePreset.value, this.analysisCustomRange.value));
-	public readonly highResolutionImageAnalysis: HighResolutionImageAnalysisController<EffectLivePreviewManagerController | TimelineRendererManagerController>;
+	public readonly highResolutionImageAnalysis: HighResolutionImageAnalysisController<EffectLivePreviewManagerController | TimelineRendererManagerController | MediaPlayerRendererController>;
 	public readonly analysisWaveformCanvasSizes = shallowRef<PreviewWaveformCanvasSizes | null>(null);
 	public readonly analysisWaveformViewports = shallowRef<PreviewWaveformViewports | null>(null);
 	public readonly analysisHistogramViewport = shallowRef<ImageValueRange | null>(null);
@@ -135,6 +138,7 @@ export class ProjectSessionContext {
 	public readonly imageAnalysisRenderer = computed(() => this.highResolutionImageAnalysis.source.value ?? this.activePreviewRenderer.value);
 	public readonly imageAnalysisAvailable = computed(() => preferences.r.analysisMonitorsEnabled.value && !this.renderEngine.isSuspended.value && this.activePreviewRenderer.value.isReady.value);
 	public audioOutput = markRaw(new AudioOutput());
+	public readonly mediaPlayer: MediaPlayerController;
 	public effectLivePreviewManagerController: EffectLivePreviewManagerController;
 	public timelineRendererManagerController: TimelineRendererManagerController;
 	public timelineAudioPreview: TimelineAudioPreview;
@@ -148,7 +152,13 @@ export class ProjectSessionContext {
 	public readonly renderEngine: PreviewRenderEngine;
 	private readonly rendererProjectSynchronizer: RendererProjectSynchronizer;
 	private readonly projectSaveController: ProjectSaveController;
-	public activePreviewRenderer = computed(() => this.previewPlayback.state.value.mode === 'effectLivePreview' ? this.effectLivePreviewManagerController : this.timelineRendererManagerController);
+	public activePreviewRenderer = computed(() => {
+		switch (this.previewPlayback.state.value.mode) {
+			case 'effectLivePreview': return this.effectLivePreviewManagerController;
+			case 'mediaPlayer': return this.mediaPlayer.renderer;
+			case 'timeline': return this.timelineRendererManagerController;
+		}
+	});
 	public get projectFileName() { return this.projectSaveController.projectFileName; }
 	public readonly projectDisplayName = computed(() => getProjectDisplayName(this.projectContext.stateManager.state.name.value, this.projectFileName.value));
 	public get projectFileHandle() { return this.projectSaveController.projectFileHandle; }
@@ -197,6 +207,16 @@ export class ProjectSessionContext {
 
 		this.effectLivePreviewManagerController = markRaw(new EffectLivePreviewManagerController(this.audioOutput));
 		this.timelineRendererManagerController = markRaw(new TimelineRendererManagerController());
+		this.mediaPlayer = markRaw(new MediaPlayerController(
+			this.audioOutput,
+			id => this.projectContext.stateManager.state.assets.value.find(asset => asset.id === id),
+			() => ({
+				displayMode: preferences.r.previewDisplayMode.value,
+				analysisEnabled: preferences.r.analysisMonitorsEnabled.value,
+				preview: this.getMediaPlayerPreviewOptions(),
+			}),
+			() => { void resolveExternalAssets(this.projectContext.stateManager.state.assets.value); },
+		));
 
 		this.timelineAudioPreview = markRaw(new TimelineAudioPreview(
 			() => this.audioOutput.getOutput(),
@@ -224,7 +244,7 @@ export class ProjectSessionContext {
 			() => this.previewParameterEditing.clear(), { flush: 'sync' }));
 		this.renderEngine = markRaw(new PreviewRenderEngine({
 			dispose: reason => {
-				this.highResolutionImageAnalysis?.reset();
+				if (this.highResolutionImageAnalysis?.source.value !== this.mediaPlayer.renderer) this.highResolutionImageAnalysis?.reset();
 				this.imageAnalysisDisplayUpdate?.clear();
 				this.displayedWaveformViewports.value = this.analysisWaveformViewports.value;
 				this.displayedHistogramViewport.value = this.analysisHistogramViewport.value;
@@ -278,7 +298,10 @@ export class ProjectSessionContext {
 		this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
 		this.highResolutionImageAnalysis = markRaw(new HighResolutionImageAnalysisController({
 			setLivePaused: async paused => {
-				await this.updatePreviewOptions({ analysisPaused: paused, analysisTarget: this.analysisTarget.value, analysisImageSource: this.analysisImageSource.value, analysisValueScale: this.analysisValueScale.value, analysisValueRange: { ...this.analysisValueRange.value }, analysisWaveformCanvasSizes: this.analysisWaveformCanvasSizes.value, analysisWaveformViewports: this.analysisWaveformViewports.value, analysisHistogramViewport: this.analysisHistogramViewport.value });
+				await Promise.all([
+					this.mediaPlayer.renderer.updateOptions(this.getMediaPlayerPreviewOptions()).catch(() => {}),
+					this.updatePreviewOptions({ analysisPaused: paused, analysisTarget: this.analysisTarget.value, analysisImageSource: this.analysisImageSource.value, analysisValueScale: this.analysisValueScale.value, analysisValueRange: { ...this.analysisValueRange.value }, analysisWaveformCanvasSizes: this.analysisWaveformCanvasSizes.value, analysisWaveformViewports: this.analysisWaveformViewports.value, analysisHistogramViewport: this.analysisHistogramViewport.value }),
+				]);
 				if (!paused) {
 					this.displayedWaveformViewports.value = this.analysisWaveformViewports.value;
 					this.displayedHistogramViewport.value = this.analysisHistogramViewport.value;
@@ -288,24 +311,51 @@ export class ProjectSessionContext {
 			onError: error => this.renderEngine.fail(error),
 		}));
 		this.imageAnalysisDisplayUpdate = new CoalescedAsyncUpdate(async () => {
-			await this.renderEngine.runRendererUpdate(async () => {
-				if (this.highResolutionImageAnalysis.active.value) return;
-				const settings = { waveformCanvasSizes: this.analysisWaveformCanvasSizes.value, waveformViewports: this.analysisWaveformViewports.value, histogramViewport: this.analysisHistogramViewport.value };
-				const source = this.activePreviewRenderer.value;
-				const revision = source.canvasRevision.value;
-				await Promise.all([
+			if (this.highResolutionImageAnalysis.active.value) return;
+			const settings = { waveformCanvasSizes: this.analysisWaveformCanvasSizes.value, waveformViewports: this.analysisWaveformViewports.value, histogramViewport: this.analysisHistogramViewport.value };
+			const source = this.activePreviewRenderer.value;
+			const revision = source.canvasRevision.value;
+			if (source === this.mediaPlayer.renderer) {
+				await this.mediaPlayer.renderer.setImageAnalysisDisplay(settings).catch(() => {});
+			} else {
+				await this.renderEngine.runRendererUpdate(() => Promise.all([
 					this.effectLivePreviewManagerController.setImageAnalysisDisplay(settings, source === this.effectLivePreviewManagerController),
 					this.timelineRendererManagerController.setImageAnalysisDisplay(settings, source === this.timelineRendererManagerController),
-				]);
-				if (!this.highResolutionImageAnalysis.active.value && source === this.activePreviewRenderer.value && revision === source.canvasRevision.value) {
-					this.displayedWaveformViewports.value = settings.waveformViewports;
-					this.displayedHistogramViewport.value = settings.histogramViewport;
-				}
-			}, { waitForInitialization: true });
+				]), { waitForInitialization: true });
+			}
+			if (!this.highResolutionImageAnalysis.active.value && source === this.activePreviewRenderer.value && revision === source.canvasRevision.value) {
+				this.displayedWaveformViewports.value = settings.waveformViewports;
+				this.displayedHistogramViewport.value = settings.histogramViewport;
+			}
 		}, error => this.renderEngine.fail(error));
-		this.sessionDisposers.push(watch(() => this.previewPlayback.state.value.mode, () => {
+		this.sessionDisposers.push(watch(() => this.previewPlayback.state.value.mode, (mode, previous) => {
+			if ((mode === 'mediaPlayer' || previous === 'mediaPlayer') && this.highResolutionImageAnalysis.active.value) {
+				void this.highResolutionImageAnalysis.disable().catch(() => {});
+			}
 			void this.updatePreviewDisplayActivity();
 		}, { flush: 'sync' }));
+		// 作品の検証エラーや再初期化でMedia Playerを止めず、編集セッションの休止だけを共有する。
+		this.sessionDisposers.push(watch([
+			() => this.previewPlayback.state.value.mode === 'mediaPlayer',
+			this.renderEngine.isSuspended,
+			() => this.mediaPlayer.selectedAsset.value?.fileData,
+		], ([selected, suspended]) => this.mediaPlayer.syncSource(selected && !suspended), { flush: 'sync' }));
+		this.sessionDisposers.push(watch([preferences.r.previewDisplayMode, preferences.r.analysisMonitorsEnabled], () => {
+			void this.mediaPlayer.restartRenderer();
+		}));
+		this.sessionDisposers.push(watch(this.mediaPlayer.renderer.canvasRevision, () => {
+			if (this.highResolutionImageAnalysis.source.value === this.mediaPlayer.renderer) this.highResolutionImageAnalysis.reset();
+		}, { flush: 'sync' }));
+		const mediaPlayerPreviewUpdate = new CoalescedAsyncUpdate(
+			() => this.mediaPlayer.renderer.updateOptions(this.getMediaPlayerPreviewOptions()).catch(() => {}),
+			() => {},
+		);
+		this.sessionDisposers.push(watch([
+			this.highlightClipping, this.previewWarningImageSource, this.previewGamutWarning, this.previewExposure,
+			this.previewSrgbProof, this.previewGamutCompression, preferences.r.animatedBgInPreview,
+			this.analysisTarget, this.analysisImageSource, this.analysisValueScale, this.analysisValueRange,
+		], () => { mediaPlayerPreviewUpdate.request(); mediaPlayerPreviewUpdate.flush(); }));
+		this.sessionDisposers.push(() => mediaPlayerPreviewUpdate.clear());
 		for (const controller of [this.effectLivePreviewManagerController, this.timelineRendererManagerController]) {
 			controller.onRenderFailure = (error, origin) => {
 				this.renderEngine.fail(error, origin);
@@ -631,11 +681,34 @@ export class ProjectSessionContext {
 		};
 	}
 
+	private getMediaPlayerPreviewOptions(): MediaPlayerPreviewOptions {
+		return {
+			highlightClipping: this.highlightClipping.value,
+			previewWarningImageSource: this.previewWarningImageSource.value,
+			previewGamutWarning: this.previewGamutWarning.value,
+			previewExposure: this.previewExposure.value,
+			previewSrgbProof: this.previewSrgbProof.value,
+			previewGamutCompression: this.previewGamutCompression.value,
+			previewBackground: preferences.s.animatedBgInPreview ? 'checker' : 'black',
+			analysisTarget: this.analysisTarget.value,
+			analysisImageSource: resolvePreviewAnalysisImageSource(this.analysisTarget.value, this.analysisImageSource.value),
+			analysisValueScale: this.analysisValueScale.value,
+			analysisValueRange: this.analysisValueRange.value,
+			analysisPaused: this.highResolutionImageAnalysis.active.value && this.highResolutionImageAnalysis.source.value === this.mediaPlayer.renderer,
+			analysisWaveformCanvasSizes: this.analysisWaveformCanvasSizes.value,
+			analysisWaveformViewports: this.analysisWaveformViewports.value,
+			analysisHistogramViewport: this.analysisHistogramViewport.value,
+		};
+	}
+
 	public async toggleHighResolutionImageAnalysis() {
+		const source = this.activePreviewRenderer.value;
 		try {
 			if (this.highResolutionImageAnalysis.active.value) await this.highResolutionImageAnalysis.disable();
-			else await this.highResolutionImageAnalysis.enable(this.activePreviewRenderer.value, this.imageAnalysisSettings.value);
-		} catch (error) { this.renderEngine.fail(error); }
+			else await this.highResolutionImageAnalysis.enable(source, this.imageAnalysisSettings.value);
+		} catch (error) {
+			if (source !== this.mediaPlayer.renderer) this.renderEngine.fail(error);
+		}
 	}
 
 	public setWaveformCanvasSize(direction: keyof PreviewWaveformCanvasSizes, size: PreviewWaveformCanvasSizes['horizontal']) {
@@ -819,6 +892,7 @@ export class ProjectSessionContext {
 		for (const stop of this.sessionDisposers.splice(0)) stop();
 		window.removeEventListener?.('focus', this.onWindowFocus);
 		this.renderEngine.dispose();
+		this.mediaPlayer.dispose();
 		this.previewParameterEditing.clear();
 		this.previewPlayback.dispose();
 		this.voicevoxGeneration.dispose();
