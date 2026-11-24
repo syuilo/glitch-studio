@@ -135,6 +135,34 @@ export async function selectorTextureBindings() {
 		[last - 0.51, 1, [1, 2, 3, 4]]]);
 }
 
+export async function colorSwitch() {
+	await withGpu(async ({ gpu, create, render, read, pipelines }) => {
+		const stripe = stripeInput(gpu.device);
+		try {
+			const instance = await create({ type: 'nativeEffect', id: 'colorSwitch' }, ['output'], { trueInput: stripe }, {
+				resolutionSetting: { mode: 'auto', scale: 1 },
+				params: {
+					condition: { inputSource: 'expression', expression: 'TIME >= 2' },
+					falseInput: { inputSource: 'literal', value: [-4, 6, 2, 0.5] },
+				},
+			});
+			try {
+				const compiled = pipelines();
+				for (const [time, expected] of [[0, [-2, 3, 1, 0.5]], [2, [2, -2, 0, 1]], [1, [-2, 3, 1, 0.5]]]) {
+					const frame = { time, timeDelta: 0 };
+					await instance.prepare(frame);
+					render(instance, frame);
+					const texture = instance.outputs.get('output').texture;
+					check(texture.width === resolution.width && texture.height === resolution.height, 'automatic resolution at time ' + time);
+					const pixels = await read(texture);
+					for (const [channel, value] of expected.entries()) near(pixels[4 + channel], value, 'time ' + time + ' channel ' + channel);
+				}
+				check(compiled === pipelines(), 'changing Condition reuses pipelines');
+			} finally { instance.dispose(); }
+		} finally { stripe.texture.destroy(); }
+	});
+}
+
 async function checkRedRow(instance, fixture, expected, label) {
 	fixture.render(instance);
 	const pixels = await fixture.read(instance.outputs.get('output').texture);

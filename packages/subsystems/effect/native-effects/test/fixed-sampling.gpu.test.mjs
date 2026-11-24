@@ -21,6 +21,10 @@ test('selects one nearest candidate of each output type without interpolation', 
 // 連続して候補を切り替えても、各入力のFit・Wrap・Filterと1枚のbindingを両立する。
 test('binds one selected texture when candidates exceed the device limit', options, () => runEffectGpuTest(entry, 'selectorTextureBindings'));
 
+// 【Switch (Color)はbool式で定数色と画像を切り替える】
+// 選ばれた入力の色とalphaを出力し、条件が変わっても両入力から決めた自動解像度とpipelineを維持する。
+test('switches between a constant color and texture without changing automatic resolution', options, () => runEffectGpuTest(entry, 'colorSwitch'));
+
 // 【進捗で変化する分割領域に合わせてFitを更新する】
 // 入力画像の寸法・世代が同じでも、全幅と半幅ではcoverで表示する画素が変わる。
 test('updates cover mapping when split regions resize', options, () => runEffectGpuTest(entry, 'regionFit'));

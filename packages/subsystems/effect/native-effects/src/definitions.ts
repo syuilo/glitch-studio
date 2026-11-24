@@ -30,6 +30,7 @@ import colorInterpolator from './fx/colorInterpolator/_def_.ts';
 import colorMix from './fx/colorMix/_def_.ts';
 import colorRamp from './fx/colorRamp/_def_.ts';
 import colorSelector from './fx/colorSelector/_def_.ts';
+import colorSwitch from './fx/colorSwitch/_def_.ts';
 import composeColor from './fx/composeColor/_def_.ts';
 import composeColorHsl from './fx/composeColorHsl/_def_.ts';
 import composeVector from './fx/composeVector/_def_.ts';
@@ -211,6 +212,7 @@ export const nativeEffectDefinitions = {
 	colorMix,
 	colorRamp,
 	colorSelector,
+	colorSwitch,
 	composeColor,
 	composeColorHsl,
 	composeVector,
