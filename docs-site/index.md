@@ -34,15 +34,11 @@ features:
   - title: 決定論的
     details: "Glitch Studioは、原則<b>Deterministic</b>な設計になっています。\n同じ入力なら同じ出力が得られ、一貫した映像が得られます。"
   - title: 画像編集
-    details: ノードベースのエディタで「Custom Node Graph Effect」を構築し、画像を作成・加工できます。
-    link: /guide/custom-node-graph-effect
-    linkText: Custom Node Graph Effectについて
+    details: 「エフェクト」を適用し、画像を作成・加工できます。標準で100種類以上の多彩なエフェクトを収録しているほか、複数のエフェクトをグラフ状に組み合わせて新しいエフェクトを作成することもできます(Nodes Effect)。
   - title: 動画編集
     details: タイムライン上に画像、動画、音声、エフェクトなどのクリップをレイヤー状に配置し、動画の作成・加工が可能。
     link: /guide/timeline
     linkText: タイムラインについて
-  - title: 豊富なエフェクト
-    details: 標準で100種類以上の多彩なエフェクトを収録。エフェクトの自作も可能です。
   - title: スクリプティング
     details: "AiScriptを使用して、プロジェクトを操作したりパラメータを制御したりできます。"
   - title: 高精度・広色域画像処理
@@ -52,7 +48,7 @@ features:
   - title: OpenEXR対応
     details: "OpenEXRでのエクスポートに対応していて、広い色域の画像データを劣化することなく保存・他ソフトへ受け渡し可能。"
   - title: Web Component出力
-    details: "作成したCustom Node Graph Effectを、任意のWebサイトに埋め込めるWeb Componentとしてエクスポートできます。ポインタ入力も可能で、インタラクティブなビジュアルアートを手軽に設置できます。"
+    details: "作成したNodes Effectを、任意のWebサイトに埋め込めるWeb Componentとしてエクスポートできます。ポインタ入力も可能で、インタラクティブなビジュアルアートを手軽に設置できます。"
   - title: MCPサーバー
     details: "AIエージェントにプロジェクトを操作させることが可能です。"
   - title: VOICEVOX連携
