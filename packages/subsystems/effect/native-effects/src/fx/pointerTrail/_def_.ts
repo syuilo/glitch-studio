@@ -1,7 +1,7 @@
 import { defineNativeEffect } from '@gs/subsystems_effect_shared/effect-definition.ts';
 
 export default defineNativeEffect({
-	displayName: 'PointerTrail',
+	displayName: 'Pointer Trail',
 	summary: {
 		'ja-JP': 'ポインターの動きを、時間とともに減衰するベクトル場として出力します。',
 		'en-US': 'Outputs pointer motion as a vector field that fades over time.',

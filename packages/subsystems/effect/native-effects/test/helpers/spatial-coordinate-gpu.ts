@@ -80,10 +80,10 @@ export async function run() {
 		const bytesPerRow = Math.ceil(width * 16 / 256) * 256;
 		const buffer = device.createBuffer({ size: bytesPerRow * height, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
 		resources.push(() => { instance.dispose(); copy.destroy(); buffer.destroy(); });
-		return async (overrides: Record<string, any>, pointerVector = { x: 0, y: 0 }) => {
+		return async (overrides: Record<string, any>, pointerPosition = { x: 0, y: 0 }, timeDelta = 16) => {
 			const encoder = device.createCommandEncoder();
-			await instance.draw({ params: { ...defaults, ...overrides }, outputs: outputs, commandEncoder: encoder, time: 0, timeDelta: 16,
-				pointerPosition: { x: 0, y: 0 }, pointerVector,
+			await instance.draw({ params: { ...defaults, ...overrides }, outputs: outputs, commandEncoder: encoder, time: 0, timeDelta,
+				pointerPosition,
 			});
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: copy.createView(), loadOp: 'clear', storeOp: 'store' }] });
 			pass.setPipeline(reader);
@@ -134,15 +134,26 @@ export async function run() {
 			checks.push(`${width}x${height} optical flow common units per second`);
 		}
 		// 【ポインターと位置入力が同じ距離・ベクトル出力を使う】
-		// 画素中心で力を測り、位置の差を取るPosition Trailにも余分な縦横比補正が入らないことを確認する。
-		const pointerPixel = (await effect(pointerDefinition, pointer, 65, 33)({ radius: 0.2, strength: 1 }, { x: 1 / 64, y: 1 / 64 }))(32, 16);
-		near(pointerPixel[0], 0.5, 'pointer X'); near(pointerPixel[1], 0.5, 'pointer Y');
+		// 横長の描画領域で縦横に同じ距離を動かし、両方の効果で同じ強さになることを確認する。
+		const distance = 8 / 65;
+		const radius = 0.2;
+		// 時間差0の終点では、二乗フォールオフを移動距離に沿って積分した値を直接求められる。
+		const expected = 32 * distance * (1 - distance / radius + (distance / radius) ** 2 / 3);
 		for (const axis of [0, 1]) {
 			const renderTrail = effect(trailDefinition, trail, 65, 33);
-			await renderTrail({ position: [0, 0], strength: 1 });
-			const position = axis === 0 ? [8 / 65, 0] : [0, 8 / 65];
-			const pixel = (await renderTrail({ position, radius: 0.2, strength: 1 }))(axis === 0 ? 40 : 32, axis === 0 ? 16 : 8);
-			near(pixel[axis], 32 * 8 / 65, 'position delta'); near(pixel[1 - axis], 0, 'orthogonal position delta');
+			const renderPointer = effect(pointerDefinition, pointer, 65, 33);
+			await renderTrail({ position: [0, 0] });
+			await renderPointer({});
+			const [x, y] = axis === 0 ? [distance, 0] : [0, distance];
+			// 短辺基準にしても共通座標で半径が等しくなる値を指定し、移動や出力の単位が変わらないことを確認する。
+			const brush = { radius: radius * 65 / 33, sizeReference: 'shortSide', strength: 1 };
+			const positionField = await renderTrail({ ...brush, position: [x, y] }, { x: 0, y: 0 }, 0);
+			const pointerField = await renderPointer(brush, { x, y }, 0);
+			for (const readField of [positionField, pointerField]) {
+				const pixel = readField(axis === 0 ? 40 : 32, axis === 0 ? 16 : 8);
+				near(pixel[axis], expected, 'integrated trail along the axis');
+				near(pixel[1 - axis], 0, 'orthogonal trail component');
+			}
 		}
 		checks.push('pointer and position trails share common vector units');
 		const error = await device.popErrorScope();
