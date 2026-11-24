@@ -23,9 +23,11 @@ export function installProjectCloseGuard(isProjectSaving: Readonly<Ref<boolean>>
 						type: 'warning',
 						title: i18n.ts._App.ConfirmCloseUnsavedProject,
 						text: i18n.ts._App.UnsavedChangesWillBeLost,
-						okText: i18n.ts._App.CloseWithoutSaving,
-						cancelText: i18n.ts.Cancel,
-						autofocusAction: 'cancel',
+						actions: [
+							{ id: 'close-without-saving', text: i18n.ts._App.CloseWithoutSaving, danger: true },
+							{ id: 'cancel', text: i18n.ts.Cancel, isCancel: true, isAutofocus: true },
+						],
+						canCancel: true,
 					}) : { canceled: false };
 					confirmed = !result.canceled && !disposed && !isCloseBlocked.value;
 				}
@@ -55,7 +57,8 @@ export function installProjectCloseGuard(isProjectSaving: Readonly<Ref<boolean>>
 		event.returnValue = true;
 		if (__ELECTRON__ && isCloseBlocked.value && !showingCloseNotice) {
 			showingCloseNotice = true;
-			void ui.alert({ type: 'info',
+			void ui.alert({
+				type: 'info',
 				title: isProjectSaving.value ? i18n.ts._App.ProjectSaving : i18n.ts._App.Exporting,
 				text: isProjectSaving.value ? i18n.ts._App.CannotCloseWhileSaving : i18n.ts._App.CannotCloseWhileExporting,
 			})

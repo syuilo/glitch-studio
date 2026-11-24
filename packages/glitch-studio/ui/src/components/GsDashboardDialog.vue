@@ -146,7 +146,16 @@ async function removeRecentProject(id: string) {
 
 async function clearRecentProjects() {
 	recentProjectsBusy.value = true;
-	const { canceled } = await ui.confirm({ type: 'question', text: i18n.ts._Dashboard.ConfirmClearRecentProjects });
+	const { canceled } = await ui.confirm({
+		type: 'question',
+		title: null,
+		text: i18n.ts._Dashboard.ConfirmClearRecentProjects,
+		actions: [
+			{ id: 'clear-recent-projects', text: 'OK', primary: true, isAutofocus: true },
+			{ id: 'cancel', text: i18n.ts.Cancel, isCancel: true },
+		],
+		canCancel: true,
+	});
 	if (!canceled) await recentProjects.clear();
 	recentProjectsBusy.value = false;
 }

@@ -88,7 +88,11 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 					type: 'warning',
 					title: asset.name,
 					text: media.audioError,
-					okText: i18n.ts._Timeline.AddWithoutAudio,
+					actions: [
+						{ id: 'add-without-audio', text: i18n.ts._Timeline.AddWithoutAudio, primary: true, isAutofocus: true },
+						{ id: 'cancel', text: i18n.ts.Cancel, isCancel: true },
+					],
+					canCancel: true,
 				});
 				if (result.canceled || !isActive() || sceneLayers.value !== initialLayers || !stateManager.state.assets.value.includes(asset) || asset.fileData !== fileSource) return null;
 			}

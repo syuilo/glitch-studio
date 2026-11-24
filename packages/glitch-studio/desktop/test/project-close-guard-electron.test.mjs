@@ -97,7 +97,7 @@ test('guards real Electron closing, reloading and application quit through async
 			await expectBlocked(() => mainWindow.close());
 			await expectBlocked(() => mainWindow.close());
 			assert.equal(await mainWindow.webContents.executeJavaScript('window.closeConfirmations.length'), 1);
-			assert.equal(await mainWindow.webContents.executeJavaScript('window.closeConfirmations[0].autofocusAction'), 'cancel');
+			assert.equal(await mainWindow.webContents.executeJavaScript('window.closeConfirmations[0].actions.find(action => action.isAutofocus)?.id'), 'cancel');
 			assert.equal(await respond(true), false);
 			console.log('stage: confirm reload');
 			await expectBlocked(() => mainWindow.reload());

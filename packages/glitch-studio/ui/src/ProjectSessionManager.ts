@@ -5,11 +5,11 @@ import { ProjectSessionContext } from './ProjectSessionContext.ts';
 import { ProjectFileOperationController } from './ProjectFileOperationController.ts';
 import { recentProjects } from './recent-projects.ts';
 import { isSameProjectFile } from './gsproj.ts';
-import type { Project, ProjectFileHandle, SelectedProjectFile } from './gsproj.ts';
 import { applicationActivity } from './application-activity.ts';
 import { resolveExternalAssets } from './external-assets.ts';
 import { i18n } from './i18n.ts';
 import * as ui from './ui.ts';
+import type { Project, ProjectFileHandle, SelectedProjectFile } from './gsproj.ts';
 
 /** ウィンドウ内のセッションの寿命と選択を所有する。保存・編集の状態は各セッションが持つ。 */
 export class ProjectSessionManager {
@@ -139,9 +139,16 @@ export class ProjectSessionManager {
 				return false;
 			}
 			if (session.hasUnsavedChanges.value) {
-				const result = await ui.confirm({ type: 'warning', title: i18n.ts._App.ConfirmCloseUnsavedProject,
+				const result = await ui.confirm({
+					type: 'warning',
+					title: i18n.ts._App.ConfirmCloseUnsavedProject,
 					text: `${session.projectDisplayName.value}\n${i18n.ts._App.UnsavedChangesWillBeLost}`,
-					okText: i18n.ts._App.CloseWithoutSaving, cancelText: i18n.ts.Cancel, autofocusAction: 'cancel' });
+					actions: [
+						{ id: 'close-without-saving', text: i18n.ts._App.CloseWithoutSaving, danger: true },
+						{ id: 'cancel', text: i18n.ts.Cancel, isCancel: true, isAutofocus: true },
+					],
+					canCancel: true,
+				});
 				if (result.canceled) return false;
 			}
 			if (this.disposed || session.isDisposed || applicationActivity.isExporting.value) return false;

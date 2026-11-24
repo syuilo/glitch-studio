@@ -41,6 +41,7 @@ function fixture(t, install, { saving = false, exporting = false, unsaved = fals
 	target.resumedUnloads = [];
 	let listener = null;
 	let nextRequestId = 0;
+
 	function close() {
 		const event = new Event('beforeunload', { cancelable: true });
 		// NodeのEvent.returnValueはDOMのBeforeUnloadEventとは別のプロパティなので置き換える。
@@ -48,6 +49,7 @@ function fixture(t, install, { saving = false, exporting = false, unsaved = fals
 		target.dispatchEvent(event);
 		return event;
 	}
+
 	target.desktop = bridgeAvailable ? {
 		onProjectCloseRequested(callback) { listener = callback; return () => { listener = null; }; },
 		async completeProjectClose(requestId, confirmed) {
@@ -64,8 +66,8 @@ function fixture(t, install, { saving = false, exporting = false, unsaved = fals
 	const dispose = install(isProjectSaving, isExporting, hasUnsavedChanges);
 	t.after(() => { dispose(); globalThis.window = previousWindow; });
 	return { target, isProjectSaving, isExporting, hasUnsavedChanges, dispose, close,
-		request() { const event = close(); if (event.defaultPrevented) listener?.(++nextRequestId); return event; },
-		notify(requestId) { nextRequestId = Math.max(nextRequestId, requestId); listener?.(requestId); },
+										request() { const event = close(); if (event.defaultPrevented) listener?.(++nextRequestId); return event; },
+										notify(requestId) { nextRequestId = Math.max(nextRequestId, requestId); listener?.(requestId); },
 	};
 }
 
@@ -155,7 +157,11 @@ test('uses asynchronous Vue confirmation and approves only one resumed unload', 
 	assert.deepEqual(fixtureState.target.closeConfirmations[0].options, {
 		type: 'warning', title: i18n.ts._App.ConfirmCloseUnsavedProject,
 		text: i18n.ts._App.UnsavedChangesWillBeLost,
-		okText: i18n.ts._App.CloseWithoutSaving, cancelText: i18n.ts.Cancel, autofocusAction: 'cancel',
+		actions: [
+			{ id: 'close-without-saving', text: i18n.ts._App.CloseWithoutSaving, danger: true },
+			{ id: 'cancel', text: i18n.ts.Cancel, isCancel: true, isAutofocus: true },
+		],
+		canCancel: true,
 	});
 	fixtureState.target.closeConfirmations[0].completion.resolve({ canceled: true });
 	await flushConfirmation();

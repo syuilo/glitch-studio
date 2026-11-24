@@ -185,7 +185,11 @@ async function resetPreferences() {
 		type: 'warning',
 		title: i18n.ts._Settings.Reset,
 		text: i18n.ts._Settings.ConfirmReset,
-		autofocusAction: 'cancel',
+		actions: [
+			{ id: 'reset', text: 'OK', primary: true },
+			{ id: 'cancel', text: i18n.ts.Cancel, isCancel: true, isAutofocus: true },
+		],
+		canCancel: true,
 	});
 	if (canceled) return;
 

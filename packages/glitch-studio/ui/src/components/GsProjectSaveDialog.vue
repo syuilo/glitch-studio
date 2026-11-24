@@ -66,7 +66,11 @@ async function selectFile() {
 				type: 'question',
 				title: i18n.ts._Project.ReplaceExisting,
 				text: `"${name}" already exists in this folder.`,
-				okText: i18n.ts.Replace,
+				actions: [
+					{ id: 'replace', text: i18n.ts.Replace, primary: true, isAutofocus: true },
+					{ id: 'cancel', text: i18n.ts.Cancel, isCancel: true },
+				],
+				canCancel: true,
 			});
 			return !result.canceled;
 		});

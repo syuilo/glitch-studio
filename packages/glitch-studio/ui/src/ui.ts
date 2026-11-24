@@ -236,29 +236,12 @@ export function alert(props: {
 	});
 }
 
-export function confirm(props: {
-	type: CP<typeof GsMessageDialog>['type'];
-	title?: string;
-	text?: string;
-	okText?: string;
-	cancelText?: string;
-	autofocusAction?: 'ok' | 'cancel' | null;
-}): Promise<{ canceled: boolean }> {
-	const { autofocusAction = 'ok' } = props;
+export function confirm(
+	props: CP<typeof GsMessageDialog>,
+): Promise<Parameters<ComponentEmitsObject<typeof GsMessageDialog>['done']>[0]> {
 	return new Promise(resolve => {
-		const { dispose } = popup(GsMessageDialog, {
-			type: props.type,
-			title: props.title ?? null,
-			text: props.text ?? null,
-			actions: [
-				{ id: 'ok', text: props.okText ?? 'OK', primary: true, isAutofocus: autofocusAction === 'ok' },
-				{ id: 'cancel', text: props.cancelText ?? i18n.ts.Cancel, isCancel: true, isAutofocus: autofocusAction === 'cancel' },
-			],
-			canCancel: true,
-		}, {
-			done: ({ canceled }) => {
-				resolve({ canceled });
-			},
+		const { dispose } = popup(GsMessageDialog, props, {
+			done: resolve,
 			closed: () => dispose(),
 		});
 	});
