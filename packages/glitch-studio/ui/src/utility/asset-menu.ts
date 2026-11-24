@@ -7,23 +7,18 @@ import type { ProjectAsset, ProjectContext } from '@/Project.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import type { OpenedMediaFile } from '../api.ts';
 import { i18n } from '@/i18n.ts';
-import GsDialog from '@/components/common/GsDialog.vue';
-import { popup, alert, progress } from '@/ui.ts';
+import { inputText, alert, progress } from '@/ui.ts';
 
 const assetOperationGenerations = new WeakMap<ProjectAsset, number>();
 
 export function getAssetMenu(projectContext: ProjectContext, asset: ProjectAsset): MenuItem[] {
 	const { stateManager } = projectContext;
 
-	function rename() {
-		const { dispose } = popup(GsDialog, { input: { default: asset.name } }, {
-			done: result => {
-				if (!result.canceled && typeof result.result === 'string') {
-					stateManager.commit('setAssetName', { assetId: asset.id, name: result.result });
-				}
-			},
-			closed: () => dispose(),
-		});
+	async function rename() {
+		const { canceled, result } = await inputText({ default: asset.name });
+		if (!canceled) {
+			stateManager.commit('setAssetName', { assetId: asset.id, name: result });
+		}
 	}
 
 	function applyImported(result: OpenedMediaFile, undoable = true) {

@@ -178,6 +178,7 @@ const appBundle = await build({
 					` : args.path.endsWith('.vue') ? `export default { name: '${args.path.split('/').at(-1)}' };` : `
 					export async function alert(options) { globalThis.projectAlerts.push(options.text); await window.acknowledgeProjectAlert?.(); }
 					export async function confirm(options) { window.projectConfirmations?.push(options); return await window.confirmProjectClose?.(options) ?? { canceled: window.cancelProjectReplacement === true }; }
+					export async function inputText() { return { canceled: true }; }
 					export function progress() { return { setProgress() {}, setSubProgress() {}, setText() {}, done() {} }; }
 					export function waiting() { window.waitingCount = (window.waitingCount ?? 0) + 1; return { setText() {}, done() { window.waitingCount--; } }; }
 						export function disposeProjectSessionPopups() {}

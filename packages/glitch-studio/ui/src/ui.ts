@@ -6,14 +6,16 @@ import type { MenuItem } from '@/types/menu.ts';
 import type { OverloadToUnion } from '@/types/overload-to-union.ts';
 import type { GsSelectItem } from './components/common/GsSelect.vue';
 import type { OptionValue } from './types/option-value.ts';
-import type { GsDialogReturnType } from '@/components/common/GsDialog.vue';
+import type { GsInputDialogReturnType } from '@/components/common/GsInputDialog.vue';
 import type { ProjectAsset } from './Project.ts';
 import type { ProjectSessionContext } from './ProjectSessionContext.ts';
 import { getHTMLElementOrNull } from '@/utility/get-dom-node-or-null.ts';
 import { focusParent } from '@/utility/focus.ts';
+import { i18n } from '@/i18n.ts';
 import GsPopupMenu from '@/components/common/GsPopupMenu.vue';
 import GsContextMenu from '@/components/common/GsContextMenu.vue';
-import GsDialog from '@/components/common/GsDialog.vue';
+import GsMessageDialog from '@/components/common/GsMessageDialog.vue';
+import GsInputDialog from '@/components/common/GsInputDialog.vue';
 import GsWaitingDialog from '@/components/common/GsWaitingDialog.vue';
 import GsProgressDialog from '@/components/common/GsProgressDialog.vue';
 
@@ -214,12 +216,18 @@ export function contextMenu(items: MenuItem[], ev: PointerEvent): Promise<void> 
 }
 
 export function alert(props: {
-	type?: 'error' | 'info' | 'success' | 'warning' | 'waiting' | 'question';
+	type?: CP<typeof GsMessageDialog>['type'];
 	title?: string;
 	text?: string;
 }): Promise<void> {
 	return new Promise(resolve => {
-		const { dispose } = popup(GsDialog, props, {
+		const { dispose } = popup(GsMessageDialog, {
+			type: props.type ?? 'info',
+			title: props.title ?? null,
+			text: props.text ?? null,
+			actions: [{ id: 'ok', text: i18n.ts._Dialog.GotIt, primary: true, isAutofocus: true }],
+			canCancel: true,
+		}, {
 			done: () => {
 				resolve();
 			},
@@ -229,20 +237,27 @@ export function alert(props: {
 }
 
 export function confirm(props: {
-	type: 'error' | 'info' | 'success' | 'warning' | 'waiting' | 'question';
+	type: CP<typeof GsMessageDialog>['type'];
 	title?: string;
 	text?: string;
 	okText?: string;
 	cancelText?: string;
 	autofocusAction?: 'ok' | 'cancel' | null;
 }): Promise<{ canceled: boolean }> {
+	const { autofocusAction = 'ok' } = props;
 	return new Promise(resolve => {
-		const { dispose } = popup(GsDialog, {
-			...props,
-			showCancelButton: true,
+		const { dispose } = popup(GsMessageDialog, {
+			type: props.type,
+			title: props.title ?? null,
+			text: props.text ?? null,
+			actions: [
+				{ id: 'ok', text: props.okText ?? 'OK', primary: true, isAutofocus: autofocusAction === 'ok' },
+				{ id: 'cancel', text: props.cancelText ?? i18n.ts.Cancel, isCancel: true, isAutofocus: autofocusAction === 'cancel' },
+			],
+			canCancel: true,
 		}, {
-			done: result => {
-				resolve(result ? result : { canceled: true });
+			done: ({ canceled }) => {
+				resolve({ canceled });
 			},
 			closed: () => dispose(),
 		});
@@ -254,9 +269,9 @@ export function select<C extends OptionValue, D extends C | null = null>(props: 
 	text?: string;
 	default?: D;
 	items: (GsSelectItem<C> | null)[];
-}): Promise<GsDialogReturnType<D extends null ? C | null : C>> {
+}): Promise<GsInputDialogReturnType<D extends null ? C | null : C>> {
 	return new Promise(resolve => {
-		const { dispose } = popup(GsDialog, {
+		const { dispose } = popup(GsInputDialog, {
 			title: props.title,
 			text: props.text,
 			select: {
@@ -265,7 +280,7 @@ export function select<C extends OptionValue, D extends C | null = null>(props: 
 			},
 		}, {
 			done: result => {
-				resolve(result as GsDialogReturnType<D extends null ? C | null : C>);
+				resolve(result as GsInputDialogReturnType<D extends null ? C | null : C>);
 			},
 			closed: () => dispose(),
 		});
@@ -282,7 +297,7 @@ export function inputText(props: {
 	default: string;
 	minLength?: number;
 	maxLength?: number;
-}): Promise<GsDialogReturnType<string>>;
+}): Promise<GsInputDialogReturnType<string>>;
 // min lengthが指定されてたら result は null になり得ないことを保証する overload function
 export function inputText(props: {
 	type?: 'text' | 'email' | 'password' | 'url';
@@ -293,7 +308,7 @@ export function inputText(props: {
 	default?: string;
 	minLength: number;
 	maxLength?: number;
-}): Promise<GsDialogReturnType<string>>;
+}): Promise<GsInputDialogReturnType<string>>;
 export function inputText(props: {
 	type?: 'text' | 'email' | 'password' | 'url';
 	title?: string;
@@ -303,7 +318,7 @@ export function inputText(props: {
 	default?: string | null;
 	minLength?: number;
 	maxLength?: number;
-}): Promise<GsDialogReturnType<string | null>>;
+}): Promise<GsInputDialogReturnType<string | null>>;
 export function inputText(props: {
 	type?: 'text' | 'email' | 'password' | 'url';
 	title?: string;
@@ -313,9 +328,9 @@ export function inputText(props: {
 	default?: string | null;
 	minLength?: number;
 	maxLength?: number;
-}): Promise<GsDialogReturnType<string | null>> {
+}): Promise<GsInputDialogReturnType<string | null>> {
 	return new Promise(resolve => {
-		const { dispose } = popup(GsDialog, {
+		const { dispose } = popup(GsInputDialog, {
 			title: props.title,
 			text: props.text,
 			input: {
@@ -328,7 +343,7 @@ export function inputText(props: {
 			},
 		}, {
 			done: result => {
-				resolve(result as GsDialogReturnType<string | null>);
+				resolve(result as GsInputDialogReturnType<string | null>);
 			},
 			closed: () => dispose(),
 		});

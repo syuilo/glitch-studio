@@ -1,32 +1,15 @@
 <template>
 <GsModal ref="modal" :preferType="'dialog'" :zPriority="'high'" @click="done(true)" @closed="emit('closed')" @esc="cancel()">
 	<div :class="$style.root">
-		<div v-if="icon" :class="$style.icon">
-			<i :class="icon"></i>
-		</div>
-		<div
-			v-else-if="!input && !select"
-			:class="[$style.icon]"
-		>
-			<GsSystemIcon v-if="type === 'success'" :class="$style.iconInner" style="width: 42px;" type="success"/>
-			<GsSystemIcon v-else-if="type === 'error'" :class="$style.iconInner" style="width: 42px;" type="error"/>
-			<GsSystemIcon v-else-if="type === 'warning'" :class="$style.iconInner" style="width: 42px;" type="warn"/>
-			<GsSystemIcon v-else-if="type === 'info'" :class="$style.iconInner" style="width: 42px;" type="info"/>
-			<GsSystemIcon v-else-if="type === 'question'" :class="$style.iconInner" style="width: 42px;" type="question"/>
-			<GsLoading v-else-if="type === 'waiting'" :class="$style.iconInner" :em="true"/>
-		</div>
 		<header v-if="title" :class="$style.title" class="_selectable">{{ title }}</header>
 		<div v-if="text" :class="$style.text" class="_selectable">{{ text }}</div>
 		<GsInput v-if="input" v-model="inputValue" large autofocus :type="input.type || 'text'" :placeholder="input.placeholder || undefined" :autocomplete="input.autocomplete" @keydown="onInputKeydown">
 			<template v-if="input.type === 'password'" #prefix><i class="ti ti-lock"></i></template>
 		</GsInput>
 		<GsSelect v-if="select" v-model="selectedValue" large :items="selectDef" autofocus></GsSelect>
-		<div v-if="(showOkButton || showCancelButton) && !actions" :class="$style.buttons">
-			<GsButton v-if="showOkButton" large data-testid="modal-dialog-ok" inline primary :autofocus="!input && !select && autofocusAction === 'ok'" @click="ok">{{ okText ?? ((showCancelButton || input || select) ? 'OK' : i18n.ts._Dialog.GotIt) }}</GsButton>
-			<GsButton v-if="showCancelButton || input || select" large data-testid="modal-dialog-cancel" inline :autofocus="autofocusAction === 'cancel'" @click="cancel">{{ cancelText ?? i18n.ts.Cancel }}</GsButton>
-		</div>
-		<div v-if="actions" :class="$style.buttons">
-			<GsButton v-for="action in actions" :key="action.text" large inline :primary="action.primary" :danger="action.danger" @click="() => { action.callback(); modal?.close(); }">{{ action.text }}</GsButton>
+		<div :class="$style.buttons">
+			<GsButton large inline primary @click="ok">{{ okText ?? 'OK' }}</GsButton>
+			<GsButton large inline @click="cancel">{{ i18n.ts.Cancel }}</GsButton>
 		</div>
 	</div>
 </GsModal>
@@ -34,7 +17,7 @@
 
 <script lang="ts">
 export type Result = string | number | true | null;
-export type GsDialogReturnType<T = Result> = { canceled: true, result: undefined } | { canceled: false, result: T };
+export type GsInputDialogReturnType<T = Result> = { canceled: true, result: undefined } | { canceled: false, result: T };
 </script>
 
 <script lang="ts" setup>
@@ -43,10 +26,8 @@ import type { GsSelectItem } from '@/components/common/GsSelect.vue';
 import type { OptionValue } from '@/types/option-value.ts';
 import GsModal from '@/components/common/GsModal.vue';
 import GsButton from '@/components/common/GsButton.vue';
-import GsSystemIcon from '@/components/common/GsSystemIcon.vue';
 import GsInput from '@/components/common/GsInput.vue';
 import GsSelect from '@/components/common/GsSelect.vue';
-import GsLoading from '@/components/common/GsLoading.vue';
 import { useGsSelect } from '@/composables/useGsSelect.ts';
 import { i18n } from '@/i18n.ts';
 
@@ -64,35 +45,16 @@ type Select = {
 	default: OptionValue | null;
 };
 
-const props = withDefaults(defineProps<{
-	type?: 'success' | 'error' | 'warning' | 'info' | 'question' | 'waiting';
+const props = defineProps<{
 	title?: string;
 	text?: string;
 	input?: Input;
 	select?: Select;
-	icon?: string;
-	actions?: {
-		text: string;
-		primary?: boolean,
-		danger?: boolean,
-		callback: (...args: unknown[]) => void;
-	}[];
-	showOkButton?: boolean;
-	showCancelButton?: boolean;
-	cancelableByBgClick?: boolean;
 	okText?: string;
-	cancelText?: string;
-	autofocusAction?: 'ok' | 'cancel' | null;
-}>(), {
-	type: 'info',
-	showOkButton: true,
-	showCancelButton: false,
-	cancelableByBgClick: true,
-	autofocusAction: 'ok',
-});
+}>();
 
 const emit = defineEmits<{
-	(ev: 'done', v: GsDialogReturnType): void;
+	(ev: 'done', v: GsInputDialogReturnType): void;
 	(ev: 'closed'): void;
 }>();
 
@@ -113,13 +75,11 @@ function done(canceled: true): void;
 function done(canceled: false, result: Result): void; // eslint-disable-line no-redeclare
 
 function done(canceled: boolean, result?: Result): void { // eslint-disable-line no-redeclare
-	emit('done', { canceled, result } as GsDialogReturnType);
+	emit('done', { canceled, result } as GsInputDialogReturnType);
 	modal.value?.close();
 }
 
 async function ok() {
-	if (!props.showOkButton) return;
-
 	const result =
 		props.input ? inputValue.value :
 		props.select ? selectedValue.value :
@@ -131,11 +91,6 @@ function cancel() {
 	done(true);
 }
 
-/*
-function onBgClick() {
-	if (props.cancelableByBgClick) cancel();
-}
-*/
 function onInputKeydown(evt: KeyboardEvent) {
 	if (evt.key === 'Enter') {
 		evt.preventDefault();
@@ -156,19 +111,6 @@ function onInputKeydown(evt: KeyboardEvent) {
 	text-align: center;
 	background: var(--THEME-panel);
 	border-radius: 10px;
-}
-
-.icon {
-	font-size: 24px;
-
-	& + .title {
-		margin-top: 8px;
-	}
-}
-
-.iconInner {
-	display: block;
-	margin: 0 auto;
 }
 
 .title {

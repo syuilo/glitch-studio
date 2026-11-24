@@ -47,7 +47,7 @@ const bundle = await build({ absWorkingDir: directory,
 				export function createProjectActions() { return { newProject, newProjectFromImageOrVideo, openProject }; } export const dashboardTest = { opened: [], success: true, get panelRequest() { return projectSession.workspacePanelRevealRequest.value; } };
 				export async function newProject() {} export async function newProjectFromImageOrVideo() { return true; }
 				export async function openProject(file, handle) { dashboardTest.opened.push({ file, handle }); return dashboardTest.success; }`,
-			'ui.ts': 'export function progress() { return { done() {} }; } export function popup() {} export function popupMenu() {} export function contextMenu() {} export function alert() {} export async function confirm() { return { canceled: false }; }',
+			'ui.ts': 'export function progress() { return { done() {} }; } export function popup() {} export function popupMenu() {} export function contextMenu() {} export function alert() {} export async function confirm() { return { canceled: false }; } export async function inputText() { return { canceled: true }; }',
 			'desktop-update-ui.ts': 'export const desktopUpdateUi = null;',
 			effects: 'export const nativeEffectDefinitions = {};',
 			media: 'export async function openMediaFile() {}',

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { compileScript, parse } from 'vue/compiler-sfc';
 import { createRenderer, h, markRaw, nextTick, provide } from 'vue';
+import { i18nPlugin } from './helpers/i18n.mjs';
 
 const directory = fileURLToPath(new URL('../', import.meta.url));
 const bundle = await build({
@@ -16,7 +17,7 @@ const bundle = await build({
 		export { default as Popup } from './src/components/GsPopup.vue';
 	` },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
-	plugins: [{ name: 'popup-platform', setup(build) {
+	plugins: [i18nPlugin, { name: 'popup-platform', setup(build) {
 		build.onResolve({ filter: /\.vue$/ }, args => args.path.endsWith('GsPopup.vue') ? null : { path: args.path, namespace: 'control' });
 		build.onResolve({ filter: /utility\/focus\.ts$/ }, args => ({ path: args.path, namespace: 'control' }));
 		build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ contents: 'export default {}; export function focusParent() {}' }));

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { basename, dirname } from 'node:path';
 import { compileScript, parse } from 'vue/compiler-sfc';
 import { createRenderer, h, nextTick } from 'vue';
+import { i18nPlugin } from './helpers/i18n.mjs';
 
 // ui.progress・popupと実際のProgressDialogを使い、モーダルのアニメーションとDOMだけを置き換える。
 // done()の呼び出し回数だけでは、初回描画前の完了を見逃して操作ロックが残る不具合を検出できない。
@@ -15,7 +16,7 @@ const bundle = await build({ absWorkingDir: directory,
 	stdin: { loader: 'ts', resolveDir: directory, contents: `export { progress, popups } from './src/ui.ts';
 		export { modalTest } from './src/components/common/GsModal.vue';` },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
-	plugins: [{ name: 'progress-dialog-platform', setup(build) {
+	plugins: [i18nPlugin, { name: 'progress-dialog-platform', setup(build) {
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsProgressDialog\.vue$/.test(path) ? null : { path: basename(path, '.vue'), namespace: 'control' });
 		build.onLoad({ filter: /.*/, namespace: 'control' }, ({ path }) => ({ loader: 'ts', contents: path === 'GsModal' ? `
 			import { h } from 'vue'; export const modalTest = { closes: 0 };

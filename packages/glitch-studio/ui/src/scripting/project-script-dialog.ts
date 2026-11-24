@@ -1,4 +1,6 @@
-import GsDialog from '../components/common/GsDialog.vue';
+import GsInputDialog from '../components/common/GsInputDialog.vue';
+import GsMessageDialog from '../components/common/GsMessageDialog.vue';
+import { i18n } from '../i18n.ts';
 import * as ui from '../ui.ts';
 import type { ProjectSessionContext } from '../ProjectSessionContext.ts';
 import type { ScriptDialogRequest } from './project-script-runtime.ts';
@@ -16,23 +18,40 @@ export function showProjectScriptDialog(projectSession: ProjectSessionContext, r
 			dispose();
 		};
 		const onAbort = () => finish(null);
-		const { dispose } = ui.popup(GsDialog, {
-			type: type ?? (request.kind === 'confirm' ? 'question' : 'info'),
-			title: request.title,
-			text: request.text,
-			showCancelButton: request.kind !== 'alert',
-			...(request.kind === 'input_text' ? { input: { type: 'text', default: request.defaultValue ?? '' } } : {}),
-			...(request.kind === 'select' ? { select: { default: request.defaultValue, items: request.items.map(item => ({ value: item.id, label: item.label })) } } : {}),
-		}, {
-			done: result => {
-				if (request.kind === 'confirm') finish(!result.canceled);
-				else if (result.canceled || request.kind === 'alert') finish(null);
-				// 未入力の確定も空文字列として扱い、キャンセルのnullとは区別する。
-				else if (request.kind === 'input_text') finish(String(result.result ?? ''));
-				else finish(typeof result.result === 'string' ? result.result : null);
-			},
-			closed: () => finish(request.kind === 'confirm' ? false : null),
-		}, projectSession);
+		const { kind, title, text } = request;
+		const isConfirm = kind === 'confirm';
+		const { dispose } = kind === 'alert' || isConfirm
+			? ui.popup(GsMessageDialog, {
+				type: type ?? (isConfirm ? 'question' : 'info'),
+				title,
+				text,
+				actions: [
+					{ id: 'ok', text: isConfirm ? 'OK' : i18n.ts._Dialog.GotIt, primary: true, isAutofocus: true },
+					...(isConfirm ? [{ id: 'cancel', text: i18n.ts.Cancel, isCancel: true }] : []),
+				],
+				canCancel: true,
+			}, {
+				done: ({ canceled }) => finish(isConfirm ? !canceled : null),
+				closed: () => finish(isConfirm ? false : null),
+			}, projectSession)
+			: ui.popup(GsInputDialog, {
+				title,
+				text,
+				...(kind === 'input_text' ? { input: { default: request.defaultValue ?? '' } } : {
+					select: {
+						default: request.defaultValue,
+						items: request.items.map(item => ({ value: item.id, label: item.label })),
+					},
+				}),
+			}, {
+				done: ({ canceled, result }) => {
+					if (canceled) finish(null);
+					// 未入力の確定も空文字列として扱い、キャンセルのnullとは区別する。
+					else if (kind === 'input_text') finish(String(result ?? ''));
+					else finish(typeof result === 'string' ? result : null);
+				},
+				closed: () => finish(null),
+			}, projectSession);
 		signal?.addEventListener('abort', onAbort, { once: true });
 	});
 }
