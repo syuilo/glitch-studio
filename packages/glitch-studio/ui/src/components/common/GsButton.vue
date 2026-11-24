@@ -186,12 +186,26 @@ onMounted(() => {
 		cursor: wait !important;
 	}
 
-	&:focus-visible {
+	&:focus {
+		outline: 1px solid color(from var(--THEME-accent) srgb r g b / 0.5);
 		outline-offset: 2px;
+		animation: blink 1s infinite;
 	}
 
 	&.inline {
 		display: inline-block;
+	}
+}
+
+@keyframes blink {
+	0% {
+		outline-color: color(from var(--THEME-accent) srgb r g b / 0.5);
+	}
+	30% {
+		outline-color: color(from var(--THEME-accent) srgb r g b / 0.5);
+	}
+	90% {
+		outline-color: color(from var(--THEME-accent) srgb r g b / 0.25);
 	}
 }
 
