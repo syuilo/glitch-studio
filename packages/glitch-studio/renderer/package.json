@@ -21,10 +21,10 @@
 		"./portable-canvas-renderer.ts": "./src/portable-canvas-renderer.ts"
 	},
 	"devDependencies": {
-		"@types/web": "0.0.359",
-		"@typescript-eslint/parser": "8.72.1",
+		"@types/web": "0.0.367",
+		"@typescript-eslint/parser": "8.73.0",
 		"@webgpu/types": "0.1.74",
-		"vite": "8.3.5",
+		"vite": "8.3.8",
 		"webgpu-utils": "2.1.1"
 	},
 	"dependencies": {
