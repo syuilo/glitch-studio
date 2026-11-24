@@ -883,6 +883,9 @@
 		"StatsUnavailable": "Media Playerのレンダリング統計はありません。"
 	},
 	"_EffectPreview": {
+		"Resolution": "プレビュー解像度",
+		"FollowProjectResolution": "プロジェクトに従う",
+		"CustomResolution": "カスタム",
 		"Input": "プレビュー入力",
 		"InputPlayback": "入力の再生",
 		"ImageInput": "プレビュー入力画像",

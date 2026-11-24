@@ -299,7 +299,7 @@ function update(t: number) {
 }
 
 watch(resolutionFactor, (newFactor, oldFactor) => {
-	if (!isMediaPlayer.value) zoom.value *= (oldFactor ?? 1) / newFactor;
+	if (!isMediaPlayer.value && projectSession.activeEffectLivePreviewCustomResolution.value == null) zoom.value *= (oldFactor ?? 1) / newFactor;
 }, { immediate: true });
 watch(() => isMediaPlayer.value ? mediaPlayer.selection.value : null, selection => {
 	if (selection != null) initialZoomPending = true;

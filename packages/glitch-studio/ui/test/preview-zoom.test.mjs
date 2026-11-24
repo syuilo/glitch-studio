@@ -99,6 +99,7 @@ async function fixture(t, { devicePixelRatio = 1, width = 1920, height = 1080, r
 		timelineRendererManagerController: { isSeeking: ref(false) },
 		previewPlayback: { state: ref({ mode: 'timeline' }), currentTimelineTime: ref(0), isTimelinePlaying: ref(false) },
 		highlightClipping: ref(false), previewExposure: ref(0), previewSrgbProof: ref(false), resolutionFactor: ref(resolutionFactor), effectLivePreviewTimeFactor: ref(1),
+		activeEffectLivePreviewCustomResolution: shallowRef(null),
 		previewWarningImageSource: ref('original'),
 		previewGamutCompression: shallowRef({ mode: 'none', customAmount: 0.5 }),
 		previewGamutWarning: shallowRef({ enabled: false, referenceGamut: 'srgb', bounds: 'unit' }),

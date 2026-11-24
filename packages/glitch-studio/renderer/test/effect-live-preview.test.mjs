@@ -58,6 +58,39 @@ test('previews every source kind with a fixed output port and native channel for
 	assert.equal(f.submitted.at(-1).texture.format, 'rgba16float');
 });
 
+// 【カスタム寸法はプレビュー倍率に関わらず適用し、解除時に最新のプロジェクト設定を使う】
+// 対象の切替で直前のカスタム寸法を引き継ぐと、別のEffectの構図や描画負荷も変わってしまう。
+test('renders placement-specific preview dimensions and falls back to current project dimensions', async t => {
+	const f = await fixture(t);
+	const outputSizes = [];
+	f.manager.on('ev', event => { if (event.type === 'outputResolution') outputSizes.push(event.ctx); });
+	const assertSize = (width, height) => {
+		const { texture } = f.submitted.at(-1);
+		assert.deepEqual([texture.width, texture.height], [width, height]);
+		assert.deepEqual(outputSizes.at(-1), { width, height });
+	};
+	f.manager.updateDynamicOptions({ resolutionScale: 0.5 });
+	f.manager.startEffectLivePreview({ effectSource: reference, customResolution: { width: 4, height: 9 } });
+	await f.frame(25);
+	assertSize(4, 9);
+
+	f.manager.updateDynamicOptions({ resolution: { width: 24, height: 16 }, resolutionScale: 0.25 });
+	await f.frame(50);
+	assertSize(4, 9);
+	f.manager.updateEffectLivePreviewResolution({ width: 10, height: 7 });
+	await f.frame(75);
+	assertSize(10, 7);
+	f.manager.updateEffectLivePreviewResolution(null);
+	await f.frame(100);
+	assertSize(6, 4);
+
+	f.manager.updateEffectLivePreviewResolution({ width: 4, height: 9 });
+	f.manager.startEffectLivePreview({ effectSource: { type: 'nodesEffectReference', id: 'shared' } });
+	await f.frame(125);
+	assertSize(6, 4);
+	assert.deepEqual(f.errors, []);
+});
+
 // 【選択中の出力を削除すると透明になり、Undoで選択した出力が復帰する】
 // ポートの削除は正当な定義変更。別の主出力が残っていても透明を表示し、元のIDが戻るまで選択を保持する。
 test('previews a removed output as transparent and resumes it when the definition is restored', async t => {

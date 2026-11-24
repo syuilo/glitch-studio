@@ -883,6 +883,9 @@
 		"StatsUnavailable": "Rendering statistics are unavailable for Media Player."
 	},
 	"_EffectPreview": {
+		"Resolution": "Preview Resolution",
+		"FollowProjectResolution": "Follow Project",
+		"CustomResolution": "Custom",
 		"Input": "Preview Input",
 		"InputPlayback": "Input Playback",
 		"ImageInput": "Preview Input Image",

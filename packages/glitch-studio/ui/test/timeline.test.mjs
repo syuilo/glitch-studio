@@ -742,7 +742,7 @@ test('restores nodesEffectLivePreview mode with a snapshot of the latest paramet
 	playback.refresh();
 	assert.equal(playback.state.value.mode, 'effectLivePreview');
 	playback.resume();
-	assert.deepEqual(calls, [['startEffectLivePreviewRenderLoop', { type: 'nodesEffectReference', id: 'nodesEffect' }, { amount: { inputSource: 'literal', value: 3 } }]]);
+	assert.deepEqual(calls, [['startEffectLivePreviewRenderLoop', { type: 'nodesEffectReference', id: 'nodesEffect' }, { amount: { inputSource: 'literal', value: 3 } }, null]]);
 });
 
 // 【未準備のタイムラインへの描画を防ぎ、復帰時に最新のシーク位置を描く】

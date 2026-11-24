@@ -24,7 +24,10 @@
 			<div :class="$style.footerSection">
 				<div :class="$style.footerSectionTitle">{{ i18n.ts._App.Preview }}:</div>
 				<div :class="$style.footerSectionContents">
-					<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">{{ Math.round(stateManager.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(stateManager.state.resolution.value.height * resolutionFactor) }} px ({{ resolutionFactor }}x)</button>
+					<div v-if="activeEffectLivePreviewCustomResolution != null" :class="$style.footerItem">
+						{{ activeEffectLivePreviewCustomResolution.width }} × {{ activeEffectLivePreviewCustomResolution.height }} px
+					</div>
+					<button v-else :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">{{ Math.round(stateManager.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(stateManager.state.resolution.value.height * resolutionFactor) }} px ({{ resolutionFactor }}x)</button>
 					<button v-if="previewPlayback.state.value.mode === 'timeline' && stateManager.state.timelineMotionBlur.value.enabled" v-tooltip="i18n.ts._App.MotionBlurSamplesHint" :class="$style.footerItem" class="_button" @click="openMotionBlurSamplesMenu">{{ i18n.ts._App.MotionBlur }}: {{ timelinePreviewMotionBlurSamples === 0 ? i18n.ts.Off : `${timelinePreviewMotionBlurSamples} samples` }}</button>
 					<button v-if="previewPlayback.state.value.mode !== 'mediaPlayer'" :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'effectLivePreview' ? effectLivePreviewFpsLabel : `${stateManager.state.timelineFps.value * timelinePreviewFpsFactor}fps (${timelinePreviewFpsFactor}x)` }}</button>
 					<button v-if="previewPlayback.state.value.mode === 'effectLivePreview'" :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">{{ i18n.ts._App.Time }}: {{ effectLivePreviewTimeFactor }}x</button>
@@ -120,6 +123,7 @@ onMounted(() => {
 });
 
 const { audioOutput, activePreviewRenderer, previewPlayback, effectLivePreviewManagerController, timelineRendererManagerController, resolutionFactor, effectLivePreviewFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, effectLivePreviewTimeFactor, projectBackupAccess, projectBackupStatus } = projectSession;
+const { activeEffectLivePreviewCustomResolution } = projectSession;
 const timelineFrameCacheUsageLabel = computed(() => {
 	if (!timelineRendererManagerController.isFrameCacheEnabled.value) return i18n.ts.Disabled;
 	const ratio = timelineRendererManagerController.frameCacheUsageRatio.value;

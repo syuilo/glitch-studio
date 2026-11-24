@@ -120,6 +120,8 @@ export type EffectLivePreviewPlacement = {
 	outputPort?: string;
 	params?: EffectLivePreviewParameters;
 	staticSettings?: StaticSettingValues;
+	/** 配置ごとの描画コンテキスト寸法。省略時はプロジェクトの解像度とプレビュー倍率に従う。 */
+	customResolution?: Resolution | null;
 };
 
 export type EffectLivePreviewStatusSource = { type: 'effectLivePreview'; instanceId: string };
@@ -344,7 +346,9 @@ export class EffectLivePreviewManager extends EventEmitter<{
 	public updateDynamicOptions(newOptions: Partial<EffectLivePreviewManagerDynamicOptions>) {
 		const previous = this.dynamicOptions;
 		this.dynamicOptions = { ...previous, ...newOptions };
-		let reinitialize = Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale');
+		const contextResolutionChanged = this.placement?.customResolution == null
+			&& (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale'));
+		let reinitialize = contextResolutionChanged;
 		if (Object.hasOwn(newOptions, 'nodesEffects') || Object.hasOwn(newOptions, 'customShaderEffects')) {
 			this.definitions = createProjectEffectDefinitions(this.dynamicOptions, this.nativeEffectDefinitions);
 			if (!reinitialize && this.placement != null) {
@@ -373,7 +377,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		this.canvasRenderer.analysisHistogramViewport = this.dynamicOptions.analysisHistogramViewport;
 
 		// Partialの差分では省略は変更なし、明示的なnullは解除要求。値の有無ではなくown propertyで判定する。
-		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale')) {
+		if (contextResolutionChanged) {
 			this.updateCanvasResolution(scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
 		}
 		// nullはFPS制限の解除なので、値ではなく差分にプロパティが含まれるかで更新を判定する。
@@ -415,6 +419,12 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		if (this.activeEffect?.inputs.updateParameters(params) !== true) this.initializePlacement();
 	}
 
+	public updateEffectLivePreviewResolution(customResolution: Resolution | null) {
+		if (this.placement == null) return;
+		this.placement = { ...this.placement, customResolution };
+		this.initializePlacement();
+	}
+
 	public startEffectLivePreview(placement: EffectLivePreviewPlacement, statusInstanceId = genId()) {
 		this.stopRenderLoop();
 		// 初期設定の通知が購読開始より早い場合や、同じ寸法の配置へ切り替えた場合にも、最初の描画で寸法を通知する。
@@ -435,6 +445,13 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		active.lifetime.abort();
 		active.instance?.dispose();
 		this.emit('ev', { type: 'effectState', ctx: { source: { type: 'effectLivePreview', instanceId: this.effectLivePreviewStatusInstanceId! }, status: null } });
+	}
+
+	private getPlacementResolutionOptions() {
+		const customResolution = this.placement?.customResolution;
+		return customResolution == null
+			? { resolution: this.dynamicOptions.resolution, resolutionScale: this.dynamicOptions.resolutionScale }
+			: { resolution: customResolution, resolutionScale: 1 };
 	}
 
 	private initializePlacement() {
@@ -461,19 +478,25 @@ export class EffectLivePreviewManager extends EventEmitter<{
 			frameTimes: new WeakMap<EffectFrameContext, Promise<number | null>>(), pending: Promise.resolve(),
 		} : null;
 		let previousStatus: EffectPreparationStatus | null = null;
-		const ready = createEffectInstance({
-			effectSource: placement.effectSource, definitions: this.definitions, inputs: inputs.inputs, staticSettings: placement.staticSettings,
-			usedOutputPorts: new Set(port == null ? [] : [port]), resolution: this.dynamicOptions.resolution, resolutionScale: this.dynamicOptions.resolutionScale,
-			resources: { assets: this.resources.assets, assetTextures: this.assetTextures.textures },
-			tiling: this.staticOptions.effectRenderTiling ?? { mode: 'auto' },
-			onPreparationStatus: status => {
-				if (lifetime.signal.aborted || (status.type !== 'error' && previousStatus?.type === status.type)) return;
-				previousStatus = status;
-				this.emit('ev', { type: 'effectState', ctx: { source, status } });
-			},
-			onFrameGpuTime: gpuTiming == null ? undefined : (frame, result) => { gpuTiming.frameTimes.set(frame, result); },
-		}, { device: this.gpuDevice, defaultVertexShaderModule: this.vertex, enable32bitDataTextures: this.staticOptions.enable32bitDataTextures },
-		id => this.nativeEffectImplementations[id], lifetime.signal);
+		const maxDimension = this.gpuDevice.limits?.maxTextureDimension2D;
+		const customResolution = placement.customResolution;
+		// 出力未接続でも描画コンテキストの寸法でCanvasを確保するため、GPUの上限を先に確認する。
+		const ready = customResolution != null && maxDimension != null
+			&& (customResolution.width > maxDimension || customResolution.height > maxDimension)
+			? Promise.reject(new Error(`Preview resolution exceeds ${maxDimension}: ${customResolution.width} × ${customResolution.height}`))
+			: createEffectInstance({
+				effectSource: placement.effectSource, definitions: this.definitions, inputs: inputs.inputs, staticSettings: placement.staticSettings,
+				usedOutputPorts: new Set(port == null ? [] : [port]), ...this.getPlacementResolutionOptions(),
+				resources: { assets: this.resources.assets, assetTextures: this.assetTextures.textures },
+				tiling: this.staticOptions.effectRenderTiling ?? { mode: 'auto' },
+				onPreparationStatus: status => {
+					if (lifetime.signal.aborted || (status.type !== 'error' && previousStatus?.type === status.type)) return;
+					previousStatus = status;
+					this.emit('ev', { type: 'effectState', ctx: { source, status } });
+				},
+				onFrameGpuTime: gpuTiming == null ? undefined : (frame, result) => { gpuTiming.frameTimes.set(frame, result); },
+			}, { device: this.gpuDevice, defaultVertexShaderModule: this.vertex, enable32bitDataTextures: this.staticOptions.enable32bitDataTextures },
+			id => this.nativeEffectImplementations[id], lifetime.signal);
 		const active: NonNullable<EffectLivePreviewManager['activeEffect']> = { lifetime, inputs, ready, port, instance: null, gpuTiming, pendingValues: new PendingNodesEffectValues(null) };
 		this.activeEffect = active;
 		void ready.then(instance => {
@@ -509,7 +532,8 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		// 次の描画より遅れたGPU計測も有効なので、履歴リセットと配置の寿命で結果の有効性を判定する。
 		const historyGeneration = this.historyGeneration;
 		const pointer = this.pointerPosition;
-		const resolution = scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale);
+		const placementResolution = this.getPlacementResolutionOptions();
+		const resolution = scaleResolution(placementResolution.resolution, placementResolution.resolutionScale);
 		const frame: EffectFrameContext = {
 			time: timing.time / 1000, timeDelta: this.skippedFrameTimeDelta, endTime: Infinity,
 			pointerPosition: pointer.x <= -999 && pointer.y <= -999 ? [pointer.x, pointer.y] : normalizedToSpatialCoordinates([pointer.x, pointer.y], resolution),

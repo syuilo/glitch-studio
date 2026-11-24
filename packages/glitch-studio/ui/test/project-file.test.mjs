@@ -155,8 +155,9 @@ const appBundle = await build({
 							const next = applyRendererProjectChanges({ automationGraphs: this.options.automationGraphs, customShaderEffects: this.options.customShaderEffects, nodesEffects: this.options.nodesEffects, timelineScenes: this.options.timelineScenes ?? [] }, patch);
 							Object.assign(this.options, this.timeline ? next : { automationGraphs: next.automationGraphs, customShaderEffects: next.customShaderEffects, nodesEffects: next.nodesEffects });
 						}
-						startEffectLivePreviewRenderLoop(effectSource, params) { this.lifecycle.push('start'); this.livePreviewPlacement = deepClone({ effectSource, params }); }
+						startEffectLivePreviewRenderLoop(effectSource, params, customResolution) { this.lifecycle.push('start'); this.livePreviewPlacement = deepClone({ effectSource, params, customResolution }); }
 						updateEffectLivePreviewParamValues(params) { this.livePreviewPlacement.params = deepClone(params); }
+						async updateEffectLivePreviewResolution(customResolution) { this.livePreviewPlacement.customResolution = deepClone(customResolution); }
 						stopRenderLoop() { this.lifecycle.push('stop'); }
 						setPreviewInput() {}
 						renderTimelineAt(time) { this.renders.push(time); }
@@ -961,7 +962,7 @@ test('keeps shader preview overrides across preview switches and removes incompa
 	const params = { amount: { inputSource: 'expression', expression: '0.5' } };
 	projectSession.startCustomShaderEffectLivePreview(id);
 	assert.equal(projectSession.activePreviewRenderer.value, controller);
-	assert.deepEqual(controller.livePreviewPlacement, { effectSource: { type: 'customShaderEffectReference', id }, params: {} });
+	assert.deepEqual(controller.livePreviewPlacement, { effectSource: { type: 'customShaderEffectReference', id }, params: {}, customResolution: null });
 	const startCount = controller.lifecycle.filter(event => event === 'start').length;
 	projectSession.updateCustomShaderEffectLivePreviewParamValues(id, params);
 	assert.deepEqual(controller.livePreviewPlacement.params, params);
@@ -983,6 +984,39 @@ test('keeps shader preview overrides across preview switches and removes incompa
 	assert.deepEqual(projectSession.getCustomShaderEffectPreviewParamValues(id), {});
 	stateManager.commit('removeCustomShaderEffect', { customShaderEffectId: id });
 	assert.equal(projectSession.previewPlayback.state.value.mode, 'timeline');
+});
+
+// 【プレビュー解像度はEffectごとに保持し、対象変更やWorker再生成で復元する】
+// 同じIDを持つNodes EffectとCustom Shader Effectでも設定を共有せず、Timelineと保存データには混ざらない。
+test('restores per-effect preview resolutions without changing project resolution', async t => {
+	setup(t);
+	const customShaderEffect = evaluate(appBundle).createProjectCustomShaderEffect([]);
+	const { id } = customShaderEffect;
+	const nodesEffectSource = { type: 'nodesEffectReference', id };
+	const customShaderEffectSource = { type: 'customShaderEffectReference', id };
+	const { projectSession } = evaluateSession(project({
+		customShaderEffects: [customShaderEffect],
+		nodesEffects: [{ id, name: 'Nodes Effect', definition: testNodesEffect() }],
+	}), { fileName: 'preview-resolution.gsproj' });
+	await startActiveProjectSession(projectSession);
+	const { effectLivePreviewManagerController, timelineRendererManagerController } = projectSession;
+	const nodesEffectResolution = { width: 240, height: 480 };
+	const customShaderEffectResolution = { width: 800, height: 450 };
+	projectSession.setEffectLivePreviewCustomResolution(nodesEffectSource, nodesEffectResolution);
+	projectSession.setEffectLivePreviewCustomResolution(customShaderEffectSource, customShaderEffectResolution);
+	assert.deepEqual(effectLivePreviewManagerController.livePreviewPlacement.customResolution, nodesEffectResolution);
+	projectSession.startCustomShaderEffectLivePreview(id);
+	assert.deepEqual(effectLivePreviewManagerController.livePreviewPlacement.customResolution, customShaderEffectResolution);
+	await projectSession.suspendPreview();
+	await projectSession.resumePreview();
+	assert.deepEqual(effectLivePreviewManagerController.livePreviewPlacement.customResolution, customShaderEffectResolution);
+	projectSession.startNodesEffectLivePreview(id);
+	assert.deepEqual(effectLivePreviewManagerController.livePreviewPlacement.customResolution, nodesEffectResolution);
+	projectSession.setEffectLivePreviewCustomResolution(nodesEffectSource, null);
+	assert.equal(effectLivePreviewManagerController.livePreviewPlacement.customResolution, null);
+	assert.deepEqual(timelineRendererManagerController.options.resolution, { width: 640, height: 480 });
+	assert.deepEqual(projectSession.projectContext.stateManager.state.resolution.value, { width: 640, height: 480 });
+	assert.equal(projectSession.hasUnsavedChanges.value, false);
 });
 
 // 【解析対象の切替は両プレビューへ同期し、数値データの軸と復旧時の設定も一致させる】

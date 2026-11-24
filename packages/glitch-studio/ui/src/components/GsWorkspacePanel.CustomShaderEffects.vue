@@ -20,6 +20,10 @@
 	<GsCustomShaderEffectEditor v-if="selected != null" :key="selected.id" :customShaderEffect="selected" @apply="apply">
 		<template #preview>
 			<div :class="$style.previewParams">
+				<GsEffectLivePreviewResolution
+					:effectSource="{ type: 'customShaderEffectReference', id: selected.id }"
+					@activate="projectSession.startCustomShaderEffectLivePreview(selected.id)"
+				/>
 				<GsEffectLivePreviewInput
 					:effectSource="{ type: 'customShaderEffectReference', id: selected.id }"
 					@activate="projectSession.startCustomShaderEffectLivePreview(selected.id)"
@@ -52,6 +56,7 @@ import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsCustomShaderEffectEditor from './GsCustomShaderEffectEditor.vue';
 import GsEffectLivePreviewInput from './GsEffectLivePreviewInput.vue';
+import GsEffectLivePreviewResolution from './GsEffectLivePreviewResolution.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';

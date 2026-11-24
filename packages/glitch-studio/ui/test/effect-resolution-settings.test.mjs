@@ -17,6 +17,8 @@ const bundle = await build({
 	stdin: { contents: `
 		export { default as NodeSettings } from './src/components/GsEffectNode.vue';
 		export { default as LayerSettings } from './src/components/GsTimeline.EffectSettings.vue';
+		export { default as PreviewResolution } from './src/components/GsEffectLivePreviewResolution.vue';
+		export { projectSession } from '@/project-session.ts';
 	`, resolveDir: directory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	plugins: [i18nPlugin, { name: 'effect-resolution-settings', setup(build) {
@@ -26,11 +28,22 @@ const bundle = await build({
 		build.onResolve({ filter: /^@\/ui\.ts$/ }, () => ({ path: 'ui', namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ contents: {
 			preferences: "import { ref } from 'vue'; export const preferences = { r: { showAdvancedParameters: ref(false) } };",
-			app: 'export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: { state: { resolution: { value: { width: 1920, height: 1080 } } } } } };',
+			app: `
+				import { ref, shallowReactive } from 'vue';
+				const customResolutions = shallowReactive(new Map());
+				export const projectSession = {
+					projectContext: { stateManager: { state: { resolution: ref({ width: 1920, height: 1080 }) } } },
+					resolutionFactor: ref(0.5),
+					previewPlayback: { livePreviewEffectSource: ref(null) },
+					getEffectLivePreviewCustomResolution(source) { return customResolutions.get(source.id) ?? null; },
+					setEffectLivePreviewCustomResolution(source, value) { customResolutions.set(source.id, value); },
+				};
+				export function useProjectSession() { return projectSession; }
+			`,
 			effects: "export const nativeEffectDefinitions = { test: { displayName: 'Test', paramDefs: {}, primaryOutput: 'output' } };",
 			ui: 'export function alert() {} export function contextMenu() {} export async function inputText() { return { canceled: true }; }',
 		}[path] }));
-		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsEffectNode\.vue$|GsEffectParameterLayout\.vue$|GsTimeline\.EffectSettings\.vue$/.test(path)
+		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /(?:GsEffectNode|GsEffectParameterLayout|GsTimeline\.EffectSettings|GsEffectLivePreviewResolution)\.vue$/.test(path)
 			? null : { path: basename(path, '.vue'), namespace: 'control' });
 		build.onLoad({ filter: /.*/, namespace: 'control' }, ({ path }) => ({ contents: `
 			import { h } from 'vue'; export default { inheritAttrs: false, setup(_, { attrs, slots }) {
@@ -46,7 +59,7 @@ const bundle = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { NodeSettings, LayerSettings } = module.exports;
+const { NodeSettings, LayerSettings, PreviewResolution, projectSession } = module.exports;
 
 const element = () => ({ children: [], parent: null, props: {}, style: {} });
 const renderer = createRenderer({
@@ -121,3 +134,44 @@ for (const target of ['node', 'layer']) {
 		assert.equal(f.scale().props.modelValue, 1);
 	});
 }
+
+// 【プレビューの幅と高さは正の整数の組として確定する】
+// 入力中や不正な値で描画を開始せず、確定した寸法またはプロジェクト設定への復帰時だけ適用する。
+test('applies valid preview dimensions together and resets them on following the project', async t => {
+	const effectSource = { type: 'nodesEffectReference', id: 'preview' };
+	const activate = t.mock.fn();
+	const root = element();
+	const app = renderer.createApp({ render: () => h(PreviewResolution, { effectSource, onActivate: activate }) });
+	app.mount(root);
+	t.after(() => app.unmount());
+	const find = (suffix, current = root) => Object.hasOwn(current.props, `data-test-effect-preview-resolution-${suffix}`) ? current
+		: current.children.map(child => find(suffix, child)).find(result => result != null) ?? null;
+
+	assert.equal(find('mode').props.modelValue, 'project');
+	find('mode').props['onUpdate:modelValue']('custom');
+	await nextTick();
+	assert.equal(find('width').props.modelValue, 960);
+	assert.equal(find('height').props.modelValue, 540);
+	find('width').props['onUpdate:modelValue'](540);
+	find('height').props['onUpdate:modelValue'](1.5);
+	await nextTick();
+	assert.equal(find('apply').props.disabled, true);
+	find('apply').props.onClick();
+	assert.equal(projectSession.getEffectLivePreviewCustomResolution(effectSource), null);
+	assert.equal(activate.mock.callCount(), 0);
+
+	find('height').props['onUpdate:modelValue'](960);
+	await nextTick();
+	assert.equal(find('apply').props.disabled, false);
+	assert.equal(projectSession.getEffectLivePreviewCustomResolution(effectSource), null);
+	find('apply').props.onClick();
+	await nextTick();
+	assert.deepEqual(projectSession.getEffectLivePreviewCustomResolution(effectSource), { width: 540, height: 960 });
+	assert.equal(activate.mock.callCount(), 1);
+	projectSession.previewPlayback.livePreviewEffectSource.value = effectSource;
+	find('mode').props['onUpdate:modelValue']('project');
+	await nextTick();
+	assert.equal(find('width'), null);
+	assert.equal(projectSession.getEffectLivePreviewCustomResolution(effectSource), null);
+	assert.equal(activate.mock.callCount(), 1);
+});

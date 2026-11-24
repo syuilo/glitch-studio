@@ -207,7 +207,7 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 		void this.sendPendingVideoFrame();
 	}
 
-	public startEffectLivePreviewRenderLoop(effectSource: EffectLivePreviewSource, paramValues: EffectLivePreviewParamValues = {}) {
+	public startEffectLivePreviewRenderLoop(effectSource: EffectLivePreviewSource, paramValues: EffectLivePreviewParamValues = {}, customResolution: Resolution | null = null) {
 		this.preparationStatus.value = null;
 		this.outputResolution.value = null;
 		const statusInstanceId = genId();
@@ -215,11 +215,17 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 		this.isRenderDelayed.value = false;
 		this.renderTilingProgress.value = null;
 		// 再生成中の表示モードはPreviewPlaybackControllerが保持し、両プレビューの準備後に再開する。
-		if (this.isReady.value) this.call('startEffectLivePreview', [{ effectSource, params: deepClone(paramValues) }, statusInstanceId]);
+		if (this.isReady.value) this.call('startEffectLivePreview', [{
+			effectSource, params: deepClone(paramValues), customResolution,
+		}, statusInstanceId]);
 	}
 
 	public updateEffectLivePreviewParamValues(paramValues: EffectLivePreviewParamValues) {
 		if (this.isReady.value) this.call('updateEffectLivePreviewParamValues', [deepClone(paramValues)]);
+	}
+
+	public async updateEffectLivePreviewResolution(customResolution: Resolution | null) {
+		if (this.isReady.value) await this.callAndWaitReturn('updateEffectLivePreviewResolution', [customResolution]);
 	}
 
 	public resetRenderHistory() {

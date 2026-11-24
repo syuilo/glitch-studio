@@ -1,5 +1,6 @@
 import { computed, readonly, ref, shallowRef, watch } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import type { Resolution } from '@gs/shared/resolution.ts';
 import { getTimelinePreviewFrameIndex, getTimelinePreviewFrameTime } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 import type { TimelinePreviewSeekMode } from '@gs/glitch-studio_shared/timeline-preview-frame.ts';
 import type { EffectLivePreviewSource, EffectLivePreviewParamValues } from './types/effect-live-preview.ts';
@@ -48,6 +49,7 @@ export class PreviewPlaybackController {
 		private readonly getDuration: () => number = () => Infinity,
 		private readonly audio?: TimelineAudio,
 		private readonly onEffectLivePreviewInputsChanged?: (effectSource: EffectLivePreviewSource, params: EffectLivePreviewParamValues) => void,
+		private readonly getEffectLivePreviewCustomResolution?: (effectSource: EffectLivePreviewSource) => Resolution | null,
 	) {}
 
 	public startEffectLivePreview(effectSource: EffectLivePreviewSource, params: EffectLivePreviewParamValues = {}) {
@@ -57,7 +59,7 @@ export class PreviewPlaybackController {
 		this.pauseTimeline();
 		this.effectLivePreviewParams = deepClone(params);
 		this.onEffectLivePreviewInputsChanged?.(effectSource, this.effectLivePreviewParams);
-		if (!this.suspended.value) this.effectLivePreviewRenderer.startEffectLivePreviewRenderLoop(effectSource, params);
+		if (!this.suspended.value) this.startEffectLivePreviewRenderLoop(effectSource);
 		this.playbackState.value = { mode: 'effectLivePreview', effectSource };
 	}
 
@@ -326,13 +328,20 @@ export class PreviewPlaybackController {
 		this.suspended.value = false;
 		const state = this.playbackState.value;
 		if (state.mode === 'effectLivePreview') {
-			this.effectLivePreviewRenderer.startEffectLivePreviewRenderLoop(state.effectSource, this.effectLivePreviewParams);
+			this.startEffectLivePreviewRenderLoop(state.effectSource);
 		} else if (state.mode === 'timeline' && state.playing) {
 			this.playbackState.value = { mode: 'timeline', playing: false };
 			this.playTimeline();
 		} else {
 			this.refresh();
 		}
+	}
+
+	private startEffectLivePreviewRenderLoop(effectSource: EffectLivePreviewSource) {
+		// 対象と解像度を一緒に渡し、切替時やWorkerの再生成時に旧対象の解像度で描画しない。
+		this.effectLivePreviewRenderer.startEffectLivePreviewRenderLoop(
+			effectSource, this.effectLivePreviewParams, this.getEffectLivePreviewCustomResolution?.(effectSource) ?? null,
+		);
 	}
 
 	public dispose() {

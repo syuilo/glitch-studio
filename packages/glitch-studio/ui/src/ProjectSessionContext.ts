@@ -1,6 +1,7 @@
 import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
 import { resolveImageAnalysisValueScale } from '@gs/shared/utility/image-analysis.ts';
 import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
+import type { Resolution } from '@gs/shared/resolution.ts';
 import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
 import { resolvePreviewAnalysisImageSource } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
 import { HighResolutionImageAnalysisController } from './HighResolutionImageAnalysisController.ts';
@@ -86,6 +87,7 @@ export class ProjectSessionContext {
 	private readonly effectLivePreviewMediaSelections = shallowReactive(new Map<string, EffectLivePreviewMediaSelection>());
 	private readonly nodesEffectPreviewParamValues = shallowReactive(new Map<string, EffectLivePreviewParamValues>());
 	private readonly customShaderEffectPreviewParamValues = shallowReactive(new Map<string, EffectLivePreviewParamValues>());
+	private readonly effectLivePreviewCustomResolutions = shallowReactive(new Map<string, Resolution>());
 	public readonly previewParameterEditing = markRaw(new PreviewParameterEditingController());
 	public readonly projectContext: ProjectContext;
 	public readonly scripting: ProjectScriptingController;
@@ -105,6 +107,10 @@ export class ProjectSessionContext {
 	public timelinePreviewMotionBlurSamples = ref<(typeof TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS)[number]>(DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES);
 	public effectLivePreviewTimeFactor = ref(1);
 	public resolutionFactor: Ref<number>;
+	public readonly activeEffectLivePreviewCustomResolution = computed(() => {
+		const source = this.previewPlayback.livePreviewEffectSource.value;
+		return source == null ? null : this.getEffectLivePreviewCustomResolution(source);
+	});
 	public highlightClipping = ref(false);
 	/** 警告の判定対象だけを切り替え、作品・解析・保存データは変更しない。 */
 	public previewWarningImageSource = ref<PreviewImageSource>('original');
@@ -239,6 +245,7 @@ export class ProjectSessionContext {
 				this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
 				this.renderEngine.notifyContentChange();
 			},
+			effectSource => this.getEffectLivePreviewCustomResolution(effectSource),
 		));
 		this.sessionDisposers.push(watch(() => JSON.stringify([this.previewPlayback.livePreviewEffectSource.value, this.activeSceneId.value]),
 			() => this.previewParameterEditing.clear(), { flush: 'sync' }));
@@ -778,6 +785,22 @@ export class ProjectSessionContext {
 
 	private effectLivePreviewKey(source: EffectLivePreviewSource) {
 		return source.type + ':' + source.id;
+	}
+
+	public getEffectLivePreviewCustomResolution(source: EffectLivePreviewSource): Resolution | null {
+		return this.effectLivePreviewCustomResolutions.get(this.effectLivePreviewKey(source)) ?? null;
+	}
+
+	public setEffectLivePreviewCustomResolution(source: EffectLivePreviewSource, resolution: Resolution | null) {
+		const key = this.effectLivePreviewKey(source);
+		const previous = this.effectLivePreviewCustomResolutions.get(key);
+		if (previous?.width === resolution?.width && previous?.height === resolution?.height) return;
+		if (resolution == null) this.effectLivePreviewCustomResolutions.delete(key);
+		else this.effectLivePreviewCustomResolutions.set(key, resolution);
+		const activeSource = this.previewPlayback.livePreviewEffectSource.value;
+		if (activeSource == null || this.effectLivePreviewKey(activeSource) !== key) return;
+		this.renderEngine.notifyContentChange();
+		void this.renderEngine.runRendererUpdate(() => this.effectLivePreviewManagerController.updateEffectLivePreviewResolution(resolution));
 	}
 
 	public getEffectLivePreviewMediaSelection(source: EffectLivePreviewSource): EffectLivePreviewMediaSelection | null {

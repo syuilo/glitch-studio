@@ -30,6 +30,11 @@
 	>
 		<template #preview>
 			<div :class="$style.previewParams">
+			<GsEffectLivePreviewResolution
+				:key="nodesEffect.id"
+				:effectSource="{ type: 'nodesEffectReference', id: nodesEffect.id }"
+				@activate="previewNodesEffectLivePreview"
+			/>
 				<GsEffectLivePreviewInput
 					:effectSource="{ type: 'nodesEffectReference', id: nodesEffect.id }"
 					@activate="previewNodesEffectLivePreview"
@@ -66,6 +71,7 @@ import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
 import { canUseEffectLivePreviewInput, isEffectLivePreviewMediaBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import GsNodesEffectEditor from './GsNodesEffectEditor.vue';
 import GsEffectLivePreviewInput from './GsEffectLivePreviewInput.vue';
+import GsEffectLivePreviewResolution from './GsEffectLivePreviewResolution.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
 import GsButton from './common/GsButton.vue';
