@@ -28,4 +28,4 @@ FFTの数値計算と窓の振幅補正は共通の`WindowedFft`を使います�
 
 サンプルの連続走査は現在または次のブロックを読み、FFTの巻き戻し等では二分探索します。窓はスナップショット全体を参照せず、Spectrumの解析履歴も取得元・時刻等のメタデータだけを保持します。古いブロックは利用側の参照がなくなればGCに任せ、プールや独自の参照カウントは持ちません。履歴の保持期間は、進行中の描画が保持する古い窓まで含めた厳密なメモリ上限ではありません。
 
-`AudioSpectrum`もこのパッケージが所有し、既存の音声プレビューへ各hopの解析結果を供給します。SpectrogramのGPU描画ヘルパーはEffect sharedが所有し、音声解析からGPUへ依存しません。音声プレビューのSpectrogramは従来の`AudioHistory`解析を維持し、エフェクトとGPU描画だけを共有します。
+`AudioSpectrum`は音声プレビューの`AudioHistory`を解析し、各hopの結果を返します。[Spectrogram Renderer](../spectrogram-renderer/src/spectrogram-renderer.ts)は解析済みの振幅を受け取り、表示用の履歴とWebGPU描画を担当します。音声プレビューとNative Effectはそれぞれの音声解析結果をこの共通レンダラーに渡します。

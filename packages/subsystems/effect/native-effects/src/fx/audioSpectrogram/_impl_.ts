@@ -1,6 +1,6 @@
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
 import { AudioInputSpectrogram } from '@gs/subsystems_audio_renderer/audio-input-spectrogram.ts';
-import { createSpectrogramRenderer, getSpectrogramHistoryKey, resolveSpectrogramSettings } from './spectrogram-renderer.ts';
+import { createSpectrogramRenderer, getSpectrogramHistoryKey, resolveSpectrogramSettings } from '@gs/subsystems_audio_spectrogram-renderer/spectrogram-renderer.ts';
 import { createAudioWindowReader } from '../../audio-window.ts';
 import type { EffectFrameContext, NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import { bindParameterValues, beginOutputPass } from '../../multipass.ts';

@@ -1,6 +1,6 @@
 import { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
-import { createAudioSpectrogram } from '@gs/subsystems_effect_native-effects/fx/audioSpectrogram/audio-spectrogram.ts';
+import { createPreviewSpectrogram } from './audio-preview-spectrogram.ts';
 import { createPreviewSpectrum } from './audio-preview-spectrum.ts';
 import { createPreviewWaveform } from './audio-preview-waveform.ts';
 import type { AudioCaptureMessage } from '@gs/subsystems_audio_shared/audio-capture.ts';
@@ -11,7 +11,7 @@ type Panel = {
 	options: PreviewOptions;
 	size: PreviewSize;
 	context?: GPUCanvasContext;
-	spectrogram?: ReturnType<typeof createAudioSpectrogram> | null;
+	spectrogram?: ReturnType<typeof createPreviewSpectrogram> | null;
 	spectrum?: ReturnType<typeof createPreviewSpectrum> | null;
 	waveform?: ReturnType<typeof createPreviewWaveform> | null;
 };
@@ -49,7 +49,7 @@ function configurePanel(panel: Panel) {
 	panel.spectrogram = null;
 	panel.spectrum = null;
 	panel.waveform = null;
-	if (panel.options.mode === 'spectrogram') panel.spectrogram = createAudioSpectrogram({
+	if (panel.options.mode === 'spectrogram') panel.spectrogram = createPreviewSpectrogram({
 		device,
 		vertexShaderModule: vertex!,
 		format: navigator.gpu.getPreferredCanvasFormat(),

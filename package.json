@@ -9,6 +9,7 @@
 		"packages/subsystems/image-codec",
 		"packages/subsystems/audio/shared",
 		"packages/subsystems/audio/renderer",
+		"packages/subsystems/audio/spectrogram-renderer",
 		"packages/subsystems/effect/shared",
 		"packages/subsystems/effect/renderer",
 		"packages/subsystems/effect/native-effects",

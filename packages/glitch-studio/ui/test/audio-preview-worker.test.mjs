@@ -10,10 +10,10 @@ const bundled = await build({
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	loader: { '.wgsl': 'text' },
 	plugins: [wgslShaderEsbuildPlugin(), { name: 'audio-monitor-platform', setup(build) {
-		build.onResolve({ filter: /audio-history\.ts$|audio-spectrogram\.ts$|audio-preview-(?:spectrum|waveform)\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
+		build.onResolve({ filter: /audio-history\.ts$|audio-preview-(?:spectrogram|spectrum|waveform)\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, () => ({ contents: `
 			export class AudioHistory { reset() {} }
-			export const createAudioSpectrogram = () => monitor;
+			export const createPreviewSpectrogram = () => monitor;
 			export const createPreviewSpectrum = () => monitor;
 			export const createPreviewWaveform = () => monitor;
 		` }));

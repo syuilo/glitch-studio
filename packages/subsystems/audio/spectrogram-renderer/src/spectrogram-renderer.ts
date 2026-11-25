@@ -2,7 +2,6 @@ import { float32ToFloat16Bits } from '@gs/shared/utility/float32ToFloat16Bits.ts
 import { audioChannel, finiteNumber } from '@gs/subsystems_audio_renderer/audio-spectrum.ts';
 import shader from './audio-spectrogram.wgsl?raw';
 
-// 共通描画処理の設定。エフェクトのパラメータスキーマとは独立して定義する。
 export type SpectrogramSettings = {
 	channel: 'left' | 'right' | 'mix' | 'stereo';
 	fftSize: 256 | 512 | 1024 | 2048 | 4096 | 8192 | 16384 | 32768;
@@ -79,7 +78,7 @@ export function createSpectrogramRenderer(options: SpectrogramRendererOptions) {
 	let sampleRate = 48000;
 	let settings: SpectrogramSettings | null = null;
 	let historyKey: string | null = null;
-	// Sceneのサンプル座標は負になり得るため、未初期化を特定の数値で表さない。
+	// 音声のサンプル座標は負になり得るため、未初期化を特定の数値で表さない。
 	let newestBucket: number | null = null;
 	let filled = 0;
 	const reset = () => {

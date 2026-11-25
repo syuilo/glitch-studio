@@ -1,0 +1,22 @@
+{
+	"type": "module",
+	"name": "@gs/subsystems_audio_spectrogram-renderer",
+	"private": true,
+	"scripts": {
+		"typecheck": "tsc6 --noEmit",
+		"eslint": "eslint --quiet './**/*.{js,ts}'",
+		"lint": "pnpm typecheck && pnpm eslint"
+	},
+	"exports": {
+		"./spectrogram-renderer.ts": "./src/spectrogram-renderer.ts"
+	},
+	"dependencies": {
+		"@gs/shared": "workspace:*",
+		"@gs/subsystems_audio_renderer": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/web": "0.0.367",
+		"@typescript-eslint/parser": "8.73.0",
+		"vite": "8.3.8"
+	}
+}

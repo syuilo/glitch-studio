@@ -1,12 +1,9 @@
 import { AudioSpectrum } from '@gs/subsystems_audio_renderer/audio-spectrum.ts';
-import { createSpectrogramRenderer, getSpectrogramHistoryKey, resolveSpectrogramSettings } from './spectrogram-renderer.ts';
-import type { SpectrogramRendererOptions, SpectrogramSettings } from './spectrogram-renderer.ts';
+import { createSpectrogramRenderer, getSpectrogramHistoryKey, resolveSpectrogramSettings } from '@gs/subsystems_audio_spectrogram-renderer/spectrogram-renderer.ts';
+import type { SpectrogramRendererOptions, SpectrogramSettings } from '@gs/subsystems_audio_spectrogram-renderer/spectrogram-renderer.ts';
 import type { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
 
-export type { SpectrogramSettings } from './spectrogram-renderer.ts';
-
-/** 音声プレビュー用。従来のAudioHistory解析を維持し、GPU描画だけをエフェクトと共有する。 */
-export function createAudioSpectrogram(options: SpectrogramRendererOptions) {
+export function createPreviewSpectrogram(options: SpectrogramRendererOptions) {
 	const renderer = createSpectrogramRenderer(options);
 	let spectrum: AudioSpectrum | null = null;
 	let source: AudioHistory | null = null;
