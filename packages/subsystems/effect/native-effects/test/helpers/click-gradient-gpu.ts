@@ -24,7 +24,7 @@ export async function run() {
 	device.pushErrorScope('validation');
 
 	async function createBand(resolution: Resolution, ports: readonly Port[], enable32bitDataTextures: boolean,
-		parameters: { duration?: number; interpolation?: string } = {}) {
+		parameters: { duration?: number; interpolation?: string; reflectivity?: number } = {}) {
 		const effect = await createEffectInstance({
 			effectSource: { type: 'nativeEffect', id: 'clickGradient' },
 			definitions: { getNativeEffect: () => definition, getNodesEffect: () => null, getCustomShaderEffect: () => null },
@@ -71,6 +71,8 @@ export async function run() {
 		const landscape = { width: 129, height: 65 };
 		const portrait = { width: 65, height: 129 };
 		const midpointSlope = 1.5 / bandWidth;
+		const reflectivity = 0.8;
+		const wallPress: EffectPointerClick = { position: [56 / longSide, 0], time: 0 };
 		for (const [resolution, ports, precise] of [
 			[landscape, ['scalar', 'vector'], false],
 			[portrait, ['scalar'], true],
@@ -94,6 +96,10 @@ export async function run() {
 					const outsideFront = resolution.width > resolution.height ? expanded('scalar', 33) : expanded('scalar', 0, 33);
 					near(outsideFront, 0, 'outside the front');
 					near(passed('scalar', 24), 0, 'band has exited with infinite duration');
+					if (resolution.width > resolution.height) {
+						const defaultReflection = await band.render(29 / 16, [wallPress]);
+						near(defaultReflection('scalar', 52), 0, 'reflection is disabled by default');
+					}
 				}
 				if (ports.some(port => port === 'vector')) {
 					near(empty('vector', 24), 0, 'future press slope');
@@ -107,13 +113,16 @@ export async function run() {
 			} finally { band.dispose(); }
 		}
 
-		const finite = await createBand(landscape, ['scalar', 'vector'], true, { duration: 4 });
+		const finite = await createBand(landscape, ['scalar', 'vector'], true, { duration: 4, reflectivity });
 		try {
 			// 【有限寿命では値と勾配を同じ割合で減衰させる】
 			// 4秒のうち半分で係数が0.5になり、帯がまだ画面内にある4秒時点でも両出力はゼロになる。
 			const halfway = await finite.render(2);
 			near(halfway('scalar', 24), 0.25, 'time fade scales scalar');
 			near(halfway('vector', 24), midpointSlope / 2, 'time fade scales slope');
+			const halfwayReflection = await finite.render(2, [wallPress]);
+			near(halfwayReflection('scalar', 49), 0.25 * reflectivity, 'time and reflection fades multiply for scalar');
+			near(halfwayReflection('vector', 49), -midpointSlope * reflectivity / 2, 'time and reflection fades multiply for slope');
 			const almostExpired = await finite.render(3.99);
 			near(almostExpired('scalar', 56), 0, 'smooth approach to expiration');
 			const expired = await finite.render(4);
@@ -129,6 +138,30 @@ export async function run() {
 			near(combined('vector', 28), newerOnly('vector', 28), 'overlap selects the same band slope');
 			if (!(combined('scalar', 28) > halfway('scalar', 28) && combined('vector', 28) < 0)) throw new Error('Incorrect winner after temporal fade');
 		} finally { finite.dispose(); }
+
+		const reflected = await createBand(landscape, ['scalar', 'vector'], false, { reflectivity });
+		try {
+			// 【壁に届いた帯の値と勾配に反射の減衰を掛ける】
+			// 右壁の鏡像はx=73pxにある。x=52pxでは半径29pxのとき鏡像の帯の中点だけを読む。
+			const nearWall = await reflected.render(29 / 16, [wallPress]);
+			near(nearWall('scalar', 52), 0.5 * reflectivity, 'reflected scalar at the wall');
+			near(nearWall('vector', 52), -midpointSlope * reflectivity, 'reflected slope points into the canvas');
+
+			// 【重なった直接の帯と反射の帯を減衰後に比較する】
+			// x=64pxでは反射の帯の減衰前の値がより高い。Reflectivityを掛けると直接の帯とその右向きの勾配が勝つ。
+			const overlapping = await reflected.render(12 / 16, [wallPress]);
+			near(overlapping('scalar', 64), 0.84375, 'reflection attenuation determines the winning band');
+			near(overlapping('vector', 64), 1.125 / bandWidth, 'slope follows the winning direct band');
+
+			// 【角の鏡像には両軸の減衰を掛ける】
+			// (48, 16)pxの押下を縦横に折り返した(81, 49)pxから、(44, 12)pxへ届いた帯だけを読む。
+			const cornerPress: EffectPointerClick = { position: [48 / longSide, 16 / longSide], time: 0 };
+			const corner = await reflected.render((Math.hypot(37, 37) + 8) / 16, [cornerPress]);
+			near(corner('scalar', 44, 12), 0.5 * reflectivity ** 2, 'corner applies reflectivity twice');
+			const cornerSlope = -midpointSlope * reflectivity ** 2 / Math.SQRT2;
+			near(corner('vector', 44, 12), cornerSlope, 'corner slope x');
+			near(corner('vector', 44, 12, 1), cornerSlope, 'corner slope y');
+		} finally { reflected.dispose(); }
 
 		const back = await createBand(landscape, ['scalar', 'vector'], true, { interpolation: 'back' });
 		try {

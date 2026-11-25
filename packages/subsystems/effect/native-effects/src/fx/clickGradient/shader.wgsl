@@ -8,7 +8,8 @@ struct Band {
 };
 
 struct Params {
-	bands: array<Band, 16>,
+	// 最大16件の押下それぞれから、直接の帯と最大8個の鏡像を受け取る。
+	bands: array<Band, 144>,
 	halfExtent: vec2f,
 	width: f32,
 	interpolation: u32,

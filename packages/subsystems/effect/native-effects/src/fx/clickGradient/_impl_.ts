@@ -1,12 +1,12 @@
 import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import type { NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
+import { appendVisibleCircularBandSources, MAX_CIRCULAR_BAND_PRESSES } from '../../circular-band-sources.ts';
+import type { CircularBandSource } from '../../circular-band-sources.ts';
 import { createFullscreenEffect } from '../../fullscreen-effect.ts';
 import { gradientInterpolationParameter } from '../../gradient-interpolation.ts';
 import type definition from './_def_.ts';
 import code, { uniforms } from './shader.shader.ts?shader';
-
-const MAX_ACTIVE_BANDS = 16; // shader.wgslのParams.bandsと同じ上限。
 
 const implementation: NativeEffectImplementation<typeof definition.paramDefs> = {
 	async init(context) {
@@ -39,21 +39,19 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 				const speed = inputs.speed.value;
 				const width = inputs.width.value;
 				const duration = inputs.duration.value;
-				const bands: { center: readonly [number, number]; radius: number; fade: number }[] = [];
+				const reflectivity = Math.min(1, Math.max(0, inputs.reflectivity.value));
+				const bands: CircularBandSource[] = [];
+				let activePressCount = 0;
 				if (frame.pointerClicks != null && speed > 0 && width > 0) {
 					for (const click of frame.pointerClicks) {
 						const age = frame.time - click.time;
 						if (age < 0 || (duration > 0 && age >= duration)) continue;
-						const radius = speed * age;
-						const [x, y] = click.position;
-						const farthestDistance = Math.hypot(Math.abs(x) + halfExtent[0], Math.abs(y) + halfExtent[1]);
-						// Durationが無限でも、後端まで描画領域を通過した帯はGPUへ渡さない。
-						if (radius - width > farthestDistance) continue;
 						// 1 - smoothstep(0, duration, age)を残り時間から求め、終端付近の桁落ちを避ける。
 						const remaining = duration > 0 ? 1 - age / duration : 1;
 						const fade = remaining * remaining * (3 - 2 * remaining);
-						bands.push({ center: click.position, radius, fade });
-						if (bands.length === MAX_ACTIVE_BANDS) break;
+						const previousBandCount = bands.length;
+						appendVisibleCircularBandSources(bands, { center: click.position, radius: speed * age, fade }, halfExtent, width, reflectivity);
+						if (bands.length > previousBandCount && ++activePressCount === MAX_CIRCULAR_BAND_PRESSES) break;
 					}
 				}
 				uniformValues.set({
