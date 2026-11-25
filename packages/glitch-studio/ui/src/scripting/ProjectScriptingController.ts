@@ -10,21 +10,6 @@ import type { CommandInput } from '../utility/undo-redo.ts';
 import type { ProjectContext } from '../Project.ts';
 import type { values } from '@syuilo/aiscript';
 
-const INITIAL_SCRIPT = `// Create a Nodes Effect with a Fill node.
-let nodesEffect = Command:createNodesEffect({ name: "Generated" })
-let fillNode = Command:createNodesEffectEffectNode({
-	nodesEffect: nodesEffect
-	effectSource: { type: "nativeEffect", id: "fill" }
-	connectionMode: "appendToPrimaryOutput"
-})
-Command:setNodesEffectNodeParameterSource({
-	target: fillNode
-	parameterPath: ["color"]
-	source: { inputSource: "literal", value: [1, 0.2, 0.1, 1] }
-})
-<: Query:getNodesEffect(nodesEffect)
-`;
-
 const MAX_OUTPUT_ENTRIES = 1_000;
 const MAX_OUTPUT_CHARACTERS = 100_000;
 
@@ -37,7 +22,7 @@ export type ProjectScriptExecutionResult = {
 
 /** 本文・出力は編集セッション内だけで保持し、Projectの保存状態やUndoには含めない。 */
 export class ProjectScriptingController {
-	public readonly source = ref(INITIAL_SCRIPT);
+	public readonly source = ref('');
 	public readonly output = shallowRef<string[]>([]);
 	public readonly isRunning = ref(false);
 	private runtime: ProjectScriptRuntime | null = null;
