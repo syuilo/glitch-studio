@@ -11,7 +11,7 @@ import { buildPortableNodesEffectRuntime } from '../build/runtime.mjs';
 import { implementation } from './helpers/load.mjs';
 import { fixture, parameter, shaderDefinition } from './helpers/fixture.mjs';
 
-const { preparePortableNodesEffect, encodePortableNodesEffect, createPortableNodesEffectFiles, fill, image, symbols, video } = implementation;
+const { preparePortableNodesEffect, encodePortableNodesEffect, createPortableNodesEffectFiles, fill, image, symbols, clickRipple, colorRamp } = implementation;
 
 // 【書き出したJSと単一HTMLをエディタなし・非隔離のChromeで実行する】
 // 実GPU・Worker転送・HTML parser・DOM寿命をまとめて通し、モックでは分からない画素・入力・リサイズの不整合を検出する。
@@ -26,13 +26,13 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	await buildPortableNodesEffectCatalog(catalog);
 	const artifacts = new Map();
 	async function add(name, input) {
-		const prepared = preparePortableNodesEffect(input, { fill, image, symbols, video });
+		const prepared = preparePortableNodesEffect(input, { fill, image, symbols, clickRipple, colorRamp });
 		const runtime = await buildPortableNodesEffectRuntime(catalog, prepared.runtimeRequirements);
 		const tagName = `gs-nodes-effect-${name}`;
 		const archive = createPortableNodesEffectFiles(await encodePortableNodesEffect(prepared, 'zip'), runtime, tagName);
 		artifacts.set(`/${name}/artwork.js`, archive.javascript);
 		for (const { path, contents } of archive.assetFiles) artifacts.set(`/${name}/${path}`, Buffer.from(await contents.arrayBuffer()));
-		if (name === 'standalone' || name === 'symbols' || name === 'image') {
+		if (name === 'standalone' || name === 'symbols' || name === 'image' || name === 'ripple') {
 			const standalone = createPortableNodesEffectFiles(await encodePortableNodesEffect(prepared, 'html'), runtime, tagName);
 			artifacts.set(`/${name}.html`, standalone.html);
 		}
@@ -53,6 +53,20 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	const pointer = fixture();
 	pointer.nodesEffect.nodes[0].params.color.expression = '[POINTER_POSITION[0] + 0.5, POINTER_POSITION[1] + 0.5, 0, 1]';
 	await add('pointer', pointer);
+	// 【固定解像度のClick RippleをCSSの表示領域にcontainする】
+	// 画像の縦横比とCanvasの縦横比を変え、押下座標が表示位置に対応することを実際の画素で検証する。
+	const ripple = fixture();
+	ripple.nodesEffect.nodes = [
+		{ id: 'ripple', effectSource: { type: 'nativeEffect', id: 'clickRipple' }, resolution: { mode: 'customAbsolute', width: 128, height: 128 },
+			params: Object.fromEntries(Object.entries(clickRipple.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])) },
+		{ id: 'colorize', effectSource: { type: 'nativeEffect', id: 'colorRamp' }, resolution: { mode: 'auto', scale: 1 },
+			params: {
+				...Object.fromEntries(Object.entries(colorRamp.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])),
+				input: { inputSource: 'node', source: { nodeId: 'ripple', outputPort: 'mask' }, sampling: { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' } },
+			} },
+	];
+	ripple.nodesEffect.outputSources = { output: { nodeId: 'colorize', outputPort: 'output' } };
+	await add('ripple', ripple);
 	const solid = fixture();
 	const tint = parameter('color', [0.5, 0, 0, 0.5], 'tint');
 	solid.nodesEffect.paramDefs = { tint };

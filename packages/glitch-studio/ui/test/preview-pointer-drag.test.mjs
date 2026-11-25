@@ -64,11 +64,15 @@ test('cancels exactly once on escape, pointer cancellation, capture loss and win
 
 // 実コンポーネントの入口を使い、DOM座標の入力・保存値の境界をテストする。
 const source = await readFile(new URL('../src/components/GsPreview.vue', import.meta.url), 'utf8');
-const script = parse(source).descriptor.scriptSetup.content;
+const { scriptSetup, template } = parse(source).descriptor;
+const script = scriptSetup.content;
 const ast = createSourceFile('GsPreview.ts', script, ScriptTarget.Latest);
-const handler = ast.statements.find(statement => isFunctionDeclaration(statement) && statement.name?.text === 'onViewPointerdown');
-const compiled = await transform(handler.getText(ast), { loader: 'ts' });
-const createPan = new Function('context', `const { pan, panning, startPreviewPointerDrag } = context; let stopPan; ${compiled.code}; return onViewPointerdown;`);
+async function compilePreviewHandler(name) {
+	const handler = ast.statements.find(statement => isFunctionDeclaration(statement) && statement.name?.text === name);
+	return (await transform(handler.getText(ast), { loader: 'ts' })).code;
+}
+const panHandler = await compilePreviewHandler('onViewPointerdown');
+const createPan = new Function('context', `const { pan, panning, startPreviewPointerDrag } = context; let stopPan; ${panHandler}; return onViewPointerdown;`);
 
 // 【中ボタンの累積移動は表示位置だけへ反映し、キャンセルで開始位置へ戻す】
 // 左ボタンのレイヤー変形と競合させず、二回目の移動を前回値へ足して加速させない。
@@ -90,4 +94,25 @@ test('pans the preview only with the middle button and restores the starting vie
 	f.doc.dispatchEvent(f.pointer('pointerup', { clientX: 110, clientY: 205 }));
 	assert.deepEqual(pan.value, [30, 35]);
 	assert.equal(panning.value, false);
+});
+
+// 【プレビューCanvasの主ボタン押下と指の接触を位置入力にする】
+// Canvasの拡大・移動後も画面上の入力位置を原点中央・上向きの座標で送り、余白や中ボタンのパンでは発火させない。
+test('sends primary canvas pointerdowns as normalized positions only in Effect Live Preview', async () => {
+	assert.match(template.content, /data-test-preview-canvas-container[^>]*@pointerdown="onCanvasPointerdown"/);
+	const pointerdownHandler = await compilePreviewHandler('onCanvasPointerdown');
+	const createPointerdown = new Function('previewPlayback', 'effectLivePreviewManagerController', `${pointerdownHandler}; return onCanvasPointerdown;`);
+	const state = { value: { mode: 'effectLivePreview' } };
+	const clicks = [];
+	const press = createPointerdown({ state }, { click: position => clicks.push(position) });
+	const currentTarget = { getBoundingClientRect: () => ({ left: 100, top: 200, width: 400, height: 200 }) };
+	const primary = { isPrimary: true, button: 0, clientX: 400, clientY: 250, currentTarget };
+	press(primary);
+	press({ ...primary, pointerType: 'touch', clientX: 200, clientY: 350 });
+	press({ ...primary, pointerType: 'touch', isPrimary: false });
+	press({ ...primary, button: 1 });
+	press({ ...primary, clientX: 501 });
+	state.value.mode = 'timeline';
+	press(primary);
+	assert.deepEqual(clicks, [{ x: 0.5, y: 0.5 }, { x: -0.5, y: -0.5 }]);
 });

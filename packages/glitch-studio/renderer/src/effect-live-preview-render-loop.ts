@@ -125,6 +125,8 @@ export class EffectLivePreviewRenderLoop {
 	}
 
 	public getCurrentTime() {
-		return this.time;
+		// FPS制限で次の描画を待っている間も、入力の時刻は実際に経過した分だけ進める。
+		const elapsed = this.running ? Math.max(0, this.scheduler.now() - this.latestTimestamp) : 0;
+		return this.time + elapsed * this.timeFactor;
 	}
 }

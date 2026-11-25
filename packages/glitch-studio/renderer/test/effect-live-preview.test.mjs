@@ -24,10 +24,11 @@ async function fixture(t, implementation) {
 	const { device, texture } = gpuFixture();
 	const submitted = [];
 	const errors = [];
+	let clock = 0;
 	let frame;
 	const manager = await EffectLivePreviewManager.create({
 		gpuDevice: device, canvasOutput: { format: 'rgba8unorm', colorSpace: 'srgb' }, gpuContext: { canvas: { width: 2, height: 1 }, configure() {}, getCurrentTexture: texture },
-		frameScheduler: { now: () => 0, requestFrame(callback) { frame = callback; return 1; }, cancelFrame() {} },
+		frameScheduler: { now: () => clock, requestFrame(callback) { frame = callback; return 1; }, cancelFrame() {} },
 		nativeEffectDefinitions: { shared: definition }, nativeEffectImplementations: { shared: implementation },
 	}, { enable32bitDataTextures: false, effectRenderTiling: { mode: 'disabled' }, enableStats: false, enableWaveformAndHistogram: false }, { assets: [] });
 	t.after(() => manager.destroy());
@@ -36,8 +37,42 @@ async function fixture(t, implementation) {
 		customShaderEffects: [{ id: 'shared', name: 'Shader', summary: '', definition: shader }],
 		nodesEffects: [{ id: 'shared', name: 'Graph', definition: graph(reference) }] });
 	manager.canvasRenderer.renderToCanvas = (texture, _encoder, time) => submitted.push({ texture, time });
-	return { manager, device, submitted, errors, async frame(time) { frame(time); await new Promise(resolve => setImmediate(resolve)); } };
+	return { manager, device, submitted, errors, setClock(time) { clock = time; }, async frame(time) { frame(time); await new Promise(resolve => setImmediate(resolve)); } };
 }
+
+// 【クリック履歴を内容時刻とノードの座標で渡す】
+// FPSの制限中に受け取ったクリックも時刻を丸めず、次の入力やプレビュー対象の切替が済んだフレームを変えない。
+test('snapshots recent clicks in node coordinates and clears them for a new preview', async t => {
+	const frames = [];
+	const f = await fixture(t, { init() { return { render(frame) { frames.push(frame); }, dispose() {} }; } });
+	const nodesEffect = graph({ type: 'nativeEffect', id: 'shared' });
+	nodesEffect.nodes[0].resolution = { mode: 'customAbsolute', width: 3, height: 6 };
+	const placement = { effectSource: { type: 'inlineNodesEffect', nodesEffect }, outputPort: 'scalar' };
+	f.manager.updateDynamicOptions({ fpsLimit: 10 });
+	f.manager.startEffectLivePreview(placement);
+	await f.frame(20);
+
+	f.setClock(100);
+	for (let index = 0; index < 17; index++) f.manager.click({ x: index / 16, y: -0.5 });
+	await f.frame(120);
+	const snapshot = frames.at(-1);
+	assert.equal(snapshot.time, 0.12);
+	assert.equal(snapshot.pointerClicks.length, 16);
+	assert.deepEqual(snapshot.pointerClicks[0], { position: [0.25, -0.25], time: 0.1 });
+	assert.deepEqual(snapshot.pointerClicks.at(-1), { position: [0.015625, -0.25], time: 0.1 });
+
+	f.setClock(180);
+	f.manager.click({ x: -1, y: 1 });
+	await f.frame(220);
+	assert.deepEqual(frames.at(-1).pointerClicks[0], { position: [-0.25, 0.5], time: 0.18 });
+	assert.deepEqual(snapshot.pointerClicks[0], { position: [0.25, -0.25], time: 0.1 });
+
+	f.setClock(220);
+	f.manager.startEffectLivePreview(placement);
+	await f.frame(240);
+	assert.deepEqual(frames.at(-1).pointerClicks, []);
+	assert.deepEqual(f.errors, []);
+});
 
 // 【全5種類のEffectSourceを同じWorker用Managerから描画する】
 // 名前空間に同じIDを持つ登録があっても指定した種類・ポートだけを計画し、データ出力を元のチャンネル形式で表示する。

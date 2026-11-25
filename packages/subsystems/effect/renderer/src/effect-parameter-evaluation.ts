@@ -24,8 +24,13 @@ export function createEffectFrameMapper(root: Resolution, node: Resolution): (fr
 	const y = node.height / root.height * ratio;
 	const convert = (value: readonly [number, number]): [number, number] => [value[0] * x, value[1] * y];
 	// 未入力の予約値を維持し、式とNative Effectのポインター処理で同じ座標を使う。
-	return frame => ({ ...frame, pointerPosition: frame.pointerPosition == null || (frame.pointerPosition[0] <= -999 && frame.pointerPosition[1] <= -999)
-		? frame.pointerPosition : convert(frame.pointerPosition), pointerVector: frame.pointerVector == null ? frame.pointerVector : convert(frame.pointerVector) });
+	return frame => ({
+		...frame,
+		pointerPosition: frame.pointerPosition == null || (frame.pointerPosition[0] <= -999 && frame.pointerPosition[1] <= -999)
+			? frame.pointerPosition : convert(frame.pointerPosition),
+		pointerVector: frame.pointerVector == null ? frame.pointerVector : convert(frame.pointerVector),
+		pointerClicks: frame.pointerClicks?.map(click => ({ position: convert(click.position), time: click.time })),
+	});
 }
 
 /** 名前は配置に固定し、共有値の評価器は編集時に差し替える。動的なCUSTOM呼出しは実際の経路で循環を検出する。 */

@@ -33,6 +33,66 @@ async function pixel(element, x = 0.5, y = 0.5) {
 	return [...context.getImageData(Math.min(canvas.width - 1, Math.floor(canvas.width * x)), Math.min(canvas.height - 1, Math.floor(canvas.height * y)), 1, 1).data];
 }
 
+async function rippleCenter(canvas) {
+	await frame();
+	await frame();
+	const { width, height } = canvas;
+	const context = new OffscreenCanvas(width, height).getContext('2d');
+	context.drawImage(canvas, 0, 0);
+	const { data } = context.getImageData(0, 0, width, height);
+	let left = width, top = height, right = -1, bottom = -1;
+	for (let y = 0; y < height; y++) {
+		for (let x = 0; x < width; x++) {
+			if (data[(y * width + x) * 4] < 80) continue;
+			left = Math.min(left, x);
+			top = Math.min(top, y);
+			right = Math.max(right, x);
+			bottom = Math.max(bottom, y);
+		}
+	}
+	return right < 0 ? null : [(left + right + 1) / (2 * width), (top + bottom + 1) / (2 * height)];
+}
+
+async function checkPointerdownRipple(element, pointerType) {
+	const canvas = element.shadowRoot.querySelector('canvas');
+	const x = 0.65, y = 0.43;
+	async function restart() {
+		let detail = await rendered(element, () => {
+			element.style.cssText = 'display:block;width:200px;height:100px';
+			element.pause();
+			element.restart();
+		});
+		while (detail.time !== 0) detail = await rendered(element);
+	}
+	async function playUntil(time) {
+		let detail = await rendered(element, () => element.play());
+		while (detail.time < time) detail = await rendered(element);
+		const pauseTime = element.currentTime;
+		detail = await rendered(element, () => element.pause());
+		while (detail.time < pauseTime) detail = await rendered(element);
+	}
+	function dispatchPointer(type, buttons) {
+		const rect = canvas.getBoundingClientRect();
+		canvas.dispatchEvent(new PointerEvent(type, { isPrimary: true, pointerId: 1, pointerType, button: type === 'pointerdown' ? 0 : -1, buttons,
+			clientX: rect.left + rect.width * x, clientY: rect.top + rect.height * y }));
+	}
+
+	await restart();
+	dispatchPointer('pointermove', 0);
+	await playUntil(0.12);
+	check(await rippleCenter(canvas) === null, 'pointer movement leaves the ripple mask empty: ' + pointerType);
+	const pressTime = element.currentTime;
+	// pointerupやclickを送らず、押下時点でWorkerが波紋の発生源を保持することを確かめる。
+	dispatchPointer('pointerdown', 1);
+	await playUntil(pressTime + 0.16);
+	const center = await rippleCenter(canvas);
+	check(center != null && Math.abs(center[0] - x) < 0.025 && Math.abs(center[1] - y) < 0.025,
+		'pointerdown produces a ripple at the pressed point through contain fitting: ' + pointerType + ' ' + center);
+	await restart();
+	await playUntil(pressTime + 0.16);
+	check(await rippleCenter(canvas) === null, 'restart clears ripple presses: ' + pointerType);
+}
+
 async function checkSymbolTextureRendering(element, name) {
 	const canvas = element.shadowRoot.querySelector('canvas');
 	const context = new OffscreenCanvas(canvas.width, canvas.height).getContext('2d');
@@ -134,6 +194,9 @@ try {
 	color = await pixel(pointer);
 	check(Math.abs(color[0] - 207) <= 2 && Math.abs(color[1] - 225) <= 2, 'paused resize uses the new output aspect for the first pointer frame: ' + color);
 	pointer.remove();
+	const { element: ripple } = await mount('ripple');
+	await checkPointerdownRipple(ripple, 'mouse');
+	ripple.remove();
 	const { element: custom } = await mount('custom');
 	const topLeft = await pixel(custom, 0.1, 0.1);
 	const bottomRight = await pixel(custom, 0.9, 0.9);
@@ -182,13 +245,14 @@ try {
 	check(limitedRate.fps >= Math.min(60, refreshRate.fps) * 0.92 && limitedRate.fps <= 62,
 		'frame limiter sustains the available refresh rate: ' + JSON.stringify({ limitedRate, refreshRate }));
 	frameRateProbe.remove();
-	for (const name of ['standalone', 'symbols', 'image']) {
+	for (const name of ['standalone', 'symbols', 'image', 'ripple']) {
 		const iframe = document.createElement('iframe'); iframe.style.cssText = 'width:300px;height:150px';
 		await new Promise(resolve => { iframe.onload = resolve; iframe.src = '/' + name + '.html'; document.body.append(iframe); });
 		const standalone = iframe.contentDocument.querySelector('gs-nodes-effect-' + name);
 		await standalone.ready; await rendered(standalone);
 		if (name === 'symbols') await checkSymbolTextureRendering(standalone, 'single HTML');
 		else if (name === 'image') check((await pixel(standalone, 0.5, 0.1))[0] > 250, 'single HTML renders its embedded image');
+		else if (name === 'ripple') await checkPointerdownRipple(standalone, 'touch');
 		else check(standalone.getParameter('level') === 0.25, 'single HTML survives script-like artwork strings and starts independently');
 		iframe.remove();
 	}

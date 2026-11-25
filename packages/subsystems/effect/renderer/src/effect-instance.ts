@@ -27,6 +27,13 @@ export type EffectParameterInput<TextureInput extends EffectTextureOutput = Effe
 	| { readonly kind: 'array'; readonly elements: readonly EffectParameterInput<TextureInput>[] }
 	| { readonly kind: 'struct'; readonly fields: Readonly<Record<string, EffectParameterInput<TextureInput>>> };
 
+export type EffectPointerClick = {
+	/** pointerPositionと同じ共通座標。 */
+	readonly position: readonly [number, number];
+	/** フレームのtimeと同じ内容時刻（秒）。 */
+	readonly time: number;
+};
+
 export interface EffectFrameContext {
 	/** 呼び出し側が選んだ内容時刻（秒）。 */
 	readonly time: number;
@@ -40,6 +47,8 @@ export interface EffectFrameContext {
 	readonly pointerPosition?: readonly [number, number];
 	/** pointerPositionと同じ共通単位で測った移動量。 */
 	readonly pointerVector?: readonly [number, number];
+	/** このフレームで参照できるクリックのスナップショット。新しい入力順。 */
+	readonly pointerClicks?: readonly EffectPointerClick[];
 }
 
 export interface EffectRenderContext extends EffectFrameContext {

@@ -10,6 +10,8 @@ const result = await build({
 		export * from './src/export.ts'; export * from './src/parameters.ts';
 		export * from './src/protocol.ts'; export * from './src/archive.ts';
 		export * from './src/frame-rate-limiter.ts';
+		export { default as clickRipple } from '@gs/subsystems_effect_native-effects/fx/clickRipple/_def_.ts';
+		export { default as colorRamp } from '@gs/subsystems_effect_native-effects/fx/colorRamp/_def_.ts';
 		export { default as fill } from '@gs/subsystems_effect_native-effects/fx/fill/_def_.ts';
 		export { default as image } from '@gs/subsystems_effect_native-effects/fx/image/_def_.ts';
 		export { default as symbols } from '@gs/subsystems_effect_native-effects/fx/symbols/_def_.ts';

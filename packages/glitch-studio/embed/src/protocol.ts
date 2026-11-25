@@ -2,10 +2,19 @@ import { normalizedToSpatialCoordinates } from '@gs/shared/spatial-coordinate.ts
 import type { PortableNodesEffect, PortableNodesEffectSettings } from '@gs/glitch-studio_shared/portable-nodes-effect.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 
+export type PortablePointerPosition = { x: number; y: number };
+export type PortablePointerClick = {
+	position: PortablePointerPosition;
+	/** フレームのtimeと同じ内容時刻（ミリ秒）。 */
+	time: number;
+};
+
 export type PortableNodesEffectFrame = {
 	resolution: Resolution;
 	time: number;
-	pointerElementPosition: { x: number; y: number } | null;
+	pointerElementPosition: PortablePointerPosition | null;
+	/** 要素内の押下位置と時刻のスナップショット。新しい入力順。 */
+	pointerElementClicks: readonly PortablePointerClick[];
 	/** 初回と公開値の変更時だけスナップショットを送る。 */
 	parameters: Record<string, unknown> | null;
 	resetHistory: boolean;
@@ -35,8 +44,7 @@ export function getPortableRenderResolution(width: number, height: number, setti
 }
 
 /** containの余白を含む要素内位置から、配置の等方座標へ換算する。出力と寸法の異なる内部ノードへの換算はeffectに任せる。 */
-export function getPortablePointerPosition(position: { x: number; y: number } | null, resolution: Resolution, outputResolution: Resolution) {
-	if (position == null) return null;
+export function getPortablePointerPosition(position: PortablePointerPosition, resolution: Resolution, outputResolution: Resolution) {
 	const aspectRatio = outputResolution.width / outputResolution.height;
 	const width = Math.min(resolution.width, resolution.height * aspectRatio);
 	const height = width / aspectRatio;

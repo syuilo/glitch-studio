@@ -180,7 +180,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 	private previewAudioGeneration = 0;
 	private pointerPosition: { x: number; y: number } = { x: -99999, y: -99999 };
 	private pointerPositionPrev: { x: number; y: number } = { x: -99999, y: -99999 };
-	private clicks: { x: number; y: number, time: number }[] = [];
+	private clicks: { x: number; y: number; time: number }[] = [];
 	private definitions: EffectDefinitions;
 	private readonly nativeEffectDefinitions: NativeEffectDefinitions;
 	private readonly nativeEffectImplementations: Readonly<Record<string, NativeEffectImplementation>>;
@@ -344,7 +344,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 	}
 
 	public click(pointerPosition: { x: number; y: number }) {
-		this.clicks.unshift({ ...pointerPosition, time: this.effectLivePreviewRenderLoop.getCurrentTime() });
+		this.clicks.unshift({ ...pointerPosition, time: this.effectLivePreviewRenderLoop.getCurrentTime() / 1000 });
 		if (this.clicks.length > 16) this.clicks.pop();
 	}
 
@@ -546,6 +546,8 @@ export class EffectLivePreviewManager extends EventEmitter<{
 			endTime: Infinity,
 			pointerPosition: pointer.x <= -999 && pointer.y <= -999 ? [pointer.x, pointer.y] : normalizedToSpatialCoordinates([pointer.x, pointer.y], resolution),
 			pointerVector: this.pointerPositionPrev.x === -99999 ? [0, 0] : normalizedToSpatialCoordinates([pointer.x - this.pointerPositionPrev.x, pointer.y - this.pointerPositionPrev.y], resolution),
+			// GPU準備・描画中に新しいクリックが届いても、進行中のフレームは同じ履歴を使う。
+			pointerClicks: this.clicks.map(({ x, y, time }) => ({ position: normalizedToSpatialCoordinates([x, y], resolution), time })),
 		};
 		const realTimeDelta = this.skippedFrameRealTimeDelta;
 		// 見送った描画の時間差は今回のContextへ渡し、準備中に進んだ分は次の描画へ回す。
@@ -631,6 +633,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		this.effectLivePreviewRenderLoop.stop();
 		this.previewRenderDelayMonitor.stop();
 		this.skippedFrameTimeDelta = this.skippedFrameRealTimeDelta = 0;
+		this.clicks = [];
 		this.canvasRenderer.clear();
 		this.placement = null;
 		this.effectLivePreviewStatusInstanceId = null;

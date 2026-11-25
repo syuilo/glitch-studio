@@ -2,7 +2,7 @@ import { getPortableParameterDefinitions, getPortableParameterDefaults } from '.
 import { getPortableRenderResolution } from './protocol.ts';
 import { PortableNodesEffectFrameRateLimiter } from './frame-rate-limiter.ts';
 import type { PortableNodesEffect } from '@gs/glitch-studio_shared/portable-nodes-effect.ts';
-import type { PortableNodesEffectRequest, PortableNodesEffectResponse } from './protocol.ts';
+import type { PortableNodesEffectRequest, PortableNodesEffectResponse, PortablePointerClick, PortablePointerPosition } from './protocol.ts';
 
 export function registerNodesEffectElement(tagName: string, artwork: PortableNodesEffect, workerSource: string, artworkModuleUrl: string | null = null) {
 	// 同じ成果物を複数回読み込んでも登録済みのクラスを使う。タグは書き出しごとに一意にする。
@@ -39,7 +39,8 @@ export function registerNodesEffectElement(tagName: string, artwork: PortableNod
 		private time = 0;
 		private lastTick: number | null = null;
 		private readonly frameRateLimiter = new PortableNodesEffectFrameRateLimiter();
-		private pointerElementPosition: { x: number; y: number } | null = null;
+		private pointerElementPosition: PortablePointerPosition | null = null;
+		private pointerElementClicks: PortablePointerClick[] = [];
 
 		constructor() {
 			super();
@@ -60,6 +61,7 @@ div:empty { display: none; }`;
 		public pause() { this.setAttribute('paused', ''); }
 		public restart() {
 			this.time = 0;
+			this.pointerElementClicks = [];
 			this.resetFrameTiming();
 			this.resetHistory = true;
 			if (this.failed) { this.disconnect(); this.connectedCallback(); }
@@ -137,7 +139,14 @@ div:empty { display: none; }`;
 				if (!event.isPrimary) return;
 				const rect = this.canvas!.getBoundingClientRect();
 				if (rect.width <= 0 || rect.height <= 0) return;
-				this.pointerElementPosition = { x: (event.clientX - rect.left) / rect.width, y: (event.clientY - rect.top) / rect.height };
+				const position = { x: (event.clientX - rect.left) / rect.width, y: (event.clientY - rect.top) / rect.height };
+				this.pointerElementPosition = position;
+				if (event.type === 'pointerdown' && event.button === 0) {
+					// FPS制限やWorkerの応答待ちでも、押下した瞬間をフレームと同じ時計に載せる。
+					const elapsed = this.paused || this.lastTick == null ? 0 : Math.max(0, event.timeStamp - this.lastTick);
+					this.pointerElementClicks.unshift({ position, time: this.time + elapsed });
+					if (this.pointerElementClicks.length > 16) this.pointerElementClicks.pop();
+				}
 				this.requestRender();
 			};
 			this.canvas.addEventListener('pointermove', pointer, { signal });
@@ -190,6 +199,7 @@ div:empty { display: none; }`;
 			this.readyForFrames = false;
 			this.frameInFlight = false;
 			this.visible = false;
+			this.pointerElementClicks = [];
 			this.resetFrameTiming();
 			this.resetHistory = true;
 		}
@@ -220,7 +230,8 @@ div:empty { display: none; }`;
 			if (!this.frameInFlight && (!this.paused || this.dirty) && this.frameRateLimiter.takeFrame(timestamp, this.settings.fpsLimit)) {
 				const resolution = getPortableRenderResolution(this.physicalSize.width, this.physicalSize.height, this.settings)!;
 				const message: PortableNodesEffectRequest = { type: 'frame', frame: {
-					resolution, time: this.time, pointerElementPosition: this.pointerElementPosition, parameters: this.parametersChanged ? this.parameters() : null, resetHistory: this.resetHistory,
+					resolution, time: this.time, pointerElementPosition: this.pointerElementPosition, pointerElementClicks: this.pointerElementClicks,
+					parameters: this.parametersChanged ? this.parameters() : null, resetHistory: this.resetHistory,
 				} };
 				this.worker!.postMessage(message);
 				this.dirty = false;
