@@ -58,7 +58,8 @@ test('requests copying and pasting the parameter from its menu without changing 
 
 function fixture(t, timeline = null) {
 	const element = tag => ({ tag, props: {}, style: {}, children: [], parent: null });
-	const renderer = createRenderer({ createElement: element, createText: () => element('text'), createComment: () => element('comment'), querySelector: () => element('body'),
+	const body = element('body');
+	const renderer = createRenderer({ createElement: element, createText: () => element('text'), createComment: () => element('comment'), querySelector: () => body,
 																																			setText() {}, setElementText(node, text) { node.text = text; }, patchProp(node, key, _old, value) { node.props[key] = value; },
 																																			insert(node, parent, anchor = null) {
 																																				if (node.parent != null) node.parent.children.splice(node.parent.children.indexOf(node), 1);
@@ -80,8 +81,44 @@ function fixture(t, timeline = null) {
 	app.mount(root);
 	t.after(() => app.unmount());
 	const find = (node, attribute) => Object.hasOwn(node.props, attribute) ? node : node.children.map(child => find(child, attribute)).find(child => child != null) ?? null;
-	return { props, edits, find: attribute => find(root, attribute) };
+	return { props, edits, find: attribute => find(root, attribute) ?? find(body, attribute) };
 }
+
+// 【カーブの点を保存して表示モデルが更新されても編集ウィンドウを開いたままにする】
+// Nodes Effectの値を保存するたびに新しい表示モデルが渡る。ドラッグ中の各保存でウィンドウが閉じると次の点編集に進めない。
+test('keeps the inline Function Curve editor open through Nodes Effect view updates', async t => {
+	const f = fixture(t);
+	const curve = { isXNormalized: true, isYNormalized: true, points: [
+		{ id: 'point', x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
+	] };
+	const nodesEffect = { paramDefs: [], customParameterDefs: [], customParameterValues: {}, functionCurves: [], nodes: [] };
+	f.props.nodesEffect = nodesEffect;
+	f.props.paramValue = {
+		inputSource: 'curveAnimationInline',
+		curveAnimation: { curveBinding: { source: 'inline', curve }, trimmedDurationMs: 1000, yRangeMin: null, yRangeMax: null, wrapMode: 'clamp', offsetMode: 'start' },
+	};
+	await nextTick();
+	f.find('data-test-edit-inline-function-curve').props.onClick();
+	await nextTick();
+	const editor = f.find('data-test-inline-function-curve-editor');
+	assert.ok(editor);
+
+	for (const y of [0.25, 0.5]) {
+		const points = [{ ...curve.points[0], y }];
+		editor.props.onChange(points, 'point-drag');
+		const edit = f.edits.at(-1);
+		assert.equal(edit.mergeKey, 'point-drag');
+		f.props.paramValue = edit.value;
+		f.props.nodesEffect = { ...nodesEffect };
+		await nextTick();
+		assert.ok(f.find('data-test-inline-function-curve-editor') === editor);
+		assert.equal(editor.props.functionCurve.points[0].y, y);
+	}
+
+	f.props.paramPath = ['anotherParameter'];
+	await nextTick();
+	assert.equal(f.find('data-test-inline-function-curve-editor'), null);
+});
 
 // 【ノードとカスタム値の両方から、種類とIDを指定して内部の共通値を選べる】
 // 公開引数のエディタへ内部参照を漏らさず、型変更・削除後も元の参照IDを表示して修正できるようにする。

@@ -64,7 +64,11 @@
 					/>
 					<div v-else-if="paramValue.inputSource === 'curveAnimationInline'" style="display: grid; gap: 6px;">
 						<GsButton @click="selectFunctionCurve">{{ functionCurveLabel }}</GsButton>
-						<GsButton v-if="inlineFunctionCurve != null" @click="inlineFunctionCurveEditorOpen = true">{{ i18n.ts._FunctionCurve.Edit }}</GsButton>
+						<GsButton
+							v-if="inlineFunctionCurve != null"
+							data-test-edit-inline-function-curve
+							@click="inlineFunctionCurveEditorOpen = true"
+						>{{ i18n.ts._FunctionCurve.Edit }}</GsButton>
 						<GsButton v-if="selectedProjectFunctionCurve != null" @click="projectFunctionCurveEditorOpen = true">{{ i18n.ts._FunctionCurve.Edit }}</GsButton>
 						<GsSelect
 							v-if="inlineFunctionCurve != null"
@@ -224,6 +228,7 @@
 		/>
 		<GsFunctionCurvePointsEditorWindow
 			v-if="inlineFunctionCurveEditorOpen && inlineFunctionCurve != null"
+			data-test-inline-function-curve-editor
 			:functionCurve="inlineFunctionCurve"
 			:title="label ?? paramDef.ui.label"
 			@change="updateInlineCurveAnimationPoints"
@@ -560,7 +565,14 @@ const inlineFunctionCurveEditorOpen = ref(false);
 
 let mounted = true;
 onBeforeUnmount(() => { mounted = false; });
-watch([() => props.nodesEffect, () => JSON.stringify([props.node?.id, props.paramPath, props.paramValue.inputSource, curveBinding.value?.source, selectedSharedFunctionCurve.value?.id])], () => {
+// 点の保存でもNodes Effectの表示モデルは作り直される。所有者の切り替えは親のkeyに任せ、ここでは編集中のBindingを識別する。
+watch([
+	() => props.node?.id,
+	() => paramPathKey(props.paramPath),
+	() => props.paramValue.inputSource,
+	() => curveBinding.value?.source,
+	() => selectedSharedFunctionCurve.value?.id,
+], () => {
 	inlineFunctionCurveEditorOpen.value = false;
 	projectFunctionCurveEditorOpen.value = false;
 });
