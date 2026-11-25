@@ -1,28 +1,17 @@
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { createProjectEffectDefinitions, type NativeEffectDefinitions } from '@gs/glitch-studio_shared/project/effects.ts';
 import { createEffectInstance } from '@gs/subsystems_effect_renderer/create-effect-instance.ts';
-import type { EffectInstance, EffectFrameContext, EffectPreparationStatus, NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import { resolveEffectSource, type EffectDefinitions, type EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
-import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import { normalizedToSpatialCoordinates } from '@gs/shared/spatial-coordinate.ts';
-import { changedEffectReferences, diffEffectRegistrationSnapshots } from './effect-registration-changes.ts';
-import { isNodesEffectValueChange } from './project-change-policy.ts';
-import { PendingNodesEffectValues } from './pending-nodes-effect-values.ts';
-import { createEffectLivePreviewInputs, type EffectLivePreviewParameters } from './effect-live-preview-inputs.ts';
-import type { EffectRenderTiling, EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
-import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
-import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
-import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes, PreviewImageAnalysisDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
-import type { PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
-import type { PreviewGamutCompressionSettings } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
-import type { PreviewGamutWarningSettings } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
-import type { PreviewImageSource } from '@gs/glitch-studio_shared/preview-image-source.ts';
-import type { ProjectCustomShaderEffect, ProjectNodesEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { applyRendererProjectChanges, isEffectLivePreviewProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import EventEmitter from 'eventemitter3';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
+import { createEffectLivePreviewInputs, type EffectLivePreviewParameters } from './effect-live-preview-inputs.ts';
+import { PendingNodesEffectValues } from './pending-nodes-effect-values.ts';
+import { isNodesEffectValueChange } from './project-change-policy.ts';
+import { changedEffectReferences, diffEffectRegistrationSnapshots } from './effect-registration-changes.ts';
 import { browserFrameScheduler, EffectLivePreviewRenderLoop } from './effect-live-preview-render-loop.ts';
 import { AssetTextures } from './asset-textures.ts';
 import { EffectLivePreviewAudio, EffectLivePreviewAudioCapture } from './effect-live-preview-audio.ts';
@@ -34,6 +23,17 @@ import { PreviewRenderDelayMonitor } from './preview-render-delay-monitor.ts';
 import { getRendererRequiredGpuFeatures } from './renderer-gpu-features.ts';
 import { createPreviewCanvasContext } from './preview-canvas-context.ts';
 import { createCanvasOutputConfigurator, createGpuPreviewCanvasOutputSettings, createSrgbCanvasOutputSettings } from './canvas-output.ts';
+import type { ProjectCustomShaderEffect, ProjectNodesEffect } from '@gs/glitch-studio_shared/project/types.ts';
+import type { PreviewImageSource } from '@gs/glitch-studio_shared/preview-image-source.ts';
+import type { PreviewGamutWarningSettings } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
+import type { PreviewGamutCompressionSettings } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
+import type { PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-waveform-viewport.ts';
+import type { PreviewImageAnalysisSettings, PreviewWaveformCanvasSizes, PreviewImageAnalysisDisplaySettings } from '@gs/glitch-studio_shared/preview-image-analysis.ts';
+import type { ImageAnalysisTarget } from '@gs/shared/utility/image-analysis.ts';
+import type { ImageValueRange, ImageValueScale } from '@gs/shared/utility/image-value-scale.ts';
+import type { EffectRenderTiling, EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
+import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
+import type { EffectInstance, EffectFrameContext, EffectPreparationStatus, NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import type { CanvasOutputSettings } from './canvas-output.ts';
 import type { PreviewCanvasContext, PreviewDisplayMode, CpuPreviewFrame, CpuPreviewCanvasTarget } from './preview-canvas-context.ts';
 import type { FrameScheduler, EffectLivePreviewFrameTiming } from './effect-live-preview-render-loop.ts';
@@ -180,6 +180,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 	private previewAudioGeneration = 0;
 	private pointerPosition: { x: number; y: number } = { x: -99999, y: -99999 };
 	private pointerPositionPrev: { x: number; y: number } = { x: -99999, y: -99999 };
+	private clicks: { x: number; y: number, time: number }[] = [];
 	private definitions: EffectDefinitions;
 	private readonly nativeEffectDefinitions: NativeEffectDefinitions;
 	private readonly nativeEffectImplementations: Readonly<Record<string, NativeEffectImplementation>>;
@@ -340,6 +341,11 @@ export class EffectLivePreviewManager extends EventEmitter<{
 
 	public updatePointerPosition(newPointerPosition: { x: number; y: number }) {
 		this.pointerPosition = newPointerPosition;
+	}
+
+	public click(pointerPosition: { x: number; y: number }) {
+		this.clicks.unshift({ ...pointerPosition, time: this.effectLivePreviewRenderLoop.getCurrentTime() });
+		if (this.clicks.length > 16) this.clicks.pop();
 	}
 
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
@@ -535,7 +541,9 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		const placementResolution = this.getPlacementResolutionOptions();
 		const resolution = scaleResolution(placementResolution.resolution, placementResolution.resolutionScale);
 		const frame: EffectFrameContext = {
-			time: timing.time / 1000, timeDelta: this.skippedFrameTimeDelta, endTime: Infinity,
+			time: timing.time / 1000,
+			timeDelta: this.skippedFrameTimeDelta,
+			endTime: Infinity,
 			pointerPosition: pointer.x <= -999 && pointer.y <= -999 ? [pointer.x, pointer.y] : normalizedToSpatialCoordinates([pointer.x, pointer.y], resolution),
 			pointerVector: this.pointerPositionPrev.x === -99999 ? [0, 0] : normalizedToSpatialCoordinates([pointer.x - this.pointerPositionPrev.x, pointer.y - this.pointerPositionPrev.y], resolution),
 		};
@@ -614,6 +622,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		this.previewRenderGeneration++;
 		this.activeEffect?.instance?.resetRenderHistory();
 		this.pointerPositionPrev = this.pointerPosition;
+		this.clicks = [];
 		this.skippedFrameTimeDelta = this.skippedFrameRealTimeDelta = 0;
 	}
 

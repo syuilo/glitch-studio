@@ -123,4 +123,8 @@ export class EffectLivePreviewRenderLoop {
 			void result.then(settled, settled);
 		}
 	}
+
+	public getCurrentTime() {
+		return this.time;
+	}
 }

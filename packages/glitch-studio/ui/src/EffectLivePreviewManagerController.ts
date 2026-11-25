@@ -37,7 +37,6 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 	public waveformVerticalCanvas: HTMLCanvasElement;
 	// Worker再読み込みとエフェクト状態の参照に必要な内部情報。UIの再生状態はPreviewPlaybackControllerが所有する。
 	private effectLivePreviewStatusInstanceId: string | null = null;
-	private pointerPosition = { x: 0, y: 0 };
 	public readonly previewMediaElement = shallowRef<HTMLMediaElement | null>(null);
 	public readonly previewMediaError = ref<string | null>(null);
 	public readonly previewDeviceRevision = ref(0);
@@ -107,7 +106,6 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 				},
 			},
 			onCreated: () => {
-				this.call('updatePointerPosition', [this.pointerPosition]);
 			},
 			onDisposed: () => {
 				this.preparationStatus.value = null;
@@ -444,8 +442,11 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 	}
 
 	public async updatePointerPosition(newPointerPosition: { x: number; y: number }) {
-		this.pointerPosition = { ...newPointerPosition };
 		if (this.isReady.value) this.call('updatePointerPosition', [newPointerPosition]);
+	}
+
+	public async click(pointerPosition: { x: number; y: number }) {
+		if (this.isReady.value) this.call('click', [pointerPosition]);
 	}
 
 	public async updateDynamicOptions(newDynamicOptions: Partial<EffectLivePreviewManagerDynamicOptions>) {

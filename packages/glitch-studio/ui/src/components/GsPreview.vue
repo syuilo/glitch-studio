@@ -105,7 +105,9 @@
 				class="_button"
 				:disabled="!isMediaPlayer && renderValidationErrorMessage != null"
 				@click="retryPreview"
-			>{{ i18n.ts._Preview.Retry }}</button>
+			>
+				{{ i18n.ts._Preview.Retry }}
+			</button>
 		</div>
 	</div>
 </GsDetachableView>
@@ -426,6 +428,13 @@ function onViewPointerdown(event: PointerEvent) {
 	stopPan = startPreviewPointerDrag(event, {
 		move: next => { pan.value = [initial[0] + next.clientX - event.clientX, initial[1] + next.clientY - event.clientY]; },
 		end: cancelled => { if (cancelled) pan.value = [initial[0], initial[1]]; panning.value = false; stopPan = null; },
+	});
+
+	if (canvasContainer.value == null || previewPlayback.state.value.mode !== 'effectLivePreview') return;
+	const rect = canvasContainer.value.getBoundingClientRect();
+	effectLivePreviewManagerController.click({
+		x: (((event.clientX - rect.left) / rect.width) - 0.5) * 2,
+		y: -(((event.clientY - rect.top) / rect.height) - 0.5) * 2,
 	});
 }
 
