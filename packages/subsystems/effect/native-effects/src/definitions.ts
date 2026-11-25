@@ -22,6 +22,7 @@ import cellTransform from './fx/cellTransform/_def_.ts';
 import channelShift from './fx/channelShift/_def_.ts';
 import checker from './fx/checker/_def_.ts';
 import chromaticAberration from './fx/chromaticAberration/_def_.ts';
+import clickGradient from './fx/clickGradient/_def_.ts';
 import clickRipple from './fx/clickRipple/_def_.ts';
 import cliffordDeJongAttractor from './fx/cliffordDeJongAttractor/_def_.ts';
 import colorBlend from './fx/colorBlend/_def_.ts';
@@ -205,6 +206,7 @@ export const nativeEffectDefinitions = {
 	channelShift,
 	checker,
 	chromaticAberration,
+	clickGradient,
 	clickRipple,
 	cliffordDeJongAttractor,
 	colorBlend,

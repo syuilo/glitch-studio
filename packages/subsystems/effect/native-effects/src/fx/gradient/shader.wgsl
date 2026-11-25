@@ -106,55 +106,9 @@ fn evaluateGradient(fragData: FragmentIn) -> vec3f {
 	// 両端は指定値を厳密に保つ（elastic・expoの指数項も端点では評価しない）。
 	if (t <= 0.0) { return startValueSample; }
 	if (t >= 1.0) { return endValueSample; }
-	var interpolationDerivative = 1.0;
-	if (uniforms.interpolation == 1u) {
-		interpolationDerivative = 6.0 * t * (1.0 - t);
-		t = smoothstep(0.0, 1.0, t);
-	} else if (uniforms.interpolation == 2u) {
-		interpolationDerivative = 30.0 * t * t * (t - 1.0) * (t - 1.0);
-		// 両端で1階・2階微分が0になる5次補間（6t^5 - 15t^4 + 10t^3）。
-		t = t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
-	} else if (uniforms.interpolation == 3u) {
-		interpolationDerivative = 0.5 * 3.141592653589793 * sin(3.141592653589793 * t);
-		t = 0.5 - 0.5 * cos(3.141592653589793 * t);
-	} else if (uniforms.interpolation == 4u) {
-		let x = 2.0 * min(t, 1.0 - t);
-		// circularの中点は傾きが無限大になる特異点なので、そこだけ0とする。
-		let denominator = sqrt(max(0.0, 1.0 - x * x));
-		interpolationDerivative = 0.0;
-		if (denominator > 0.0) { interpolationDerivative = x / denominator; }
-		let y = 0.5 * (1.0 - denominator);
-		t = select(1.0 - y, y, t < 0.5);
-	} else if (uniforms.interpolation == 5u) {
-		// 対称なease-in-out back。固定係数で両端付近をオーバーシュートさせる。
-		let overshoot = 1.70158 * 1.525;
-		let x = 2.0 * min(t, 1.0 - t);
-		interpolationDerivative = 3.0 * (overshoot + 1.0) * x * x - 2.0 * overshoot * x;
-		let y = 0.5 * x * x * ((overshoot + 1.0) * x - overshoot);
-		t = select(1.0 - y, y, t < 0.5);
-	} else if (uniforms.interpolation == 6u) {
-		// 対称なease-in-out elastic。減衰率と周期は固定する。
-		let x = min(t, 1.0 - t);
-		let y = -0.5 * exp2(20.0 * x - 10.0) * sin((20.0 * x - 11.125) * (6.283185307179586 / 4.5));
-		let angularFrequency = 6.283185307179586 / 4.5;
-		let argument = (20.0 * x - 11.125) * angularFrequency;
-		interpolationDerivative = -10.0 * exp2(20.0 * x - 10.0) * (0.6931471805599453 * sin(argument) + angularFrequency * cos(argument));
-		t = select(1.0 - y, y, t < 0.5);
-	} else if (uniforms.interpolation == 7u) {
-		// 対称なease-in-out expo。前半を指数関数で加速し、後半は反転して減速する。
-		let x = min(t, 1.0 - t);
-		let y = 0.5 * exp2(20.0 * x - 10.0);
-		interpolationDerivative = 20.0 * 0.6931471805599453 * y;
-		t = select(1.0 - y, y, t < 0.5);
-	} else if (uniforms.interpolation == 8u) {
-		t = exp2(10.0 * t - 10.0);
-		interpolationDerivative = 10.0 * 0.6931471805599453 * t;
-	} else if (uniforms.interpolation == 9u) {
-		interpolationDerivative = 10.0 * 0.6931471805599453 * exp2(-10.0 * t);
-		t = 1.0 - exp2(-10.0 * t);
-	}
-	let resultDerivative = mix(startValueSample.yz, endValueSample.yz, t) + (endValue - startValue) * interpolationDerivative * derivative;
-	return vec3f(mix(startValue, endValue, t), resultDerivative);
+	let curve = evaluateGradientInterpolation(t, uniforms.interpolation);
+	let resultDerivative = mix(startValueSample.yz, endValueSample.yz, curve.value) + (endValue - startValue) * curve.derivative * derivative;
+	return vec3f(mix(startValue, endValue, curve.value), resultDerivative);
 }
 
 @fragment

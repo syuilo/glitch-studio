@@ -1,4 +1,5 @@
 import { defineNativeEffect } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import { gradientInterpolationParameter } from '../../gradient-interpolation.ts';
 
 export default defineNativeEffect({
 	displayName: 'Gradient',
@@ -103,27 +104,7 @@ export default defineNativeEffect({
 			defaultValue: 0,
 		},
 		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Angle', control: { controlType: 'angle' } }, defaultValue: 0 },
-		interpolation: {
-			dataType: { kind: 'enum', options: ['linear', 'smoothstep', 'smootherstep', 'cosine', 'circular', 'back', 'elastic', 'expo', 'expo-in', 'expo-out'] },
-			ui: {
-				label: 'Interpolation',
-				control: {
-					labels: {
-						'linear': 'Linear',
-						'smoothstep': 'Smoothstep',
-						'smootherstep': 'Smootherstep',
-						'cosine': 'Cosine',
-						'circular': 'Circular',
-						'back': 'Back',
-						'elastic': 'Elastic',
-						'expo': 'Expo',
-						'expo-in': 'Expo In',
-						'expo-out': 'Expo Out',
-					},
-				},
-			},
-			defaultValue: 'linear',
-		},
+		interpolation: { ...gradientInterpolationParameter, defaultValue: 'linear' },
 	},
 	primaryInputParameter: null,
 	resolutionInputParameters: [],
