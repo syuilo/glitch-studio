@@ -209,12 +209,14 @@ Function Curveは `type: "bezier"` のときに点とX・Yそれぞれの正規�
 | 固定カーブ | 形と設定 |
 | --- | --- |
 | `linear` / `smoothstep` / `smootherstep` | 0から1へ向かう線形・3次・5次のカーブ。 |
-| `easing` | キーフレームと同じ `family`・`direction` で評価する。Back・ElasticはYが0〜1の外へ出る。 |
+| `easing` | `family`・`direction` で評価する。Backでは `overshootCoefficient`、Elasticでは `period` を設定できる。 |
 | `smoothPulse` | X=0.5で1になり、両端の値と傾きが0になる。 |
 | `pulse` | X=0.5を中心に、幅 `dutyCycle` の半開区間（始点を含む）で1になる。幅0は常に0、幅1は常に1。 |
 | `steps` | `levelCount`（2以上の整数）の等幅区間で、Yが0から1へ段階的に増える。 |
 | `sineWave` | Y=0.5から上昇を始める正弦波の一周期。 |
 | `deadZone` | X=0.5を中心に、幅 `deadZoneWidth` の区間でYを0.5に固定し、両側は端点へ線形に接続する。幅0は線形、幅1は常に0.5。 |
+
+Backの `overshootCoefficient` は0以上。既定値は1.70158で、0の場合はCubicと同じ曲線になる。Elasticの `period` は基準カーブの正規化Xでの一周期の長さで、有限の正数。既定値は0.3。InOutでは前半と後半をそれぞれ半分に縮めて配置するため、全区間上の実際の周期も半分になる。省略または `null` の設定は既定値を使う。
 
 WorkspaceのFunction Curvesパネルでは設定タブ、インラインのFunction Curveでは編集ウィンドウで曲線の種類と設定を選べる。種類をBézierに切り替えると既定の点から始まり、Undoで切り替え前の定義を復元できる。
 

@@ -39,7 +39,7 @@ function evaluateFixedFunctionCurve(curve: FixedFunctionCurve, x: number): numbe
 		case 'linear': return x;
 		case 'smoothstep': return smoothstep(x);
 		case 'smootherstep': return smootherstep(x);
-		case 'easing': return evaluateEasing(x, curve.family, curve.direction);
+		case 'easing': return evaluateEasing(x, curve);
 		case 'smoothPulse': return (1 - Math.cos(2 * Math.PI * x)) / 2;
 		case 'pulse': {
 			if (curve.dutyCycle === 1) return 1;

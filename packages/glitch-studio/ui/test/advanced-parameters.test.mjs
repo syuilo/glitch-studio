@@ -120,6 +120,33 @@ test('switches Function Curve types and edits the selected fixed curve settings'
 	assert.deepEqual(edits.at(-1).points.map(point => point.x), [0, 1]);
 });
 
+// 【BackとElasticの設定をFunction Curveの種類に合わせて編集する】
+// 方向変更では現在の調整値を維持し、系統変更では以前の系統の設定が保存データへ混ざらないようにする。
+test('edits only the selected easing family settings and preserves them across direction changes', async t => {
+	const edits = [];
+	const f = fixture(t, FunctionCurveTypeEditor, { curve: { type: 'easing', family: 'back', direction: 'in' }, onChange: curve => edits.push(curve) });
+	const back = 'data-test-function-curve-back-overshoot';
+	const elastic = 'data-test-function-curve-elastic-period';
+	const set = (setting, value) => f.find(setting).props['onUpdate:modelValue'](value);
+	assert.equal(f.find(back).props.modelValue, 1.70158);
+	assert.equal(f.find(elastic), null);
+	set(back, 0);
+	f.props.curve = edits.at(-1);
+	await nextTick();
+	set('data-test-function-curve-easing-direction', 'out');
+	assert.deepEqual(edits.at(-1), { type: 'easing', family: 'back', direction: 'out', overshootCoefficient: 0 });
+	f.props.curve = edits.at(-1);
+	await nextTick();
+	set('data-test-function-curve-easing-family', 'elastic');
+	assert.deepEqual(edits.at(-1), { type: 'easing', family: 'elastic', direction: 'out' });
+	f.props.curve = edits.at(-1);
+	await nextTick();
+	assert.equal(f.find(elastic).props.modelValue, 0.3);
+	assert.equal(f.find(back), null);
+	set(elastic, 0.7);
+	assert.deepEqual(edits.at(-1), { type: 'easing', family: 'elastic', direction: 'out', period: 0.7 });
+});
+
 for (const target of ['node', 'layer']) {
 	// 【エフェクトの両編集画面で設定を共有し、配置順の表示と変更済みの強制表示を保つ】
 	// Timelineの初期接続はエフェクト定義のliteralとは異なるが、未変更として非表示にする。

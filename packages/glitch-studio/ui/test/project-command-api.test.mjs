@@ -104,6 +104,24 @@ test('creates, duplicates and replaces fixed Function Curves through the public 
 	assert.deepEqual(state.functionCurves.value[0], { ...change.definition, id: original.functionCurveId });
 });
 
+// 【公開CommandでBackの係数とElasticの周期を保存・検証する】
+// 0の係数や非既定の周期を保持し、無効な調整値で既存の共有定義を変更しない。
+test('stores and validates family-specific easing settings through public curve commands', () => {
+	const { state, manager } = fixture();
+	const back = { type: 'easing', family: 'back', direction: 'out', overshootCoefficient: 0 };
+	const target = manager.commit('createProjectFunctionCurve', { nameForReference: 'motion', data: back });
+	const identity = { id: target.functionCurveId, nameForReference: 'motion' };
+	assert.deepEqual(state.functionCurves.value[0], { ...identity, ...back });
+	const elastic = { type: 'easing', family: 'elastic', direction: 'inOut', period: 0.6 };
+	manager.commit('replaceProjectFunctionCurve', { ...target, definition: { ...identity, ...elastic } });
+	for (const data of [{ ...elastic, period: 0 }, { ...elastic, period: Infinity }, { ...back, overshootCoefficient: -1 }]) {
+		assert.throws(() => manager.commit('replaceProjectFunctionCurve', { ...target, definition: { ...identity, ...data } }));
+	}
+	assert.deepEqual(state.functionCurves.value[0], { ...identity, ...elastic });
+	manager.undo();
+	assert.deepEqual(state.functionCurves.value[0], { ...identity, ...back });
+});
+
 // 【素材名の変更をUndoでき、同値設定ではRedoを消さない】
 // 旧Commandの未実装だったUndoを補完し、スクリプトからの同値設定も履歴を破壊しないようにする。
 test('undoes asset renaming and preserves redo for no-op or invalid targets', () => {

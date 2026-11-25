@@ -10,6 +10,7 @@
 	</GsSelect>
 	<template v-if="curve.type === 'easing'">
 		<GsSelect
+			data-test-function-curve-easing-family
 			:modelValue="curve.family"
 			:items="familyItems"
 			@update:modelValue="setEasingFamily"
@@ -17,12 +18,40 @@
 			<template #label>{{ i18n.ts._FunctionCurve.EasingFamily }}</template>
 		</GsSelect>
 		<GsSelect
+			data-test-function-curve-easing-direction
 			:modelValue="curve.direction"
 			:items="directionItems"
 			@update:modelValue="setEasingDirection"
 		>
 			<template #label>{{ i18n.ts._TimelineKeyframe.EasingDirection }}</template>
 		</GsSelect>
+		<GsInput
+			v-if="curve.family === 'back'"
+			data-test-function-curve-back-overshoot
+			type="number"
+			manualSave
+			validateNumberBounds
+			:min="0"
+			:step="0.01"
+			:modelValue="curve.overshootCoefficient ?? DEFAULT_BACK_OVERSHOOT_COEFFICIENT"
+			@update:modelValue="setBackOvershootCoefficient"
+		>
+			<template #label>{{ i18n.ts._FunctionCurve.BackOvershootCoefficient }}</template>
+		</GsInput>
+		<GsInput
+			v-else-if="curve.family === 'elastic'"
+			data-test-function-curve-elastic-period
+			type="number"
+			manualSave
+			validateNumberBounds
+			:min="Number.MIN_VALUE"
+			:step="0.01"
+			:modelValue="curve.period ?? DEFAULT_ELASTIC_PERIOD"
+			@update:modelValue="setElasticPeriod"
+		>
+			<template #label>{{ i18n.ts._FunctionCurve.ElasticPeriod }}</template>
+			<template #caption>{{ i18n.ts._FunctionCurve.ElasticPeriodHint }}</template>
+		</GsInput>
 	</template>
 	<GsInput
 		v-else-if="curve.type === 'pulse'"
@@ -71,7 +100,7 @@
 </template>
 
 <script lang="ts" setup>
-import { EASING_DIRECTIONS, EASING_FAMILIES } from '@gs/shared/easing.ts';
+import { DEFAULT_BACK_OVERSHOOT_COEFFICIENT, DEFAULT_ELASTIC_PERIOD, EASING_DIRECTIONS, EASING_FAMILIES } from '@gs/shared/easing.ts';
 import type { EasingDirection, EasingFamily } from '@gs/shared/easing.ts';
 import type { FunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 import GsInput from './common/GsInput.vue';
@@ -105,11 +134,24 @@ function setType(type: FunctionCurve['type']) {
 }
 
 function setEasingFamily(family: EasingFamily) {
-	if (props.curve.type === 'easing') emit('change', { ...props.curve, family });
+	const curve = props.curve;
+	if (curve.type !== 'easing' || curve.family === family) return;
+	// 系統固有の設定は持ち越さず、新しい系統の既定値から編集する。
+	emit('change', { type: 'easing', family, direction: curve.direction });
 }
 
 function setEasingDirection(direction: EasingDirection) {
 	if (props.curve.type === 'easing') emit('change', { ...props.curve, direction });
+}
+
+function setBackOvershootCoefficient(overshootCoefficient: number) {
+	const curve = props.curve;
+	if (curve.type === 'easing' && curve.family === 'back') emit('change', { ...curve, overshootCoefficient });
+}
+
+function setElasticPeriod(period: number) {
+	const curve = props.curve;
+	if (curve.type === 'easing' && curve.family === 'elastic') emit('change', { ...curve, period });
 }
 </script>
 

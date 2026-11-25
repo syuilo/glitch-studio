@@ -1,4 +1,4 @@
-import type { EasingFamily, EasingDirection } from '../easing.ts';
+import type { EasingSettings } from '../easing.ts';
 
 export type BezierAnchorPoint = {
 	id: string;
@@ -19,7 +19,7 @@ export type FixedFunctionCurve =
 	| { type: 'linear' }
 	| { type: 'smoothstep' }
 	| { type: 'smootherstep' }
-	| { type: 'easing'; family: EasingFamily; direction: EasingDirection }
+	| ({ type: 'easing' } & EasingSettings)
 	| { type: 'smoothPulse' }
 	| { type: 'pulse'; dutyCycle: number }
 	| { type: 'steps'; levelCount: number }

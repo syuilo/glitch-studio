@@ -499,6 +499,21 @@ test('samples a shared fixed curve from expressions and maps it through end-alig
 	assert.equal(evaluator.evaluate(binding, { ...scope, time: 5000 }, -1, scalarDefinition), 30);
 });
 
+// 【共有Function Curveのイージング設定を式と再生で使う】
+// 係数に0を指定した場合も共有参照から読み、同じ曲線の値を再生時にY範囲へ写す。
+test('uses authored easing settings for FUNCTION_CURVE and Curve Animation', () => {
+	const curveIdentity = { id: 'motion', nameForReference: 'motion', type: 'easing', direction: 'in' };
+	const curve = { ...curveIdentity, family: 'back', overshootCoefficient: 0 };
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
+	const scope = context({ functionCurves: [curve], time: 1000 });
+	assert.equal(evaluator.evaluate(expression('FUNCTION_CURVE("motion", 0.5, "clamp")'), scope, -1, scalarDefinition), 0.125);
+	const binding = curveAnimationInput('reference', curve, { yRangeMin: 10, yRangeMax: 18 });
+	assert.equal(evaluator.evaluate(binding, scope, -1, scalarDefinition), 11);
+	const elastic = { ...curveIdentity, family: 'elastic', period: 0.5 };
+	const elasticScope = context({ functionCurves: [elastic] });
+	assertClose(evaluator.evaluate(expression('FUNCTION_CURVE("motion", 0.75, "clamp")'), elasticScope, -1, scalarDefinition), -(2 ** -2.5));
+});
+
 // 【逆順のY範囲を静的検証で拒否する】
 // 片方がnullでも端点の既定値を適用した順序で判定し、設定変更で検証キャッシュを更新する。
 test('rejects reversed Curve Animation Y ranges after applying endpoint defaults', () => {

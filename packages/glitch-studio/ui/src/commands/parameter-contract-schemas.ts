@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { EASING_FAMILIES, EASING_DIRECTIONS } from '@gs/shared/easing.ts';
+import { DEFAULT_BACK_OVERSHOOT_COEFFICIENT, DEFAULT_ELASTIC_PERIOD, EASING_FAMILIES, EASING_DIRECTIONS } from '@gs/shared/easing.ts';
 import { SIZE_REFERENCES } from '@gs/shared/size-reference.ts';
 import { COLOR_RAMP_INTERPOLATIONS } from '@gs/shared/color-ramp.ts';
 import { colorBlendModes } from '@gs/shared/color-blend.ts';
@@ -42,11 +42,27 @@ const bezierFunctionCurveSchema = z.object({
 	isXNormalized: z.boolean().describe('X uses normalized coordinates when true.'),
 	isYNormalized: z.boolean().describe('Y uses normalized coordinates when true. Values outside 0 to 1 are valid.'),
 });
+const easingFunctionCurveShape = { type: z.literal('easing'), direction: z.enum(EASING_DIRECTIONS) };
+const easingFunctionCurveSchema = z.discriminatedUnion('family', [
+	z.object({
+		...easingFunctionCurveShape,
+		family: z.literal('back'),
+		overshootCoefficient: z.number().nonnegative().nullish()
+			.describe('Back overshoot coefficient. Omit or pass null for ' + DEFAULT_BACK_OVERSHOOT_COEFFICIENT + '.'),
+	}),
+	z.object({
+		...easingFunctionCurveShape,
+		family: z.literal('elastic'),
+		period: z.number().positive().nullish()
+			.describe('Elastic period in normalized X of the base curve. InOut halves it in each half. Omit or pass null for ' + DEFAULT_ELASTIC_PERIOD + '.'),
+	}),
+	z.object({ ...easingFunctionCurveShape, family: z.enum(EASING_FAMILIES).exclude(['back', 'elastic']) }),
+]);
 const fixedFunctionCurveSchemas = [
 	z.object({ type: z.literal('linear') }),
 	z.object({ type: z.literal('smoothstep') }),
 	z.object({ type: z.literal('smootherstep') }),
-	z.object({ type: z.literal('easing'), family: z.enum(EASING_FAMILIES), direction: z.enum(EASING_DIRECTIONS) }),
+	easingFunctionCurveSchema,
 	z.object({ type: z.literal('smoothPulse') }),
 	z.object({ type: z.literal('pulse'), dutyCycle: z.number().min(0).max(1).describe('Fraction of the interval spent at 1, centered at X = 0.5.') }),
 	z.object({ type: z.literal('steps'), levelCount: z.number().int().min(2).describe('Number of equally wide levels, including 0 and 1.') }),
