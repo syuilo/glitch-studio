@@ -8,7 +8,7 @@ export default defineNativeEffect({
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,
-	tags: ['temporal', 'distortion'],
+	tags: ['temporal', 'interactive', 'distortion'],
 	paramDefs: {
 		speed: {
 			dataType: { kind: 'scalar' },

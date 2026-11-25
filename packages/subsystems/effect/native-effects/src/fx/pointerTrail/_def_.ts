@@ -8,7 +8,7 @@ export default defineNativeEffect({
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: true,
-	tags: ['temporal', 'utility'],
+	tags: ['temporal', 'interactive', 'utility'],
 	paramDefs: {
 		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		strength: {

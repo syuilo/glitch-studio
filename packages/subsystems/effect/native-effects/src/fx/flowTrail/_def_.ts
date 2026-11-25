@@ -11,7 +11,7 @@ export default defineNativeEffect({
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: true,
-	tags: ['temporal', 'utility'],
+	tags: ['temporal', 'interactive', 'utility'],
 	paramDefs: {
 		position: {
 			dataType: { kind: 'vector' },
