@@ -35,9 +35,8 @@ fn fs(@location(0) position: vec2f) -> RippleOutputs {
 			continue;
 		}
 
-		// 進行方向の前後で振幅を滑らかにゼロへ落とし、有限幅の帯だけを動かす。
-		let envelope = smoothstep(0.0, 0.18 * params.width, distanceBehindFront)
-			* (1.0 - smoothstep(0.55 * params.width, params.width, distanceBehindFront));
+		// 先頭から離れるほど波の山と谷を弱め、帯の後端で振幅をゼロにする。
+		let envelope = 1.0 - smoothstep(0.0, params.width, distanceBehindFront);
 		let wave = sin(6.2831853 * distanceBehindFront / params.wavelength) * envelope * ripple.fade;
 		// 中心で方向が不定でも変位が連続になるように、中心近傍だけ方向ベクトルの長さを落とす。
 		let direction = offset / max(distanceFromCenter, 0.25 * params.wavelength);

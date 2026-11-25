@@ -28,6 +28,8 @@ export async function run() {
 	const clickX = 8;
 	const clickY = 4;
 	const click = { position: [clickX / longSide, clickY / longSide], time: 2 } as const;
+	// 幅24pxの帯で、先頭から10px（5/12）後ろにある2番目の山の減衰率。
+	const secondCrest = 539 / 864;
 
 	async function createRipple(width: number, height: number, ports: readonly string[], enable32bitDataTextures: boolean,
 		{ reflectivity, duration }: { reflectivity?: number; duration?: number } = {}) {
@@ -91,13 +93,20 @@ export async function run() {
 				const later = await ripple.render(click.time + 32 / longSide, [click]);
 				const expired = await ripple.render(click.time + 1, [click]);
 				for (const port of ports) {
-					const crest = port === 'mask' ? 1 : 0.02;
+					const peakStrength = port === 'mask' ? 1 : 0.02;
+					const crest = peakStrength * secondCrest;
 					near(empty(port, clickX + 10, clickY), 0, 'future click');
 					near(single(port, clickX + 10, clickY), crest, 'horizontal crest');
 					near(single(port, clickX, clickY + 10, port === 'mask' ? 0 : 1), crest, 'vertical crest');
-					near(single(port, clickX + 14, clickY), port === 'mask' ? 0 : -crest, 'signed trough');
+					near(single(port, clickX + 14, clickY), port === 'mask' ? 0 : -peakStrength * 27 / 32, 'signed trough');
 					near(single(port, clickX + 22, clickY), 0, 'ahead of the front');
+					// 【帯の先頭から後端へ向かって、周期ごとの山が減衰する】
+					// 半径32pxの同じ波から、先頭の2px、10px、18px後ろの山と幅24pxの終端を読む。
+					near(later(port, clickX - 30, clickY), (port === 'mask' ? 1 : -1) * peakStrength * 847 / 864, 'leading crest');
 					near(later(port, clickX + 22, clickY), crest, 'propagating crest');
+					near(later(port, clickX + 14, clickY), peakStrength * 5 / 32, 'trailing crest');
+					near(later(port, clickX + 8, clickY), 0, 'zero at the end of the wave width');
+					near(later(port, clickX + 7, clickY), 0, 'zero behind the wave width');
 					near(overlap(port, clickX + 10, clickY), port === 'mask' ? crest : crest * 2, 'overlap');
 					near(expired(port, clickX + 10, clickY), 0, 'expired click');
 				}
@@ -126,8 +135,8 @@ export async function run() {
 					[0, -24, 0, -20, 1, 1],
 				]) {
 					const afterWall = await reflected.render(waveAtWalls, [{ position: [pressX / longSide, pressY / longSide], time: 2 }]);
-					near(afterWall('mask', sampleX, sampleY), 0.8, 'wall reflection crest');
-					near(afterWall('output', sampleX, sampleY, channel), direction * 0.8 * 0.02, 'wall reflection displacement');
+					near(afterWall('mask', sampleX, sampleY), 0.8 * secondCrest, 'wall reflection crest');
+					near(afterWall('output', sampleX, sampleY, channel), direction * 0.8 * secondCrest * 0.02, 'wall reflection displacement');
 				}
 				const disabled = await direct.render(waveAtWalls, [rightWallPress]);
 				near(disabled('mask', 52, 0), 0, 'default reflectivity leaves the reflected crest disabled');
@@ -137,19 +146,19 @@ export async function run() {
 				// 1回までの反射波は測定点を過ぎており、二重の鏡像（85,49）から来た波の振幅だけが残る。
 				const cornerPress = { position: [48 / longSide, 16 / longSide], time: 2 } as const;
 				const cornerReflection = await reflected.render(2 + (Math.hypot(37, 37) + 10) / longSide, [cornerPress]);
-				near(cornerReflection('mask', 44, 12), 0.64, 'corner reflectivity applied twice');
-				near(cornerReflection('output', 44, 12), -0.64 * 0.02 / Math.SQRT2, 'corner displacement x');
-				near(cornerReflection('output', 44, 12, 1), -0.64 * 0.02 / Math.SQRT2, 'corner displacement y');
+				near(cornerReflection('mask', 44, 12), 0.64 * secondCrest, 'corner reflectivity applied twice');
+				near(cornerReflection('output', 44, 12), -0.64 * secondCrest * 0.02 / Math.SQRT2, 'corner displacement x');
+				near(cornerReflection('output', 44, 12, 1), -0.64 * secondCrest * 0.02 / Math.SQRT2, 'corner displacement y');
 
 				const overlapping = await reflected.render(waveAtWalls, Array.from({ length: 16 }, () => rightWallPress));
-				near(overlapping('mask', 52, 0), 0.8, 'overlapping reflections retain the highest crest');
-				near(overlapping('output', 52, 0), -16 * 0.8 * 0.02, 'all sixteen reflected displacements contribute');
+				near(overlapping('mask', 52, 0), 0.8 * secondCrest, 'overlapping reflections retain the highest crest');
+				near(overlapping('output', 52, 0), -16 * 0.8 * secondCrest * 0.02, 'all sixteen reflected displacements contribute');
 
 				const outsidePress = { position: [73 / longSide, 0], time: 2 } as const;
 				const outsideBeforeArrival = await reflected.render(2 + 14 / longSide, [outsidePress]);
 				near(outsideBeforeArrival('mask', 52, 0), 0, 'an outside click does not reflect into the drawing area');
 				const outsideAfterArrival = await reflected.render(waveAtWalls, [outsidePress]);
-				near(outsideAfterArrival('mask', 52, 0), 1, 'the direct wave from outside still reaches the drawing area');
+				near(outsideAfterArrival('mask', 52, 0), secondCrest, 'the direct wave from outside still reaches the drawing area');
 			} finally { reflected.dispose(); }
 		} finally { direct.dispose(); }
 
