@@ -40,7 +40,7 @@ function fixture() {
 		name: { value: 'Project' }, description: { value: '' }, author: { value: '' },
 		resolution: { value: { width: 1920, height: 1080 } }, timelineFps: { value: 30 },
 		timelineMotionBlur: { value: { enabled: false, shutterAngle: 180, samples: 8 } }, exportSettings: { value: null },
-		automationGraphs: { value: [] }, customShaderEffects: { value: [] },
+		curveAnimations: { value: [] }, customShaderEffects: { value: [] },
 		assets: { value: [] }, nodesEffects: { value: [] }, timelineScenes: { value: [] },
 	};
 	return { state, manager: new UndoRedo(state, COMMAND_DEFS), query: createProjectScriptQueries(state) };
@@ -203,7 +203,7 @@ test('executes every documented Query example against the public Command and Que
 		for (const source of definition.examples) {
 			const { state, manager, query } = fixture();
 			state.assets.value.push({ id: 'asset', name: 'Image', width: 100, height: 50, fileDataType: 'image/png', fileData: new Blob(['image']), hash: 'hash', isExternalReference: false, sourceFilePath: null });
-			manager.commit('createProjectAutomationGraph', {});
+			manager.commit('createProjectCurveAnimation', {});
 			const output = [];
 			const runtime = new ProjectScriptRuntime({
 				commands: SCRIPT_COMMAND_NAMES.map(commandName => ({ name: commandName, label: COMMAND_DEFS[commandName].label })),

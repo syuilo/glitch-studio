@@ -5,7 +5,7 @@
 		<GsVisualParam
 			keyframesEnabled nodesEffectParameterReferencesEnabled
 			:availableVariables="NODES_EFFECT_CUSTOM_PARAMETER_VAR_DEFS"
-			:automationGraphs="nodesEffect.automationGraphs"
+			:curveAnimations="nodesEffect.curveAnimations"
 			:nodesEffect="nodesEffect"
 			:paramPath="[definition.id]"
 			:paramDef="definition"

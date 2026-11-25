@@ -2,7 +2,7 @@
 
 Native Effectの `canNode: true` パラメータは `init()` の `inputs` から `ShaderInput` として受け取る。構造体・配列内の末端にも同じ規約を適用する。配列は `elements`、構造体は `fields` を持つ。 [Effectの入力型](../renderer/src/effect-instance.ts)
 
-- `uniform` は画面全体で同じ値。リテラルだけでなく式やAutomation Graphの評価値も含む。f32のuniformへ書き込み、1×1テクスチャを作らない。`enable32bitDataTextures` はテクスチャの保存精度を指定する。
+- `uniform` は画面全体で同じ値。リテラルだけでなく式やCurve Animationの評価値も含む。f32のuniformへ書き込み、1×1テクスチャを作らない。`enable32bitDataTextures` はテクスチャの保存精度を指定する。
 - `texture` は接続元の出力とその `resolution` を借用する。Fit／Wrap／Filterは受け取り側のBindingから `sampling` へ渡し、配置計画で `cover` / `repeatMirrored` / `linear` の既定値を補う。入力テクスチャの保存形式は維持する。
 - 色の定数はレンダラーで一度だけpremultiplyする。画像テクスチャも乗算済みの色として読む。スカラー・ベクトル・汎用データは成分をそのまま読む。未接続の入力はパラメータの既定値を使う。
 

@@ -26,10 +26,10 @@
 					imageInputSamplingEnabled
 					:imageLayerOptions="imageLayerOptions"
 					:anotherLayerAudioOptions="anotherLayerAudioOptions"
-					:automationGraphEndEnabled="false"
+					:curveAnimationEndEnabled="false"
 					:availableVariables="EFFECT_LAYER_VAR_DEFS"
-					:automationGraphs="layer.automationGraphs"
-					:projectAutomationGraphs="projectSession.projectContext.stateManager.state.automationGraphs.value"
+					:curveAnimations="layer.curveAnimations"
+					:projectCurveAnimations="projectSession.projectContext.stateManager.state.curveAnimations.value"
 					:paramPath="[parameterKey]"
 					:paramDef="definition.paramDefs[parameterKey]"
 					:paramValue="layer.effectParamValues[parameterKey] ?? parameterDefaults[parameterKey]"

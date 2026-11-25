@@ -19,10 +19,10 @@ const literal = value => ({ inputSource: 'literal', value });
 const signal = () => new AbortController().signal;
 const clip = (assetId, changes = {}) => ({ id: assetId, assetId, startMs: 0, durationMs: 100, sourceInMs: 0, sourceOutMs: 100, playbackRate: 1, loop: false, ...changes });
 const audio = (id, changes = {}) => ({ id, name: id, layerType: 'audio', isDisabled: false,
-	clips: [clip(id)], audioParamValues: { volume: literal(1) }, automationGraphs: [], ...changes });
+	clips: [clip(id)], audioParamValues: { volume: literal(1) }, curveAnimations: [], ...changes });
 const scene = (id, layers) => ({ id, name: id, resolution: { mode: 'project' }, layers });
 const waveform = { id: 'waveform', layerType: 'effect', name: 'Waveform', effectSource: { type: 'nativeEffect', id: 'audioWaveform' }, resolution: { mode: 'auto', scale: 1 }, isDisabled: false,
-	clips: [{ id: 'wave', startMs: 0, durationMs: 100, contentOffsetMs: 0 }], effectParamValues: {}, compositingParamValues: {}, automationGraphs: [] };
+	clips: [{ id: 'wave', startMs: 0, durationMs: 100, contentOffsetMs: 0 }], effectParamValues: {}, compositingParamValues: {}, curveAnimations: [] };
 const constant = async (_id, _time, frames) => [new Float32Array(frames).fill(1), new Float32Array(frames).fill(-0.5)];
 
 // 【指定レイヤーの音声は並び順に依存せず、他のレイヤーの音声を含めない】

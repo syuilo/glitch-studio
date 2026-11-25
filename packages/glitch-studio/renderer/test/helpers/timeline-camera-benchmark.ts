@@ -27,7 +27,7 @@ export async function run() {
 		forceDisableMotionBlur: false,
 		mask: null,
 		coordinateSpace: 'world' as const,
-		automationGraphs: [],
+		curveAnimations: [],
 	};
 	const shapes: TimelineLayer[] = Array.from({ length: 12 }, (_, index) => {
 		const shape = createShape('rectangle');

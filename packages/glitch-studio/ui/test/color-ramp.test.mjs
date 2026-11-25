@@ -74,7 +74,7 @@ test('preserves Color Ramp values and modifiers through merged edits, undo, redo
 	assert.deepEqual(node.params.ramp.expressionModifier, modifier);
 	const encoded = await encodeProjectFile({ assets: [], generatedSpeech: [], timelineScenes: [], nodesEffects: state.nodesEffects.value, gsVersion: '2.0.0-alpha.19' });
 	assert.deepEqual(decodeProjectFile(encoded).nodesEffects[0].definition.nodes[0].params, node.params);
-	assert.throws(() => history.commit('switchNodesEffectNodeParameterInputSource', { ...nodeParameterTarget({ ...target }), inputSource: 'automationGraphInline' }), /does not support/);
+	assert.throws(() => history.commit('switchNodesEffectNodeParameterInputSource', { ...nodeParameterTarget({ ...target }), inputSource: 'curveAnimationInline' }), /does not support/);
 });
 
 const componentDirectory = fileURLToPath(new URL('../src/components/common/', import.meta.url));

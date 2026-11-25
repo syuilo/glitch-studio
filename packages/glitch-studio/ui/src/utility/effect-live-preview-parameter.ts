@@ -5,7 +5,7 @@ import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definit
 import { canUseEffectLivePreviewInput } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParamEdit } from '@/components/GsVisualParam.vue';
-import { createInlineAutomationGraph } from './automation-graph.ts';
+import { createInlineCurveAnimation } from './curve-animation.ts';
 import { createInlineKeyframesTimeline } from './keyframes-timeline.ts';
 import { createResetParameterBinding } from './parameter-default.ts';
 import type { EffectLivePreviewParameterBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
@@ -15,7 +15,7 @@ export function editEffectLivePreviewParameter(def: ParameterDefinition, current
 	const reset = () => createResetParameterBinding(def);
 	switch (event.kind) {
 		case 'literal': next = { inputSource: 'literal', value: deepClone(event.value) }; break;
-		case 'automationGraphInline': next = deepClone(event.value); break;
+		case 'curveAnimationInline': next = deepClone(event.value); break;
 		case 'keyframesTimelineInline': next = deepClone(event.value); break;
 		case 'envVariable': next = { inputSource: 'envVariable', variable: event.value }; break;
 		case 'expression': next = { inputSource: 'expression', expression: event.value }; break;
@@ -23,13 +23,13 @@ export function editEffectLivePreviewParameter(def: ParameterDefinition, current
 			if (!isValueParameterBinding(current)) return null;
 			next = { ...current, expressionModifier: deepClone(event.value) };
 			break;
-		case 'automationGraphReference': next = {
-			inputSource: 'automationGraphReference',
+		case 'curveAnimationReference': next = {
+			inputSource: 'curveAnimationReference',
 			trimmedDurationMs: 1000,
 			wrapMode: 'repeat',
 			offsetMode: 'start',
-			...(current?.inputSource === 'automationGraphReference' ? current : {}),
-			automationGraphId: event.value,
+			...(current?.inputSource === 'curveAnimationReference' ? current : {}),
+			curveAnimationId: event.value,
 			...event.options,
 		}; break;
 		case 'copy':
@@ -55,14 +55,14 @@ export function editEffectLivePreviewParameter(def: ParameterDefinition, current
 					inputSource: 'expression',
 					expression: AiSON.stringify(current?.inputSource === 'literal' ? current.value : def.defaultValue),
 				}; break;
-				case 'automationGraphReference': next = {
-					inputSource: 'automationGraphReference',
-					automationGraphId: null,
+				case 'curveAnimationReference': next = {
+					inputSource: 'curveAnimationReference',
+					curveAnimationId: null,
 					trimmedDurationMs: 1000,
 					wrapMode: 'repeat',
 					offsetMode: 'start',
 				}; break;
-				case 'automationGraphInline': next = createInlineAutomationGraph(); break;
+				case 'curveAnimationInline': next = createInlineCurveAnimation(); break;
 				case 'keyframesTimelineInline':
 					next = createInlineKeyframesTimeline(def, isValueParameterBinding(current) ? current : reset());
 					break;

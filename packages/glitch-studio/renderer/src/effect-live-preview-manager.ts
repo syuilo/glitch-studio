@@ -38,7 +38,7 @@ import type { CanvasOutputSettings } from './canvas-output.ts';
 import type { PreviewCanvasContext, PreviewDisplayMode, CpuPreviewFrame, CpuPreviewCanvasTarget } from './preview-canvas-context.ts';
 import type { FrameScheduler, EffectLivePreviewFrameTiming } from './effect-live-preview-render-loop.ts';
 import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
-import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
+import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
 import type { Asset } from '@gs/shared/types.ts';
 
 /**
@@ -91,7 +91,7 @@ export type EffectLivePreviewManagerDynamicOptions = {
 	fpsLimit: number | null;
 	nodesEffects: ProjectNodesEffect[];
 	customShaderEffects: ProjectCustomShaderEffect[];
-	automationGraphs: AutomationGraph[];
+	curveAnimations: CurveAnimation[];
 };
 
 /** 素材一覧は寿命中に固定する。Effectの登録情報はプロジェクト状態に含める。 */
@@ -217,7 +217,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		analysisHistogramViewport: null,
 		nodesEffects: [],
 		customShaderEffects: [],
-		automationGraphs: [],
+		curveAnimations: [],
 	};
 
 	private constructor(coreConfig: EffectLivePreviewManagerCoreConfig, staticOptions: EffectLivePreviewManagerStaticOptions, resources: EffectLivePreviewManagerResources) {
@@ -394,7 +394,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 			this.effectLivePreviewRenderLoop.timeFactor = this.dynamicOptions.effectLivePreviewTimeFactor;
 		}
 		if (reinitialize) this.initializePlacement();
-		else if (newOptions.automationGraphs != null) this.activeEffect?.inputs.updateAutomationGraphs(newOptions.automationGraphs);
+		else if (newOptions.curveAnimations != null) this.activeEffect?.inputs.updateCurveAnimations(newOptions.curveAnimations);
 	}
 
 	public applyProjectChanges(changes: readonly RendererProjectChange[]) {
@@ -413,7 +413,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		} else if (this.activeEffect != null) {
 			for (const change of relevant) {
 				if (isNodesEffectValueChange(change)) this.activeEffect.pendingValues.enqueue(change);
-				if (change.type === 'automationGraphs') this.activeEffect.inputs.updateAutomationGraphs(next.automationGraphs);
+				if (change.type === 'curveAnimations') this.activeEffect.inputs.updateCurveAnimations(next.curveAnimations);
 			}
 		}
 	}
@@ -476,7 +476,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		const port = requestedPort != null && Object.hasOwn(definition.outputDefs, requestedPort) ? requestedPort : null;
 		const source: EffectLivePreviewStatusSource = { type: 'effectLivePreview', instanceId: this.effectLivePreviewStatusInstanceId! };
 		const lifetime = new AbortController();
-		const inputs = createEffectLivePreviewInputs(definition, placement.params ?? {}, this.dynamicOptions.automationGraphs, {
+		const inputs = createEffectLivePreviewInputs(definition, placement.params ?? {}, this.dynamicOptions.curveAnimations, {
 			image: () => this.previewImage.bind(),
 			audio: () => this.previewAudioCapture?.snapshot() ?? this.previewAudio?.atTime(this.previewAudioPosition, this.previewAudioGeneration) ?? null,
 		});

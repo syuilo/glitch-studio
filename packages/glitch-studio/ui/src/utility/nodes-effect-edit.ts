@@ -114,17 +114,17 @@ function onNodeParameterEdit(manager: ProjectCommands, nodesEffect: NodesEffectT
 		case 'createPublicParameter': manager.commit('createNodesEffectPublicParameterFromParameter', input); break;
 		case 'createCustomParameter': manager.commit('createNodesEffectCustomParameterFromParameter', input); break;
 		case 'literal': manager.commit('setNodesEffectNodeParameterSource', { ...input, source: { inputSource: 'literal', value: event.value } }, event.mergeKey); break;
-		case 'automationGraphInline':
+		case 'curveAnimationInline':
 		case 'keyframesTimelineInline': manager.commit('setNodesEffectNodeParameterSource', { ...input, source: event.value }, event.mergeKey); break;
 		case 'envVariable': manager.commit('setNodesEffectNodeParameterSource', { ...input, source: { inputSource: 'envVariable', variable: event.value } }); break;
 		case 'expression': manager.commit('setNodesEffectNodeParameterSource', { ...input, source: { inputSource: 'expression', expression: event.value } }, event.mergeKey); break;
 		case 'expressionModifier': manager.commit('setNodesEffectNodeParameterExpressionModifier', { ...input, expressionModifier: event.value }, event.mergeKey); break;
-		case 'automationGraphReference': {
+		case 'curveAnimationReference': {
 			const node = findNodesEffect(manager.state, nodesEffect)?.nodes.find(candidate => candidate.id === nodeId);
 			if (node?.type !== 'effect') throw new Error('Effect node not found');
 			const current = resolveNodeParam(node, event.paramPath, getEffectDefinitions(manager.state)).value;
-			manager.commit('setNodesEffectNodeParameterSource', { ...input, source: { inputSource: 'automationGraphReference', trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start',
-				...(current.inputSource === 'automationGraphReference' ? current : {}), automationGraphId: event.value, ...event.options } }); break;
+			manager.commit('setNodesEffectNodeParameterSource', { ...input, source: { inputSource: 'curveAnimationReference', trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start',
+				...(current.inputSource === 'curveAnimationReference' ? current : {}), curveAnimationId: event.value, ...event.options } }); break;
 		}
 		case 'node': manager.commit('setNodesEffectNodeParameterSource', { ...input, source: event.value == null ? { inputSource: 'node', nodeId: null, outputPort: null } : { inputSource: 'node', ...event.value },
 			preserveNodeSampling: event.preserveSampling, connectionTypePolicy: preferences.s.forceTypeSafety ? 'strict' : 'allowMismatch' }); break;

@@ -1,24 +1,24 @@
 import { rawBezierEasing } from '../utility/bezier.ts';
-import type { AutomationGraphData, AutomationGraphPlaybackOptions, AutomationGraphWrapMode, BezierAnchorPoint } from './automation-graph.ts';
+import type { CurveAnimationData, CurveAnimationPlaybackOptions, CurveAnimationWrapMode, BezierAnchorPoint } from './curve-animation.ts';
 
-export function evaluateAutomationGraph(graph: AutomationGraphData, playback: AutomationGraphPlaybackOptions, time: number, endTime: number): number {
-	// 正規化グラフの1をtrimmedDurationMsに対応付ける。未指定・無効なdurationはUIの初期値と同じ1秒にする。
-	const scale = graph.isNormalized
+export function evaluateCurveAnimation(curveAnimation: CurveAnimationData, playback: CurveAnimationPlaybackOptions, time: number, endTime: number): number {
+	// 正規化Curve Animationの1をtrimmedDurationMsに対応付ける。未指定・無効なdurationはUIの初期値と同じ1秒にする。
+	const scale = curveAnimation.isNormalized
 		? (playback.trimmedDurationMs != null && Number.isFinite(playback.trimmedDurationMs) && playback.trimmedDurationMs > 0 ? playback.trimmedDurationMs : 1000)
 		: 1;
 	let x = time / scale;
 	// 終了時刻を持たないコンテキストではstartと同じ扱いにし、InfinityによるNaNを避ける。
 	// pointsは編集順で保持されるため、配列末尾ではなく最大のXを終端とする。
-	if (playback.offsetMode === 'end' && Number.isFinite(endTime) && graph.points.length > 0) {
-		const lastX = graph.points.reduce((last, point) => Math.max(last, point.x), -Infinity);
+	if (playback.offsetMode === 'end' && Number.isFinite(endTime) && curveAnimation.points.length > 0) {
+		const lastX = curveAnimation.points.reduce((last, point) => Math.max(last, point.x), -Infinity);
 		x = (time - endTime) / scale + lastX;
 	}
-	return evalAutomationGraphValue(graph, x, playback.wrapMode);
+	return evalCurveAnimationValue(curveAnimation, x, playback.wrapMode);
 }
 
-export function evalAutomationGraphValue(automationGraph: { points: readonly BezierAnchorPoint[] }, x: number, wrapMode: AutomationGraphWrapMode): number {
+export function evalCurveAnimationValue(curveAnimation: { points: readonly BezierAnchorPoint[] }, x: number, wrapMode: CurveAnimationWrapMode): number {
 	// 元の配列を変更せずX順に並べる。同じXでは元の順序を保ち、後のポイントを優先する。
-	const points = automationGraph.points.toSorted((a, b) => a.x - b.x);
+	const points = curveAnimation.points.toSorted((a, b) => a.x - b.x);
 	if (points.length === 0) return 0;
 	const first = points[0];
 	const last = points[points.length - 1];

@@ -105,10 +105,10 @@
 							:data-test-timeline-compositing-parameter="paramId"
 							previewParameterGroup="compositing"
 							keyframesEnabled
-							:automationGraphEndEnabled="false"
+							:curveAnimationEndEnabled="false"
 							:availableVariables="LAYER_VAR_DEFS"
-							:automationGraphs="hasTimelineLayerParameters(layer) ? layer.automationGraphs : []"
-							:projectAutomationGraphs="projectSession.projectContext.stateManager.state.automationGraphs.value"
+							:curveAnimations="hasTimelineLayerParameters(layer) ? layer.curveAnimations : []"
+							:projectCurveAnimations="projectSession.projectContext.stateManager.state.curveAnimations.value"
 							:paramPath="[paramId]"
 							:paramDef="paramDef"
 							:paramValue="layer.compositingParamValues[paramId] ?? createDefaultParameterBinding(paramDef)"
@@ -167,10 +167,10 @@
 				<GsVisualParam
 					:key="layer.id"
 					keyframesEnabled
-					:automationGraphEndEnabled="false"
+					:curveAnimationEndEnabled="false"
 					:availableVariables="LAYER_VAR_DEFS"
-					:automationGraphs="hasTimelineLayerParameters(layer) ? layer.automationGraphs : []"
-					:projectAutomationGraphs="projectSession.projectContext.stateManager.state.automationGraphs.value"
+					:curveAnimations="hasTimelineLayerParameters(layer) ? layer.curveAnimations : []"
+					:projectCurveAnimations="projectSession.projectContext.stateManager.state.curveAnimations.value"
 					:paramPath="['volume']"
 					:paramDef="timelineAudioParamDefs.volume"
 					data-test-layer-volume

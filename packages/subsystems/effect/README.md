@@ -27,7 +27,7 @@ instance.render(frame, commandEncoder);
 - 配線、使用出力、各Bindingの `inputSource`、配列の構造、入力種別・寸法・サンプリング、静的設定は生成時に確定する。これらを編集したら配置を再生成する。値や同じ寸法の借用テクスチャの差し替えには入力のgetterを使える。時間は秒、`timeDelta` はミリ秒で渡す。
 - Nodes Effect は各ノードの `effectSource` と公開出力の `outputSources` を持つ。InからOutへ直結すると、その配置の入力がtextureの場合に元のテクスチャ・寸法・世代を借用する。Relay経由も同じ。uniformの直結と未接続ポートは `outputs` に含まれない。画像を読む接続がFit／Wrap／Filterを指定する。
 - Bypassは型が互換な主ポート間でテクスチャを転送する。副出力とuniformの主入力は未接続として扱う。
-- 既定値と配列要素追加用の値はすべてliteralで、初期化時に展開する。`params` は配置側のBinding、`inputs` は解決済みの入力で、同じIDでは `inputs` が優先される。式・環境変数・キー・Automation Graph・加工式は標準評価器が処理する。ホスト固有の処理は `bindParameterValue` で差し替えられる。
+- 既定値と配列要素追加用の値はすべてliteralで、初期化時に展開する。`params` は配置側のBinding、`inputs` は解決済みの入力で、同じIDでは `inputs` が優先される。式・環境変数・キー・Curve Animation・加工式は標準評価器が処理する。ホスト固有の処理は `bindParameterValue` で差し替えられる。
 - 旧実装の `canLazyAllocation` は廃止した。`createEffectInstance()` は `usedOutputPorts` に指定された公開出力から配線を逆にたどり、描画に必要な Native Effect・Custom Shader Effect の出力ポートだけにテクスチャを確保する。各実装は初期化時に `outputTextures` でそのポートとテクスチャを受け取る。使用する出力が変わったらインスタンスを作り直す。
 - Custom Shader Effect は全入力の種別と使用する出力に合わせて、配置ごとに一度だけpipelineを生成する。ユーザーのWGSL関数は定義された全出力を持つ `Output` を返し、生成したfragmentエントリポイントが使用する出力だけを描画先へ書き込む。コンパイルが失敗した場合は `createEffectInstance()` が失敗する。
 - Native Effect の出力ごとに `inputParameters` で描画に使う入力を指定できる。省略時は全入力を使う。たとえば Vignette の Mask だけを使う配置では、入力画像の寸法から解像度を決め、マスクを1パスで描く。色とマスクを両方使う配置でも Vignette 自体の描画は1パスで済む。
@@ -36,8 +36,8 @@ instance.render(frame, commandEncoder);
 
 ## 値・寸法・外部入力
 
-- Nodes Effect の `PUBLIC(name)` は自身の公開CPUパラメータを、`CUSTOM(name)` は自身の内部パラメータを、`GRAPH(name, x, wrap)` は自身の Automation Graph を参照する。内部値は参照されたフレーム内で一度評価する。入れ子のノードに渡す引数のBindingは親グラフに属する。Relay は初期化時に入力のポートへ解決する。
-- `time` と `endTime` は秒、`timeDelta` とキー・Automation Graphの時間軸はミリ秒。`endTime` 省略時は無限の再生区間とする。ポインターの位置・移動量は配置の基準領域の長辺を1とする座標で渡す。各ノードでは描画解像度の縦横比へ換算した値を描画と式評価で共有する。
+- Nodes Effect の `PUBLIC(name)` は自身の公開CPUパラメータを、`CUSTOM(name)` は自身の内部パラメータを、`CURVE_ANIMATION(name, x, wrap)` は自身の Curve Animation を参照する。内部値は参照されたフレーム内で一度評価する。入れ子のノードに渡す引数のBindingは親グラフに属する。Relay は初期化時に入力のポートへ解決する。
+- `time` と `endTime` は秒、`timeDelta` とキー・Curve Animationの時間軸はミリ秒。`endTime` 省略時は無限の再生区間とする。ポインターの位置・移動量は配置の基準領域の長辺を1とする座標で渡す。各ノードでは描画解像度の縦横比へ換算した値を描画と式評価で共有する。
 - 配置には基準寸法 `resolution`、全体倍率 `resolutionScale`、解像度指定 `resolutionSetting` を渡せる。ルートは既定でcontext、内部ノードはauto。autoは素材原寸、指定入力の最大画素数の寸法、親の順で選ぶ。上流の計画寸法には全体倍率が適用済みで、各配置では自身の倍率だけを掛ける。
 - `resources` に素材メタデータと画像テクスチャを渡す。Native Effectは初期化時に解決済みの画像やファイルの読み取り口を借用する。音声は配置側から通常の入力として`AudioInput`を渡す。素材の選択や寸法を変えた場合は配置を再生成する。
 

@@ -27,7 +27,7 @@ import type { TimelineLayerPublicParameterReferenceBinding, TimelineParameterBin
 import type { TimelineEffectParameterBinding, TimelineLowerLayerOutputBinding } from "@gs/subsystems_timeline_shared/parameter-binding.ts";
 import type { ValueParameterEdit } from "@/types/parameter-edit.ts";
 import { createInlineKeyframesTimeline } from "@/utility/keyframes-timeline.ts";
-import { createInlineAutomationGraph } from "@/utility/automation-graph.ts";
+import { createInlineCurveAnimation } from "@/utility/curve-animation.ts";
 
 export function setTimelineLayerParameterRoot(layer: TimelineLayer, target: TimelineParameterTarget, rootKey: string, binding: EditableTimelineParameterBinding | null | undefined) {
 	if (target === 'publicParameter') {
@@ -90,7 +90,7 @@ export function applyTimelineParameterEdit(state: ProjectState, payload: Timelin
 	switch (edit.kind) {
 		case 'structFields': next = updateStructParameterFields(def, current, edit.fields); break;
 		case 'literal': next = { inputSource: 'literal', value: deepClone(edit.value) }; break;
-		case 'automationGraphInline':
+		case 'curveAnimationInline':
 		case 'keyframesTimelineInline':
 		case 'lowerLayerOutput': next = deepClone(edit.value); break;
 		case 'anotherLayerOutput': {
@@ -121,13 +121,13 @@ export function applyTimelineParameterEdit(state: ProjectState, payload: Timelin
 			validateParameterExpressionModifier(def, next);
 			break;
 		}
-		case 'automationGraphReference': next = {
-			inputSource: 'automationGraphReference',
+		case 'curveAnimationReference': next = {
+			inputSource: 'curveAnimationReference',
 			trimmedDurationMs: 1000,
 			wrapMode: 'repeat',
 			offsetMode: 'start',
-			...(current.inputSource === 'automationGraphReference' ? current : {}),
-			automationGraphId: edit.value,
+			...(current.inputSource === 'curveAnimationReference' ? current : {}),
+			curveAnimationId: edit.value,
 			...edit.options,
 		}; break;
 		case 'reset':
@@ -153,14 +153,14 @@ export function applyTimelineParameterEdit(state: ProjectState, payload: Timelin
 				case 'literal': next = createDefaultParameterBinding(def); break;
 				case 'envVariable': next = { inputSource: 'envVariable', variable: '' }; break;
 				case 'expression': next = { inputSource: 'expression', expression: AiSON.stringify(current.inputSource === 'literal' ? current.value : def.defaultValue) }; break;
-				case 'automationGraphReference': next = {
-					inputSource: 'automationGraphReference',
-					automationGraphId: null,
+				case 'curveAnimationReference': next = {
+					inputSource: 'curveAnimationReference',
+					curveAnimationId: null,
 					trimmedDurationMs: 1000,
 					wrapMode: 'repeat',
 					offsetMode: 'start',
 				}; break;
-				case 'automationGraphInline': next = createInlineAutomationGraph(); break;
+				case 'curveAnimationInline': next = createInlineCurveAnimation(); break;
 				case 'keyframesTimelineInline': next = createInlineKeyframesTimeline(def, current); break;
 				case 'lowerLayerOutput': next = target === 'effect' ? createLowerLayerOutputBinding() : { inputSource: 'lowerLayerOutput' }; break;
 				case 'anotherLayerOutput': next = {

@@ -22,7 +22,7 @@ export function createEffectTimelineLayer(definition: EffectChoice, startMs: num
 		color: null,
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
 		resolution: { mode: 'auto', scale: 1 },
-		automationGraphs: [],
+		curveAnimations: [],
 		effectStaticSettings: createStaticSettingValues(definition.staticSettingDefs ?? {}),
 		effectParamValues: Object.fromEntries(Object.keys(definition.paramDefs).map(key => [key, getEffectLayerParameterDefault(definition, key)])),
 		forceDisableMotionBlur: false,

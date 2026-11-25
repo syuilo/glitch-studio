@@ -17,9 +17,9 @@ const clip = () => ({ id: 'clip', startMs: 100, durationMs: 400, contentOffsetMs
 const image = (id, settings = {}) => ({ id, name: id, layerType: 'image', isDisabled: false, isSolo: false,
 	isIncludedInComposite: true, clips: [clip()], ...settings });
 const sound = (id, settings = {}) => ({ id, name: id, layerType: 'audio', isDisabled: false, isSolo: false,
-	automationGraphs: [], audioParamValues: { volume: literal(0.8) }, clips: [{ ...clip(), assetId: id, sourceInMs: 0, sourceOutMs: 400, playbackRate: 1, loop: false }], ...settings });
+	curveAnimations: [], audioParamValues: { volume: literal(0.8) }, clips: [{ ...clip(), assetId: id, sourceInMs: 0, sourceOutMs: 400, playbackRate: 1, loop: false }], ...settings });
 const container = (id, layers, settings = {}) => ({ id, name: id, layerType: 'group', isDisabled: false, isSolo: false,
-	isIncludedInComposite: true, layers, automationGraphs: [], audioParamValues: { volume: literal(0.5) }, ...settings });
+	isIncludedInComposite: true, layers, curveAnimations: [], audioParamValues: { volume: literal(0.5) }, ...settings });
 const scene = (id, layers) => ({ id, name: id, resolution: { mode: 'project' }, layers });
 const outputIds = layers => [...getTimelineSoloState(layers).layers].filter(([, state]) => state.isOutputEnabled).map(([id]) => id);
 

@@ -354,7 +354,7 @@ for (const hasCamera of [false, true]) {
 		const scene = structuredClone(renderer.dynamicOptions.timelineScenes[0]);
 		scene.layers = ['a', 'b', 'c'].map(id => ({ ...structuredClone(scene.layers[0]), id }));
 		if (hasCamera) scene.layers.unshift({ id: 'camera', layerType: 'camera', isDisabled: false, forceDisableMotionBlur: false,
-			automationGraphs: [], cameraParamValues: {}, clips: [{ id: 'camera-clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }] });
+			curveAnimations: [], cameraParamValues: {}, clips: [{ id: 'camera-clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }] });
 		await renderer.updateDynamicOptions({ nodesEffects: [registration(constantNodesEffect())], timelineScenes: [scene], previewFps: 30 });
 		const camera = t.mock.method(renderer.transformPreviewCamera, 'evaluate');
 		const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
@@ -595,7 +595,7 @@ async function fixture(t, staticOptions = {}, Manager = EffectLivePreviewManager
 	await renderer.updateDynamicOptions({
 		resolution: { width: 1, height: 1 },
 		nodesEffects: [registration(nodesEffect(true))],
-		...(Manager === TimelineRendererManager ? { timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectSource: referenceSource, effectStaticSettings: {}, resolution: { mode: 'context', scale: 1 }, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], effectParamValues: {}, compositingParamValues: {}, automationGraphs: [] }] }], sceneId: 'scene' } : {}),
+		...(Manager === TimelineRendererManager ? { timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectSource: referenceSource, effectStaticSettings: {}, resolution: { mode: 'context', scale: 1 }, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], effectParamValues: {}, compositingParamValues: {}, curveAnimations: [] }] }], sceneId: 'scene' } : {}),
 	});
 	return { renderer, errors, frames, originalGpuMethods, async frame(timestamp) {
 		const [id, callback] = frames.entries().next().value;
@@ -1693,11 +1693,11 @@ for (const [name, createManager] of [['effectLivePreview', createEffectLivePrevi
 // Live Previewの公開引数とTimelineのレイヤー引数は別の評価経路を通るため、
 // 片方だけ同期したり、同一時刻での再描画に古い曲線を使い続けたりする不具合を防ぐ。
 for (const Manager of [EffectLivePreviewManager, TimelineRendererManager]) {
-	test(`${Manager.name} refreshes project curves without exposing them inside Nodes Effects`, async t => {
+	test(`${Manager.name} refreshes project Curve Animations without exposing them inside Nodes Effects`, async t => {
 		const { renderer, frame, errors } = await fixture(t, {}, Manager);
-		const graph = value => ({ id: 'shared-curve', nameForReference: 'Curve', isNormalized: false,
+		const curveAnimation = value => ({ id: 'shared-curve-animation', nameForReference: 'Curve', isNormalized: false,
 			points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
-		const expression = { inputSource: 'expression', expression: '[GRAPH("Curve", TIME_MS, "clamp"), 0, 0, 1]' };
+		const expression = { inputSource: 'expression', expression: '[CURVE_ANIMATION("Curve", TIME_MS, "clamp"), 0, 0, 1]' };
 		const observedColors = [];
 		const create = renderer.gpuDevice.createCommandEncoder.bind(renderer.gpuDevice);
 		renderer.gpuDevice.createCommandEncoder = () => {
@@ -1711,7 +1711,7 @@ for (const Manager of [EffectLivePreviewManager, TimelineRendererManager]) {
 			return encoder;
 		};
 		const definition = constantNodesEffect();
-		await renderer.updateDynamicOptions({ nodesEffects: [registration(definition)], automationGraphs: [graph(0.5)] });
+		await renderer.updateDynamicOptions({ nodesEffects: [registration(definition)], curveAnimations: [curveAnimation(0.5)] });
 		if (Manager === EffectLivePreviewManager) renderer.startEffectLivePreview({ effectSource: referenceSource, params: { color: expression } });
 		else {
 			const scene = structuredClone(renderer.dynamicOptions.timelineScenes[0]);
@@ -1723,13 +1723,13 @@ for (const Manager of [EffectLivePreviewManager, TimelineRendererManager]) {
 		await render();
 		assert.deepEqual(errors, []);
 		assert.deepEqual(observedColors.at(-1), [0.5, 0, 0, 1]);
-		renderer.applyProjectChanges([{ type: 'automationGraphs', automationGraphs: [graph(0.25)] }]);
+		renderer.applyProjectChanges([{ type: 'curveAnimations', curveAnimations: [curveAnimation(0.25)] }]);
 		await render();
 		assert.deepEqual(observedColors.at(-1), [0.25, 0, 0, 1]);
-		assert.deepEqual(renderer.dynamicOptions.nodesEffects[0].definition.automationGraphs ?? [], []);
-		renderer.applyProjectChanges([{ type: 'automationGraphs', automationGraphs: [] }]);
+		assert.deepEqual(renderer.dynamicOptions.nodesEffects[0].definition.curveAnimations ?? [], []);
+		renderer.applyProjectChanges([{ type: 'curveAnimations', curveAnimations: [] }]);
 		await render();
-		assert.match(errors.at(-1), /Unknown automation graph/);
+		assert.match(errors.at(-1), /Unknown Curve Animation/);
 	});
 }
 

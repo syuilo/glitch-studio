@@ -1,6 +1,6 @@
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { findTimelineLayer, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
-import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
+import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
 import type { ProjectCustomShaderEffect, ProjectNodesEffect, ProjectEffectRegistrations } from './types.ts';
 import type { NodesEffect, NodesEffectNode } from '@gs/subsystems_effect_shared/nodes-effect.ts';
 import type { ParameterChangeKind } from '@gs/shared/parameter/parameter-definition.ts';
@@ -8,7 +8,7 @@ import type { TimelineClipLayer, TimelineContainerLayer, TimelineLayer, Timeline
 import type { NodesEffectTarget } from './nodes-effect-target.ts';
 
 export type RendererProjectState = ProjectEffectRegistrations & {
-	automationGraphs: AutomationGraph[];
+	curveAnimations: CurveAnimation[];
 	timelineScenes: TimelineScene[];
 };
 
@@ -30,7 +30,7 @@ export type NodesEffectNodeChange =
 // 登録とインライン配置のどちらでも、ノードの値編集はそのノードだけを送る。
 // 描画時に定義とBindingの世代が揃うよう、定義と利用側の補正は同じ差分列で適用する。
 export type RendererProjectChange =
-	| { type: 'automationGraphs'; automationGraphs: AutomationGraph[] }
+	| { type: 'curveAnimations'; curveAnimations: CurveAnimation[] }
 	| (NodesEffectTarget & { type: 'node'; node: NodesEffectNode; changes: NodesEffectNodeChange[] })
 	| (NodesEffectTarget & { type: 'nodesEffect'; nodesEffect: NodesEffect; customParameterValuesOnly?: false })
 	| (NodesEffectTarget & { type: 'nodesEffect'; nodesEffect: Pick<NodesEffect, 'customParameterValues'>; customParameterValuesOnly: true })
@@ -42,9 +42,9 @@ export type RendererProjectChange =
 	| { type: 'layerOrder'; sceneId: string; layerIds: string[] }
 	| { type: 'scene'; sceneId: string; scene: TimelineScene | null };
 
-/** Effect Live Previewが所有するのは登録定義と共通のAutomation Graph。レイヤー内の編集はTimelineだけに送る。 */
+/** Effect Live Previewが所有するのは登録定義と共通のCurve Animation。レイヤー内の編集はTimelineだけに送る。 */
 export function isEffectLivePreviewProjectChange(change: RendererProjectChange) {
-	return change.type === 'customShaderEffectRegistration' || change.type === 'automationGraphs' || 'nodesEffectId' in change;
+	return change.type === 'customShaderEffectRegistration' || change.type === 'curveAnimations' || 'nodesEffectId' in change;
 }
 
 export function findRendererNodesEffect(state: RendererProjectState, target: NodesEffectTarget): NodesEffect | null {
@@ -66,7 +66,7 @@ function updateRegistration<T extends { id: string }>(entries: T[], id: string, 
  * 途中で失敗しても呼び出し元の状態は変わらず、完成した結果を一度だけ採用できる。
  */
 export function applyRendererProjectChanges(state: RendererProjectState, changes: readonly RendererProjectChange[]): RendererProjectState {
-	let automationGraphs = state.automationGraphs;
+	let curveAnimations = state.curveAnimations;
 	let nodesEffects = state.nodesEffects;
 	let customShaderEffects = state.customShaderEffects;
 	let timelineScenes = state.timelineScenes;
@@ -78,7 +78,7 @@ export function applyRendererProjectChanges(state: RendererProjectState, changes
 	};
 	for (const change of changes) {
 		switch (change.type) {
-			case 'automationGraphs': automationGraphs = change.automationGraphs; break;
+			case 'curveAnimations': curveAnimations = change.curveAnimations; break;
 			case 'customShaderEffectRegistration':
 				customShaderEffects = updateRegistration(customShaderEffects, change.customShaderEffectId, change.customShaderEffect);
 				break;
@@ -143,5 +143,5 @@ export function applyRendererProjectChanges(state: RendererProjectState, changes
 			}
 		}
 	}
-	return { automationGraphs, customShaderEffects, nodesEffects, timelineScenes };
+	return { curveAnimations, customShaderEffects, nodesEffects, timelineScenes };
 }

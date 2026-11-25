@@ -27,9 +27,9 @@ export class RendererProjectSynchronizer {
 			// Assets・プロジェクト解像度・タイムライン描画設定は専用同期経路が扱い、表示名は送らない。
 			// どの通知を描画へ送るかは、状態管理ではなくこの購読側で選ぶ。
 			const targets = changes.filter((change): change is ProjectContentChange =>
-				change.type === 'customShaderEffect' || change.type === 'automationGraphs' || change.type === 'node' || change.type === 'nodesEffect' || change.type === 'nodesEffectRegistration' || change.type === 'layer' || change.type === 'layerTree' || change.type === 'layerOrder' || change.type === 'scene');
+				change.type === 'customShaderEffect' || change.type === 'curveAnimations' || change.type === 'node' || change.type === 'nodesEffect' || change.type === 'nodesEffectRegistration' || change.type === 'layer' || change.type === 'layerTree' || change.type === 'layerOrder' || change.type === 'scene');
 			for (let target of targets) {
-				const key = target.type === 'customShaderEffect' ? JSON.stringify([target.type, target.customShaderEffectId]) : target.type === 'automationGraphs' ? target.type : target.type === 'node' ? JSON.stringify([target.type, nodesEffectTargetKey(target.target), target.nodeId])
+				const key = target.type === 'customShaderEffect' ? JSON.stringify([target.type, target.customShaderEffectId]) : target.type === 'curveAnimations' ? target.type : target.type === 'node' ? JSON.stringify([target.type, nodesEffectTargetKey(target.target), target.nodeId])
 					: target.type === 'nodesEffect' ? JSON.stringify([target.type, nodesEffectTargetKey(target.target)])
 					: target.type === 'nodesEffectRegistration' ? JSON.stringify([target.type, target.nodesEffectId])
 					: JSON.stringify([target.type, target.sceneId, target.type === 'layer' ? target.layerId : null]);
@@ -63,8 +63,8 @@ export class RendererProjectSynchronizer {
 				changes.push({ type: 'customShaderEffectRegistration', customShaderEffectId, customShaderEffect: this.manager.state.customShaderEffects.value.find(entry => entry.id === customShaderEffectId) ?? null });
 				continue;
 			}
-			if (target.type === 'automationGraphs') {
-				changes.push({ type: 'automationGraphs', automationGraphs: this.manager.state.automationGraphs.value });
+			if (target.type === 'curveAnimations') {
+				changes.push({ type: 'curveAnimations', curveAnimations: this.manager.state.curveAnimations.value });
 			} else if (target.type === 'nodesEffectRegistration') {
 				changes.push({ ...target, nodesEffect: this.manager.state.nodesEffects.value.find(nodesEffect => nodesEffect.id === target.nodesEffectId) ?? null });
 			} else if (target.type === 'node' || target.type === 'nodesEffect') {

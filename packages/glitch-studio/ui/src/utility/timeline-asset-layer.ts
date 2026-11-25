@@ -27,7 +27,7 @@ export function createTimelineAssetLayer(asset: Asset, startMs: number, media: T
 	const base = {
 		id: genId(),
 		name: asset.name,
-		automationGraphs: [],
+		curveAnimations: [],
 		isDisabled: false,
 		isSolo: false,
 		color: null,

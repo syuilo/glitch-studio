@@ -16,7 +16,7 @@
 | Brightness | linear RGBで適用する光量倍率。負値は0 |
 | Opacity | 光源のalphaに掛ける被覆率。0〜1に制限 |
 
-Thickness Input・Birefringence・Fast Axis Angle・Light Color・Opacityは定数とノード接続に対応する。全パラメータで式・automationを利用できる。角度は共通のangle入力と同じturn単位（右が0、時計回りに1周が1）で、各軸は半回転で同じ向きになる。
+Thickness Input・Birefringence・Fast Axis Angle・Light Color・Opacityは定数とノード接続に対応する。全パラメータで式・Curve Animationを利用できる。角度は共通のangle入力と同じturn単位（右が0、時計回りに1周が1）で、各軸は半回転で同じ向きになる。
 
 ## 計算と制約
 

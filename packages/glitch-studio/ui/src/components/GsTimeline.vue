@@ -1292,7 +1292,7 @@ function formatFullTimecode(timeMs: number): string {
 	background: #fff1;
 }
 
-.automationGraph {
+.curveAnimation {
 	position: absolute;
 	top: 0;
 	left: 0;

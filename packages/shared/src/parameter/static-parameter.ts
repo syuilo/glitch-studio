@@ -6,7 +6,7 @@ import type { ParameterBindingBase, ParameterArrayElement } from './parameter-bi
 
 /** 共通の入力方式のうち、対応表への変換を定義していない方式を入口で拒否する。 */
 export function validateColorRampParameterInputSource(definition: Pick<ParameterDefinition, 'dataType'>, binding: ParameterBindingBase): void {
-	if (definition.dataType.kind === 'colorRamp' && ['keyframesTimelineInline', 'automationGraphReference', 'automationGraphInline'].includes(binding.inputSource)) throw new Error('Color Ramp does not support keyframes or Automation Graph input');
+	if (definition.dataType.kind === 'colorRamp' && ['keyframesTimelineInline', 'curveAnimationReference', 'curveAnimationInline'].includes(binding.inputSource)) throw new Error('Color Ramp does not support keyframes or Curve Animation input');
 }
 
 /** コンテナの値と子設定の既定値をそれぞれ検査する。 */
@@ -111,8 +111,8 @@ function staticParameterSourceShape(definition: ParameterDefinition | null | und
 		return ['literal', kind != null && ['audioSource', 'array', 'struct'].includes(kind) ? binding.value : null];
 	}
 	if (binding.inputSource === 'expression') return ['expression'];
-	if (binding.inputSource === 'automationGraphInline') {
-		const { automationGraph, ...settings } = binding;
+	if (binding.inputSource === 'curveAnimationInline') {
+		const { curveAnimation, ...settings } = binding;
 		return settings;
 	}
 	if (binding.inputSource === 'keyframesTimelineInline') {

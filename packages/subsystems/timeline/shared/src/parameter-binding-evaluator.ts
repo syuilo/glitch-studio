@@ -23,7 +23,7 @@ export class TimelineParameterBindingEvaluator {
 			// 所有レイヤーを基準に必ず祖先方向へ進める。呼び出した子の環境を再利用すると、
 			// 同名のPUBLICが子自身へ戻り、階層だけで保証できる非循環性を失ってしまう。
 			const ownerContext = { layer: owner, ancestors: ownerIndex < 0 ? context.ancestors : context.ancestors.slice(0, ownerIndex) };
-			const ownerScope = createTimelineLayerEvaluationScope({ time: scope.time, isExport: scope.variables.IS_EXPORT === true, automationGraphs: owner.automationGraphs, publicParameters: ownerContext });
+			const ownerScope = createTimelineLayerEvaluationScope({ time: scope.time, isExport: scope.variables.IS_EXPORT === true, curveAnimations: owner.curveAnimations, publicParameters: ownerContext });
 			const binding = owner.publicParameterValues?.[publicParameterDefinition.id];
 			const value = binding == null ? publicParameterDefinition.defaultValue : evaluate(binding, ownerScope, publicParameterDefinition.defaultValue, publicParameterDefinition, true);
 			const result = coerceParameterValue(publicParameterDefinition, deepClone(value)) as Cloneable;

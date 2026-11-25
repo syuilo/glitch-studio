@@ -61,7 +61,7 @@ function fixture() {
 			audio: { ...parameter('audioSource'), nameForReference: 'audio' } },
 		outputSources: { output: { nodeId: 'relay', outputPort: 'output' } },
 		primaryInputParameter: 'input', primaryAudioInputParameter: 'audio', resolutionInputParameters: ['input'],
-		automationGraphs: [{ id: 'graph', nameForReference: 'graph', isNormalized: true, points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }],
+		curveAnimations: [{ id: 'curve-animation', nameForReference: 'curve-animation', isNormalized: true, points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }],
 	});
 	const assets = [asset('video', 'video/mp4'), asset('nested-image'), asset('font', 'font/ttf'), asset('default-image'), asset('template-image'), asset('template-font', 'font/otf'), asset('unused')];
 	const input = { name: 'Source Nodes Effect', nodesEffects: [], customShaderEffects: [], nodeMetadata: { effect: { displayName: 'Resource Node', position: { x: 3, y: 4 } } }, gsVersion: '2.0.0-alpha.1', nodesEffect, assets };
@@ -137,7 +137,7 @@ test('remaps project resources while preserving local wiring', () => {
 	assert.deepEqual(first.nodesEffect.definition.nodes[0].params.input, file.nodesEffect.nodes[0].params.input);
 	assert.deepEqual(first.nodesEffect.definition.nodes[1], file.nodesEffect.nodes[1]);
 	assert.deepEqual(first.nodesEffect.definition.outputSources, file.nodesEffect.outputSources);
-	assert.deepEqual(first.nodesEffect.definition.automationGraphs, file.nodesEffect.automationGraphs);
+	assert.deepEqual(first.nodesEffect.definition.curveAnimations, file.nodesEffect.curveAnimations);
 	const importedAsset = name => first.assets.find(item => item.name === name).id;
 	const params = first.nodesEffect.definition.nodes[0].params;
 	const settings = first.nodesEffect.definition.nodes[0].staticSettings;

@@ -488,7 +488,7 @@ export async function run() {
 			checks.push(`${label}: configurable blur sample counts and centered single sample`);
 
 			// 【サンプル数は丸め・上下限制限し、無効な効果では結果へ影響しない】
-			// 式やautomationの小数値から0除算・巨大ループを作らず、整数の設定と同じ結果にする。
+			// 式やCurve Animationの小数値から0除算・巨大ループを作らず、整数の設定と同じ結果にする。
 			for (const [blurSamples, rounded] of [[-5, 1], [0, 1], [2.4, 2], [2.6, 3], [999, 128]]) {
 				const values = await impulseRender({ ...blurParams, blurSamples });
 				const reference = await impulseRender({ ...blurParams, blurSamples: rounded });

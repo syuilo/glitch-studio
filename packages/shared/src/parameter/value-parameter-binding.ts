@@ -1,4 +1,4 @@
-import type { AutomationGraphData, AutomationGraphPlaybackOptions } from '../automation-graph/automation-graph.ts';
+import type { CurveAnimationData, CurveAnimationPlaybackOptions } from '../curve-animation/curve-animation.ts';
 import type { ExpressionVariableName } from '../expression/expression-environment.ts';
 import type { KeyframesTimelineData, KeyframesTimelinePlaybackOptions } from '../keyframes/keyframes-timeline.ts';
 
@@ -18,12 +18,12 @@ export type ValueParameterSource = {
 	inputSource: 'expression';
 	expression: string;
 } | ({
-	inputSource: 'automationGraphReference';
-	automationGraphId: string | null;
-} & AutomationGraphPlaybackOptions) | ({
-	inputSource: 'automationGraphInline';
-	automationGraph: AutomationGraphData;
-} & AutomationGraphPlaybackOptions) | ({
+	inputSource: 'curveAnimationReference';
+	curveAnimationId: string | null;
+} & CurveAnimationPlaybackOptions) | ({
+	inputSource: 'curveAnimationInline';
+	curveAnimation: CurveAnimationData;
+} & CurveAnimationPlaybackOptions) | ({
 	inputSource: 'keyframesTimelineInline';
 	keyframesTimeline: KeyframesTimelineData;
 } & KeyframesTimelinePlaybackOptions);

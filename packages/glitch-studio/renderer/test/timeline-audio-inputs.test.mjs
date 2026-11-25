@@ -8,8 +8,8 @@ const samples = (window, channel = 'left') => Float32Array.from({ length: window
 const literal = value => ({ inputSource: 'literal', value });
 const scenes = [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
 	{ id: 'waveform', name: 'Waveform', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'audioWaveform' }, resolution: { mode: 'auto', scale: 1 }, isDisabled: false,
-		clips: [{ id: 'wave', startMs: 0, durationMs: 10000, contentOffsetMs: 0 }], effectParamValues: {}, compositingParamValues: {}, automationGraphs: [] },
-	{ id: 'audio', name: 'Audio', layerType: 'audio', isDisabled: false, automationGraphs: [], audioParamValues: { volume: literal(1) },
+		clips: [{ id: 'wave', startMs: 0, durationMs: 10000, contentOffsetMs: 0 }], effectParamValues: {}, compositingParamValues: {}, curveAnimations: [] },
+	{ id: 'audio', name: 'Audio', layerType: 'audio', isDisabled: false, curveAnimations: [], audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'sound', assetId: 'asset', startMs: 0, durationMs: 10000, sourceInMs: 0, sourceOutMs: 10000, playbackRate: 1, loop: false }] },
 ] }];
 

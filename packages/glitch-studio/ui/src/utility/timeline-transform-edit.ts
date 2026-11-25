@@ -20,7 +20,7 @@ export function prepareTimelineTransformBindings(bindings: TimelineTransformBind
 	const result: TimelineTransformBindings = {};
 	for (const key of keys) {
 		const binding = bindings[key] ?? createDefaultParameterBinding(timelineCompositingParamDefs[key]);
-		if (!canEditTimelineTransform(binding, key)) throw new Error('Transform parameter is driven by an expression or automation');
+		if (!canEditTimelineTransform(binding, key)) throw new Error('Transform parameter is driven by an expression or Curve Animation');
 		result[key] = binding.inputSource === 'keyframesTimelineInline'
 			? insertInlineKeyframe(binding, timelineCompositingParamDefs[key], Math.round(time), 0)!.value : deepClone(binding);
 	}

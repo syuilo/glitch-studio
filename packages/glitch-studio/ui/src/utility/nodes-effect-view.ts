@@ -83,7 +83,7 @@ export function createNodesEffectView(nodesEffect: Definition, metadata: NodesEf
 		paramDefs: Object.entries(nodesEffect.paramDefs).map(([id, def]) => ({ ...def, id, nameForReference: def.nameForReference ?? id, canNode: def.canNode === true })) as NodesEffectParamDef[],
 		outputDefs: Object.entries(nodesEffect.outputDefs).map(([id, def]) => ({ ...def, id, name: def.nameForReference ?? id, label: def.label ?? id })),
 		customParameterDefs: Object.entries(nodesEffect.customParameterDefs ?? {}).map(([id, def]) => ({ ...def, id, canNode: false })) as NodesEffectCustomParameterDefinition[],
-		customParameterValues: { ...nodesEffect.customParameterValues } as NodesEffect['customParameterValues'], automationGraphs: [...nodesEffect.automationGraphs ?? []],
+		customParameterValues: { ...nodesEffect.customParameterValues } as NodesEffect['customParameterValues'], curveAnimations: [...nodesEffect.curveAnimations ?? []],
 		primaryInputId: nodesEffect.primaryInputParameter as NodesEffect['primaryInputId'], primaryOutputId: nodesEffect.primaryOutput,
 		primaryAudioInputId: nodesEffect.primaryAudioInputParameter as NodesEffect['primaryAudioInputId'],
 	};
@@ -184,7 +184,7 @@ export function saveNodesEffectView(owner: NodesEffectViewOwner, state: ProjectS
 			primaryInputParameter: view.primaryInputId, primaryOutput: view.primaryOutputId,
 			...(view.primaryAudioInputId == null && nodesEffect.primaryAudioInputParameter == null ? {} : { primaryAudioInputParameter: view.primaryAudioInputId }),
 			resolutionInputParameters: view.resolutionInputParameters,
-			...(nodesEffect.automationGraphs != null || view.automationGraphs.length > 0 ? { automationGraphs: view.automationGraphs } : {}),
+			...(nodesEffect.curveAnimations != null || view.curveAnimations.length > 0 ? { curveAnimations: view.curveAnimations } : {}),
 			...(nodesEffect.customParameterValues != null || Object.keys(view.customParameterValues).length > 0 ? { customParameterValues: view.customParameterValues } : {}),
 			...(nodesEffect.customParameterDefs != null || view.customParameterDefs.length > 0 ? { customParameterDefs: Object.fromEntries(view.customParameterDefs.map(({ id, ...def }) => [id, def])) } : {}),
 		};

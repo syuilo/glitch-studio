@@ -16,7 +16,7 @@ const { getTimelineRenderLayers } = await load('layer-tree.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const scalar = id => ({ id, nameForReference: id, dataType: { kind: 'scalar' }, ui: { label: id, control: { controlType: 'number' } }, defaultValue: 0 });
 const container = type => createTimelineContainerLayer(type, type, type);
-const sound = () => ({ id: 'sound', layerType: 'audio', name: 'Sound', isDisabled: false, automationGraphs: [], audioParamValues: { volume: literal(1) }, clips: [{ id: 'clip', startMs: 100, durationMs: 200, sourceInMs: 0, sourceOutMs: 200, playbackRate: 1, loop: false, assetId: 'asset' }] });
+const sound = () => ({ id: 'sound', layerType: 'audio', name: 'Sound', isDisabled: false, curveAnimations: [], audioParamValues: { volume: literal(1) }, clips: [{ id: 'clip', startMs: 100, durationMs: 200, sourceInMs: 0, sourceOutMs: 200, playbackRate: 1, loop: false, assetId: 'asset' }] });
 
 // 【整理用コンテナだけを表示順に展開し、無効な枝と描画境界の内側を結果へ混ぜない】
 // 結果配列への直接追加に変更しても、Group/Transformの子は各レンダラーが扱い、
@@ -50,8 +50,8 @@ test('collects render layers in order without crossing render boundaries or muta
 test('creates organizing containers with only their supported capabilities', () => {
 	const folder = container('folder');
 	const parameters = container('parameterContainer');
-	for (const key of ['automationGraphs', 'publicParameterDefs', 'publicParameterValues', 'compositingParamValues', 'audioParamValues', 'transformParamValues', 'forceDisableMotionBlur']) assert.equal(Object.hasOwn(folder, key), false);
-	assert.deepEqual(parameters.automationGraphs, []);
+	for (const key of ['curveAnimations', 'publicParameterDefs', 'publicParameterValues', 'compositingParamValues', 'audioParamValues', 'transformParamValues', 'forceDisableMotionBlur']) assert.equal(Object.hasOwn(folder, key), false);
+	assert.deepEqual(parameters.curveAnimations, []);
 	for (const key of ['compositingParamValues', 'audioParamValues', 'transformParamValues', 'forceDisableMotionBlur']) assert.equal(Object.hasOwn(parameters, key), false);
 });
 
@@ -104,7 +104,7 @@ test('skips folders in parameter scope and stops at empty parameter containers',
 	child.publicParameterValues = { speed: { inputSource: 'expression', expression: 'PUBLIC("speed") * 2' } };
 	folder.layers = [child];
 	parent.layers = [folder];
-	const read = () => new TimelineParameterBindingEvaluator().evaluate({ inputSource: 'expression', expression: 'PUBLIC("speed")' }, createTimelineLayerEvaluationScope({ time: 100, isExport: false, automationGraphs: [], publicParameters: getTimelineLayerPublicParameterContext([parent], child.id) }), 0, scalar('result'));
+	const read = () => new TimelineParameterBindingEvaluator().evaluate({ inputSource: 'expression', expression: 'PUBLIC("speed")' }, createTimelineLayerEvaluationScope({ time: 100, isExport: false, curveAnimations: [], publicParameters: getTimelineLayerPublicParameterContext([parent], child.id) }), 0, scalar('result'));
 	const index = createTimelineLayerPublicParameterContextIndex([parent]);
 	assert.equal(index.has(folder.id), false);
 	assert.deepEqual(index.get(child.id).ancestors.map(owner => owner.id), [parent.id]);
@@ -122,7 +122,7 @@ test('skips folders in parameter scope and stops at empty parameter containers',
 test('passes masks audio and cameras through organizing containers while honoring disabled ancestors', () => {
 	const folder = container('folder');
 	const parameters = container('parameterContainer');
-	const image = { id: 'image', name: 'Image', layerType: 'image', isDisabled: false, clips: [], layerMask: null, automationGraphs: [], isIncludedInComposite: true };
+	const image = { id: 'image', name: 'Image', layerType: 'image', isDisabled: false, clips: [], layerMask: null, curveAnimations: [], isIncludedInComposite: true };
 	const background = { ...image, id: 'background' };
 	const camera = { id: 'camera', layerType: 'camera', isDisabled: false, forceDisableMotionBlur: false, clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }] };
 	parameters.layers = [image, camera, sound()];

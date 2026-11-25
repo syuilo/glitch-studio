@@ -34,8 +34,8 @@
 						previewMediaInputEnabled
 						:availableVariables="EFFECT_LIVE_PREVIEW_VAR_DEFS"
 						:paramPath="[id]"
-						:automationGraphs="[]"
-						:projectAutomationGraphs="stateManager.state.automationGraphs.value"
+						:curveAnimations="[]"
+						:projectCurveAnimations="stateManager.state.curveAnimations.value"
 						:paramDef="definition"
 						:paramValue="previewParamValues[id] ?? previewDefaultBindings[id]"
 						:defaultBinding="previewDefaultBindings[id]"

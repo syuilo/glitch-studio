@@ -25,7 +25,7 @@ test('passes discrete layer keyframes to Nodes Effects consistently during previ
 			{ id: 'second', x: 10000, value: second, interpolation: { type: 'hold' } },
 		] },
 	});
-	const layer = { automationGraphs: [], nodesEffectParamValues: {
+	const layer = { curveAnimations: [], nodesEffectParamValues: {
 		text: animated(definitions[0], 'Hello\n世界', ''), enabled: animated(definitions[1], true, false), mode: animated(definitions[2], 'a', 'b'),
 	} };
 	let resolved;

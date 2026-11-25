@@ -11,7 +11,7 @@ const shader = { ...graph, outputDefs: { color: { dataType: { kind: 'color' }, n
 	primaryOutput: 'color', shaderApiVersion: 1, code: '' };
 const node = { id: 'node', effectSource: { type: 'nativeEffect', id: 'image' }, params: {} };
 const state = {
-	automationGraphs: [],
+	curveAnimations: [],
 	nodesEffects: [{ id: 'graph', name: 'Main', nodeMetadata: { node: { displayName: 'Input' } }, definition: { ...graph, nodes: [node] } }],
 	customShaderEffects: [],
 	timelineScenes: [{ id: 'scene', layers: [{ id: 'folder', layerType: 'folder', layers: [

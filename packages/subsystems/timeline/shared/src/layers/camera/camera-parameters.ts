@@ -8,7 +8,7 @@ export class TimelineCameraParameters {
 	private evaluator = new TimelineParameterBindingEvaluator();
 	// 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
 	evaluate(camera: TimelineCamera | null | undefined, time: number, isExport: boolean, publicParameters?: TimelineLayerPublicParameterContext | null): EvaluatedTimelineCamera {
-		const scope = createTimelineLayerEvaluationScope({ time, isExport, publicParameters, automationGraphs: camera?.automationGraphs ?? [] });
+		const scope = createTimelineLayerEvaluationScope({ time, isExport, publicParameters, curveAnimations: camera?.curveAnimations ?? [] });
 		const read = (key: keyof typeof timelineCameraParamDefs): unknown => {
 			const fallback = timelineCameraParamDefs[key].defaultValue;
 			const binding = camera?.paramValues[key];

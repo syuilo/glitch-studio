@@ -5,7 +5,7 @@ import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-valu
 import { timelineCompositingParamDefs, type TimelineLayerCoordinateSpace, type TimelineLayerTransformTarget, type TimelineMask, type TimelineLayerMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
-import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
+import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
 import type { FitMode } from '@gs/shared/types.ts';
 import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 
@@ -28,14 +28,14 @@ export type TimelineCompositingSettings = {
 export class TimelineCompositingParameters {
 	private evaluator = new TimelineParameterBindingEvaluator();
 
-	evaluate(context: { time: number; isExport: boolean; coordinateSpace: TimelineLayerCoordinateSpace; mask: TimelineMask | null; layerMask: TimelineLayerMask | null; transformTarget?: TimelineLayerTransformTarget; paramValues: Record<string, TimelineParameterBinding>; automationGraphs: AutomationGraph[]; publicParameters?: TimelineLayerPublicParameterContext | null }): TimelineCompositingSettings {
+	evaluate(context: { time: number; isExport: boolean; coordinateSpace: TimelineLayerCoordinateSpace; mask: TimelineMask | null; layerMask: TimelineLayerMask | null; transformTarget?: TimelineLayerTransformTarget; paramValues: Record<string, TimelineParameterBinding>; curveAnimations: CurveAnimation[]; publicParameters?: TimelineLayerPublicParameterContext | null }): TimelineCompositingSettings {
 		const evaluationContext = createTimelineLayerEvaluationScope(context);
 		const values = new Map<string, any>();
 		for (const [key, def] of Object.entries(timelineCompositingParamDefs)) {
 			const value = context.paramValues[key];
-			// 未指定・欠落グラフには設定の既定値を使う。式の失敗は例外として上位へ伝える。
+			// 未指定・欠落Curve Animationには設定の既定値を使う。式の失敗は例外として上位へ伝える。
 			values.set(key, coerceParameterValue(def, value == null ? def.defaultValue : this.evaluator.evaluate(value, evaluationContext,
-				value.inputSource === 'automationGraphReference' || key === 'fitMode' ? def.defaultValue : genEmptyValue(def), def)));
+				value.inputSource === 'curveAnimationReference' || key === 'fitMode' ? def.defaultValue : genEmptyValue(def), def)));
 		}
 		// 不正な式の型や非有限値をGPUへ流さない。範囲外の有限な位置・倍率は制限しない。
 		const number = (id: string, fallback: number) => {

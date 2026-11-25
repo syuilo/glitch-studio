@@ -66,7 +66,7 @@ export function createSceneTimelineLayer(
 					layerMask: layer.layerMask,
 					paramValues: layer.compositingParamValues,
 					publicParameters: context.publicParameters,
-					automationGraphs: layer.automationGraphs,
+					curveAnimations: layer.curveAnimations,
 				});
 				const source: TimelineImage = { kind: 'texture', texture: sceneOutput.render(encoder, result.output) };
 				return { ...compositor.evaluate(context, source, settings), gpuTime: result.gpuTime };

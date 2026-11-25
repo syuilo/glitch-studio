@@ -9,11 +9,11 @@ import { parseProjectApiValue } from '../project-api/contract.ts';
 import { nodesEffectTargetSchema, nodesEffectNodeReferenceSchema } from '../commands/nodes-effect-contract-schemas.ts';
 import { timelineSceneReferenceSchema, timelineLayerReferenceSchema, timelineClipReferenceSchema } from '../commands/timeline-contract-schemas.ts';
 import {
-	assetReferenceSchema, effectReferenceSchema, projectAutomationGraphReferenceSchema, customShaderEffectReferenceSchema,
+	assetReferenceSchema, effectReferenceSchema, projectCurveAnimationReferenceSchema, customShaderEffectReferenceSchema,
 	projectSummarySchema, nodesEffectSummarySchema, nodesEffectResultSchema, nodesEffectNodeSummarySchema, nodesEffectNodeResultSchema,
 	timelineSceneSummarySchema, timelineSceneResultSchema, timelineLayerSummarySchema, timelineLayerResultSchema, timelineClipResultSchema, timelineLayerParametersSchema,
 	assetMetadataSchema, effectSummarySchema, effectDefinitionResultSchema,
-	projectAutomationGraphResultSchema, customShaderEffectSummarySchema, customShaderEffectResultSchema,
+	projectCurveAnimationResultSchema, customShaderEffectSummarySchema, customShaderEffectResultSchema,
 } from './project-script-query-schemas.ts';
 import type { ProjectApiContract } from '../project-api/contract.ts';
 import type { NodesEffectTarget } from '@gs/glitch-studio_shared/project/nodes-effect-target.ts';
@@ -87,7 +87,7 @@ export const PROJECT_SCRIPT_QUERY_DEFINITIONS = {
 	}),
 	'Query:getNodesEffect': defineQuery({
 		argumentCount: 1, inputSchema: nodesEffectTargetSchema, resultSchema: nodesEffectResultSchema,
-		description: 'Get a detached Nodes Effect definition including Nodes, bindings, public/custom parameters, outputs and Automation Graphs. Supports registered and inline Nodes Effects. Values are stored bindings rather than evaluated values.',
+		description: 'Get a detached Nodes Effect definition including Nodes, bindings, public/custom parameters, outputs and Curve Animations. Supports registered and inline Nodes Effects. Values are stored bindings rather than evaluated values.',
 		examples: ['let nodesEffect = Command:createNodesEffect({ name: "Generated" })\n<: Query:getNodesEffect(nodesEffect)'],
 		execute(state, target) {
 			return snapshot({ ...getNodesEffect(state, target), target, name: nodesEffectName(state, target) });
@@ -211,20 +211,20 @@ export const PROJECT_SCRIPT_QUERY_DEFINITIONS = {
 			return snapshot({ ...getEffectDefinitions(state).describe(effectSource), target: { effectSource } });
 		},
 	}),
-	'Query:listProjectAutomationGraphs': defineQuery({
-		argumentCount: 0, inputSchema: z.null(), resultSchema: z.array(projectAutomationGraphResultSchema),
-		description: 'List complete Project-level Automation Graph definitions with target references. Does not include Automation Graphs owned by Nodes Effects or Timeline Layers.',
-		examples: ['<: Query:listProjectAutomationGraphs()'],
-		execute: state => snapshot(state.automationGraphs.value.map(graph => ({ ...graph, target: { automationGraphId: graph.id } }))),
+	'Query:listProjectCurveAnimations': defineQuery({
+		argumentCount: 0, inputSchema: z.null(), resultSchema: z.array(projectCurveAnimationResultSchema),
+		description: 'List complete Project-level Curve Animation definitions with target references. Does not include Curve Animations owned by Nodes Effects or Timeline Layers.',
+		examples: ['<: Query:listProjectCurveAnimations()'],
+		execute: state => snapshot(state.curveAnimations.value.map(curveAnimation => ({ ...curveAnimation, target: { curveAnimationId: curveAnimation.id } }))),
 	}),
-	'Query:getProjectAutomationGraph': defineQuery({
-		argumentCount: 1, inputSchema: projectAutomationGraphReferenceSchema, resultSchema: projectAutomationGraphResultSchema,
-		description: 'Get a Project-level Automation Graph with its points, Bezier handles and normalization setting. Returns stored curve data, not its value evaluated at a time.',
-		examples: ['each (let graph, Query:listProjectAutomationGraphs()) { <: Query:getProjectAutomationGraph(graph.target) }'],
-		execute(state, { automationGraphId }) {
-			const graph = state.automationGraphs.value.find(candidate => candidate.id === automationGraphId);
-			if (graph == null) throw new Error(`Automation Graph not found: ${automationGraphId}`);
-			return snapshot({ ...graph, target: { automationGraphId } });
+	'Query:getProjectCurveAnimation': defineQuery({
+		argumentCount: 1, inputSchema: projectCurveAnimationReferenceSchema, resultSchema: projectCurveAnimationResultSchema,
+		description: 'Get a Project-level Curve Animation with its points, Bezier handles and normalization setting. Returns stored curve data, not its value evaluated at a time.',
+		examples: ['each (let curveAnimation, Query:listProjectCurveAnimations()) { <: Query:getProjectCurveAnimation(curveAnimation.target) }'],
+		execute(state, { curveAnimationId }) {
+			const curveAnimation = state.curveAnimations.value.find(candidate => candidate.id === curveAnimationId);
+			if (curveAnimation == null) throw new Error(`Curve Animation not found: ${curveAnimationId}`);
+			return snapshot({ ...curveAnimation, target: { curveAnimationId } });
 		},
 	}),
 	'Query:listCustomShaderEffects': defineQuery({

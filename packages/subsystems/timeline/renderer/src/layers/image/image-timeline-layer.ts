@@ -33,7 +33,7 @@ export function createImageTimelineLayer(layer: TimelineImageLayer, sourceTextur
 				layerMask: layer.layerMask,
 				paramValues: layer.compositingParamValues,
 				publicParameters: context.publicParameters,
-				automationGraphs: layer.automationGraphs,
+				curveAnimations: layer.curveAnimations,
 			});
 			const encoder = options.device.createCommandEncoder();
 			try {

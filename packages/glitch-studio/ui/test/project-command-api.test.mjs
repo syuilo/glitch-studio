@@ -24,7 +24,7 @@ const { PROJECT_COMMAND_DEFS, RESOURCES_COMMAND_DEFS, UndoRedo } = loaded.export
 function fixture() {
 	const state = {
 		name: { value: 'Original' }, description: { value: '' }, author: { value: '' },
-		resolution: { value: { width: 1920, height: 1080 } }, automationGraphs: { value: [] },
+		resolution: { value: { width: 1920, height: 1080 } }, curveAnimations: { value: [] },
 		assets: { value: [] }, nodesEffects: { value: [] }, timelineScenes: { value: [] },
 	};
 	return { state, manager: new UndoRedo(state, { ...PROJECT_COMMAND_DEFS, ...RESOURCES_COMMAND_DEFS }) };
@@ -38,48 +38,48 @@ function assetSource(fileData = new Blob(['original'])) {
 
 
 // 【実際のプロジェクト編集を非同期グループでまとめ、途中エラー後にもUndoできる】
-// 無効な解像度だけを拒否し、それ以前の名前変更や作成済みグラフを一つの履歴へ残す。
+// 無効な解像度だけを拒否し、それ以前の名前変更や作成済みCurve Animationを一つの履歴へ残す。
 // ダイアログ待ち等のawaitを挟んでも、Redoで新しいIDを生成し直さないことを確認する。
 test('retains successful project edits in one undo group after an asynchronous failure', async () => {
 	const { state, manager } = fixture();
 	let created;
 	await assert.rejects(manager.runGroup('Script', async () => {
 		await manager.execute('setProjectName', { name: 'Script result' });
-		created = await manager.execute('createProjectAutomationGraph', { nameForReference: 'curve' });
+		created = await manager.execute('createProjectCurveAnimation', { nameForReference: 'curve' });
 		await Promise.resolve();
 		await manager.execute('setProjectResolution', { resolution: { width: 0, height: 1080 } });
 	}), /positive integers/);
 	assert.equal(state.name.value, 'Script result');
 	assert.deepEqual(state.resolution.value, { width: 1920, height: 1080 });
-	assert.equal(state.automationGraphs.value[0].id, created.automationGraphId);
+	assert.equal(state.curveAnimations.value[0].id, created.curveAnimationId);
 	assert.equal(manager.undoStack.value.length, 1);
 	assert.equal(manager.undoStack.value[0].label, 'Script');
-	const graph = structuredClone(state.automationGraphs.value[0]);
+	const curveAnimation = structuredClone(state.curveAnimations.value[0]);
 	manager.undo();
 	assert.equal(state.name.value, 'Original');
-	assert.deepEqual(state.automationGraphs.value, []);
+	assert.deepEqual(state.curveAnimations.value, []);
 	manager.redo();
 	assert.equal(state.name.value, 'Script result');
-	assert.deepEqual(state.automationGraphs.value, [graph]);
+	assert.deepEqual(state.curveAnimations.value, [curveAnimation]);
 });
 
-// 【グラフ複製の所有IDはCommandが作成し、呼び出し側の値を書き換えない】
+// 【Curve Animation複製の所有IDはCommandが作成し、呼び出し側の値を書き換えない】
 // 同じポイントIDを共有すると、複製元の編集やUndoによって複製先へ意図しない変更が伝わり得る。
-test('duplicates Automation Graphs with independent point IDs and stable redo', () => {
+test('duplicates Curve Animations with independent point IDs and stable redo', () => {
 	const { state, manager } = fixture();
 	const data = { isNormalized: false, points: [{ x: 0, y: 1, bezierControlPointA: [0, 0], bezierControlPointB: [1, 0] }] };
-	const original = manager.commit('createProjectAutomationGraph', { nameForReference: 'curve', data });
-	const duplicated = manager.commit('duplicateProjectAutomationGraph', original);
-	const source = state.automationGraphs.value[0];
-	const copy = structuredClone(state.automationGraphs.value[1]);
+	const original = manager.commit('createProjectCurveAnimation', { nameForReference: 'curve', data });
+	const duplicated = manager.commit('duplicateProjectCurveAnimation', original);
+	const source = state.curveAnimations.value[0];
+	const copy = structuredClone(state.curveAnimations.value[1]);
 	assert.equal(copy.nameForReference, 'curve_2');
 	assert.notEqual(copy.id, source.id);
 	assert.notEqual(copy.points[0].id, source.points[0].id);
-	assert.equal(copy.id, duplicated.automationGraphId);
+	assert.equal(copy.id, duplicated.curveAnimationId);
 	data.points[0].y = 99;
 	assert.equal(source.points[0].y, 1);
 	manager.undo(); manager.redo();
-	assert.deepEqual(state.automationGraphs.value[1], copy);
+	assert.deepEqual(state.curveAnimations.value[1], copy);
 });
 
 // 【素材名の変更をUndoでき、同値設定ではRedoを消さない】

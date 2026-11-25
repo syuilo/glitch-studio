@@ -30,7 +30,7 @@ const externalAsset = (id, sourceFilePath = `C:/assets/${id}.mp4`) => ({
 const project = assets => ({
 	id: 'project', gsVersion: '2.0.0-alpha', name: 'Project', description: '', author: '', exportSettings: null,
 	timelineFps: 30, timelineMotionBlur: { enabled: false, shutterAngle: 360, samples: 32 }, resolution: { width: 1920, height: 1080 },
-	customShaderEffects: [], automationGraphs: [], assets, generatedSpeech: [], nodesEffects: [], timelineScenes: [],
+	customShaderEffects: [], curveAnimations: [], assets, generatedSpeech: [], nodesEffects: [], timelineScenes: [],
 });
 const thumbnails = width => ({ width, height: 90, frames: [{ timestampSeconds: 0, fileData: new Blob([String(width)]) }] });
 

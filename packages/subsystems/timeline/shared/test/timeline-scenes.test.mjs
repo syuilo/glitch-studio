@@ -9,10 +9,10 @@ const { getSceneAudioClips } = await loadSource(fileURLToPath(new URL('../src/sc
 const scene = (id, layers = []) => ({ id, name: id, resolution: { mode: 'project' }, layers });
 const nested = (id, sceneId, positionMs, trimStartMs, trimmedDurationMs) => ({
 	id, name: id, layerType: 'scene', clips: [{ id: 'clip', sceneId, startMs: positionMs + trimStartMs, contentOffsetMs: trimStartMs, durationMs: trimmedDurationMs }],
-	compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [],
+	compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, curveAnimations: [],
 });
 const audio = { id: 'audio', layerType: 'audio', name: 'Layer', clips: [{ id: 'clip', startMs: 120, sourceInMs: 20, sourceOutMs: 220, playbackRate: 1, loop: false, durationMs: 200, assetId: 'asset' }],
-	audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
+	audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, curveAnimations: [] };
 
 // 【非表示の音声・動画・子Sceneを音声計画から除外し、Sceneの長さを維持する】
 // 映像だけが消えて音声が残ることを防ぐ。子Scene内の無効化と親の配置の無効化は
@@ -43,7 +43,7 @@ test('omits disabled audio video and scene layers without changing clip timing o
 // 音声無効化は再生計画だけを変え、素材位置やSceneの長さには影響しない。
 test('collects video audio independently of visual settings and preserves scene trims', () => {
 	const video = { id: 'video', layerType: 'video', name: 'Layer', clips: [{ id: 'clip', startMs: 120, sourceInMs: 20, sourceOutMs: 220, playbackRate: 1, loop: false, durationMs: 200, assetId: 'movie', audioEnabled: true, videoEnabled: true }], audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } },
-		compositingParamValues: { fitMode: { inputSource: 'literal', value: 'contain' } }, automationGraphs: [] };
+		compositingParamValues: { fitMode: { inputSource: 'literal', value: 'contain' } }, curveAnimations: [] };
 	const scenes = [scene('root', [nested('placement', 'child', 1000, 150, 100)]), scene('child', [video])];
 	const [clip] = getSceneAudioClips(scenes, 'root');
 	assert.deepEqual([clip.sourceId, (clip.sourceTiming.startMs - clip.sourceTiming.sourceInMs), clip.startMs, clip.endMs], ['movie', 1100, 1150, 1250]);

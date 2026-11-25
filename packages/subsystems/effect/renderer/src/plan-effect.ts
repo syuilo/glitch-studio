@@ -12,7 +12,7 @@ import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { resolveEffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
 import { getEffectIntrinsicResolution, type EffectStaticResourceContext } from './effect-static-settings.ts';
 import { createEffectParameterEvaluation, type ReadFrameValue } from './effect-parameter-evaluation.ts';
-import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
+import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
 import type { EffectRenderTiling } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
@@ -47,7 +47,7 @@ export interface EffectPlacement {
 	readonly onPreparationStatus?: (status: EffectPreparationStatus) => void;
 	readonly usedOutputPorts: ReadonlySet<string>;
 	readonly params?: Readonly<Record<string, ValueParameterBinding>>;
-	readonly automationGraphs?: readonly AutomationGraph[];
+	readonly curveAnimations?: readonly CurveAnimation[];
 	readonly inputs?: Readonly<Record<string, EffectPlacementInput>>;
 	readonly staticSettings?: StaticSettingValues;
 	/** 式・キー等の評価器はBindingごとに一度選ぶ。スコープは配置を識別するノードID列で区別する。 */
@@ -261,7 +261,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 			if (placement.bindParameterValue != null) return placement.bindParameterValue(source, definition, path);
 			const parameterEvaluation = evaluation.parameterEvaluation();
 			const scope = parameterEvaluation.nodeScope(contextResolution, evaluation.resolution());
-			const evaluate = getEvaluator().bind(source, definition.defaultValue, definition, parameterEvaluation.automationGraphs);
+			const evaluate = getEvaluator().bind(source, definition.defaultValue, definition, parameterEvaluation.curveAnimations);
 			return frame => evaluate(scope(frame));
 		}
 
@@ -454,7 +454,7 @@ export function planEffect(placement: EffectPlacement, maxDimension = Number.MAX
 	const root = resolveEffectSource(placement.effectSource, placement.definitions);
 	const noParent = (): never => { throw new Error('Effect defaults must be literal'); };
 	let rootEvaluation: ReturnType<typeof createEffectParameterEvaluation> | null = null;
-	const rootScope = () => rootEvaluation ??= createEffectParameterEvaluation({ paramDefs: {}, automationGraphs: placement.automationGraphs }, getEvaluator(), noParent);
+	const rootScope = () => rootEvaluation ??= createEffectParameterEvaluation({ paramDefs: {}, curveAnimations: placement.curveAnimations }, getEvaluator(), noParent);
 	const resolve = planPlacement(placement.effectSource, root, (id, resolution) => {
 		const input = placement.inputs?.[id];
 		const def = root.definition.paramDefs[id];

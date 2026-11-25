@@ -23,14 +23,14 @@ function evaluate(evaluator, input) {
 		if (input.inputParamIds.has(def.id)) continue;
 		const value = input.paramValues[def.id];
 		paramValues.set(def.id, structuredClone(value == null ? def.defaultValue : evaluator.evaluate(value, {
-			variables, automationGraphs: input.callerGraphs ?? [], time: input.time, endTime: input.endTime,
-		}, value.inputSource === 'automationGraphReference' ? def.defaultValue : genEmptyValue(def), def)));
+			variables, curveAnimations: input.callerCurveAnimations ?? [], time: input.time, endTime: input.endTime,
+		}, value.inputSource === 'curveAnimationReference' ? def.defaultValue : genEmptyValue(def), def)));
 	}
 	const asRecord = defs => Object.fromEntries(defs.map(def => [def.id, def]));
 	const outputDefs = { output: { dataType: { kind: 'color' } } };
 	const nodes = input.nodes;
 	const graph = { paramDefs: asRecord(input.paramDefs), customParameterDefs: asRecord(input.customParameterDefs), customParameterValues: input.customParameterValues,
-		automationGraphs: input.automationGraphs, primaryInputParameter: null, primaryOutput: 'output', resolutionInputParameters: [],
+		curveAnimations: input.curveAnimations, primaryInputParameter: null, primaryOutput: 'output', resolutionInputParameters: [],
 		nodes, outputDefs, outputSources: nodes.length === 0 ? {} : { output: { nodeId: 'node', outputPort: 'output' } } };
 	const { steps, outputs } = planEffect({ effectSource: { type: 'inlineNodesEffect', nodesEffect: graph },
 		definitions: { getNativeEffect: () => ({ ...input.effectDefinitions.test, outputDefs, primaryOutput: 'output' }) },
@@ -94,7 +94,7 @@ const context = (defs, params, overrides = {}) => ({
 	nodes: [node(params)],
 	paramDefs: [],
 	effectDefinitions: { test: { id: 'test', displayName: 'Test', summary: { 'ja-JP': 'パラメータの評価を検証します。', 'en-US': 'Verifies parameter evaluation.' }, tags: [], paramDefs: defs, primaryInputParameter: null, resolutionInputParameters: [], outputDefs: {}, primaryOutput: null } },
-	automationGraphs: [],
+	curveAnimations: [],
 	resolution: { width: 640, height: 360 },
 	time: 500,
 	endTime: 2000,
@@ -103,7 +103,7 @@ const context = (defs, params, overrides = {}) => ({
 	...overrides,
 });
 
-const graphPoint = (x, y) => ({ id: `${x}`, x, y, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
+const curveAnimationPoint = (x, y) => ({ id: `${x}`, x, y, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
 
 const keyframe = (x, value, type = 'linear') => ({ id: `${x}`, x, value, interpolation: { type } });
 const keyframesInput = (keyframes, dataType = 'scalar', options = {}) => ({
@@ -173,36 +173,36 @@ test('coerces public string and enum references to scalar inputs', () => {
 	}
 });
 
-const rampGraph = (isNormalized = true) => ({
+const rampCurveAnimation = (isNormalized = true) => ({
 	id: 'ramp-id', nameForReference: 'ramp', isNormalized,
 	// 配列順に依存せず終端を取得できることも確認する。
-	points: [graphPoint(isNormalized ? 1 : 2000, 10), graphPoint(0, 0)],
+	points: [curveAnimationPoint(isNormalized ? 1 : 2000, 10), curveAnimationPoint(0, 0)],
 });
-// 【呼び出し側とNodes Effect内部のグラフ参照を分離する】
-// 同じID・nameForReferenceでも、Nodes Effectの公開パラメータ引数と内部ノードはそれぞれの所有者のグラフを読む。
-test('isolates caller and Nodes Effect graphs for references and GRAPH expressions', () => {
-	const internal = { ...rampGraph(), points: [graphPoint(0, 9)] };
-	const external = { ...internal, points: [graphPoint(0, 3)] };
-	const reference = { inputSource: 'automationGraphReference', automationGraphId: internal.id, trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' };
-	const named = expression('GRAPH("ramp", 0, "clamp")');
+// 【呼び出し側とNodes Effect内部のCurve Animation参照を分離する】
+// 同じID・nameForReferenceでも、Nodes Effectの公開パラメータ引数と内部ノードはそれぞれの所有者のCurve Animationを読む。
+test('isolates caller and Nodes Effect Curve Animations for references and CURVE_ANIMATION expressions', () => {
+	const internal = { ...rampCurveAnimation(), points: [curveAnimationPoint(0, 9)] };
+	const external = { ...internal, points: [curveAnimationPoint(0, 3)] };
+	const reference = { inputSource: 'curveAnimationReference', curveAnimationId: internal.id, trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' };
+	const named = expression('CURVE_ANIMATION("ramp", 0, "clamp")');
 	const input = context({ reference: number, named: number }, { reference, named }, {
-		automationGraphs: [internal], callerGraphs: [external],
+		curveAnimations: [internal], callerCurveAnimations: [external],
 		paramDefs: [paramDef('reference'), paramDef('named')], paramValues: { reference, named },
 	});
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const result = evaluate(evaluator, input);
 	assert.deepEqual([...result.paramValues.values()], [3, 3]);
 	assert.deepEqual(result.nodeParams.get('node'), { reference: 9, named: 9 });
-	// 再評価で外部スコープが空になっても、内部や前回のグラフへフォールバックしない。
-	assert.throws(() => evaluate(evaluator, { ...input, callerGraphs: undefined }), /Unknown automation graph/);
-	assert.throws(() => evaluate(evaluator, { ...input, automationGraphs: [] }), /Unknown automation graph/);
+	// 再評価で外部スコープが空になっても、内部や前回のCurve Animationへフォールバックしない。
+	assert.throws(() => evaluate(evaluator, { ...input, callerCurveAnimations: undefined }), /Unknown Curve Animation/);
+	assert.throws(() => evaluate(evaluator, { ...input, curveAnimations: [] }), /Unknown Curve Animation/);
 });
 
-const graphInput = (inputSource, graph, options = {}) => ({
+const curveAnimationInput = (inputSource, curveAnimation, options = {}) => ({
 	inputSource,
-	...(inputSource === 'automationGraphReference'
-		? { automationGraphId: graph.id }
-		: { automationGraph: { points: graph.points, isNormalized: graph.isNormalized } }),
+	...(inputSource === 'curveAnimationReference'
+		? { curveAnimationId: curveAnimation.id }
+		: { curveAnimation: { points: curveAnimation.points, isNormalized: curveAnimation.isNormalized } }),
 	trimmedDurationMs: 2000, wrapMode: 'clamp', offsetMode: 'start', ...options,
 });
 
@@ -210,49 +210,49 @@ function assertClose(actual, expected) {
 	assert.ok(Math.abs(actual - expected) < 0.00001, `Expected ${actual} to be close to ${expected}`);
 }
 
-// 【GRAPHをnameForReferenceで参照し、Nodes Effectとノードの式で評価する】
-// グラフ固有の座標を使い、IDによる参照と混同せずに両スコープから値を取得する。
-test('evaluates GRAPH by nameForReference in Nodes Effect and node expressions', () => {
-	const graph = rampGraph();
-	const msGraph = { ...rampGraph(false), id: 'ms-id', nameForReference: 'milliseconds' };
+// 【CURVE_ANIMATIONをnameForReferenceで参照し、Nodes Effectとノードの式で評価する】
+// Curve Animation固有の座標を使い、IDによる参照と混同せずに両スコープから値を取得する。
+test('evaluates CURVE_ANIMATION by nameForReference in Nodes Effect and node expressions', () => {
+	const curveAnimation = rampCurveAnimation();
+	const msCurveAnimation = { ...rampCurveAnimation(false), id: 'ms-id', nameForReference: 'milliseconds' };
 	const result = evaluate(new ParameterBindingEvaluator(new ExpressionEvaluator()), context({ values: arrayParameter(number) }, {
 		values: arrayBinding([
-			expression('GRAPH("ramp", 0.25, "clamp")'),
-			expression('GRAPH("ramp", 1.25, "repeat")'),
-			expression('GRAPH("ramp", -0.25, "repeatMirrored")'),
-			expression('GRAPH("milliseconds", TIME_MS, "clamp") + PUBLIC("gain")'),
+			expression('CURVE_ANIMATION("ramp", 0.25, "clamp")'),
+			expression('CURVE_ANIMATION("ramp", 1.25, "repeat")'),
+			expression('CURVE_ANIMATION("ramp", -0.25, "repeatMirrored")'),
+			expression('CURVE_ANIMATION("milliseconds", TIME_MS, "clamp") + PUBLIC("gain")'),
 		]),
-	}, { automationGraphs: [graph, msGraph], callerGraphs: [graph], paramDefs: [paramDef('gain')], paramValues: { gain: expression('GRAPH("ramp", 0.5, "clamp")') } }));
+	}, { curveAnimations: [curveAnimation, msCurveAnimation], callerCurveAnimations: [curveAnimation], paramDefs: [paramDef('gain')], paramValues: { gain: expression('CURVE_ANIMATION("ramp", 0.5, "clamp")') } }));
 	assertClose(result.paramValues.get('gain'), 5);
 	result.nodeParams.get('node').values.forEach((value, index) => assertClose(value, [2.5, 2.5, 2.5, 7.5][index]));
 });
 
-// 【不正なGRAPHの式は失敗とし、inlineグラフも名前参照へ公開しない】
+// 【不正なCURVE_ANIMATIONの式は失敗とし、インラインのCurve Animationも名前参照へ公開しない】
 // 入力ミスを0へ置換せず、呼び出し元へ伝播してレンダリングを止める。
-test('rejects invalid GRAPH calls and does not expose inline graphs', () => {
-	const graph = rampGraph();
+test('rejects invalid CURVE_ANIMATION calls and does not expose inline Curve Animations', () => {
+	const curveAnimation = rampCurveAnimation();
 	const invalid = [
-		'GRAPH("missing", 0.5, "clamp")', 'GRAPH("ramp-id", 0.5, "clamp")',
-		'GRAPH("ramp", 0.5, "invalid")', 'GRAPH("ramp", "0.5", "clamp")',
-		'GRAPH(1, 0.5, "clamp")', 'GRAPH("ramp", 0.5)', 'GRAPH("ramp", 0.5, "clamp", 1)',
+		'CURVE_ANIMATION("missing", 0.5, "clamp")', 'CURVE_ANIMATION("ramp-id", 0.5, "clamp")',
+		'CURVE_ANIMATION("ramp", 0.5, "invalid")', 'CURVE_ANIMATION("ramp", "0.5", "clamp")',
+		'CURVE_ANIMATION(1, 0.5, "clamp")', 'CURVE_ANIMATION("ramp", 0.5)', 'CURVE_ANIMATION("ramp", 0.5, "clamp", 1)',
 	];
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
-	for (const code of invalid) assert.throws(() => evaluate(evaluator, context({ value: number }, { value: expression(code) }, { automationGraphs: [graph] })), /Base expression/);
+	for (const code of invalid) assert.throws(() => evaluate(evaluator, context({ value: number }, { value: expression(code) }, { curveAnimations: [curveAnimation] })), /Base expression/);
 	const inline = evaluate(evaluator, context({ inline: number }, {
-		inline: graphInput('automationGraphInline', graph),
+		inline: curveAnimationInput('curveAnimationInline', curveAnimation),
 	}));
 	assertClose(inline.nodeParams.get('node').inline, 2.5);
-	assert.throws(() => evaluate(evaluator, context({ value: number }, { value: expression('GRAPH("ramp", 0.5, "clamp")') })), /Unknown automation graph/);
+	assert.throws(() => evaluate(evaluator, context({ value: number }, { value: expression('CURVE_ANIMATION("ramp", 0.5, "clamp")') })), /Unknown Curve Animation/);
 });
 
-// 【Automation Graphの変更を反映する】
-// ASTを再利用しても別Nodes Effectや変更前のグラフを参照しない。
-test('refreshes GRAPH definitions between evaluations', () => {
+// 【Curve Animationの変更を反映する】
+// ASTを再利用しても別Nodes Effectや変更前のCurve Animationを参照しない。
+test('refreshes CURVE_ANIMATION definitions between evaluations', () => {
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
-	const input = context({ value: number }, { value: expression('GRAPH("ramp", 0.5, "clamp")') }, { automationGraphs: [rampGraph()] });
+	const input = context({ value: number }, { value: expression('CURVE_ANIMATION("ramp", 0.5, "clamp")') }, { curveAnimations: [rampCurveAnimation()] });
 	assertClose(evaluate(evaluator, input).nodeParams.get('node').value, 5);
-	assertClose(evaluate(evaluator, { ...input, automationGraphs: [{ ...rampGraph(), points: [graphPoint(0, 20)] }] }).nodeParams.get('node').value, 20);
-	assert.throws(() => evaluate(evaluator, { ...input, automationGraphs: [] }), /Unknown automation graph/);
+	assertClose(evaluate(evaluator, { ...input, curveAnimations: [{ ...rampCurveAnimation(), points: [curveAnimationPoint(0, 20)] }] }).nodeParams.get('node').value, 20);
+	assert.throws(() => evaluate(evaluator, { ...input, curveAnimations: [] }), /Unknown Curve Animation/);
 });
 
 // 【単独の変数は直接読み出す】
@@ -331,17 +331,17 @@ test('defaults unassigned direct references and rejects invalid expressions', ()
 		invalid: expression('1 +'),
 		empty: expression(''),
 		missingNodesEffectPublicParameterReference: { inputSource: 'nodesEffectPublicParameterReference', parameterId: 'missing' },
-		missingAutomationGraph: { inputSource: 'automationGraphReference', automationGraphId: 'missing' },
+		missingCurveAnimation: { inputSource: 'curveAnimationReference', curveAnimationId: 'missing' },
 	};
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	for (const binding of Object.values(params).filter(binding => binding.inputSource === 'expression')) {
 		assert.throws(() => evaluate(evaluator, context({ invalid: number }, { invalid: binding })), /Base expression/);
 	}
-	const result = evaluate(evaluator, context({ graph: number }, { graph: params.missingAutomationGraph }, {
-		paramDefs: [paramDef('missingAutomationGraph', 12)], paramValues: { missingAutomationGraph: params.missingAutomationGraph },
+	const result = evaluate(evaluator, context({ curveAnimation: number }, { curveAnimation: params.missingCurveAnimation }, {
+		paramDefs: [paramDef('missingCurveAnimation', 12)], paramValues: { missingCurveAnimation: params.missingCurveAnimation },
 	}));
-	assert.equal(result.nodeParams.get('node').graph, 0);
-	assert.equal(result.paramValues.get('missingAutomationGraph'), 12);
+	assert.equal(result.nodeParams.get('node').curveAnimation, 0);
+	assert.equal(result.paramValues.get('missingCurveAnimation'), 12);
 });
 
 // 【バイパスの主入力が値の場合はノードの評価を起動しない】

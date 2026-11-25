@@ -2,15 +2,15 @@ import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_
 import * as z from 'zod';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
-import { validateProjectAutomationGraphName } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
-import { createProjectAutomationGraph } from '../utility/automation-graph.ts';
+import { validateProjectCurveAnimationName } from '@gs/glitch-studio_shared/project/curve-animations.ts';
+import { createProjectCurveAnimation } from '../utility/curve-animation.ts';
 import { defineCommand, definePublicCommand, withCommandContract } from './definition.ts';
 import { prepareProjectValueChange } from './prepared-value.ts';
-import { projectResolutionSchema, timelineMotionBlurSettingsSchema, automationGraphDefinitionSchema } from './project-contract-schemas.ts';
-import { automationGraphPointSchema } from './parameter-contract-schemas.ts';
+import { projectResolutionSchema, timelineMotionBlurSettingsSchema, curveAnimationDefinitionSchema } from './project-contract-schemas.ts';
+import { curveAnimationPointSchema } from './parameter-contract-schemas.ts';
 import type { ExportDialogSettings } from '../export/export-settings.ts';
 import type { ProjectState } from '../Project.ts';
-import type { AutomationGraph, AutomationGraphData } from '@gs/shared/automation-graph/automation-graph.ts';
+import type { CurveAnimation, CurveAnimationData } from '@gs/shared/curve-animation/curve-animation.ts';
 
 function projectTextCommand<Field extends 'name' | 'description' | 'author'>(field: Field, label: string) {
 	return withCommandContract(defineCommand<Record<Field, string>>({
@@ -87,105 +87,105 @@ const setProjectResolution = definePublicCommand({
 	},
 });
 
-function validateAutomationGraphData(data: AutomationGraphData): void {
-	if (typeof data.isNormalized !== 'boolean' || !Array.isArray(data.points)) throw new Error('Invalid Automation Graph data');
+function validateCurveAnimationData(data: CurveAnimationData): void {
+	if (typeof data.isNormalized !== 'boolean' || !Array.isArray(data.points)) throw new Error('Invalid Curve Animation data');
 	const ids = new Set<string>();
 	for (const point of data.points) {
-		if (typeof point.id !== 'string' || point.id.length === 0 || ids.has(point.id)) throw new Error('Invalid or duplicate Automation Graph point ID');
+		if (typeof point.id !== 'string' || point.id.length === 0 || ids.has(point.id)) throw new Error('Invalid or duplicate Curve Animation point ID');
 		ids.add(point.id);
 		if (!Number.isFinite(point.x) || !Number.isFinite(point.y)
 			|| !Array.isArray(point.bezierControlPointA) || point.bezierControlPointA.length !== 2 || !point.bezierControlPointA.every(Number.isFinite)
 			|| !Array.isArray(point.bezierControlPointB) || point.bezierControlPointB.length !== 2 || !point.bezierControlPointB.every(Number.isFinite)) {
-			throw new Error('Automation Graph points must contain finite coordinates');
+			throw new Error('Curve Animation points must contain finite coordinates');
 		}
 	}
 }
 
-function prepareAutomationGraphCreation(state: ProjectState, automationGraph: AutomationGraph) {
-	validateAutomationGraphData(automationGraph);
-	validateProjectAutomationGraphName(state.automationGraphs.value, automationGraph);
-	const saved = deepClone(automationGraph);
-	return { result: { automationGraphId: saved.id }, change: {
-		changes: [{ type: 'automationGraphs' as const }],
-		apply: (current: ProjectState) => { current.automationGraphs.value.push(deepClone(saved)); },
-		revert: (current: ProjectState) => { current.automationGraphs.value = current.automationGraphs.value.filter(graph => graph.id !== saved.id); },
+function prepareCurveAnimationCreation(state: ProjectState, curveAnimation: CurveAnimation) {
+	validateCurveAnimationData(curveAnimation);
+	validateProjectCurveAnimationName(state.curveAnimations.value, curveAnimation);
+	const saved = deepClone(curveAnimation);
+	return { result: { curveAnimationId: saved.id }, change: {
+		changes: [{ type: 'curveAnimations' as const }],
+		apply: (current: ProjectState) => { current.curveAnimations.value.push(deepClone(saved)); },
+		revert: (current: ProjectState) => { current.curveAnimations.value = current.curveAnimations.value.filter(curveAnimation => curveAnimation.id !== saved.id); },
 	} };
 }
 
-const createProjectAutomationGraphCommand = definePublicCommand({
-	label: 'Create project Automation Graph',
+const createProjectCurveAnimationCommand = definePublicCommand({
+	label: 'Create project Curve Animation',
 	inputSchema: z.object({
-		nameForReference: z.string().nullish().describe('Omit or pass null to generate a unique name based on my_graph.'),
-		data: z.object({ isNormalized: z.boolean(), points: z.array(automationGraphPointSchema.omit({ id: true })) }).nullish()
-			.describe('Omit or pass null for the default graph. X is normalized when isNormalized is true; otherwise X is in milliseconds. Point IDs are generated.'),
-	}), resultSchema: z.object({ automationGraphId: z.string() }),
-	description: 'Create a project Automation Graph and return its reference. The supplied reference name must be valid and unique in the project.',
-	examples: ['let graph = Command:createProjectAutomationGraph({ nameForReference: "brightness" })\n<: Query:getProjectAutomationGraph(graph)'],
+		nameForReference: z.string().nullish().describe('Omit or pass null to generate a unique name based on my_curve_animation.'),
+		data: z.object({ isNormalized: z.boolean(), points: z.array(curveAnimationPointSchema.omit({ id: true })) }).nullish()
+			.describe('Omit or pass null for the default Curve Animation. When isNormalized is true, X is normalized. Otherwise, X is in milliseconds. Point IDs are generated.'),
+	}), resultSchema: z.object({ curveAnimationId: z.string() }),
+	description: 'Create a project Curve Animation and return its reference. The supplied reference name must be valid and unique in the project.',
+	examples: ['let curveAnimation = Command:createProjectCurveAnimation({ nameForReference: "brightness" })\n<: Query:getProjectCurveAnimation(curveAnimation)'],
 	prepare(state, input) {
-		const automationGraph = createProjectAutomationGraph(state.automationGraphs.value);
-		if (input.nameForReference != null) automationGraph.nameForReference = input.nameForReference;
+		const curveAnimation = createProjectCurveAnimation(state.curveAnimations.value);
+		if (input.nameForReference != null) curveAnimation.nameForReference = input.nameForReference;
 		if (input.data != null) {
-			automationGraph.isNormalized = input.data.isNormalized;
-			automationGraph.points = input.data.points.map(point => ({ ...deepClone(point), id: genId() }));
+			curveAnimation.isNormalized = input.data.isNormalized;
+			curveAnimation.points = input.data.points.map(point => ({ ...deepClone(point), id: genId() }));
 		}
-		return prepareAutomationGraphCreation(state, automationGraph);
+		return prepareCurveAnimationCreation(state, curveAnimation);
 	},
 });
 
-const duplicateProjectAutomationGraph = definePublicCommand({
-	label: 'Duplicate project Automation Graph',
-	inputSchema: z.object({ automationGraphId: z.string().min(1), nameForReference: z.string().nullish() }),
-	resultSchema: z.object({ automationGraphId: z.string() }),
-	description: 'Duplicate a project Automation Graph with new graph and point IDs. Omit nameForReference or pass null to generate a unique name from the original.',
-	examples: ['let graph = Command:createProjectAutomationGraph({})\nlet copy = Command:duplicateProjectAutomationGraph(graph)'],
+const duplicateProjectCurveAnimation = definePublicCommand({
+	label: 'Duplicate project Curve Animation',
+	inputSchema: z.object({ curveAnimationId: z.string().min(1), nameForReference: z.string().nullish() }),
+	resultSchema: z.object({ curveAnimationId: z.string() }),
+	description: 'Duplicate a project Curve Animation and generate new IDs for the copy and all its points. Omit nameForReference or pass null to generate a unique name from the original.',
+	examples: ['let curveAnimation = Command:createProjectCurveAnimation({})\nlet copy = Command:duplicateProjectCurveAnimation(curveAnimation)'],
 	prepare(state, input) {
-		const source = state.automationGraphs.value.find(graph => graph.id === input.automationGraphId);
-		if (source == null) throw new Error('Automation Graph not found');
-		const definition = createProjectAutomationGraph(state.automationGraphs.value, source);
+		const source = state.curveAnimations.value.find(curveAnimation => curveAnimation.id === input.curveAnimationId);
+		if (source == null) throw new Error('Curve Animation not found');
+		const definition = createProjectCurveAnimation(state.curveAnimations.value, source);
 		if (input.nameForReference != null) definition.nameForReference = input.nameForReference;
-		return prepareAutomationGraphCreation(state, definition);
+		return prepareCurveAnimationCreation(state, definition);
 	},
 });
 
-const replaceProjectAutomationGraph = definePublicCommand({
-	label: 'Replace project Automation Graph',
-	inputSchema: z.object({ automationGraphId: z.string().min(1), definition: automationGraphDefinitionSchema }),
+const replaceProjectCurveAnimation = definePublicCommand({
+	label: 'Replace project Curve Animation',
+	inputSchema: z.object({ curveAnimationId: z.string().min(1), definition: curveAnimationDefinitionSchema }),
 	resultSchema: z.null(),
-	description: 'Replace the name and curve data of an existing project Automation Graph while preserving its graph ID. Supply all curve data and stable point IDs.',
-	examples: ['let graph = Command:createProjectAutomationGraph({})\nCommand:replaceProjectAutomationGraph({ automationGraphId: graph.automationGraphId, definition: { nameForReference: "empty_graph", isNormalized: true, points: [] } })'],
-	prepare(state, { automationGraphId, definition }) {
-		const before = state.automationGraphs.value.find(graph => graph.id === automationGraphId);
-		if (before == null) throw new Error('Automation Graph not found');
-		const after = { ...definition, id: automationGraphId };
-		validateAutomationGraphData(after);
-		validateProjectAutomationGraphName(state.automationGraphs.value, after);
+	description: 'Replace the reference name and curve data of a project Curve Animation while preserving its ID. Supply all curve data and stable point IDs.',
+	examples: ['let curveAnimation = Command:createProjectCurveAnimation({})\nCommand:replaceProjectCurveAnimation({ curveAnimationId: curveAnimation.curveAnimationId, definition: { nameForReference: "empty_curve_animation", isNormalized: true, points: [] } })'],
+	prepare(state, { curveAnimationId, definition }) {
+		const before = state.curveAnimations.value.find(curveAnimation => curveAnimation.id === curveAnimationId);
+		if (before == null) throw new Error('Curve Animation not found');
+		const after = { ...definition, id: curveAnimationId };
+		validateCurveAnimationData(after);
+		validateProjectCurveAnimationName(state.curveAnimations.value, after);
 		return prepareProjectValueChange({
 			before,
 			after,
-			changes: [{ type: 'automationGraphs' }],
+			changes: [{ type: 'curveAnimations' }],
 			result: undefined,
-			write(current, next) { current.automationGraphs.value[current.automationGraphs.value.findIndex(graph => graph.id === automationGraphId)] = next; },
+			write(current, next) { current.curveAnimations.value[current.curveAnimations.value.findIndex(curveAnimation => curveAnimation.id === curveAnimationId)] = next; },
 		});
 	},
 });
 
-const removeProjectAutomationGraph = definePublicCommand({
-	label: 'Remove project Automation Graph',
-	inputSchema: z.object({ automationGraphId: z.string().min(1) }),
+const removeProjectCurveAnimation = definePublicCommand({
+	label: 'Remove project Curve Animation',
+	inputSchema: z.object({ curveAnimationId: z.string().min(1) }),
 	resultSchema: z.null(),
-	description: 'Remove a project Automation Graph. Existing references to its ID are retained and become unresolved; Undo restores the graph and reconnects them.',
-	examples: ['let graph = Command:createProjectAutomationGraph({})\nCommand:removeProjectAutomationGraph(graph)'],
-	prepare(state, { automationGraphId }) {
-		const index = state.automationGraphs.value.findIndex(graph => graph.id === automationGraphId);
-		if (index < 0) throw new Error('Automation Graph not found');
-		const saved = deepClone(state.automationGraphs.value[index]);
+	description: 'Remove a project Curve Animation. Existing references to its ID become unresolved. Undo restores the Curve Animation and reconnects them.',
+	examples: ['let curveAnimation = Command:createProjectCurveAnimation({})\nCommand:removeProjectCurveAnimation(curveAnimation)'],
+	prepare(state, { curveAnimationId }) {
+		const index = state.curveAnimations.value.findIndex(curveAnimation => curveAnimation.id === curveAnimationId);
+		if (index < 0) throw new Error('Curve Animation not found');
+		const saved = deepClone(state.curveAnimations.value[index]);
 		// 参照IDを残す既存仕様を維持し、Undoで同じ定義へ再接続する。
 		return {
 			result: undefined,
 			change: {
-				changes: [{ type: 'automationGraphs' }],
-				apply: current => { current.automationGraphs.value = current.automationGraphs.value.filter(graph => graph.id !== automationGraphId); },
-				revert: current => { current.automationGraphs.value.splice(index, 0, deepClone(saved)); },
+				changes: [{ type: 'curveAnimations' }],
+				apply: current => { current.curveAnimations.value = current.curveAnimations.value.filter(curveAnimation => curveAnimation.id !== curveAnimationId); },
+				revert: current => { current.curveAnimations.value.splice(index, 0, deepClone(saved)); },
 			},
 		};
 	},
@@ -194,7 +194,7 @@ const removeProjectAutomationGraph = definePublicCommand({
 export const PROJECT_COMMAND_DEFS = {
 	setProjectName, setProjectDescription, setProjectAuthor,
 	setProjectResolution, setExportSettings, setTimelineRenderSettings,
-	createProjectAutomationGraph: createProjectAutomationGraphCommand,
-	duplicateProjectAutomationGraph,
-	replaceProjectAutomationGraph, removeProjectAutomationGraph,
+	createProjectCurveAnimation: createProjectCurveAnimationCommand,
+	duplicateProjectCurveAnimation,
+	replaceProjectCurveAnimation, removeProjectCurveAnimation,
 };

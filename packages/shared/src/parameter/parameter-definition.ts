@@ -8,7 +8,7 @@ import type { SizeReference } from '../size-reference.ts';
 import type { LinearSrgbColor } from '../color-space.ts';
 import type { Cloneable } from '../utility/deep-clone.ts';
 
-// 値には式・キー・automationの内容を含む。入力方式の切替、接続先の変更、
+// 値には式・キー・Curve Animationの内容を含む。入力方式の切替、接続先の変更、
 // 配列要素の追加削除、既定値へのリセットとは分けて、行った編集を表す。
 export type ParameterChangeKind = 'value' | 'inputSource' | 'connection' | 'arrayElements' | 'reset';
 

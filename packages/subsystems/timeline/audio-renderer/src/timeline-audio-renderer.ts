@@ -37,7 +37,7 @@ export class TimelineAudioRenderer {
 				sceneStartMs: gain.sceneStartMs,
 				evaluate: this.createGain(gain.volume, time => createTimelineLayerEvaluationScope({
 					time,
-					automationGraphs: gain.automationGraphs,
+					curveAnimations: gain.curveAnimations,
 					publicParameters: gain.publicParameters,
 					isExport,
 				})),

@@ -55,7 +55,7 @@ export function createTimelineLayerFromRecipe(state: ProjectState, recipe: Timel
 		}
 		case 'audio': layer = {
 			id: genId(), name: 'Audio', layerType: 'audio', color: null, isDisabled: false, isSolo: false,
-			automationGraphs: [], audioParamValues: { volume: createDefaultParameterBinding(timelineAudioParamDefs.volume) }, clips: [],
+			curveAnimations: [], audioParamValues: { volume: createDefaultParameterBinding(timelineAudioParamDefs.volume) }, clips: [],
 		}; break;
 		case 'scene': {
 			const image = createImageLayer('', 0, 'Scene');

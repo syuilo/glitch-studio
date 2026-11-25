@@ -56,7 +56,7 @@ function fixture(t, component, initialProps) {
 // 【カスタムの編集UIは公開と別の名前空間を持ち、ノード固有の環境を提示しない】
 // 外部向けの定義や参照候補へ内部設定を混ぜず、編集通知が安定したIDを持つことを確認する。
 test('edits custom values and definitions with a separate namespace and shared scope', async t => {
-	const nodesEffect = { customParameterValues: {}, nodes: [], automationGraphs: [], paramDefs: [scalar('public', 'my_param_2')], customParameterDefs: [scalar('first', 'my_param'), scalar('second', 'other')] };
+	const nodesEffect = { customParameterValues: {}, nodes: [], curveAnimations: [], paramDefs: [scalar('public', 'my_param_2')], customParameterDefs: [scalar('first', 'my_param'), scalar('second', 'other')] };
 	const f = fixture(t, CustomParameters, { nodesEffect });
 	const valueEditor = f.find('data-test-custom-parameter-value', 'first');
 	assert.deepEqual(valueEditor.props.availableVariables, ['TIME', 'TIME_MS', 'END_TIME', 'END_TIME_MS', 'PROGRESS', 'IS_EXPORT']);

@@ -2,13 +2,13 @@ import type { TimelineLayerPublicParameterContext } from '../../public-parameter
 import { TimelineParameterBindingEvaluator } from '../../parameter-binding-evaluator.ts';
 import { createTimelineLayerEvaluationScope } from '../../evaluation-scope.ts';
 import { timelineTransformParamDefs } from './transform.ts';
-import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
+import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
 import type { TimelineTransformParameterValues, EvaluatedTimelineTransform } from './transform.ts';
 
 export class TimelineTransformParameters {
 	private evaluator = new TimelineParameterBindingEvaluator();
-	evaluate(values: TimelineTransformParameterValues, automationGraphs: AutomationGraph[], time: number, isExport: boolean, publicParameters?: TimelineLayerPublicParameterContext | null): EvaluatedTimelineTransform {
-		const scope = createTimelineLayerEvaluationScope({ time, isExport, automationGraphs, publicParameters });
+	evaluate(values: TimelineTransformParameterValues, curveAnimations: CurveAnimation[], time: number, isExport: boolean, publicParameters?: TimelineLayerPublicParameterContext | null): EvaluatedTimelineTransform {
+		const scope = createTimelineLayerEvaluationScope({ time, isExport, curveAnimations, publicParameters });
 		const read = (key: keyof typeof timelineTransformParamDefs): unknown => this.evaluator.evaluate(values[key], scope, timelineTransformParamDefs[key].defaultValue, timelineTransformParamDefs[key]);
 		const position = read('position');
 		const z = read('z');

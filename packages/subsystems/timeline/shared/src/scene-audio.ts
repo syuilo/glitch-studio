@@ -8,7 +8,7 @@ import { isTimelineNonCompositingContainerLayer } from './types.ts';
 import { getTimelineSoloState } from './solo.ts';
 import { assignPreparedSpeech, getVoicevoxUtterancePlacements } from './layers/voicevox/voicevox-placement.ts';
 import type { SpeechResolver, VoicevoxRequest } from './layers/voicevox/voicevox.ts';
-import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
+import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
 import type { TimelineParameterBinding, TimelineLayer, TimelineScene } from './types.ts';
 import type { TimelineMediaSourceTiming } from './media-timing.ts';
 
@@ -17,7 +17,7 @@ export type SceneAudioGain = {
 	/** 最上位Scene上で、音量を所有するSceneの時刻0が置かれる位置。 */
 	sceneStartMs: number;
 	volume: TimelineParameterBinding;
-	automationGraphs: AutomationGraph[];
+	curveAnimations: CurveAnimation[];
 };
 
 export type SceneAudioClip = {
@@ -94,7 +94,7 @@ export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneI
 			const layerGains = [...gains, {
 				sceneStartMs,
 				volume: layer.audioParamValues.volume,
-				automationGraphs: layer.automationGraphs,
+				curveAnimations: layer.curveAnimations,
 				...hasPublicParameters ? { publicParameters: parameterContext } : {},
 			}];
 			if (layer.layerType === 'group') {

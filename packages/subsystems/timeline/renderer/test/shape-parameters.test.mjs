@@ -7,7 +7,7 @@ const { ShapeParameters } = await loadSource(fileURLToPath(new URL('../src/layer
 const { createShape } = await loadSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_shared/layers/shape/shape.ts')));
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
-const scope = { time: 1500, isExport: true, automationGraphs: [] };
+const scope = { time: 1500, isExport: true, curveAnimations: [] };
 
 // 【乱数とノイズをSceneの秒数で評価し、シーク・書き出しで再現する】
 // 式が未登録のため既定値へ落ちることや、ミリ秒・フレーム番号を暗黙に使うことを防ぐ。
@@ -89,21 +89,21 @@ test('sanitizes rendering values without mutating bindings or sharing their arra
 	assert.equal(evaluator.evaluate(shape, scope).fillColor[3], 0);
 });
 
-// 【Scene時刻のautomationと既定値の補完を両方の形状で利用する】
-// 別の形状の既定値を編集してしまう共有参照や、欠落グラフによる寸法の消失を防ぐ。
-test('evaluates inline automation and restores defaults for missing graphs', () => {
+// 【Scene時刻のCurve Animationと既定値の補完を両方の形状で利用する】
+// 別の形状の既定値を編集してしまう共有参照や、欠落Curve Animationによる寸法の消失を防ぐ。
+test('evaluates inline Curve Animations and restores defaults for missing references', () => {
 	const shape = createShape('ellipse');
 	const other = createShape('ellipse');
 	shape.paramValues.size.value[0] = 0.8;
 	assert.deepEqual(other.paramValues.size.value, [0.5, 0.5]);
-	shape.paramValues.rotation = { inputSource: 'automationGraphInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
-		automationGraph: { isNormalized: false, points: [
+	shape.paramValues.rotation = { inputSource: 'curveAnimationInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
+		curveAnimation: { isNormalized: false, points: [
 			{ id: 'a', x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 			{ id: 'b', x: 2000, y: 1, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 		] } };
 	const evaluator = new ShapeParameters();
 	assert.ok(Math.abs(evaluator.evaluate(shape, scope).rotation - 0.75) < 1e-5);
-	shape.paramValues.size = { inputSource: 'automationGraphReference', automationGraphId: 'missing', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: 1000 };
+	shape.paramValues.size = { inputSource: 'curveAnimationReference', curveAnimationId: 'missing', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: 1000 };
 	assert.deepEqual(evaluator.evaluate(shape, scope).size, [0.5, 0.5]);
 });
 

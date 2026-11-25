@@ -29,10 +29,10 @@ const scalar = { dataType: { kind: 'scalar' }, canNode: true, ui: { label: 'Amou
 const definitions = { effect: { id: 'effect', paramDefs: { amount: scalar }, kind: 'modify', primaryOutput: 'image', outputDefs: { output: { dataType: { kind: 'scalar' } }, image: { dataType: { kind: 'color' } } }, primaryInputParameter: 'amount' } };
 const node = (id, amount = literal(0)) => ({ id, type: 'effect', effectSource: { type: 'nativeEffect', id: 'effect' }, resolution: { mode: 'context', scale: 1 }, params: { amount }, isBypass: false });
 const connection = id => ({ inputSource: 'node', source: { nodeId: id, outputPort: 'output' }, sampling: { fitMode: 'contain', wrapMode: 'clamp', filterMode: 'linear' } });
-const nodesEffect = (nodes, id = 'nodesEffect') => ({ id, definition: testNodesEffect({ customParameterValues: {}, nodes, primaryInputParameter: null, primaryOutput: 'output', automationGraphs: [] }) });
+const nodesEffect = (nodes, id = 'nodesEffect') => ({ id, definition: testNodesEffect({ customParameterValues: {}, nodes, primaryInputParameter: null, primaryOutput: 'output', curveAnimations: [] }) });
 const scene = (id, layers = []) => ({ id, name: id, resolution: { mode: 'project' }, layers });
-const sceneLayer = (id, sceneId) => ({ resolution: { mode: 'auto', scale: 1 }, id, name: id, layerType: 'scene', clips: [{ id: 'clip', sceneId, startMs: 0, durationMs: 1000, contentOffsetMs: 0 }], compositingParamValues: {}, audioParamValues: {}, automationGraphs: [] });
-const groupLayer = (id, layers) => ({ id, name: id, layerType: 'group', layers, compositingParamValues: {}, audioParamValues: {}, automationGraphs: [], isDisabled: false });
+const sceneLayer = (id, sceneId) => ({ resolution: { mode: 'auto', scale: 1 }, id, name: id, layerType: 'scene', clips: [{ id: 'clip', sceneId, startMs: 0, durationMs: 1000, contentOffsetMs: 0 }], compositingParamValues: {}, audioParamValues: {}, curveAnimations: [] });
+const groupLayer = (id, layers) => ({ id, name: id, layerType: 'group', layers, compositingParamValues: {}, audioParamValues: {}, curveAnimations: [], isDisabled: false });
 function fixture(nodesEffects = [], timelineScenes = []) {
 	const state = { nodesEffects: ref(nodesEffects), timelineScenes: ref(timelineScenes), assets: ref([]), resolution: ref({ width: 16, height: 16 }), timelineFps: ref(60), timelineMotionBlur: ref({ enabled: false, shutterAngle: 180, samples: 0 }) };
 	const validation = new ProjectRenderValidation(state, definitions);
@@ -234,10 +234,10 @@ test('diagnoses invalid scene resolutions and clears them after correction', () 
 // 旧検証関数に付随していた正常な配置の確認を、実際の描画前検証へ移す。
 // Transformはカメラの配置を許可し、Groupの境界は越えられない仕様を維持する。
 test('accepts cameras under transforms and diagnoses cameras under groups in UI validation', () => {
-	const camera = { id: 'camera', name: 'Camera', layerType: 'camera', automationGraphs: [],
+	const camera = { id: 'camera', name: 'Camera', layerType: 'camera', curveAnimations: [],
 		cameraParamValues: createTimelineCameraParameterValues(), clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }] };
 	assert.equal(fixture([], [scene('root', [camera])]).validation.errorMessage.value, null);
-	const transform = { id: 'transform', name: 'Transform', layerType: 'transform', layers: [camera], automationGraphs: [],
+	const transform = { id: 'transform', name: 'Transform', layerType: 'transform', layers: [camera], curveAnimations: [],
 		transformParamValues: createTimelineTransformParameterValues() };
 	assert.equal(fixture([], [scene('root', [transform])]).validation.errorMessage.value, null);
 	assertDiagnosticTarget(fixture([], [scene('root', [groupLayer('group', [transform])])]).validation, 'scene:root/layer:camera');
@@ -404,7 +404,7 @@ test('diagnoses invalid layer audio bindings before rendering', () => {
 
 const outputReference = (layerId, outputStage = 'source') => ({ inputSource: 'anotherLayerOutput', layerId, outputStage, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
 const imageEffectLayer = (id, binding = literal(0)) => ({ id, name: id, layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'effect' }, resolution: { mode: 'context', scale: 1 },
-	clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }], isDisabled: false, automationGraphs: [], compositingParamValues: {}, effectParamValues: { amount: binding } });
+	clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }], isDisabled: false, curveAnimations: [], compositingParamValues: {}, effectParamValues: { amount: binding } });
 const imageLayerChange = layerId => [{ type: 'layer', sceneId: 'scene', layerId, changes: [{ type: 'parameter', target: 'effect', kind: 'connection' }] }];
 
 // 【参照マスクの変更と階層移動でも、描画前に循環・座標境界を再検証する】

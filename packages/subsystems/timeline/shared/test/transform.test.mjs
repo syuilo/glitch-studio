@@ -20,7 +20,7 @@ const frame = { width: 1920, height: 1080 };
 const identityTransform = { position: [0, 0], z: 0, scale: [1, 1], rotation: 0 };
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
-const common = id => ({ id, name: id, automationGraphs: [], isDisabled: false, forceDisableMotionBlur: false });
+const common = id => ({ id, name: id, curveAnimations: [], isDisabled: false, forceDisableMotionBlur: false });
 const transform = (id, layers, values = {}) => ({ ...common(id), layerType: 'transform', layers, transformParamValues: { ...createTimelineTransformParameterValues(), ...values } });
 const camera = (id, startMs = 0, durationMs = 1000) => ({ ...common(id), layerType: 'camera', cameraParamValues: createTimelineCameraParameterValues(), clips: [{ id: 'clip', startMs, durationMs, contentOffsetMs: 0 }] });
 const group = layers => ({ ...common('group'), layerType: 'group', layers, compositingParamValues: {}, audioParamValues: { volume: literal(0.5) } });

@@ -9,10 +9,10 @@ const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const customReference = parameterId => ({ inputSource: 'nodesEffectCustomParameterValueReference', parameterId });
 const scalar = (id, nameForReference = id) => ({ id, nameForReference, canNode: false, dataType: { kind: 'scalar' }, ui: { label: nameForReference, control: { controlType: 'number' } }, defaultValue: 0 });
-const scope = (time = 500, publicValue = 3) => ({ time, publicValue, automationGraphs: [] });
+const scope = (time = 500, publicValue = 3) => ({ time, publicValue, curveAnimations: [] });
 function nodesEffectDefinition(definitions, values = {}, environment = scope()) {
 	return { paramDefs: { 'public-speed': scalar('public-speed', 'speed') }, customParameterDefs: Object.fromEntries(definitions.map(def => [def.id, def])),
-		customParameterValues: values, automationGraphs: environment.automationGraphs, nodes: [], outputDefs: {}, outputSources: {}, resolutionInputParameters: [], primaryInputParameter: null, primaryOutput: null };
+		customParameterValues: values, curveAnimations: environment.curveAnimations, nodes: [], outputDefs: {}, outputSources: {}, resolutionInputParameters: [], primaryInputParameter: null, primaryOutput: null };
 }
 function fixture(definitions, values = {}, environment = scope()) {
 	const nodesEffect = nodesEffectDefinition(definitions, values, environment);
@@ -67,16 +67,16 @@ test('reevaluates each sample with its own time and public arguments', () => {
 	for (const [time, input] of [[100, 2], [0, 9], [100, 2], [100, 8]]) assert.equal(fixture(definitions, values, scope(time, input)).read(customReference('speed')), time + input);
 });
 
-// 【キーとAutomation GraphはNodes Effectの同じ時刻で評価する】
+// 【キーとCurve AnimationはNodes Effectの同じ時刻で評価する】
 // 共通値へ移した後も時間軸や加工式の意味を維持し、依存先同士で異なる時計を使わないことを確認する。
-test('evaluates keyframes and local Automation Graphs on the shared sample clock', () => {
+test('evaluates keyframes and local Curve Animations on the shared sample clock', () => {
 	const point = (x, y) => ({ id: String(x), x, y, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
 	const environment = scope(500);
-	environment.automationGraphs = [{ id: 'local', nameForReference: 'curve', isNormalized: true, points: [point(0, 0), point(1, 10)] }];
+	environment.curveAnimations = [{ id: 'local', nameForReference: 'curve', isNormalized: true, points: [point(0, 0), point(1, 10)] }];
 	const keyframe = (x, value) => ({ id: String(x), x, value, interpolation: { type: 'linear' } });
 	const values = {
 		keys: { inputSource: 'keyframesTimelineInline', keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [keyframe(0, 0), keyframe(1000, 4)] }, trimmedDurationMs: null, wrapMode: 'clamp', offsetMode: 'start', expressionModifier: { enabled: true, code: 'VALUE + PUBLIC("speed")' } },
-		curve: { inputSource: 'automationGraphReference', automationGraphId: 'local', trimmedDurationMs: 1000, wrapMode: 'clamp', offsetMode: 'start' },
+		curve: { inputSource: 'curveAnimationReference', curveAnimationId: 'local', trimmedDurationMs: 1000, wrapMode: 'clamp', offsetMode: 'start' },
 	};
 	assert.equal(fixture(['keys', 'curve'].map(id => scalar(id)), values, environment).read(expression('CUSTOM("keys") + CUSTOM("curve")')), 10);
 });

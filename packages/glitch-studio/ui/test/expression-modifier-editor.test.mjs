@@ -67,7 +67,7 @@ function fixture(t, timeline = null) {
 																																			parentNode: node => node.parent, nextSibling: node => node.parent?.children[node.parent.children.indexOf(node) + 1] ?? null,
 	});
 	const root = element('root');
-	const props = reactive({ automationGraphs: [], availableVariables: [], paramPath: ['amount'],
+	const props = reactive({ curveAnimations: [], availableVariables: [], paramPath: ['amount'],
 																										paramDef: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: 0 },
 																										paramValue: { inputSource: 'expression', expression: 'TIME', expressionModifier: { enabled: true, code: 'VALUE + 1' } },
 	});
@@ -89,7 +89,7 @@ test('offers custom references only inside Nodes Effects and preserves unavailab
 	const f = fixture(t, { context: computed(() => ({ layer: { id: 'layer', publicParameterDefs: [] }, ancestors: [] })), isPublicParameterValue: false });
 	f.props.paramValue = { inputSource: 'literal', value: 1 };
 	const custom = { ...f.props.paramDef, id: 'custom-id', nameForReference: 'speed', canNode: false };
-	f.props.nodesEffect = { customParameterValues: {}, nodes: [], paramDefs: [], customParameterDefs: [custom, { ...custom, id: 'text', dataType: { kind: 'string' } }], automationGraphs: [] };
+	f.props.nodesEffect = { customParameterValues: {}, nodes: [], paramDefs: [], customParameterDefs: [custom, { ...custom, id: 'text', dataType: { kind: 'string' } }], curveAnimations: [] };
 	await nextTick();
 	const menu = () => {
 		f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
@@ -128,7 +128,7 @@ test('offers named parameter creation only for literal leaves with an owning sco
 	await nextTick();
 	assert.equal(action(), undefined);
 	assert.equal(action('createCustomParameter'), undefined);
-	f.props.nodesEffect = { customParameterDefs: [], customParameterValues: {}, paramDefs: [], nodes: [], automationGraphs: [] };
+	f.props.nodesEffect = { customParameterDefs: [], customParameterValues: {}, paramDefs: [], nodes: [], curveAnimations: [] };
 	f.props.node = { id: 'node', type: 'effect', params: {} };
 	f.props.paramPath = ['settings', 'amount'];
 	await nextTick();
@@ -139,7 +139,7 @@ test('offers named parameter creation only for literal leaves with an owning sco
 	for (const binding of [
 		{ inputSource: 'expression', expression: 'TIME' },
 		{ inputSource: 'keyframesTimelineInline', keyframesTimeline: { keyframes: [] } },
-		{ inputSource: 'automationGraphReference', automationGraphId: null },
+		{ inputSource: 'curveAnimationReference', curveAnimationId: null },
 		{ inputSource: 'nodesEffectPublicParameterReference', parameterId: '' },
 		{ inputSource: 'node', nodeId: null, outputPort: null },
 		{ inputSource: 'literal', value: 0.3, expressionModifier: { enabled: false, code: 'VALUE' } },

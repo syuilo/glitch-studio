@@ -6,7 +6,7 @@ import { loadSource } from './helpers/load-source.mjs';
 const { TextParameters } = await loadSource(fileURLToPath(new URL('../src/layers/text/text-parameters.ts', import.meta.url)));
 const { createTextParameterValues } = await loadSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_shared/layers/text/text.ts')));
 const literal = value => ({ inputSource: 'literal', value });
-const scope = { time: 1500, isExport: true, automationGraphs: [] };
+const scope = { time: 1500, isExport: true, curveAnimations: [] };
 
 // 【縦書きの方向と最大高さを通常のパラメータとして評価する】
 // UIのリテラル編集に加え、式による切り替えも描画側へ伝える。
@@ -65,15 +65,15 @@ test('sanitizes text values while preserving bindings and straight-alpha colors'
 	assert.equal(result.color[0], 0.8);
 });
 
-// 【Scene時刻のautomationと未設定値をText自身の定義から評価する】
+// 【Scene時刻のCurve Animationと未設定値をText自身の定義から評価する】
 // フォントや装飾を追加した際に欠落値が不正になったり、別レイヤーと既定値を共有しない。
-test('evaluates automation and uses independent defaults', () => {
+test('evaluates Curve Animation and uses independent defaults', () => {
 	const bindings = createTextParameterValues();
 	const other = createTextParameterValues();
 	bindings.color.value[0] = 0;
 	assert.equal(other.color.value[0], 1);
-	bindings.outlineWidth = { inputSource: 'automationGraphInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
-		automationGraph: { isNormalized: false, points: [
+	bindings.outlineWidth = { inputSource: 'curveAnimationInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
+		curveAnimation: { isNormalized: false, points: [
 			{ id: 'a', x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 			{ id: 'b', x: 2000, y: 0.1, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 		] } };

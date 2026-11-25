@@ -58,7 +58,7 @@ export function validateTimelineLayer(layer: TimelineLayer): void {
 		for (const child of layer.layers) validateTimelineLayer(child);
 	}
 	if (layer.layerType === 'transform') validateTimelineTransform(layer.transformParamValues);
-	if (layer.layerType === 'camera') validateTimelineCamera({ paramValues: layer.cameraParamValues, automationGraphs: layer.automationGraphs });
+	if (layer.layerType === 'camera') validateTimelineCamera({ paramValues: layer.cameraParamValues, curveAnimations: layer.curveAnimations });
 	if (layer.layerType === 'text') validateTimelineText(layer.textParamValues);
 	if (layer.layerType === 'voicevox') {
 		validateVoicevoxSubtitle(layer.subtitleParamValues);

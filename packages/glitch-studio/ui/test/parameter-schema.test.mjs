@@ -14,11 +14,11 @@ import type { KeyframesTimelineData, KeyframesTimelineKeyframe } from '@gs/share
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { TimelineFolderLayer, TimelineParameterContainerLayer, TimelineLayerWithParameters } from '@gs/subsystems_timeline_shared/types.ts';
 const folder: TimelineFolderLayer = { id: 'folder', name: 'Folder', layerType: 'folder', color: null, isDisabled: false, isSolo: false, layers: [] };
-const parameterContainer: TimelineParameterContainerLayer = { id: 'parameters', name: 'Parameters', layerType: 'parameterContainer', color: null, isDisabled: false, isSolo: false, automationGraphs: [], layers: [] };
+const parameterContainer: TimelineParameterContainerLayer = { id: 'parameters', name: 'Parameters', layerType: 'parameterContainer', color: null, isDisabled: false, isSolo: false, curveAnimations: [], layers: [] };
 // @ts-expect-error フォルダは整理だけを担当し、パラメータの定義を持てない
 const folderWithParameters: TimelineFolderLayer = { ...folder, publicParameterDefs: [] };
-// @ts-expect-error フォルダにAutomation Graphを追加してパラメータのスコープを作らない
-const folderWithGraphs: TimelineFolderLayer = { ...folder, automationGraphs: [] };
+// @ts-expect-error フォルダにCurve Animationを追加してパラメータのスコープを作らない
+const folderWithCurveAnimations: TimelineFolderLayer = { ...folder, curveAnimations: [] };
 // @ts-expect-error フォルダは値の編集・評価の所有者として扱わない
 const parameterOwner: TimelineLayerWithParameters = folder;
 const hold = { type: 'hold' } as const;

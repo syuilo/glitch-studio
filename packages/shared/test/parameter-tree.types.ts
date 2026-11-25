@@ -30,7 +30,7 @@ const fieldDefault: FieldDefault = expression;
 // 【評価には必ずパラメータの型を渡す】
 // 定義を渡し忘れた呼び出しで、数値文字列の変換や式のエラーに付ける対象情報を失わないようにする。
 // @ts-expect-error 第4引数のパラメータ定義は必須
-new ParameterBindingEvaluator(null).evaluate(modifiedLiteral, { variables: {}, automationGraphs: [], time: 0, endTime: 0 }, null);
+new ParameterBindingEvaluator(null).evaluate(modifiedLiteral, { variables: {}, curveAnimations: [], time: 0, endTime: 0 }, null);
 
 // sharedのテストは実際の利用ドメインに依存せず、独自方式を加えた利用側を模擬する。
 type ReferenceBinding = { inputSource: 'testReference'; referenceId: string };

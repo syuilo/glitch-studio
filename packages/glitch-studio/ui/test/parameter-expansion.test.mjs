@@ -108,17 +108,17 @@ async function fixture(t, { target = 'node', defaultCollapsed = false, elementCo
 		const params = Object.fromEntries(Object.entries(definition.paramDefs).map(([key, parameter]) => [key, createDefaultParameterBinding(parameter)]));
 		if (connected) params.buzzs.value[0].binding.value.image = { inputSource: 'node', nodeId: 'source', outputPort: 'output' };
 		return { id, type: 'effect', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, resolution: { mode: 'auto', scale: 1 },
-			isBypass: false, automationGraphs: [], params, effectParamValues: params, staticSettings: {}, effectStaticSettings: {} };
+			isBypass: false, curveAnimations: [], params, effectParamValues: params, staticSettings: {}, effectStaticSettings: {} };
 	};
 	const owners = ref([createOwner('first-owner'), createOwner('second-owner')]);
 	const selection = ref(0);
 	const owner = computed(() => owners.value[selection.value]);
 	const nodesEffect = computed(() => ({ nodes: [{ id: 'source', type: 'relay', dataType: { kind: 'color' } }, ...owners.value],
-		paramDefs: [], outputDefs: [], automationGraphs: [], customParameterDefs: [] }));
+		paramDefs: [], outputDefs: [], curveAnimations: [], customParameterDefs: [] }));
 	const scope = ref(JSON.stringify(target === 'node' ? ['nodesEffect', 'first-nodes-effect'] : ['timelineLayer', 'scene', 'first-layer']));
 	const state = shallowReactive(new Map());
 	Object.assign(projectSession, { parameterExpansionStates: state,
-		projectContext: { stateManager: { state: { automationGraphs: ref([]), resolution: ref({ width: 800, height: 600 }) } } } });
+		projectContext: { stateManager: { state: { curveAnimations: ref([]), resolution: ref({ width: 800, height: 600 }) } } } });
 	const showEditor = ref(true);
 	const edits = [];
 	let wireMap;

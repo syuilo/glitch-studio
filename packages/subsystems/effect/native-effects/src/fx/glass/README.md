@@ -28,13 +28,13 @@
 | Tint Preserve Luminosity | 着色の前後で輝度を保つ |
 | Cutout | trueならガラスの外側を透明にし、falseなら元画像を残す |
 
-Input・SDFは定数とノード接続に対応する。その他は画面全体で共通のパラメータで、式・automationを利用できる。形状の種類・位置・寸法・回転は上流のSDFで設定し、このエフェクトでは変形しない。Inner Zoom Centerは画像の参照位置だけを変え、形状や照明を動かさない。
+Input・SDFは定数とノード接続に対応する。その他は画面全体で共通のパラメータで、式・Curve Animationを利用できる。形状の種類・位置・寸法・回転は上流のSDFで設定し、このエフェクトでは変形しない。Inner Zoom Centerは画像の参照位置だけを変え、形状や照明を動かさない。
 
 量・幅の負値は0、Inner Zoomは0.001以上、SoftnessとTint Intensityは0〜1として扱う。Curvatureは2〜6、IORは1〜2に制限する。Curvature・IORはQuadraticでは参照しない。色パラメータのalphaは各効果の強さに掛ける。Thicknessは物理的な3Dの厚みではなく、2Dの輪郭付近で屈折を起こす幅である。
 
-Normal Smoothingは0以上の有限値を使い、負値・非有限値は0として扱う。式・automationでも指定できる。入力・出力の1画素相当より小さい値では、差分幅は従来と同じになる。
+Normal Smoothingは0以上の有限値を使い、負値・非有限値は0として扱う。式・Curve Animationでも指定できる。入力・出力の1画素相当より小さい値では、差分幅は従来と同じになる。
 
-Blur Samples・Aberration Samplesは最も近い整数へ丸め、それぞれ1〜128・3〜64に制限する。Aberration Samplesが非有限値なら3を使用する。式・automationで指定する場合も同じ扱いになる。Blur=0ではBlur Samplesを、Aberration=0または変位0ではAberration Samplesを参照せず、不要なサンプルを省略する。
+Blur Samples・Aberration Samplesは最も近い整数へ丸め、それぞれ1〜128・3〜64に制限する。Aberration Samplesが非有限値なら3を使用する。式・Curve Animationで指定する場合も同じ扱いになる。Blur=0ではBlur Samplesを、Aberration=0または変位0ではAberration Samplesを参照せず、不要なサンプルを省略する。
 
 Thicknessはliquidglass.devでのBezelに相当する幅だが、形状の短辺に対する割合ではなくSize Referenceで選んだ基準寸法に対する割合とする。任意のSDFから形状サイズを推定する処理は行わない。
 

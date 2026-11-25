@@ -31,7 +31,7 @@ function fixture(dialog = async () => null) {
 		name: { value: 'Project' }, description: { value: '' }, author: { value: '' },
 		resolution: { value: { width: 1920, height: 1080 } }, timelineFps: { value: 30 },
 		timelineMotionBlur: { value: { enabled: false, shutterAngle: 180, samples: 8 } }, exportSettings: { value: null },
-		automationGraphs: { value: [] }, customShaderEffects: { value: [] }, generatedSpeech: { value: [] },
+		curveAnimations: { value: [] }, customShaderEffects: { value: [] }, generatedSpeech: { value: [] },
 		assets: { value: [] }, nodesEffects: { value: [] }, timelineScenes: { value: [] },
 	};
 	const manager = new UndoRedo(state, COMMAND_DEFS);

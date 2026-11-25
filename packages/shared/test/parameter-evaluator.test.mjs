@@ -26,7 +26,7 @@ const expression = expression => ({ inputSource: 'expression', expression });
 const modified = (binding, code = 'VALUE', enabled = true) => ({ ...binding, expressionModifier: { enabled, code } });
 const scalarDefinition = { dataType: { kind: 'scalar' }, ui: { label: 'Amount' } };
 const context = (overrides = {}) => ({
-	variables: {}, automationGraphs: [], time: 500, endTime: 5000,
+	variables: {}, curveAnimations: [], time: 500, endTime: 5000,
 	...overrides,
 });
 
@@ -52,7 +52,7 @@ test('evaluates complete Color Ramp expressions and modifiers without mutating s
 	}
 	const code = '{ colorSpace: "linearSrgb", interpolation: "constant", repeatCount: 1, repeatMode: "wrap", stops: [{ id: "only", position: 0, color: [TIME, 0, 0, 1] }] }';
 	assert.equal(evaluator.evaluate(expression(code), context({ variables: { TIME: 0.25 } }), null, definition).stops[0].color[0], 0.25);
-	assert.throws(() => inspectStaticParameter(definition, { inputSource: 'automationGraphReference' }, () => {}), /does not support/);
+	assert.throws(() => inspectStaticParameter(definition, { inputSource: 'curveAnimationReference' }, () => {}), /does not support/);
 	assert.throws(() => inspectStaticParameter(definition, { inputSource: 'keyframesTimelineInline' }, () => {}), /does not support/);
 });
 
@@ -127,7 +127,7 @@ const keyframesInput = (keyframes, dataType = 'scalar', options = {}) => ({
 });
 function evaluateKeyframes(input, time, endTime = 5000, fallback = -1) {
 	return new ParameterBindingEvaluator(new ExpressionEvaluator()).evaluate(input, {
-		variables: {}, automationGraphs: [], time, endTime,
+		variables: {}, curveAnimations: [], time, endTime,
 	}, fallback, { dataType: input.keyframesTimeline.dataType, ui: { label: 'Keyframes' } });
 }
 
@@ -253,7 +253,7 @@ test('preserves easing overshoot and follows mirrored time without playback hist
 	}
 });
 
-const graphPoint = (x, y) => ({ id: `${x}`, x, y, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
+const curveAnimationPoint = (x, y) => ({ id: `${x}`, x, y, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
 
 // 【離散値はキーの時刻ちょうどで切り替わり、シーク方向や過去の評価に依存しない】
 // 文字列の分割・数値化やboolの補間を行うと、字幕や状態切り替えを正確な時刻で指定できなくなる。
@@ -303,22 +303,22 @@ test('applies normalized timing end alignment and wrapping to discrete keyframes
 	assert.equal(evaluateKeyframes(input, 4000, 5000), 'B');
 });
 
-const rampGraph = (isNormalized = true) => ({
+const rampCurveAnimation = (isNormalized = true) => ({
 	id: 'ramp-id', nameForReference: 'ramp', isNormalized,
 	// 配列順に依存せず終端を取得できることも確認する。
-	points: [graphPoint(isNormalized ? 1 : 2000, 10), graphPoint(0, 0)],
+	points: [curveAnimationPoint(isNormalized ? 1 : 2000, 10), curveAnimationPoint(0, 0)],
 });
-const graphInput = (inputSource, graph, options = {}) => ({
+const curveAnimationInput = (inputSource, curveAnimation, options = {}) => ({
 	inputSource,
-	...(inputSource === 'automationGraphReference'
-		? { automationGraphId: graph.id }
-		: { automationGraph: { points: graph.points, isNormalized: graph.isNormalized } }),
+	...(inputSource === 'curveAnimationReference'
+		? { curveAnimationId: curveAnimation.id }
+		: { curveAnimation: { points: curveAnimation.points, isNormalized: curveAnimation.isNormalized } }),
 	trimmedDurationMs: 2000, wrapMode: 'clamp', offsetMode: 'start', ...options,
 });
 
-function evaluateGraphInput(inputSource, graph, { time = 500, endTime = 5000, ...options } = {}) {
-	return new ParameterBindingEvaluator(new ExpressionEvaluator()).evaluate(graphInput(inputSource, graph, options), context({
-		automationGraphs: inputSource === 'automationGraphReference' ? [graph] : [], time, endTime,
+function evaluateCurveAnimationInput(inputSource, curveAnimation, { time = 500, endTime = 5000, ...options } = {}) {
+	return new ParameterBindingEvaluator(new ExpressionEvaluator()).evaluate(curveAnimationInput(inputSource, curveAnimation, options), context({
+		curveAnimations: inputSource === 'curveAnimationReference' ? [curveAnimation] : [], time, endTime,
 	}), -1, scalarDefinition);
 }
 
@@ -326,60 +326,60 @@ function assertClose(actual, expected) {
 	assert.ok(Math.abs(actual - expected) < 0.00001, `Expected ${actual} to be close to ${expected}`);
 }
 
-for (const source of ['automationGraphReference', 'automationGraphInline']) {
-	// 正規化グラフはdurationに引き延ばし、msグラフはdurationを無視する。
+for (const source of ['curveAnimationReference', 'curveAnimationInline']) {
+	// 正規化Curve Animationはdurationに引き延ばし、ミリ秒単位のCurve Animationはdurationを無視する。
 	test(`evaluates normalized and millisecond coordinates for ${source}`, () => {
-		assertClose(evaluateGraphInput(source, rampGraph(), { trimmedDurationMs: 4000, time: 1000 }), 2.5);
-		assertClose(evaluateGraphInput(source, rampGraph(false), { trimmedDurationMs: 4000, time: 1000 }), 5);
-		assertClose(evaluateGraphInput(source, rampGraph(false), { trimmedDurationMs: null, time: 500 }), 2.5);
-		assert.equal(evaluateGraphInput(source, rampGraph(), { time: 0 }), 0);
-		assert.equal(evaluateGraphInput(source, rampGraph(), { time: 2000 }), 10);
+		assertClose(evaluateCurveAnimationInput(source, rampCurveAnimation(), { trimmedDurationMs: 4000, time: 1000 }), 2.5);
+		assertClose(evaluateCurveAnimationInput(source, rampCurveAnimation(false), { trimmedDurationMs: 4000, time: 1000 }), 5);
+		assertClose(evaluateCurveAnimationInput(source, rampCurveAnimation(false), { trimmedDurationMs: null, time: 500 }), 2.5);
+		assert.equal(evaluateCurveAnimationInput(source, rampCurveAnimation(), { time: 0 }), 0);
+		assert.equal(evaluateCurveAnimationInput(source, rampCurveAnimation(), { time: 2000 }), 10);
 	});
 
 	// 終端合わせは最大XをendTimeに置き、開始前の値にも指定されたwrapを適用する。
-	test(`aligns the graph end and preserves wrap semantics for ${source}`, () => {
+	test(`aligns the Curve Animation end and preserves wrap semantics for ${source}`, () => {
 		for (const normalized of [true, false]) {
-			const graph = rampGraph(normalized);
-			assertClose(evaluateGraphInput(source, graph, { offsetMode: 'end', time: 3500 }), 2.5);
-			assert.equal(evaluateGraphInput(source, graph, { offsetMode: 'end', time: 5000 }), 10);
+			const curveAnimation = rampCurveAnimation(normalized);
+			assertClose(evaluateCurveAnimationInput(source, curveAnimation, { offsetMode: 'end', time: 3500 }), 2.5);
+			assert.equal(evaluateCurveAnimationInput(source, curveAnimation, { offsetMode: 'end', time: 5000 }), 10);
 			for (const [wrapMode, expected] of [['clamp', 0], ['repeat', 7.5], ['repeatMirrored', 2.5]]) {
-				assertClose(evaluateGraphInput(source, graph, { offsetMode: 'end', time: 2500, wrapMode }), expected);
+				assertClose(evaluateCurveAnimationInput(source, curveAnimation, { offsetMode: 'end', time: 2500, wrapMode }), expected);
 			}
 			// repeatの終端は既存の評価関数と同じく次周期の先頭になる。
-			assert.equal(evaluateGraphInput(source, graph, { offsetMode: 'end', time: 5000, wrapMode: 'repeat' }), 0);
+			assert.equal(evaluateCurveAnimationInput(source, curveAnimation, { offsetMode: 'end', time: 5000, wrapMode: 'repeat' }), 0);
 		}
 	});
 
 	// 正負の時刻、周期境界、往復再生の折り返しを確認する。
 	test(`applies all wrap modes for ${source}`, () => {
 		for (const normalized of [true, false]) {
-			const graph = rampGraph(normalized);
+			const curveAnimation = rampCurveAnimation(normalized);
 			for (const [wrapMode, before, after, boundary] of [
 				['clamp', 0, 10, 10], ['repeat', 7.5, 2.5, 0], ['repeatMirrored', 2.5, 7.5, 10],
 			]) {
-				assertClose(evaluateGraphInput(source, graph, { time: -500, wrapMode }), before);
-				assertClose(evaluateGraphInput(source, graph, { time: 2500, wrapMode }), after);
-				assert.equal(evaluateGraphInput(source, graph, { time: 2000, wrapMode }), boundary);
+				assertClose(evaluateCurveAnimationInput(source, curveAnimation, { time: -500, wrapMode }), before);
+				assertClose(evaluateCurveAnimationInput(source, curveAnimation, { time: 2500, wrapMode }), after);
+				assert.equal(evaluateCurveAnimationInput(source, curveAnimation, { time: 2000, wrapMode }), boundary);
 			}
 		}
 	});
 
 	// 終端はdurationそのものではなく実際の最終point。ms座標の開始位置も勝手に移動しない。
 	test(`uses actual point coordinates for ${source}`, () => {
-		const graph = { ...rampGraph(false), points: [graphPoint(3000, 10), graphPoint(1000, 0)] };
-		assertClose(evaluateGraphInput(source, graph, { time: 1500 }), 2.5);
-		assertClose(evaluateGraphInput(source, graph, { offsetMode: 'end', time: 4500 }), 7.5);
+		const curveAnimation = { ...rampCurveAnimation(false), points: [curveAnimationPoint(3000, 10), curveAnimationPoint(1000, 0)] };
+		assertClose(evaluateCurveAnimationInput(source, curveAnimation, { time: 1500 }), 2.5);
+		assertClose(evaluateCurveAnimationInput(source, curveAnimation, { offsetMode: 'end', time: 4500 }), 7.5);
 	});
 
 	// 有限な終端を持たないコンテキストではstart扱い。空・1点・無効なdurationでもNaNを返さない。
-	test(`handles unbounded playback and degenerate graphs for ${source}`, () => {
-		assertClose(evaluateGraphInput(source, rampGraph(), { offsetMode: 'end', endTime: Infinity }), 2.5);
+	test(`handles unbounded playback and degenerate Curve Animations for ${source}`, () => {
+		assertClose(evaluateCurveAnimationInput(source, rampCurveAnimation(), { offsetMode: 'end', endTime: Infinity }), 2.5);
 		for (const trimmedDurationMs of [null, 0, -1, Infinity, NaN]) {
-			assertClose(evaluateGraphInput(source, rampGraph(), { trimmedDurationMs }), 5);
+			assertClose(evaluateCurveAnimationInput(source, rampCurveAnimation(), { trimmedDurationMs }), 5);
 		}
 		for (const wrapMode of ['clamp', 'repeat', 'repeatMirrored']) {
-			assert.equal(evaluateGraphInput(source, { ...rampGraph(), points: [] }, { wrapMode, offsetMode: 'end' }), 0);
-			assert.equal(evaluateGraphInput(source, { ...rampGraph(), points: [graphPoint(0.5, 3)] }, { wrapMode, offsetMode: 'end' }), 3);
+			assert.equal(evaluateCurveAnimationInput(source, { ...rampCurveAnimation(), points: [] }, { wrapMode, offsetMode: 'end' }), 0);
+			assert.equal(evaluateCurveAnimationInput(source, { ...rampCurveAnimation(), points: [curveAnimationPoint(0.5, 3)] }, { wrapMode, offsetMode: 'end' }), 3);
 		}
 	});
 }
@@ -426,35 +426,35 @@ test('clones values read from variables', () => {
 	}
 });
 
-// 【GRAPHのnameForReferenceによる参照とスコープの更新】
-// ASTを再利用しても、グラフは毎回渡されたスコープからのみ参照する。
-test('evaluates GRAPH by nameForReference and refreshes definitions between scopes', () => {
+// 【CURVE_ANIMATIONのnameForReferenceによる参照とスコープの更新】
+// ASTを再利用しても、Curve Animationは毎回渡されたスコープからのみ参照する。
+test('evaluates CURVE_ANIMATION by nameForReference and refreshes definitions between scopes', () => {
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
-	const binding = expression('GRAPH("ramp", 0.5, "clamp")');
-	assertClose(evaluator.evaluate(binding, context({ automationGraphs: [rampGraph()] }), -1, scalarDefinition), 5);
-	assert.equal(evaluator.evaluate(binding, context({ automationGraphs: [{ ...rampGraph(), points: [graphPoint(0, 20)] }] }), -1, scalarDefinition), 20);
-	assert.throws(() => evaluator.evaluate(binding, context(), -1, scalarDefinition), /Unknown automation graph/);
-	assert.equal(evaluator.evaluate(graphInput('automationGraphReference', rampGraph()), context(), 12, scalarDefinition), 12);
-	for (const text of ['GRAPH("ramp-id", 0.5, "clamp")', 'GRAPH("ramp", 0.5, "invalid")', 'GRAPH("ramp", "0.5", "clamp")', 'GRAPH(1, 0.5, "clamp")', 'GRAPH("ramp", 0.5)', 'GRAPH("ramp", 0.5, "clamp", 1)']) {
-		assert.throws(() => evaluator.evaluate(expression(text), context({ automationGraphs: [rampGraph()] }), -1, scalarDefinition), /Base expression/);
+	const binding = expression('CURVE_ANIMATION("ramp", 0.5, "clamp")');
+	assertClose(evaluator.evaluate(binding, context({ curveAnimations: [rampCurveAnimation()] }), -1, scalarDefinition), 5);
+	assert.equal(evaluator.evaluate(binding, context({ curveAnimations: [{ ...rampCurveAnimation(), points: [curveAnimationPoint(0, 20)] }] }), -1, scalarDefinition), 20);
+	assert.throws(() => evaluator.evaluate(binding, context(), -1, scalarDefinition), /Unknown Curve Animation/);
+	assert.equal(evaluator.evaluate(curveAnimationInput('curveAnimationReference', rampCurveAnimation()), context(), 12, scalarDefinition), 12);
+	for (const text of ['CURVE_ANIMATION("ramp-id", 0.5, "clamp")', 'CURVE_ANIMATION("ramp", 0.5, "invalid")', 'CURVE_ANIMATION("ramp", "0.5", "clamp")', 'CURVE_ANIMATION(1, 0.5, "clamp")', 'CURVE_ANIMATION("ramp", 0.5)', 'CURVE_ANIMATION("ramp", 0.5, "clamp", 1)']) {
+		assert.throws(() => evaluator.evaluate(expression(text), context({ curveAnimations: [rampCurveAnimation()] }), -1, scalarDefinition), /Base expression/);
 	}
-	assertClose(evaluator.evaluate(graphInput('automationGraphInline', rampGraph()), context(), -1, scalarDefinition), 2.5);
-	assert.throws(() => evaluator.evaluate(binding, context(), -1, scalarDefinition), /Unknown automation graph/);
+	assertClose(evaluator.evaluate(curveAnimationInput('curveAnimationInline', rampCurveAnimation()), context(), -1, scalarDefinition), 2.5);
+	assert.throws(() => evaluator.evaluate(binding, context(), -1, scalarDefinition), /Unknown Curve Animation/);
 });
 
-// 【キー・グラフ・環境変数による基準値にも同じ加工段階を使う】
+// 【キー・Curve Animation・環境変数による基準値にも同じ加工段階を使う】
 // 基準式専用の機能にせず、再生設定やキーの時刻を変更しない。
-test('modifies keyframe graph and environment sources without changing their stored data', () => {
+test('modifies keyframe Curve Animation and environment sources without changing their stored data', () => {
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const sources = [
 		[keyframesInput([keyframe(0, 0), keyframe(1, 10)]), 5],
-		[graphInput('automationGraphInline', rampGraph()), 2.5],
+		[curveAnimationInput('curveAnimationInline', rampCurveAnimation()), 2.5],
 		[{ inputSource: 'envVariable', variable: 'AMOUNT' }, 3],
 	];
 	for (const [source, base] of sources) {
-		const input = modified(source, 'VALUE * 2 + GRAPH("ramp", 0.5, "clamp")');
+		const input = modified(source, 'VALUE * 2 + CURVE_ANIMATION("ramp", 0.5, "clamp")');
 		const before = structuredClone(input);
-		assert.equal(evaluator.evaluate(input, context({ variables: { AMOUNT: 3 }, automationGraphs: [rampGraph()] }), -1, scalarDefinition), base * 2 + 5);
+		assert.equal(evaluator.evaluate(input, context({ variables: { AMOUNT: 3 }, curveAnimations: [rampCurveAnimation()] }), -1, scalarDefinition), base * 2 + 5);
 		assert.deepEqual(input, before);
 	}
 });

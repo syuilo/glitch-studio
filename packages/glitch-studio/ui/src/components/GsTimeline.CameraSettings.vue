@@ -8,10 +8,10 @@
 			:key="key"
 			previewParameterGroup="camera"
 			keyframesEnabled
-			:automationGraphEndEnabled="false"
+			:curveAnimationEndEnabled="false"
 			:availableVariables="LAYER_VAR_DEFS"
-			:automationGraphs="layer.automationGraphs"
-			:projectAutomationGraphs="projectSession.projectContext.stateManager.state.automationGraphs.value"
+			:curveAnimations="layer.curveAnimations"
+			:projectCurveAnimations="projectSession.projectContext.stateManager.state.curveAnimations.value"
 			:paramPath="[key]"
 			:paramDef="def"
 			:paramValue="layer.cameraParamValues[key] ?? createDefaultParameterBinding(def)"

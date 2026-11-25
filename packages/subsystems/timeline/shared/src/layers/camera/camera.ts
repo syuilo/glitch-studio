@@ -1,7 +1,7 @@
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { validateTimelineParameterTree } from '../../parameter-binding.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
+import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
 import type { TimelineParameterBinding } from '../../parameter-binding.ts';
 
 // XY・ZともSceneの長辺全体を1とする。+Zはカメラ側。
@@ -70,7 +70,7 @@ export function createTimelineCameraParameterValues(): TimelineCameraParameterVa
 /** 評価器へ渡す設定。カメラ選択・クリップの有効期間はScene側で解決する。 */
 export type TimelineCamera = {
 	paramValues: Partial<TimelineCameraParameterValues>;
-	automationGraphs: AutomationGraph[];
+	curveAnimations: CurveAnimation[];
 };
 export type EvaluatedTimelineCamera = { position: [number, number]; z: number; roll: number; fieldOfView: number };
 

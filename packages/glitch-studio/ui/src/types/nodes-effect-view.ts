@@ -4,7 +4,7 @@ import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.t
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
-import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
+import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
 import type { FitMode, WrapMode } from '@gs/shared/types.js';
 
 export type NodesEffectNodeParameterBinding = { inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });
@@ -103,7 +103,7 @@ export type NodesEffect = {
 	primaryInputId: string | null;
 	/** 音声の自動割当先。Inノードの画像入力とは独立する。 */
 	primaryAudioInputId?: string | null;
-	automationGraphs: AutomationGraph[];
+	curveAnimations: CurveAnimation[];
 };
 
 // レイヤー・Effect Live Previewからは、Nodes Effect内部のノードやパラメータを参照しない。

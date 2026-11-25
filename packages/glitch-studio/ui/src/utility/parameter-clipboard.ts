@@ -46,7 +46,7 @@ export type ParameterClipboardSource = {
 	projectSessionId: string;
 	owner: ParameterClipboardOwner;
 	// 同じIDのローカル定義を、別の所有者の定義やプロジェクト定義と取り違えない。
-	localAutomationGraphIds: string[];
+	localCurveAnimationIds: string[];
 };
 
 export type ParameterClipboardData = {
@@ -154,16 +154,16 @@ function validateBinding(dataType: DataType, value: unknown): asserts value is E
 		case 'literal': validateLiteral(dataType, binding.value); break;
 		case 'expression': requireValid(typeof binding.expression === 'string'); break;
 		case 'envVariable': requireValid(typeof binding.variable === 'string'); break;
-		case 'automationGraphReference':
+		case 'curveAnimationReference':
 			validatePlaybackOptions(binding);
-			requireValid(binding.automationGraphId === null || nonemptyString(binding.automationGraphId));
+			requireValid(binding.curveAnimationId === null || nonemptyString(binding.curveAnimationId));
 			break;
-		case 'automationGraphInline': {
+		case 'curveAnimationInline': {
 			validatePlaybackOptions(binding);
-			const graph = object(binding.automationGraph);
-			requireValid(typeof graph.isNormalized === 'boolean' && Array.isArray(graph.points));
+			const curveAnimation = object(binding.curveAnimation);
+			requireValid(typeof curveAnimation.isNormalized === 'boolean' && Array.isArray(curveAnimation.points));
 			const ids = new Set<string>();
-			for (const candidate of graph.points) {
+			for (const candidate of curveAnimation.points) {
 				const point = object(candidate);
 				requireValid(nonemptyString(point.id) && !ids.has(point.id) && finiteNumber(point.x) && finiteNumber(point.y)
 					&& components(point.bezierControlPointA, 2) && components(point.bezierControlPointB, 2));
@@ -220,7 +220,7 @@ export function parseParameterClipboard(text: string): ParameterClipboardData | 
 		validateDataType(data.dataType);
 		validateBinding(data.dataType, data.binding);
 		const source = object(data.source);
-		requireValid(nonemptyString(source.projectSessionId) && Array.isArray(source.localAutomationGraphIds) && source.localAutomationGraphIds.every(nonemptyString));
+		requireValid(nonemptyString(source.projectSessionId) && Array.isArray(source.localCurveAnimationIds) && source.localCurveAnimationIds.every(nonemptyString));
 		const owner = object(source.owner);
 		if (owner.kind === 'nodesEffect') {
 			const target = object(owner.target);
@@ -237,7 +237,7 @@ export function createParameterClipboard(definition: ParameterDefinition, bindin
 }
 
 export function createNodesEffectClipboardSource(projectSessionId: string, target: NodesEffectTarget, nodesEffect: NodesEffect): ParameterClipboardSource {
-	return { projectSessionId, owner: { kind: 'nodesEffect', target }, localAutomationGraphIds: nodesEffect.automationGraphs.map(graph => graph.id) };
+	return { projectSessionId, owner: { kind: 'nodesEffect', target }, localCurveAnimationIds: nodesEffect.curveAnimations.map(curveAnimation => curveAnimation.id) };
 }
 
 function sameOwner(a: ParameterClipboardSource, b: ParameterClipboardSource): boolean {
@@ -264,13 +264,13 @@ function validateLeafDestination(definition: ParameterDefinition, binding: Edita
 	}
 	switch (binding.inputSource) {
 		case 'literal': break;
-		case 'automationGraphReference': {
-			if (binding.automationGraphId == null) break;
+		case 'curveAnimationReference': {
+			if (binding.curveAnimationId == null) break;
 			requireValid(sameProjectSession);
-			const localGraphs = context.kind === 'timeline' ? context.layer.automationGraphs : context.kind === 'node' || context.kind === 'customParameter' ? context.nodesEffect.automationGraphs : [];
-			if (source.localAutomationGraphIds.includes(binding.automationGraphId)) {
-				requireValid(sameOwner(source, context.source) && localGraphs.some(graph => graph.id === binding.automationGraphId));
-			} else requireValid(context.kind !== 'node' && context.kind !== 'customParameter' && context.state.automationGraphs.value.some(graph => graph.id === binding.automationGraphId));
+			const localCurveAnimations = context.kind === 'timeline' ? context.layer.curveAnimations : context.kind === 'node' || context.kind === 'customParameter' ? context.nodesEffect.curveAnimations : [];
+			if (source.localCurveAnimationIds.includes(binding.curveAnimationId)) {
+				requireValid(sameOwner(source, context.source) && localCurveAnimations.some(curveAnimation => curveAnimation.id === binding.curveAnimationId));
+			} else requireValid(context.kind !== 'node' && context.kind !== 'customParameter' && context.state.curveAnimations.value.some(curveAnimation => curveAnimation.id === binding.curveAnimationId));
 			break;
 		}
 		case 'node': {
@@ -340,8 +340,8 @@ export function prepareParameterBindingPaste(definition: ParameterDefinition, cl
 				for (const [key, field] of Object.entries(getStructFieldDefinitions(currentDefinition))) prepareTree(field, currentBinding.value[key]);
 			} else if (currentBinding.inputSource === 'keyframesTimelineInline') {
 				for (const point of currentBinding.keyframesTimeline.keyframes) point.id = genId();
-			} else if (currentBinding.inputSource === 'automationGraphInline') {
-				for (const point of currentBinding.automationGraph.points) point.id = genId();
+			} else if (currentBinding.inputSource === 'curveAnimationInline') {
+				for (const point of currentBinding.curveAnimation.points) point.id = genId();
 			} else if (currentBinding.inputSource === 'literal' && currentDefinition.dataType.kind === 'colorRamp') {
 				for (const stop of currentBinding.value.stops) stop.id = genId();
 			}
@@ -378,7 +378,7 @@ export function resolveProjectClipboardTarget(state: ProjectState, projectSessio
 		before = getLayerParameterValues(layer, target.parameterTarget)[rootKey] ?? null;
 		root = resolveLayerParameter(state, layer, target.parameterTarget, [rootKey]);
 		context = { kind: 'timeline', state, scene, layer, parameterTarget: target.parameterTarget, source: {
-			projectSessionId, owner: { kind: 'timelineLayer', sceneId: scene.id, layerId: layer.id }, localAutomationGraphIds: layer.automationGraphs.map(graph => graph.id),
+			projectSessionId, owner: { kind: 'timelineLayer', sceneId: scene.id, layerId: layer.id }, localCurveAnimationIds: layer.curveAnimations.map(curveAnimation => curveAnimation.id),
 		} };
 	}
 	const draft = { [rootKey]: deepClone(root.value) };

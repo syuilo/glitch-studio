@@ -11,7 +11,7 @@ const { getTimelineRenderLayers } = await loadSource(createRequire(import.meta.u
 const frame = { width: 1920, height: 1080 };
 const literal = value => ({ inputSource: 'literal', value });
 const leaf = id => ({ id, layerType: 'image', isDisabled: false, forceDisableMotionBlur: false, clips: [{ id: 'clip', startMs: 100, durationMs: 1000, contentOffsetMs: 0 }] });
-const transform = (id, layers, position = [0, 0], z = 0) => ({ id, layerType: 'transform', isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [],
+const transform = (id, layers, position = [0, 0], z = 0) => ({ id, layerType: 'transform', isDisabled: false, forceDisableMotionBlur: false, curveAnimations: [],
 	transformParamValues: { position: literal(position), z: literal(z), scale: literal([1, 1]), rotation: literal(0) }, layers });
 
 function fixture(layers) {
@@ -50,7 +50,7 @@ test('flattens organizing containers without recreating children or changing com
 	const f = fixture(layers);
 	try {
 		assert.deepEqual((await f.render(500)).output, ['background', 'lower', 'upper']);
-		const parameters = { id: 'parameters', layerType: 'parameterContainer', isDisabled: false, automationGraphs: [], layers: [upper] };
+		const parameters = { id: 'parameters', layerType: 'parameterContainer', isDisabled: false, curveAnimations: [], layers: [upper] };
 		const folder = { id: 'folder', layerType: 'folder', isDisabled: false, layers: [parameters, lower] };
 		layers.splice(0, 2, folder);
 		const result = await f.render(600);
@@ -68,7 +68,7 @@ test('flattens organizing containers without recreating children or changing com
 // 【Transform内の整理用コンテナも、親の座標と時計をそのまま子へ渡す】
 // 整理用の枝で座標を初期化したり、新しい基準時刻を作ったりしないことを描画側で確認する。
 test('keeps transform space and frozen time across folders and parameter containers', async () => {
-	const folders = { id: 'folder', layerType: 'folder', isDisabled: false, layers: [{ id: 'parameters', layerType: 'parameterContainer', isDisabled: false, automationGraphs: [], layers: [leaf('child')] }] };
+	const folders = { id: 'folder', layerType: 'folder', isDisabled: false, layers: [{ id: 'parameters', layerType: 'parameterContainer', isDisabled: false, curveAnimations: [], layers: [leaf('child')] }] };
 	const parent = transform('parent', [folders], [0.2, 0.3], 0.4);
 	parent.forceDisableMotionBlur = true;
 	const f = fixture([parent]);

@@ -553,7 +553,7 @@ test('fits the last clip using shared speech intervals before clipping to its cu
 // ネストした配置ごとに時刻が違っても同じ生成音声を共有でき、無効レイヤーは取得しない。
 test('supports nested placements and audio layer selection without moving speech keys', () => {
 	const f = fixture();
-	const parent = { id: 'child', name: 'Child', layerType: 'scene', isDisabled: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: literal(0.5) }, clips: [{ id: 'placement', sceneId: 'root', startMs: 1000, contentOffsetMs: 250, durationMs: 400 }] };
+	const parent = { id: 'child', name: 'Child', layerType: 'scene', isDisabled: false, curveAnimations: [], compositingParamValues: {}, audioParamValues: { volume: literal(0.5) }, clips: [{ id: 'placement', sceneId: 'root', startMs: 1000, contentOffsetMs: 250, durationMs: 400 }] };
 	const scenes = [...f.scenes, scene('parent', [parent])];
 	const plan = getSceneAudioClips(scenes, 'parent', { type: 'layer', layerId: 'child' }, createSpeechResolver([f.speech]));
 	assert.deepEqual(plan.map(clip => [(clip.sourceTiming.startMs - clip.sourceTiming.sourceInMs), clip.startMs, clip.endMs]), [[850, 1000, 1150], [1150, 1150, 1350]]);

@@ -105,10 +105,10 @@ test('places utterances independently of synthesis without restarting after gaps
 // 未生成と生成済みだが短くて聞こえない音声を区別し、音声長を仮装せず書き出しを検証する。
 test('resolves nested speech placements and distinguishes missing from exhausted audio', () => {
 	const volume = { volume: { inputSource: 'literal', value: 1 } };
-	const speechLayer = { id: 'speech', name: 'Speech', layerType: 'voicevox', isDisabled: false, automationGraphs: [],
+	const speechLayer = { id: 'speech', name: 'Speech', layerType: 'voicevox', isDisabled: false, curveAnimations: [],
 		audioParamValues: volume, compositingParamValues: {}, subtitleParamValues: {}, voicevox: settings,
 		utterances: [utterance('first', 100, 'First'), utterance('last', 400, 'Last')], clips: [clip('speech', 200, 500)] };
-	const parent = { id: 'parent', name: 'Parent', layerType: 'scene', isDisabled: false, automationGraphs: [],
+	const parent = { id: 'parent', name: 'Parent', layerType: 'scene', isDisabled: false, curveAnimations: [],
 		audioParamValues: volume, compositingParamValues: {}, clips: [{ ...clip('parent', 1000, 300), contentOffsetMs: 250, sceneId: 'child' }] };
 	const scene = (id, layers) => ({ id, name: id, resolution: { mode: 'project' }, layers });
 	const scenes = [scene('root', [parent]), scene('child', [speechLayer])];
@@ -125,14 +125,14 @@ test('resolves nested speech placements and distinguishes missing from exhausted
 
 function speechHistoryFixture() {
 	const volume = { volume: { inputSource: 'literal', value: 1 } };
-	const speech = { id: 'speech', name: 'Speech', layerType: 'voicevox', isDisabled: false, automationGraphs: [],
+	const speech = { id: 'speech', name: 'Speech', layerType: 'voicevox', isDisabled: false, curveAnimations: [],
 		audioParamValues: volume, compositingParamValues: {}, subtitleParamValues: {}, voicevox: settings,
 		utterances: [utterance('first', 0, 'First')], clips: [clip('speech', 0, 500)] };
-	const waveform = { id: 'waveform', name: 'Waveform', layerType: 'effect', isDisabled: false, automationGraphs: [],
+	const waveform = { id: 'waveform', name: 'Waveform', layerType: 'effect', isDisabled: false, curveAnimations: [],
 		compositingParamValues: {}, effectSource: { type: 'nativeEffect', id: 'audioWaveform' }, resolution: { mode: 'auto', scale: 1 },
 		effectParamValues: { audio: { inputSource: 'lowerLayerAudio' }, duration: { inputSource: 'literal', value: 1 } },
 		clips: [clip('waveform', 0, 3000)] };
-	const parent = { id: 'parent', name: 'Parent', layerType: 'scene', isDisabled: false, automationGraphs: [],
+	const parent = { id: 'parent', name: 'Parent', layerType: 'scene', isDisabled: false, curveAnimations: [],
 		audioParamValues: volume, compositingParamValues: {},
 		clips: [{ ...clip('parent', 0, 1000), contentOffsetMs: 500, sceneId: 'child' }] };
 	const scene = (id, layers) => ({ id, name: id, resolution: { mode: 'project' }, layers });

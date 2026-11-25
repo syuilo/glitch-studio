@@ -22,17 +22,17 @@
 			<div :class="$style.valueBar" class="_monospace" :style="{ top: valueBarPos + 'px' }"><div :class="$style.valueBarValue">{{ currentValue.toFixed(2) }}</div></div>
 			<div :class="$style.crossPoint" :style="{ left: seekBarPos + 'px', top: valueBarPos + 'px' }"></div>
 			<div v-if="!bezierDragging" :class="$style.cursorBar" :style="{ left: cursorBarPos + 'px' }"></div>
-			<div :class="$style.automationGraph">
+			<div :class="$style.curveAnimation">
 				<svg version="1.1" :viewBox="`0 0 ${tlElWidth} ${tlElHeight}`" :class="$style.lines">
 					<defs>
-						<linearGradient id="tlAutomationGraphGradient" x1="0" x2="0" y1="0" y2="1">
+						<linearGradient id="tlCurveAnimationGradient" x1="0" x2="0" y1="0" y2="1">
 							<stop offset="0%" stop-color="var(--accentAlphaMiddleLow)"/>
-							<stop :offset="automationGraphPathGradientCenter + '%'" stop-color="var(--accentAlphaVeryLow)"/>
+							<stop :offset="curveAnimationPathGradientCenter + '%'" stop-color="var(--accentAlphaVeryLow)"/>
 							<stop offset="100%" stop-color="var(--accentAlphaMiddleLow)"/>
 						</linearGradient>
 					</defs>
-					<path :d="automationGraphSvgFillPath" style="fill: url(#tlAutomationGraphGradient); stroke: none;"/>
-					<path :d="automationGraphSvgPath" style="stroke: currentColor; fill: none; stroke-width: 2;"/>
+					<path :d="curveAnimationSvgFillPath" style="fill: url(#tlCurveAnimationGradient); stroke: none;"/>
+					<path :d="curveAnimationSvgPath" style="stroke: currentColor; fill: none; stroke-width: 2;"/>
 				</svg>
 
 				<svg v-if="!nowSelecting && selectedPoint" version="1.1" :viewBox="`0 0 ${tlElWidth} ${tlElHeight}`" :class="$style.lines">
@@ -103,10 +103,10 @@
 			</template>
 
 			<div :class="$style.infoBar" class="_monospace">
-				<div><b>{{ i18n.ts._AutomationGraph.TimelineOffset }}</b>{{ tlPosX.toFixed(2) }}, {{ tlPosY.toFixed(2) }}</div>
-				<div><b>{{ i18n.ts._AutomationGraph.Cursor }}</b>{{ cursorValueX.toFixed(2) }}, {{ cursorValueY }}</div>
-				<div><b>{{ i18n.ts._AutomationGraph.Current }}</b>{{ currentValueX.toFixed(2) }}, {{ currentValue.toFixed(2) }}</div>
-				<div><b>{{ i18n.ts._ParameterEditor.MinMax }}</b>{{ minMaxValuesInTheAutomationGraph.min.toFixed(2) }}, {{ minMaxValuesInTheAutomationGraph.max.toFixed(2) }}</div>
+				<div><b>{{ i18n.ts._CurveAnimation.TimelineOffset }}</b>{{ tlPosX.toFixed(2) }}, {{ tlPosY.toFixed(2) }}</div>
+				<div><b>{{ i18n.ts._CurveAnimation.Cursor }}</b>{{ cursorValueX.toFixed(2) }}, {{ cursorValueY }}</div>
+				<div><b>{{ i18n.ts._CurveAnimation.Current }}</b>{{ currentValueX.toFixed(2) }}, {{ currentValue.toFixed(2) }}</div>
+				<div><b>{{ i18n.ts._ParameterEditor.MinMax }}</b>{{ minMaxValuesInTheCurveAnimation.min.toFixed(2) }}, {{ minMaxValuesInTheCurveAnimation.max.toFixed(2) }}</div>
 			</div>
 		</div>
 		<div v-if="selectedPoint" :class="$style.rightSidePanel">
@@ -120,12 +120,12 @@
 
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { evalAutomationGraphValue } from '@gs/shared/automation-graph/automation-graph-evaluator.ts';
+import { evalCurveAnimationValue } from '@gs/shared/curve-animation/curve-animation-evaluator.ts';
 import { insertIntermediateNumbers, nearlyEqual, niceScale, niceNormalizedScale } from '@gs/shared/utility/misc.js';
 import { genId } from '@gs/shared/utility/id.js';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import GsButton from './common/GsButton.vue';
-import type { AutomationGraph, BezierAnchorPoint } from '@gs/shared/automation-graph/automation-graph.ts';
+import type { CurveAnimation, BezierAnchorPoint } from '@gs/shared/curve-animation/curve-animation.ts';
 import { i18n } from '@/i18n.ts';
 import { dragListen } from '@/utility/drag.ts';
 import { useEditorEditActions } from '@/composables/useEditorEditActions.ts';
@@ -228,7 +228,7 @@ const seekBarPos = computed(() => {
 	return valueXToDomX(currentValueX.value);
 });
 const currentValue = computed(() => {
-	return evalAutomationGraphValue({ points: ppints.value }, currentValueX.value, 'clamp');
+	return evalCurveAnimationValue({ points: ppints.value }, currentValueX.value, 'clamp');
 });
 const valueBarPos = computed(() => {
 	return valueYToDomY(currentValue.value);
@@ -305,7 +305,7 @@ const yTicksCount = ref(6);
 const yTicks = computed(() => niceScale(tlPosY.value, tlPosY.value + tlRangeY.value, yTicksCount.value));
 const yTicksWithHalf = computed(() => insertIntermediateNumbers(yTicks.value));
 
-const minMaxValuesInTheAutomationGraph = computed(() => {
+const minMaxValuesInTheCurveAnimation = computed(() => {
 	// 塗りつぶしは値0まで閉じるため、範囲に0も含める。
 	// Xを整数刻みで評価すると0〜1のカーブを始点でしか評価できない。
 	// SVGと同じ三次ベジェの端点と極値を使い、Xの単位や長さに依存させない。
@@ -343,7 +343,7 @@ const minMaxValuesInTheAutomationGraph = computed(() => {
 	};
 });
 
-const automationGraphSvgPath = computed(() => {
+const curveAnimationSvgPath = computed(() => {
 	const points = ppints.value;
 	if (points.length === 0) return '';
 	let d = `M ${valueXToDomX(points[0].x)}, ${valueYToDomY(points[0].y)}`;
@@ -359,15 +359,15 @@ const automationGraphSvgPath = computed(() => {
 	}
 	return d;
 });
-const automationGraphSvgFillPath = computed(() => {
+const curveAnimationSvgFillPath = computed(() => {
 	const points = ppints.value;
 	if (points.length === 0) return '';
 	// 値0へ閉じる線は塗りつぶし専用にし、曲線のstrokeには含めない。
-	return `${automationGraphSvgPath.value} L ${valueXToDomX(points[points.length - 1].x)}, ${valueYToDomY(0)} L ${valueXToDomX(0)}, ${valueYToDomY(0)} Z`;
+	return `${curveAnimationSvgPath.value} L ${valueXToDomX(points[points.length - 1].x)}, ${valueYToDomY(0)} L ${valueXToDomX(0)}, ${valueYToDomY(0)} Z`;
 });
-const automationGraphPathGradientCenter = computed(() => {
-	const max = minMaxValuesInTheAutomationGraph.value.max;
-	const min = Math.min(0, minMaxValuesInTheAutomationGraph.value.min);
+const curveAnimationPathGradientCenter = computed(() => {
+	const max = minMaxValuesInTheCurveAnimation.value.max;
+	const min = Math.min(0, minMaxValuesInTheCurveAnimation.value.min);
 	if (max === 0 && min === 0) return 0;
 	return ((max) / (max + Math.abs(min))) * 100;
 });
@@ -1187,7 +1187,7 @@ onMounted(() => {
 	background: #fff1;
 }
 
-.automationGraph {
+.curveAnimation {
 	position: absolute;
 	top: 0;
 	left: 0;

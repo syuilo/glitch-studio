@@ -1,6 +1,6 @@
 import type { EffectLivePreviewMediaBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import type { ValueParameterBinding, ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
-import type { AutomationGraphPlaybackOptions } from '@gs/shared/automation-graph/automation-graph.ts';
+import type { CurveAnimationPlaybackOptions } from '@gs/shared/curve-animation/curve-animation.ts';
 import type { ExpressionVariableName } from '@gs/shared/expression/expression-environment.ts';
 import type { NodesEffectParameterBinding } from '@/types/nodes-effect-view.ts';
 import type { TimelineEffectParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
@@ -27,12 +27,12 @@ export type ParameterInputSourceEdit<Source extends EditableParameterBinding['in
 
 export type ValueParameterEdit =
 	| { kind: 'literal'; value: any }
-	| { kind: 'automationGraphInline'; value: Extract<ValueParameterBinding, { inputSource: 'automationGraphInline' }> }
+	| { kind: 'curveAnimationInline'; value: Extract<ValueParameterBinding, { inputSource: 'curveAnimationInline' }> }
 	| { kind: 'keyframesTimelineInline'; value: Extract<ValueParameterBinding, { inputSource: 'keyframesTimelineInline' }> }
 	| { kind: 'envVariable'; value: ExpressionVariableName }
 	| { kind: 'expression'; value: string }
 	| { kind: 'expressionModifier'; value: ParameterExpressionModifier | null }
-	| { kind: 'automationGraphReference'; value: string | null; options?: Partial<AutomationGraphPlaybackOptions> }
+	| { kind: 'curveAnimationReference'; value: string | null; options?: Partial<CurveAnimationPlaybackOptions> }
 	| ParameterInputSourceEdit<ValueParameterBinding['inputSource']>
 	| { kind: 'reset' }
 	| { kind: 'addElement' }

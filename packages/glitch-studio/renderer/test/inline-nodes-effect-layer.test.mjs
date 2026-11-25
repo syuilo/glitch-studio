@@ -34,7 +34,7 @@ const connection = (nodeId, outputPort = 'output') => ({ inputSource: 'node', so
 const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, canNode: false, defaultValue: 0 };
 const color = { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: [1, 0, 0, 0.5] };
 const probeParamDefs = { input: color, amount: scalar, local: scalar, caller: scalar, localTime: scalar, duration: scalar, exported: scalar, forbidden: scalar, directImage: color };
-const graph = value => ({ id: 'graph', nameForReference: 'graph', isNormalized: true, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
+const curveAnimation = value => ({ id: 'curve-animation', nameForReference: 'curve-animation', isNormalized: true, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
 
 function createNodesEffect({ primaryInput = false, params } = {}) {
 	const input = { inputSource: 'nodesEffectPublicParameterReference', parameterId: 'input' };
@@ -54,7 +54,7 @@ function createNodesEffect({ primaryInput = false, params } = {}) {
 function layer(id, nodesEffect, overrides = {}) {
 	return {
 		id, layerType: 'effect', effectSource: { type: 'inlineNodesEffect', nodesEffect }, resolution: { mode: 'context', scale: 1 }, effectStaticSettings: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 100, contentOffsetMs: 0, durationMs: 1000 }],
-		effectParamValues: {}, automationGraphs: [], isDisabled: false,
+		effectParamValues: {}, curveAnimations: [], isDisabled: false,
 		compositingParamValues: {
 			...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])),
 			blendMode: literal('replace'),
@@ -385,7 +385,7 @@ test('refreshes public parameter scopes after parent value edits and hierarchy c
 	nodesEffect.paramDefs['amount'] = { ...scalar, nameForReference: 'amount' };
 	const definition = { ...scalar, id: 'speed', nameForReference: 'speed' };
 	const entry = layer('layer', nodesEffect, { publicParameterDefs: [definition], publicParameterValues: { speed: expression('PUBLIC("speed")') }, effectParamValues: { amount: expression('PUBLIC("speed")') } });
-	const parent = { id: 'parent', name: 'Parent', layerType: 'transform', isDisabled: false, automationGraphs: [], transformParamValues: createTimelineTransformParameterValues(),
+	const parent = { id: 'parent', name: 'Parent', layerType: 'transform', isDisabled: false, curveAnimations: [], transformParamValues: createTimelineTransformParameterValues(),
 		layers: [entry], publicParameterDefs: [definition], publicParameterValues: { speed: literal(1) } };
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [parent] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(350, 20);
@@ -484,7 +484,7 @@ test('preserves Transform child instances and outside inputs across project patc
 	const child = layer('child', createNodesEffect({ primaryInput: true, params: { amount: literal(1) } }));
 	const background = layer('background', createNodesEffect());
 	const parent = { id: 'parent', name: 'Transform', layerType: 'transform', isDisabled: false, forceDisableMotionBlur: false,
-		automationGraphs: [], transformParamValues: createTimelineTransformParameterValues(), layers: [child] };
+		curveAnimations: [], transformParamValues: createTimelineTransformParameterValues(), layers: [child] };
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [parent, background] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(350, 20);
 	assert.equal(calls.instances.length, 1);
@@ -654,18 +654,18 @@ test('passes the referenced layer output through an inline primary input', async
 });
 
 // 【Nodes Effect内部とレイヤー引数の評価スコープを分離する】
-// 同名グラフ・同名変数があっても所有者の値だけを使い、内部の時刻はレイヤー開始を基準にする。
+// 同名Curve Animation・同名変数があっても所有者の値だけを使い、内部の時刻はレイヤー開始を基準にする。
 test('isolates inline Nodes Effect scopes and passes local time and export context', async t => {
 	const { manager, calls } = await fixture(t);
 	const nodesEffect = createNodesEffect({ params: {
-		amount: expression('PUBLIC("amount")'), local: expression('GRAPH("graph", 0, "clamp")'),
+		amount: expression('PUBLIC("amount")'), local: expression('CURVE_ANIMATION("curve-animation", 0, "clamp")'),
 		caller: expression('TIME_MS'), localTime: expression('TIME_MS'), duration: expression('END_TIME_MS'),
 		exported: expression('if IS_EXPORT { 1 } else { 0 }'), forbidden: literal(0),
 		directImage: { inputSource: 'nodesEffectPublicParameterReference', parameterId: 'input' },
 	} });
 	nodesEffect.paramDefs['amount'] = { ...scalar, nameForReference: 'amount' };
-	nodesEffect.automationGraphs = [graph(7)];
-	const entry = layer('inline', nodesEffect, { automationGraphs: [graph(4)], effectParamValues: { amount: expression('GRAPH("graph", 0, "clamp") + TIME_MS') } });
+	nodesEffect.curveAnimations = [curveAnimation(7)];
+	const entry = layer('inline', nodesEffect, { curveAnimations: [curveAnimation(4)], effectParamValues: { amount: expression('CURVE_ANIMATION("curve-animation", 0, "clamp") + TIME_MS') } });
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [entry] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(350, 50);
 	const { input, ...values } = calls.renders.at(-1).params;
@@ -748,7 +748,7 @@ test('applies opacity and the same transform uniforms to inline and referenced l
 const sceneLayer = (id, sceneId, positionMs = 0) => ({
 	id, name: id, layerType: 'scene', clips: [{ id: 'clip', sceneId, startMs: positionMs, contentOffsetMs: 0, durationMs: 1000 }],
 	compositingParamValues: { ...layer('template', createNodesEffect()).compositingParamValues },
-	audioParamValues: { volume: literal(1) }, automationGraphs: [],
+	audioParamValues: { volume: literal(1) }, curveAnimations: [],
 });
 
 // 【同じSceneの複数配置は内容時刻・履歴・通知の参照経路を分離する】

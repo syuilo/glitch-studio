@@ -78,7 +78,7 @@ ui: {
 - `linear`以外の連続補間は、隣接stop間の進行率`t`（0〜1）を変換してから色・alpha・OKLCHの色相へ同じ進行率を適用します。`smoothstep`は`t²(3−2t)`、`smootherstep`は`t³(6t²−15t＋10)`で、後者は両端の1階・2階微分が0です。`easeIn`は`t²`で始点の色を長く保ち、`easeOut`は`t(2−t)`で早めに終点の色へ移る二次補間です。
 - 選択した色空間へ変換してからalphaを乗算して補間します。OKLCHではCSS Color 4と同様にL・Cだけへalphaを乗算し、色相はalphaと独立に補間します。完全透明な有彩色stopも色相を保持するため、alphaの0と微小な正値で色相の経路が切り替わりません。補間後は乗算した成分を未乗算へ戻し、linear sRGBへ変換して再びalphaを乗算します。RGBはclampしません。alphaが0の場合は透明色を返します。端点とConstantでは色空間変換の往復を省略します。
 - OKLCHの色相経路は省略可能な`hueInterpolation`で指定します。`shorter`（既定）・`longer`・`increasing`・`decreasing`に対応し、他の色空間ではこの設定を使いません。変換後のCが0.000004以下の場合は無彩色としてCを0に揃え、補間区間の相手の色相を借ります。色相経路はalphaを乗算する前に区間ごとに準備し、CPUプレビューとGPUで共有します。
-- 固定値・環境変数・ランプ全体を返す基準式と加工式・Nodes Effectの公開入力で利用できます。キーフレーム・Automation Graph・テクスチャとしてのノード接続は扱いません。
+- 固定値・環境変数・ランプ全体を返す基準式と加工式・Nodes Effectの公開入力で利用できます。キーフレーム・Curve Animation・テクスチャとしてのノード接続は扱いません。
 - 式は各stopのIDを安定した文字列で返してください。加工式の`VALUE`もランプ全体で、式の内部変更は保存値へ書き戻されません。不正な構造や非有限値はエラーとして報告します。
 
 専用UIはプレビューをクリックすると編集用ポップアップを開き、stopの追加・削除・選択・色・位置と繰り返し設定を編集します。バーは繰り返し後の結果を表示しますが、stopのハンドルは繰り返し前の位置を保ちます。「繰り返し前を表示」はエディタのバーだけを切り替え、保存値やUndoには影響しません。プリセットのプレビューにも現在の繰り返し設定を反映し、適用時は設定を維持してstopだけを置き換えます。
@@ -111,9 +111,9 @@ VALUE
 
 - Nodes Effectの公開パラメータの `id` は接続・引数・直接参照の識別子、`nameForReference` は `PUBLIC` 式から参照する名前、`ui.label` は表示名です。IDと参照名のブランド型を相互に代用せず、表示名を接続のキーにしないでください。Timelineの公開パラメータIDはTimeline固有の型で、Nodes EffectのIDとは区別します。
 - コードで用意する `nameForReference` の初期値・自動生成名・テストデータは、`my_input`・`my_param_2`・`scene_time` のようなsnake caseに統一します。
-- `AutomationGraph` の `nameForReference` は `GRAPH("graph_name", 座標, "clamp")` で照合する参照名で、UIのグラフ選択にも表示します。`automationGraphReference` は `automationGraphId` とグラフの `id` で参照するため、参照名を変更してもその接続は維持されます。インラインの `AutomationGraphData` は参照名・IDを持ちません。
+- `CurveAnimation` の `nameForReference` は `CURVE_ANIMATION("curve_animation_name", 座標, "clamp")` で照合する参照名で、UIのCurve Animation選択にも表示します。`curveAnimationReference` は `curveAnimationId` とCurve Animationの `id` で参照するため、参照名を変更してもその接続は維持されます。インラインの `CurveAnimationData` は参照名・IDを持ちません。
 - Nodes Effectの公開パラメータの `canNode: true` はInノードの出力として公開することを表します。内部からはInノードへの配線で参照し、`nodesEffectPublicParameterReference` や `PUBLIC` による直接参照は `canNode: false` の公開パラメータに限定する仕様です。ただし音声は`nodesEffectPublicParameterReference`だけで参照し、`PUBLIC`には公開しません。入力が定数かテクスチャかによって参照方法を変えません。
-- レイヤーの引数・合成設定と、Nodes Effect内部の式は別の評価スコープです。変数・automation graph・参照可能なパラメータを呼び出し側から明示し、親スコープを暗黙に継承しません。グラフの再生時刻を渡すことと、同名の変数を式に公開することも別です。
+- レイヤーの引数・合成設定と、Nodes Effect内部の式は別の評価スコープです。変数・Curve Animation・参照可能なパラメータを呼び出し側から明示し、親スコープを暗黙に継承しません。Curve Animationの再生時刻を渡すことと、同名の変数を式に公開することも別です。
 
 Nodes Effect内部の共通値には、公開入力と独立したカスタムパラメータを使います。`PUBLIC(name)`と`CUSTOM(name)`で参照先を明示し、`PARAM`による優先順位の探索は行いません。カスタム同士の参照・評価環境・エラーの扱いは[Nodes Effect](./nodes-effect.md#カスタムパラメータ)を参照してください。Timelineの公開パラメータも関数名は`PUBLIC`とし、以下の参照スコープは維持します。Timelineに`CUSTOM`は公開しません。
 
@@ -121,7 +121,7 @@ Nodes Effect内部の共通値には、公開入力と独立したカスタム�
 
 フォルダ以外の全レイヤーに、`publicParameterDefs`（定義）と`publicParameterValues`（IDをキーにしたBinding）を持たせられます。未定義のレイヤーでは省略できます。Inspectorの「レイヤーの公開パラメータ」から追加し、定義内で表示名・参照名・型・編集UI・初期値を設定します。値は通常のパラメータと同じ方式で編集し、キーの表示・選択・コピー・コンテナ全体の時間移動にも含めます。
 
-対応する型は数値・真理値・文字列・色・ベクトル・enum・Color Ramp・Size Referenceです。画像・Asset・音声・配列・構造体やノード入力は公開しません。固定値・環境変数・式・キー・Automation Graph・加工式の対応範囲は、それぞれの型の通常の値Bindingに従います。
+対応する型は数値・真理値・文字列・色・ベクトル・enum・Color Ramp・Size Referenceです。画像・Asset・音声・配列・構造体やノード入力は公開しません。固定値・環境変数・式・キー・Curve Animation・加工式の対応範囲は、それぞれの型の通常の値Bindingに従います。
 
 型の種類を変更すると、所有する保存Bindingを外して新しい定義の既定値へ戻します。Undo/Redoでは定義と保存Bindingをまとめて復元します。表示名・編集UI・既定値だけの変更では保存Bindingを維持し、enumの選択肢の削除・改名も既存の値を残して評価時に検証します。Nodes Effectレイヤーの公開パラメータ値だけを編集する場合は、内部の履歴とインスタンスを維持します。
 
@@ -136,7 +136,7 @@ Nodes Effect内部の共通値には、公開入力と独立したカスタム�
 
 直接参照先の削除・階層移動ではIDを保持し、UIに欠落・範囲外を表示します。未選択・未解決の参照は受け取り側のパラメータ定義の既定値を使い、存在する参照先の型不一致は評価エラーにします。Group複製では範囲内のレイヤーIDだけを付け替えます。直接参照Binding自体への加工式は提供せず、加工したい値は公開パラメータへ受けて通常の式から参照します。
 
-値は所有レイヤーの式環境・Automation Graphを使い、評価サンプルの所属Scene時刻で評価します。子のグラフやクリップの内容時刻は継承しません。参照値はコピーして渡し、式から変更しても保存値や他の利用者へ漏らしません。評価値をシーク間で共有しません。
+値は所有レイヤーの式環境・Curve Animationを使い、評価サンプルの所属Scene時刻で評価します。子のCurve Animationやクリップの内容時刻は継承しません。参照値はコピーして渡し、式から変更しても保存値や他の利用者へ漏らしません。評価値をシーク間で共有しません。
 
 参照先Sceneの内部とNodes Effect内部は別スコープです。Scene最上位には呼び出し元Sceneレイヤーのパラメータを渡しません。Nodes Effectへはレイヤー側で評価した値を既存の公開入力へ渡します。合成・Transform・カメラと音量にも同じ参照規則を適用し、音声では参照先のキーも通常の音量キーと同じ時刻で評価します。
 
@@ -175,7 +175,7 @@ NOISE(TIME * 3, 1) * 0.03
 
 ## 基準値を加工する式
 
-固定値・環境変数・基準式・キーフレーム・Automation Graphによる基準値の取得に、加工式を独立して重ねられます。加工式はInspectorのパラメータメニューから追加します。式の初期値は、基準式では現在の固定値または定義の既定値、加工式では`VALUE`です。
+固定値・環境変数・基準式・キーフレーム・Curve Animationによる基準値の取得に、加工式を独立して重ねられます。加工式はInspectorのパラメータメニューから追加します。式の初期値は、基準式では現在の固定値または定義の既定値、加工式では`VALUE`です。
 
 基準式・加工式の本文は入力中のドラフトとして保持し、入力欄の保存ボタン・Ctrl+Enter・Ctrl+Sで適用します。MacではCtrlの代わりにCommandも使用できます。通常のEnterやフォーカス移動では適用しません。キャンセルボタン・Escで未保存の入力を破棄し、現在の適用済みの値へ戻せます。この操作でプロジェクトやUndo履歴は変更しません。構文エラーの表示は保存前の入力内容を対象に更新します。未保存の本文はプロジェクトやレンダラーへ送らず、明示的に適用した式のエラーは従来どおりレンダリング失敗として扱います。
 
@@ -202,19 +202,19 @@ NOISE(TIME * 3, 1) * 0.03
 
 加工対象は共通のCPU値の末端Bindingです。配列・構造体のコンテナ、音声、ノード接続・レイヤー画像参照・Nodes Effect公開パラメータ参照（`nodesEffectPublicParameterReference`）などのドメイン固有入力は対象外です。対応する入力方式から対象外の方式へ切り替えた場合、加工式は引き継ぎません。`VALUE_AT`・`WIGGLE`や式の多段適用は提供しません。
 
-## プロジェクト共通のAutomation Graph
+## プロジェクト共通のCurve Animation
 
-プロジェクトの`automationGraphs`は曲線の定義（ID・`nameForReference`・点・時間軸の種類）だけを共有する。再生設定は各Binding、評価時刻・終了時刻は参照元の評価スコープが所有する。Timelineでは所属Sceneの時刻を使い、Nodes Effect Live Previewの公開パラメータへの入力ではLive Previewの時刻を使う。
+プロジェクトの`curveAnimations`は曲線の定義（ID・`nameForReference`・点・時間軸の種類）だけを共有する。再生設定は各Binding、評価時刻・終了時刻は参照元の評価スコープが所有する。Timelineでは所属Sceneの時刻を使い、Nodes Effect Live Previewの公開パラメータへの入力ではLive Previewの時刻を使う。
 
-`automationGraphReference`はIDで解決する。レイヤー内とプロジェクト共通の両方を候補に残すので、同じ参照名でも共通定義をIDで選べる。式の`GRAPH(nameForReference, coordinate, wrapMode)`はローカル定義を優先し、見つからない場合にプロジェクト共通の定義を使う。Group・Transform・パラメータコンテナのローカル定義を子レイヤーへ継承しない。
+`curveAnimationReference`はIDで解決する。レイヤー内とプロジェクト共通の両方を候補に残すので、同じ参照名でも共通定義をIDで選べる。式の`CURVE_ANIMATION(nameForReference, coordinate, wrapMode)`はローカル定義を優先し、見つからない場合にプロジェクト共通の定義を使う。Group・Transform・パラメータコンテナのローカル定義を子レイヤーへ継承しない。
 
-共通定義の`nameForReference`はプロジェクト内で一意とし、名前変更でID参照は変わらない。`GRAPH()`内の文字列は自動変更しない。削除後もBindingの参照IDを保持し、未解決のID参照には既定値を使う。一方、式の`GRAPH()`で参照名が見つからない場合は式エラーにする。Undoで同じID・参照名を復元すれば再び解決される。
+共通定義の`nameForReference`はプロジェクト内で一意とし、名前変更でID参照は変わらない。`CURVE_ANIMATION()`内の文字列は自動変更しない。削除後もBindingの参照IDを保持し、未解決のID参照には既定値を使う。一方、式の`CURVE_ANIMATION()`で参照名が見つからない場合は式エラーにする。Undoで同じID・参照名を復元すれば再び解決される。
 
 プロジェクト共通の定義はNodes Effect内部のノード・式へ直接公開しない。Nodes Effect自身のローカル定義は維持し、プロジェクト共通の曲線を使う値は公開パラメータへの引数として渡す。
 
 ## Other
 
-Bindingは利用可能な入力方式を所有するドメインで定義します。共通の `ValueParameterBinding` はliteral・環境変数・式・automation・キーフレームだけを扱います。Nodes Effect内部の `NodesEffectParameterBinding` は共通方式に `node` / `nodesEffectPublicParameterReference` を加えます。Timelineの `TimelineParameterBinding` は共通方式に `timelineLayerPublicParameterReference` を加えます。
+Bindingは利用可能な入力方式を所有するドメインで定義します。共通の `ValueParameterBinding` はliteral・環境変数・式・Curve Animation・キーフレームだけを扱います。Nodes Effect内部の `NodesEffectParameterBinding` は共通方式に `node` / `nodesEffectPublicParameterReference` を加えます。Timelineの `TimelineParameterBinding` は共通方式に `timelineLayerPublicParameterReference` を加えます。
 
 Effect Layerは3種類のEffectすべてに `TimelineEffectParameterBinding` を使います。Timelineの入力方式に加え、音声用の `lowerLayerAudio` / `anotherLayerAudio` と画像用の `lowerLayerOutput` / `anotherLayerOutput` を持ちます。画像Bindingにはfit・wrap・filterを保存でき、Nodes Effect内のサンプリングは内部接続が指定します。Nodes Effect Live Previewから渡す `NodesEffectArgumentBindings` は共通方式だけを許可し、タイムラインの合成設定・音量にはTimelineの方式を許可します。
 
@@ -224,4 +224,4 @@ Effect Layerは3種類のEffectすべてに `TimelineEffectParameterBinding` を
 
 `packages/shared/src/static-setting.ts`の`StaticSettingDefinition`は`dataType`・`ui.label`・Bindingで包まない`defaultValue`を持つ。値は`StaticSettingValues`に直接保存する。対応型は素材参照（image / video / font / lut）・scalar・bool・string・enum。具体的な設定名と定義はEffect・Timelineの各ドメインが所有し、共通層は利用先を知らない。
 
-素材参照は通常の`DataType`から除外する。静的設定は式・加工式・キー・Automation Graph・ノード接続・Public Parameter参照・公開引数を受け取らない。`audioSource`は音声を受け取る型。定義の既定値は`null`で、実行時の入力は配置側で接続する。
+素材参照は通常の`DataType`から除外する。静的設定は式・加工式・キー・Curve Animation・ノード接続・Public Parameter参照・公開引数を受け取らない。`audioSource`は音声を受け取る型。定義の既定値は`null`で、実行時の入力は配置側で接続する。

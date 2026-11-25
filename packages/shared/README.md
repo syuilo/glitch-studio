@@ -19,14 +19,14 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 - `src/color-ramp.ts`: Color Rampの値・検証・CPU評価とGPU転送用の準備。正の小数回のWrap／Ping-pongとsRGB・Linear sRGB・Oklab・OKLCHの補間を扱い、OKLCHの色相経路は区間ごとに準備してGPUと共有する。繰り返し・alpha・色相の規約は[パラメータのドキュメント](../../docs/data-type-and-parameter.md#color-ramp)を参照。
 - `src/parameter`: パラメータ定義・Binding・初期値・ツリー操作・CPU値の評価。`parameter-path.ts`は編集対象を識別するIDパス、`parameter-tree.ts`は評価後の配列をたどるindexのパスを扱う。
 - `src/expression`: AiScriptの構文・ASTキャッシュ・式の実行。変数と関数は呼び出し側から明示し、Nodes EffectやTimelineを参照しない。
-- `src/automation-graph`: グラフの定義・再生設定・補間。`GRAPH`への公開はパラメータ評価器が担当する。
+- `src/curve-animation`: Curve Animationの定義・再生設定・補間。`CURVE_ANIMATION`への公開はパラメータ評価器が担当する。
 - `src/keyframes`: キーフレームの定義・再生設定・補間。TimelineのScene・レイヤー・クリップから独立し、再生設定はBindingから逆算しない。
 
 `src/static-setting.ts`はBindingを持たない静的設定の定義・初期値生成・検証を所有する。素材参照は`assetReference`（`assetType: image | video | font | lut`）では、IDまたはnullを直接保存する。これらは通常の`DataType`・Parameter・公開パラメータには含めない。`src/data-type/asset-reference.ts`が選択UI・検証・リソース解決のMIME制約を提供する。実際の設定定義は利用するドメインが所有する。
 
-`ParameterBindingEvaluator`が受け取る`ValueParameterBinding`は、literal・環境変数・式・グラフ参照・インライングラフ・キーフレームに限定する。時刻、終了時刻、グラフ一覧と式の環境は`ParameterEvaluationScope`で渡す。評価結果やスコープは保持しない。
+`ParameterBindingEvaluator`が受け取る`ValueParameterBinding`は、literal・環境変数・式・Curve Animation参照・インラインCurve Animation・キーフレームに限定する。時刻、終了時刻、Curve Animation一覧と式の環境は`ParameterEvaluationScope`で渡す。評価結果やスコープは保持しない。
 
-末端のCPU値Bindingには任意の`expressionModifier: { enabled, code } | null`を付けられる。評価器にはパラメータ定義を必ず渡し、基準値の数値文字列を変換してから`VALUE`として加工式へ渡す。式エンジンが値を複製するため、式内の変更は保存値へ漏れない。基準の`inputSource: 'expression'`は維持し、基準式には`VALUE`を公開しない。加工式は利用箇所のBindingに指定する。式の未入力・構文・実行のエラーは例外として伝播し、既定値へ置換しない。評価結果の型・構造・有限性は検証せず、不正な結果の動作は保証しない。エラーには基準式／加工式とパラメータ名を付加する。空キー・未設定グラフなど正常な未設定状態の既定値処理は維持する。
+末端のCPU値Bindingには任意の`expressionModifier: { enabled, code } | null`を付けられる。評価器にはパラメータ定義を必ず渡し、基準値の数値文字列を変換してから`VALUE`として加工式へ渡す。式エンジンが値を複製するため、式内の変更は保存値へ漏れない。基準の`inputSource: 'expression'`は維持し、基準式には`VALUE`を公開しない。加工式は利用箇所のBindingに指定する。式の未入力・構文・実行のエラーは例外として伝播し、既定値へ置換しない。評価結果の型・構造・有限性は検証せず、不正な結果の動作は保証しない。エラーには基準式／加工式とパラメータ名を付加する。空キー・未設定Curve Animationなど正常な未設定状態の既定値処理は維持する。
 
 共通の式関数`RANDOM(index, seed = 0)`と`NOISE(x, seed = 0)`は`src/expression/random-functions.ts`に定義し、`ParameterBindingEvaluator`から公開する。前者は0以上1未満の疑似乱数、後者は−1〜1の1次元Perlin Noiseを返す。引数だけで結果が決まり、時刻・レイヤー・評価順を暗黙に参照しない。式エンジン自体は関数を自動登録しない。引数・使い方は[パラメータのドキュメント](../../docs/data-type-and-parameter.md#乱数とノイズの式関数)を参照。
 

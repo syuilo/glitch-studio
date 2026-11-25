@@ -37,7 +37,7 @@ function fixture({ browser = false, choose = null, save = null, suspend = null, 
 	const ref = value => ({ value });
 	const state = Object.fromEntries(Object.entries({
 		resolution: { width: 1920, height: 1080 }, timelineFps: 30, timelineMotionBlur: {},
-		customShaderEffects: [], automationGraphs: [], assets: [], generatedSpeech: [], nodesEffects: [], timelineScenes: [],
+		customShaderEffects: [], curveAnimations: [], assets: [], generatedSpeech: [], nodesEffects: [], timelineScenes: [],
 	}).map(([key, value]) => [key, ref(value)]));
 	let progressListener = null;
 	const desktop = {

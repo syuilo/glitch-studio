@@ -48,7 +48,7 @@ let amount = read_amount(position);
 
 ### 内部表現と生成処理
 
-- `kind: 'uniform'` はリテラル、式、Automation Graphなどから得られる空間的に一定の値です。生成関数はuniform bufferからf32で読みます。
+- `kind: 'uniform'` はリテラル、式、Curve Animationなどから得られる空間的に一定の値です。生成関数はuniform bufferからf32で読みます。
 - `kind: 'texture'` は元の `GPUTexture`、入力寸法の `resolution`、受け取り側のfit/wrap/filterをまとめた `sampling` を持ちます。Effectの配置計画は実際に描画する接続で `sampling` の既定値を補います。テクスチャは接続元の保存形式で読みます。定数を出力する接続は `uniform` になります。
 - 色の定数は入力・出力値へ変換する境界で一度だけpremultiplyします。既に乗算済みの値や画像入力に再乗算してはいけません。データ用のスカラー・ベクトルには乗算しません。
 - 入力で結果が決まる全画面の1パス描画には `createFullscreenEffect()` を使えます。独自のパスでは `createNativeEffectInputBindings()` や `createFixedInputBindings()` に実際の出力寸法を渡し、描画時に `getBindGroup()` で最新の入力を反映します。エフェクト破棄時はヘルパーの `dispose()` も呼びます。

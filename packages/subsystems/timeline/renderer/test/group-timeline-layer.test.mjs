@@ -74,7 +74,7 @@ function fixture(t, { empty = false, waitForChild = async () => {} } = {}) {
 }
 
 // 【Group設定は各サンプルで一度だけ評価し、子の準備から合成まで同じ結果を使う】
-// 式・Automation Graphを二重に評価せず、次のサンプルでは新しい時刻の値を取得する必要がある。
+// 式・Curve Animationを二重に評価せず、次のサンプルでは新しい時刻の値を取得する必要がある。
 test('evaluates group settings once per sample and refreshes them for subsequent samples', async t => {
 	const f = fixture(t);
 	const first = await f.evaluate(f.prepare(100));

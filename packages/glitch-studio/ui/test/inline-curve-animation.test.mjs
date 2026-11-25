@@ -12,17 +12,17 @@ import { build } from 'esbuild';
 const bundled = await build({
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
 	stdin: {
-		contents: "export * from './src/utility/keyframes-timeline.ts'; export { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts'; export { COMMAND_DEFS } from './src/commands.ts'; export { getTimelineParameterEditBinding } from './src/commands/timeline-parameter-api.ts'; export { createTimelineCommandDefinitions } from './src/commands/timeline-api.ts'; export { createInlineAutomationGraph, setInlineAutomationGraphNormalized } from './src/utility/automation-graph.ts'; export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts'; export { createImageLayer } from './src/utility/image-layer.ts'; export { getLayerParameterTargets } from './src/utility/timeline-scene.ts';",
+		contents: "export * from './src/utility/keyframes-timeline.ts'; export { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts'; export { COMMAND_DEFS } from './src/commands.ts'; export { getTimelineParameterEditBinding } from './src/commands/timeline-parameter-api.ts'; export { createTimelineCommandDefinitions } from './src/commands/timeline-api.ts'; export { createInlineCurveAnimation, setInlineCurveAnimationNormalized } from './src/utility/curve-animation.ts'; export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts'; export { createImageLayer } from './src/utility/image-layer.ts'; export { getLayerParameterTargets } from './src/utility/timeline-scene.ts';",
 		resolveDir: fileURLToPath(new URL('../', import.meta.url)),
 		loader: 'ts',
 	},
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{
-		name: 'inline-graph-test-dependencies',
+		name: 'inline-curve-animation-test-dependencies',
 		setup(build) {
-			build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'inline-graph-test' }));
-			build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'inline-graph-test' }));
-			build.onLoad({ filter: /.*/, namespace: 'inline-graph-test' }, ({ path }) => ({
+			build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'inline-curve-animation-test' }));
+			build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'inline-curve-animation-test' }));
+			build.onLoad({ filter: /.*/, namespace: 'inline-curve-animation-test' }, ({ path }) => ({
 				contents: path === 'preferences'
 					? 'export const preferences = { s: { forceTypeSafety: false } };'
 					: `export const nativeEffectDefinitions = { test: { paramDefs: {
@@ -35,7 +35,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { timelineCompositingParamDefs, COMMAND_DEFS, createInlineAutomationGraph, setInlineAutomationGraphNormalized, encodeProjectFile, decodeProjectFile, createImageLayer, getLayerParameterTargets } = module.exports;
+const { timelineCompositingParamDefs, COMMAND_DEFS, createInlineCurveAnimation, setInlineCurveAnimationNormalized, encodeProjectFile, decodeProjectFile, createImageLayer, getLayerParameterTargets } = module.exports;
 
 // UIイベントの変換も実際のBinding Commandを通し、履歴と保存値を検証する。
 const uiParameterEdit = { prepare: (state, input) => COMMAND_DEFS.replaceTimelineLayerParameterBinding.prepare(state, module.exports.getTimelineParameterEditBinding(state, input)) };
@@ -323,7 +323,7 @@ test('rejects invalid image sources and timing without mutating layers', () => {
 // 音声無効化が配置長や音量キーを変更しないこと、範囲外トリムが状態を壊さないことも確認する。
 test('round-trips video settings and undoes trimmed timing and independent audio controls', async () => {
 	const { state } = fixture();
-	const layer = { id: 'video', layerType: 'video', name: 'Layer', clips: [{ id: 'clip', startMs: 10000, sourceInMs: 2000, sourceOutMs: 7000, playbackRate: 1, loop: false, durationMs: 5000, assetId: 'movie', audioEnabled: true, videoEnabled: true }], compositingParamValues: defaultCompositing(), audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
+	const layer = { id: 'video', layerType: 'video', name: 'Layer', clips: [{ id: 'clip', startMs: 10000, sourceInMs: 2000, sourceOutMs: 7000, playbackRate: 1, loop: false, durationMs: 5000, assetId: 'movie', audioEnabled: true, videoEnabled: true }], compositingParamValues: defaultCompositing(), audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, curveAnimations: [] };
 	const target = { sceneId: 'scene', layerId: 'video', clipId: 'clip' };
 	state.assets = { value: [{ id: 'movie', fileDataType: 'video/mp4', fileData: new Blob() }] };
 	const add = prepareTestCommand(importLayer, { sceneId: 'scene', layer, sourceDurationsMs: { [layer.id]: { clip: 10000 } } });
@@ -351,7 +351,7 @@ test('round-trips video settings and undoes trimmed timing and independent audio
 test('round-trips audio layers and undoes timing, volume and removal', async () => {
 	const { state } = fixture();
 	const layer = { id: 'audio', layerType: 'audio', name: 'Layer', clips: [{ id: 'clip', startMs: 150, sourceInMs: 50, sourceOutMs: 1050, playbackRate: 1, loop: false, durationMs: 1000, assetId: 'sound' }],
-		audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
+		audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, curveAnimations: [] };
 	state.assets = { value: [{ id: 'sound', fileDataType: 'audio/wav', fileData: new Blob() }] };
 	const add = prepareTestCommand(importLayer, { sceneId: 'scene', layer, sourceDurationsMs: { [layer.id]: { clip: 2000 } } });
 	add.execute(state);
@@ -392,10 +392,10 @@ test('undoes and redoes compositing expressions without changing Nodes Effect pa
 	assert.equal(layer.effectParamValues.opacity.value, 0.8);
 });
 
-// inlineグラフの編集データをコピーし、保存・読み込み後にも参照グラフや合成方法を保持する。
+// インラインのCurve Animationの編集データをコピーし、保存・読み込み後にも参照Curve Animationや合成方法を保持する。
 // プロジェクト保存はAssetのBlobをバイト列へ変換する非同期処理なので、素材がなくても完了を待つ。
-// 保存前のオブジェクト比較だけでは、再読み込み時にグラフや合成設定が欠落する不具合を検出できない。
-test('preserves compositing graphs and settings through edits and serialization', async () => {
+// 保存前のオブジェクト比較だけでは、再読み込み時にCurve Animationや合成設定が欠落する不具合を検出できない。
+test('preserves compositing Curve Animations and settings through edits and serialization', async () => {
 	const { state } = fixture();
 	const layer = state.timelineScenes.value[0].layers[0];
 	const edit = (paramId, edit) => {
@@ -403,20 +403,20 @@ test('preserves compositing graphs and settings through edits and serialization'
 		command.execute(state);
 		return command;
 	};
-	const input = createInlineAutomationGraph();
-	input.automationGraph.points[0].y = 0.25;
-	layer.automationGraphs.push({ id: 'graph', nameForReference: 'layer_graph', ...structuredClone(input.automationGraph) });
-	const inline = edit('opacity', { kind: 'automationGraphInline', value: input });
-	input.automationGraph.points[0].y = 99;
-	assert.equal(layer.compositingParamValues.opacity.automationGraph.points[0].y, 0.25);
+	const input = createInlineCurveAnimation();
+	input.curveAnimation.points[0].y = 0.25;
+	layer.curveAnimations.push({ id: 'curve-animation', nameForReference: 'layer_curve_animation', ...structuredClone(input.curveAnimation) });
+	const inline = edit('opacity', { kind: 'curveAnimationInline', value: input });
+	input.curveAnimation.points[0].y = 99;
+	assert.equal(layer.compositingParamValues.opacity.curveAnimation.points[0].y, 0.25);
 	inline.undo(state);
 	assert.deepEqual(layer.compositingParamValues, defaultCompositing());
 	inline.execute(state);
-	edit('rotation', { kind: 'automationGraphReference', value: 'graph', options: { trimmedDurationMs: 2500, offsetMode: 'start', wrapMode: 'clamp' } });
+	edit('rotation', { kind: 'curveAnimationReference', value: 'curve-animation', options: { trimmedDurationMs: 2500, offsetMode: 'start', wrapMode: 'clamp' } });
 	edit('blendMode', { kind: 'literal', value: 'replace' });
 	const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] }], assets: [], nodesEffects: [] })).timelineScenes[0].layers[0];
 	assert.deepEqual(restored.compositingParamValues, layer.compositingParamValues);
-	assert.deepEqual(restored.automationGraphs, layer.automationGraphs);
+	assert.deepEqual(restored.curveAnimations, layer.curveAnimations);
 	assert.equal(restored.compositingParamValues.rotation.trimmedDurationMs, 2500);
 	const reset = edit('blendMode', { kind: 'reset' });
 	assert.equal(layer.compositingParamValues.blendMode.value, 'normal');
@@ -425,31 +425,31 @@ test('preserves compositing graphs and settings through edits and serialization'
 });
 
 // 単位切り替えはXと制御点のXだけを変換し、曲線の形・Y・元データを維持する。
-test('converts inline graph coordinates between normalized and millisecond units', () => {
-	const original = createInlineAutomationGraph();
+test('converts inline Curve Animation coordinates between normalized and millisecond units', () => {
+	const original = createInlineCurveAnimation();
 	original.trimmedDurationMs = 2500;
-	const ms = setInlineAutomationGraphNormalized(original, false);
-	assert.equal(ms.automationGraph.isNormalized, false);
-	assert.deepEqual(ms.automationGraph.points.map(point => point.x), [0, 2500]);
-	assert.deepEqual(ms.automationGraph.points[0].bezierControlPointB, [1250, 0]);
-	assert.deepEqual(ms.automationGraph.points[1].bezierControlPointA, [-1250, 0]);
-	assert.deepEqual(setInlineAutomationGraphNormalized(ms, true), original);
-	assert.deepEqual(original.automationGraph.points.map(point => point.x), [0, 1]);
-	// msグラフの開始時刻が0以外でも、実際の区間を正規化する。
-	for (const point of ms.automationGraph.points) point.x += 500;
-	const normalized = setInlineAutomationGraphNormalized(ms, true);
+	const ms = setInlineCurveAnimationNormalized(original, false);
+	assert.equal(ms.curveAnimation.isNormalized, false);
+	assert.deepEqual(ms.curveAnimation.points.map(point => point.x), [0, 2500]);
+	assert.deepEqual(ms.curveAnimation.points[0].bezierControlPointB, [1250, 0]);
+	assert.deepEqual(ms.curveAnimation.points[1].bezierControlPointA, [-1250, 0]);
+	assert.deepEqual(setInlineCurveAnimationNormalized(ms, true), original);
+	assert.deepEqual(original.curveAnimation.points.map(point => point.x), [0, 1]);
+	// ミリ秒単位のCurve Animationの開始時刻が0以外でも、実際の区間を正規化する。
+	for (const point of ms.curveAnimation.points) point.x += 500;
+	const normalized = setInlineCurveAnimationNormalized(ms, true);
 	assert.equal(normalized.trimmedDurationMs, 2500);
-	assert.deepEqual(normalized.automationGraph.points.map(point => point.x), [0, 1]);
+	assert.deepEqual(normalized.curveAnimation.points.map(point => point.x), [0, 1]);
 });
 
-// 空・1点のグラフから切り替えても、編集可能な固定端点と有限の座標を用意する。
-test('provides normalized endpoints for empty and single-point inline graphs', () => {
+// 空・1点のCurve Animationから切り替えても、編集可能な固定端点と有限の座標を用意する。
+test('provides normalized endpoints for empty and single-point inline Curve Animations', () => {
 	for (const empty of [true, false]) {
-		const input = createInlineAutomationGraph();
-		input.automationGraph.isNormalized = false;
-		input.automationGraph.points = empty ? [] : [{ ...input.automationGraph.points[0], x: 300, y: 4 }];
-		const result = setInlineAutomationGraphNormalized(input, true);
-		assert.deepEqual(result.automationGraph.points.map(point => [point.x, point.y]), empty ? [[0, 0], [1, 0]] : [[0, 4], [1, 4]]);
+		const input = createInlineCurveAnimation();
+		input.curveAnimation.isNormalized = false;
+		input.curveAnimation.points = empty ? [] : [{ ...input.curveAnimation.points[0], x: 300, y: 4 }];
+		const result = setInlineCurveAnimationNormalized(input, true);
+		assert.deepEqual(result.curveAnimation.points.map(point => [point.x, point.y]), empty ? [[0, 0], [1, 0]] : [[0, 4], [1, 4]]);
 	}
 });
 
@@ -458,22 +458,22 @@ function fixture() {
 	const node = { id: 'node', type: 'effect', resolution: { mode: 'context', scale: 1 }, staticSettings: {}, effectSource: { type: 'nativeEffect', id: 'test' }, params: { values: { inputSource: 'literal', value: [{ id: 'first', binding: initial }] } } };
 	const state = {
 		nodesEffects: { value: [{ id: 'nodesEffect', definition: testNodesEffect({ customParameterValues: {}, nodes: [node], primaryInputParameter: null, paramDefs: { "gain": { ...keyframeDefinition({ kind: 'scalar' }, initial.value) } } }) }] },
-		timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'nodesEffect' }, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], effectParamValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] }] },
+		timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'nodesEffect' }, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], effectParamValues: {}, compositingParamValues: defaultCompositing(), curveAnimations: [] }] }] },
 	};
 	return { state, node, target: { nodesEffectId: 'nodesEffect', nodeId: 'node', paramPath: ['values', 'first'] } };
 }
 
 // 【配列要素のBindingを切り替えても要素IDを維持する】
-// inlineへの切り替えをUndoでき、RedoでグラフのポイントIDも再現する。
-test('restores inline graph creation in nested node parameters', () => {
+// inlineへの切り替えをUndoでき、RedoでCurve AnimationのポイントIDも再現する。
+test('restores inline Curve Animation creation in nested node parameters', () => {
 	const { state, node, target } = fixture();
-	const command = prepareTestCommand(COMMAND_DEFS.switchNodesEffectNodeParameterInputSource, { ...nodeParameterTarget({ ...target }), inputSource: 'automationGraphInline' });
+	const command = prepareTestCommand(COMMAND_DEFS.switchNodesEffectNodeParameterInputSource, { ...nodeParameterTarget({ ...target }), inputSource: 'curveAnimationInline' });
 	command.execute(state);
 	const created = structuredClone(node.params.values.value[0].binding);
 	assert.equal(node.params.values.value[0].id, 'first');
-	assert.equal(created.inputSource, 'automationGraphInline');
-	assert.equal(created.automationGraph.isNormalized, true);
-	assert.deepEqual(created.automationGraph.points.map(point => point.x), [0, 1]);
+	assert.equal(created.inputSource, 'curveAnimationInline');
+	assert.equal(created.curveAnimation.isNormalized, true);
+	assert.deepEqual(created.curveAnimation.points.map(point => point.x), [0, 1]);
 	command.undo(state);
 	assert.deepEqual(node.params.values.value[0], { id: 'first', binding: { inputSource: 'literal', value: 3 } });
 	command.execute(state);
@@ -482,22 +482,22 @@ test('restores inline graph creation in nested node parameters', () => {
 
 // 【結合したドラッグ操作でも元の配列要素のBindingを復元する】
 // UndoRedoは結合時に最初のundoと最後のexecuteを保持する。その契約で全ドラッグを復元できる。
-test('restores the first and final snapshots of a merged graph drag', () => {
+test('restores the first and final snapshots of a merged Curve Animation drag', () => {
 	const { state, node, target } = fixture();
-	prepareTestCommand(COMMAND_DEFS.switchNodesEffectNodeParameterInputSource, { ...nodeParameterTarget({ ...target }), inputSource: 'automationGraphInline' }).execute(state);
+	prepareTestCommand(COMMAND_DEFS.switchNodesEffectNodeParameterInputSource, { ...nodeParameterTarget({ ...target }), inputSource: 'curveAnimationInline' }).execute(state);
 	const before = structuredClone(node.params.values.value[0].binding);
 	const intermediate = structuredClone(before);
-	intermediate.automationGraph.points[0].y = 2;
+	intermediate.curveAnimation.points[0].y = 2;
 	const first = prepareTestCommand(COMMAND_DEFS.setNodesEffectNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: intermediate });
 	first.execute(state);
 	const final = structuredClone(intermediate);
-	final.automationGraph.points[0].y = 4;
-	final.automationGraph.points[1].bezierControlPointA = [-0.25, 2];
+	final.curveAnimation.points[0].y = 4;
+	final.curveAnimation.points[1].bezierControlPointA = [-0.25, 2];
 	const last = prepareTestCommand(COMMAND_DEFS.setNodesEffectNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: final });
 	last.execute(state);
 	// エディタが次に可変配列を編集しても、履歴のスナップショットは変わらない。
-	intermediate.automationGraph.points[0].y = 99;
-	node.params.values.value[0].binding.automationGraph.points[0].y = 100;
+	intermediate.curveAnimation.points[0].y = 99;
+	node.params.values.value[0].binding.curveAnimation.points[0].y = 100;
 	first.undo(state);
 	assert.deepEqual(node.params.values.value[0].binding, before);
 	last.execute(state);
@@ -505,20 +505,20 @@ test('restores the first and final snapshots of a merged graph drag', () => {
 });
 
 // レイヤーの設定変更もUndo/Redoでき、切り替え前の「既定値参照」へ戻せる。
-test('undoes inline graph edits and creation on timeline layers', () => {
+test('undoes inline Curve Animation edits and creation on timeline layers', () => {
 	const { state } = fixture();
 	const target = { layerId: 'layer', paramPath: ['gain'] };
 	const layer = state.timelineScenes.value[0].layers[0];
-	const create = prepareTestCommand(uiParameterEdit, { sceneId: 'scene', ...target, edit: { kind: 'inputSource', inputSource: 'automationGraphInline' } });
+	const create = prepareTestCommand(uiParameterEdit, { sceneId: 'scene', ...target, edit: { kind: 'inputSource', inputSource: 'curveAnimationInline' } });
 	create.execute(state);
 	const before = structuredClone(layer.effectParamValues.gain);
 	const after = structuredClone(before);
-	after.automationGraph.isNormalized = false;
+	after.curveAnimation.isNormalized = false;
 	after.trimmedDurationMs = 2500;
 	after.wrapMode = 'repeatMirrored';
 	after.offsetMode = 'start';
-	after.automationGraph.points[0].y = -2;
-	const edit = prepareTestCommand(uiParameterEdit, { sceneId: 'scene', ...target, edit: { kind: 'automationGraphInline', value: after } });
+	after.curveAnimation.points[0].y = -2;
+	const edit = prepareTestCommand(uiParameterEdit, { sceneId: 'scene', ...target, edit: { kind: 'curveAnimationInline', value: after } });
 	edit.execute(state);
 	assert.deepEqual(layer.effectParamValues.gain, after);
 	edit.undo(state);
@@ -553,7 +553,7 @@ test('targets scene definitions explicitly across layer parameter undo and redo'
 test('rejects referenced deletion and cyclic placement without mutating scenes', () => {
 	const { state } = fixture();
 	const nested = { id: 'nested', layerType: 'scene', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000, sceneId: 'scene' }],
-		compositingParamValues: defaultCompositing(), audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
+		compositingParamValues: defaultCompositing(), audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, curveAnimations: [] };
 	const parent = prepareTestCommand(COMMAND_DEFS.createTimelineScene, { name: 'Parent' }).execute(state);
 	prepareTestCommand(importLayer, { sceneId: parent.sceneId, layer: nested }).execute(state);
 	const before = structuredClone(state.timelineScenes.value);
@@ -611,7 +611,7 @@ test('reverses generated trims within a gesture and disallows subsequent left ex
 test('resets a video source within its gap and restores it on undo', () => {
 	const { state } = fixture();
 	state.assets = { value: ['old', 'new'].map(id => ({ id, fileDataType: 'video/mp4', fileData: new Blob() })) };
-	const layer = { id: 'video', name: 'Video', layerType: 'video', automationGraphs: [], compositingParamValues: defaultCompositing(),
+	const layer = { id: 'video', name: 'Video', layerType: 'video', curveAnimations: [], compositingParamValues: defaultCompositing(),
 		audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } }, clips: [
 			{ id: 'a', assetId: 'old', audioEnabled: false, videoEnabled: true, startMs: 100, durationMs: 100, sourceInMs: 50, sourceOutMs: 150, playbackRate: 1, loop: false },
 			{ id: 'b', assetId: 'old', audioEnabled: true, videoEnabled: true, startMs: 400, durationMs: 100, sourceInMs: 0, sourceOutMs: 100, playbackRate: 1, loop: false },
@@ -630,7 +630,7 @@ function mediaFixture(layerType, contentOffsetMs = 0.25, durationMs = 5000) {
 	const { state } = fixture();
 	const asset = { id: 'media', fileDataType: layerType + '/test', fileData: new Blob(['original']), hash: 'original', width: 100, height: 100 };
 	state.assets = { value: [asset] };
-	const layer = { id: 'media-layer', name: 'Media', layerType, automationGraphs: [],
+	const layer = { id: 'media-layer', name: 'Media', layerType, curveAnimations: [],
 		...(layerType === 'video' ? { compositingParamValues: defaultCompositing() } : {}),
 		audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } },
 		clips: [{ id: 'clip', startMs: 100, durationMs, sourceInMs: contentOffsetMs, sourceOutMs: contentOffsetMs + durationMs, playbackRate: 1, loop: false, assetId: asset.id, ...(layerType === 'video' ? { audioEnabled: true, videoEnabled: true } : {}) }] };

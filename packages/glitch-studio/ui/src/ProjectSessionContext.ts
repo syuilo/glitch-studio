@@ -19,7 +19,7 @@ import { openAudioFile } from '@gs/subsystems_audio_renderer/audio-file.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 
-import { getTimelineScenesWithProjectAutomationGraphs } from '@gs/glitch-studio_shared/project/automation-graphs.ts';
+import { getTimelineScenesWithProjectCurveAnimations } from '@gs/glitch-studio_shared/project/curve-animations.ts';
 import { computed, ref, shallowReactive, shallowRef, markRaw, nextTick, watch } from 'vue';
 import type { Ref, ShallowRef } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
@@ -93,8 +93,8 @@ export class ProjectSessionContext {
 	public readonly projectContext: ProjectContext;
 	public readonly scripting: ProjectScriptingController;
 	public activeSceneId: Ref<string | null>;
-	public timelineEvaluationScenes = computed(() => getTimelineScenesWithProjectAutomationGraphs(
-		this.projectContext.stateManager.state.timelineScenes.value, this.projectContext.stateManager.state.automationGraphs.value,
+	public timelineEvaluationScenes = computed(() => getTimelineScenesWithProjectCurveAnimations(
+		this.projectContext.stateManager.state.timelineScenes.value, this.projectContext.stateManager.state.curveAnimations.value,
 	));
 	public activeScene = computed(() => this.projectContext.stateManager.state.timelineScenes.value.find(scene => scene.id === this.activeSceneId.value) ?? null);
 	public selectedTimelineLayer = computed(() => {
@@ -270,7 +270,7 @@ export class ProjectSessionContext {
 				const previewDisplayMode = this.previewPlayback.state.value.mode;
 				const snapshot = deepClone({
 					assets: getRendererAssets(state.assets.value),
-					project: { customShaderEffects: state.customShaderEffects.value, automationGraphs: state.automationGraphs.value, nodesEffects: state.nodesEffects.value, timelineScenes: state.timelineScenes.value },
+					project: { customShaderEffects: state.customShaderEffects.value, curveAnimations: state.curveAnimations.value, nodesEffects: state.nodesEffects.value, timelineScenes: state.timelineScenes.value },
 					commonOptions: { resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value, highlightClipping: this.highlightClipping.value,
 						previewWarningImageSource: this.previewWarningImageSource.value, previewGamutWarning: { ...this.previewGamutWarning.value }, previewExposure: this.previewExposure.value, previewSrgbProof: this.previewSrgbProof.value, previewGamutCompression: { ...this.previewGamutCompression.value },
 						previewBackground: preferences.s.animatedBgInPreview ? 'checker' as const : 'black' as const, analysisValueScale: this.analysisValueScale.value, analysisTarget: this.analysisTarget.value, analysisImageSource: this.analysisImageSource.value, analysisValueRange: { ...this.analysisValueRange.value }, analysisWaveformCanvasSizes: this.analysisWaveformCanvasSizes.value, analysisWaveformViewports: this.analysisWaveformViewports.value, analysisHistogramViewport: this.analysisHistogramViewport.value },
@@ -283,7 +283,7 @@ export class ProjectSessionContext {
 					this.effectLivePreviewManagerController.initialize({
 						staticOptions: staticOptions.effectLivePreview,
 						dynamicOptions: { ...snapshot.commonOptions, ...snapshot.effectLivePreviewOptions,
-							automationGraphs: snapshot.project.automationGraphs, nodesEffects: snapshot.project.nodesEffects, customShaderEffects: snapshot.project.customShaderEffects },
+							curveAnimations: snapshot.project.curveAnimations, nodesEffects: snapshot.project.nodesEffects, customShaderEffects: snapshot.project.customShaderEffects },
 						resources: { assets: snapshot.assets },
 					}),
 					isCurrent() ? this.timelineRendererManagerController.initialize({
@@ -434,7 +434,7 @@ export class ProjectSessionContext {
 		this.sessionDisposers.push(projectContext.stateManager.onChange(changes => {
 			this.renderValidation.update(changes);
 			this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
-			if (changes.some(change => ['customShaderEffect', 'automationGraphs', 'node', 'nodesEffect', 'nodesEffectRegistration', 'layer', 'layerTree', 'layerOrder', 'scene'].includes(change.type))) {
+			if (changes.some(change => ['customShaderEffect', 'curveAnimations', 'node', 'nodesEffect', 'nodesEffectRegistration', 'layer', 'layerTree', 'layerOrder', 'scene'].includes(change.type))) {
 				this.renderEngine.notifyContentChange();
 			}
 		}));
@@ -774,7 +774,7 @@ export class ProjectSessionContext {
 		});
 	}
 
-	private updateTimelinePreviewOptions(options: Partial<Omit<TimelineRendererManagerDynamicOptions, 'automationGraphs' | 'nodesEffects' | 'timelineScenes'>>) {
+	private updateTimelinePreviewOptions(options: Partial<Omit<TimelineRendererManagerDynamicOptions, 'curveAnimations' | 'nodesEffects' | 'timelineScenes'>>) {
 		this.renderEngine.notifyContentChange();
 		return this.renderEngine.runRendererUpdate(() => this.timelineRendererManagerController.updateDynamicOptions(options));
 	}

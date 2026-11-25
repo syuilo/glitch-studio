@@ -11,12 +11,12 @@ const { validateTimelineParameterTree } = await load('parameter-binding.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const scalar = (id, nameForReference = id) => ({ id, nameForReference, dataType: { kind: 'scalar' }, ui: { label: id, control: { controlType: 'number' } }, defaultValue: 0, canNode: false });
-const layer = (id, publicParameterDefs = [], publicParameterValues = {}, layers = []) => ({ id, name: id, layerType: 'group', layers, automationGraphs: [], publicParameterDefs, publicParameterValues });
+const layer = (id, publicParameterDefs = [], publicParameterValues = {}, layers = []) => ({ id, name: id, layerType: 'group', layers, curveAnimations: [], publicParameterDefs, publicParameterValues });
 const reference = (layerId, parameterId) => ({ inputSource: 'timelineLayerPublicParameterReference', layerId, parameterId });
 const evaluator = new TimelineParameterBindingEvaluator();
 function evaluate(layers, owner, binding, time = 0, definition = scalar('target')) {
 	const context = getTimelineLayerPublicParameterContext(layers, owner.id);
-	return evaluator.evaluate(binding, createTimelineLayerEvaluationScope({ time, isExport: true, automationGraphs: owner.automationGraphs, publicParameters: context }), -1, definition);
+	return evaluator.evaluate(binding, createTimelineLayerEvaluationScope({ time, isExport: true, curveAnimations: owner.curveAnimations, publicParameters: context }), -1, definition);
 }
 
 // 【Sceneの索引は無効な枝も含めて各レイヤーの所有者と祖先を保持する】
@@ -88,14 +88,14 @@ test('retains explicit identity across renaming and unresolved references', () =
 	assert.deepEqual(binding, reference('root', 'speed'));
 });
 
-// 【親の公開パラメータは親の時計・ローカルグラフ・加工式で評価する】
-// 子の同名グラフや変数で親の値が変化せず、シーク順によらず現在時刻の値を再計算する。
-test('uses owner graphs and scene time and does not retain values across seeks', () => {
-	const graph = value => ({ id: 'graph', nameForReference: 'motion', isNormalized: false, points: [{ id: 'point', x: 0, y: value, handleLeft: null, handleRight: null }] });
+// 【親の公開パラメータは親の時計・ローカルCurve Animation・加工式で評価する】
+// 子の同名Curve Animationや変数で親の値が変化せず、シーク順によらず現在時刻の値を再計算する。
+test('uses owner Curve Animations and scene time and does not retain values across seeks', () => {
+	const curveAnimation = value => ({ id: 'curve-animation', nameForReference: 'motion', isNormalized: false, points: [{ id: 'point', x: 0, y: value, handleLeft: null, handleRight: null }] });
 	const child = layer('child');
-	const parent = layer('parent', [scalar('speed')], { speed: { ...expression('GRAPH("motion", TIME_MS, "clamp") + TIME'), expressionModifier: { enabled: true, code: 'VALUE * 2' } } }, [child]);
-	parent.automationGraphs = [graph(3)];
-	child.automationGraphs = [graph(99)];
+	const parent = layer('parent', [scalar('speed')], { speed: { ...expression('CURVE_ANIMATION("motion", TIME_MS, "clamp") + TIME'), expressionModifier: { enabled: true, code: 'VALUE * 2' } } }, [child]);
+	parent.curveAnimations = [curveAnimation(3)];
+	child.curveAnimations = [curveAnimation(99)];
 	assert.equal(evaluate([parent], child, reference('parent', 'speed'), 1000), 8);
 	assert.equal(evaluate([parent], child, reference('parent', 'speed'), 250), 6.5);
 	assert.equal(evaluate([parent], child, reference('parent', 'speed'), 1000), 8);

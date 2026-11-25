@@ -16,7 +16,7 @@ const bundle = await build({
 		export { createTextTimelineLayer } from './src/utility/text-timeline-layer.ts';
 		export { createInlineNodesEffectLayer } from './src/utility/inline-nodes-effect-layer.ts';
 		export { createInlineKeyframesTimeline } from './src/utility/keyframes-timeline.ts';
-		export { createInlineAutomationGraph } from './src/utility/automation-graph.ts';
+		export { createInlineCurveAnimation } from './src/utility/curve-animation.ts';
 		export { default as definition } from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts';
 	` },
 	plugins: [{ name: 'parameter-auto-merge-platform', setup(build) {
@@ -29,7 +29,7 @@ const bundle = await build({
 });
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
-const { COMMAND_DEFS, UndoRedo, definition, createTextTimelineLayer, createInlineNodesEffectLayer, createInlineKeyframesTimeline, createInlineAutomationGraph } = loaded.exports;
+const { COMMAND_DEFS, UndoRedo, definition, createTextTimelineLayer, createInlineNodesEffectLayer, createInlineKeyframesTimeline, createInlineCurveAnimation } = loaded.exports;
 const defaultBuzzId = createDefaultParameterBinding(definition.paramDefs.buzzs).value[0].id;
 const literal = value => ({ inputSource: 'literal', value });
 const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: { controlType: 'number' } }, defaultValue: 0 };
@@ -154,16 +154,16 @@ test('merges custom parameter values without changing definitions or losing omit
 	assert.deepEqual(f.nodesEffects[0].definition.customParameterDefs.gain.defaultValue, 0);
 });
 
-// 【キー・グラフ・リセット・定義変更は短時間に繰り返しても自動でまとめない】
+// 【キー・Curve Animation・リセット・定義変更は短時間に繰り返しても自動でまとめない】
 // 同じ値更新の入口が構造編集にも使われるため、自動マージは値・式に限定する。
 // 同一の操作を繰り返して値が変化しない場合は、履歴自体を追加しない。
-test('keeps keyframe graph reset and definition commands out of automatic merging', t => {
+test('keeps keyframe, Curve Animation, reset and definition commands out of automatic merging', t => {
 	const f = fixture(t);
 	const keyframes = createInlineKeyframesTimeline(scalar);
-	const graph = createInlineAutomationGraph();
+	const curveAnimation = createInlineCurveAnimation();
 	const operations = [
 		() => f.manager.commit('setNodesEffectNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: keyframes }),
-		() => f.manager.commit('setNodesEffectNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: graph }),
+		() => f.manager.commit('setNodesEffectNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: curveAnimation }),
 		() => f.manager.commit('resetNodesEffectNodeParameter', { ...nodeParameterTarget(f.target) }),
 		() => f.manager.commit('replaceNodesEffectPublicParameterDefinition', { target: { nodesEffect: { nodesEffectId: 'first-nodes-effect' }, parameterId: 'gain' }, definition: { ...f.nodesEffects[0].definition.paramDefs.gain, defaultValue: 1 } }),
 	];

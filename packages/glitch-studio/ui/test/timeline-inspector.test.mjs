@@ -342,7 +342,7 @@ test('rejects unrelated drops and layer payloads that do not match the local dra
 });
 
 const keySelection = (layerId, keyframeId) => ({ layerId, target: 'audio', paramPath: ['volume'], keyframeId });
-const makeLayer = id => ({ id, name: id, layerType: 'audio', isDisabled: false, color: null, automationGraphs: [],
+const makeLayer = id => ({ id, name: id, layerType: 'audio', isDisabled: false, color: null, curveAnimations: [],
 																											clips: [{ id: 'clip', assetId: 'sound', startMs: 0, durationMs: 5000, sourceInMs: 0, sourceOutMs: 5000, playbackRate: 1, loop: false }],
 																											audioParamValues: { volume: { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null, keyframesTimeline: {
 																												dataType: { kind: 'scalar' }, isNormalized: false,
@@ -398,7 +398,7 @@ test('edits referenced layer masks and composite inclusion through the inspector
 	const source = createInlineNodesEffectLayer(0);
 	source.name = 'Mask source';
 	const inside = createInlineNodesEffectLayer(0);
-	const group = { id: 'group', name: 'Group', layerType: 'group', layers: [inside], isDisabled: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: {} };
+	const group = { id: 'group', name: 'Group', layerType: 'group', layers: [inside], isDisabled: false, curveAnimations: [], compositingParamValues: {}, audioParamValues: {} };
 	f.scene.layers.push(target, source, group);
 	f.props.selection = { kind: 'layers', ids: [target.id] };
 	await nextTick();
@@ -563,7 +563,7 @@ async function fixture(t, component = Inspector) {
 	globalThis.ResizeObserver = class { observe() {} disconnect() {} };
 	globalThis.HTMLElement = class {};
 	t.after(() => { globalThis.ResizeObserver = previousResizeObserver; globalThis.HTMLElement = previousHTMLElement; });
-	const state = { automationGraphs: ref([]), timelineScenes: ref([{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [makeLayer('a'), makeLayer('b')] }]),
+	const state = { curveAnimations: ref([]), timelineScenes: ref([{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [makeLayer('a'), makeLayer('b')] }]),
 																	assets: ref([{ id: 'sound', name: 'Sound', fileDataType: 'audio/wav', fileData: new Blob() }]), nodesEffects: ref([]),
 																	generatedSpeech: ref([]), resolution: ref({ width: 1920, height: 1080 }), timelineFps: ref(30) };
 	const history = new UndoRedo(state, COMMAND_DEFS);
@@ -1000,7 +1000,7 @@ test('exposes public primary image bindings and routes their edits through histo
 	layer.effectSource.nodesEffect.paramDefs = { image: { nameForReference: 'image', dataType: { kind: 'color' }, canNode: true,
 		ui: { label: 'Image', control: {} }, defaultValue: [0, 0, 0, 0] } };
 	layer.effectSource.nodesEffect.primaryInputParameter = 'image';
-	const source = { id: 'source', name: 'Source', layerType: 'group', layers: [], isDisabled: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: {} };
+	const source = { id: 'source', name: 'Source', layerType: 'group', layers: [], isDisabled: false, curveAnimations: [], compositingParamValues: {}, audioParamValues: {} };
 	f.scene.layers.push(layer, source);
 	f.props.selection = { kind: 'layers', ids: [layer.id] };
 	await nextTick();

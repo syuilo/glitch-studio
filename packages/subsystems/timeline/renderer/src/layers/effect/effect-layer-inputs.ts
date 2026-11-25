@@ -65,7 +65,7 @@ export function createEffectLayerInputs(layer: TimelineEffectLayer, definition: 
 		// 音声のliteralは未選択。Effectの初期化時にも、Timelineで解決できる音声入力だけを渡す。
 		if (def.dataType.kind === 'audioSource') return { kind: 'value', value: null };
 		// 空のenumキーフレームには定義の既定値を使う。保存済みの無効な値は評価時にエラーとして報告する。
-		const fallback = binding.inputSource === 'automationGraphReference' || (def.dataType.kind === 'enum' && binding.inputSource === 'keyframesTimelineInline')
+		const fallback = binding.inputSource === 'curveAnimationReference' || (def.dataType.kind === 'enum' && binding.inputSource === 'keyframesTimelineInline')
 			? def.defaultValue : def.dataType.kind === 'enum' ? null : genEmptyValue(def);
 		// 評価結果を切り離し、非同期の入力解決や準備の途中で編集されても今回のサンプルの値を保つ。
 		const convert = (value: Cloneable) => coerceParameterValue(def, deepClone(value));

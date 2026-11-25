@@ -15,7 +15,7 @@ export function createShapeTimelineLayer(type: ShapeType, startMs: number): Time
 		isDisabled: false,
 		isSolo: false,
 		color: null,
-		automationGraphs: [],
+		curveAnimations: [],
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
 		forceDisableMotionBlur: false,
 		mask: null,

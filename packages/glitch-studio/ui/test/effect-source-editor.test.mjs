@@ -37,7 +37,7 @@ function observeRendererState(manager, t) {
 	validation.reset();
 	t.after(manager.onChange(changes => validation.update(changes)));
 	const snapshot = () => deepClone({ nodesEffects: manager.state.nodesEffects.value,
-		customShaderEffects: manager.state.customShaderEffects.value, timelineScenes: manager.state.timelineScenes.value, automationGraphs: manager.state.automationGraphs.value });
+		customShaderEffects: manager.state.customShaderEffects.value, timelineScenes: manager.state.timelineScenes.value, curveAnimations: manager.state.curveAnimations.value });
 	let replica = snapshot();
 	const sync = new RendererProjectSynchronizer(manager, { async apply(changes) { replica = applyRendererProjectChanges(replica, changes); }, onUpdated() {}, onError(error) { throw error; } });
 	t.after(() => sync.dispose());
@@ -399,7 +399,7 @@ test('rejects direct and nested Nodes Effect reference cycles before recording a
 test('creates all five Effect sources through the Timeline command and synchronizes them', async t => {
 	const project = createTestProject({ timelineScenes: [scene()] });
 	const manager = new ProjectContext(project).stateManager;
-	let replica = structuredClone({ automationGraphs: [], nodesEffects: [], customShaderEffects: [], timelineScenes: [scene()] });
+	let replica = structuredClone({ curveAnimations: [], nodesEffects: [], customShaderEffects: [], timelineScenes: [scene()] });
 	const sync = new RendererProjectSynchronizer(manager, { async apply(changes) { replica = applyRendererProjectChanges(replica, changes); }, onUpdated() {}, onError(error) { throw error; } });
 	t.after(() => sync.dispose());
 	const { customShaderEffectId } = manager.commit('createCustomShaderEffect', {});

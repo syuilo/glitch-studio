@@ -42,12 +42,12 @@ function fixture(projectSessionId = 'session') {
 	const makeNode = id => ({ id, type: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])) });
 	const node = makeNode('destination');
 	const upstream = makeNode('upstream');
-	const nodesEffect = { id: 'nodesEffect', definition: testNodesEffect({ customParameterValues: {}, nodes: [node, upstream], automationGraphs: [] }) };
-	const layer = { id: 'effect', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, automationGraphs: [], effectParamValues: {} };
+	const nodesEffect = { id: 'nodesEffect', definition: testNodesEffect({ customParameterValues: {}, nodes: [node, upstream], curveAnimations: [] }) };
+	const layer = { id: 'effect', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, curveAnimations: [], effectParamValues: {} };
 	const shape = createShapeTimelineLayer('rectangle', 0);
 	shape.id = 'shape';
 	const scene = { id: 'scene', layers: [layer, shape] };
-	const state = { nodesEffects: { value: [nodesEffect] }, timelineScenes: { value: [scene] }, automationGraphs: { value: [] } };
+	const state = { nodesEffects: { value: [nodesEffect] }, timelineScenes: { value: [scene] }, curveAnimations: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const context = { id: 'same-saved-project', isDisposed: false, stateManager: history };
 	const target = { kind: 'node', nodesEffectTarget: { nodesEffectId: nodesEffect.id }, nodeId: node.id, paramPath: ['foo', 'node'] };
@@ -140,7 +140,7 @@ test('copies custom values with undo and confines custom references to their own
 	assert.equal(prepareParameterBindingPaste(scalarDefinition, reference, { ...context, kind: 'preview' }), null);
 });
 
-// 【別ウィンドウへのコピーで式・キー・グラフ・加工設定を独立したスナップショットとして保持する】
+// 【別ウィンドウへのコピーで式・キー・Curve Animation・加工設定を独立したスナップショットとして保持する】
 // コンテナの一部だけを移したり、コピー後の編集がクリップボードを変更すると設定を再現できない。
 test('round trips complete nested bindings between projects and renews owned IDs', () => {
 	const from = fixture('source-project');
@@ -151,7 +151,7 @@ test('round trips complete nested bindings between projects and renews owned IDs
 	fields.x = { inputSource: 'expression', expression: 'TIME / 1000', expressionModifier: { enabled: true, code: 'VALUE * 2' } };
 	fields.y = createInlineKeyframesTimeline(scalarDefinition);
 	fields.y.keyframesTimeline.keyframes[0].x = 123;
-	fields.image = { inputSource: 'automationGraphInline', ...playback, automationGraph: { isNormalized: true, points: [
+	fields.image = { inputSource: 'curveAnimationInline', ...playback, curveAnimation: { isNormalized: true, points: [
 		{ id: 'point', x: 0, y: 1, bezierControlPointA: [0, 0], bezierControlPointB: [1, 1] },
 	] } };
 	const clipboard = from.copy(binding, target);
@@ -164,7 +164,7 @@ test('round trips complete nested bindings between projects and renews owned IDs
 	assert.equal(copiedFields.y.keyframesTimeline.keyframes[0].x, 123);
 	assert.notEqual(update.after.value[0].id, binding.value[0].id);
 	assert.notEqual(copiedFields.y.keyframesTimeline.keyframes[0].id, fields.y.keyframesTimeline.keyframes[0].id);
-	assert.notEqual(copiedFields.image.automationGraph.points[0].id, 'point');
+	assert.notEqual(copiedFields.image.curveAnimation.points[0].id, 'point');
 	assert.deepEqual(to.node.params.buzzs, update.before);
 });
 
@@ -216,14 +216,14 @@ test('preserves connections only in their original available Nodes Effect scope'
 	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, { ...f.target, paramPath: ['bars'] }, clipboard), null);
 });
 
-// 【ローカルAutomation GraphとプロジェクトAutomation Graphの参照範囲を区別する】
+// 【ローカルCurve AnimationとプロジェクトCurve Animationの参照範囲を区別する】
 // 同じIDが見つかるだけでは別の定義へ接続してしまうため、コピー時の所有先も保持する。
-test('resolves local and project automation graph references in their respective scopes', () => {
+test('resolves local and project Curve Animation references in their respective scopes', () => {
 	const f = fixture();
-	f.nodesEffect.definition.automationGraphs.push({ id: 'local' });
-	f.state.automationGraphs.value.push({ id: 'projectGraph' });
-	const local = f.copy({ inputSource: 'automationGraphReference', automationGraphId: 'local', ...playback });
-	const project = f.copy({ inputSource: 'automationGraphReference', automationGraphId: 'projectGraph', ...playback });
+	f.nodesEffect.definition.curveAnimations.push({ id: 'local' });
+	f.state.curveAnimations.value.push({ id: 'projectCurveAnimation' });
+	const local = f.copy({ inputSource: 'curveAnimationReference', curveAnimationId: 'local', ...playback });
+	const project = f.copy({ inputSource: 'curveAnimationReference', curveAnimationId: 'projectCurveAnimation', ...playback });
 	assert.ok(prepareProjectParameterPaste(f.state, f.projectSessionId, f.target, local));
 	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, f.timelineTarget, local), null);
 	assert.ok(prepareProjectParameterPaste(f.state, f.projectSessionId, f.timelineTarget, project));
@@ -232,7 +232,7 @@ test('resolves local and project automation graph references in their respective
 	assert.equal(prepareParameterBindingPaste(f.resolve().def, local, previewContext), null);
 	assert.ok(prepareParameterBindingPaste(f.resolve().def, project, previewContext));
 	assert.equal(prepareProjectParameterPaste(f.state, 'other', f.timelineTarget, project), null);
-	f.nodesEffect.definition.automationGraphs = [];
+	f.nodesEffect.definition.curveAnimations = [];
 	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, f.target, local), null);
 });
 
@@ -312,7 +312,7 @@ test('copies an unset camera distance using the fixed default', () => {
 	const f = fixture();
 	f.state.resolution = { value: { width: 200, height: 100 } };
 	f.scene.resolution = { mode: 'project' };
-	f.scene.layers.push({ id: 'camera', layerType: 'camera', automationGraphs: [], cameraParamValues: {} });
+	f.scene.layers.push({ id: 'camera', layerType: 'camera', curveAnimations: [], cameraParamValues: {} });
 	const resolved = f.resolve({ ...f.timelineTarget, layerId: 'camera', parameterTarget: 'camera', paramPath: ['z'] });
 	assert.equal(resolved.value.value, 0.5 / Math.tan(Math.PI / 8));
 	assert.equal(resolved.before, null);

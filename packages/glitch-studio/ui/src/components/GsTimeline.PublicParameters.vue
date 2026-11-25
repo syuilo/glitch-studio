@@ -8,10 +8,10 @@
 			<GsVisualParam
 				previewParameterGroup="publicParameter"
 				keyframesEnabled
-				:automationGraphEndEnabled="false"
+				:curveAnimationEndEnabled="false"
 				:availableVariables="LAYER_VAR_DEFS"
-				:automationGraphs="layer.automationGraphs"
-				:projectAutomationGraphs="stateManager.state.automationGraphs.value"
+				:curveAnimations="layer.curveAnimations"
+				:projectCurveAnimations="stateManager.state.curveAnimations.value"
 				:paramPath="[definition.id]"
 				:paramDef="definition"
 				:paramValue="layer.publicParameterValues?.[definition.id] ?? createDefaultParameterBinding(definition)"

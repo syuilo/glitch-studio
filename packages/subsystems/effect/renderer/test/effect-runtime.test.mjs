@@ -137,18 +137,18 @@ test('rebinds edited array fields before native frame preparation', async () => 
 	} finally { instance.dispose(); }
 });
 
-// 【入れ子の配置で公開値・内部の共有値・Automation Graph・キーを同じフレームで評価する】
+// 【入れ子の配置で公開値・内部の共有値・Curve Animation・キーを同じフレームで評価する】
 // 親子で同じ名前の値があっても、引数は親、ノードの式は子のスコープに属する。共有値の未使用の循環は実行しない。
-test('evaluates nested public and custom scopes, modifiers, automation and keyframes', async () => {
+test('evaluates nested public and custom scopes, modifiers, Curve Animation and keyframes', async () => {
 	const play = { trimmedDurationMs: null, offsetMode: 'start', wrapMode: 'clamp' };
 	const def = { ...definition, paramDefs: { result: scalar, gain: scalar, aspect: scalar, pointer: scalar } };
 	const graph = { ...definition, paramDefs: { x: { ...scalar, nameForReference: 'amount' } },
 		customParameterDefs: { c: { ...scalar, nameForReference: 'shared' }, unused: { ...scalar, nameForReference: 'cycle' } },
-		customParameterValues: { c: expression('PUBLIC("amount") + GRAPH("constant", 0, "clamp")'), unused: expression('CUSTOM("cycle")') },
-		automationGraphs: [{ id: 'g', nameForReference: 'constant', isNormalized: false, points: [{ x: 0, y: 3 }] }],
+		customParameterValues: { c: expression('PUBLIC("amount") + CURVE_ANIMATION("constant", 0, "clamp")'), unused: expression('CUSTOM("cycle")') },
+		curveAnimations: [{ id: 'g', nameForReference: 'constant', isNormalized: false, points: [{ x: 0, y: 3 }] }],
 		nodes: [{ id: 'draw', effectSource: native, resolution: { width: 16, height: 16 }, params: {
 			result: { ...expression('CUSTOM("shared")'), expressionModifier: { enabled: true, code: 'VALUE * 2' } },
-			gain: { inputSource: 'automationGraphReference', automationGraphId: 'g', ...play },
+			gain: { inputSource: 'curveAnimationReference', curveAnimationId: 'g', ...play },
 			aspect: { inputSource: 'envVariable', variable: 'ASPECT_RATIO' }, pointer: expression('POINTER_POSITION[1]'),
 		} }], outputSources: { image: output } };
 	const parent = { ...definition, nodes: [{ id: 'child', effectSource: inline(graph), params: { x: {

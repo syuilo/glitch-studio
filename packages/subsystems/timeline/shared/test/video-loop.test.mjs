@@ -16,11 +16,11 @@ test('keeps audio-only video timing and audio selections while excluding visual 
 	const volume = { volume: { inputSource: 'literal', value: 0.5 } };
 	const video = { id: 'video', layerType: 'video', isDisabled: false, forceDisableMotionBlur: false,
 		clips: [{ ...clip(), assetId: 'movie', playbackRate: -2, audioEnabled: true, videoEnabled: true }],
-		automationGraphs: [], compositingParamValues: {}, audioParamValues: volume };
-	const group = { id: 'group', layerType: 'group', layers: [video], automationGraphs: [], audioParamValues: volume };
+		curveAnimations: [], compositingParamValues: {}, audioParamValues: volume };
+	const group = { id: 'group', layerType: 'group', layers: [video], curveAnimations: [], audioParamValues: volume };
 	const effect = { id: 'effect', layerType: 'effect', clips: [] };
 	const parent = { id: 'parent', layerType: 'scene', clips: [{ id: 'placement', sceneId: 'child', startMs: 0, durationMs: 10000, contentOffsetMs: 0 }],
-		automationGraphs: [], compositingParamValues: {}, audioParamValues: volume };
+		curveAnimations: [], compositingParamValues: {}, audioParamValues: volume };
 	const scenes = [{ id: 'root', layers: [parent] }, { id: 'child', layers: [effect, group] }];
 	const selections = [{ type: 'all' }, { type: 'layer', layerId: 'video' }, { type: 'belowLayer', layerId: 'effect' }];
 	const audioPlans = selections.map(selection => getSceneAudioClips(scenes, 'child', selection));
@@ -66,9 +66,9 @@ test('separates source trim bounds from loop extension bounds', () => {
 // 下層音声・指定レイヤー音声も同じ音声計画を使い、音声無効時は計画から除外する。
 test('preserves loop phase through nested scene clipping and audio selections', () => {
 	const video = { id: 'video', layerType: 'video', isDisabled: false, clips: [{ ...clip(), assetId: 'movie', audioEnabled: true, videoEnabled: true }],
-		automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
+		curveAnimations: [], compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
 	const parent = { id: 'parent', layerType: 'scene', isDisabled: false, clips: [{ id: 'placement', sceneId: 'child', startMs: 5000, durationMs: 4500, contentOffsetMs: 2500 }],
-		automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
+		curveAnimations: [], compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
 	const scene = (id, layers) => ({ id, name: id, resolution: { mode: 'project' }, layers });
 	const scenes = [scene('root', [parent]), scene('child', [video])];
 	const [audio] = getSceneAudioClips(scenes, 'root');
@@ -90,7 +90,7 @@ test('preserves loop phase through nested scene clipping and audio selections', 
 test('keeps long short-period loops compact', () => {
 	const video = { id: 'video', layerType: 'video', isDisabled: false,
 		clips: [{ ...clip(), durationMs: 3600000, sourceOutMs: 2001.25, assetId: 'movie', audioEnabled: true, videoEnabled: true }],
-		automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
+		curveAnimations: [], compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
 	const scenes = [{ id: 'scene', resolution: { mode: 'project' }, layers: [video] }];
 	assert.equal(getSceneAudioClips(scenes, 'scene').length, 1);
 	const loops = getTimelineMotionBlurLoops(scenes, 'scene');

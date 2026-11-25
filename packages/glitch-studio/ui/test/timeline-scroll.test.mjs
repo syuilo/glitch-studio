@@ -97,7 +97,7 @@ async function fixture(t) {
 		audioParamValues: { volume: { inputSource: 'keyframesTimelineInline', keyframesTimeline: {
 			dataType: { kind: 'scalar' }, isNormalized: false,
 			keyframes: [100, 200].map((x, index) => ({ id: 'key-' + index, x, value: 1, interpolation: { type: 'linear' } })),
-		} } }, automationGraphs: [],
+		} } }, curveAnimations: [],
 	});
 	const layers = reactive(['a', 'b', 'c'].map(makeLayer));
 	projectSession.projectContext.stateManager.state.timelineScenes.value = [{ id: 'scene', layers }];

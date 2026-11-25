@@ -63,7 +63,7 @@
 				<GsVisualParam
 					:availableVariables="IN_NODES_EFFECT_VAR_DEFS"
 					:nodesEffect="nodesEffect"
-					:automationGraphs="nodesEffect.automationGraphs"
+					:curveAnimations="nodesEffect.curveAnimations"
 					:node="node"
 					:paramPath="[parameterKey]"
 					:paramDef="effectDefinitions.describe(node.effectSource).paramDefs[parameterKey]"
