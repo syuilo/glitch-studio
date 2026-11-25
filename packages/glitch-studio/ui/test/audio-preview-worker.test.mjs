@@ -45,7 +45,7 @@ function fixture() {
 	const context = {
 		self, onmessage: null, setInterval() {}, GPUCanvasContext,
 		navigator: { gpu: { async requestAdapter() { return { async requestDevice() { return device; } }; }, getPreferredCanvasFormat: () => 'bgra8unorm' } },
-		monitor: { render(...args) { renders.push(args); }, dispose() { disposed++; } },
+		monitor: { render(...args) { renders.push(args); return 48000; }, dispose() { disposed++; } },
 	};
 	runInNewContext(bundled.outputFiles[0].text, context);
 	return {
@@ -85,4 +85,37 @@ test('suspends and resumes rendering without recreating panels or duplicating an
 	assert.equal(f.frames.size, 0);
 	f.send({ type: 'remove', id: 1 });
 	assert.equal(f.disposed, 1);
+});
+
+// 【HOLD中は表示操作・寸法の変更に限ってSpectrogramを描き直す】
+// 表示が固定されている間はGPUを休めつつ、ズームや大きさの変更では同じ履歴の描画を再開する。
+test('redraws a held spectrogram on demand and restarts continuous drawing after HOLD', async () => {
+	const f = fixture();
+	const options = { mode: 'spectrogram', hold: false, viewport: { x: 0, y: 0, width: 1, height: 1 } };
+	const resize = { type: 'resize', id: 1, width: 320, height: 180, ratio: 1, visible: true };
+	f.send({ type: 'add', id: 1, canvas: f.canvas, options });
+	f.send(resize);
+	await new Promise(resolve => setImmediate(resolve));
+	f.draw();
+	assert.equal(f.frames.size, 1);
+	assert.equal(f.messages.at(-1).sampleRate, 48000);
+
+	const held = { ...options, hold: true };
+	f.send({ type: 'options', id: 1, options: held });
+	f.draw();
+	assert.equal(f.frames.size, 0);
+	const zoomed = { ...held, viewport: { x: 0.2, y: 0.3, width: 0.4, height: 0.5 } };
+	f.send({ type: 'options', id: 1, options: zoomed });
+	f.draw();
+	assert.equal(f.renders.at(-1)[1], zoomed);
+	assert.equal(f.frames.size, 0);
+	f.send({ ...resize, width: 640 });
+	f.draw();
+	assert.equal(f.canvas.width, 640);
+	assert.equal(f.frames.size, 0);
+
+	f.send({ type: 'options', id: 1, options });
+	f.draw();
+	assert.equal(f.frames.size, 1);
+	assert.equal(f.submissions, 5);
 });

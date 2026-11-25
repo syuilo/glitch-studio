@@ -19,11 +19,13 @@ for (const filename of ['GsAudioMonitor.vue', 'GsAudioSpectrogram.vue']) {
 		bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 		define: { 'import.meta.url': JSON.stringify(new URL('../src/audio/audio-preview.ts', import.meta.url).href) },
 		plugins: [i18nPlugin, { name: 'audio-monitor-context', setup(build) {
-			build.onResolve({ filter: /(?:^|\/)(?:app|project-session)\.ts$|GsDetachableView\.vue$/ }, args => ({ path: args.path, namespace: 'audio-monitor-context' }));
-			build.onLoad({ filter: /.*/, namespace: 'audio-monitor-context' }, args => ({ contents: (args.path.endsWith('app.ts') || args.path.endsWith('project-session.ts'))
-				? 'export function useProjectSession() { return projectSession; } export const projectSession = dependencies.projectSession;'
-				: `import { h } from 'vue'; export default { props: ['suspended', 'title'],
-					setup(props, { slots }) { return () => h('section', { 'data-test-audio-window': '', 'data-test-content-hidden': props.suspended }, slots.default?.()); } };` }));
+			build.onResolve({ filter: /(?:^|\/)(?:app|project-session|ui)\.ts$|GsDetachableView\.vue$/ }, args => ({ path: args.path, namespace: 'audio-monitor-context' }));
+			build.onLoad({ filter: /.*/, namespace: 'audio-monitor-context' }, args => {
+				if (args.path.endsWith('/ui.ts')) return { contents: 'export function popupMenu(items) { dependencies.menu = items; }' };
+				if (args.path.endsWith('GsDetachableView.vue')) return { contents: `import { h } from 'vue'; export default { props: ['suspended', 'title'],
+					setup(props, { slots }) { return () => h('section', { 'data-test-audio-window': '', 'data-test-content-hidden': props.suspended }, slots.default?.({ detached: false })); } };` };
+				return { contents: 'export function useProjectSession() { return projectSession; } export const projectSession = dependencies.projectSession;' };
+			});
 		} }],
 	});
 	bundles.set(filename, bundle.outputFiles[0].text);
@@ -45,14 +47,20 @@ async function fixture(t, { filename, props, enabled }) {
 	}
 	const view = { devicePixelRatio: 1, addEventListener() {}, removeEventListener() {},
 		matchMedia: () => ({ addEventListener() {}, removeEventListener() {} }) };
-	const document = { hidden: false, defaultView: view, addEventListener() {}, removeEventListener() {} };
+	const documentListeners = new Map();
+	const document = { hidden: false, defaultView: view,
+		addEventListener(type, listener) { documentListeners.set(type, listener); },
+		removeEventListener(type) { documentListeners.delete(type); },
+	};
 	let transfers = 0;
 	let captureUsers = 0;
 	function visible(node) { return node.style.display !== 'none' && (node.parent == null || visible(node.parent)); }
 	function element(tag) {
 		return { tag, children: [], props: {}, style: { display: '' }, text: '', parent: null, ownerDocument: document,
-			getBoundingClientRect() { return visible(this) ? { width: 320, height: 180 } : { width: 0, height: 0 }; },
+			clientWidth: 320, clientHeight: 180, clientLeft: 0, clientTop: 0,
+			getBoundingClientRect() { return { left: 0, top: 0, width: visible(this) ? 320 : 0, height: visible(this) ? 180 : 0 }; },
 			getClientRects() { return visible(this) ? [{}] : []; },
+			focus() {}, setPointerCapture() {}, hasPointerCapture() { return false; }, addEventListener() {}, removeEventListener() {},
 			transferControlToOffscreen() { transfers++; return {}; },
 		};
 	}
@@ -78,15 +86,70 @@ async function fixture(t, { filename, props, enabled }) {
 	dependencies.projectSession.audioOutput = { preview, retainOutputCapture() { captureUsers++; return () => { captureUsers--; }; } };
 	const root = element('root');
 	const app = renderer.createApp({ render: () => h(module.exports.default, props) });
+	app.directive('tooltip', {});
 	app.mount(root);
 	t.after(() => { app.unmount(); preview.dispose(); });
 	await nextTick();
 	const descendants = node => [node, ...node.children.flatMap(descendants)];
 	return { preview, workers, get transfers() { return transfers; }, get captureUsers() { return captureUsers; },
 		find: attribute => descendants(root).find(node => attribute in node.props),
+		dispatchDocument: (type, event) => documentListeners.get(type)(event),
+		get menu() { return dependencies.menu; },
+		get lastOptions() { return workers[0].messages.filter(message => message.type === 'options').at(-1)?.options; },
 		get lastResize() { return workers[0].messages.filter(message => message.type === 'resize').at(-1); },
 	};
 }
+
+// 【SpectrogramはHOLD中もWaveformと同じジェスチャーと周波数軸の切り替えを受け付ける】
+// HOLDを全体休止として扱うと停止した箇所を拡大できない。パネル内で表示範囲を更新し、
+// 再開時は周波数範囲と拡大率を保ちながら最新時刻へ戻すことを確認する。
+test('zooms, pans and changes scale while holding the spectrogram', async t => {
+	const f = await fixture(t, { filename: 'GsAudioSpectrogram.vue', props: {}, enabled: true });
+	const plot = f.find('data-test-audio-spectrogram-plot');
+	const hold = f.find('data-test-audio-spectrogram-hold');
+	const scale = f.find('data-test-audio-spectrogram-scale');
+	const pointer = (clientX, clientY, button = 0) => ({ currentTarget: plot, pointerId: 1, isPrimary: true, clientX, clientY, button, preventDefault() {} });
+	assert.equal(f.workers[0].messages.find(message => message.type === 'add').options.settings.logarithmic, true);
+	hold.props.onClick();
+	await nextTick();
+	assert.equal(f.lastOptions.hold, true);
+	assert.equal(f.lastOptions.settings.maxFrequency, null);
+	assert.equal(hold.props['data-test-audio-spectrogram-held'], true);
+	plot.props.onWheel({ ...pointer(160, 90), deltaMode: 0, deltaY: -600 });
+	await nextTick();
+	assert.deepEqual(f.lastOptions.viewport, { x: 0.25, y: 0.25, width: 0.5, height: 0.5 });
+
+	plot.props.onPointerdown(pointer(80, 45));
+	f.dispatchDocument('pointermove', pointer(240, 135));
+	await nextTick();
+	assert.ok(f.find('data-test-audio-spectrogram-selection'));
+	f.dispatchDocument('pointerup', pointer(240, 135));
+	await nextTick();
+	assert.deepEqual(f.lastOptions.viewport, { x: 0.375, y: 0.375, width: 0.25, height: 0.25 });
+	assert.equal(f.find('data-test-audio-spectrogram-selection'), undefined);
+
+	plot.props.onPointerdown(pointer(80, 45, 1));
+	f.dispatchDocument('pointerup', pointer(160, 45, 1));
+	await nextTick();
+	assert.equal(f.lastOptions.viewport.x, 0.3125);
+	scale.props.onClick({ currentTarget: scale });
+	assert.deepEqual(f.menu.map(item => item.active.value), [false, true]);
+	f.menu[0].action();
+	await nextTick();
+	assert.equal(f.lastOptions.settings.logarithmic, false);
+	assert.equal(f.lastOptions.hold, true);
+	const heldViewport = f.lastOptions.viewport;
+	assert.notEqual(heldViewport.y, 0.375);
+	assert.equal(heldViewport.x, 0.3125);
+
+	hold.props.onClick();
+	await nextTick();
+	assert.equal(f.lastOptions.hold, false);
+	assert.deepEqual(f.lastOptions.viewport, { ...heldViewport, x: 0.75 });
+	plot.props.onKeydown({ key: 'Home', preventDefault() {} });
+	await nextTick();
+	assert.deepEqual(f.lastOptions.viewport, { x: 0, y: 0, width: 1, height: 1 });
+});
 
 for (const monitor of [
 	{ filename: 'GsAudioMonitor.vue', props: { mode: 'waveform' }, name: 'waveform', prefix: 'audio-monitor' },

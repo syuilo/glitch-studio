@@ -35,9 +35,9 @@ export class AudioSpectrum {
 	}
 
 	public update(history: AudioHistory | null, channel: AudioChannel, smoothing: number,
-		onFrame?: (endFrame: number, reset: boolean) => void) {
+		onFrame?: (endFrame: number, reset: boolean) => void, startAtLatest = false) {
 		const hop = this.size / 4;
-		if (this.history !== history || this.revision !== history?.revision || this.channel !== channel
+		if (startAtLatest || this.history !== history || this.revision !== history?.revision || this.channel !== channel
 			|| (history && this.nextEndFrame - this.size < history.startFrame)) {
 			this.left.fill(0);
 			this.right.fill(0);
@@ -46,6 +46,10 @@ export class AudioSpectrum {
 			this.revision = history?.revision ?? -1;
 			this.channel = channel;
 			this.nextEndFrame = (history?.startFrame ?? 0) + this.size;
+			// HOLD解除などでは追いつき処理を行わず、最新の1窓から解析を再開する。
+			if (startAtLatest && history != null && history.endFrame >= this.nextEndFrame) {
+				this.nextEndFrame += Math.floor((history.endFrame - this.nextEndFrame) / hop) * hop;
+			}
 		}
 		if (!history?.channelCount) return;
 		// 長時間停止した描画の追いつきで音声履歴を無制限に解析しない。

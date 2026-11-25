@@ -9,7 +9,7 @@ export class AudioPreview {
 	private workerFailed = false;
 	private nextId = 0;
 	private meters = new Map<number, (reading: MeterReading) => void>();
-	private errors = new Map<number, (message: string) => void>();
+	private panels = new Map<number, { onError: (message: string) => void; onSampleRate?: (sampleRate: number) => void }>();
 	private analysisEnabled = ref(true);
 	public readonly isAnalysisEnabled = readonly(this.analysisEnabled);
 	private renderingSuspended = ref(false);
@@ -38,8 +38,9 @@ export class AudioPreview {
 					this.renderingStateRequests.get(data.requestId)?.();
 					this.renderingStateRequests.delete(data.requestId);
 				} else if (data.type === 'sampleRate') this.sampleRate.value = data.sampleRate;
-				else if (data.id != null) this.errors.get(data.id)?.(data.message);
-				else for (const error of [...this.errors.values()]) error(data.message);
+				else if (data.type === 'spectrogramSampleRate') this.panels.get(data.id)?.onSampleRate?.(data.sampleRate);
+				else if (data.id != null) this.panels.get(data.id)?.onError(data.message);
+				else for (const panel of [...this.panels.values()]) panel.onError(data.message);
 			};
 			this.worker.onerror = event => {
 				if (this.disposed) return;
@@ -47,7 +48,7 @@ export class AudioPreview {
 				// 音声モニターの障害によって映像の書き出しまで開始不能になる。
 				this.workerFailed = true;
 				this.finishRenderingStateRequests();
-				for (const error of [...this.errors.values()]) error(event.message);
+				for (const panel of [...this.panels.values()]) panel.onError(event.message);
 			};
 			// Analyze無効時や休止中にパネルを開いても、最初の描画より先に停止状態を渡す。
 			this.worker.postMessage({ type: 'renderingSuspended', suspended: !this.isRenderingEnabled.value, requestId: null } satisfies PreviewRequest);
@@ -98,11 +99,11 @@ export class AudioPreview {
 		return () => { this.meters.delete(id); this.send({ type: 'removeMeter', id }); };
 	}
 
-	public add(canvas: HTMLCanvasElement, options: PreviewOptions, error: (message: string) => void) {
+	public add(canvas: HTMLCanvasElement, options: PreviewOptions, onError: (message: string) => void, onSampleRate?: (sampleRate: number) => void) {
 		if (this.disposed) throw new Error('Audio preview has been disposed');
 		const id = this.nextId++;
 		const offscreen = canvas.transferControlToOffscreen();
-		this.errors.set(id, error);
+		this.panels.set(id, { onError, onSampleRate });
 		this.send({
 			type: 'add',
 			id,
@@ -112,7 +113,7 @@ export class AudioPreview {
 		return {
 			configure: (options: PreviewOptions) => this.send({ type: 'options', id, options }),
 			resize: (size: PreviewSize) => this.send({ type: 'resize', id, ...size }),
-			dispose: () => { this.errors.delete(id); this.send({ type: 'remove', id }); },
+			dispose: () => { this.panels.delete(id); this.send({ type: 'remove', id }); },
 		};
 	}
 
@@ -123,6 +124,6 @@ export class AudioPreview {
 		this.worker = null;
 		this.finishRenderingStateRequests();
 		this.meters.clear();
-		this.errors.clear();
+		this.panels.clear();
 	}
 }

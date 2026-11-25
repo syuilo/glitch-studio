@@ -3,8 +3,12 @@ struct Uniforms {
 	timeline: vec4f,
 	// x: 横向き、y: 逆方向、z: 周波数反転、w: stereo
 	display: vec4f,
-	// x: 最小dB、y: 最大dB、z: 表示有効（入力未選択は透明）
+	// x: 最小dB、y: 最大dB、z: 表示有効（入力未選択は透明）、w: FFTビンを保持する方式
 	levels: vec4f,
+	// 左上原点での表示範囲（x, y, width, height）
+	viewport: vec4f,
+	// x/y: 周波数範囲（ナイキスト周波数を1とする）、z: 対数軸
+	frequencyRange: vec4f,
 };
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 @group(0) @binding(1) var history: texture_2d_array<f32>;
@@ -22,7 +26,8 @@ fn heatmap(value: f32) -> vec3f {
 @fragment
 fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
 	if (uniforms.levels.z < 0.5) { return vec4f(0.0); }
-	let point = clamp(uv * 0.5 + 0.5, vec2f(0.0), vec2f(1.0));
+	let origin = vec2f(uniforms.viewport.x, 1.0 - (uniforms.viewport.y + uniforms.viewport.w));
+	let point = clamp(origin + (uv * 0.5 + 0.5) * uniforms.viewport.zw, vec2f(0.0), vec2f(1.0));
 	let horizontal = uniforms.display.x > 0.5;
 	// 通常方向では横向きは右、縦向きは上が最新。
 	var agePosition = 1.0 - select(point.y, point.x, horizontal);
@@ -36,6 +41,15 @@ fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
 		frequency = clamp(frequency * 2.0 - f32(half), 0.0, 1.0);
 	}
 	if (uniforms.display.z > 0.5) { frequency = 1.0 - frequency; }
+	if (uniforms.levels.w > 0.5) {
+		let minimum = uniforms.frequencyRange.x;
+		let maximum = uniforms.frequencyRange.y;
+		if (uniforms.frequencyRange.z > 0.5) {
+			frequency = minimum * pow(maximum / minimum, frequency);
+		} else {
+			frequency = mix(minimum, maximum, frequency);
+		}
+	}
 	let dimensions = textureDimensions(history);
 	let age = max(0.0, agePosition * uniforms.timeline.z - uniforms.timeline.w);
 	let offset = i32(ceil(age));

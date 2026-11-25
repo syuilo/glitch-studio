@@ -1,60 +1,35 @@
 import { float32ToFloat16Bits } from '@gs/shared/utility/float32ToFloat16Bits.ts';
-import { audioChannel, finiteNumber } from '@gs/subsystems_audio_renderer/audio-spectrum.ts';
+import type { SpectrogramSettings } from './spectrogram-settings.ts';
 import shader from './audio-spectrogram.wgsl?raw';
 
-export type SpectrogramSettings = {
-	channel: 'left' | 'right' | 'mix' | 'stereo';
-	fftSize: 256 | 512 | 1024 | 2048 | 4096 | 8192 | 16384 | 32768;
-	window: 'hann' | 'hamming' | 'blackman' | 'rectangular';
-	smoothing: number;
-	minFrequency: number;
-	maxFrequency: number;
-	logarithmic: boolean;
-	minDb: number;
-	maxDb: number;
-	duration: number;
-	orientation: 'horizontal' | 'vertical';
-	direction: 'forward' | 'reverse';
-	flipFrequency: boolean;
-};
+export { resolveSpectrogramSettings } from './spectrogram-settings.ts';
+export type { SpectrogramSettings } from './spectrogram-settings.ts';
+
+type FrequencyHistory = 'display-bands' | 'fft-bins';
+
+/** 左上原点で、表示全体を各軸0〜1とした範囲。 */
+export type SpectrogramViewport = { x: number; y: number; width: number; height: number };
 
 export type SpectrogramRendererOptions = {
 	device: GPUDevice;
 	vertexShaderModule: GPUShaderModule;
 	format: GPUTextureFormat;
 	enable32bitDataTextures: boolean;
+	frequencyHistory?: FrequencyHistory;
 };
 
-/** 解析計画とGPU履歴が同じ設定を使うよう、読み出しを始める前に値を確定する。 */
-export function resolveSpectrogramSettings(settings: SpectrogramSettings, sampleRate: number): SpectrogramSettings {
-	const fftSize = 2 ** Math.round(Math.log2(finiteNumber(settings.fftSize, 2048, 256, 32768))) as SpectrogramSettings['fftSize'];
-	const minFrequency = finiteNumber(settings.minFrequency, 20, settings.logarithmic ? 1 : 0, sampleRate / 2 - 1);
-	const minDb = finiteNumber(settings.minDb, -80, -120, -1);
-	return {
-		...settings,
-		fftSize,
-		channel: audioChannel(settings.channel),
-		smoothing: finiteNumber(settings.smoothing, 0, 0, 2),
-		duration: finiteNumber(settings.duration, 10, 0.5, 60),
-		minFrequency,
-		maxFrequency: finiteNumber(settings.maxFrequency, 20000, minFrequency + 1, sampleRate / 2),
-		minDb,
-		maxDb: finiteNumber(settings.maxDb, 0, minDb + 1, 20),
-	};
-}
-
-/** 軸の向きやdB範囲は保存した振幅の表示だけを変え、解析・履歴をリセットしない。 */
-export function getSpectrogramHistoryKey(settings: SpectrogramSettings, sampleRate: number): string {
-	return JSON.stringify([settings.fftSize, settings.window, settings.channel, settings.smoothing,
-		settings.duration, sampleRate, settings.minFrequency, settings.maxFrequency, settings.logarithmic]);
+export function getSpectrogramHistoryKey(settings: SpectrogramSettings, sampleRate: number, frequencyHistory: FrequencyHistory = 'display-bands'): string {
+	const key = [settings.fftSize, settings.window, settings.channel, settings.smoothing, settings.duration, sampleRate];
+	// FFTビンを保持する場合は、周波数範囲や対数軸の切り替え後も同じ履歴を参照できる。
+	if (frequencyHistory === 'display-bands') key.push(settings.minFrequency, settings.maxFrequency, Number(settings.logarithmic));
+	return JSON.stringify(key);
 }
 
 /** 取得元を知らず、解析済みスペクトラムのGPU履歴と描画だけを所有する。 */
 export function createSpectrogramRenderer(options: SpectrogramRendererOptions) {
-	const bands = 512;
+	const useFftBins = options.frequencyHistory === 'fft-bins';
 	const module = options.device.createShaderModule({ code: shader });
 	const sampler = options.device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
-	const uploadRow = new Uint16Array(bands);
 	const layout = options.device.createBindGroupLayout({
 		entries: [
 			{ binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
@@ -68,11 +43,14 @@ export function createSpectrogramRenderer(options: SpectrogramRendererOptions) {
 		fragment: { module, targets: [{ format: options.format }] },
 		primitive: { topology: 'triangle-list' },
 	});
-	const uniformBuffer = options.device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-	const uniforms = new Float32Array(12);
-	const rows = [new Float32Array(bands), new Float32Array(bands)];
+	const uniforms = new Float32Array(20);
+	const uniformBuffer = options.device.createBuffer({ size: uniforms.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+	let uploadRow = new Uint16Array(0);
+	let rows = [new Float32Array(0), new Float32Array(0)];
 	let texture: GPUTexture | null = null;
 	let bindGroup: GPUBindGroup | null = null;
+	let bands = 0;
+	let layers = 0;
 	let capacity = 0;
 	let step = 1;
 	let sampleRate = 48000;
@@ -90,22 +68,33 @@ export function createSpectrogramRenderer(options: SpectrogramRendererOptions) {
 	const rowIndex = (bucket: number) => ((bucket % capacity) + capacity) % capacity;
 	return {
 		configure(nextSettings: SpectrogramSettings, rate: number) {
-			const key = getSpectrogramHistoryKey(nextSettings, rate);
+			const key = getSpectrogramHistoryKey(nextSettings, rate, options.frequencyHistory);
 			settings = nextSettings;
 			sampleRate = rate;
 			if (key === historyKey) return;
 			historyKey = key;
 			reset();
 			const hop = settings.fftSize / 4;
+			const dimensionLimit = options.device.limits.maxTextureDimension2D;
+			const nextBands = useFftBins ? Math.min(settings.fftSize / 2 + 1, dimensionLimit) : 512;
+			const nextLayers = useFftBins && settings.channel !== 'stereo' ? 1 : 2;
 			// 長い表示期間でもGPU履歴は最大4096行。複数FFTが同じ行に入る場合はピークを保持する。
-			const maxRows = Math.min(4096, options.device.limits.maxTextureDimension2D);
+			// ビンを保持する場合も、大きなFFTサイズと長い履歴の組み合わせで確保量を増やしすぎない。
+			const maxRowsByMemory = Math.floor(32 * 1024 * 1024 / (nextBands * nextLayers * (options.enable32bitDataTextures ? 4 : 2)));
+			const maxRows = Math.min(4096, dimensionLimit, maxRowsByMemory);
 			step = hop * Math.max(1, Math.ceil(settings.duration * rate / hop / (maxRows - 2)));
 			const required = Math.ceil(settings.duration * rate / step) + 2;
-			if (capacity === required) return;
+			if (capacity === required && bands === nextBands && layers === nextLayers) return;
+			if (bands !== nextBands) {
+				bands = nextBands;
+				rows = [new Float32Array(bands), new Float32Array(bands)];
+				if (!options.enable32bitDataTextures) uploadRow = new Uint16Array(bands);
+			}
 			texture?.destroy();
 			capacity = required;
+			layers = nextLayers;
 			texture = options.device.createTexture({
-				size: [bands, capacity, 2],
+				size: [bands, capacity, layers],
 				format: options.enable32bitDataTextures ? 'r32float' : 'r16float',
 				usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
 			});
@@ -134,7 +123,13 @@ export function createSpectrogramRenderer(options: SpectrogramRendererOptions) {
 				: p.minFrequency + (p.maxFrequency - p.minFrequency) * x;
 			for (let side = 0; side < (p.channel === 'stereo' ? 2 : 1); side++) {
 				const values = side === 0 ? left : right;
-				for (let band = 0; band < bands; band++) {
+				if (useFftBins) {
+					// テクスチャ幅がFFTビン数に足りない場合も、各サンプルの近傍でピークを保持する。
+					for (let bin = 0; bin < values.length; bin++) {
+						const band = Math.round(bin * (bands - 1) / (values.length - 1));
+						rows[side][band] = Math.max(rows[side][band], values[bin]);
+					}
+				} else for (let band = 0; band < bands; band++) {
 					const from = frequency(band / bands) * p.fftSize / sampleRate;
 					const to = frequency((band + 1) / bands) * p.fftSize / sampleRate;
 					let amplitude = 0;
@@ -155,12 +150,14 @@ export function createSpectrogramRenderer(options: SpectrogramRendererOptions) {
 					{ bytesPerRow: data.byteLength }, [bands, 1, 1]);
 			}
 		},
-		render(endFrame: number, pass: GPURenderPassEncoder, visible = true) {
+		render(endFrame: number, pass: GPURenderPassEncoder, visible = true, viewport?: SpectrogramViewport) {
 			const p = settings!;
 			uniforms.set([newestBucket == null ? 0 : rowIndex(newestBucket), filled, p.duration * sampleRate / step,
 				newestBucket == null ? 0 : Math.max(0, (endFrame - newestBucket * step) / step),
 				Number(p.orientation !== 'vertical'), Number(p.direction === 'reverse'), Number(p.flipFrequency), Number(p.channel === 'stereo'),
-				p.minDb, p.maxDb, Number(visible), 0]);
+				p.minDb, p.maxDb, Number(visible), Number(useFftBins),
+				viewport?.x ?? 0, viewport?.y ?? 0, viewport?.width ?? 1, viewport?.height ?? 1,
+				2 * p.minFrequency / sampleRate, 2 * p.maxFrequency / sampleRate, Number(p.logarithmic), 0]);
 			options.device.queue.writeBuffer(uniformBuffer, 0, uniforms);
 			pass.setPipeline(pipeline);
 			pass.setBindGroup(0, bindGroup!);

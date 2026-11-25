@@ -1,4 +1,4 @@
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import type { Ref } from 'vue';
 import type { PreviewOptions } from './audio/audio-preview-types.ts';
 import { useProjectSession } from './project-session.ts';
@@ -7,6 +7,8 @@ export function useAudioPreview(canvas: Readonly<Ref<HTMLCanvasElement | null>>,
 	const projectSession = useProjectSession();
 	const { audioOutput } = projectSession;
 	const error = ref('');
+	const spectrogramSampleRate = ref(audioOutput.preview.sampleRate.value);
+	const size = shallowRef({ width: 0, height: 0 });
 	let panel: ReturnType<typeof audioOutput.preview.add> | null = null;
 	let releaseCapture: (() => void) | null = null;
 	let observer: ResizeObserver | null = null;
@@ -20,6 +22,7 @@ export function useAudioPreview(canvas: Readonly<Ref<HTMLCanvasElement | null>>,
 		const element = canvas.value;
 		if (!element || !panel) return;
 		const { width, height } = element.getBoundingClientRect();
+		if (size.value.width !== width || size.value.height !== height) size.value = { width, height };
 		panel.resize({
 			width,
 			height,
@@ -65,7 +68,7 @@ export function useAudioPreview(canvas: Readonly<Ref<HTMLCanvasElement | null>>,
 
 	onMounted(() => {
 		try {
-			panel = audioOutput.preview.add(canvas.value!, options.value, message => { error.value = message; stop(); });
+			panel = audioOutput.preview.add(canvas.value!, options.value, message => { error.value = message; stop(); }, rate => { spectrogramSampleRate.value = rate; });
 			releaseCapture = audioOutput.retainOutputCapture();
 			observer = new ResizeObserver(resize);
 			observer.observe(canvas.value!);
@@ -77,6 +80,6 @@ export function useAudioPreview(canvas: Readonly<Ref<HTMLCanvasElement | null>>,
 	// Analyzeを有効にしてもWorkerへvisible:falseを送り続けるため、表示更新を待つ。
 	watch(audioOutput.preview.isRenderingEnabled, () => nextTick(resize), { flush: 'post' });
 	onBeforeUnmount(stop);
-	return { changeWindow, error, sampleRate: audioOutput.preview.sampleRate,
+	return { changeWindow, error, size, spectrogramSampleRate, sampleRate: audioOutput.preview.sampleRate,
 		analysisEnabled: audioOutput.preview.isAnalysisEnabled, renderingSuspended: audioOutput.preview.isRenderingSuspended };
 }

@@ -39,3 +39,19 @@ test('preserves legacy history cadence, smoothing, frame callbacks and generatio
 	assert.deepEqual(frames.at(-1), [256, true]);
 	assert.ok(spectrum.left.every(value => value === 0));
 });
+
+// 【HOLD解除時は最新のFFT窓から再開する】
+// PCMリングに残っているHOLD中の区間を順番に解析すると、解除時に途切れた履歴を埋め戻してしまう。
+// 復帰の最初だけ最新の窓を通知し、次からは通常のhop間隔に戻ることを確かめる。
+test('starts from the latest FFT window without replaying retained PCM', () => {
+	const spectrum = new AudioSpectrum(256, 'hann');
+	const history = new AudioHistory();
+	const frames = [];
+	const onFrame = (endFrame, reset) => frames.push([endFrame, reset]);
+	append(history, 128, 1050);
+	spectrum.update(history, 'mix', 0, onFrame, true);
+	assert.deepEqual(frames, [[1152, true]]);
+	append(history, 1178, 102);
+	spectrum.update(history, 'mix', 0, onFrame);
+	assert.deepEqual(frames, [[1152, true], [1216, false], [1280, false]]);
+});

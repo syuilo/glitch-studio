@@ -10,6 +10,8 @@ type Panel = {
 	canvas: OffscreenCanvas;
 	options: PreviewOptions;
 	size: PreviewSize;
+	needsDraw: boolean;
+	spectrogramSampleRate?: number;
 	context?: GPUCanvasContext;
 	spectrogram?: ReturnType<typeof createPreviewSpectrogram> | null;
 	spectrum?: ReturnType<typeof createPreviewSpectrum> | null;
@@ -47,6 +49,7 @@ function configurePanel(panel: Panel) {
 	panel.spectrum?.dispose();
 	panel.waveform?.dispose();
 	panel.spectrogram = null;
+	panel.spectrogramSampleRate = undefined;
 	panel.spectrum = null;
 	panel.waveform = null;
 	if (panel.options.mode === 'spectrogram') panel.spectrogram = createPreviewSpectrogram({
@@ -109,6 +112,7 @@ onmessage = ({ data }: MessageEvent<PreviewRequest>) => {
 			void addPanel(data.id, {
 				canvas: data.canvas,
 				options: data.options,
+				needsDraw: true,
 				size: {
 					width: 0,
 					height: 0,
@@ -123,15 +127,20 @@ onmessage = ({ data }: MessageEvent<PreviewRequest>) => {
 			if (panel) {
 				const changedMode = panel.options.mode !== data.options.mode;
 				panel.options = data.options;
+				panel.needsDraw = true;
 				if (changedMode) {
 					try { configurePanel(panel); } catch (error) { removePanel(data.id); send({ type: 'error', id: data.id, message: String(error) }); }
 				}
+				updateDrawLoop();
 			}
 			break;
 		}
 		case 'resize': {
 			const panel = panels.get(data.id);
-			if (panel) panel.size = data;
+			if (panel) {
+				panel.size = data;
+				panel.needsDraw = true;
+			}
 			updateDrawLoop();
 			break;
 		}
@@ -194,9 +203,14 @@ setInterval(() => {
 // 描画はブラウザーのリフレッシュ周期に合わせる。FFTの解析間隔・平滑化・履歴の進行は
 // PCMのサンプル時刻を基準にするため、描画FPSが変わっても時間スケールは変わらない。
 // 非表示のパネルでは解析も描画も行わない。
+function shouldDrawPanel(panel: Panel): boolean {
+	const { width, height, visible } = panel.size;
+	return panel.context != null && visible && width > 0 && height > 0
+		&& (panel.options.mode !== 'spectrogram' || !panel.options.hold || panel.needsDraw);
+}
+
 function updateDrawLoop() {
-	const shouldDraw = !renderingSuspended && device != null && [...panels.values()].some(panel =>
-		panel.context != null && panel.size.visible && panel.size.width > 0 && panel.size.height > 0);
+	const shouldDraw = !renderingSuspended && device != null && [...panels.values()].some(shouldDrawPanel);
 	if (shouldDraw && animationFrameId == null) animationFrameId = self.requestAnimationFrame(drawFrame);
 	if (!shouldDraw && animationFrameId != null) {
 		self.cancelAnimationFrame(animationFrameId);
@@ -208,8 +222,9 @@ function drawFrame() {
 	animationFrameId = null;
 	if (renderingSuspended || device == null) return;
 	for (const [id, panel] of panels) {
-		const { width, height, ratio, visible } = panel.size;
-		if (!visible || width <= 0 || height <= 0 || !panel.context) continue;
+		if (!shouldDrawPanel(panel) || panel.context == null) continue;
+		const { width, height, ratio } = panel.size;
+		panel.needsDraw = false;
 		try {
 			const limit = device.limits.maxTextureDimension2D;
 			const pixelWidth = Math.min(limit, Math.max(1, Math.round(width * ratio)));
@@ -226,8 +241,14 @@ function drawFrame() {
 				}],
 			});
 			const options = panel.options;
-			if (options.mode === 'spectrogram') panel.spectrogram!.render(history, options.settings, pass);
-			else if (options.mode === 'spectrum') panel.spectrum!.render(running ? history : null, options.settings, pass, width);
+			if (options.mode === 'spectrogram') {
+				const sampleRate = panel.spectrogram!.render(history, options, pass);
+				if (panel.spectrogramSampleRate !== sampleRate) {
+					panel.spectrogramSampleRate = sampleRate;
+					// 目盛りはキャプチャ全体の最新レートではなく、このパネルが使用したレートに合わせる。
+					send({ type: 'spectrogramSampleRate', id, sampleRate });
+				}
+			} else if (options.mode === 'spectrum') panel.spectrum!.render(running ? history : null, options.settings, pass, width);
 			else panel.waveform!.render(running ? history : null, options.settings, pass, width, pixelHeight);
 			pass.end();
 			device.queue.submit([encoder.finish()]);

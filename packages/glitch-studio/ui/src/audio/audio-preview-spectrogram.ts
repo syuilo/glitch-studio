@@ -1,33 +1,45 @@
 import { AudioSpectrum } from '@gs/subsystems_audio_renderer/audio-spectrum.ts';
-import { createSpectrogramRenderer, getSpectrogramHistoryKey, resolveSpectrogramSettings } from '@gs/subsystems_audio_spectrogram-renderer/spectrogram-renderer.ts';
-import type { SpectrogramRendererOptions, SpectrogramSettings } from '@gs/subsystems_audio_spectrogram-renderer/spectrogram-renderer.ts';
+import { createSpectrogramRenderer, getSpectrogramHistoryKey } from '@gs/subsystems_audio_spectrogram-renderer/spectrogram-renderer.ts';
+import { resolvePreviewSpectrogramSettings } from './audio-preview-spectrogram-settings.ts';
 import type { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
+import type { SpectrogramRendererOptions } from '@gs/subsystems_audio_spectrogram-renderer/spectrogram-renderer.ts';
+import type { PreviewSpectrogramOptions } from './audio-preview-types.ts';
 
 export function createPreviewSpectrogram(options: SpectrogramRendererOptions) {
-	const renderer = createSpectrogramRenderer(options);
+	const frequencyHistory = 'fft-bins';
+	const renderer = createSpectrogramRenderer({ ...options, frequencyHistory });
 	let spectrum: AudioSpectrum | null = null;
 	let source: AudioHistory | null = null;
 	let revision = -1;
 	let historyKey: string | null = null;
+	let displayedFrame: { sampleRate: number; endFrame: number } | null = null;
+	let wasHeld = false;
 	return {
-		render(audio: AudioHistory | null, settings: SpectrogramSettings, pass: GPURenderPassEncoder) {
-			const sampleRate = audio?.sampleRate ?? 48000;
-			const p = resolveSpectrogramSettings(settings, sampleRate);
-			const key = getSpectrogramHistoryKey(p, sampleRate);
-			renderer.configure(p, sampleRate);
-			if (key !== historyKey || source !== audio || revision !== (audio?.revision ?? -1)) {
-				spectrum = new AudioSpectrum(p.fftSize, p.window);
-				historyKey = key;
-				source = audio;
-				revision = audio?.revision ?? -1;
-				renderer.reset();
+		render(audio: AudioHistory, { settings, viewport, hold }: PreviewSpectrogramOptions, pass: GPURenderPassEncoder) {
+			// HOLD中は表示済みの時刻とレートを使う。新しい入力やリセットが届いても同じ履歴を参照する。
+			if (!hold || displayedFrame == null) displayedFrame = { sampleRate: audio.sampleRate, endFrame: audio.endFrame };
+			const { sampleRate, endFrame } = displayedFrame;
+			const resolvedSettings = resolvePreviewSpectrogramSettings(settings, sampleRate);
+			renderer.configure(resolvedSettings, sampleRate);
+			if (!hold) {
+				const key = getSpectrogramHistoryKey(resolvedSettings, sampleRate, frequencyHistory);
+				if (spectrum == null || key !== historyKey || source !== audio || revision !== audio.revision || wasHeld) {
+					spectrum = new AudioSpectrum(resolvedSettings.fftSize, resolvedSettings.window);
+					historyKey = key;
+					source = audio;
+					revision = audio.revision;
+					renderer.reset();
+				}
+				const liveSpectrum = spectrum;
+				liveSpectrum.update(audio, resolvedSettings.channel, resolvedSettings.smoothing, (fftEndFrame, reset) => {
+					if (reset) renderer.reset();
+					renderer.append(fftEndFrame, liveSpectrum.left, liveSpectrum.right);
+				}, wasHeld);
+				if (!liveSpectrum.hasData) renderer.reset();
 			}
-			spectrum!.update(audio, p.channel, p.smoothing, (endFrame, reset) => {
-				if (reset) renderer.reset();
-				renderer.append(endFrame, spectrum!.left, spectrum!.right);
-			});
-			if (!spectrum!.hasData) renderer.reset();
-			renderer.render(audio?.endFrame ?? 0, pass);
+			wasHeld = hold;
+			renderer.render(endFrame, pass, true, viewport);
+			return sampleRate;
 		},
 		dispose: () => renderer.dispose(),
 	};

@@ -6,11 +6,12 @@
 
 <script lang="ts" setup>
 import GsAudioSpectrogram from './GsAudioSpectrogram.vue';
+import type { PreviewSpectrogramSettings } from '@/audio/audio-preview-types.ts';
 import type { WorkspacePanel } from '@/workspace.ts';
 
 defineProps<{
 	panel: WorkspacePanel;
-	options?: any;
+	options?: Partial<PreviewSpectrogramSettings>;
 }>();
 </script>
 
