@@ -56,6 +56,30 @@ test('collects immutable resources and custom shaders without local paths or dev
 	assert.doesNotMatch(JSON.stringify(encoded), /editor-only|private-device|C:\/private/);
 });
 
+// 【Web書き出しでも共有Function Curveと参照IDを同梱する】
+// 直接参照だけの作品は式エンジンなしで構成し、加工式からのFUNCTION_CURVE参照は依存判定で拾う。
+test('packages shared curves for direct references and detects FUNCTION_CURVE expressions', async () => {
+	const input = fixture();
+	const curve = { id: 'curve-id', nameForReference: 'ramp', isXNormalized: true, isYNormalized: true,
+		points: [{ id: 'start', x: 0, y: 1.2, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] };
+	const direct = { inputSource: 'curveAnimationInline', curveAnimation: {
+		curveBinding: { source: 'reference', curveId: curve.id },
+		trimmedDurationMs: 1000, yRangeMin: 10, yRangeMax: 20, offsetMode: 'start', wrapMode: 'clamp',
+	} };
+	input.nodesEffect.nodes[0].params.color = { inputSource: 'literal', value: [0, 0, 0, 1] };
+	input.nodesEffect.functionCurves = [curve];
+	input.nodesEffect.customParameterDefs = { motion: parameter('scalar', 0, 'motion') };
+	input.nodesEffect.customParameterValues = { motion: direct };
+	const prepared = preparePortableNodesEffect(input, definitions);
+	assert.equal(prepared.runtimeRequirements.requiresExpressions, false);
+	const { artwork } = await encodePortableNodesEffect(prepared, 'html');
+	assert.deepEqual(artwork.nodesEffect.functionCurves, [curve]);
+	assert.deepEqual(artwork.nodesEffect.customParameterValues.motion, direct);
+
+	input.nodesEffect.customParameterValues.motion = { ...direct, expressionModifier: { enabled: true, code: 'VALUE + FUNCTION_CURVE("ramp", 0, "clamp")' } };
+	assert.equal(preparePortableNodesEffect(input, definitions).runtimeRequirements.requiresExpressions, true);
+});
+
 // 【公開値のHDR・入れ子・参照名を保持し、書き出し元から独立した値を作る】
 // 書き出しの非同期処理中に元の値が編集されても、準備済みの作品や公開既定値に影響させない。
 test('preserves HDR colors and nested public values in independent export snapshots', () => {

@@ -288,7 +288,7 @@ async function doExport() {
 			generatedSpeech: stateManager.state.generatedSpeech.value,
 			customShaderEffects: stateManager.state.customShaderEffects.value,
 			nodesEffects: stateManager.state.nodesEffects.value,
-			curveAnimations: stateManager.state.curveAnimations.value,
+			functionCurves: stateManager.state.functionCurves.value,
 			timelineScenes: stateManager.state.timelineScenes.value,
 			sceneId: exportSceneId,
 		});

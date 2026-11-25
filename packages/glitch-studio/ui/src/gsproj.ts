@@ -3,7 +3,7 @@ import * as msgpack from '@msgpack/msgpack';
 import semverGt from 'semver/functions/gt.js';
 import { readFileSource } from '@gs/shared/file-source.ts';
 import { writeFileSystemFile } from './utility/write-file-system-file.ts';
-import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
+import type { SharedFunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import type { ProjectCustomShaderEffect, ProjectNodesEffect } from '@gs/glitch-studio_shared/project/types.ts';
@@ -47,7 +47,7 @@ export type ProjectInfo = {
 
 export type Project = ProjectInfo & {
 	customShaderEffects: ProjectCustomShaderEffect[];
-	curveAnimations: CurveAnimation[];
+	functionCurves: SharedFunctionCurve[];
 	exportSettings: ExportDialogSettings | null;
 	timelineFps: number;
 	timelineMotionBlur: TimelineMotionBlurSettings;

@@ -11,8 +11,8 @@
 			keyframesEnabled
 			:curveAnimationEndEnabled="false"
 			:availableVariables="LAYER_VAR_DEFS"
-			:curveAnimations="layer.curveAnimations"
-			:projectCurveAnimations="projectSession.projectContext.stateManager.state.curveAnimations.value"
+			:functionCurves="layer.functionCurves"
+			:projectFunctionCurves="projectSession.projectContext.stateManager.state.functionCurves.value"
 			:paramPath="[key]"
 			:paramDef="def"
 			:paramValue="values[key] ?? createDefaultParameterBinding(def)"

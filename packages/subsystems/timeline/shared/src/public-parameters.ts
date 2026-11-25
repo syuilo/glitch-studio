@@ -19,7 +19,7 @@ export type TimelineLayerPublicParameterDefinition = ParameterDefinition<Timelin
 	nameForReference: string;
 };
 
-export type TimelineLayerPublicParameterOwner = Pick<TimelineLayerWithParameters, 'id' | 'name' | 'curveAnimations' | 'publicParameterDefs' | 'publicParameterValues'>;
+export type TimelineLayerPublicParameterOwner = Pick<TimelineLayerWithParameters, 'id' | 'name' | 'functionCurves' | 'publicParameterDefs' | 'publicParameterValues'>;
 
 /** 祖先はフォルダを除き、Scene直下から親の順。Scene参照を跨ぐ環境は作らない。 */
 export type TimelineLayerPublicParameterContext = {
@@ -31,7 +31,7 @@ function createTimelineLayerPublicParameterOwner(layer: TimelineLayerWithParamet
 	return {
 		id: layer.id,
 		name: layer.name,
-		curveAnimations: layer.curveAnimations,
+		functionCurves: layer.functionCurves,
 		publicParameterDefs: layer.publicParameterDefs,
 		publicParameterValues: layer.publicParameterValues,
 	};

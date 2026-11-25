@@ -1,4 +1,4 @@
-import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
+import type { SharedFunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import type { Asset } from '@gs/shared/types.ts';
@@ -12,7 +12,7 @@ export type ExportRequest = {
 	settings: TimelineExportSettings;
 	/** nullは出力寸法をSceneの基準サイズに使うカスタム指定。 */
 	resolutionScale: number | null;
-	project: { customShaderEffects: ProjectCustomShaderEffect[]; curveAnimations: CurveAnimation[]; timelineFps: number; timelineMotionBlur: TimelineMotionBlurSettings; assets: Asset[]; generatedSpeech: GeneratedSpeech[]; nodesEffects: ProjectNodesEffect[]; timelineScenes: TimelineScene[]; sceneId: string; resolution: Resolution };
+	project: { customShaderEffects: ProjectCustomShaderEffect[]; functionCurves: SharedFunctionCurve[]; timelineFps: number; timelineMotionBlur: TimelineMotionBlurSettings; assets: Asset[]; generatedSpeech: GeneratedSpeech[]; nodesEffects: ProjectNodesEffect[]; timelineScenes: TimelineScene[]; sceneId: string; resolution: Resolution };
 	renderer: Pick<TimelineRendererManagerStaticOptions, 'enable32bitDataTextures' | 'effectRenderTiling'>;
 };
 

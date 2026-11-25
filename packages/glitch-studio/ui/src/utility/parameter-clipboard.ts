@@ -1,3 +1,4 @@
+import { isValidCurveAnimationYRange } from '@gs/shared/curve-animation/curve-animation.ts';
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { getEffectDefinitions } from './project-effects.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
@@ -46,7 +47,7 @@ export type ParameterClipboardSource = {
 	projectSessionId: string;
 	owner: ParameterClipboardOwner;
 	// 同じIDのローカル定義を、別の所有者の定義やプロジェクト定義と取り違えない。
-	localCurveAnimationIds: string[];
+	localFunctionCurveIds: string[];
 };
 
 export type ParameterClipboardData = {
@@ -154,16 +155,22 @@ function validateBinding(dataType: DataType, value: unknown): asserts value is E
 		case 'literal': validateLiteral(dataType, binding.value); break;
 		case 'expression': requireValid(typeof binding.expression === 'string'); break;
 		case 'envVariable': requireValid(typeof binding.variable === 'string'); break;
-		case 'curveAnimationReference':
-			validatePlaybackOptions(binding);
-			requireValid(binding.curveAnimationId === null || nonemptyString(binding.curveAnimationId));
-			break;
 		case 'curveAnimationInline': {
-			validatePlaybackOptions(binding);
 			const curveAnimation = object(binding.curveAnimation);
-			requireValid(typeof curveAnimation.isNormalized === 'boolean' && Array.isArray(curveAnimation.points));
+			validatePlaybackOptions(curveAnimation);
+			const { yRangeMin, yRangeMax } = curveAnimation;
+			requireValid((yRangeMin === null || finiteNumber(yRangeMin)) && (yRangeMax === null || finiteNumber(yRangeMax)));
+			requireValid(isValidCurveAnimationYRange({ yRangeMin, yRangeMax }));
+			const curveBinding = object(curveAnimation.curveBinding);
+			if (curveBinding.source === 'reference') {
+				requireValid(curveBinding.curveId === null || nonemptyString(curveBinding.curveId));
+				break;
+			}
+			requireValid(curveBinding.source === 'inline');
+			const curve = object(curveBinding.curve);
+			requireValid(typeof curve.isXNormalized === 'boolean' && typeof curve.isYNormalized === 'boolean' && Array.isArray(curve.points));
 			const ids = new Set<string>();
-			for (const candidate of curveAnimation.points) {
+			for (const candidate of curve.points) {
 				const point = object(candidate);
 				requireValid(nonemptyString(point.id) && !ids.has(point.id) && finiteNumber(point.x) && finiteNumber(point.y)
 					&& components(point.bezierControlPointA, 2) && components(point.bezierControlPointB, 2));
@@ -220,7 +227,7 @@ export function parseParameterClipboard(text: string): ParameterClipboardData | 
 		validateDataType(data.dataType);
 		validateBinding(data.dataType, data.binding);
 		const source = object(data.source);
-		requireValid(nonemptyString(source.projectSessionId) && Array.isArray(source.localCurveAnimationIds) && source.localCurveAnimationIds.every(nonemptyString));
+		requireValid(nonemptyString(source.projectSessionId) && Array.isArray(source.localFunctionCurveIds) && source.localFunctionCurveIds.every(nonemptyString));
 		const owner = object(source.owner);
 		if (owner.kind === 'nodesEffect') {
 			const target = object(owner.target);
@@ -237,7 +244,7 @@ export function createParameterClipboard(definition: ParameterDefinition, bindin
 }
 
 export function createNodesEffectClipboardSource(projectSessionId: string, target: NodesEffectTarget, nodesEffect: NodesEffect): ParameterClipboardSource {
-	return { projectSessionId, owner: { kind: 'nodesEffect', target }, localCurveAnimationIds: nodesEffect.curveAnimations.map(curveAnimation => curveAnimation.id) };
+	return { projectSessionId, owner: { kind: 'nodesEffect', target }, localFunctionCurveIds: nodesEffect.functionCurves.map(functionCurve => functionCurve.id) };
 }
 
 function sameOwner(a: ParameterClipboardSource, b: ParameterClipboardSource): boolean {
@@ -264,13 +271,15 @@ function validateLeafDestination(definition: ParameterDefinition, binding: Edita
 	}
 	switch (binding.inputSource) {
 		case 'literal': break;
-		case 'curveAnimationReference': {
-			if (binding.curveAnimationId == null) break;
+		case 'curveAnimationInline': {
+			const { curveBinding } = binding.curveAnimation;
+			if (curveBinding.source !== 'reference' || curveBinding.curveId == null) break;
+			const { curveId } = curveBinding;
 			requireValid(sameProjectSession);
-			const localCurveAnimations = context.kind === 'timeline' ? context.layer.curveAnimations : context.kind === 'node' || context.kind === 'customParameter' ? context.nodesEffect.curveAnimations : [];
-			if (source.localCurveAnimationIds.includes(binding.curveAnimationId)) {
-				requireValid(sameOwner(source, context.source) && localCurveAnimations.some(curveAnimation => curveAnimation.id === binding.curveAnimationId));
-			} else requireValid(context.kind !== 'node' && context.kind !== 'customParameter' && context.state.curveAnimations.value.some(curveAnimation => curveAnimation.id === binding.curveAnimationId));
+			const localFunctionCurves = context.kind === 'timeline' ? context.layer.functionCurves : context.kind === 'node' || context.kind === 'customParameter' ? context.nodesEffect.functionCurves : [];
+			if (source.localFunctionCurveIds.includes(curveId)) {
+				requireValid(sameOwner(source, context.source) && localFunctionCurves.some(functionCurve => functionCurve.id === curveId));
+			} else requireValid(context.kind !== 'node' && context.kind !== 'customParameter' && context.state.functionCurves.value.some(functionCurve => functionCurve.id === curveId));
 			break;
 		}
 		case 'node': {
@@ -340,8 +349,8 @@ export function prepareParameterBindingPaste(definition: ParameterDefinition, cl
 				for (const [key, field] of Object.entries(getStructFieldDefinitions(currentDefinition))) prepareTree(field, currentBinding.value[key]);
 			} else if (currentBinding.inputSource === 'keyframesTimelineInline') {
 				for (const point of currentBinding.keyframesTimeline.keyframes) point.id = genId();
-			} else if (currentBinding.inputSource === 'curveAnimationInline') {
-				for (const point of currentBinding.curveAnimation.points) point.id = genId();
+			} else if (currentBinding.inputSource === 'curveAnimationInline' && currentBinding.curveAnimation.curveBinding.source === 'inline') {
+				for (const point of currentBinding.curveAnimation.curveBinding.curve.points) point.id = genId();
 			} else if (currentBinding.inputSource === 'literal' && currentDefinition.dataType.kind === 'colorRamp') {
 				for (const stop of currentBinding.value.stops) stop.id = genId();
 			}
@@ -378,7 +387,7 @@ export function resolveProjectClipboardTarget(state: ProjectState, projectSessio
 		before = getLayerParameterValues(layer, target.parameterTarget)[rootKey] ?? null;
 		root = resolveLayerParameter(state, layer, target.parameterTarget, [rootKey]);
 		context = { kind: 'timeline', state, scene, layer, parameterTarget: target.parameterTarget, source: {
-			projectSessionId, owner: { kind: 'timelineLayer', sceneId: scene.id, layerId: layer.id }, localCurveAnimationIds: layer.curveAnimations.map(curveAnimation => curveAnimation.id),
+			projectSessionId, owner: { kind: 'timelineLayer', sceneId: scene.id, layerId: layer.id }, localFunctionCurveIds: layer.functionCurves.map(functionCurve => functionCurve.id),
 		} };
 	}
 	const draft = { [rootKey]: deepClone(root.value) };

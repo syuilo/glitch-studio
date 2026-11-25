@@ -8,7 +8,7 @@ import { parse, compileScript } from 'vue/compiler-sfc';
 import { createRenderer, h, nextTick, reactive } from 'vue';
 import { i18nPlugin } from './helpers/i18n.mjs';
 
-const path = fileURLToPath(new URL('../src/components/GsCurveAnimationPointsEditor.vue', import.meta.url));
+const path = fileURLToPath(new URL('../src/components/GsFunctionCurvePointsEditor.vue', import.meta.url));
 const descriptor = parse(await readFile(path, 'utf8'), { filename: path }).descriptor;
 const script = compileScript(descriptor, { id: 'curve-animation-edit-test' }).content;
 const bundle = await build({ stdin: { contents: script, loader: 'ts', resolveDir: fileURLToPath(new URL('../src/components/', import.meta.url)) },
@@ -23,7 +23,7 @@ async function fixture(t) {
 	const module = { exports: {} };
 	new Function('require', 'module', 'exports', 'window', 'HTMLElement', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports,
 		{ document: { getSelection: () => null } }, class {});
-	const props = reactive({ isNormalized: true, points: [0, 0.4, 1].map((x, index) => ({ id: `p${index}`, x, y: index,
+	const props = reactive({ isXNormalized: true, isYNormalized: true, points: [0, 0.4, 1].map((x, index) => ({ id: `p${index}`, x, y: index,
 		bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] })) });
 	const changes = [];
 	let editor;

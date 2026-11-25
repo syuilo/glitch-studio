@@ -10,7 +10,7 @@ export function createNodesEffectDefinition(): NodesEffect {
 		paramDefs: { [inputId]: { nameForReference: 'input', dataType: { kind: 'color' }, ui: { label: 'Input', control: {} },
 			defaultValue: [0, 0, 0, 0], canNode: true } },
 		outputDefs: { [outputId]: { label: 'Output', nameForReference: 'output', dataType: { kind: 'color' } } },
-		outputSources: {}, nodes: [], customParameterDefs: {}, customParameterValues: {}, curveAnimations: [],
+		outputSources: {}, nodes: [], customParameterDefs: {}, customParameterValues: {}, functionCurves: [],
 	};
 }
 

@@ -18,7 +18,7 @@ export function createVoicevoxTimelineLayer(layer: TimelineVoicevoxLayer, option
 	return {
 		async evaluate(context, signal) {
 			if (disposed || signal.aborted) return { gpuTime: 0 };
-			const scope = { time: context.sceneTimeMs, isExport: context.isExport, publicParameters: context.publicParameters, curveAnimations: layer.curveAnimations };
+			const scope = { time: context.sceneTimeMs, isExport: context.isExport, publicParameters: context.publicParameters, functionCurves: layer.functionCurves };
 			const text = parameters.evaluate(getVoicevoxSubtitle(layer.voicevox, layer.utterances, context.sceneTimeMs, options.resolveSpeech), layer.subtitleParamValues, scope);
 			if (!await renderer.waitUntilReady(signal) || disposed || signal.aborted) return { gpuTime: 0 };
 			const settings = compositing.evaluate({

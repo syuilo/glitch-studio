@@ -33,7 +33,7 @@ test('connects the real Electron MCP server to project scripting, references and
 				name: ref(name), description: ref(''), author: ref(''),
 				resolution: ref({ width: 1920, height: 1080 }), timelineFps: ref(30),
 				timelineMotionBlur: ref({ enabled: false, shutterAngle: 180, samples: 8 }), exportSettings: ref(null),
-				curveAnimations: ref([]), customShaderEffects: ref([]), generatedSpeech: ref([]),
+				functionCurves: ref([]), customShaderEffects: ref([]), generatedSpeech: ref([]),
 				assets: ref([]), nodesEffects: ref([]), timelineScenes: ref([]),
 			};
 			const stateManager = new UndoRedo(state, COMMAND_DEFS);

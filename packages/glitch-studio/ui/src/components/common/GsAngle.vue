@@ -61,8 +61,8 @@
 					<GsInput type="number" :modelValue="value * 360" :step="step * 360" @update:modelValue="setValue($event / 360)">
 						<template #suffix>°</template>
 					</GsInput>
-					<GsButton :primary="snapEnabled" :title="i18n.ts._CurveAnimation.SnapHint" @click="snapEnabled = !snapEnabled">
-						{{ i18n.ts._CurveAnimation.Snap }} {{ snapEnabled ? i18n.ts.On : i18n.ts.Off }}
+					<GsButton :primary="snapEnabled" :title="i18n.ts._FunctionCurve.SnapHint" @click="snapEnabled = !snapEnabled">
+						{{ i18n.ts._FunctionCurve.Snap }} {{ snapEnabled ? i18n.ts.On : i18n.ts.Off }}
 					</GsButton>
 				</div>
 			</div>

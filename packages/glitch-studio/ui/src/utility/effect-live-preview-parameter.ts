@@ -23,15 +23,6 @@ export function editEffectLivePreviewParameter(def: ParameterDefinition, current
 			if (!isValueParameterBinding(current)) return null;
 			next = { ...current, expressionModifier: deepClone(event.value) };
 			break;
-		case 'curveAnimationReference': next = {
-			inputSource: 'curveAnimationReference',
-			trimmedDurationMs: 1000,
-			wrapMode: 'repeat',
-			offsetMode: 'start',
-			...(current?.inputSource === 'curveAnimationReference' ? current : {}),
-			curveAnimationId: event.value,
-			...event.options,
-		}; break;
 		case 'copy':
 		case 'paste':
 		case 'createPublicParameter':
@@ -54,13 +45,6 @@ export function editEffectLivePreviewParameter(def: ParameterDefinition, current
 				case 'expression': next = {
 					inputSource: 'expression',
 					expression: AiSON.stringify(current?.inputSource === 'literal' ? current.value : def.defaultValue),
-				}; break;
-				case 'curveAnimationReference': next = {
-					inputSource: 'curveAnimationReference',
-					curveAnimationId: null,
-					trimmedDurationMs: 1000,
-					wrapMode: 'repeat',
-					offsetMode: 'start',
 				}; break;
 				case 'curveAnimationInline': next = createInlineCurveAnimation(); break;
 				case 'keyframesTimelineInline':

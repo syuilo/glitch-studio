@@ -18,7 +18,7 @@ const parent = (ancestors, own = settings) => getTimelinePreviewParent(ancestors
 
 const cameraLayer = (id, startMs, durationMs, paramValues = {}) => ({
 	id, name: id, layerType: 'camera', isDisabled: false, forceDisableMotionBlur: false,
-	curveAnimations: [], cameraParamValues: paramValues,
+	functionCurves: [], cameraParamValues: paramValues,
 	clips: [{ id: 'view', startMs, durationMs, contentOffsetMs: 300 }],
 });
 
@@ -29,7 +29,7 @@ test('evaluates camera and ancestor transforms with public parameter scopes', ()
 	const camera = cameraLayer('view', 0, 1000, { position: { inputSource: 'expression', expression: '[PUBLIC("offset"), 0]' } });
 	camera.publicParameterDefs = [definition];
 	camera.publicParameterValues = { offset: { inputSource: 'expression', expression: 'PUBLIC("offset") * 2' } };
-	const transform = { id: 'parent', name: 'Parent', layerType: 'transform', isDisabled: false, forceDisableMotionBlur: false, layers: [camera], curveAnimations: [],
+	const transform = { id: 'parent', name: 'Parent', layerType: 'transform', isDisabled: false, forceDisableMotionBlur: false, layers: [camera], functionCurves: [],
 		publicParameterDefs: [definition], publicParameterValues: { offset: { inputSource: 'expression', expression: 'TIME' } },
 		transformParamValues: { position: { inputSource: 'expression', expression: '[PUBLIC("offset"), 0]' }, z: { inputSource: 'literal', value: 0 }, scale: { inputSource: 'literal', value: [1, 1] }, rotation: { inputSource: 'literal', value: 0 } },
 	};
@@ -184,7 +184,7 @@ test('excludes planes at the near limit and behind the camera', () => {
 // 【式とキーは所属Sceneの時計・書き出し状態で評価する】
 // カメラだけ別の単位や未定義の変数を使うと、シーク・書き出しと一致しなくなる。
 test('evaluates camera expressions and keyframes at scene sample time', () => {
-	const result = evaluator.evaluate({ curveAnimations: [], paramValues: {
+	const result = evaluator.evaluate({ functionCurves: [], paramValues: {
 		position: { inputSource: 'expression', expression: '[TIME, TIME_MS / 1000]' },
 		z: { inputSource: 'envVariable', variable: 'TIME' },
 		fieldOfView: { inputSource: 'keyframesTimelineInline', offsetMode: 'start', trimmedDurationMs: null, wrapMode: 'clamp', keyframesTimeline: {
@@ -201,7 +201,7 @@ test('evaluates camera expressions and keyframes at scene sample time', () => {
 // 時刻だけを手書きしたスコープでは、共通の環境変数追加時にカメラだけ未定義になる。
 // レイヤー用の検証変数と書き出し状態が、式と環境変数Bindingの両方から読めることを保証する。
 test('uses the shared layer variables for camera expressions and environment bindings', () => {
-	const camera = { curveAnimations: [], paramValues: {
+	const camera = { functionCurves: [], paramValues: {
 		position: { inputSource: 'expression', expression: '[TIME, TIME_MS]' },
 		z: { inputSource: 'envVariable', variable: 'TEST_SAME_NAME' },
 		fieldOfView: { inputSource: 'expression', expression: 'if TEST_ONLY_LAYER && IS_EXPORT { 60 } else { 45 }' },
@@ -256,7 +256,7 @@ test('evaluates roll keyframes and expressions without clamping complete turns',
 			{ id: 'b', x: 1000, value: 4, interpolation: { type: 'linear' } },
 		],
 	} };
-	const evaluate = roll => evaluator.evaluate({ curveAnimations: [], paramValues: { roll } }, 750, true).roll;
+	const evaluate = roll => evaluator.evaluate({ functionCurves: [], paramValues: { roll } }, 750, true).roll;
 	assert.equal(evaluate(binding), 3);
 	assert.equal(evaluate({ inputSource: 'expression', expression: 'TIME * 4' }), 3);
 	assert.equal(evaluate({ inputSource: 'literal', value: NaN }), 0);

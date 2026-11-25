@@ -1,8 +1,8 @@
 import * as z from 'zod';
-import { curveAnimationDataSchema, parameterDefinitionSchema, textureDataTypeSchema } from './parameter-contract-schemas.ts';
+import { functionCurveSchema, parameterDefinitionSchema, textureDataTypeSchema } from './parameter-contract-schemas.ts';
 import type { ProjectCustomShaderEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import type { CustomShaderEffect } from '@gs/subsystems_effect_shared/custom-shader-effect.ts';
-export { curveAnimationSchema } from './parameter-contract-schemas.ts';
+export { sharedFunctionCurveSchema } from './parameter-contract-schemas.ts';
 
 export const projectResolutionSchema = z.object({
 	width: z.number().int({ error: 'Resolution width and height must be positive integers' }).positive({ error: 'Resolution width and height must be positive integers' }).describe('Render width in pixels. A positive safe integer.'),
@@ -15,7 +15,7 @@ export const timelineMotionBlurSettingsSchema = z.object({
 	samples: z.number().int().min(0).max(128).describe('Motion blur sample count, from 0 to 128.'),
 });
 
-export const curveAnimationDefinitionSchema = z.intersection(curveAnimationDataSchema, z.object({ nameForReference: z.string() }));
+export const functionCurveDefinitionSchema = z.intersection(functionCurveSchema, z.object({ nameForReference: z.string() }));
 
 // 既存のEffectドメインの定義をAPI資料として表す。入力の対応関係や参照名の
 // 重複など、定義同士を比較する検証はEffectドメインの検証関数が引き続き担当する。

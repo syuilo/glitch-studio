@@ -7,17 +7,17 @@ import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shar
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import type { TextParameterValues } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
-import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
+import type { SharedFunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 
 export class TextParameters {
 	private evaluator = new TimelineParameterBindingEvaluator();
 
-	evaluate(bindings: TextParameterValues<TimelineParameterBinding>, context: { time: number; isExport: boolean; curveAnimations: CurveAnimation[]; publicParameters?: TimelineLayerPublicParameterContext | null }): TextRenderValues {
+	evaluate(bindings: TextParameterValues<TimelineParameterBinding>, context: { time: number; isExport: boolean; functionCurves: SharedFunctionCurve[]; publicParameters?: TimelineLayerPublicParameterContext | null }): TextRenderValues {
 		const scope = createTimelineLayerEvaluationScope(context);
 		const values: Record<string, unknown> = {};
 		for (const [key, def] of Object.entries(textParamDefs)) {
 			const binding = bindings[key as keyof TextParameterValues];
-			const fallback = binding?.inputSource === 'curveAnimationReference' || def.dataType.kind === 'enum' ? def.defaultValue : genEmptyValue(def);
+			const fallback = binding?.inputSource === 'curveAnimationInline' || def.dataType.kind === 'enum' ? def.defaultValue : genEmptyValue(def);
 			const value = binding == null ? def.defaultValue : this.evaluator.evaluate(binding, scope, fallback, def);
 			values[key] = coerceParameterValue(def, value);
 		}

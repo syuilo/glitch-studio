@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { SIZE_REFERENCES } from '@gs/shared/size-reference.ts';
 import { COLOR_RAMP_INTERPOLATIONS } from '@gs/shared/color-ramp.ts';
 import { colorBlendModes } from '@gs/shared/color-blend.ts';
+import { isValidCurveAnimationYRange } from '@gs/shared/curve-animation/curve-animation.ts';
 import { validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
 import type { DataType, TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
@@ -31,13 +32,15 @@ export const dataTypeSchema: z.ZodType<DataType> = z.lazy(() => z.union([
 
 export const parameterExpressionModifierSchema = z.object({ enabled: z.boolean(), code: z.string() })
 	.describe('AiScript expression applied after the input value. null or omission means no modifier.');
-export const curveAnimationPointSchema = z.object({
+export const functionCurvePointSchema = z.object({
 	id: z.string(), x: z.number(), y: z.number(), bezierControlPointA: vectorValueSchema, bezierControlPointB: vectorValueSchema,
 });
-export const curveAnimationDataSchema = z.object({
-	points: z.array(curveAnimationPointSchema), isNormalized: z.boolean().describe('When false, X is measured in milliseconds. When true, X uses normalized time.'),
+export const functionCurveSchema = z.object({
+	points: z.array(functionCurvePointSchema),
+	isXNormalized: z.boolean().describe('X uses normalized coordinates when true.'),
+	isYNormalized: z.boolean().describe('Y uses normalized coordinates when true. Values outside 0 to 1 are valid.'),
 });
-export const curveAnimationSchema = curveAnimationDataSchema.extend({ id: z.string(), nameForReference: z.string() });
+export const sharedFunctionCurveSchema = functionCurveSchema.extend({ id: z.string(), nameForReference: z.string() });
 export const parameterPlaybackShape = {
 	trimmedDurationMs: z.number().nullable().describe('Duration in milliseconds for normalized data; null means 1000 ms.'),
 	offsetMode: z.enum(['start', 'end']), wrapMode: z.enum(['clamp', 'repeat', 'repeatMirrored']),
@@ -77,13 +80,22 @@ export const colorRampSchema = z.object({
 export const literalParameterValueSchema = z.json().describe('Literal value matching the parameter dataType. Containers contain child bindings; obtain the parameter definition before constructing this value.');
 const expressionModifierShape = { expressionModifier: parameterExpressionModifierSchema.nullish() };
 export const literalParameterBindingSchema = z.object({ inputSource: z.literal('literal'), value: literalParameterValueSchema, ...expressionModifierShape });
+export const curveAnimationSchema = z.object({
+	curveBinding: z.discriminatedUnion('source', [
+		z.object({ source: z.literal('inline'), curve: functionCurveSchema }),
+		z.object({ source: z.literal('reference'), curveId: z.string().min(1).nullable() }),
+	]),
+	...parameterPlaybackShape,
+	yRangeMin: z.number().nullable().describe('Output at normalized Y = 0. Null means 0.'),
+	yRangeMax: z.number().nullable().describe('Output at normalized Y = 1. Null means 1.'),
+}).refine(isValidCurveAnimationYRange, { message: 'Curve Animation Y range must be finite and ordered' });
+
 export const keyframesParameterBindingSchema = z.object({ inputSource: z.literal('keyframesTimelineInline'), keyframesTimeline: keyframesTimelineDataSchema, ...parameterPlaybackShape, ...expressionModifierShape });
 export const valueParameterSourceSchema: z.ZodType<ValueParameterSource> = z.union([
 	z.object({ inputSource: z.literal('literal'), value: literalParameterValueSchema }),
 	z.object({ inputSource: z.literal('envVariable'), variable: z.string() }),
 	z.object({ inputSource: z.literal('expression'), expression: z.string() }),
-	z.object({ inputSource: z.literal('curveAnimationReference'), curveAnimationId: z.string().nullable(), ...parameterPlaybackShape }),
-	z.object({ inputSource: z.literal('curveAnimationInline'), curveAnimation: curveAnimationDataSchema, ...parameterPlaybackShape }),
+	z.object({ inputSource: z.literal('curveAnimationInline'), curveAnimation: curveAnimationSchema }),
 	z.object({ inputSource: z.literal('keyframesTimelineInline'), keyframesTimeline: keyframesTimelineDataSchema, ...parameterPlaybackShape }),
 ]);
 export const valueParameterBindingSchema: z.ZodType<ValueParameterBinding> = z.intersection(valueParameterSourceSchema, z.object(expressionModifierShape));

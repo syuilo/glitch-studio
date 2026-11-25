@@ -121,15 +121,6 @@ export function applyTimelineParameterEdit(state: ProjectState, payload: Timelin
 			validateParameterExpressionModifier(def, next);
 			break;
 		}
-		case 'curveAnimationReference': next = {
-			inputSource: 'curveAnimationReference',
-			trimmedDurationMs: 1000,
-			wrapMode: 'repeat',
-			offsetMode: 'start',
-			...(current.inputSource === 'curveAnimationReference' ? current : {}),
-			curveAnimationId: edit.value,
-			...edit.options,
-		}; break;
 		case 'reset':
 			next = payload.paramPath.length === 1 && defaultBinding.inputSource !== 'literal'
 				? defaultBinding : createDefaultParameterBinding(def, genId);
@@ -153,13 +144,6 @@ export function applyTimelineParameterEdit(state: ProjectState, payload: Timelin
 				case 'literal': next = createDefaultParameterBinding(def); break;
 				case 'envVariable': next = { inputSource: 'envVariable', variable: '' }; break;
 				case 'expression': next = { inputSource: 'expression', expression: AiSON.stringify(current.inputSource === 'literal' ? current.value : def.defaultValue) }; break;
-				case 'curveAnimationReference': next = {
-					inputSource: 'curveAnimationReference',
-					curveAnimationId: null,
-					trimmedDurationMs: 1000,
-					wrapMode: 'repeat',
-					offsetMode: 'start',
-				}; break;
 				case 'curveAnimationInline': next = createInlineCurveAnimation(); break;
 				case 'keyframesTimelineInline': next = createInlineKeyframesTimeline(def, current); break;
 				case 'lowerLayerOutput': next = target === 'effect' ? createLowerLayerOutputBinding() : { inputSource: 'lowerLayerOutput' }; break;

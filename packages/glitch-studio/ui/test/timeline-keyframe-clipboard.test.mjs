@@ -94,7 +94,7 @@ test('snapshots values and interpolation and offsets all keys from the earliest 
 test('pastes across original lanes with one undo entry and parameter value notifications', t => {
 	const f = fixture(t);
 	f.selection.push(...f.addLane('shape', 'compositing', ['opacity'], [{ id: 'a', x: 200, value: 0.8, interpolation: { type: 'linear' } }]));
-	f.scene.layers.push({ id: 'audio', layerType: 'audio', clips: [], audioParamValues: {}, curveAnimations: [] });
+	f.scene.layers.push({ id: 'audio', layerType: 'audio', clips: [], audioParamValues: {}, functionCurves: [] });
 	f.selection.push(...f.addLane('audio', 'audio', ['volume'], [{ id: 'a', x: 100, value: 0.5, interpolation: { type: 'linear' } }]));
 	const before = structuredClone(f.scene);
 	const keyframes = prepareTimelineKeyframePaste(f.state, f.scene, f.clipboard, 1000);

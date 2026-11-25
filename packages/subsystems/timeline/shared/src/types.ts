@@ -8,7 +8,7 @@ import type { TimelineClip, TimelineContentClip, TimelineMediaClip, TimelineAsse
 import type { TimelineSceneResolution } from './scene-resolution.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { ParameterChangeKind } from '@gs/shared/parameter/parameter-definition.ts';
-import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
+import type { SharedFunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 import type { TimelineParameterBinding, TimelineEffectParameterBinding } from './parameter-binding.ts';
 import type { EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
 import type { VoicevoxSubtitleParameterValues } from './layers/voicevox/voicevox-subtitle.ts';
@@ -37,7 +37,7 @@ type TimelineLayerCommon = {
 };
 
 type TimelineLayerParameters = {
-	curveAnimations: CurveAnimation[];
+	functionCurves: SharedFunctionCurve[];
 	publicParameterDefs?: TimelineLayerPublicParameterDefinition[];
 	publicParameterValues?: Record<string, TimelineParameterBinding>;
 };

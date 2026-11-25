@@ -40,14 +40,14 @@ test('keeps held video silent through nested scenes while planning normal playba
 	const normal = { id: 'normal', startMs: 10000, durationMs: 2000, sourceInMs: 0, sourceOutMs: 1000,
 		playbackRate: 1, loop: true, assetId: 'movie', audioEnabled: true, videoEnabled: true };
 	const video = { id: 'video', layerType: 'video', isDisabled: false, forceDisableMotionBlur: false,
-		clips: [clip, normal], compositingParamValues: {}, curveAnimations: [], audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
+		clips: [clip, normal], compositingParamValues: {}, functionCurves: [], audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
 	validateTimelineLayerStructure(video);
 	assert.throws(() => validateTimelineLayerStructure({ ...video, clips: [{ ...clip, audioEnabled: true }] }), /silent/);
 	assert.throws(() => validateTimelineLayerStructure({ ...video, clips: [{ ...clip, videoEnabled: false }] }), /video enabled/);
 	assert.throws(() => validateTimelineLayerStructure({ ...video, clips: [{ ...normal, videoEnabled: null }] }), /Invalid video clip/);
 	const child = { id: 'child', layers: [{ id: 'group', layerType: 'group', layers: [video],
-		curveAnimations: [], audioParamValues: video.audioParamValues }] };
-	const root = { id: 'root', layers: [{ id: 'scene-layer', layerType: 'scene', curveAnimations: [], audioParamValues: video.audioParamValues,
+		functionCurves: [], audioParamValues: video.audioParamValues }] };
+	const root = { id: 'root', layers: [{ id: 'scene-layer', layerType: 'scene', functionCurves: [], audioParamValues: video.audioParamValues,
 		clips: [{ id: 'scene-clip', sceneId: 'child', startMs: 500, durationMs: 12000, contentOffsetMs: 0 }] }] };
 	const scenes = [root, child];
 	assert.equal(getSceneDuration(child), 12000);

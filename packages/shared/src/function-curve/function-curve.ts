@@ -16,3 +16,5 @@ export type SharedFunctionCurve = FunctionCurve & {
 	id: string;
 	nameForReference: string;
 };
+
+export type FunctionCurveWrapMode = 'clamp' | 'repeat' | 'repeatMirrored';

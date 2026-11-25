@@ -37,7 +37,7 @@ function layer(id, type = 'ellipse', values = {}) {
 	const shape = createShape(type);
 	Object.assign(shape.paramValues, values);
 	return { id, name: id, layerType: 'shape', shape, isDisabled: false, forceDisableMotionBlur: false,
-		clips: [clip('clip', 100, 1000, 20.5)], curveAnimations: [], compositingParamValues: compositing() };
+		clips: [clip('clip', 100, 1000, 20.5)], functionCurves: [], compositingParamValues: compositing() };
 }
 async function fixture(t, staticOptions = {}) {
 	const calls = { draws: [], outputs: [], evaluations: [], submits: 0 };
@@ -100,7 +100,7 @@ test('propagates solo activity through disabled containers and renderer project 
 	const selected = { ...layer('selected'), isDisabled: true, isSolo: true };
 	const parent = { id: 'parent', name: 'Parent', layerType: 'group', isDisabled: true, isSolo: false,
 		layers: [{ id: 'folder', name: 'Folder', layerType: 'folder', isDisabled: true, isSolo: false, layers: [selected, layer('sibling')] }],
-		curveAnimations: [], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) } };
+		functionCurves: [], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) } };
 	parent.compositingParamValues.position = literal([0.2, 0.1]);
 	await f.setup([parent, layer('outside')]);
 	await f.manager.renderFrame(200, false);
@@ -124,7 +124,7 @@ test('isolates nested scene solo output without affecting parent scene layers', 
 		{ ...layer('child-selected'), isSolo: true, isDisabled: true }, layer('child-other'),
 	] };
 	const placement = { id: 'placement', name: 'Placement', layerType: 'scene', isDisabled: false, isSolo: false,
-		clips: [{ ...clip('clip', 0, 1000), sceneId: 'child' }], curveAnimations: [], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) } };
+		clips: [{ ...clip('clip', 0, 1000), sceneId: 'child' }], functionCurves: [], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) } };
 	const root = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [placement, layer('outside')] };
 	await f.setup([], { timelineScenes: [root, child] });
 	await f.manager.renderTimelineFrame(200, 0);
@@ -178,10 +178,10 @@ test('propagates frame reference times through nested groups and trimmed scenes 
 	fixed.forceDisableMotionBlur = true;
 	const moving = layer('moving');
 	const group = (id, layers, forceDisableMotionBlur = false) => ({ id, name: id, layerType: 'group', layers,
-		isDisabled: false, forceDisableMotionBlur, curveAnimations: [], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) } });
+		isDisabled: false, forceDisableMotionBlur, functionCurves: [], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) } });
 	const child = { id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [group('inner', [fixed, moving])] };
 	const placement = (id, forceDisableMotionBlur) => ({ id, name: id, layerType: 'scene', isDisabled: false, forceDisableMotionBlur,
-		clips: [{ ...clip('clip', 100, 1000, 500), sceneId: 'child' }], curveAnimations: [],
+		clips: [{ ...clip('clip', 100, 1000, 500), sceneId: 'child' }], functionCurves: [],
 		compositingParamValues: compositing(), audioParamValues: { volume: literal(1) } });
 	const outer = group('outer', [placement('sampled', false)]);
 	outer.compositingParamValues.position = expression('[TIME, 0]');
@@ -298,7 +298,7 @@ test('uses the owning child scene resolution and time when nested', async t => {
 		layers: [layer('shape', 'ellipse', { position: expression('[TIME, 0]') })] };
 	const parent = { id: 'scene', name: 'Parent', resolution: { mode: 'project' }, layers: [{
 		id: 'nested', name: 'Nested', layerType: 'scene', clips: [{ ...clip('nested-clip', 100, 1000, 200), sceneId: 'child' }],
-		isDisabled: false, curveAnimations: [], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) },
+		isDisabled: false, functionCurves: [], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) },
 	}] };
 	await f.setup([], { timelineScenes: [parent, child] });
 	await f.manager.renderTimelineFrame(350.25, 0);
@@ -350,7 +350,7 @@ test('updates animated wrapped stroke intervals without changing fill or texture
 // 根のレイヤーだけを調べる参照処理では、描画とハンドルが食い違う。
 test('updates group transforms while retaining child resources and reporting ancestor geometry', async t => {
 	const f = await fixture(t);
-	const group = (id, layers, position) => ({ id, name: id, layerType: 'group', isDisabled: false, layers, curveAnimations: [],
+	const group = (id, layers, position) => ({ id, name: id, layerType: 'group', isDisabled: false, layers, functionCurves: [],
 		compositingParamValues: { ...compositing(), position: literal(position) }, audioParamValues: { volume: literal(1) } });
 	const child = layer('child');
 	const inner = group('inner', [child], [0.2, 0.3]);
@@ -390,7 +390,7 @@ test('samples camera motion independently of frozen layer content and keeps cach
 	const f = await fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
 	const entry = layer('fixed');
 	entry.forceDisableMotionBlur = true;
-	const camera = { id: 'camera', name: 'Camera', layerType: 'camera', clips: [clip('view', 0, 1000)], isDisabled: false, forceDisableMotionBlur: false, curveAnimations: [],
+	const camera = { id: 'camera', name: 'Camera', layerType: 'camera', clips: [clip('view', 0, 1000)], isDisabled: false, forceDisableMotionBlur: false, functionCurves: [],
 		cameraParamValues: { ...createTimelineCameraParameterValues(), position: expression('[TIME, 0]') } };
 	await f.setup([camera, entry]);
 	await f.manager.renderTimelineFrame(200, 1000 / 60);

@@ -94,7 +94,7 @@ test('adds organizing containers from the layer menu with undo and redo', t => {
 		assert.equal(added.layerType, type);
 		assert.deepEqual(added.layers, []);
 		assert.equal(Object.hasOwn(added, 'compositingParamValues'), false);
-		assert.equal(Object.hasOwn(added, 'curveAnimations'), type === 'parameterContainer');
+		assert.equal(Object.hasOwn(added, 'functionCurves'), type === 'parameterContainer');
 		assert.deepEqual(f.selection.value, { kind: 'layers', ids: [added.id] });
 		f.history.undo();
 		assert.deepEqual(f.scene.layers, []);

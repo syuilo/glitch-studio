@@ -10,7 +10,7 @@ import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definit
 import type { EffectLivePreviewParameterBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { ParameterEvaluationScope } from '@gs/shared/parameter/parameter-evaluation-scope.ts';
-import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
+import type { SharedFunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 import type { EFFECT_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shared/effect-live-preview-expression.ts';
 
@@ -18,7 +18,7 @@ export type EffectLivePreviewParameters = Readonly<Record<string, EffectLivePrev
 
 /** 公開入力はプレビューの時計で評価する。Effect内部のPUBLIC・CUSTOMのスコープはEffectに任せる。 */
 export function createEffectLivePreviewInputs(definition: EffectDefinition, initial: EffectLivePreviewParameters,
-	curveAnimations: readonly CurveAnimation[], media: { image: () => EffectPlacementInput; audio: () => AudioInput | null }) {
+	functionCurves: readonly SharedFunctionCurve[], media: { image: () => EffectPlacementInput; audio: () => AudioInput | null }) {
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const inputs: Record<string, EffectPlacementInput> = Object.create(null);
 	const refresh: (() => void)[] = [];
@@ -56,8 +56,8 @@ export function createEffectLivePreviewInputs(definition: EffectDefinition, init
 				[id, bind(field, () => (read() as typeof source).value[id])])) };
 		}
 		if (def.dataType.kind === 'audioSource') return { kind: 'value', value: null };
-		let evaluate = evaluator.bind(source, def.defaultValue, def, curveAnimations);
-		refresh.push(() => { evaluate = evaluator.bind(read() as ValueParameterBinding, def.defaultValue, def, curveAnimations); });
+		let evaluate = evaluator.bind(source, def.defaultValue, def, functionCurves);
+		refresh.push(() => { evaluate = evaluator.bind(read() as ValueParameterBinding, def.defaultValue, def, functionCurves); });
 		const readValue = (scope: ParameterEvaluationScope) => coerceParameterValue(def, evaluate(scope));
 		if (def.canNode === true) {
 			let value = constantShaderInputComponents(def.dataType.kind, def.defaultValue);
@@ -84,13 +84,13 @@ export function createEffectLivePreviewInputs(definition: EffectDefinition, init
 			for (const apply of refresh) apply();
 			return true;
 		},
-		updateCurveAnimations(next: readonly CurveAnimation[]) {
-			curveAnimations = next;
+		updateFunctionCurves(next: readonly SharedFunctionCurve[]) {
+			functionCurves = next;
 			for (const apply of refresh) apply();
 		},
 		beginFrame(time: number) {
 			const variables = { TIME: time / 1000, TIME_MS: time } satisfies Record<typeof EFFECT_LIVE_PREVIEW_VAR_DEFS[number], number>;
-			const scope = { time, endTime: Infinity, variables, curveAnimations };
+			const scope = { time, endTime: Infinity, variables, functionCurves };
 			// 一つの描画で使われる音声窓は全パラメータで同じ素材時刻を共有する。
 			if (updateAudio.length > 0) {
 				const audio = media.audio();

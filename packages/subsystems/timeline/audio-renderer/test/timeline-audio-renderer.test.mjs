@@ -12,7 +12,7 @@ const bundle = await build({ stdin: {
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { TimelineAudioRenderer, getSceneAudioClips } = module.exports;
-const layer = (changes = {}) => ({ id: 'audio', layerType: 'audio', name: 'Layer', isDisabled: false, clips: [{ id: 'clip', startMs: 100, sourceInMs: 20, sourceOutMs: 120, playbackRate: 1, loop: false, durationMs: 100, assetId: 'asset' }], audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, curveAnimations: [], ...changes });
+const layer = (changes = {}) => ({ id: 'audio', layerType: 'audio', name: 'Layer', isDisabled: false, clips: [{ id: 'clip', startMs: 100, sourceInMs: 20, sourceOutMs: 120, playbackRate: 1, loop: false, durationMs: 100, assetId: 'asset' }], audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, functionCurves: [], ...changes });
 
 function renderSceneAudio(renderer, layers, ...args) {
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers };
@@ -25,7 +25,7 @@ function renderSceneAudio(renderer, layers, ...args) {
 test('uses scene time for video volume without shifting audio timestamps', async () => {
 	const calls = [];
 	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args.slice(0, 4)); return constant(...args); });
-	const clip = { sourceId: 'movie', sourceTiming: { startMs: 8000, sourceInMs: 0, sourceOutMs: 11000 - (8000), playbackRate: 1, loop: false }, startMs: 10000, endMs: 11000, gains: [{ sceneStartMs: 0, volume: { inputSource: 'expression', expression: 'TIME_MS / 20000' }, curveAnimations: [] }] };
+	const clip = { sourceId: 'movie', sourceTiming: { startMs: 8000, sourceInMs: 0, sourceOutMs: 11000 - (8000), playbackRate: 1, loop: false }, startMs: 10000, endMs: 11000, gains: [{ sceneStartMs: 0, volume: { inputSource: 'expression', expression: 'TIME_MS / 20000' }, functionCurves: [] }] };
 	const result = await renderer.renderClips([clip], 10000, 1, 1000);
 	assert.deepEqual(calls, [['movie', 2, 1, 1000]]);
 	assert.equal(result[0][0], 0.5);
@@ -43,13 +43,13 @@ test('keeps cached gain evaluation when public parameter keyframes cannot affect
 	]) {
 		const renderer = new TimelineAudioRenderer(constant);
 		const evaluate = t.mock.method(renderer.evaluator, 'evaluate');
-		const owner = { id: 'owner', name: 'Owner', curveAnimations: [],
+		const owner = { id: 'owner', name: 'Owner', functionCurves: [],
 			publicParameterDefs: [{ id: 'motion', nameForReference: 'motion', dataType: { kind: 'scalar' }, ui: { label: 'Motion', control: { controlType: 'number' } }, defaultValue: 0 }],
 			publicParameterValues: { motion: { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
 				keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [{ id: 'key', x: 0, value: 1, interpolation: { type: 'hold' } }] } } },
 		};
 		const clip = { sourceId: 'asset', sourceTiming: { startMs: 0, sourceInMs: 0, sourceOutMs: 100, playbackRate: 1, loop: false }, startMs: 0, endMs: 100,
-			gains: [{ sceneStartMs: 0, volume, curveAnimations: [], publicParameters: { layer: owner, ancestors: [] } }] };
+			gains: [{ sceneStartMs: 0, volume, functionCurves: [], publicParameters: { layer: owner, ancestors: [] } }] };
 		const output = await renderer.renderClips([clip], 0, 100, 1000);
 		assert.ok(evaluate.mock.callCount() > 0 && evaluate.mock.callCount() < 30);
 		assert.equal(output[0][0], volume.inputSource === 'envVariable' ? 0 : 0.5);
@@ -80,7 +80,7 @@ test('evaluates ancestor public parameter gain keyframes without smoothing hold 
 		publicParameterValues: { forward: { inputSource: 'timelineLayerPublicParameterReference', layerId: 'transform', parameterId: 'gain' } },
 		audioParamValues: { volume: { inputSource: 'expression', expression: 'PUBLIC("gain")' } },
 	});
-	const transform = { id: 'transform', name: 'Transform', layerType: 'transform', isDisabled: false, layers: [sound], curveAnimations: [],
+	const transform = { id: 'transform', name: 'Transform', layerType: 'transform', isDisabled: false, layers: [sound], functionCurves: [],
 		publicParameterDefs: [definition], publicParameterValues: { gain: { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
 			keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [
 				{ id: 'first', x: 0, value: 0.25, interpolation: { type: 'hold' } },
@@ -99,7 +99,7 @@ test('evaluates ancestor public parameter gain keyframes without smoothing hold 
 test('keeps public parameter gain scope inside its owning scene across repeated placements', async () => {
 	const definition = { id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: { controlType: 'number' } }, defaultValue: 1 };
 	const sound = layer({ clips: [{ id: 'clip', startMs: 0, durationMs: 100, sourceInMs: 0, sourceOutMs: 100, playbackRate: 1, loop: false, assetId: 'asset' }], publicParameterDefs: [definition], publicParameterValues: { gain: { inputSource: 'expression', expression: 'TIME_MS / 100' } }, audioParamValues: { volume: { inputSource: 'expression', expression: 'PUBLIC("gain")' } } });
-	const placement = startMs => ({ id: `placement-${startMs}`, name: 'Placement', layerType: 'scene', isDisabled: false, curveAnimations: [], publicParameterDefs: [definition], publicParameterValues: { gain: { inputSource: 'literal', value: 99 } }, audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, clips: [{ id: 'clip', startMs, durationMs: 100, contentOffsetMs: 0, sceneId: 'child' }] });
+	const placement = startMs => ({ id: `placement-${startMs}`, name: 'Placement', layerType: 'scene', isDisabled: false, functionCurves: [], publicParameterDefs: [definition], publicParameterValues: { gain: { inputSource: 'literal', value: 99 } }, audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, clips: [{ id: 'clip', startMs, durationMs: 100, contentOffsetMs: 0, sceneId: 'child' }] });
 	const scenes = [{ id: 'root', layers: [placement(0), placement(100)] }, { id: 'child', layers: [sound] }];
 	const renderer = new TimelineAudioRenderer(constant);
 	const clips = getSceneAudioClips(scenes, 'root');
@@ -285,9 +285,9 @@ test('mixes scene gains using local clocks independently of chunk boundaries', a
 	const calls = [];
 	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args.slice(0, 4)); return constant(...args); });
 	const clip = { sourceId: 'asset', sourceTiming: { startMs: 1150, sourceInMs: 0, sourceOutMs: 1280 - (1150), playbackRate: 1, loop: false }, startMs: 1180, endMs: 1280, gains: [
-			{ sceneStartMs: 0, volume: { inputSource: 'literal', value: 2 }, curveAnimations: [] },
-			{ sceneStartMs: 1000, volume: { inputSource: 'literal', value: 0.25 }, curveAnimations: [] },
-			{ sceneStartMs: 1050, volume: { inputSource: 'expression', expression: 'TIME_MS / 100' }, curveAnimations: [] },
+			{ sceneStartMs: 0, volume: { inputSource: 'literal', value: 2 }, functionCurves: [] },
+			{ sceneStartMs: 1000, volume: { inputSource: 'literal', value: 0.25 }, functionCurves: [] },
+			{ sceneStartMs: 1050, volume: { inputSource: 'expression', expression: 'TIME_MS / 100' }, functionCurves: [] },
 		] };
 	const whole = await renderer.renderClips([clip], 1170, 120, 1000);
 	const first = await renderer.renderClips([clip], 1170, 47, 1000);
@@ -304,12 +304,12 @@ test('mixes scene gains using local clocks independently of chunk boundaries', a
 // nameForReferenceが同じCurve Animationは所有者ごとに解決する。書き出しかどうかは両スコープへ明示的に渡す。
 test('isolates scene gain variables and Curve Animations from the audio layer scope', async () => {
 	const expression = expression => ({ inputSource: 'expression', expression });
-	const curveAnimation = value => ({ id: 'shared', nameForReference: 'shared', isNormalized: true,
+	const curveAnimation = value => ({ id: 'shared', nameForReference: 'shared', isXNormalized: true, isYNormalized: false,
 		points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
 	const renderer = new TimelineAudioRenderer(constant);
 	const clip = { sourceId: 'asset', sourceTiming: { startMs: 1000, sourceInMs: 0, sourceOutMs: 1600 - (1000), playbackRate: 1, loop: false }, startMs: 1400, endMs: 1600, gains: [{ sceneStartMs: 900,
-			volume: expression('if IS_EXPORT { TEST_SAME_NAME + CURVE_ANIMATION("shared", 0, "clamp") } else { 0 }'), curveAnimations: [curveAnimation(0.5)] }, { sceneStartMs: 1000,
-			volume: expression('if IS_EXPORT { TIME + CURVE_ANIMATION("shared", 0, "clamp") } else { 0 }'), curveAnimations: [curveAnimation(0.25)] }] };
+			volume: expression('if IS_EXPORT { TEST_SAME_NAME + FUNCTION_CURVE("shared", 0, "clamp") } else { 0 }'), functionCurves: [curveAnimation(0.5)] }, { sceneStartMs: 1000,
+			volume: expression('if IS_EXPORT { TIME + FUNCTION_CURVE("shared", 0, "clamp") } else { 0 }'), functionCurves: [curveAnimation(0.25)] }] };
 	assert.equal((await renderer.renderClips([clip], 1500, 1, 1000, true))[0][0], 1.875);
 	assert.equal((await renderer.renderClips([clip], 1500, 1, 1000, false))[0][0], 0);
 	for (const variable of ['END_TIME', 'END_TIME_MS', 'PROGRESS']) {

@@ -14,7 +14,7 @@ Effectレイヤーの`transformTarget`は`image`（画像を変形）または`r
 
 Scene・レイヤー・クリップと、その時間・合成・音声設定の契約を定義する。キーフレームの補間や式エンジンは共通基盤を利用し、Scene時刻で評価することや許可するBindingなどの規約をこのドメインで決める。
 
-`public-parameters.ts`はフォルダ以外のレイヤーの公開パラメータの定義・ID・評価情報・祖先参照を所有する。`publicParameterDefs`と`publicParameterValues`を分け、数値・真理値・文字列・色・ベクトル・enum・Color Rampを扱う。`parameter-binding-evaluator.ts`が`timelineLayerPublicParameterReference`と`PUBLIC`を解決して共通の値評価器へ渡す。`PUBLIC`は通常のパラメータでは自身だけ、公開パラメータの値ではフォルダを除いた直上の親だけを参照する。直接参照は自身と祖先を選べるが、公開パラメータの値では自身を除外する。Scene参照を跨がず、参照先は所有レイヤーのCurve Animationと所属Scene時刻で評価する。
+`public-parameters.ts`はフォルダ以外のレイヤーの公開パラメータの定義・ID・評価情報・祖先参照を所有する。`publicParameterDefs`と`publicParameterValues`を分け、数値・真理値・文字列・色・ベクトル・enum・Color Rampを扱う。`parameter-binding-evaluator.ts`が`timelineLayerPublicParameterReference`と`PUBLIC`を解決して共通の値評価器へ渡す。`PUBLIC`は通常のパラメータでは自身だけ、公開パラメータの値ではフォルダを除いた直上の親だけを参照する。直接参照は自身と祖先を選べるが、公開パラメータの値では自身を除外する。Scene参照を跨がず、参照先は所有レイヤーのFunction Curveと所属Scene時刻で評価する。
 
 `timeline-compositing.ts`は画像を持つレイヤーの静的な`TimelineMask`（Alpha／輝度・反転）を定義する。nullでは通常描画、設定時は同じ合成境界の下層を切り抜く。opacityのBindingはマスク強度として再利用し、表示名だけをInspector・キーフレームで切り替える。素材の種類・時計・音声の契約は変更しない。
 
@@ -40,7 +40,7 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 `strokeProgress`は輪郭の描画割合で、0は輪郭なし、0.5は半周、1（既定値）は閉じた輪郭。`strokeStart`は描き始める位置で、0（既定値）と1が上中央、0.25が右中央、0.5が下中央、0.75が左中央。どちらも輪郭を付ける前の形状の周長を基準に時計回りに数え、評価値は0〜1へ制限する。起点を越える区間も連続して描き、部分描画の両端は輪郭の接線に垂直に切る。塗り・輪郭幅・輪郭配置は変えない。両パラメータとも通常の式・Curve Animation・キーを使う。
 
-`expression.ts`はレイヤーに公開する変数名、`evaluation-scope.ts`は映像と音声で共通のScene時刻の評価スコープを定義する。Nodes Effect内部の変数・公開パラメータ・Curve Animation一覧は継承しない。
+`expression.ts`はレイヤーに公開する変数名、`evaluation-scope.ts`は映像と音声で共通のScene時刻の評価スコープを定義する。Nodes Effect内部の変数・公開パラメータ・Function Curve一覧は継承しない。
 
 `parameter-binding.ts`は共通方式と公開パラメータ直接参照を扱う`TimelineParameterBinding`、音声入力用の`lowerLayerAudio` / `anotherLayerAudio`と画像入力用の`lowerLayerOutput` / `anotherLayerOutput`を加えた`TimelineEffectParameterBinding`を定義する。合成設定・音量にも同じ公開パラメータ参照を使う。音声入力Bindingは`audioSource`型だけで選択できる。`anotherLayerAudio`は`layerId: string | null`を保存し、引数を所有するレイヤーと同じSceneのグループ内を含め、音声・動画・VOICEVOX・Scene・グループレイヤーを選ぶ。`null`や削除・欠落した参照先は入力なしとして扱うが、保存したIDは維持する。音声入力の取得元はレイヤーのBindingで指定する。
 
@@ -86,7 +86,7 @@ Scene一覧の重複ID・参照先の欠落・循環参照などの診断は、�
 
 ## カメラと空間
 
-Scene直下またはGroup以外のコンテナ配下の`camera`レイヤーは`cameraParamValues`にXY・Z・roll・長辺方向の画角のBindingを持ち、通常のレイヤーとしてCurve Animationと有効クリップを所有する。`scene-camera.ts`が表示順で最上段の有効なカメラを選び、`layers/camera`の評価器へ渡す。該当なしならカメラを返さず、Zによる拡縮・近接面での非表示を行わない2D合成となる。カメラレイヤーの初期値はXY=0、Z=`0.5/tan(22.5°)`（約1.207）、roll=0、長辺方向の画角45°で、縦横比によらずZ=0の2D配置を維持する。Zの単位はSceneの長辺全体で、正がカメラ方向。視点と平面の距離が0.000001未満なら非表示。画角は横長Sceneでは水平、縦長Sceneでは垂直を基準にし、同じ画角・距離なら長辺に対する投影倍率は共通となる。rollの1は時計回り360度（1周）で、投影では視点の位置を引いてから逆回転する。rollでは画角の基準を変えず、回転の縦横比補正には描画先のScene寸法を渡す。
+Scene直下またはGroup以外のコンテナ配下の`camera`レイヤーは`cameraParamValues`にXY・Z・roll・長辺方向の画角のBindingを持ち、通常のレイヤーとしてFunction Curveと有効クリップを所有する。`scene-camera.ts`が表示順で最上段の有効なカメラを選び、`layers/camera`の評価器へ渡す。該当なしならカメラを返さず、Zによる拡縮・近接面での非表示を行わない2D合成となる。カメラレイヤーの初期値はXY=0、Z=`0.5/tan(22.5°)`（約1.207）、roll=0、長辺方向の画角45°で、縦横比によらずZ=0の2D配置を維持する。Zの単位はSceneの長辺全体で、正がカメラ方向。視点と平面の距離が0.000001未満なら非表示。画角は横長Sceneでは水平、縦長Sceneでは垂直を基準にし、同じ画角・距離なら長辺に対する投影倍率は共通となる。rollの1は時計回り360度（1周）で、投影では視点の位置を引いてから逆回転する。rollでは画角の基準を変えず、回転の縦横比補正には描画先のScene寸法を渡す。
 
 `affine.ts`・`spatial.ts`・`group-space.ts`は平面の変換・投影・グループ境界を所有する。GPUに依存せず、レンダラーとプレビューの逆変換で同じ規則を使用する。グループの`compositingMode`は`flat`（内部2D合成）または`preserveDepth`（子を投影後にグループ合成）。映像レイヤーの`coordinateSpace`は`world`または`screen`の静的な属性で、新規作成時は`screen`とする。`compositingParamValues`には含めず、式・キーフレームで評価しない。`screen`は現在の合成先のGroupの変形・カメラを適用しない。TransformのXY移動・拡縮・回転は`screenParent`として別に蓄積し、画面配置にも反映する。
 
@@ -96,7 +96,7 @@ Scene直下またはGroup以外のコンテナ配下の`camera`レイヤーは`c
 
 ## 整理用コンテナと変換
 
-`TimelineFolderLayer`（`folder`）はID・名前・識別色・無効状態・子だけを持つ。パラメータやCurve Animationを持たず、パラメータの親探索も透過する。`TimelineParameterContainerLayer`（`parameterContainer`）は子とパラメータの定義・値・Curve Animationを持ち、定義が空でも明示的な参照スコープを作る。両者とも自身のクリップ・変形・画像・音量・モーションブラー設定は持たない。
+`TimelineFolderLayer`（`folder`）はID・名前・識別色・無効状態・子だけを持つ。パラメータやFunction Curveを持たず、パラメータの親探索も透過する。`TimelineParameterContainerLayer`（`parameterContainer`）は子とパラメータの定義・値・Function Curveを持ち、定義が空でも明示的な参照スコープを作る。両者とも自身のクリップ・変形・画像・音量・モーションブラー設定は持たない。
 
 描画には`getTimelineRenderLayers()`で子を同じ描画列へ展開する。中間画像や専用レンダラーを作らず、整理用の階層を追加するだけでは既存の子の描画履歴やGPUリソースを作り直さない。描画順・下層入力・マスクの参照境界・カメラ・音声は透過し、無効な枝だけを除外する。子の保存された無効状態は変更しない。通常のコンテナと同じ折り畳み・複製・解除・親子移動・仮想クリップによる一括時間移動を使う。
 
@@ -106,7 +106,7 @@ Scene直下またはGroup以外のコンテナ配下の`camera`レイヤーは`c
 
 ## Transformレイヤー
 
-`TimelineTransformLayer`は`layers`とXYZ移動・XY scale・rotationのBinding、Curve Animation、`forceDisableMotionBlur`を所有する。Group・フォルダ・パラメータコンテナと合わせて`TimelineContainerLayer`とし、木の走査・時間移動・範囲計算を共有する。自身のクリップ・画像・合成設定・音量は持たない。`layers/transform`が定義と評価器、`transform-space.ts`がローカル原点で拡縮→回転→移動した行列の累積を担当する。非等方scaleと子の回転によるせん断を行列のまま保持し、Zは加算だけを行う。カメラ位置にも同じ行列を使うが、rollには祖先のrotationだけを加算し、scale・反転・せん断を向きや画角へ継承しない。
+`TimelineTransformLayer`は`layers`とXYZ移動・XY scale・rotationのBinding、Function Curve、`forceDisableMotionBlur`を所有する。Group・フォルダ・パラメータコンテナと合わせて`TimelineContainerLayer`とし、木の走査・時間移動・範囲計算を共有する。自身のクリップ・画像・合成設定・音量は持たない。`layers/transform`が定義と評価器、`transform-space.ts`がローカル原点で拡縮→回転→移動した行列の累積を担当する。非等方scaleと子の回転によるせん断を行列のまま保持し、Zは加算だけを行う。カメラ位置にも同じ行列を使うが、rollには祖先のrotationだけを加算し、scale・反転・せん断を向きや画角へ継承しない。
 
 カメラ選択はGroup以外のコンテナを再帰し、無効な枝を除いた表示順で行う。座標変換には祖先Transformだけを適用する。カメラ配下の計算ではなく、Scene側で選択したカメラの祖先を評価するため循環しない。祖先Transformのブラー無効は子のクリップ選択とカット計画にも引き継ぐ。カメラ自身だけを固定した場合は祖先のサンプル時刻を維持する。
 

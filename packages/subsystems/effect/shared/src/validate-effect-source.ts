@@ -132,8 +132,8 @@ export function validateEffectSource(source: EffectSource, definitions: EffectDe
 			const custom = Object.values(nodesEffect.customParameterDefs ?? {});
 			const unique = (values: string[]) => !values.includes('') && new Set(values).size === values.length;
 			if (!unique(names) || !unique(custom.map(def => def.nameForReference))) throw new Error('Invalid parameter reference name');
-			const nodesEffects = nodesEffect.curveAnimations ?? [];
-			if (!unique(nodesEffects.map(g => g.id)) || !unique(nodesEffects.map(g => g.nameForReference))) throw new Error('Invalid Curve Animation reference');
+			const functionCurves = nodesEffect.functionCurves ?? [];
+			if (!unique(functionCurves.map(g => g.id)) || !unique(functionCurves.map(g => g.nameForReference))) throw new Error('Invalid Function Curve reference');
 			for (const def of custom) {
 				if (def.canNode != null && def.canNode !== false) throw new Error('Custom parameters require CPU values');
 				if (!['scalar', 'bool', 'string', 'color', 'vector', 'enum', 'colorRamp', 'sizeReference'].includes(def.dataType.kind)) throw new Error('Unsupported custom parameter type');

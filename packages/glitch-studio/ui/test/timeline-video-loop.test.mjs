@@ -35,7 +35,7 @@ const target = { sceneId: 'scene', layerId: 'video', clipId: 'clip' };
 function fixture(t) {
 	t.mock.method(console, 'log', () => {});
 	const clip = { id: 'clip', assetId: 'movie', audioEnabled: true, videoEnabled: true, startMs: 1000, durationMs: 3000, sourceInMs: 2000.25, sourceOutMs: 5000.25, playbackRate: 1, loop: false };
-	const layer = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, curveAnimations: [],
+	const layer = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, functionCurves: [],
 		clips: [clip, { ...clip, id: 'next', startMs: 12000 }], compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] };
 	const state = { timelineScenes: { value: [scene] }, assets: { value: [{ id: 'movie', fileDataType: 'video/mp4', fileData: new Blob() }] }, nodesEffects: { value: [] } };

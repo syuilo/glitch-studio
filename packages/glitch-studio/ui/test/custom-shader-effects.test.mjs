@@ -57,7 +57,7 @@ function usageFixture() {
 	definition.summary = 'Adds a mask output.';
 	definition.definition.paramDefs.amount = { nameForReference: 'amount', canNode: true, dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: 0.25 };
 	definition.definition.outputDefs.mask = { nameForReference: 'mask', label: 'Mask', dataType: { kind: 'scalar' } };
-	const nodesEffect = { id: 'nodesEffect', name: 'Nodes Effect', definition: testNodesEffect({ nodes: [], outputDefs: { "out": { name: 'out', label: 'Out', dataType: { kind: 'scalar' } } }, primaryInputParameter: null, primaryOutput: null, customParameterValues: {}, curveAnimations: [] }) };
+	const nodesEffect = { id: 'nodesEffect', name: 'Nodes Effect', definition: testNodesEffect({ nodes: [], outputDefs: { "out": { name: 'out', label: 'Out', dataType: { kind: 'scalar' } } }, primaryInputParameter: null, primaryOutput: null, customParameterValues: {}, functionCurves: [] }) };
 	const state = { customShaderEffects: ref([definition]), nodesEffects: ref([nodesEffect]), timelineScenes: ref([{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }]), resolution: ref({ width: 16, height: 8 }), assets: ref([]), timelineFps: ref(60), timelineMotionBlur: ref({ enabled: false, shutterAngle: 180, samples: 0 }) };
 	const manager = new UndoRedo(state, COMMAND_DEFS);
 	manager.commit('createNodesEffectEffectNode', { nodesEffect: { nodesEffectId: 'nodesEffect' }, effectSource: customShaderEffectReference(definition.id) });
@@ -243,7 +243,7 @@ test('previews the applied shader and edits local overrides from its panel', asy
 	customShaderEffect.definition.paramDefs.amount = {
 		nameForReference: 'amount', canNode: true, dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: 0.25,
 	};
-	const state = { customShaderEffects: ref([customShaderEffect]), nodesEffects: ref([]), timelineScenes: ref([]), curveAnimations: ref([]) };
+	const state = { customShaderEffects: ref([customShaderEffect]), nodesEffects: ref([]), timelineScenes: ref([]), functionCurves: ref([]) };
 	const stateManager = new UndoRedo(state, CUSTOM_SHADER_EFFECT_COMMAND_DEFS);
 	const started = [];
 	const overrides = ref({});

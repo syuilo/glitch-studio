@@ -12,8 +12,8 @@ const { timelineSceneToSource, timelineSourceToScene } = await load('layer-trans
 const { getTimelineContainerRange } = await load('container-range.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const sound = (id, startMs = 100, durationMs = 100) => ({ id, name: id, layerType: 'audio', isDisabled: false,
-	curveAnimations: [], audioParamValues: { volume: literal(0.8) }, clips: [{ id: 'clip', startMs, durationMs, sourceInMs: 12.5, sourceOutMs: 12.5 + durationMs, playbackRate: 1, loop: false, assetId: id }] });
-const group = (id, layers) => ({ id, name: id, layerType: 'group', layers, isDisabled: false, curveAnimations: [],
+	functionCurves: [], audioParamValues: { volume: literal(0.8) }, clips: [{ id: 'clip', startMs, durationMs, sourceInMs: 12.5, sourceOutMs: 12.5 + durationMs, playbackRate: 1, loop: false, assetId: id }] });
+const group = (id, layers) => ({ id, name: id, layerType: 'group', layers, isDisabled: false, functionCurves: [],
 	compositingParamValues: {}, audioParamValues: { volume: literal(0.5) } });
 const scene = (id, layers) => ({ id, name: id, resolution: { mode: 'project' }, layers });
 
@@ -22,9 +22,9 @@ const scene = (id, layers) => ({ id, name: id, resolution: { mode: 'project' }, 
 test('retains distinct public parameter ancestors for lower audio across Transform boundaries', () => {
 	const inside = sound('inside');
 	const outside = sound('outside');
-	const visual = { id: 'visual', layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'graph' }, name: '', clips: [], curveAnimations: [] };
+	const visual = { id: 'visual', layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'graph' }, name: '', clips: [], functionCurves: [] };
 	const definition = { id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, ui: { label: 'Gain', control: { controlType: 'number' } }, defaultValue: 1 };
-	const parent = { id: 'parent', name: 'Parent', layerType: 'transform', isDisabled: false, curveAnimations: [], layers: [visual, inside], publicParameterDefs: [definition] };
+	const parent = { id: 'parent', name: 'Parent', layerType: 'transform', isDisabled: false, functionCurves: [], layers: [visual, inside], publicParameterDefs: [definition] };
 	outside.publicParameterDefs = [definition];
 	const root = scene('root', [parent, outside]);
 	const clips = getSceneAudioClips([root], root.id, { type: 'belowLayer', layerId: visual.id });
@@ -57,7 +57,7 @@ test('references any layer in the scene without ancestor gains and honors ancest
 // 【下層音声は同じ親の下層だけを読む】
 // 指定レイヤー参照の自由度を広げても、下層入力がグループ外の音声を取り込んではいけない。
 test('keeps lower-layer audio inside its parent while allowing explicit cross-group references', () => {
-	const visual = { id: 'visual', layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'graph' }, name: '', clips: [], effectParamValues: {}, compositingParamValues: {}, curveAnimations: [] };
+	const visual = { id: 'visual', layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'graph' }, name: '', clips: [], effectParamValues: {}, compositingParamValues: {}, functionCurves: [] };
 	const root = scene('root', [group('group', [sound('above'), visual, group('below', [sound('inside')])]), sound('outside')]);
 	assert.deepEqual(getSceneAudioClips([root], 'root', { type: 'belowLayer', layerId: 'visual' }).map(clip => clip.sourceId), ['inside']);
 	assert.deepEqual(getSceneAudioClips([root], 'root', { type: 'layer', layerId: 'outside' }).map(clip => clip.sourceId), ['outside']);

@@ -38,7 +38,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', contents: {
 			preferences: "import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false) } };",
 			effects: `export const nativeEffectDefinitions = { test: ${JSON.stringify(effect)} };`,
-			app: 'export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: { state: { resolution: { value: { width: 1920, height: 1080 } }, curveAnimations: { value: [] } } } } };',
+			app: 'export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: { state: { resolution: { value: { width: 1920, height: 1080 } }, functionCurves: { value: [] } } } } };',
 			ui: 'export function popupMenu() {} export function popup() {} export function contextMenu() {} export function alert() {} export async function inputText() { return { canceled: true }; }',
 		}[path] }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsVisualParam\.vue$|GsEffectNode\.vue$|GsEffectParameterLayout\.vue$|GsTimeline\.EffectSettings\.vue$/.test(path) ? null : { path: basename(path), namespace: 'control' });
@@ -103,9 +103,9 @@ for (const target of ['node', 'layer']) {
 	test(`toggles advanced ${target} parameters in layout order and keeps changed bindings visible`, async t => {
 		const params = Object.fromEntries(Object.entries(effect.paramDefs).map(([key, definition]) => [key, createDefaultParameterBinding(definition)]));
 		if (target === 'layer') params.input = { inputSource: 'lowerLayerOutput' };
-		const owner = { id: 'effect', type: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, resolution: { mode: 'auto', scale: 1 }, curveAnimations: [], params, effectParamValues: params, isBypass: false };
+		const owner = { id: 'effect', type: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, resolution: { mode: 'auto', scale: 1 }, functionCurves: [], params, effectParamValues: params, isBypass: false };
 		const f = fixture(t, target === 'node' ? NodeSettings : LayerSettings, target === 'node'
-			? { node: owner, nodesEffect: testNodesEffect({ customParameterValues: {}, nodes: [owner], curveAnimations: [] }) }
+			? { node: owner, nodesEffect: testNodesEffect({ customParameterValues: {}, nodes: [owner], functionCurves: [] }) }
 			: { layer: owner, contextResolution: { width: 1920, height: 1080 }, imageLayerOptions: [], anotherLayerAudioOptions: [] });
 		const saved = structuredClone(params);
 		assert.deepEqual(f.paths(), [['amount'], ['end']]);
@@ -137,7 +137,7 @@ test('reveals advanced ancestors and compares fields against the parent default 
 		fields: { amount: { defaultValue: 0 }, reference: { defaultValue: 'longSide' } },
 		defaultValue: { amount: 5, reference: 'longSide' },
 	};
-	const f = fixture(t, Parameter, { curveAnimations: [], availableVariables: [], paramPath: ['group'], paramDef: definition, paramValue: createDefaultParameterBinding(definition) });
+	const f = fixture(t, Parameter, { functionCurves: [], availableVariables: [], paramPath: ['group'], paramDef: definition, paramValue: createDefaultParameterBinding(definition) });
 	assert.deepEqual(f.paths(), []);
 	f.props.paramValue.value.reference = literal('width');
 	await nextTick();
@@ -162,7 +162,7 @@ test('propagates array default contents through nested struct fields', async t =
 	};
 	const value = createDefaultParameterBinding(definition);
 	value.value[0].id = 'reset';
-	const f = fixture(t, Parameter, { curveAnimations: [], availableVariables: [], paramPath: ['items'], paramDef: definition, paramValue: value });
+	const f = fixture(t, Parameter, { functionCurves: [], availableVariables: [], paramPath: ['items'], paramDef: definition, paramValue: value });
 	assert.deepEqual(f.paths(), [['items'], ['items', 'reset']]);
 	f.props.paramValue.value[0].binding.value.reference = literal('width');
 	await nextTick();

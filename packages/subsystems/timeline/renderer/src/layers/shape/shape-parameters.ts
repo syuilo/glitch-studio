@@ -5,20 +5,20 @@ import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shar
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import type { Shape, EvaluatedShape } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
-import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
+import type { SharedFunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 
 export class ShapeParameters {
 	private evaluator = new TimelineParameterBindingEvaluator();
 
-	evaluate(shape: Shape<TimelineParameterBinding>, context: { time: number; isExport: boolean; curveAnimations: CurveAnimation[]; publicParameters?: TimelineLayerPublicParameterContext | null }): EvaluatedShape {
+	evaluate(shape: Shape<TimelineParameterBinding>, context: { time: number; isExport: boolean; functionCurves: SharedFunctionCurve[]; publicParameters?: TimelineLayerPublicParameterContext | null }): EvaluatedShape {
 		const scope = createTimelineLayerEvaluationScope(context);
 		const definitions = getShapeParameterDefinitions(shape.type);
 		const bindings: Record<string, TimelineParameterBinding> = shape.paramValues;
 		const values: Record<string, unknown> = {};
 		for (const [key, def] of Object.entries(definitions)) {
 			const binding = bindings[key];
-			const fallback = binding?.inputSource === 'curveAnimationReference' || def.dataType.kind === 'enum' ? def.defaultValue : genEmptyValue(def);
+			const fallback = binding?.inputSource === 'curveAnimationInline' || def.dataType.kind === 'enum' ? def.defaultValue : genEmptyValue(def);
 			const value = binding == null ? def.defaultValue : this.evaluator.evaluate(binding, scope, fallback, def);
 			values[key] = coerceParameterValue(def, value);
 		}

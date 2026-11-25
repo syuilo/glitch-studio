@@ -130,7 +130,7 @@ test('allows camera nesting through group, move, and paste commands with undo an
 	const cameraId = f.layer.id;
 	const copy = { ...structuredClone(f.layer), id: 'copy' };
 	const group = { id: 'group', name: 'Group', layerType: 'group', layers: [], isDisabled: false,
-		forceDisableMotionBlur: false, curveAnimations: [], compositingParamValues: {}, audioParamValues: {} };
+		forceDisableMotionBlur: false, functionCurves: [], compositingParamValues: {}, audioParamValues: {} };
 	f.history.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [group] } });
 	const before = structuredClone(f.scene.layers);
 	const { layerId: wrappedLayerId } = f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: [cameraId], containerType: 'group' });
@@ -180,7 +180,7 @@ test('round-trips camera layers and duplicates independent camera settings', asy
 test('wraps cameras and images in Transform and edits their shared timeline with undo', t => {
 	const f = fixture(t);
 	const cameraId = f.layer.id;
-	const image = { id: 'image', name: 'Image', layerType: 'image', isDisabled: false, forceDisableMotionBlur: false, curveAnimations: [], compositingParamValues: {}, clips: [] };
+	const image = { id: 'image', name: 'Image', layerType: 'image', isDisabled: false, forceDisableMotionBlur: false, functionCurves: [], compositingParamValues: {}, clips: [] };
 	f.history.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [image] } });
 	const transform = createTransformTimelineLayer();
 	transform.id = f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: [image.id, cameraId], containerType: 'transform' }).layerId;
@@ -218,7 +218,7 @@ test('allows cameras under Transform when editing group boundaries', t => {
 	const transform = createTransformTimelineLayer();
 	transform.id = f.history.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: [cameraId], containerType: 'transform' }).layerId;
 	const group = { id: 'group', name: 'Group', layerType: 'group', layers: [createTransformTimelineLayer()], isDisabled: false,
-		forceDisableMotionBlur: false, curveAnimations: [], compositingParamValues: {}, audioParamValues: {} };
+		forceDisableMotionBlur: false, functionCurves: [], compositingParamValues: {}, audioParamValues: {} };
 	f.history.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [group] } });
 	const before = structuredClone(f.scene.layers);
 	f.history.commit('moveTimelineLayerInTree', { sceneId: 'scene', layerId: transform.id, parentId: group.layers[0].id, beforeId: null });

@@ -7,7 +7,7 @@ import { shapeDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/sh
 import { textParamDefs } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
 import { voicevoxSubtitleParamDefs } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-subtitle.ts';
 import {
-	curveAnimationSchema, effectResolutionSchema, keyframeInterpolationSchema, parameterDefinitionSchema,
+	sharedFunctionCurveSchema, effectResolutionSchema, keyframeInterpolationSchema, parameterDefinitionSchema,
 	parameterPathSchema, staticSettingValuesSchema, valueParameterBindingSchema,
 } from './parameter-contract-schemas.ts';
 import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
@@ -113,7 +113,7 @@ function parameterValues<Definitions extends Record<string, unknown>>(definition
 
 const layerCommon = { id: identifier, name: z.string(), color: z.tuple([z.number(), z.number(), z.number(), z.number()]).nullable(), isDisabled: z.boolean(), isSolo: z.boolean() };
 const layerParameters = {
-	curveAnimations: z.array(curveAnimationSchema),
+	functionCurves: z.array(sharedFunctionCurveSchema),
 	publicParameterDefs: z.array(timelineLayerPublicParameterDefinitionSchema).optional(),
 	publicParameterValues: z.record(z.string(), timelineParameterBindingSchema).optional(),
 };

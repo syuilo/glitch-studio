@@ -40,12 +40,12 @@ function stereoWav() {
 function fixture() {
 	const literal = value => ({ inputSource: 'literal', value });
 	const audioLayer = (id, startMs, durationMs, contentOffsetMs, volume) => ({
-		id, name: id, layerType: 'audio', isDisabled: false, curveAnimations: [], audioParamValues: { volume },
+		id, name: id, layerType: 'audio', isDisabled: false, functionCurves: [], audioParamValues: { volume },
 		clips: [{ id: 'clip', assetId: 'sound', startMs, durationMs, sourceInMs: contentOffsetMs, sourceOutMs: contentOffsetMs + durationMs, playbackRate: 1, loop: false }],
 	});
 	const root = { id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [
 		audioLayer('main', 100, 400, 50, literal(0.5)),
-		{ id: 'placement', name: 'Child', layerType: 'scene', isDisabled: false, curveAnimations: [],
+		{ id: 'placement', name: 'Child', layerType: 'scene', isDisabled: false, functionCurves: [],
 			audioParamValues: { volume: literal(2) }, compositingParamValues: {},
 			clips: [{ id: 'clip', sceneId: 'child', startMs: 200, durationMs: 250, contentOffsetMs: 100 }] },
 		{ ...audioLayer('disabled', 0, 600, 0, literal(1)), isDisabled: true,
@@ -108,13 +108,13 @@ async function exportAudio(settings, startMs, endMs, renderUntil = [(endMs - sta
 test('matches retimed reverse loop audio through nested preview and export pipelines', async () => {
 	for (const playbackRate of [0.5, 2, -1, -1.5]) {
 		const child = { id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [{
-			id: 'video', name: 'Video', layerType: 'video', isDisabled: false, curveAnimations: [], compositingParamValues: {},
+			id: 'video', name: 'Video', layerType: 'video', isDisabled: false, functionCurves: [], compositingParamValues: {},
 			audioParamValues: { volume: { inputSource: 'literal', value: 1 } },
 			clips: [{ id: 'clip', assetId: 'sound', audioEnabled: true, videoEnabled: true, startMs: 10, durationMs: 800,
 				sourceInMs: 50.25, sourceOutMs: 250.25, playbackRate, loop: true }],
 		}] };
 		const root = { id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [{
-			id: 'placement', name: 'Child', layerType: 'scene', isDisabled: false, curveAnimations: [], compositingParamValues: {},
+			id: 'placement', name: 'Child', layerType: 'scene', isDisabled: false, functionCurves: [], compositingParamValues: {},
 			audioParamValues: { volume: { inputSource: 'literal', value: 1 } },
 			clips: [{ id: 'placement', sceneId: 'child', startMs: 100, durationMs: 600, contentOffsetMs: 75.25 }],
 		}] };
@@ -171,7 +171,7 @@ test('joins the scene end and beginning when a playback packet crosses the loop 
 // IS_EXPORTを使う音量は意図的に再生時と異なる。両経路を単に同一結果へ揃える変更を防ぐ。
 test('retains the explicit export flag in the audio expression scope', { timeout: 10000 }, async () => {
 	const settings = fixture();
-	settings.clips = [{ sourceId: 'sound', sourceTiming: { startMs: 0, sourceInMs: 0, sourceOutMs: 600 - (0), playbackRate: 1, loop: false }, startMs: 0, endMs: 600, gains: [{ sceneStartMs: 0, volume: { inputSource: 'expression', expression: 'if IS_EXPORT { 1 } else { 0.5 }' }, curveAnimations: [] }] }];
+	settings.clips = [{ sourceId: 'sound', sourceTiming: { startMs: 0, sourceInMs: 0, sourceOutMs: 600 - (0), playbackRate: 1, loop: false }, startMs: 0, endMs: 600, gains: [{ sceneStartMs: 0, volume: { inputSource: 'expression', expression: 'if IS_EXPORT { 1 } else { 0.5 }' }, functionCurves: [] }] }];
 	const preview = await startPlayback(settings, 50).pull();
 	assert.equal(preview.type, 'pcm');
 	const exported = await exportAudio(settings, 50, 150);

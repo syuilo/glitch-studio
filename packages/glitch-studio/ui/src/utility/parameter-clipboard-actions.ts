@@ -123,7 +123,7 @@ export async function handlePreviewParameterClipboard(
 		owner: effectSource.type === 'nodesEffectReference'
 			? { kind: 'nodesEffect', target: { nodesEffectId: effectSource.id } }
 			: { kind: 'customShaderEffect', customShaderEffectId: effectSource.id },
-		localCurveAnimationIds: [],
+		localFunctionCurveIds: [],
 	};
 	if (operation === 'copy') {
 		if (isEffectLivePreviewMediaBinding(initial.parameter.value)) return;

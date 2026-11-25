@@ -41,8 +41,8 @@ import { createShapeTimelineLayer } from '@gs/subsystems_timeline_renderer/layer
 import { createSceneOutput } from '@gs/subsystems_timeline_renderer/scene-output.ts';
 import { LinearImageReadback } from './linear-image-readback.ts';
 import { SrgbImageReadback } from './srgb-image-readback.ts';
-import { getTimelineScenesWithProjectCurveAnimations } from '@gs/glitch-studio_shared/project/curve-animations.ts';
-import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
+import { getTimelineScenesWithProjectFunctionCurves } from '@gs/glitch-studio_shared/project/function-curves.ts';
+import type { SharedFunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 import { TimelineCompositingParameters } from '@gs/subsystems_timeline_renderer/timeline-compositing-parameters.ts';
 import { isTimelineClipActive } from '@gs/subsystems_timeline_shared/timing.ts';
 import { createVideoTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/video/video-timeline-layer.ts';
@@ -146,7 +146,7 @@ export type TimelineRendererManagerDynamicOptions = {
 	nodesEffects: ProjectNodesEffect[];
 	customShaderEffects: ProjectCustomShaderEffect[];
 	timelineScenes: TimelineScene[];
-	curveAnimations: CurveAnimation[];
+	functionCurves: SharedFunctionCurve[];
 	sceneId: string | null;
 	transformObserver: TimelineTransformObservation | null;
 	/** UIから送られた状態の世代。既存の更新RPCに同梱し、古い枠の採用を防ぐ。 */
@@ -280,7 +280,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		nodesEffects: [],
 		customShaderEffects: [],
 		timelineScenes: [],
-		curveAnimations: [],
+		functionCurves: [],
 		sceneId: null,
 		transformObserver: null,
 		previewRevision: 0,
@@ -481,7 +481,7 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateDynamicOptions(newOptions: Partial<TimelineRendererManagerDynamicOptions>) {
-		if (['generatedSpeech', 'resolution', 'resolutionScale', 'nodesEffects', 'customShaderEffects', 'curveAnimations', 'timelineScenes', 'sceneId', 'previewFps'].some(key => Object.hasOwn(newOptions, key))) {
+		if (['generatedSpeech', 'resolution', 'resolutionScale', 'nodesEffects', 'customShaderEffects', 'functionCurves', 'timelineScenes', 'sceneId', 'previewFps'].some(key => Object.hasOwn(newOptions, key))) {
 			// 描画を作り直す要求では、保留していた値も現在の状態へ反映してから切り替える。
 			this.applyPendingNodesEffectValues();
 		}
@@ -492,7 +492,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			this.resolveSpeech = createSpeechResolver(newOptions.generatedSpeech);
 			this.audioInputs.setGeneratedSpeech(newOptions.generatedSpeech);
 		}
-		const replaceTimeline = ['resolution', 'resolutionScale', 'curveAnimations', 'timelineScenes', 'sceneId', 'previewFps'].some(key => Object.hasOwn(newOptions, key));
+		const replaceTimeline = ['resolution', 'resolutionScale', 'functionCurves', 'timelineScenes', 'sceneId', 'previewFps'].some(key => Object.hasOwn(newOptions, key));
 		const syncRegistrations = newOptions.nodesEffects != null || newOptions.customShaderEffects != null;
 		if (syncRegistrations && !replaceTimeline) {
 			const changes = diffEffectRegistrationSnapshots(this.dynamicOptions, newOptions);
@@ -502,7 +502,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		if (syncRegistrations && replaceTimeline) {
 			this.definitions = createProjectEffectDefinitions(this.dynamicOptions, this.nativeEffectDefinitions);
 		}
-		if (Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'curveAnimations')) this.refreshEvaluationScenes();
+		if (Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'functionCurves')) this.refreshEvaluationScenes();
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.previewWarningImageSource = this.dynamicOptions.previewWarningImageSource;
 		this.canvasRenderer.previewGamutWarning = this.dynamicOptions.previewGamutWarning;
@@ -604,7 +604,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		Object.assign(this.dynamicOptions, next);
 		this.refreshEvaluationScenes();
 		this.definitions = definitions;
-		if (changes.some(change => change.type === 'curveAnimations')) this.clearTimelineRenderers();
+		if (changes.some(change => change.type === 'functionCurves')) this.clearTimelineRenderers();
 		this.dynamicOptions.previewRevision = previewRevision;
 		if (!next.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId)) {
 			this.dynamicOptions.sceneId = null;
@@ -620,7 +620,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	private refreshEvaluationScenes() {
-		this.evaluationScenes = getTimelineScenesWithProjectCurveAnimations(this.dynamicOptions.timelineScenes, this.dynamicOptions.curveAnimations);
+		this.evaluationScenes = getTimelineScenesWithProjectFunctionCurves(this.dynamicOptions.timelineScenes, this.dynamicOptions.functionCurves);
 		this.layerActivityBySceneId = new Map(this.evaluationScenes.map(scene => [scene.id, getTimelineSoloState(scene.layers).layers]));
 		// 祖先の値変更や階層移動も環境へ反映する。レンダラーの寿命とは分けて更新し、
 		// インスタンスを維持する値編集でも古い所有レイヤーを参照し続けないようにする。
@@ -785,7 +785,7 @@ export class TimelineRendererManager extends EventEmitter<{
 						layerMask: layer.layerMask,
 						transformTarget: getTimelineLayerTransformTarget(layer),
 						paramValues: layer.compositingParamValues,
-						curveAnimations: layer.curveAnimations,
+						functionCurves: layer.functionCurves,
 						publicParameters: this.getLayerPublicParameterContext(sceneId, layer.id),
 					});
 					preview.geometry.transform = {
@@ -860,7 +860,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				layerMask: entry.layerMask,
 				transformTarget: getTimelineLayerTransformTarget(entry),
 				paramValues: entry.compositingParamValues,
-				curveAnimations: entry.curveAnimations,
+				functionCurves: entry.functionCurves,
 				publicParameters: this.getLayerPublicParameterContext(sceneId, entry.id),
 			});
 			const settings = evaluate(layer);
@@ -869,7 +869,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			};
 			if (capture != null) capture.cameraEvaluation = cameraEvaluation;
 			const parent = getTimelinePreviewParent(location.ancestors.filter(parent => parent.layerType === 'group' || parent.layerType === 'transform').map(parent => parent.layerType === 'transform'
-				? { transform: this.transformPreviewContainerParameters.evaluate(parent.transformParamValues, parent.curveAnimations, time, false, this.getLayerPublicParameterContext(sceneId, parent.id)) }
+				? { transform: this.transformPreviewContainerParameters.evaluate(parent.transformParamValues, parent.functionCurves, time, false, this.getLayerPublicParameterContext(sceneId, parent.id)) }
 				: { settings: evaluate(parent), compositingMode: parent.compositingMode }), settings, sceneSize,
 			{
 				parent: TIMELINE_IDENTITY,

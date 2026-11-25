@@ -19,7 +19,7 @@ const [{ randomExpressionFunctions: { RANDOM, NOISE } }, { ParameterBindingEvalu
 const { ExpressionEvaluator } = await loadSource('expression/expression-evaluator');
 const expression = expression => ({ inputSource: 'expression', expression });
 const samplesDefinition = { dataType: { kind: 'any' }, ui: { label: 'Samples' } };
-const scope = { variables: {}, curveAnimations: [], time: 0, endTime: Infinity };
+const scope = { variables: {}, functionCurves: [], time: 0, endTime: Infinity };
 
 // 【乱数とノイズのパターンを固定する】
 // シークだけでなく、実装の整理によっても既存の式の動きが意図せず変わらないようにする。

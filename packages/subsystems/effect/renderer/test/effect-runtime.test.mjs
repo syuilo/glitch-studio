@@ -144,11 +144,11 @@ test('evaluates nested public and custom scopes, modifiers, Curve Animation and 
 	const def = { ...definition, paramDefs: { result: scalar, gain: scalar, aspect: scalar, pointer: scalar } };
 	const graph = { ...definition, paramDefs: { x: { ...scalar, nameForReference: 'amount' } },
 		customParameterDefs: { c: { ...scalar, nameForReference: 'shared' }, unused: { ...scalar, nameForReference: 'cycle' } },
-		customParameterValues: { c: expression('PUBLIC("amount") + CURVE_ANIMATION("constant", 0, "clamp")'), unused: expression('CUSTOM("cycle")') },
-		curveAnimations: [{ id: 'g', nameForReference: 'constant', isNormalized: false, points: [{ x: 0, y: 3 }] }],
+		customParameterValues: { c: expression('PUBLIC("amount") + FUNCTION_CURVE("constant", 0, "clamp")'), unused: expression('CUSTOM("cycle")') },
+		functionCurves: [{ id: 'g', nameForReference: 'constant', isXNormalized: false, isYNormalized: false, points: [{ x: 0, y: 3 }] }],
 		nodes: [{ id: 'draw', effectSource: native, resolution: { width: 16, height: 16 }, params: {
 			result: { ...expression('CUSTOM("shared")'), expressionModifier: { enabled: true, code: 'VALUE * 2' } },
-			gain: { inputSource: 'curveAnimationReference', curveAnimationId: 'g', ...play },
+			gain: { inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'reference', curveId: 'g' }, yRangeMin: null, yRangeMax: null, ...play } },
 			aspect: { inputSource: 'envVariable', variable: 'ASPECT_RATIO' }, pointer: expression('POINTER_POSITION[1]'),
 		} }], outputSources: { image: output } };
 	const parent = { ...definition, nodes: [{ id: 'child', effectSource: inline(graph), params: { x: {

@@ -1,3 +1,5 @@
+import { isValidCurveAnimationYRange } from '../curve-animation/curve-animation.ts';
+import { isValueParameterBinding } from './parameter-binding.ts';
 import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from './parameter-definition.ts';
 import { validateParameterExpressionModifier } from './parameter-expression-modifier.ts';
 import { validateParameterValue } from './validate-parameter-value.ts';
@@ -6,7 +8,7 @@ import type { ParameterBindingBase, ParameterArrayElement } from './parameter-bi
 
 /** 共通の入力方式のうち、対応表への変換を定義していない方式を入口で拒否する。 */
 export function validateColorRampParameterInputSource(definition: Pick<ParameterDefinition, 'dataType'>, binding: ParameterBindingBase): void {
-	if (definition.dataType.kind === 'colorRamp' && ['keyframesTimelineInline', 'curveAnimationReference', 'curveAnimationInline'].includes(binding.inputSource)) throw new Error('Color Ramp does not support keyframes or Curve Animation input');
+	if (definition.dataType.kind === 'colorRamp' && ['keyframesTimelineInline', 'curveAnimationInline'].includes(binding.inputSource)) throw new Error('Color Ramp does not support keyframes or Curve Animation input');
 }
 
 /** コンテナの値と子設定の既定値をそれぞれ検査する。 */
@@ -65,6 +67,9 @@ export function inspectStaticParameter<Binding extends ParameterBindingBase>(def
 	validateParameterExpressionModifier(definition, binding);
 	if (!isParameterType(definition, 'array') && !isParameterType(definition, 'struct')) {
 		validateColorRampParameterInputSource(definition, binding);
+		if (isValueParameterBinding(binding) && binding.inputSource === 'curveAnimationInline' && !isValidCurveAnimationYRange(binding.curveAnimation)) {
+			throw new Error('Curve Animation Y range must be finite and ordered');
+		}
 		inspectLeaf(definition, binding);
 		return;
 	}
@@ -113,7 +118,10 @@ function staticParameterSourceShape(definition: ParameterDefinition | null | und
 	if (binding.inputSource === 'expression') return ['expression'];
 	if (binding.inputSource === 'curveAnimationInline') {
 		const { curveAnimation, ...settings } = binding;
-		return settings;
+		if (curveAnimation == null) return settings;
+		const { curveBinding, ...playback } = curveAnimation;
+		// インラインの点は検証キーから除き、設定と共有参照の変更は検証する。
+		return [settings, playback, curveBinding?.source === 'inline' ? 'inline' : curveBinding];
 	}
 	if (binding.inputSource === 'keyframesTimelineInline') {
 		const { keyframesTimeline, ...settings } = binding;

@@ -354,7 +354,7 @@ for (const hasCamera of [false, true]) {
 		const scene = structuredClone(renderer.dynamicOptions.timelineScenes[0]);
 		scene.layers = ['a', 'b', 'c'].map(id => ({ ...structuredClone(scene.layers[0]), id }));
 		if (hasCamera) scene.layers.unshift({ id: 'camera', layerType: 'camera', isDisabled: false, forceDisableMotionBlur: false,
-			curveAnimations: [], cameraParamValues: {}, clips: [{ id: 'camera-clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }] });
+			functionCurves: [], cameraParamValues: {}, clips: [{ id: 'camera-clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }] });
 		await renderer.updateDynamicOptions({ nodesEffects: [registration(constantNodesEffect())], timelineScenes: [scene], previewFps: 30 });
 		const camera = t.mock.method(renderer.transformPreviewCamera, 'evaluate');
 		const evaluations = t.mock.method(renderer.timelineRenderer, 'evaluateAt');
@@ -595,7 +595,7 @@ async function fixture(t, staticOptions = {}, Manager = EffectLivePreviewManager
 	await renderer.updateDynamicOptions({
 		resolution: { width: 1, height: 1 },
 		nodesEffects: [registration(nodesEffect(true))],
-		...(Manager === TimelineRendererManager ? { timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectSource: referenceSource, effectStaticSettings: {}, resolution: { mode: 'context', scale: 1 }, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], effectParamValues: {}, compositingParamValues: {}, curveAnimations: [] }] }], sceneId: 'scene' } : {}),
+		...(Manager === TimelineRendererManager ? { timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectSource: referenceSource, effectStaticSettings: {}, resolution: { mode: 'context', scale: 1 }, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], effectParamValues: {}, compositingParamValues: {}, functionCurves: [] }] }], sceneId: 'scene' } : {}),
 	});
 	return { renderer, errors, frames, originalGpuMethods, async frame(timestamp) {
 		const [id, callback] = frames.entries().next().value;
@@ -1695,9 +1695,9 @@ for (const [name, createManager] of [['effectLivePreview', createEffectLivePrevi
 for (const Manager of [EffectLivePreviewManager, TimelineRendererManager]) {
 	test(`${Manager.name} refreshes project Curve Animations without exposing them inside Nodes Effects`, async t => {
 		const { renderer, frame, errors } = await fixture(t, {}, Manager);
-		const curveAnimation = value => ({ id: 'shared-curve-animation', nameForReference: 'Curve', isNormalized: false,
+		const curveAnimation = value => ({ id: 'shared-curve-animation', nameForReference: 'Curve', isXNormalized: false, isYNormalized: false,
 			points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
-		const expression = { inputSource: 'expression', expression: '[CURVE_ANIMATION("Curve", TIME_MS, "clamp"), 0, 0, 1]' };
+		const expression = { inputSource: 'expression', expression: '[FUNCTION_CURVE("Curve", TIME_MS, "clamp"), 0, 0, 1]' };
 		const observedColors = [];
 		const create = renderer.gpuDevice.createCommandEncoder.bind(renderer.gpuDevice);
 		renderer.gpuDevice.createCommandEncoder = () => {
@@ -1711,7 +1711,7 @@ for (const Manager of [EffectLivePreviewManager, TimelineRendererManager]) {
 			return encoder;
 		};
 		const definition = constantNodesEffect();
-		await renderer.updateDynamicOptions({ nodesEffects: [registration(definition)], curveAnimations: [curveAnimation(0.5)] });
+		await renderer.updateDynamicOptions({ nodesEffects: [registration(definition)], functionCurves: [curveAnimation(0.5)] });
 		if (Manager === EffectLivePreviewManager) renderer.startEffectLivePreview({ effectSource: referenceSource, params: { color: expression } });
 		else {
 			const scene = structuredClone(renderer.dynamicOptions.timelineScenes[0]);
@@ -1723,13 +1723,13 @@ for (const Manager of [EffectLivePreviewManager, TimelineRendererManager]) {
 		await render();
 		assert.deepEqual(errors, []);
 		assert.deepEqual(observedColors.at(-1), [0.5, 0, 0, 1]);
-		renderer.applyProjectChanges([{ type: 'curveAnimations', curveAnimations: [curveAnimation(0.25)] }]);
+		renderer.applyProjectChanges([{ type: 'functionCurves', functionCurves: [curveAnimation(0.25)] }]);
 		await render();
 		assert.deepEqual(observedColors.at(-1), [0.25, 0, 0, 1]);
-		assert.deepEqual(renderer.dynamicOptions.nodesEffects[0].definition.curveAnimations ?? [], []);
-		renderer.applyProjectChanges([{ type: 'curveAnimations', curveAnimations: [] }]);
+		assert.deepEqual(renderer.dynamicOptions.nodesEffects[0].definition.functionCurves ?? [], []);
+		renderer.applyProjectChanges([{ type: 'functionCurves', functionCurves: [] }]);
 		await render();
-		assert.match(errors.at(-1), /Unknown Curve Animation/);
+		assert.match(errors.at(-1), /Unknown Function Curve/);
 	});
 }
 

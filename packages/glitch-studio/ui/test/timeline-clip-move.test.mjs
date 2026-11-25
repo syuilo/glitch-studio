@@ -45,7 +45,7 @@ const clip = (id, startMs, durationMs) => ({ id, startMs, durationMs, sourceInMs
 const keys = times => ({ inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
 	keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false,
 		keyframes: times.map(x => ({ id: String(x), x, value: x / 1000, interpolation: { type: 'ease:quad', direction: 'inOut' } })) } });
-const audioLayer = (id, clips, times) => ({ id, name: id, layerType: 'audio', isDisabled: false, curveAnimations: [], clips, audioParamValues: { volume: keys(times) } });
+const audioLayer = (id, clips, times) => ({ id, name: id, layerType: 'audio', isDisabled: false, functionCurves: [], clips, audioParamValues: { volume: keys(times) } });
 const times = layer => layer.audioParamValues.volume.keyframesTimeline.keyframes.map(point => point.x);
 function fixture(t, layers) {
 	t.mock.method(console, 'log', () => {});

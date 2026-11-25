@@ -52,7 +52,7 @@ function parameterGroups(layer: TimelineLayer, effect?: EffectDefinition | null)
 export function timelineLayerStaticShape(layer: TimelineLayer, effect?: EffectDefinition | null): unknown {
 	const { name, isDisabled, ...shape } = layer;
 	const result: Record<string, unknown> = { ...shape };
-	delete result.curveAnimations;
+	delete result.functionCurves;
 	delete result.layers;
 	for (const group of parameterGroups(layer, effect)) {
 		result[group.name] = Object.entries(group.values).map(([key, binding]) => [key, staticParameterShape(group.definitions[key], binding)]);

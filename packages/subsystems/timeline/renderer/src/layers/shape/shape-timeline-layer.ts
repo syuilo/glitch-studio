@@ -16,7 +16,7 @@ export function createShapeTimelineLayer(layer: TimelineShapeLayer, options: Par
 	return {
 		async evaluate(context, signal) {
 			if (disposed || signal.aborted) return { gpuTime: 0 };
-			const scope = { time: context.sceneTimeMs, isExport: context.isExport, publicParameters: context.publicParameters, curveAnimations: layer.curveAnimations };
+			const scope = { time: context.sceneTimeMs, isExport: context.isExport, publicParameters: context.publicParameters, functionCurves: layer.functionCurves };
 			const shape = parameters.evaluate(layer.shape, scope);
 			const settings = compositing.evaluate({
 				...scope,

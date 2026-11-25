@@ -44,7 +44,7 @@ const compositing = () => ({ ...Object.fromEntries(Object.entries(timelineCompos
 const clip = (id, startMs, durationMs, contentOffsetMs = 0) => ({ id, startMs, durationMs, contentOffsetMs });
 const layer = (id, values = {}, overrides = {}) => ({
 	id, name: id, layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'probe' }, resolution: { mode: 'auto', scale: 1 },
-	clips: [clip('clip', 100, 1000, 20.5)], curveAnimations: [], compositingParamValues: compositing(),
+	clips: [clip('clip', 100, 1000, 20.5)], functionCurves: [], compositingParamValues: compositing(),
 	effectStaticSettings: {}, effectParamValues: { ...Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])), ...values }, ...overrides,
 });
 
@@ -160,7 +160,7 @@ test('refreshes lower audio inputs after timeline edits without recreating the r
 		return { cacheKey: String(calls.length), readWindow: () => assert.fail('the effect controls window reads') };
 	};
 	const below = { id: 'sound', name: 'Sound', layerType: 'audio', isDisabled: false, clips: [{ id: 'sound', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: false, assetId: 'asset' }],
-		audioParamValues: { volume: literal(1) }, curveAnimations: [] };
+		audioParamValues: { volume: literal(1) }, functionCurves: [] };
 	await f.setup([layer('effect', { audio: { inputSource: 'lowerLayerAudio' } }), below]);
 	await f.manager.renderTimelineFrame(350.25, 0);
 	assert.deepEqual(calls[0].slice(1), ['scene', 'effect', { inputSource: 'lowerLayerAudio' }, 350.25, true]);
@@ -216,7 +216,7 @@ test('resolves distinct anotherLayerAudio inputs in nested effect parameters', a
 test('preserves unaffected effect instances across tree edits and resets restored removed groups', async t => {
 	const f = await fixture(t);
 	const group = (id, layers = []) => ({ id, name: id, layerType: 'group', layers, isDisabled: false,
-		curveAnimations: [], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) } });
+		functionCurves: [], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) } });
 	const foreground = layer('foreground', { amount: literal(1) });
 	const nested = group('group', [layer('child', { amount: literal(2) })]);
 	const empty = group('empty');
@@ -255,14 +255,14 @@ test('keeps child scene instances while applying its current layer tree', async 
 	const f = await fixture(t);
 	const child = { id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [layer('effect')] };
 	const parent = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{
-		id: 'placement', name: 'Placement', layerType: 'scene', isDisabled: false, curveAnimations: [],
+		id: 'placement', name: 'Placement', layerType: 'scene', isDisabled: false, functionCurves: [],
 		clips: [{ ...clip('clip', 0, 1000), sceneId: 'child' }], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) },
 	}] };
 	await f.setup([], { timelineScenes: [parent, child] });
 	await f.manager.renderTimelineFrame(350, 0);
 	const instance = f.calls.instances[0];
 	f.manager.applyProjectChanges([{ type: 'layerTree', sceneId: 'child', layers: [...child.layers, {
-		id: 'empty', name: 'Empty', layerType: 'group', layers: [], isDisabled: false, curveAnimations: [],
+		id: 'empty', name: 'Empty', layerType: 'group', layers: [], isDisabled: false, functionCurves: [],
 		compositingParamValues: compositing(), audioParamValues: { volume: literal(1) },
 	}] }]);
 	await f.manager.renderTimelineFrame(350, 0);
@@ -383,7 +383,7 @@ test('resolves context and intrinsic sizes within nested scenes without inheriti
 	const f = await fixture(t, { intrinsicResolution: params => params.amount === 1 ? { width: 200, height: 100 } : undefined });
 	const childLayer = layer('child', { input });
 	const child = { id: 'childScene', name: 'Child', resolution: { mode: 'customAbsolute', width: 240, height: 120 }, layers: [childLayer] };
-	const placed = { id: 'placed', name: 'Placed', layerType: 'scene', curveAnimations: [], compositingParamValues: compositing(),
+	const placed = { id: 'placed', name: 'Placed', layerType: 'scene', functionCurves: [], compositingParamValues: compositing(),
 		clips: [{ ...clip('childClip', 1000, 1000, 300), sceneId: child.id }] };
 	await f.setup([], { resolutionScale: 0.5, timelineScenes: [
 		{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [placed, layer('bottom', {}, { clips: [clip('clip', 0, 3000)] })] }, child,
@@ -518,7 +518,7 @@ test('snapshots evaluated leaf arrays before asynchronous preparation', async t 
 // 参照先Sceneの配置パスとは区別し、入れ子の深さで通知先を変えない。
 test('reports grouped effect states at their owning scene layer address', async t => {
 	const f = await fixture(t);
-	const group = (id, layers) => ({ id, name: id, layerType: 'group', layers, isDisabled: false, curveAnimations: [],
+	const group = (id, layers) => ({ id, name: id, layerType: 'group', layers, isDisabled: false, functionCurves: [],
 		compositingParamValues: compositing(), audioParamValues: { volume: literal(1) } });
 	await f.setup([group('outer', [group('inner', [layer('effect')])])]);
 	await f.manager.renderTimelineAt(200);
@@ -574,7 +574,7 @@ test('keeps source rendered and composited outputs distinct and shares repeated 
 test('resolves nested source references across groups and skips unavailable targets', async t => {
 	const f = await fixture(t);
 	const group = { id: 'group', name: 'Group', layerType: 'group', isDisabled: false, compositingMode: 'preserveDepth',
-		layers: [layer('source', { amount: literal(11) })], compositingParamValues: compositing(), audioParamValues: {}, curveAnimations: [] };
+		layers: [layer('source', { amount: literal(11) })], compositingParamValues: compositing(), audioParamValues: {}, functionCurves: [] };
 	const receiver = layer('receiver', { amount: literal(22), input: imageReference('source') });
 	await f.setup([group, receiver]);
 	await f.manager.renderTimelineFrame(350, 0);
@@ -597,7 +597,7 @@ test('normalizes an explicit public primary input before routing it through a No
 	const nodesEffect = { ...definition, paramDefs: { image: color }, primaryInputParameter: 'image', resolutionInputParameters: ['image'],
 		nodes: [], outputSources: { output: { parameterId: 'image' } } };
 	const nodesEffectLayer = { id: 'visual-layer', name: 'Visual', layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'visual' }, resolution: { mode: 'context', scale: 1 }, effectStaticSettings: {},
-		clips: [clip('clip', 100, 1000)], isDisabled: false, curveAnimations: [], compositingParamValues: compositing(),
+		clips: [clip('clip', 100, 1000)], isDisabled: false, functionCurves: [], compositingParamValues: compositing(),
 		effectParamValues: { image: { inputSource: 'anotherLayerOutput', layerId: 'source', outputStage: 'source' } } };
 	await f.setup([layer('receiver', { amount: literal(22), input: imageReference('visual-layer') }), nodesEffectLayer,
 		layer('source', { amount: literal(11) }, { resolution: { mode: 'customAbsolute', width: 80, height: 45 } })], { nodesEffects: [{ id: 'visual', name: 'Visual', definition: nodesEffect }] });
@@ -618,13 +618,13 @@ test('releases deleted public input frames while preserving the placement and re
 	const nodesEffect = { ...definition, paramDefs: { unused: color, kept: color }, primaryInputParameter: 'unused', resolutionInputParameters: [],
 		nodes: [], outputSources: { output: { parameterId: 'kept' } } };
 	const publicLayer = { id: 'public', name: 'Public', layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'visual' }, resolution: { mode: 'context', scale: 1 }, effectStaticSettings: {}, clips: [clip('clip', 100, 1000)],
-		isDisabled: false, curveAnimations: [], compositingParamValues: compositing(), effectParamValues: { kept: { inputSource: 'lowerLayerOutput' } } };
+		isDisabled: false, functionCurves: [], compositingParamValues: compositing(), effectParamValues: { kept: { inputSource: 'lowerLayerOutput' } } };
 	const background = layer('background');
 	background.compositingParamValues.position = literal([2, 0]);
 	let publicOutput;
 	f.manager.createCompositingObserver = (_sceneId, layerId) => source => { if (layerId === 'public') publicOutput = source; };
 	await f.setup([{ id: 'group', name: 'Group', layerType: 'group', layers: [publicLayer, background], isDisabled: false,
-		curveAnimations: [], compositingParamValues: compositing(), audioParamValues: {} }], { nodesEffects: [{ id: 'visual', name: 'Visual', definition: nodesEffect }] });
+		functionCurves: [], compositingParamValues: compositing(), audioParamValues: {} }], { nodesEffects: [{ id: 'visual', name: 'Visual', definition: nodesEffect }] });
 	await f.manager.renderTimelineFrame(350, 0);
 	const firstFrame = publicOutput.texture;
 	const backgroundInstance = f.calls.instances[0];
@@ -648,7 +648,7 @@ test('references group source images before applying group opacity in both depth
 		const observations = new Map();
 		f.manager.createCompositingObserver = (_sceneId, layerId) => source => observations.set(layerId, source);
 		const group = { id: 'group', name: 'Group', layerType: 'group', isDisabled: false, compositingMode,
-			layers: [layer('child', { amount: literal(11) })], curveAnimations: [], audioParamValues: {},
+			layers: [layer('child', { amount: literal(11) })], functionCurves: [], audioParamValues: {},
 			compositingParamValues: { ...compositing(), opacity: literal(0) } };
 		await f.setup([layer('receiver', { amount: literal(22), input: imageReference('group') }), group]);
 		await f.manager.renderTimelineFrame(350, 0);

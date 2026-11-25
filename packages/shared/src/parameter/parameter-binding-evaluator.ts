@@ -1,4 +1,5 @@
-import { evaluateCurveAnimation, evalCurveAnimationValue } from '../curve-animation/curve-animation-evaluator.ts';
+import { evaluateCurveAnimation } from '../curve-animation/curve-animation-evaluator.ts';
+import { evaluateFunctionCurve } from '../function-curve/function-curve-evaluator.ts';
 import type { ExpressionEngine } from '../expression/expression-engine.ts';
 import { randomExpressionFunctions } from '../expression/random-functions.ts';
 import { evaluateKeyframesTimeline } from '../keyframes/keyframes-timeline-evaluator.ts';
@@ -20,27 +21,27 @@ export class ParameterBindingEvaluator {
 
 	constructor(expressionEvaluator: ExpressionEngine | null) { this.expressionEvaluator = expressionEvaluator; }
 
-	private curveAnimationReader(scope: ParameterEvaluationScope): ExpressionFunction {
+	private functionCurveReader(scope: ParameterEvaluationScope): ExpressionFunction {
 		return (...args) => {
 			const [nameForReference, coordinate, wrapMode] = args;
 			if (args.length !== 3 || typeof nameForReference !== 'string' || typeof coordinate !== 'number' || !Number.isFinite(coordinate)
 				|| (wrapMode !== 'clamp' && wrapMode !== 'repeat' && wrapMode !== 'repeatMirrored')) {
-				throw new Error('CURVE_ANIMATION requires a nameForReference, finite coordinate and wrap mode');
+				throw new Error('FUNCTION_CURVE requires a nameForReference, finite coordinate and wrap mode');
 			}
-			const curveAnimation = scope.curveAnimations.find(candidate => candidate.nameForReference === nameForReference);
-			if (curveAnimation == null) throw new Error(`Unknown Curve Animation nameForReference: ${nameForReference}`);
-			return evalCurveAnimationValue(curveAnimation, coordinate, wrapMode);
+			const functionCurve = scope.functionCurves.find(candidate => candidate.nameForReference === nameForReference);
+			if (functionCurve == null) throw new Error(`Unknown Function Curve nameForReference: ${nameForReference}`);
+			return evaluateFunctionCurve(functionCurve, coordinate, wrapMode);
 		};
 	}
 
 	public evaluate(binding: ValueParameterBinding, scope: ParameterEvaluationScope, fallback: any, definition: EvaluationParameterDefinition): any {
-		return this.bind(binding, fallback, definition, scope.curveAnimations)(scope);
+		return this.bind(binding, fallback, definition, scope.functionCurves)(scope);
 	}
 
 	/** 入力方式と参照先が固定の配置では、評価経路を配置の生成時に選ぶ。時刻と値は描画ごとに読む。 */
 	public bind(binding: ValueParameterBinding, fallback: any, definition: EvaluationParameterDefinition,
-		curveAnimations: ParameterEvaluationScope['curveAnimations']): (scope: ParameterEvaluationScope) => unknown {
-		const read = this.bindSource(binding, fallback, definition, curveAnimations);
+		functionCurves: ParameterEvaluationScope['functionCurves']): (scope: ParameterEvaluationScope) => unknown {
+		const read = this.bindSource(binding, fallback, definition, functionCurves);
 		const modifier = binding.expressionModifier;
 		if (modifier?.enabled !== true) return read;
 		return scope => {
@@ -62,7 +63,7 @@ export class ParameterBindingEvaluator {
 			const functions = {
 				...scope.functions,
 				...randomExpressionFunctions,
-				CURVE_ANIMATION: this.curveAnimationReader(scope),
+				FUNCTION_CURVE: this.functionCurveReader(scope),
 			};
 			// VALUEは加工式だけに公開する。親スコープの同名変数・関数を基準式へ漏らさない。
 			delete variables.VALUE;
@@ -77,16 +78,17 @@ export class ParameterBindingEvaluator {
 	}
 
 	private bindSource(binding: ValueParameterBinding, fallback: any, definition: EvaluationParameterDefinition,
-		curveAnimations: ParameterEvaluationScope['curveAnimations']): (scope: ParameterEvaluationScope) => unknown {
+		functionCurves: ParameterEvaluationScope['functionCurves']): (scope: ParameterEvaluationScope) => unknown {
 		switch (binding.inputSource) {
 			case 'literal': return () => binding.value;
 			case 'envVariable': return scope => Object.hasOwn(scope.variables, binding.variable) ? deepClone(scope.variables[binding.variable]) ?? fallback : fallback;
 			case 'expression': return scope => this.evaluateExpression(binding.expression, scope, 'base', definition);
-			case 'curveAnimationReference': {
-				const curveAnimation = curveAnimations.find(candidate => candidate.id === binding.curveAnimationId);
-				return curveAnimation == null ? () => fallback : scope => evaluateCurveAnimation(curveAnimation, binding, scope.time, scope.endTime);
+			case 'curveAnimationInline': {
+				const { curveAnimation } = binding;
+				const curveBinding = curveAnimation.curveBinding;
+				const curve = curveBinding.source === 'inline' ? curveBinding.curve : functionCurves.find(candidate => candidate.id === curveBinding.curveId);
+				return curve == null ? () => fallback : scope => evaluateCurveAnimation(curveAnimation, curve, scope.time, scope.endTime);
 			}
-			case 'curveAnimationInline': return scope => evaluateCurveAnimation(binding.curveAnimation, binding, scope.time, scope.endTime);
 			case 'keyframesTimelineInline': return scope => evaluateKeyframesTimeline(binding.keyframesTimeline, binding, scope.time, scope.endTime, fallback);
 			default: throw new Error('Unsupported value parameter input source');
 		}

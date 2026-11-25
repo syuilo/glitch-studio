@@ -48,8 +48,8 @@
 						previewMediaInputEnabled
 						:availableVariables="EFFECT_LIVE_PREVIEW_VAR_DEFS"
 						:paramPath="[paramDef.id]"
-						:curveAnimations="[]"
-						:projectCurveAnimations="stateManager.state.curveAnimations.value"
+						:functionCurves="[]"
+						:projectFunctionCurves="stateManager.state.functionCurves.value"
 						:paramDef="paramDef"
 						:paramValue="previewParamValues[paramDef.id]"
 						@edit="onPreviewParamEdit"
