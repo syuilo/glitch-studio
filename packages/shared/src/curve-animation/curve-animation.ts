@@ -1,22 +1,10 @@
-export type BezierAnchorPoint = {
-	id: string;
-	x: number; // 時間(=Time)軸
-	y: number; // 値(=Value)軸
-	bezierControlPointA: [number, number];
-	bezierControlPointB: [number, number];
-};
+import type { FunctionCurve } from '../function-curve/function-curve.ts';
 
-export type CurveAnimationData = {
-	points: BezierAnchorPoint[];
-	isNormalized: boolean; // X軸が0~1に正規化されているかどうか。falseの場合はX軸単位がmsであるとみなす
-};
-
-export type CurveAnimation = CurveAnimationData & { id: string; nameForReference: string };
-
-export type CurveAnimationWrapMode = 'clamp' | 'repeat' | 'repeatMirrored';
-
-export type CurveAnimationPlaybackOptions = {
-	trimmedDurationMs: number | null; // isNormalizedの場合のみ使用。nullの場合は1000ms。
+export type CurveAnimation = {
+	curveBinding: { source: 'inline'; curve: FunctionCurve } | { source: 'reference'; curveId: string | null };
+	trimmedDurationMs: number | null; // Function CurveのX軸が正規化されている場合の再生時間(ms)
+	yRangeMin: number | null; // Function CurveのY軸が正規化されている場合の最小値
+	yRangeMax: number | null; // Function CurveのY軸が正規化されている場合の最大値
 	offsetMode: 'start' | 'end';
-	wrapMode: CurveAnimationWrapMode;
+	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored';
 };
