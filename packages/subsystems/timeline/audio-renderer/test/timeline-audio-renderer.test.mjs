@@ -304,7 +304,7 @@ test('mixes scene gains using local clocks independently of chunk boundaries', a
 // nameForReferenceが同じCurve Animationは所有者ごとに解決する。書き出しかどうかは両スコープへ明示的に渡す。
 test('isolates scene gain variables and Curve Animations from the audio layer scope', async () => {
 	const expression = expression => ({ inputSource: 'expression', expression });
-	const curveAnimation = value => ({ id: 'shared', nameForReference: 'shared', isXNormalized: true, isYNormalized: false,
+	const curveAnimation = value => ({ id: 'shared', nameForReference: 'shared', type: 'bezier', isXNormalized: true, isYNormalized: false,
 		points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
 	const renderer = new TimelineAudioRenderer(constant);
 	const clip = { sourceId: 'asset', sourceTiming: { startMs: 1000, sourceInMs: 0, sourceOutMs: 1600 - (1000), playbackRate: 1, loop: false }, startMs: 1400, endMs: 1600, gains: [{ sceneStartMs: 900,

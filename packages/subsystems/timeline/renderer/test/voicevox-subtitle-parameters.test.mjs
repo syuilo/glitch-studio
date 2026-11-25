@@ -56,7 +56,7 @@ test('evaluates Curve Animation and uses independent defaults', () => {
 	const other = createVoicevoxSubtitleParameterValues();
 	bindings.color.value[0] = 0;
 	assert.equal(other.color.value[0], 1);
-	bindings.outlineWidth = { inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'inline', curve: { isXNormalized: false, isYNormalized: false, points: [
+	bindings.outlineWidth = { inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'inline', curve: { type: 'bezier', isXNormalized: false, isYNormalized: false, points: [
 			{ id: 'a', x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 			{ id: 'b', x: 2000, y: 0.1, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 		] } }, yRangeMin: null, yRangeMax: null, offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null } };

@@ -1,3 +1,4 @@
+import { functionCurveSchema } from '../commands/parameter-contract-schemas.ts';
 import { isValidCurveAnimationYRange } from '@gs/shared/curve-animation/curve-animation.ts';
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { getEffectDefinitions } from './project-effects.ts';
@@ -167,15 +168,7 @@ function validateBinding(dataType: DataType, value: unknown): asserts value is E
 				break;
 			}
 			requireValid(curveBinding.source === 'inline');
-			const curve = object(curveBinding.curve);
-			requireValid(typeof curve.isXNormalized === 'boolean' && typeof curve.isYNormalized === 'boolean' && Array.isArray(curve.points));
-			const ids = new Set<string>();
-			for (const candidate of curve.points) {
-				const point = object(candidate);
-				requireValid(nonemptyString(point.id) && !ids.has(point.id) && finiteNumber(point.x) && finiteNumber(point.y)
-					&& components(point.bezierControlPointA, 2) && components(point.bezierControlPointB, 2));
-				ids.add(point.id);
-			}
+			requireValid(functionCurveSchema.safeParse(curveBinding.curve).success);
 			break;
 		}
 		case 'keyframesTimelineInline': {
@@ -350,7 +343,10 @@ export function prepareParameterBindingPaste(definition: ParameterDefinition, cl
 			} else if (currentBinding.inputSource === 'keyframesTimelineInline') {
 				for (const point of currentBinding.keyframesTimeline.keyframes) point.id = genId();
 			} else if (currentBinding.inputSource === 'curveAnimationInline' && currentBinding.curveAnimation.curveBinding.source === 'inline') {
-				for (const point of currentBinding.curveAnimation.curveBinding.curve.points) point.id = genId();
+				const { curve } = currentBinding.curveAnimation.curveBinding;
+				if (curve.type === 'bezier') {
+					for (const point of curve.points) point.id = genId();
+				}
 			} else if (currentBinding.inputSource === 'literal' && currentDefinition.dataType.kind === 'colorRamp') {
 				for (const stop of currentBinding.value.stops) stop.id = genId();
 			}

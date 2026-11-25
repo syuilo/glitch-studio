@@ -39,6 +39,8 @@ Command:setNodesEffectNodeParameterSource({
 
 ## Command
 
+共有の固定カーブは、たとえば `Command:createProjectFunctionCurve({ nameForReference: "flash", data: { type: "pulse", dutyCycle: 0.25 } })` で作成できます。
+
 編集は`Command:<Command名>({ ...入力... })`で行います。名前・入力・戻り値はUIが利用するCommandと共通です。例えば`Command:createNodesEffect`は`{ nodesEffectId }`を返し、そのまま次のCommandの`nodesEffect`へ渡せます。戻り値のないCommandは`null`を返します。引数オブジェクトは必須なので、既定値だけで作る場合も`Command:createNodesEffect({})`と書きます。
 
 利用可能な名前と説明は実行中のアプリから取得できます。

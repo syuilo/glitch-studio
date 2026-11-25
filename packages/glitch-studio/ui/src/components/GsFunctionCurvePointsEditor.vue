@@ -229,7 +229,7 @@ const seekBarPos = computed(() => {
 	return valueXToDomX(currentValueX.value);
 });
 const currentValue = computed(() => {
-	return evaluateFunctionCurve({ points: ppints.value }, currentValueX.value, 'clamp');
+	return evaluateFunctionCurve({ type: 'bezier', points: ppints.value, isXNormalized: props.isXNormalized, isYNormalized: props.isYNormalized }, currentValueX.value, 'clamp');
 });
 const valueBarPos = computed(() => {
 	return valueYToDomY(currentValue.value);

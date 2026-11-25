@@ -88,7 +88,7 @@ function fixture(t, timeline = null) {
 // Nodes Effectの値を保存するたびに新しい表示モデルが渡る。ドラッグ中の各保存でウィンドウが閉じると次の点編集に進めない。
 test('keeps the inline Function Curve editor open through Nodes Effect view updates', async t => {
 	const f = fixture(t);
-	const curve = { isXNormalized: true, isYNormalized: true, points: [
+	const curve = { type: 'bezier', isXNormalized: true, isYNormalized: true, points: [
 		{ id: 'point', x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 	] };
 	const nodesEffect = { paramDefs: [], customParameterDefs: [], customParameterValues: {}, functionCurves: [], nodes: [] };
@@ -105,7 +105,7 @@ test('keeps the inline Function Curve editor open through Nodes Effect view upda
 
 	for (const y of [0.25, 0.5]) {
 		const points = [{ ...curve.points[0], y }];
-		editor.props.onChange(points, 'point-drag');
+		editor.props.onChange({ ...curve, points }, 'point-drag');
 		const edit = f.edits.at(-1);
 		assert.equal(edit.mergeKey, 'point-drag');
 		f.props.paramValue = edit.value;
@@ -114,6 +114,14 @@ test('keeps the inline Function Curve editor open through Nodes Effect view upda
 		assert.ok(f.find('data-test-inline-function-curve-editor') === editor);
 		assert.equal(editor.props.functionCurve.points[0].y, y);
 	}
+
+	const fixedCurve = { type: 'steps', levelCount: 4 };
+	editor.props.onChange(fixedCurve, null);
+	f.props.paramValue = f.edits.at(-1).value;
+	await nextTick();
+	assert.equal(f.find('data-test-inline-function-curve-editor'), editor);
+	assert.deepEqual(editor.props.functionCurve, fixedCurve);
+	assert.equal(f.props.paramValue.curveAnimation.trimmedDurationMs, 1000);
 
 	f.props.paramPath = ['anotherParameter'];
 	await nextTick();

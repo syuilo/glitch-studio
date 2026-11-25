@@ -11,32 +11,41 @@
 
 		<div v-if="tab === 'functionCurve'" :class="$style.editor">
 			<GsFunctionCurvePointsEditor
+				v-if="selectedFunctionCurve.type === 'bezier'"
 				:key="selectedFunctionCurve.id + String(selectedFunctionCurve.isXNormalized) + String(selectedFunctionCurve.isYNormalized)"
 				:points="selectedFunctionCurve.points"
 				:isXNormalized="selectedFunctionCurve.isXNormalized"
 				:isYNormalized="selectedFunctionCurve.isYNormalized"
 				@change="updatePoints"
 			/>
+			<GsFixedFunctionCurvePreview v-else :curve="selectedFunctionCurve"/>
 		</div>
 		<div v-else-if="tab === 'settings'" class="_spacer _gaps_l">
 			<GsInput :key="selectedFunctionCurve.id" data-test-function-curve-reference-name monospace :manualSave="true" :modelValue="selectedFunctionCurve.nameForReference" @update:modelValue="setNameForReference">
 				<template #label>{{ i18n.ts._ParameterEditor.ReferenceName }}</template>
 			</GsInput>
 
-			<GsSelect
-				:modelValue="selectedFunctionCurve.isXNormalized ? 'normalized' : 'milliseconds'"
-				:items="timeAxisItems"
-				@update:modelValue="value => setXNormalized(value === 'normalized')"
-			>
-				<template #label>{{ i18n.ts._FunctionCurve.XAxis }}</template>
-			</GsSelect>
-			<GsSelect
-				:modelValue="selectedFunctionCurve.isYNormalized ? 'normalized' : 'raw'"
-				:items="valueAxisItems"
-				@update:modelValue="value => setYNormalized(value === 'normalized')"
-			>
-				<template #label>{{ i18n.ts._FunctionCurve.YAxis }}</template>
-			</GsSelect>
+			<GsFunctionCurveTypeEditor
+				:key="selectedFunctionCurve.id"
+				:curve="selectedFunctionCurve"
+				@change="replaceSelectedFunctionCurve"
+			/>
+			<template v-if="selectedFunctionCurve.type === 'bezier'">
+				<GsSelect
+					:modelValue="selectedFunctionCurve.isXNormalized ? 'normalized' : 'milliseconds'"
+					:items="timeAxisItems"
+					@update:modelValue="value => setXNormalized(value === 'normalized')"
+				>
+					<template #label>{{ i18n.ts._FunctionCurve.XAxis }}</template>
+				</GsSelect>
+				<GsSelect
+					:modelValue="selectedFunctionCurve.isYNormalized ? 'normalized' : 'raw'"
+					:items="valueAxisItems"
+					@update:modelValue="value => setYNormalized(value === 'normalized')"
+				>
+					<template #label>{{ i18n.ts._FunctionCurve.YAxis }}</template>
+				</GsSelect>
+			</template>
 
 			<GsButton icon="ti ti-copy" @click="addFunctionCurve(selectedFunctionCurve)">{{ i18n.ts.Duplicate }}</GsButton>
 
@@ -56,8 +65,10 @@ import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsFunctionCurvePointsEditor from './GsFunctionCurvePointsEditor.vue';
+import GsFunctionCurveTypeEditor from './GsFunctionCurveTypeEditor.vue';
+import GsFixedFunctionCurvePreview from './GsFixedFunctionCurvePreview.vue';
 import GsTabs from './common/GsTabs.vue';
-import type { SharedFunctionCurve, BezierAnchorPoint } from '@gs/shared/function-curve/function-curve.ts';
+import type { SharedFunctionCurve, BezierAnchorPoint, FunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 import type { WorkspacePanel } from '@/workspace.ts';
 import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
@@ -115,22 +126,32 @@ function removeFunctionCurve() {
 	if (selectedFunctionCurve.value != null) stateManager.commit('removeProjectFunctionCurve', { functionCurveId: selectedFunctionCurve.value.id });
 }
 
+function replaceSelectedFunctionCurve(curve: FunctionCurve, mergeKey: string | null = null) {
+	const selected = selectedFunctionCurve.value;
+	if (selected == null) return;
+	stateManager.commit('replaceProjectFunctionCurve', {
+		functionCurveId: selected.id,
+		definition: { ...curve, nameForReference: selected.nameForReference },
+	}, mergeKey);
+}
+
 function updatePoints(points: BezierAnchorPoint[], mergeKey: string | null) {
-	if (selectedFunctionCurve.value != null) stateManager.commit('replaceProjectFunctionCurve', { functionCurveId: selectedFunctionCurve.value.id, definition: { ...selectedFunctionCurve.value, points } }, mergeKey);
+	const curve = selectedFunctionCurve.value;
+	if (curve?.type === 'bezier') replaceSelectedFunctionCurve({ ...curve, points }, mergeKey);
 }
 
 function setXNormalized(isXNormalized: boolean) {
 	const functionCurve = selectedFunctionCurve.value;
-	if (functionCurve == null || functionCurve.isXNormalized === isXNormalized) return;
+	if (functionCurve?.type !== 'bezier' || functionCurve.isXNormalized === isXNormalized) return;
 	const converted = setFunctionCurveXNormalized(functionCurve, isXNormalized, null);
-	stateManager.commit('replaceProjectFunctionCurve', { functionCurveId: functionCurve.id, definition: { ...functionCurve, ...converted.functionCurve } });
+	replaceSelectedFunctionCurve(converted.functionCurve);
 }
 
 function setYNormalized(isYNormalized: boolean) {
 	const functionCurve = selectedFunctionCurve.value;
-	if (functionCurve == null || functionCurve.isYNormalized === isYNormalized) return;
+	if (functionCurve?.type !== 'bezier' || functionCurve.isYNormalized === isYNormalized) return;
 	// 共有定義の座標を維持する。出力範囲は利用側の各Curve Animationが所有する。
-	stateManager.commit('replaceProjectFunctionCurve', { functionCurveId: functionCurve.id, definition: { ...functionCurve, isYNormalized } });
+	replaceSelectedFunctionCurve({ ...functionCurve, isYNormalized });
 }
 </script>
 

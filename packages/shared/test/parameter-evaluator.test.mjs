@@ -17,6 +17,7 @@ async function loadSource(name) {
 	new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 	return module.exports;
 }
+const { evaluateFunctionCurve } = await loadSource('function-curve/function-curve-evaluator');
 const { ParameterBindingEvaluator } = await loadSource('parameter/parameter-binding-evaluator');
 const { inspectStaticParameter, staticParameterShape, validateParameterDefaultValues } = await loadSource('parameter/static-parameter');
 
@@ -304,7 +305,7 @@ test('applies normalized timing end alignment and wrapping to discrete keyframes
 });
 
 const rampFunctionCurve = (isNormalized = true) => ({
-	id: 'ramp-id', nameForReference: 'ramp', isXNormalized: isNormalized, isYNormalized: false,
+	id: 'ramp-id', nameForReference: 'ramp', type: 'bezier', isXNormalized: isNormalized, isYNormalized: false,
 	// 配列順に依存せず終端を取得できることも確認する。
 	points: [curveAnimationPoint(isNormalized ? 1 : 2000, 10), curveAnimationPoint(0, 0)],
 });
@@ -462,6 +463,40 @@ test('scales normalized Y per Curve Animation while exposing raw samples in expr
 	assert.equal(evaluateCurveAnimationInput('inline', functionCurve, { yRangeMin: 7, yRangeMax: 7 }), 7);
 	assert.equal(evaluateCurveAnimationInput('inline', { ...functionCurve, points: [] }, { yRangeMin: 10, yRangeMax: 20 }), 10);
 	assertClose(evaluateCurveAnimationInput('inline', { ...functionCurve, isYNormalized: false }, { time: 2000, yRangeMin: 10, yRangeMax: 20 }), 1.2);
+});
+
+// 【固定カーブを固有の形と境界で評価する】
+// パルスとステップの境界は値が切り替わる位置であり、ループ中も最終ステップが表示されることを確認する。
+test('evaluates all fixed Function Curve shapes and their boundaries', () => {
+	const samples = (curve, xs, wrapMode = 'clamp') => xs.map(x => evaluateFunctionCurve(curve, x, wrapMode));
+	assert.deepEqual(samples({ type: 'linear' }, [-1, 0.25, 2]), [0, 0.25, 1]);
+	assert.deepEqual(samples({ type: 'linear' }, [-0.25, 1, 1.25], 'repeat'), [0.75, 0, 0.25]);
+	assert.deepEqual(samples({ type: 'linear' }, [-0.25, 1, 1.25], 'repeatMirrored'), [0.25, 1, 0.75]);
+	assert.deepEqual(samples({ type: 'smoothstep' }, [0, 0.25, 1]), [0, 0.15625, 1]);
+	assert.deepEqual(samples({ type: 'smootherstep' }, [0, 0.25, 1]), [0, 0.103515625, 1]);
+	assert.deepEqual(samples({ type: 'easing', family: 'quad', direction: 'out' }, [0, 0.25, 1]), [0, 0.4375, 1]);
+	assert.ok(evaluateFunctionCurve({ type: 'easing', family: 'back', direction: 'out' }, 0.75, 'clamp') > 1);
+	assert.deepEqual(samples({ type: 'smoothPulse' }, [-1, 0, 0.5, 1, 2]), [0, 0, 1, 0, 0]);
+	assert.deepEqual(samples({ type: 'pulse', dutyCycle: 0.5 }, [0, 0.25, 0.749, 0.75, 1]), [0, 1, 1, 0, 0]);
+	assert.deepEqual(samples({ type: 'pulse', dutyCycle: 0 }, [0, 0.5, 1]), [0, 0, 0]);
+	assert.deepEqual(samples({ type: 'pulse', dutyCycle: 1 }, [0, 0.5, 1]), [1, 1, 1]);
+	assert.deepEqual(samples({ type: 'steps', levelCount: 4 }, [0, 0.25, 0.5, 0.75, 0.999, 1], 'repeat'), [0, 1 / 3, 2 / 3, 1, 1, 0]);
+	assert.deepEqual(samples({ type: 'sineWave' }, [0, 0.25, 0.75, 1]), [0.5, 1, 0, 0.5]);
+	assert.deepEqual(samples({ type: 'deadZone', deadZoneWidth: 0.5 }, [0, 0.125, 0.25, 0.5, 0.75, 0.875, 1]), [0, 0.25, 0.5, 0.5, 0.5, 0.75, 1]);
+	assert.deepEqual(samples({ type: 'deadZone', deadZoneWidth: 0 }, [0, 0.25, 1]), [0, 0.25, 1]);
+	assert.deepEqual(samples({ type: 'deadZone', deadZoneWidth: 1 }, [0, 0.25, 1]), [0.5, 0.5, 0.5]);
+});
+
+// 【固定カーブを式と再生に利用する】
+// 固定カーブの終端Xは1。式からは曲線座標を取得し、再生時の終了基準と出力範囲はCurve Animationが解決する。
+test('samples a shared fixed curve from expressions and maps it through end-aligned playback', () => {
+	const curve = { type: 'linear', id: 'ramp-id', nameForReference: 'ramp' };
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
+	const scope = context({ functionCurves: [curve], time: 3500, endTime: 5000 });
+	const binding = curveAnimationInput('reference', curve, { offsetMode: 'end', yRangeMin: 10, yRangeMax: 30 });
+	assert.equal(evaluator.evaluate(expression('FUNCTION_CURVE("ramp", 0.25, "clamp")'), scope, -1, scalarDefinition), 0.25);
+	assert.equal(evaluator.evaluate(binding, scope, -1, scalarDefinition), 15);
+	assert.equal(evaluator.evaluate(binding, { ...scope, time: 5000 }, -1, scalarDefinition), 30);
 });
 
 // 【逆順のY範囲を静的検証で拒否する】

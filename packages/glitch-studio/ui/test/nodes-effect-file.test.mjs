@@ -61,7 +61,7 @@ function fixture() {
 			audio: { ...parameter('audioSource'), nameForReference: 'audio' } },
 		outputSources: { output: { nodeId: 'relay', outputPort: 'output' } },
 		primaryInputParameter: 'input', primaryAudioInputParameter: 'audio', resolutionInputParameters: ['input'],
-		functionCurves: [{ id: 'curve-animation', nameForReference: 'curve-animation', isXNormalized: true, isYNormalized: false, points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }],
+		functionCurves: [{ id: 'curve-animation', nameForReference: 'curve-animation', type: 'bezier', isXNormalized: true, isYNormalized: false, points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }],
 	});
 	const assets = [asset('video', 'video/mp4'), asset('nested-image'), asset('font', 'font/ttf'), asset('default-image'), asset('template-image'), asset('template-font', 'font/otf'), asset('unused')];
 	const input = { name: 'Source Nodes Effect', nodesEffects: [], customShaderEffects: [], nodeMetadata: { effect: { displayName: 'Resource Node', position: { x: 3, y: 4 } } }, gsVersion: '2.0.0-alpha.1', nodesEffect, assets };

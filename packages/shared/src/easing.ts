@@ -1,5 +1,15 @@
-export type EasingFamily = 'sine' | 'quad' | 'cubic' | 'quart' | 'quint' | 'expo' | 'circ' | 'back' | 'elastic' | 'bounce';
-export type EasingDirection = 'in' | 'out' | 'inOut';
+export const EASING_FAMILIES = ['sine', 'quad', 'cubic', 'quart', 'quint', 'expo', 'circ', 'back', 'elastic', 'bounce'] as const;
+export type EasingFamily = typeof EASING_FAMILIES[number];
+export const EASING_DIRECTIONS = ['in', 'out', 'inOut'] as const;
+export type EasingDirection = typeof EASING_DIRECTIONS[number];
+
+export function smoothstep(progress: number): number {
+	return progress * progress * (3 - 2 * progress);
+}
+
+export function smootherstep(progress: number): number {
+	return progress ** 3 * (progress * (progress * 6 - 15) + 10);
+}
 
 // Bounceは着地後の跳ね返り（Out）を区分的な放物線で表すと分かりやすいため、
 // この関数だけOutで記述し、系統の基準曲線を返す際にInへ反転する。

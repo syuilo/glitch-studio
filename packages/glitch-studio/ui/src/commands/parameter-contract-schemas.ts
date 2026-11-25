@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { EASING_FAMILIES, EASING_DIRECTIONS } from '@gs/shared/easing.ts';
 import { SIZE_REFERENCES } from '@gs/shared/size-reference.ts';
 import { COLOR_RAMP_INTERPOLATIONS } from '@gs/shared/color-ramp.ts';
 import { colorBlendModes } from '@gs/shared/color-blend.ts';
@@ -32,15 +33,32 @@ export const dataTypeSchema: z.ZodType<DataType> = z.lazy(() => z.union([
 
 export const parameterExpressionModifierSchema = z.object({ enabled: z.boolean(), code: z.string() })
 	.describe('AiScript expression applied after the input value. null or omission means no modifier.');
-export const functionCurvePointSchema = z.object({
-	id: z.string(), x: z.number(), y: z.number(), bezierControlPointA: vectorValueSchema, bezierControlPointB: vectorValueSchema,
+const functionCurvePointSchema = z.object({
+	id: z.string().min(1), x: z.number(), y: z.number(), bezierControlPointA: vectorValueSchema, bezierControlPointB: vectorValueSchema,
 });
-export const functionCurveSchema = z.object({
-	points: z.array(functionCurvePointSchema),
+const bezierFunctionCurveSchema = z.object({
+	type: z.literal('bezier'),
+	points: z.array(functionCurvePointSchema).refine(points => new Set(points.map(point => point.id)).size === points.length, { message: 'Duplicate Function Curve point ID' }),
 	isXNormalized: z.boolean().describe('X uses normalized coordinates when true.'),
 	isYNormalized: z.boolean().describe('Y uses normalized coordinates when true. Values outside 0 to 1 are valid.'),
 });
-export const sharedFunctionCurveSchema = functionCurveSchema.extend({ id: z.string(), nameForReference: z.string() });
+const fixedFunctionCurveSchemas = [
+	z.object({ type: z.literal('linear') }),
+	z.object({ type: z.literal('smoothstep') }),
+	z.object({ type: z.literal('smootherstep') }),
+	z.object({ type: z.literal('easing'), family: z.enum(EASING_FAMILIES), direction: z.enum(EASING_DIRECTIONS) }),
+	z.object({ type: z.literal('smoothPulse') }),
+	z.object({ type: z.literal('pulse'), dutyCycle: z.number().min(0).max(1).describe('Fraction of the interval spent at 1, centered at X = 0.5.') }),
+	z.object({ type: z.literal('steps'), levelCount: z.number().int().min(2).describe('Number of equally wide levels, including 0 and 1.') }),
+	z.object({ type: z.literal('sineWave') }),
+	z.object({ type: z.literal('deadZone'), deadZoneWidth: z.number().min(0).max(1).describe('Width of the plateau at Y = 0.5, centered at X = 0.5.') }),
+] as const;
+export const functionCurveSchema = z.discriminatedUnion('type', [bezierFunctionCurveSchema, ...fixedFunctionCurveSchemas]);
+export const newFunctionCurveSchema = z.discriminatedUnion('type', [
+	bezierFunctionCurveSchema.extend({ points: z.array(functionCurvePointSchema.omit({ id: true })) }),
+	...fixedFunctionCurveSchemas,
+]);
+export const sharedFunctionCurveSchema = z.intersection(functionCurveSchema, z.object({ id: z.string(), nameForReference: z.string() }));
 export const parameterPlaybackShape = {
 	trimmedDurationMs: z.number().nullable().describe('Duration in milliseconds for normalized data; null means 1000 ms.'),
 	offsetMode: z.enum(['start', 'end']), wrapMode: z.enum(['clamp', 'repeat', 'repeatMirrored']),

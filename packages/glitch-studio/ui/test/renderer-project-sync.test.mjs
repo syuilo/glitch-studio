@@ -573,7 +573,7 @@ test('synchronizes camera layer edits and undo without replacing other layers', 
 
 const { getAvailableFunctionCurves, getTimelineScenesWithProjectFunctionCurves, ParameterBindingEvaluator,
 	TimelineAudioRenderer, getSceneAudioClips, createProjectFunctionCurve, encodeProjectFile, decodeProjectFile } = module.exports;
-const sharedCurveAnimation = (id = 'shared', nameForReference = 'Curve', value = null) => ({ id, nameForReference, isXNormalized: false, isYNormalized: false,
+const sharedCurveAnimation = (id = 'shared', nameForReference = 'Curve', value = null) => ({ id, nameForReference, type: 'bezier', isXNormalized: false, isYNormalized: false,
 	points: [0, 1000].map((x, index) => ({ id: id + index, x, y: value ?? index, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] })),
 });
 const functionCurveReference = id => ({ inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'reference', curveId: id }, yRangeMin: null, yRangeMax: null, trimmedDurationMs: null, wrapMode: 'clamp', offsetMode: 'start' } });

@@ -27,6 +27,7 @@ const effect = { id: 'test', displayName: 'Test', kind: 'modify', primaryInputPa
 const bundle = await build({ absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
 		export { default as Parameter } from './src/components/GsVisualParam.vue';
+		export { default as FunctionCurveTypeEditor } from './src/components/GsFunctionCurveTypeEditor.vue';
 		export { default as NodeSettings } from './src/components/GsEffectNode.vue';
 		export { default as LayerSettings } from './src/components/GsTimeline.EffectSettings.vue';
 		export { preferences } from './src/preferences.ts';
@@ -41,7 +42,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 			app: 'export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: { state: { resolution: { value: { width: 1920, height: 1080 } }, functionCurves: { value: [] } } } } };',
 			ui: 'export function popupMenu() {} export function popup() {} export function contextMenu() {} export function alert() {} export async function inputText() { return { canceled: true }; }',
 		}[path] }));
-		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsVisualParam\.vue$|GsEffectNode\.vue$|GsEffectParameterLayout\.vue$|GsTimeline\.EffectSettings\.vue$/.test(path) ? null : { path: basename(path), namespace: 'control' });
+		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsVisualParam\.vue$|GsFunctionCurveTypeEditor\.vue$|GsEffectNode\.vue$|GsEffectParameterLayout\.vue$|GsTimeline\.EffectSettings\.vue$/.test(path) ? null : { path: basename(path), namespace: 'control' });
 		build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ loader: 'ts', contents: `
 			import { h } from 'vue'; export default { inheritAttrs: false, setup(_, { attrs, slots }) {
 				return () => h('control', attrs, Object.values(slots).flatMap(slot => slot()));
@@ -55,7 +56,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { Parameter, NodeSettings, LayerSettings, preferences } = module.exports;
+const { Parameter, FunctionCurveTypeEditor, NodeSettings, LayerSettings, preferences } = module.exports;
 const element = tag => ({ tag, children: [], parent: null, props: {}, style: {} });
 const renderer = createRenderer({
 	createElement: element, createText: () => element('text'), createComment: () => element('comment'), querySelector: () => element('body'),
@@ -92,8 +93,32 @@ function fixture(t, component, initialProps) {
 		}
 		return visit(root);
 	};
-	return { props, paths, section };
+	const find = (node, attribute) => Object.hasOwn(node.props, attribute) ? node : node.children.map(child => find(child, attribute)).find(child => child != null) ?? null;
+	return { props, paths, section, find: attribute => find(root, attribute) };
 }
+
+// 【カーブの種類をUIから切り替え、種類に応じた設定を編集する】
+// 固定カーブにはその種類の設定だけを保存し、ベジェへ切り替えると編集可能な点を作る。
+test('switches Function Curve types and edits the selected fixed curve settings', async t => {
+	const edits = [];
+	const f = fixture(t, FunctionCurveTypeEditor, { curve: { type: 'linear' }, onChange: curve => edits.push(curve) });
+	const select = () => f.find('data-test-function-curve-type').props;
+	assert.equal(select().modelValue, 'linear');
+	assert.deepEqual(select().items.map(item => item.value), ['bezier', 'linear', 'smoothstep', 'smootherstep', 'easing', 'smoothPulse', 'pulse', 'steps', 'sineWave', 'deadZone']);
+	select()['onUpdate:modelValue']('steps');
+	assert.deepEqual(edits.at(-1), { type: 'steps', levelCount: 4 });
+	f.props.curve = edits.at(-1);
+	await nextTick();
+	const levelCount = f.find('data-test-function-curve-numeric-setting').props;
+	assert.equal(levelCount.modelValue, 4);
+	levelCount['onUpdate:modelValue'](6);
+	assert.deepEqual(edits.at(-1), { type: 'steps', levelCount: 6 });
+	select()['onUpdate:modelValue']('easing');
+	assert.deepEqual(edits.at(-1), { type: 'easing', family: 'sine', direction: 'inOut' });
+	select()['onUpdate:modelValue']('bezier');
+	assert.equal(edits.at(-1).type, 'bezier');
+	assert.deepEqual(edits.at(-1).points.map(point => point.x), [0, 1]);
+});
 
 for (const target of ['node', 'layer']) {
 	// 【エフェクトの両編集画面で設定を共有し、配置順の表示と変更済みの強制表示を保つ】

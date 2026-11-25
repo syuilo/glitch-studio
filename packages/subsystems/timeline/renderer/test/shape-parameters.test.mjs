@@ -96,7 +96,7 @@ test('evaluates inline Curve Animations and restores defaults for missing refere
 	const other = createShape('ellipse');
 	shape.paramValues.size.value[0] = 0.8;
 	assert.deepEqual(other.paramValues.size.value, [0.5, 0.5]);
-	shape.paramValues.rotation = { inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'inline', curve: { isXNormalized: false, isYNormalized: false, points: [
+	shape.paramValues.rotation = { inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'inline', curve: { type: 'bezier', isXNormalized: false, isYNormalized: false, points: [
 			{ id: 'a', x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 			{ id: 'b', x: 2000, y: 1, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 		] } }, yRangeMin: null, yRangeMax: null, offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null } };

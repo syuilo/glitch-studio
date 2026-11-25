@@ -7,10 +7,10 @@ import { createProjectFunctionCurve } from '../utility/curve-animation.ts';
 import { defineCommand, definePublicCommand, withCommandContract } from './definition.ts';
 import { prepareProjectValueChange } from './prepared-value.ts';
 import { projectResolutionSchema, timelineMotionBlurSettingsSchema, functionCurveDefinitionSchema } from './project-contract-schemas.ts';
-import { functionCurvePointSchema } from './parameter-contract-schemas.ts';
+import { newFunctionCurveSchema } from './parameter-contract-schemas.ts';
 import type { ExportDialogSettings } from '../export/export-settings.ts';
 import type { ProjectState } from '../Project.ts';
-import type { FunctionCurve, SharedFunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
+import type { SharedFunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 
 function projectTextCommand<Field extends 'name' | 'description' | 'author'>(field: Field, label: string) {
 	return withCommandContract(defineCommand<Record<Field, string>>({
@@ -87,22 +87,7 @@ const setProjectResolution = definePublicCommand({
 	},
 });
 
-function validateFunctionCurveData(data: FunctionCurve): void {
-	if (typeof data.isXNormalized !== 'boolean' || typeof data.isYNormalized !== 'boolean' || !Array.isArray(data.points)) throw new Error('Invalid Function Curve data');
-	const ids = new Set<string>();
-	for (const point of data.points) {
-		if (typeof point.id !== 'string' || point.id.length === 0 || ids.has(point.id)) throw new Error('Invalid or duplicate Function Curve point ID');
-		ids.add(point.id);
-		if (!Number.isFinite(point.x) || !Number.isFinite(point.y)
-			|| !Array.isArray(point.bezierControlPointA) || point.bezierControlPointA.length !== 2 || !point.bezierControlPointA.every(Number.isFinite)
-			|| !Array.isArray(point.bezierControlPointB) || point.bezierControlPointB.length !== 2 || !point.bezierControlPointB.every(Number.isFinite)) {
-			throw new Error('Function Curve points must contain finite coordinates');
-		}
-	}
-}
-
 function prepareFunctionCurveCreation(state: ProjectState, functionCurve: SharedFunctionCurve) {
-	validateFunctionCurveData(functionCurve);
 	validateProjectFunctionCurveName(state.functionCurves.value, functionCurve);
 	const saved = deepClone(functionCurve);
 	return { result: { functionCurveId: saved.id }, change: {
@@ -116,20 +101,17 @@ const createProjectFunctionCurveCommand = definePublicCommand({
 	label: 'Create project Function Curve',
 	inputSchema: z.object({
 		nameForReference: z.string().nullish().describe('Omit or pass null to generate a unique name based on my_function_curve.'),
-		data: z.object({ isXNormalized: z.boolean(), isYNormalized: z.boolean(), points: z.array(functionCurvePointSchema.omit({ id: true })) }).nullish()
-			.describe('Omit or pass null for the default Function Curve. The normalization flags describe the X and Y coordinate systems. Point IDs are generated.'),
+		data: newFunctionCurveSchema.nullish().describe('Omit or pass null for the default Bézier Function Curve. Bézier point IDs are generated.'),
 	}), resultSchema: z.object({ functionCurveId: z.string() }),
 	description: 'Create a project Function Curve and return its reference. The supplied reference name must be valid and unique in the project.',
-	examples: ['let functionCurve = Command:createProjectFunctionCurve({ nameForReference: "brightness" })\n<: Query:getProjectFunctionCurve(functionCurve)'],
+	examples: ['let functionCurve = Command:createProjectFunctionCurve({ nameForReference: "brightness", data: { type: "smoothPulse" } })\n<: Query:getProjectFunctionCurve(functionCurve)'],
 	prepare(state, input) {
-		const functionCurve = createProjectFunctionCurve(state.functionCurves.value);
-		if (input.nameForReference != null) functionCurve.nameForReference = input.nameForReference;
-		if (input.data != null) {
-			functionCurve.isXNormalized = input.data.isXNormalized;
-			functionCurve.isYNormalized = input.data.isYNormalized;
-			functionCurve.points = input.data.points.map(point => ({ ...deepClone(point), id: genId() }));
-		}
-		return prepareFunctionCurveCreation(state, functionCurve);
+		const defaultCurve = createProjectFunctionCurve(state.functionCurves.value);
+		const data = input.data;
+		const functionCurve = data == null ? defaultCurve : data.type === 'bezier'
+			? { ...data, points: data.points.map(point => ({ ...point, id: genId() })) }
+			: data;
+		return prepareFunctionCurveCreation(state, { ...functionCurve, id: defaultCurve.id, nameForReference: input.nameForReference ?? defaultCurve.nameForReference });
 	},
 });
 
@@ -137,7 +119,7 @@ const duplicateProjectFunctionCurve = definePublicCommand({
 	label: 'Duplicate project Function Curve',
 	inputSchema: z.object({ functionCurveId: z.string().min(1), nameForReference: z.string().nullish() }),
 	resultSchema: z.object({ functionCurveId: z.string() }),
-	description: 'Duplicate a project Function Curve and generate new IDs for the copy and all its points. Omit nameForReference or pass null to generate a unique name from the original.',
+	description: 'Duplicate a project Function Curve and generate a new ID for the copy and for any Bézier points. Omit nameForReference or pass null to generate a unique name from the original.',
 	examples: ['let functionCurve = Command:createProjectFunctionCurve({})\nlet copy = Command:duplicateProjectFunctionCurve(functionCurve)'],
 	prepare(state, input) {
 		const source = state.functionCurves.value.find(functionCurve => functionCurve.id === input.functionCurveId);
@@ -152,13 +134,12 @@ const replaceProjectFunctionCurve = definePublicCommand({
 	label: 'Replace project Function Curve',
 	inputSchema: z.object({ functionCurveId: z.string().min(1), definition: functionCurveDefinitionSchema }),
 	resultSchema: z.null(),
-	description: 'Replace the reference name and curve data of a project Function Curve while preserving its ID. Supply all curve data and stable point IDs.',
-	examples: ['let functionCurve = Command:createProjectFunctionCurve({})\nCommand:replaceProjectFunctionCurve({ functionCurveId: functionCurve.functionCurveId, definition: { nameForReference: "empty_function_curve", isXNormalized: true, isYNormalized: true, points: [] } })'],
+	description: 'Replace the reference name and curve data of a project Function Curve while preserving its ID. Supply all settings for the curve type. Preserve point IDs when editing Bézier points.',
+	examples: ['let functionCurve = Command:createProjectFunctionCurve({})\nCommand:replaceProjectFunctionCurve({ functionCurveId: functionCurve.functionCurveId, definition: { nameForReference: "empty_function_curve", type: "bezier", isXNormalized: true, isYNormalized: true, points: [] } })'],
 	prepare(state, { functionCurveId, definition }) {
 		const before = state.functionCurves.value.find(functionCurve => functionCurve.id === functionCurveId);
 		if (before == null) throw new Error('Function Curve not found');
 		const after = { ...definition, id: functionCurveId };
-		validateFunctionCurveData(after);
 		validateProjectFunctionCurveName(state.functionCurves.value, after);
 		return prepareProjectValueChange({
 			before,

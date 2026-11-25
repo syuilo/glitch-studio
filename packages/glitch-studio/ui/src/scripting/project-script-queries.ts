@@ -219,7 +219,7 @@ export const PROJECT_SCRIPT_QUERY_DEFINITIONS = {
 	}),
 	'Query:getProjectFunctionCurve': defineQuery({
 		argumentCount: 1, inputSchema: projectFunctionCurveReferenceSchema, resultSchema: projectFunctionCurveResultSchema,
-		description: 'Get a Project-level Function Curve with its points, Bezier handles and axis normalization flags. Returns stored curve data.',
+		description: 'Get a Project-level Function Curve with its type and settings, including points and axis normalization for Bézier. Returns stored curve data.',
 		examples: ['each (let functionCurve, Query:listProjectFunctionCurves()) { <: Query:getProjectFunctionCurve(functionCurve.target) }'],
 		execute(state, { functionCurveId }) {
 			const functionCurve = state.functionCurves.value.find(candidate => candidate.id === functionCurveId);

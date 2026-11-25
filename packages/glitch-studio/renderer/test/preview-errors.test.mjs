@@ -1695,7 +1695,7 @@ for (const [name, createManager] of [['effectLivePreview', createEffectLivePrevi
 for (const Manager of [EffectLivePreviewManager, TimelineRendererManager]) {
 	test(`${Manager.name} refreshes project Curve Animations without exposing them inside Nodes Effects`, async t => {
 		const { renderer, frame, errors } = await fixture(t, {}, Manager);
-		const curveAnimation = value => ({ id: 'shared-curve-animation', nameForReference: 'Curve', isXNormalized: false, isYNormalized: false,
+		const curveAnimation = value => ({ id: 'shared-curve-animation', nameForReference: 'Curve', type: 'bezier', isXNormalized: false, isYNormalized: false,
 			points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
 		const expression = { inputSource: 'expression', expression: '[FUNCTION_CURVE("Curve", TIME_MS, "clamp"), 0, 0, 1]' };
 		const observedColors = [];

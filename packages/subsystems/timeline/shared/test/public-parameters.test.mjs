@@ -91,7 +91,7 @@ test('retains explicit identity across renaming and unresolved references', () =
 // 【親の公開パラメータは親の時計・ローカルCurve Animation・加工式で評価する】
 // 子の同名Curve Animationや変数で親の値が変化せず、シーク順によらず現在時刻の値を再計算する。
 test('uses owner Curve Animations and scene time and does not retain values across seeks', () => {
-	const curveAnimation = value => ({ id: 'curve-animation', nameForReference: 'motion', isXNormalized: false, isYNormalized: false, points: [{ id: 'point', x: 0, y: value, handleLeft: null, handleRight: null }] });
+	const curveAnimation = value => ({ id: 'curve-animation', nameForReference: 'motion', type: 'bezier', isXNormalized: false, isYNormalized: false, points: [{ id: 'point', x: 0, y: value, handleLeft: null, handleRight: null }] });
 	const child = layer('child');
 	const parent = layer('parent', [scalar('speed')], { speed: { ...expression('FUNCTION_CURVE("motion", TIME_MS, "clamp") + TIME'), expressionModifier: { enabled: true, code: 'VALUE * 2' } } }, [child]);
 	parent.functionCurves = [curveAnimation(3)];

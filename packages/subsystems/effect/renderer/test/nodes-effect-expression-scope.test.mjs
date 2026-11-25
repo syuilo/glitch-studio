@@ -110,7 +110,7 @@ test('does not retain PUBLIC functions or local declarations between expressions
 // IDとnameForReferenceが同じCurve Animationでも所有者ごとに解決し、削除後は他スコープへフォールバックしない。
 test('isolates Curve Animation references and FUNCTION_CURVE functions without inheriting Curve Animations', () => {
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
-	const curveAnimation = value => ({ id: 'curve-animation', nameForReference: 'curve-animation', isXNormalized: true, isYNormalized: false, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
+	const curveAnimation = value => ({ id: 'curve-animation', nameForReference: 'curve-animation', type: 'bezier', isXNormalized: true, isYNormalized: false, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
 	const params = { ref: { inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'reference', curveId: 'curve-animation' }, yRangeMin: null, yRangeMax: null, trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' } }, named: expression('FUNCTION_CURVE("curve-animation", 0, "clamp")') };
 	const defs = [def('ref'), def('named')];
 	const external = externalValues(evaluator, defs, params, { ...layerScope, functionCurves: [curveAnimation(2)] });

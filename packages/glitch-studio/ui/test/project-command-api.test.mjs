@@ -67,7 +67,7 @@ test('retains successful project edits in one undo group after an asynchronous f
 // 同じポイントIDを共有すると、複製元の編集やUndoによって複製先へ意図しない変更が伝わり得る。
 test('duplicates Curve Animations with independent point IDs and stable redo', () => {
 	const { state, manager } = fixture();
-	const data = { isXNormalized: false, isYNormalized: false, points: [{ x: 0, y: 1, bezierControlPointA: [0, 0], bezierControlPointB: [1, 0] }] };
+	const data = { type: 'bezier', isXNormalized: false, isYNormalized: false, points: [{ x: 0, y: 1, bezierControlPointA: [0, 0], bezierControlPointB: [1, 0] }] };
 	const original = manager.commit('createProjectFunctionCurve', { nameForReference: 'curve', data });
 	const duplicated = manager.commit('duplicateProjectFunctionCurve', original);
 	const source = state.functionCurves.value[0];
@@ -80,6 +80,28 @@ test('duplicates Curve Animations with independent point IDs and stable redo', (
 	assert.equal(source.points[0].y, 1);
 	manager.undo(); manager.redo();
 	assert.deepEqual(state.functionCurves.value[1], copy);
+});
+
+// 【共有の固定カーブをCommandで作成・複製・型変更できる】
+// 型変更後もIDを維持して参照を解決できるようにする。無効な設定は保存せず、Undoでは元の型と設定を復元する。
+test('creates, duplicates and replaces fixed Function Curves through the public contracts', () => {
+	const { state, manager } = fixture();
+	const original = manager.commit('createProjectFunctionCurve', { nameForReference: 'flash', data: { type: 'pulse', dutyCycle: 0.25 } });
+	const duplicate = manager.commit('duplicateProjectFunctionCurve', original);
+	assert.deepEqual(state.functionCurves.value, [
+		{ id: original.functionCurveId, nameForReference: 'flash', type: 'pulse', dutyCycle: 0.25 },
+		{ id: duplicate.functionCurveId, nameForReference: 'flash_2', type: 'pulse', dutyCycle: 0.25 },
+	]);
+	const change = { ...original, definition: { nameForReference: 'flash', type: 'steps', levelCount: 4 } };
+	manager.commit('replaceProjectFunctionCurve', change);
+	assert.deepEqual(state.functionCurves.value[0], { ...change.definition, id: original.functionCurveId });
+	for (const data of [{ type: 'steps', levelCount: 1 }, { type: 'steps', levelCount: 3.5 }, { type: 'pulse', dutyCycle: 1.1 }, { type: 'deadZone', deadZoneWidth: -0.1 }, { type: 'easing', family: 'quad' }]) {
+		assert.throws(() => manager.commit('createProjectFunctionCurve', { data }));
+	}
+	manager.undo();
+	assert.deepEqual(state.functionCurves.value[0], { id: original.functionCurveId, nameForReference: 'flash', type: 'pulse', dutyCycle: 0.25 });
+	manager.redo();
+	assert.deepEqual(state.functionCurves.value[0], { ...change.definition, id: original.functionCurveId });
 });
 
 // 【素材名の変更をUndoでき、同値設定ではRedoを消さない】

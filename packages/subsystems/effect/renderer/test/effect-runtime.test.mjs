@@ -145,7 +145,7 @@ test('evaluates nested public and custom scopes, modifiers, Curve Animation and 
 	const graph = { ...definition, paramDefs: { x: { ...scalar, nameForReference: 'amount' } },
 		customParameterDefs: { c: { ...scalar, nameForReference: 'shared' }, unused: { ...scalar, nameForReference: 'cycle' } },
 		customParameterValues: { c: expression('PUBLIC("amount") + FUNCTION_CURVE("constant", 0, "clamp")'), unused: expression('CUSTOM("cycle")') },
-		functionCurves: [{ id: 'g', nameForReference: 'constant', isXNormalized: false, isYNormalized: false, points: [{ x: 0, y: 3 }] }],
+		functionCurves: [{ id: 'g', nameForReference: 'constant', type: 'bezier', isXNormalized: false, isYNormalized: false, points: [{ x: 0, y: 3 }] }],
 		nodes: [{ id: 'draw', effectSource: native, resolution: { width: 16, height: 16 }, params: {
 			result: { ...expression('CUSTOM("shared")'), expressionModifier: { enabled: true, code: 'VALUE * 2' } },
 			gain: { inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'reference', curveId: 'g' }, yRangeMin: null, yRangeMax: null, ...play } },

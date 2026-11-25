@@ -174,7 +174,7 @@ test('coerces public string and enum references to scalar inputs', () => {
 });
 
 const rampFunctionCurve = (isNormalized = true) => ({
-	id: 'ramp-id', nameForReference: 'ramp', isXNormalized: isNormalized, isYNormalized: false,
+	id: 'ramp-id', nameForReference: 'ramp', type: 'bezier', isXNormalized: isNormalized, isYNormalized: false,
 	// 配列順に依存せず終端を取得できることも確認する。
 	points: [curveAnimationPoint(isNormalized ? 1 : 2000, 10), curveAnimationPoint(0, 0)],
 });

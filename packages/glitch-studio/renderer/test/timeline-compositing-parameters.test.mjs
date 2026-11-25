@@ -58,7 +58,7 @@ test('evaluates expressions and environment variables in layer context', () => {
 });
 
 const point = (x, y) => ({ id: `${x}`, x, y, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
-const curveAnimation = { id: 'ramp', nameForReference: 'ramp', isXNormalized: true, isYNormalized: false, points: [point(0, 0), point(1, 1)] };
+const curveAnimation = { id: 'ramp', nameForReference: 'ramp', type: 'bezier', isXNormalized: true, isYNormalized: false, points: [point(0, 0), point(1, 1)] };
 for (const source of ['inline', 'reference']) {
 	// duration・Scene開始基準・wrapを含めて、位置や回転も既存Curve Animationと同じ規約で動かす。
 	test(`evaluates timing and wrapping for ${source}`, () => {

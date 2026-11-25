@@ -1,12 +1,12 @@
 import { genId } from '@gs/shared/utility/id.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { DEFAULT_CURVE_ANIMATION_Y_RANGE_MIN, DEFAULT_CURVE_ANIMATION_Y_RANGE_MAX } from '@gs/shared/curve-animation/curve-animation.ts';
-import type { FunctionCurve, SharedFunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
+import type { BezierFunctionCurve, FunctionCurve, SharedFunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 
 type InlineCurveAnimation = Extract<ValueParameterBinding, { inputSource: 'curveAnimationInline' }>;
 
-export function setFunctionCurveXNormalized(curve: FunctionCurve, isXNormalized: boolean, durationMs: number | null) {
+export function setFunctionCurveXNormalized(curve: BezierFunctionCurve, isXNormalized: boolean, durationMs: number | null) {
 	const functionCurve = deepClone(curve);
 	let trimmedDurationMs = durationMs != null && Number.isFinite(durationMs) && durationMs > 0 ? durationMs : 1000;
 	if (functionCurve.isXNormalized === isXNormalized) return { functionCurve, trimmedDurationMs };
@@ -54,7 +54,7 @@ export function setFunctionCurveXNormalized(curve: FunctionCurve, isXNormalized:
 
 export function setInlineCurveAnimationXNormalized(input: InlineCurveAnimation, isXNormalized: boolean): InlineCurveAnimation {
 	const { curveAnimation } = input;
-	if (curveAnimation.curveBinding.source !== 'inline') return input;
+	if (curveAnimation.curveBinding.source !== 'inline' || curveAnimation.curveBinding.curve.type !== 'bezier') return input;
 	const { functionCurve, trimmedDurationMs } = setFunctionCurveXNormalized(curveAnimation.curveBinding.curve, isXNormalized, curveAnimation.trimmedDurationMs);
 	return { ...input, curveAnimation: { ...curveAnimation, curveBinding: { source: 'inline', curve: functionCurve }, trimmedDurationMs } };
 }
@@ -63,7 +63,7 @@ export function setInlineCurveAnimationYNormalized(input: InlineCurveAnimation, 
 	const { curveAnimation } = deepClone(input);
 	if (curveAnimation.curveBinding.source !== 'inline') return input;
 	const { curve } = curveAnimation.curveBinding;
-	if (curve.isYNormalized === isYNormalized) return input;
+	if (curve.type !== 'bezier' || curve.isYNormalized === isYNormalized) return input;
 	let min = curveAnimation.yRangeMin ?? DEFAULT_CURVE_ANIMATION_Y_RANGE_MIN;
 	let max = curveAnimation.yRangeMax ?? DEFAULT_CURVE_ANIMATION_Y_RANGE_MAX;
 	// 幅がゼロの範囲では非正規化の値を表現できないため、正規化に切り替えるときは既定の範囲へ戻す。
@@ -85,8 +85,9 @@ export function setInlineCurveAnimationYNormalized(input: InlineCurveAnimation, 
 	return { ...input, curveAnimation };
 }
 
-function createFunctionCurve(): FunctionCurve {
+function createBezierFunctionCurve(): BezierFunctionCurve {
 	return {
+		type: 'bezier',
 		isXNormalized: true,
 		isYNormalized: true,
 		points: [
@@ -108,11 +109,30 @@ function createFunctionCurve(): FunctionCurve {
 	};
 }
 
+export function createFunctionCurve(type: FunctionCurve['type']): FunctionCurve {
+	switch (type) {
+		case 'bezier': return createBezierFunctionCurve();
+		case 'easing': return { type, family: 'sine', direction: 'inOut' };
+		case 'pulse': return { type, dutyCycle: 0.5 };
+		case 'steps': return { type, levelCount: 4 };
+		case 'deadZone': return { type, deadZoneWidth: 0.2 };
+		default: return { type };
+	}
+}
+
+export function duplicateFunctionCurve(curve: FunctionCurve): FunctionCurve {
+	const copy = deepClone(curve);
+	if (copy.type === 'bezier') {
+		for (const point of copy.points) point.id = genId();
+	}
+	return copy;
+}
+
 export function createInlineCurveAnimation(): InlineCurveAnimation {
 	return {
 		inputSource: 'curveAnimationInline',
 		curveAnimation: {
-			curveBinding: { source: 'inline', curve: createFunctionCurve() },
+			curveBinding: { source: 'inline', curve: createBezierFunctionCurve() },
 			trimmedDurationMs: 1000,
 			yRangeMin: null,
 			yRangeMax: null,
@@ -127,7 +147,5 @@ export function createProjectFunctionCurve(functionCurves: readonly SharedFuncti
 	let nameForReference = baseName;
 	for (let suffix = 2; functionCurves.some(functionCurve => functionCurve.nameForReference === nameForReference); suffix++) nameForReference = `${baseName}_${suffix}`;
 	const id = genId();
-	if (source == null) return { ...createFunctionCurve(), id, nameForReference };
-	const curve = deepClone(source);
-	return { ...curve, id, nameForReference, points: curve.points.map(point => ({ ...point, id: genId() })) };
+	return { ...(source == null ? createBezierFunctionCurve() : duplicateFunctionCurve(source)), id, nameForReference };
 }

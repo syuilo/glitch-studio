@@ -71,7 +71,7 @@
 						>{{ i18n.ts._FunctionCurve.Edit }}</GsButton>
 						<GsButton v-if="selectedProjectFunctionCurve != null" @click="projectFunctionCurveEditorOpen = true">{{ i18n.ts._FunctionCurve.Edit }}</GsButton>
 						<GsSelect
-							v-if="inlineFunctionCurve != null"
+							v-if="inlineFunctionCurve?.type === 'bezier'"
 							:modelValue="inlineFunctionCurve.isXNormalized ? 'normalized' : 'milliseconds'"
 							:items="curveAnimationTimeAxisItems"
 							@update:modelValue="value => updateInlineCurveAnimationNormalization('x', value === 'normalized')"
@@ -79,7 +79,7 @@
 							<template #label>{{ i18n.ts._Parameter.TimeAxis }}</template>
 						</GsSelect>
 						<GsSelect
-							v-if="inlineFunctionCurve != null"
+							v-if="inlineFunctionCurve?.type === 'bezier'"
 							:modelValue="inlineFunctionCurve.isYNormalized ? 'normalized' : 'raw'"
 							:items="curveAnimationValueAxisItems"
 							@update:modelValue="value => updateInlineCurveAnimationNormalization('y', value === 'normalized')"
@@ -87,7 +87,7 @@
 							<template #label>{{ i18n.ts._FunctionCurve.YAxis }}</template>
 						</GsSelect>
 						<GsInput
-							v-if="activeFunctionCurve?.isXNormalized"
+							v-if="activeFunctionCurve != null && isFunctionCurveXNormalized(activeFunctionCurve)"
 							type="number"
 							manualSave
 							:min="1"
@@ -96,7 +96,7 @@
 						>
 							<template #label>{{ i18n.ts._Parameter.DurationMs }}</template>
 						</GsInput>
-						<template v-if="activeFunctionCurve?.isYNormalized">
+						<template v-if="activeFunctionCurve != null && isFunctionCurveYNormalized(activeFunctionCurve)">
 							<GsInput
 								type="number"
 								manualSave
@@ -219,19 +219,19 @@
 		</GsTextarea>
 	</div>
 	<Teleport to="body">
-		<GsFunctionCurvePointsEditorWindow
+		<GsFunctionCurveEditorWindow
 			v-if="projectFunctionCurveEditorOpen && selectedProjectFunctionCurve != null"
 			:functionCurve="selectedProjectFunctionCurve"
 			:title="i18n.ts._FunctionCurve.ProjectFunctionCurves + ': ' + selectedProjectFunctionCurve.nameForReference"
-			@change="updateProjectFunctionCurvePoints"
+			@change="updateProjectFunctionCurve"
 			@closed="projectFunctionCurveEditorOpen = false"
 		/>
-		<GsFunctionCurvePointsEditorWindow
+		<GsFunctionCurveEditorWindow
 			v-if="inlineFunctionCurveEditorOpen && inlineFunctionCurve != null"
 			data-test-inline-function-curve-editor
 			:functionCurve="inlineFunctionCurve"
 			:title="label ?? paramDef.ui.label"
-			@change="updateInlineCurveAnimationPoints"
+			@change="updateInlineFunctionCurve"
 			@closed="inlineFunctionCurveEditorOpen = false"
 		/>
 	</Teleport>
@@ -301,7 +301,7 @@ import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import GsSelect from './common/GsSelect.vue';
-import GsFunctionCurvePointsEditorWindow from './GsFunctionCurvePointsEditorWindow.vue';
+import GsFunctionCurveEditorWindow from './GsFunctionCurveEditorWindow.vue';
 import type { TimelineLowerLayerOutputBinding, TimelineAnotherLayerOutputBinding, TimelineLayerOutputStage } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 
@@ -333,8 +333,8 @@ import type { ExpressionVariableName } from '@gs/shared/expression/expression-en
 import type { ParamPath } from '@/utility/node-params.ts';
 import { DEFAULT_CURVE_ANIMATION_Y_RANGE_MIN, DEFAULT_CURVE_ANIMATION_Y_RANGE_MAX, isValidCurveAnimationYRange } from '@gs/shared/curve-animation/curve-animation.ts';
 import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
-import type { BezierAnchorPoint, SharedFunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
-import { genId } from '@gs/shared/utility/id.ts';
+import { isFunctionCurveXNormalized, isFunctionCurveYNormalized } from '@gs/shared/function-curve/function-curve.ts';
+import type { FunctionCurve, SharedFunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 import type { EditableParameterBinding, ParameterInputSourceEdit, ValueParameterEdit } from '@/types/parameter-edit.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import type { TimelineLayerPublicParameterReferenceBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
@@ -363,7 +363,7 @@ import * as ui from '@/ui.ts';
 import { useProjectSession } from '@/project-session.ts';
 import { preferences } from '@/preferences.ts';
 import { getAvailableFunctionCurves } from '@gs/glitch-studio_shared/project/function-curves.ts';
-import { createInlineCurveAnimation, setInlineCurveAnimationXNormalized, setInlineCurveAnimationYNormalized } from '@/utility/curve-animation.ts';
+import { createInlineCurveAnimation, duplicateFunctionCurve, setInlineCurveAnimationXNormalized, setInlineCurveAnimationYNormalized } from '@/utility/curve-animation.ts';
 import { usePreviewParameterHandle } from '@/composables/usePreviewParameterHandle.ts';
 import { isViewport2DParameter } from '@/utility/preview-viewport.ts';
 import { canCreateNamedParameterFromBinding } from '@/utility/named-parameter-creation.ts';
@@ -634,11 +634,10 @@ function updateCurveAnimationOptions(options: Partial<CurveAnimation>) {
 	emit('edit', { kind: 'curveAnimationInline', ...target(), value: { ...props.paramValue, curveAnimation } });
 }
 
-function updateInlineCurveAnimationPoints(points: BezierAnchorPoint[], mergeKey: string | null) {
+function updateInlineFunctionCurve(curve: FunctionCurve, mergeKey: string | null) {
 	const value = props.paramValue;
 	if (!mounted || value.inputSource !== 'curveAnimationInline' || value.curveAnimation.curveBinding.source !== 'inline') return;
-	const { curve } = value.curveAnimation.curveBinding;
-	const curveAnimation: CurveAnimation = { ...value.curveAnimation, curveBinding: { source: 'inline', curve: { ...curve, points: deepClone(points) } } };
+	const curveAnimation: CurveAnimation = { ...value.curveAnimation, curveBinding: { source: 'inline', curve: deepClone(curve) } };
 	emit('edit', { kind: 'curveAnimationInline', ...target(), mergeKey: mergeKey ?? undefined, value: { ...value, curveAnimation } });
 }
 
@@ -646,9 +645,13 @@ function updateCurveAnimationDuration(trimmedDurationMs: number) {
 	if (Number.isFinite(trimmedDurationMs) && trimmedDurationMs > 0) updateCurveAnimationOptions({ trimmedDurationMs });
 }
 
-function updateProjectFunctionCurvePoints(points: BezierAnchorPoint[], mergeKey: string | null) {
-	const functionCurve = selectedProjectFunctionCurve.value;
-	if (functionCurve != null) projectSession.projectContext.stateManager.commit('replaceProjectFunctionCurve', { functionCurveId: functionCurve.id, definition: { ...functionCurve, points } }, mergeKey);
+function updateProjectFunctionCurve(curve: FunctionCurve, mergeKey: string | null) {
+	const selected = selectedProjectFunctionCurve.value;
+	if (selected == null) return;
+	projectSession.projectContext.stateManager.commit('replaceProjectFunctionCurve', {
+		functionCurveId: selected.id,
+		definition: { ...curve, nameForReference: selected.nameForReference },
+	}, mergeKey);
 }
 
 function useInlineFunctionCurve() {
@@ -658,9 +661,8 @@ function useInlineFunctionCurve() {
 		updateCurveAnimationOptions({ curveBinding: createInlineCurveAnimation().curveAnimation.curveBinding });
 		return;
 	}
-	const { points, isXNormalized, isYNormalized } = deepClone(selected);
-	const curve = { isXNormalized, isYNormalized, points: points.map(point => ({ ...point, id: genId() })) };
-	updateCurveAnimationOptions({ curveBinding: { source: 'inline', curve } });
+	const { id, nameForReference, ...curve } = selected;
+	updateCurveAnimationOptions({ curveBinding: { source: 'inline', curve: duplicateFunctionCurve(curve) } });
 }
 
 function selectFunctionCurve(ev: PointerEvent) {

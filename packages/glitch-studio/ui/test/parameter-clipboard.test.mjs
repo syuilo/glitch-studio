@@ -151,7 +151,7 @@ test('round trips complete nested bindings between projects and renews owned IDs
 	fields.x = { inputSource: 'expression', expression: 'TIME / 1000', expressionModifier: { enabled: true, code: 'VALUE * 2' } };
 	fields.y = createInlineKeyframesTimeline(scalarDefinition);
 	fields.y.keyframesTimeline.keyframes[0].x = 123;
-	fields.image = { inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'inline', curve: { isXNormalized: true, isYNormalized: false, points: [
+	fields.image = { inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'inline', curve: { type: 'bezier', isXNormalized: true, isYNormalized: false, points: [
 		{ id: 'point', x: 0, y: 1, bezierControlPointA: [0, 0], bezierControlPointB: [1, 1] },
 	] } }, yRangeMin: null, yRangeMax: null, ...playback } };
 	const clipboard = from.copy(binding, target);

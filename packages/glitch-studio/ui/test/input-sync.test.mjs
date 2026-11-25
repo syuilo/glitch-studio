@@ -342,8 +342,8 @@ test('preserves failed numeric expression drafts and allows correction or cancel
 
 // 【手動保存で境界を検証する数値欄は範囲外の値を未保存にする】
 // Curve Animationの範囲を逆順にする式は、入力欄に残して修正できるようにする。
-test('keeps out-of-range numeric drafts editable when bounds validation is enabled', async t => {
-	const { props, edits, input } = fixture(t, { type: 'number', modelValue: 7, manualSave: true, validateNumberBounds: true, min: 5, max: 10 });
+test('keeps invalid numeric drafts editable when bounds or value validation rejects them', async t => {
+	const { props, edits, input } = fixture(t, { type: 'number', modelValue: 7, manualSave: true, validateNumberBounds: true, validateNumericValue: Number.isSafeInteger, min: 5, max: 10 });
 	input.v = '8 + 4';
 	input.updated();
 	await nextTick();
@@ -351,6 +351,12 @@ test('keeps out-of-range numeric drafts editable when bounds validation is enabl
 	assert.equal(props.modelValue, 7);
 	assert.equal(input.v, '8 + 4');
 	assert.equal(input.changed, true);
+	assert.equal(input.invalid, true);
+	input.v = '7.5';
+	input.updated();
+	await nextTick();
+	assert.deepEqual(edits, []);
+	assert.equal(input.v, '7.5');
 	assert.equal(input.invalid, true);
 	input.v = '8 + 2';
 	input.updated();

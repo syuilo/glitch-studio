@@ -204,7 +204,19 @@ NOISE(TIME * 3, 1) * 0.03
 
 ## Function CurveとCurve Animation
 
-Function CurveはBézierの点とX・Yそれぞれの正規化フラグを持つ。Curve Animationは `inputSource: "curveAnimationInline"` のBindingに格納され、`curveBinding` と再生設定を持つ。`curveBinding` は `{ source: "inline", curve }` または `{ source: "reference", curveId }` で表す。共有定義はProject・Timelineレイヤー・Nodes Effectの `functionCurves` に格納する。
+Function Curveは `type: "bezier"` のときに点とX・Yそれぞれの正規化フラグを持つ。固定カーブのX・Yは正規化座標で、Xの定義域は0〜1。Curve Animationは `inputSource: "curveAnimationInline"` のBindingに格納され、`curveBinding` と再生設定を持つ。`curveBinding` は `{ source: "inline", curve }` または `{ source: "reference", curveId }` で表す。共有定義はProject・Timelineレイヤー・Nodes Effectの `functionCurves` に格納する。
+
+| 固定カーブ | 形と設定 |
+| --- | --- |
+| `linear` / `smoothstep` / `smootherstep` | 0から1へ向かう線形・3次・5次のカーブ。 |
+| `easing` | キーフレームと同じ `family`・`direction` で評価する。Back・ElasticはYが0〜1の外へ出る。 |
+| `smoothPulse` | X=0.5で1になり、両端の値と傾きが0になる。 |
+| `pulse` | X=0.5を中心に、幅 `dutyCycle` の半開区間（始点を含む）で1になる。幅0は常に0、幅1は常に1。 |
+| `steps` | `levelCount`（2以上の整数）の等幅区間で、Yが0から1へ段階的に増える。 |
+| `sineWave` | Y=0.5から上昇を始める正弦波の一周期。 |
+| `deadZone` | X=0.5を中心に、幅 `deadZoneWidth` の区間でYを0.5に固定し、両側は端点へ線形に接続する。幅0は線形、幅1は常に0.5。 |
+
+WorkspaceのFunction Curvesパネルでは設定タブ、インラインのFunction Curveでは編集ウィンドウで曲線の種類と設定を選べる。種類をBézierに切り替えると既定の点から始まり、Undoで切り替え前の定義を復元できる。
 
 Curve Animationは評価スコープの時刻を使う。Xが正規化されている場合、Xの1は `trimmedDurationMs` に対応し、未指定の既定値は1000ms。非正規化Xはミリ秒単位で再生する。Timelineでは開始基準と所属Scene時刻を使い、Effect Live Previewの公開入力ではLive Previewの時刻を使う。
 

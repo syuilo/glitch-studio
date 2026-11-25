@@ -34,7 +34,7 @@ const connection = (nodeId, outputPort = 'output') => ({ inputSource: 'node', so
 const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, canNode: false, defaultValue: 0 };
 const color = { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: [1, 0, 0, 0.5] };
 const probeParamDefs = { input: color, amount: scalar, local: scalar, caller: scalar, localTime: scalar, duration: scalar, exported: scalar, forbidden: scalar, directImage: color };
-const curveAnimation = value => ({ id: 'curve-animation', nameForReference: 'curve-animation', isXNormalized: true, isYNormalized: false, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
+const curveAnimation = value => ({ id: 'curve-animation', nameForReference: 'curve-animation', type: 'bezier', isXNormalized: true, isYNormalized: false, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
 
 function createNodesEffect({ primaryInput = false, params } = {}) {
 	const input = { inputSource: 'nodesEffectPublicParameterReference', parameterId: 'input' };

@@ -60,8 +60,7 @@ test('collects immutable resources and custom shaders without local paths or dev
 // 直接参照だけの作品は式エンジンなしで構成し、加工式からのFUNCTION_CURVE参照は依存判定で拾う。
 test('packages shared curves for direct references and detects FUNCTION_CURVE expressions', async () => {
 	const input = fixture();
-	const curve = { id: 'curve-id', nameForReference: 'ramp', isXNormalized: true, isYNormalized: true,
-		points: [{ id: 'start', x: 0, y: 1.2, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] };
+	const curve = { id: 'curve-id', nameForReference: 'ramp', type: 'pulse', dutyCycle: 0.25 };
 	const direct = { inputSource: 'curveAnimationInline', curveAnimation: {
 		curveBinding: { source: 'reference', curveId: curve.id },
 		trimmedDurationMs: 1000, yRangeMin: 10, yRangeMax: 20, offsetMode: 'start', wrapMode: 'clamp',

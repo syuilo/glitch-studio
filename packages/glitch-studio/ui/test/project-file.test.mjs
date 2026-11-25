@@ -3421,7 +3421,7 @@ test('ignores an asset relink selected after its project closes', async t => {
 // 実際のProjectContextとProjectSessionContextを通し、スナップショットが曲線を保持することを確認する。
 test('loads snapshots and synchronizes project Curve Animation definitions to both previews', async t => {
 	setup(t);
-	const curveAnimation = { id: 'shared', nameForReference: 'Curve', isXNormalized: false, isYNormalized: false, points: [
+	const curveAnimation = { id: 'shared', nameForReference: 'Curve', type: 'bezier', isXNormalized: false, isYNormalized: false, points: [
 		{ id: 'point', x: 0, y: 0.5, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 	] };
 	const { projectSession } = evaluateSession(project({ functionCurves: [curveAnimation] }));
@@ -3488,7 +3488,7 @@ test('observes edits and scene selection before startup and synchronizes once af
 	const playback = projectSession.previewPlayback;
 	const controllers = [projectSession.effectLivePreviewManagerController, projectSession.timelineRendererManagerController];
 	const manager = projectSession.projectContext.stateManager;
-	const curveAnimation = { id: 'curve', nameForReference: 'Curve', isXNormalized: false, isYNormalized: false, points: [
+	const curveAnimation = { id: 'curve', nameForReference: 'Curve', type: 'bezier', isXNormalized: false, isYNormalized: false, points: [
 		{ id: 'point', x: 0, y: 0.5, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 	] };
 	manager.commit('createProjectFunctionCurve', { nameForReference: curveAnimation.nameForReference, data: curveAnimation });
@@ -3540,7 +3540,7 @@ test('does not initialize renderers after a session closes during project loadin
 	await registered.promise;
 	assert.equal(schedule.mock.callCount(), 0);
 	await projectSession.dispose();
-	projectSession.projectContext.stateManager.commit('createProjectFunctionCurve', { nameForReference: 'AfterClose', data: { isXNormalized: false, isYNormalized: false, points: [] } });
+	projectSession.projectContext.stateManager.commit('createProjectFunctionCurve', { nameForReference: 'AfterClose', data: { type: 'bezier', isXNormalized: false, isYNormalized: false, points: [] } });
 	await projectSession.flushRendererProjectChanges();
 	completeRegistration.resolve();
 	await loading;

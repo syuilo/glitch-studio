@@ -19,7 +19,7 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 - `src/color-ramp.ts`: Color Rampの値・検証・CPU評価とGPU転送用の準備。正の小数回のWrap／Ping-pongとsRGB・Linear sRGB・Oklab・OKLCHの補間を扱い、OKLCHの色相経路は区間ごとに準備してGPUと共有する。繰り返し・alpha・色相の規約は[パラメータのドキュメント](../../docs/data-type-and-parameter.md#color-ramp)を参照。
 - `src/parameter`: パラメータ定義・Binding・初期値・ツリー操作・CPU値の評価。`parameter-path.ts`は編集対象を識別するIDパス、`parameter-tree.ts`は評価後の配列をたどるindexのパスを扱う。
 - `src/expression`: AiScriptの構文・ASTキャッシュ・式の実行。変数と関数は呼び出し側から明示し、Nodes EffectやTimelineを参照しない。
-- `src/function-curve`: Function Curveの定義、Bézier補間、座標の折り返し。`FUNCTION_CURVE` への公開はパラメータ評価器が担当する。
+- `src/function-curve`: Function Curveの定義、Bézier補間と固定カーブの評価、座標の折り返し。`FUNCTION_CURVE` への公開はパラメータ評価器が担当する。
 - `src/curve-animation`: Curve Animationの曲線Binding・再生設定・時刻と出力範囲の変換。
 - `src/keyframes`: キーフレームの定義・再生設定・補間。TimelineのScene・レイヤー・クリップから独立し、再生設定はBindingから逆算しない。
 

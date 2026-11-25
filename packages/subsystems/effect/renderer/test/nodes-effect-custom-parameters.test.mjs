@@ -72,7 +72,7 @@ test('reevaluates each sample with its own time and public arguments', () => {
 test('evaluates keyframes and local Curve Animations on the shared sample clock', () => {
 	const point = (x, y) => ({ id: String(x), x, y, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
 	const environment = scope(500);
-	environment.functionCurves = [{ id: 'local', nameForReference: 'curve', isXNormalized: true, isYNormalized: false, points: [point(0, 0), point(1, 10)] }];
+	environment.functionCurves = [{ id: 'local', nameForReference: 'curve', type: 'bezier', isXNormalized: true, isYNormalized: false, points: [point(0, 0), point(1, 10)] }];
 	const keyframe = (x, value) => ({ id: String(x), x, value, interpolation: { type: 'linear' } });
 	const values = {
 		keys: { inputSource: 'keyframesTimelineInline', keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [keyframe(0, 0), keyframe(1000, 4)] }, trimmedDurationMs: null, wrapMode: 'clamp', offsetMode: 'start', expressionModifier: { enabled: true, code: 'VALUE + PUBLIC("speed")' } },
