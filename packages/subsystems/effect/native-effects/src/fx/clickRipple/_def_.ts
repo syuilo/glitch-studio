@@ -32,8 +32,8 @@ export default defineNativeEffect({
 		},
 		strength: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Strength', control: { controlType: 'range', min: 0, max: 0.2, step: 0.001 } },
-			defaultValue: 0.012,
+			ui: { label: 'Strength', control: { controlType: 'range', min: 0, max: 2, step: 0.01 } },
+			defaultValue: 1,
 		},
 		reflectivity: {
 			dataType: { kind: 'scalar' },
