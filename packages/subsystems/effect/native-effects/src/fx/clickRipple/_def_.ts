@@ -35,6 +35,11 @@ export default defineNativeEffect({
 			ui: { label: 'Strength', control: { controlType: 'range', min: 0, max: 0.2, step: 0.001 } },
 			defaultValue: 0.012,
 		},
+		reflectivity: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Reflectivity', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
+			defaultValue: 0,
+		},
 	},
 	primaryInputParameter: null,
 	resolutionInputParameters: [],

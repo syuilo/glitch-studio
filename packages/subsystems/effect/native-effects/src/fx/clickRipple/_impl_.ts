@@ -5,7 +5,33 @@ import { createFullscreenEffect } from '../../fullscreen-effect.ts';
 import type definition from './_def_.ts';
 import code, { uniforms } from './shader.wgsl?shader';
 
-const MAX_ACTIVE_RIPPLES = 16; // shader.wgslのUniforms.ripplesと同じ上限。
+const MAX_ACTIVE_CLICKS = 16; // 押下1件につき最大9波源をshader.wgslのUniforms.ripplesへ渡す。
+
+type Ripple = { center: readonly [number, number]; radius: number; fade: number };
+
+function appendVisibleRipples(ripples: Ripple[], ripple: Ripple, halfExtent: readonly [number, number], width: number, reflectivity: number) {
+	const [centerX, centerY] = ripple.center;
+	const [halfWidth, halfHeight] = halfExtent;
+	// 描画領域外の押下は直接波だけを扱う。外の押下を鏡写しにすると、壁に届く前に領域内で反射波が生まれてしまう。
+	const reflects = reflectivity > 0 && Math.abs(centerX) <= halfWidth && Math.abs(centerY) <= halfHeight;
+	const sourceXs = reflects ? [centerX, -2 * halfWidth - centerX, 2 * halfWidth - centerX] : [centerX];
+	const sourceYs = reflects ? [centerY, -2 * halfHeight - centerY, 2 * halfHeight - centerY] : [centerY];
+	const fadeByReflectionCount = [ripple.fade, ripple.fade * reflectivity, ripple.fade * reflectivity ** 2];
+	const outerRadiusSquared = ripple.radius ** 2;
+	const innerRadiusSquared = Math.max(0, ripple.radius - width) ** 2;
+	for (const [yIndex, y] of sourceYs.entries()) {
+		for (const [xIndex, x] of sourceXs.entries()) {
+			// 波の帯が矩形と交差するときだけ波源を渡し、画素ごとに無関係な鏡像を評価するのを避ける。
+			const distanceX = Math.abs(x);
+			const distanceY = Math.abs(y);
+			const nearestSquared = Math.max(0, distanceX - halfWidth) ** 2 + Math.max(0, distanceY - halfHeight) ** 2;
+			const farthestSquared = (distanceX + halfWidth) ** 2 + (distanceY + halfHeight) ** 2;
+			if (nearestSquared >= outerRadiusSquared || farthestSquared <= innerRadiusSquared) continue;
+			const reflectionCount = Number(xIndex !== 0) + Number(yIndex !== 0);
+			ripples.push({ center: [x, y], radius: ripple.radius, fade: fadeByReflectionCount[reflectionCount] });
+		}
+	}
+}
 
 const implementation: NativeEffectImplementation<typeof definition.paramDefs> = {
 	async init(context) {
@@ -31,7 +57,9 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 				const speed = inputs.speed.value;
 				const duration = inputs.duration.value;
 				const width = inputs.width.value;
-				const ripples: { center: readonly [number, number]; radius: number; fade: number }[] = [];
+				const reflectivity = Math.min(1, Math.max(0, inputs.reflectivity.value));
+				const ripples: Ripple[] = [];
+				let activeClickCount = 0;
 				if (frame.pointerClicks != null && speed > 0 && width > 0) {
 					for (const click of frame.pointerClicks) {
 						const age = frame.time - click.time;
@@ -39,8 +67,8 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 						// 最初の1/4は波を保ち、その後は寿命の終端で勾配もゼロになるように減衰させる。
 						const fadeProgress = Math.max(0, (age / duration - 0.25) / 0.75);
 						const fade = 1 - fadeProgress ** 2 * (3 - 2 * fadeProgress);
-						ripples.push({ center: click.position, radius: speed * age, fade });
-						if (ripples.length === MAX_ACTIVE_RIPPLES) break;
+						appendVisibleRipples(ripples, { center: click.position, radius: speed * age, fade }, halfExtent, width, reflectivity);
+						if (++activeClickCount === MAX_ACTIVE_CLICKS) break;
 					}
 				}
 				uniformValues.set({

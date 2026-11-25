@@ -5,7 +5,8 @@ struct Ripple {
 };
 
 struct Uniforms {
-	ripples: array<Ripple, 16>,
+	// 直近16件の押下それぞれから、直接波と最大8個の鏡像を受け取る。
+	ripples: array<Ripple, 144>,
 	halfExtent: vec2f,
 	wavelength: f32,
 	width: f32,
