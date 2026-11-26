@@ -28,6 +28,8 @@ export async function buildPortableNodesEffectCatalog(outdir) {
 	const result = await build({
 		absWorkingDir: root, entryPoints, outdir, bundle: true, splitting: true, format: 'esm', platform: 'browser',
 		target: 'esnext', charset: 'ascii', legalComments: 'inline', metafile: true,
+		// Workerは通常描画だけを使う。分割したES Modulesの生成前にタイル描画とGPU計測の分岐を落とす。
+		define: { USE_TILE_RENDERING: 'false' }, minifySyntax: true,
 		// エフェクト内蔵画像もカタログへ埋め込み、選択された実装と一緒に成果物へ渡す。
 		// UIのpublic配信や、最終出力とは別の画像ファイルを必要としない。
 		loader: { '.png': 'dataurl' },

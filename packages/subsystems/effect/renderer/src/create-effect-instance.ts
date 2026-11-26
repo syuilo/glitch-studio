@@ -7,11 +7,13 @@ import { createEffectRenderDevice } from './tiling/effect-render-device.ts';
 import { createEffectFrameMapper } from './effect-parameter-evaluation.ts';
 import { resolveEffectStaticResources } from './effect-static-settings.ts';
 import { planEffect, type EffectPlacement, type EvaluateStep } from './plan-effect.ts';
-import type { EffectRenderTilingProgressObserver } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
+import type { EffectRenderTiling, EffectRenderTilingProgressObserver } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
 import type { EffectGpuContext, EffectInitContext, EffectInstance, EffectFrameContext, EffectRenderContext, NativeEffectImplementation } from './effect-instance.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 export type { EffectPlacement, EffectPlacementInput } from './plan-effect.ts';
 export type { EffectStaticResourceContext } from './effect-static-settings.ts';
+
+declare const USE_TILE_RENDERING: boolean;
 
 function outputFormat(type: TextureDataType, enable32bitDataTextures: boolean): GPUTextureFormat {
 	if (type.kind === 'color') return INTERMEDIATE_TEXTURE_FORMAT;
@@ -21,21 +23,27 @@ function outputFormat(type: TextureDataType, enable32bitDataTextures: boolean): 
 
 export async function createEffectInstance(placement: EffectPlacement, gpu: EffectGpuContext,
 	getNativeEffectImplementation: (id: string) => NativeEffectImplementation, signal?: AbortSignal): Promise<EffectInstance> {
+	// Web書き出し用カタログがfalseに置換する。通常のアプリやTSを直接実行するテストでは有効にする。
+	const useTileRendering = typeof USE_TILE_RENDERING === 'undefined' || USE_TILE_RENDERING;
 	signal?.throwIfAborted();
 	const { steps, outputs, contextResolution, resources, valueUpdates } = planEffect(placement, gpu.device?.limits?.maxTextureDimension2D);
-	const tiling = placement.tiling ?? { mode: 'disabled' };
-	if (tiling.mode === 'manual' && (!Number.isSafeInteger(tiling.tileSize) || tiling.tileSize <= 0)) throw new Error('Expected a positive tile size');
+	const tiling: EffectRenderTiling = useTileRendering ? placement.tiling ?? { mode: 'disabled' } : { mode: 'disabled' };
+	if (useTileRendering && tiling.mode === 'manual' && (!Number.isSafeInteger(tiling.tileSize) || tiling.tileSize <= 0)) throw new Error('Expected a positive tile size');
 	const device = gpu.device;
-	const reportFrameGpuTime = placement.onFrameGpuTime;
-	if (tiling.mode !== 'disabled' || placement.onGpuTime != null || reportFrameGpuTime != null) gpu = { ...gpu, device: createEffectRenderDevice(device) };
+	const reportFrameGpuTime = useTileRendering ? placement.onFrameGpuTime : null;
+	if (useTileRendering && (tiling.mode !== 'disabled' || placement.onGpuTime != null || reportFrameGpuTime != null)) {
+		gpu = { ...gpu, device: createEffectRenderDevice(device) };
+	}
 	const prepareSteps: PrepareFrame[] = [];
 	const prepareSources: (PrepareFrame | EvaluateStep)[] = [];
 	const preparation = createFramePreparation(prepareSteps, placement.onPreparationStatus);
 	const renderSteps: {
 		needsRender: () => boolean;
 		record: (frame: EffectFrameContext, encoder: GPUCommandEncoder, collectGpuTime?: CollectGpuTime) => void;
-		shouldTile: () => boolean;
-		renderTiled: (frame: EffectFrameContext, signal: AbortSignal, progress?: EffectRenderTilingProgressObserver, collectGpuTime?: CollectGpuTime) => Promise<void>;
+		tiledRendering?: {
+			shouldTile: () => boolean;
+			render: (frame: EffectFrameContext, signal: AbortSignal, progress?: EffectRenderTilingProgressObserver, collectGpuTime?: CollectGpuTime) => Promise<void>;
+		};
 		commit: () => void;
 	}[] = [];
 	const historyResets: ((unsubmittedEncoder?: GPUCommandEncoder | null) => void)[] = [];
@@ -73,13 +81,13 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 		if (disposed) return;
 		disposed = true;
 		preparation.invalidate();
-		if (tiledRequest != null) tiledRequest.abort();
+		if (useTileRendering && tiledRequest != null) tiledRequest.abort();
 		else release();
 	}
 
 	function checkAvailable() {
 		if (disposed) throw new Error('Effect instance is disposed');
-		if (tiledRequest != null) throw new Error('Tiled rendering is already in progress');
+		if (useTileRendering && tiledRequest != null) throw new Error('Tiled rendering is already in progress');
 	}
 
 	function measureFrameGpuTime(frame: EffectFrameContext) {
@@ -134,10 +142,11 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 			const usesHistory = operation.resetRenderHistory != null || (effect.type === 'nativeEffect' && effect.definition.dependsOnRenderHistory === true);
 			dependsOnRenderHistory ||= usesHistory;
 			const cache = !usesHistory && 'cacheKey' in operation ? createRenderCache(step.inputs, operation) : null;
-			const report = placement.onGpuTime;
-			const gpuExecution = createEffectGpuExecution(device, operation, tiling, effect.definition.canHaveLongRunningRenderPass === true,
-				report == null ? undefined : (pass, time) => report(step.path, pass, time));
-			disposers.push(() => gpuExecution.dispose());
+			// 通常描画だけのビルドでは、タイル分割とGPU計測が共有するコマンド記録器ごと除去する。
+			const report = useTileRendering ? placement.onGpuTime : null;
+			const gpuExecution = useTileRendering ? createEffectGpuExecution(device, operation, tiling, effect.definition.canHaveLongRunningRenderPass === true,
+				report == null ? undefined : (pass, time) => report(step.path, pass, time)) : null;
+			if (useTileRendering && gpuExecution != null) disposers.push(() => gpuExecution.dispose());
 			let historyResetPending = false;
 			const map = createEffectFrameMapper(contextResolution, resolution);
 			const nodeFrame = (frame: EffectFrameContext) => {
@@ -148,9 +157,15 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 			if (operation.prepare != null) prepareSources.push((frame, signal) => operation.prepare!(nodeFrame(frame), signal));
 			renderSteps.push({
 				needsRender: () => cache?.needsRender() ?? true,
-				record: (frame, encoder, collectGpuTime) => gpuExecution.record(nodeFrame(frame), encoder, collectGpuTime),
-				shouldTile: gpuExecution.shouldTile,
-				renderTiled: (frame, signal, progress, collectGpuTime) => gpuExecution.renderTiled(nodeFrame(frame), signal, progress, collectGpuTime),
+				record: useTileRendering && gpuExecution != null
+					? (frame, encoder, collectGpuTime) => gpuExecution.record(nodeFrame(frame), encoder, collectGpuTime)
+					: (frame, commandEncoder) => operation.render({ ...nodeFrame(frame), commandEncoder }),
+				...(useTileRendering && gpuExecution != null && {
+					tiledRendering: {
+						shouldTile: gpuExecution.shouldTile,
+						render: (frame, signal, progress, collectGpuTime) => gpuExecution.renderTiled(nodeFrame(frame), signal, progress, collectGpuTime),
+					},
+				}),
 				commit() {
 					for (const [bind, texture] of pending) bind(texture);
 					pending.clear();
@@ -160,7 +175,8 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 				},
 			});
 			historyResets.push(unsubmittedEncoder => {
-				pending.clear(); cache?.reset(); gpuExecution.reset(unsubmittedEncoder);
+				pending.clear(); cache?.reset();
+				if (useTileRendering) gpuExecution?.reset(unsubmittedEncoder);
 				historyResetPending = usesHistory;
 				operation.invalidateRenderCache?.();
 				operation.resetRenderHistory?.();
@@ -183,17 +199,18 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 				checkAvailable();
 				const frame = preparation.take(source);
 				const commandEncoder = encoder ?? (source as EffectRenderContext).commandEncoder;
-				const gpuTime = measureFrameGpuTime(source);
+				const gpuTime = useTileRendering ? measureFrameGpuTime(source) : null;
 				try {
 					for (const step of renderSteps) {
 						if (!step.needsRender()) continue;
-						step.record(frame, commandEncoder, gpuTime?.collect);
+						step.record(frame, commandEncoder, useTileRendering ? gpuTime?.collect : undefined);
 						step.commit();
 					}
-					gpuTime?.report();
+					if (useTileRendering) gpuTime?.report();
 				} catch (error) { reset(); throw error; }
 			},
 			async renderTiled(source, signal, progress, recordAfterRender) {
+				if (!useTileRendering) throw new Error('Tiled rendering is unavailable in this build');
 				checkAvailable();
 				signal?.throwIfAborted();
 				tiledRequest = new AbortController();
@@ -211,13 +228,13 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 					const frame = preparation.take(source);
 					for (const step of renderSteps) {
 						if (!step.needsRender()) continue;
-						if (!step.shouldTile()) {
+						if (step.tiledRendering?.shouldTile() !== true) {
 							encoder ??= device.createCommandEncoder();
 							step.record(frame, encoder, gpuTime?.collect);
 						} else {
 							// 軽い処理はまとめて記録し、タイル描画が上流の出力を読む直前にsubmitする。
 							flush();
-							await step.renderTiled(frame, active, progress, gpuTime?.collect);
+							await step.tiledRendering.render(frame, active, progress, gpuTime?.collect);
 							active.throwIfAborted();
 						}
 						step.commit();
@@ -242,7 +259,7 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 				}
 			},
 			resetRenderHistory() {
-				if (tiledRequest != null) tiledRequest.abort();
+				if (useTileRendering && tiledRequest != null) tiledRequest.abort();
 				else reset();
 			},
 			dispose,

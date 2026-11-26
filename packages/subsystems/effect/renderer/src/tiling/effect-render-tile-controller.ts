@@ -15,11 +15,11 @@ const GPU_PROBE_MAXIMUM_GROWTH = 16;
 const GPU_PROBE_POSITIONS = [[0, 0], [1, 1], [1, 0], [0, 1], [0.5, 0.5]] as const;
 // Timestamp Queryを利用できない場合だけ使う、通知遅延も含めた保守的な制御。
 const TARGET_TILE_TIME_MS = 32;
-const FAST_TILE_TIME_MS = TARGET_TILE_TIME_MS / 4;
+const FAST_TILE_TIME_RATIO = 0.25;
+const LONG_TILE_TIME_RATIO = 4;
+const RECOVERY_TILE_TIME_RATIO = 0.75;
 const FAST_SAMPLES_TO_GROW = 4;
 const SLOW_SAMPLES_TO_SHRINK = 3;
-const LONG_TILE_TIME_MS = TARGET_TILE_TIME_MS * 4;
-const RECOVERY_TILE_TIME_MS = TARGET_TILE_TIME_MS * 0.75;
 
 function getMinimumTilePixels(width: number, height: number): number {
 	// 小さな中間テクスチャや細長い描画先では、実在する辺の長さまでに留める。
@@ -285,7 +285,7 @@ export class EffectRenderTilePlan {
 		const state = this.state;
 		this.maximumTimeMs = Math.max(this.maximumTimeMs, timeMs);
 		this.largestTilePixels = Math.max(this.largestTilePixels, pixels);
-		if (timeMs < RECOVERY_TILE_TIME_MS && pixels >= state.maximumTilePixels / 2) this.recoveryFastSamples++;
+		if (timeMs < TARGET_TILE_TIME_MS * RECOVERY_TILE_TIME_RATIO && pixels >= state.maximumTilePixels / 2) this.recoveryFastSamples++;
 		else this.recoveryFastSamples = 0;
 		if (timeMs > TARGET_TILE_TIME_MS) {
 			state.fastSamples = 0;
@@ -293,7 +293,7 @@ export class EffectRenderTilePlan {
 			// 完了通知の遅延はGPU実行時間とは限らない。散発的な32ms超の待機で
 			// 毎回縮小すると、速いGPUでも1画素ずつの送信まで細分化してしまう。
 			// 目標時間を少し超える程度なら連続した観測を要求し、大幅超過には即応する。
-			if (timeMs < LONG_TILE_TIME_MS && state.slowSamples < SLOW_SAMPLES_TO_SHRINK) return;
+			if (timeMs < TARGET_TILE_TIME_MS * LONG_TILE_TIME_RATIO && state.slowSamples < SLOW_SAMPLES_TO_SHRINK) return;
 			const previous = state.previousReduction;
 			if (previous != null && timeMs > previous.timeMs * 2) state.minimumTilePixels = getMinimumTilePixels(state.width, state.height);
 			// 面積を大幅に減らしても待機時間が変わらなければ、通知遅延などの固定費が
@@ -307,7 +307,7 @@ export class EffectRenderTilePlan {
 			state.slowSamples = 0;
 		} else {
 			state.slowSamples = 0;
-			if (timeMs < FAST_TILE_TIME_MS && pixels >= state.maximumTilePixels / 2) state.fastSamples++;
+			if (timeMs < TARGET_TILE_TIME_MS * FAST_TILE_TIME_RATIO && pixels >= state.maximumTilePixels / 2) state.fastSamples++;
 			else state.fastSamples = 0;
 		}
 		// ヒントで面積を大幅に縮小した後も、描画完了まで小さいままでは数千回の
@@ -375,10 +375,11 @@ export class EffectRenderTilePlan {
 				&& this.totalGpuTimeMs > 0 && this.totalGpuTimeMs <= GPU_PASS_BUDGET_MS * GPU_FULL_PASS_HEADROOM) state.maximumTilePixels = fullPixels;
 			return;
 		}
-		state.canRenderUntiled = this.largestTilePixels === state.width * state.height && this.maximumTimeMs < FAST_TILE_TIME_MS;
+		const fastTileTimeMs = TARGET_TILE_TIME_MS * FAST_TILE_TIME_RATIO;
+		state.canRenderUntiled = this.largestTilePixels === state.width * state.height && this.maximumTimeMs < fastTileTimeMs;
 		// 初期の保守的な上限を超える拡大は、全領域の完了後にだけ行う。
 		// 隅の速いタイルだけで判断せず、同じパス内の局所的な負荷差も判定に含める。
-		if (this.maximumTimeMs < FAST_TILE_TIME_MS && state.fastSamples >= FAST_SAMPLES_TO_GROW) {
+		if (this.maximumTimeMs < fastTileTimeMs && state.fastSamples >= FAST_SAMPLES_TO_GROW) {
 			state.maximumTilePixels = Math.min(state.width * state.height, state.maximumTilePixels * 2);
 			state.fastSamples = 0;
 		}

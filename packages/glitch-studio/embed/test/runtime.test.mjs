@@ -59,10 +59,17 @@ test('bundles only selected runtime capabilities from a self-contained catalog',
 	// 【どのエフェクトにも実行時のWGSL解析器を混入させない】
 	// 一部の関数だけのimportでも解析器の初期化が残るため、全カタログの依存から確認する。
 	assert.ok(Object.keys(catalog.inputs).every(file => !/webgpu-utils|wgsl_reflect/.test(file)));
+	// 【タイル描画とGPU計測の実装をWeb書き出しカタログに含めない】
+	// Native Effect専用版とCustom Shader Effect対応版の両方で、未使用モジュールの初期化も残さない。
+	const excludedRenderingModules = /\/effect\/renderer\/src\/(?:tiling\/|effect-gpu-execution\.ts$)|\/gpu\/TimingHelper\.ts$/;
+	for (const output of Object.values(catalog.outputs)) {
+		for (const input of Object.keys(output.inputs)) assert.doesNotMatch(input, excludedRenderingModules);
+	}
 	const requirements = { effectIds: ['fill'], requiresExpressions: false, requiresCustomShaderEffects: false };
 	const metadata = [];
 	const plain = await buildPortableNodesEffectRuntime(directory, requirements, (_name, result) => metadata.push(result));
 	assert.doesNotMatch(plain.elementSource + plain.workerSource, /AiScript|VideoSampleSink|Expression is empty|fn gs_fragment/);
+	assert.doesNotMatch(plain.workerSource, /maximumTilePixels|timestamp-query|Tiled rendering is already in progress/);
 	// 【式の結果検証と登録IDの静的検証を配布ランタイムへ戻さない】
 	// エディタでは使う検証器も、描画の依存へ置くと未使用型の検証まで同梱されてしまう。
 	// 式を使う作品でも戻り値の型は検査せず、登録の正しさは書き出し時に保証する。
