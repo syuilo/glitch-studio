@@ -9,6 +9,7 @@ const definition = defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: true,
 	tags: ['temporal', 'utility'],
+	thumbnail: { mode: 'none' },
 	paramDefs: {
 		input: {
 			dataType: { kind: 'any' },

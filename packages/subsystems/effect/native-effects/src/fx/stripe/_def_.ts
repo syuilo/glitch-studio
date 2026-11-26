@@ -9,6 +9,11 @@ export default defineNativeEffect({
 	kind: 'generate',
 	dependsOnRenderHistory: false,
 	tags: ['pattern'],
+	thumbnail: {
+		mode: 'customParameters',
+		inputs: {},
+		params: { background: [0.018, 0.03, 0.075, 1], color: [0.08, 0.66, 0.9, 1], frequency: 10, angle: 0.125, threshold: 0.5 },
+	},
 	paramDefs: {
 		background: {
 			dataType: { kind: 'color' },

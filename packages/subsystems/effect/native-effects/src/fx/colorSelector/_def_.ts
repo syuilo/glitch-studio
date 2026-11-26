@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Selects the image or color input nearest to the specified index.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'none' },
 	dependsOnRenderHistory: false,
 	tags: ['color', 'composite', 'utility'],
 	paramDefs: {

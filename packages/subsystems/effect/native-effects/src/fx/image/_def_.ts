@@ -9,6 +9,7 @@ export default defineNativeEffect({
 	kind: 'generate',
 	dependsOnRenderHistory: false,
 	tags: ['media'],
+	thumbnail: { mode: 'none' },
 	staticSettingDefs: {
 		image: { dataType: { kind: 'assetReference', assetType: 'image' }, ui: { label: 'Image' }, defaultValue: null },
 	},

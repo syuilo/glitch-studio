@@ -10,6 +10,7 @@ export default defineNativeEffect({
 	// 入力が静止していても、発生済みの断片の位置・寿命・減衰を更新する。
 	dependsOnRenderHistory: true,
 	tags: ['glitch', 'temporal', 'distortion'],
+	thumbnail: { mode: 'none' },
 	paramDefs: {
 		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: [0, 0, 0, 0] },

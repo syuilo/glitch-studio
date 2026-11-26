@@ -9,6 +9,7 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['color', 'convert'],
+	thumbnail: { mode: 'none' },
 	paramDefs: {
 		background: {
 			dataType: { kind: 'color' },

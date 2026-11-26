@@ -10,6 +10,7 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	canHaveLongRunningRenderPass: true,
 	tags: ['color', 'math', 'utility', 'convert'],
+	thumbnail: { mode: 'none' },
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' },

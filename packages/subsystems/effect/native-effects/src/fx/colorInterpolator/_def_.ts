@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Interpolates between adjacent image or color inputs at the specified index.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'none' },
 	dependsOnRenderHistory: false,
 	tags: ['color', 'composite', 'utility'],
 	paramDefs: {

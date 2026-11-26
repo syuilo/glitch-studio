@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Switches between two images or colors based on a boolean condition.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'none' },
 	dependsOnRenderHistory: false,
 	tags: ['color', 'composite', 'utility'],
 	paramDefs: {

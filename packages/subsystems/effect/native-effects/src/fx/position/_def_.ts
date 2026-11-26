@@ -9,6 +9,7 @@ export default defineNativeEffect({
 	kind: 'generate',
 	dependsOnRenderHistory: false,
 	tags: ['math', 'utility'],
+	thumbnail: { mode: 'none' },
 	paramDefs: {},
 	primaryInputParameter: null,
 	resolutionInputParameters: [],

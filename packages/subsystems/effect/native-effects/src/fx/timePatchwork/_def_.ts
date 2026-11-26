@@ -10,6 +10,7 @@ export default defineNativeEffect({
 	// 入力が静止していても、履歴の経過時間と各セルの停止状態を更新する。
 	dependsOnRenderHistory: true,
 	tags: ['glitch', 'temporal'],
+	thumbnail: { mode: 'none' },
 	paramDefs: {
 		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: [0, 0, 0, 0] },

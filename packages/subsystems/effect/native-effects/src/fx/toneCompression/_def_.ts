@@ -9,6 +9,10 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['color'],
+	thumbnail: {
+		mode: 'customParameters',
+		params: { shadowThreshold: 0.45, shadowAmount: 0.75, highlightThreshold: 0.65, highlightAmount: 0.75 },
+	},
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' },

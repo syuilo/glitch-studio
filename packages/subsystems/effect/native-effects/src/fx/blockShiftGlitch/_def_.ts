@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Shifts blocks of the input image horizontally and vertically by random amounts.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'customParameters', params: { density: [13, 13], strength: 0.75 } },
 	dependsOnRenderHistory: false,
 	tags: ['glitch'],
 	paramDefs: {

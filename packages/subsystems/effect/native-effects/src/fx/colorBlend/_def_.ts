@@ -7,6 +7,11 @@ export default defineNativeEffect({
 		'en-US': 'Combines two images using the selected blend mode.',
 	},
 	kind: 'modify',
+	thumbnail: {
+		mode: 'customParameters',
+		inputs: { inputA: 'sceneA', inputB: 'sceneB' },
+		params: { blendMode: 'overlay', amount: 0.85 },
+	},
 	dependsOnRenderHistory: false,
 	tags: ['color', 'composite', 'utility'],
 	paramDefs: {

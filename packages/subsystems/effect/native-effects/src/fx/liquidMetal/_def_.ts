@@ -12,6 +12,7 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['distortion', 'liquid', 'stylized'],
+	thumbnail: { mode: 'defaultParameters' },
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' },

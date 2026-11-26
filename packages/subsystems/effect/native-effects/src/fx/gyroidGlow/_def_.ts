@@ -10,6 +10,7 @@ export default defineNativeEffect({
 	kind: 'generate',
 	dependsOnRenderHistory: false,
 	tags: ['pattern', 'light', 'math', '3d'],
+	thumbnail: { mode: 'defaultParameters' },
 	paramDefs: {
 		time: {
 			dataType: { kind: 'scalar' },

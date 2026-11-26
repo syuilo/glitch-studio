@@ -9,6 +9,11 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['color', 'stylized'],
+	thumbnail: {
+		mode: 'customParameters',
+		inputs: { input: 'sceneA', reference: 'sceneB' },
+		params: { lightnessMatch: 0.75 },
+	},
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' },

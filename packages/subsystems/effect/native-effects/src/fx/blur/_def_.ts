@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Blurs the input image.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'defaultParameters' },
 	dependsOnRenderHistory: false,
 	tags: ['blur'],
 	paramDefs: {

@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Adds color separation and fringing to the input image to simulate chromatic aberration.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'defaultParameters' },
 	dependsOnRenderHistory: false,
 	tags: ['color', 'distortion', 'glitch'],
 	paramDefs: {

@@ -8,6 +8,7 @@ export default defineNativeEffect({
 		'en-US': 'Maps scalar values to colors along a gradient.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'none' },
 	dependsOnRenderHistory: false,
 	tags: ['color', 'gradient', 'convert'],
 	paramDefs: {

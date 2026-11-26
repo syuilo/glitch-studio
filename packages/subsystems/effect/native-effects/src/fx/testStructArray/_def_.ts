@@ -9,6 +9,7 @@ export default defineNativeEffect({
 	kind: 'generate',
 	dependsOnRenderHistory: false,
 	tags: ['utility'],
+	thumbnail: { mode: 'none' },
 	paramDefs: {
 		foo: {
 			dataType: { kind: 'struct', fields: { node: { kind: 'color' } } },

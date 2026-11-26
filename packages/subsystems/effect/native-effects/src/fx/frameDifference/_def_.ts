@@ -10,6 +10,7 @@ export default defineNativeEffect({
 	// 差分を次のフレームで0に戻すため、入力が変わらないフレームも比較と履歴の更新が必要。
 	dependsOnRenderHistory: true,
 	tags: ['temporal', 'analysis', 'utility'],
+	thumbnail: { mode: 'none' },
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' },

@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Randomly shifts blocks of the input image.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'customParameters', params: { density: [9, 9] } },
 	dependsOnRenderHistory: false,
 	tags: ['glitch'],
 	paramDefs: {

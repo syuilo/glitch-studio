@@ -8,6 +8,7 @@ export default defineNativeEffect({
 		'en-US': 'Generates an expanding circular gradient and its slope from each pointer press.',
 	},
 	kind: 'generate',
+	thumbnail: { mode: 'none' },
 	dependsOnRenderHistory: false,
 	tags: ['gradient', 'temporal', 'interactive'],
 	paramDefs: {

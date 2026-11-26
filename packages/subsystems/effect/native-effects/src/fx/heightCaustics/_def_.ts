@@ -9,6 +9,7 @@ export default defineNativeEffect({
 	kind: 'generate',
 	dependsOnRenderHistory: false,
 	tags: ['light', 'simulation', '3d'],
+	thumbnail: { mode: 'none' },
 	paramDefs: {
 		height: {
 			dataType: { kind: 'scalar' },

@@ -45,6 +45,7 @@ export default defineNativeEffect({
 		'en-US': 'Designs a virtual color negative through spectral sensitivity, development and dye absorption, then simulates photographic printing.',
 	},
 	kind: 'modify', dependsOnRenderHistory: false, tags: ['color', 'light', 'simulation'],
+	thumbnail: { mode: 'defaultParameters' },
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: [0, 0, 0, 0] },
 		exposure: exposureParameter('Film Exposure (EV)'),

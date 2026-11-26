@@ -9,6 +9,7 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['composite', 'math', 'utility'],
+	thumbnail: { mode: 'none' },
 	paramDefs: {
 		inputA: {
 			dataType: { kind: 'any' },

@@ -12,6 +12,10 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	canHaveLongRunningRenderPass: true,
 	tags: ['3d', 'pattern'],
+	thumbnail: {
+		mode: 'customParameters',
+		params: { pointCount: 150, distribution: 'sphere', pointSize: 0.014, lineWidth: 0.005 },
+	},
 	paramDefs: {
 		time: { dataType: { kind: 'scalar' }, ui: { label: 'Time', control: { controlType: 'number', step: 0.01 } }, defaultValue: 0 },
 		pointCount: { dataType: { kind: 'scalar' }, ui: { label: 'Point Count', control: { controlType: 'range', min: 0, max: MAX_POINT_COUNT, step: 1 } }, defaultValue: 256 },

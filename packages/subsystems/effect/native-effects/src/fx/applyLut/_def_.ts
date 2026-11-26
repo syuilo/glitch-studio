@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Transforms the colors of the input image using a LUT.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'none' },
 	dependsOnRenderHistory: false,
 	tags: ['color'],
 	staticSettingDefs: {

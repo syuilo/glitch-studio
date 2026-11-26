@@ -11,6 +11,7 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	canHaveLongRunningRenderPass: true,
 	tags: ['pattern', 'light', '3d'],
+	thumbnail: { mode: 'defaultParameters' },
 	paramDefs: {
 		time: {
 			dataType: { kind: 'scalar' },

@@ -24,6 +24,7 @@
 	],
 	"scripts": {
 		"test": "pnpm --no-bail -r test",
+		"generate:effect-thumbnails": "node packages/subsystems/effect/native-effects/tools/generate-thumbnails.mjs",
 		"dev": "pnpm --dir packages/glitch-studio/ui dev",
 		"build": "pnpm --dir packages/glitch-studio/ui build",
 		"preview": "pnpm --dir packages/glitch-studio/ui preview",

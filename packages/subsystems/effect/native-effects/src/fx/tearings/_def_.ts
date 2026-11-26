@@ -9,6 +9,10 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['distortion', 'glitch'],
+	thumbnail: {
+		mode: 'customParameters',
+		params: { amount: 6, strength: 0.11, channelShift: 0.8 },
+	},
 	paramDefs: {
 		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: {

@@ -9,6 +9,7 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['color', 'light', 'simulation', 'convert'],
+	thumbnail: { mode: 'none' },
 	paramDefs: {
 		input: {
 			dataType: { kind: 'scalar' },

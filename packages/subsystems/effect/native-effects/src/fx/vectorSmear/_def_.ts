@@ -9,6 +9,10 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['distortion', 'blur'],
+	thumbnail: {
+		mode: 'customParameters',
+		params: { vector: [0.85, 0.35], amount: 0.075, jitter: 0.25 },
+	},
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' },

@@ -9,6 +9,7 @@ export default defineNativeEffect({
 	kind: 'generate',
 	dependsOnRenderHistory: false,
 	tags: ['color', 'gradient'],
+	thumbnail: { mode: 'defaultParameters' },
 	paramDefs: {
 		colors: {
 			dataType: { kind: 'array', elementType: { kind: 'color' } },

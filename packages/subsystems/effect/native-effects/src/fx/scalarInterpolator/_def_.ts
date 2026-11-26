@@ -9,6 +9,7 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['math', 'utility'],
+	thumbnail: { mode: 'none' },
 	paramDefs: {
 		inputs: {
 			dataType: { kind: 'array', elementType: { kind: 'scalar' } },

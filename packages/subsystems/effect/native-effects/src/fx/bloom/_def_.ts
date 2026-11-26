@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Spreads light from bright areas of the input image to create a glow.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'customParameters', params: { threshold: 0.42, strength: 1.6 } },
 	dependsOnRenderHistory: false,
 	tags: ['blur', 'light'],
 	paramDefs: {

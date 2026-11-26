@@ -10,6 +10,10 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['utility', 'convert'],
+	thumbnail: {
+		mode: 'customParameters',
+		params: { vector: [0.7, 0.4], density: 7, maximumLength: 0.23, lineWidth: 0.008, arrowSpacing: 0.12, arrowSize: 0.035 },
+	},
 	paramDefs: {
 		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		vector: { dataType: { kind: 'vector' }, ui: { label: 'Vector', control: { controlType: 'vector' } }, canNode: true, defaultValue: [0, 0] },

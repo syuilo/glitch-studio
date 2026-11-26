@@ -7,6 +7,10 @@ export default defineNativeEffect({
 		'en-US': 'Spreads color errors along image contours and color changes to create bleeding glitch patterns.',
 	},
 	kind: 'modify',
+	thumbnail: {
+		mode: 'customParameters',
+		params: { sourceProbability: 0.28, sourceSize: 0.3, analysisResolution: 256 },
+	},
 	dependsOnRenderHistory: false,
 	tags: ['glitch', 'color'],
 	paramDefs: {

@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Shifts the RGB channels of the input image to create color separation.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'customParameters', params: { amount: [0.055, 0] } },
 	dependsOnRenderHistory: false,
 	tags: ['color', 'distortion', 'glitch'],
 	paramDefs: {

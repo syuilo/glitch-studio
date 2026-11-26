@@ -12,6 +12,10 @@ export default defineNativeEffect({
 	staticSettingDefs: {
 		font: { dataType: { kind: 'assetReference', assetType: 'font' }, ui: { label: 'Font' }, defaultValue: null },
 	},
+	thumbnail: {
+		mode: 'customParameters',
+		params: { text: 'GLITCH', size: 0.085, repetitions: [3, 5] },
+	},
 	paramDefs: {
 		text: { dataType: { kind: 'string' }, ui: { label: 'Text', control: {} }, defaultValue: 'TOGETHER' },
 		size: {

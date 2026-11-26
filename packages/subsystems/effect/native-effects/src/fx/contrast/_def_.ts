@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Adjusts contrast around an sRGB pivot while preserving HDR and negative values.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'customParameters', params: { contrast: 1.55 } },
 	dependsOnRenderHistory: false,
 	tags: ['color'],
 	paramDefs: {

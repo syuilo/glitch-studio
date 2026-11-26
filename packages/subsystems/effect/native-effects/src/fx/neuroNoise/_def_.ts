@@ -12,6 +12,7 @@ export default defineNativeEffect({
 	kind: 'generate',
 	dependsOnRenderHistory: false,
 	tags: ['pattern', 'noise'],
+	thumbnail: { mode: 'defaultParameters', inputs: {} },
 	paramDefs: {
 		background: {
 			dataType: { kind: 'color' },

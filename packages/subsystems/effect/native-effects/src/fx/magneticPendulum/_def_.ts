@@ -15,6 +15,7 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	canHaveLongRunningRenderPass: true,
 	tags: ['pattern', 'fractal', 'simulation', 'math', 'gimmicky', 'experimental'],
+	thumbnail: { mode: 'defaultParameters' },
 	paramDefs: {
 		magnets: {
 			dataType: {

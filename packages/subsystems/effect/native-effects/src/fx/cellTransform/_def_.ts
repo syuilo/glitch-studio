@@ -8,6 +8,10 @@ export default defineNativeEffect({
 		'en-US': 'Splits the input image into grid cells with per-cell source positions, translation, scale, and rotation.',
 	},
 	kind: 'modify',
+	thumbnail: {
+		mode: 'customParameters',
+		params: { frequency: [7, 7], perCellScale: [0.8, 0.8], perCellRotation: 0.09 },
+	},
 	dependsOnRenderHistory: false,
 	tags: ['transform', 'pattern'],
 	paramDefs: {

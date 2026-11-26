@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Rotates a card 180 degrees around its center, switching from image A on the front to image B on the back.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'customParameters', params: { progress: 0.29 } },
 	dependsOnRenderHistory: false,
 	tags: ['composite', 'transition', 'transform', '3d'],
 	paramDefs: {

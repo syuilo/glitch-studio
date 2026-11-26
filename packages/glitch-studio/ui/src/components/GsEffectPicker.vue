@@ -345,7 +345,7 @@ function choose(key: string, effect: EffectChoice) {
 
 .effects {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+	grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
 	gap: 8px;
 }
 </style>

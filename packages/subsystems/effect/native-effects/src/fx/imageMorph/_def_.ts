@@ -9,6 +9,7 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['distortion', 'composite', 'analysis'],
+	thumbnail: { mode: 'none' },
 	paramDefs: {
 		inputA: { dataType: { kind: 'color' }, ui: { label: 'Input A', control: {} }, canNode: true, defaultValue: [0, 0, 0, 0] },
 		inputB: { dataType: { kind: 'color' }, ui: { label: 'Input B', control: {} }, canNode: true, defaultValue: [0, 0, 0, 0] },

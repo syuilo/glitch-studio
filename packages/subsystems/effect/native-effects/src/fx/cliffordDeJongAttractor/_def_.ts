@@ -12,6 +12,7 @@ export default defineNativeEffect({
 		'en-US': 'Generates smoke-like or woven patterns from Clifford or De Jong attractors.',
 	},
 	kind: 'generate',
+	thumbnail: { mode: 'customParameters', params: { densityResolution: '512' } },
 	dependsOnRenderHistory: false,
 	tags: ['pattern', 'fractal', 'math', 'gimmicky', 'experimental'],
 	paramDefs: {
