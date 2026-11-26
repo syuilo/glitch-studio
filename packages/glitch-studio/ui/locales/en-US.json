@@ -73,6 +73,9 @@
 	"_EffectPicker": {
 		"BuiltinEffects": "Built-in effects",
 		"Close": "Close",
+		"Kind": "Kind",
+		"Modify": "Modify",
+		"Generate": "Generate",
 		"DataType": "Data Type",
 		"InputType": "Input type",
 		"OutputType": "Output type",

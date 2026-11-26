@@ -73,6 +73,9 @@
 	"_EffectPicker": {
 		"BuiltinEffects": "標準エフェクト",
 		"Close": "閉じる",
+		"Kind": "種類",
+		"Modify": "加工",
+		"Generate": "生成",
 		"DataType": "型",
 		"InputType": "入力の型",
 		"OutputType": "出力の型",

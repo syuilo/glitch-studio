@@ -53,9 +53,9 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { EffectPicker, fixtureDefinitions, state } = module.exports;
 
-function effect(displayName, { inputType = 'color', outputType = 'color', primaryInput = true, primaryOutput = true, tags = ['noise'] } = {}) {
+function effect(displayName, { kind = 'modify', inputType = 'color', outputType = 'color', primaryInput = true, primaryOutput = true, tags = ['noise'] } = {}) {
 	return {
-		displayName, tags, summary: { 'ja-JP': '', 'en-US': '' },
+		displayName, kind, tags, summary: { 'ja-JP': '', 'en-US': '' },
 		paramDefs: { input: { dataType: { kind: inputType }, canNode: true, ui: { label: 'Input' } } },
 		outputDefs: { output: { dataType: { kind: outputType } } },
 		primaryInputParameter: primaryInput ? 'input' : null,
@@ -176,6 +176,35 @@ test('applies strict filters and uses primary ports only to break equal name mat
 	assert.deepEqual(f.results(), ['noise', 'primary', 'secondary', 'fuzzy']);
 	await f.search('');
 	assert.deepEqual(f.results(), ['primary', 'fuzzy', 'secondary', 'noise']);
+});
+
+// 【エフェクトの種類は定義のkindで絞り込み、検索や他のフィルターと併用できる】
+// 入力を持つ生成Effectも、登録種別やポート構成にかかわらず、定義どおりに表示されることを確かめる。
+test('filters every Effect source by its declared kind and combines with other filters', async t => {
+	const f = fixture(t, {
+		addNoise: effect('Add Noise'),
+		noise: effect('Noise', { kind: 'generate' }),
+		scalarNoise: effect('Scalar Noise', { kind: 'generate', outputType: 'scalar' }),
+		gradient: effect('Gradient', { kind: 'generate' }),
+		grain: effect('Film Grain Noise', { kind: 'generate', tags: [] }),
+	}, {
+		graphs: [{ id: 'graph', name: 'Noise Graph', definition: testNodesEffect({ kind: 'modify' }) }],
+		shaders: [{ id: 'shader', name: 'Shader', summary: '', definition: testNodesEffect({ kind: 'generate' }) }],
+	});
+	const selectKind = value => f.filter('data-test-effect-picker-kind', value);
+	await selectKind('modify');
+	assert.deepEqual(f.results(), ['addNoise', 'graph']);
+	await selectKind('generate');
+	assert.deepEqual(f.results(), ['noise', 'scalarNoise', 'gradient', 'grain', 'shader']);
+	await selectKind('all');
+	assert.equal(f.find('data-test-effect-picker-results'), null);
+	assert.equal(f.results().length, 7);
+
+	await selectKind('generate');
+	await f.search('noise');
+	await f.filter('data-test-effect-picker-output-type', 'color');
+	await f.filter('data-test-effect-picker-tag', 'noise');
+	assert.deepEqual(f.results(), ['noise']);
 });
 
 // 【グラフへの追加は自分自身と自分を含む候補だけを初期一覧・履歴・検索から除く】

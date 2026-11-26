@@ -14,6 +14,22 @@
 		<div :class="$style.body">
 			<div :class="$style.leftArea">
 				<GsFolder defaultOpen asSection>
+					<template #icon><i class="ti ti-category"></i></template>
+					<template #label>{{ i18n.ts._EffectPicker.Kind }}</template>
+					<div :class="$style.tags">
+						<button
+							v-for="{ value, label } in effectKindItems"
+							:key="value ?? 'all'"
+							:data-test-effect-picker-kind="value ?? 'all'"
+							class="_button"
+							:class="[$style.tag, { [$style.selected]: selectedEffectKind === value }]"
+							@click="selectedEffectKind = value"
+						>
+							<span>{{ label }}</span>
+						</button>
+					</div>
+				</GsFolder>
+				<GsFolder defaultOpen asSection>
 					<template #icon><i class="ti ti-filter"></i></template>
 					<template #label>{{ i18n.ts._EffectPicker.DataType }}</template>
 					<div :class="$style.typeFilters">
@@ -129,9 +145,15 @@ const searchInput = useTemplateRef('searchInput');
 
 const query = ref('');
 const effectSearchQuery = computed(() => createEffectSearchQuery(query.value));
+const selectedEffectKind = ref<EffectChoice['kind'] | null>(null);
 const selectedTags = ref<EffectTags[]>([]);
 const selectedInputType = ref<TextureDataType['kind'] | null>(null);
 const selectedOutputType = ref<TextureDataType['kind'] | null>(props.selectedOutputType ?? null);
+const effectKindItems: { value: EffectChoice['kind'] | null; label: string }[] = [
+	{ value: null, label: i18n.ts._EffectPicker.All },
+	{ value: 'modify', label: i18n.ts._EffectPicker.Modify },
+	{ value: 'generate', label: i18n.ts._EffectPicker.Generate },
+];
 const dataTypeItems: { value: TextureDataType['kind'] | null; label: string }[] = [
 	{ value: null, label: i18n.ts._EffectPicker.NoTypeFilter },
 	{ value: 'color', label: i18n.ts._EffectPicker._DataTypes.color },
@@ -166,11 +188,13 @@ const recentEffectKeys = ref(readRecentEffectKeys());
 const recentEffects = computed(() => recentEffectKeys.value.flatMap(key => effects.value.filter(([id]) => id === key)));
 
 const results = computed(() => {
+	const effectKind = selectedEffectKind.value;
 	const inputType = selectedInputType.value;
 	const outputType = selectedOutputType.value;
 	return searchableEffects.value.filter(({ effect, inputPorts, outputPorts }) => {
 		// 接続互換性ではなく定義された型で検索する。any型と「指定なし」も区別する。
-		return selectedTags.value.every(tag => effect.tags.includes(tag))
+		return (effectKind == null || effect.kind === effectKind)
+			&& selectedTags.value.every(tag => effect.tags.includes(tag))
 			&& (inputType == null || inputPorts.some(port => port.dataType.kind === inputType))
 			&& (outputType == null || outputPorts.some(port => port.dataType.kind === outputType));
 	}).flatMap(item => {
@@ -188,7 +212,8 @@ const results = computed(() => {
 		.map(({ key, effect }) => [key, effect] as const);
 });
 
-const isInitialView = computed(() => effectSearchQuery.value.terms.length === 0 && selectedTags.value.length === 0
+const isInitialView = computed(() => effectSearchQuery.value.terms.length === 0
+	&& selectedEffectKind.value == null && selectedTags.value.length === 0
 	&& selectedInputType.value == null && selectedOutputType.value === (props.selectedOutputType ?? null));
 
 const effectSections = computed(() => [
