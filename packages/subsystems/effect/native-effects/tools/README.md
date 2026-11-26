@@ -19,7 +19,7 @@ thumbnail: {
 },
 ```
 
-`CHROME_PATH` に WebGPU が利用できる Chrome の実行ファイルを指定し、リポジトリルートで実行します。
+リポジトリルートで実行します。コマンドは Chrome を標準のインストール先と `PATH` から探します。別の場所にインストールした Chrome を使う場合は、`CHROME_PATH` に実行ファイルのパスを指定できます。
 
 ```text
 pnpm generate:effect-thumbnails

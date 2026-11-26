@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { open, rename, unlink } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { nativeEffectDefinitions } from '../src/definitions.ts';
+import { findChromeExecutable } from './chrome-executable.mjs';
 import { runEffectInChrome } from './run-effect-in-chrome.mjs';
 
 const usage = 'Usage: pnpm generate:effect-thumbnails [--effect <native-effect-id>]';
@@ -43,8 +44,8 @@ async function main() {
 		console.log(requestedId == null ? 'No Native Effects are configured for automatic thumbnail generation.' : `${requestedId}: thumbnail generation skipped.`);
 		return;
 	}
-	const chromePath = process.env.CHROME_PATH;
-	if (chromePath == null || chromePath.length === 0) throw new Error('Set CHROME_PATH to the Chrome executable.');
+	const chromePath = findChromeExecutable();
+	if (chromePath == null) throw new Error('Google Chrome was not found. Install Chrome or set CHROME_PATH to its executable.');
 	const results = await runEffectInChrome(new URL('./render-thumbnails.ts', import.meta.url), 'renderThumbnails', {
 		chromePath, timeout: 30_000 + 20_000 * requests.length, args: [requests],
 	});
