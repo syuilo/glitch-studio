@@ -372,6 +372,7 @@ function openHeaderHelpMenu(ev: PointerEvent) {
 	display: flex;
 	flex-shrink: 0;
 	align-items: center;
+	height: 100%;
 }
 
 .headerTabs {
@@ -388,6 +389,7 @@ function openHeaderHelpMenu(ev: PointerEvent) {
 	margin-left: auto;
 	min-width: 0;
 	padding: 0 12px;
+	height: 100%;
 	box-sizing: border-box;
 	text-overflow: ellipsis;
 	white-space: nowrap;
