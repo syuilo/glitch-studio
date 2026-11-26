@@ -40,7 +40,7 @@ export async function renderThumbnails(requests: readonly NativeEffectThumbnailR
 		});
 		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
 		const converter = createExternalImageToLinearTextureConverter(device);
-		canvasContext.configure({ device, format, colorSpace: 'srgb', alphaMode: 'premultiplied' });
+		canvasContext.configure({ device, format, colorSpace: 'srgb', alphaMode: 'opaque' });
 
 		async function loadSample(sample: NativeEffectThumbnailSample) {
 			const cached = sampleTextures.get(sample);
@@ -93,12 +93,12 @@ export async function renderThumbnails(requests: readonly NativeEffectThumbnailR
 				const encoder = device.createCommandEncoder();
 				instance.render(thumbnailFrame, encoder);
 				const texture = instance.outputs.get(outputPort)!.texture;
-				// 固定寸法を持つ出力も縦横比を保ち、余白を透過で残す。
+				// 固定寸法を持つ出力も縦横比を保ち、余白は黒で埋める。
 				const scale = Math.min(canvas.width / texture.width, canvas.height / texture.height);
 				const width = texture.width * scale;
 				const height = texture.height * scale;
 				const pass = encoder.beginRenderPass({
-					colorAttachments: [{ view: context.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }],
+					colorAttachments: [{ view: context.getCurrentTexture().createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 1] }],
 				});
 				pass.setViewport((canvas.width - width) / 2, (canvas.height - height) / 2, width, height, 0, 1);
 				pass.setPipeline(outputPipeline);

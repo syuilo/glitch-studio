@@ -1,15 +1,17 @@
 <template>
 <button class="_button" :class="[$style.root, { [$style.detailed]: detailed }]" @click="emit('click', $event)">
 	<div :class="$style.heading">
-		<img
-			v-if="thumbnailUrl != null"
-			:class="$style.thumbnail"
-			data-test-effect-picker-thumbnail
-			:src="thumbnailUrl"
-			alt=""
-			loading="lazy"
-			decoding="async"
-		/>
+		<div :class="$style.thumbnailContainer">
+			<img
+				v-if="thumbnailUrl != null"
+				:class="$style.thumbnail"
+				data-test-effect-picker-thumbnail
+				:src="thumbnailUrl"
+				alt=""
+				loading="lazy"
+				decoding="async"
+			/>
+		</div>
 		<div :class="$style.description">
 			<span :class="$style.title">{{ effect.displayName }}</span>
 			<span v-if="detailed" :class="$style.summary">{{ effect.summary['ja-JP'] }}</span>
@@ -98,14 +100,20 @@ const thumbnailUrl = computed(() => {
 	min-width: 0;
 }
 
-.thumbnail {
+.thumbnailContainer {
 	flex: none;
-	width: 96px;
-	max-width: 35%;
+	width: 30%;
 	aspect-ratio: 3 / 2;
-	object-fit: contain;
 	background: light-dark(#0001, #fff1);
 	border-radius: 4px;
+	overflow: clip;
+}
+
+.thumbnail {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
 }
 
 .title, .summary {

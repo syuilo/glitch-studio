@@ -18,17 +18,19 @@ function readWebp(base64) {
 	return { hasAlpha: chunks.has('ALPH') };
 }
 
-// 【Native Effect のサムネイルで、画像の接続方法とパラメータが描画へ反映される】
-// 単入力・複数入力と透明度のある画像を既存の Native Effect で描き、
-// 定義の省略と明示的な未接続が区別され、ピッカー用の寸法と形式で保存できることを確かめる。
-test('renders lossy WebP thumbnails with implicit or explicit sample connections and parameter overrides',
+// 【Native Effect のサムネイルで、画像の接続方法とパラメータが描画へ反映され、黒背景で保存される】
+// 定義の省略と明示的な未接続を区別し、完全透明と半透明の出力を、
+// 黒に合成済みの不透明色と同じ WebP にできることを確かめる。
+test('renders opaque lossy WebP thumbnails with sample connections and parameter overrides',
 	{ skip: process.env.CHROME_PATH == null, timeout: 90_000 }, async () => {
 		const slideInputs = { inputA: 'sceneA', inputB: 'sceneB' };
 		const requests = [
 			{ id: 'vignette', thumbnail: { mode: 'defaultParameters' } },
 			{ id: 'vignette', thumbnail: { mode: 'defaultParameters', inputs: { input: 'sceneA' } } },
 			{ id: 'vignette', thumbnail: { mode: 'defaultParameters', inputs: {} } },
-			{ id: 'vignette', thumbnail: { mode: 'defaultParameters', inputs: { input: 'cutout' } } },
+			{ id: 'fill', thumbnail: { mode: 'customParameters', params: { color: [0, 0, 0, 1] } } },
+			{ id: 'fill', thumbnail: { mode: 'customParameters', params: { color: [1, 0, 0, 0.5] } } },
+			{ id: 'fill', thumbnail: { mode: 'customParameters', params: { color: [0.5, 0, 0, 1] } } },
 			{ id: 'slideTransition', thumbnail: { mode: 'defaultParameters', inputs: slideInputs } },
 			{ id: 'slideTransition', thumbnail: { mode: 'customParameters', inputs: slideInputs, params: { progress: 0.5 } } },
 			{ id: 'slideTransition', thumbnail: { mode: 'customParameters', inputs: { inputA: 'sceneA', inputB: 'sceneA' }, params: { progress: 0.5 } } },
@@ -36,12 +38,12 @@ test('renders lossy WebP thumbnails with implicit or explicit sample connections
 		const results = await runEffectGpuTest(new URL('../tools/render-thumbnails.ts', import.meta.url), 'renderThumbnails', 75_000, [requests]);
 		assert.deepEqual(results.map(result => result.id), requests.map(request => request.id));
 		for (const result of results) assert.equal(result.error, undefined, result.error);
-		const [implicit, explicit, disconnected, cutout, initialSlide, halfwaySlide, sameImageSlide] = results.map(result => result.base64);
+		const [implicit, explicit, disconnected, black, translucentRed, redOnBlack, initialSlide, halfwaySlide, sameImageSlide] = results.map(result => result.base64);
 		assert.equal(implicit, explicit);
 		assert.notEqual(implicit, disconnected);
-		assert.notEqual(disconnected, cutout);
+		assert.equal(disconnected, black);
+		assert.equal(translucentRed, redOnBlack);
 		assert.notEqual(initialSlide, halfwaySlide);
 		assert.notEqual(halfwaySlide, sameImageSlide);
-		assert.deepEqual(readWebp(implicit), { hasAlpha: false });
-		assert.deepEqual(readWebp(cutout), { hasAlpha: true });
+		for (const result of results) assert.deepEqual(readWebp(result.base64), { hasAlpha: false });
 	});
