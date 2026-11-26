@@ -149,16 +149,15 @@ export const PREF_DEF = definePreferences({
 														id: 'b933bae5a21e43c88b7ca481c71c40c2',
 														type: 'panel',
 														direction: 'horizontal',
-														contentType: 'audioWaveform',
+														contentType: 'stats',
 													},
-
 												}, {
 													ratio: 1 / 3,
 													element: {
 														id: 'b1274afa651a405988e29c508c0c02d5',
 														type: 'panel',
 														direction: 'horizontal',
-														contentType: 'stats',
+														contentType: 'commandLog',
 													},
 												}],
 											},
