@@ -185,6 +185,15 @@ try {
 		}
 		optimized.remove();
 	}
+	const { element: curves } = await mount('curves');
+	color = await pixel(curves);
+	check(color.every((channel, index) => Math.abs(channel - [188, 137, 137, 255][index]) <= 2),
+		'exported expressions, Curve Animation and eased keyframes preserve pixels: ' + color);
+	await rendered(curves, () => curves.setParameter('curve', 'bezier'));
+	color = await pixel(curves);
+	check(color.every((channel, index) => Math.abs(channel - [137, 137, 137, 255][index]) <= 2),
+		'public values select another Function Curve in the exported runtime: ' + color);
+	curves.remove();
 	const { element: pointer } = await mount('pointer');
 	const canvas = pointer.shadowRoot.querySelector('canvas');
 	const rect = canvas.getBoundingClientRect();

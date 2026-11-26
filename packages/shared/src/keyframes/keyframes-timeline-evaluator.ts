@@ -3,6 +3,8 @@ import { supportsKeyframeInterpolation } from './keyframes-timeline.ts';
 import { evaluateEasing } from '../easing.ts';
 import type { EasingFamily } from '../easing.ts';
 
+declare const USE_EASING: boolean;
+
 export function evaluateKeyframesTimeline<T>(timeline: KeyframesTimelineData, playback: KeyframesTimelinePlaybackOptions, time: number, endTime: number, fallback: T): number | number[] | string | boolean | T {
 	// 同じ時刻では元の配列で後にあるキーフレームを優先する。保存データは変更しない。
 	const keyframes = timeline.keyframes.toSorted((a, b) => a.x - b.x);
@@ -44,7 +46,7 @@ export function evaluateKeyframesTimeline<T>(timeline: KeyframesTimelineData, pl
 		} else {
 			const linearProgress = (x - previous.x) / (next.x - previous.x);
 			const interpolation = previous.interpolation;
-			const progress = interpolation.type === 'linear' ? linearProgress
+			const progress = interpolation.type === 'linear' || (typeof USE_EASING !== 'undefined' && !USE_EASING) ? linearProgress
 				: evaluateEasing(linearProgress, {
 					family: interpolation.type.slice('ease:'.length) as EasingFamily,
 					direction: interpolation.direction,

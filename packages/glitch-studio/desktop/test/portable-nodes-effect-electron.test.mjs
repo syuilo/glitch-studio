@@ -36,7 +36,7 @@ test('builds portable runtimes in a real Electron utility process', { skip: proc
 			registerPortableNodesEffectIpc({ handle: (name, handler) => handlers.set(name, handler) }, utilityProcess,
 				${JSON.stringify(workerPath)}, ${JSON.stringify(catalog)}, () => {}, ${JSON.stringify(binary)});
 			const build = (id, requirements) => handlers.get('desktop:build-portable-nodes-effect')(event, id, requirements);
-			const requirements = { effectIds: ['fill'], requiresExpressions: false, requiresCustomShaderEffects: false };
+			const requirements = { effectIds: ['fill'], requiresExpressions: false, requiresCustomShaderEffects: false, parameterFeatures: [] };
 			const canceled = build('canceled', requirements);
 			handlers.get('desktop:cancel-portable-nodes-effect')(event, 'canceled');
 			await assert.rejects(canceled, /canceled/);
@@ -44,9 +44,11 @@ test('builds portable runtimes in a real Electron utility process', { skip: proc
 			assert.doesNotMatch(runtime.workerSource, /AiScript|VideoSampleSink|fn gs_fragment/);
 			assert.ok(runtime.workerSource.length > 1000);
 			// Native Effectを含まない作品でもShader用の入口と式評価器を配布資材から解決できる。
-			const shader = await build('shader', { effectIds: [], requiresExpressions: true, requiresCustomShaderEffects: true });
+			const shader = await build('shader', { effectIds: [], requiresExpressions: true, requiresCustomShaderEffects: true, parameterFeatures: ['noise'] });
 			assert.match(shader.workerSource, /fn gs_fragment/);
 			assert.match(shader.workerSource, /Expression is empty/);
+			assert.match(shader.workerSource, /NOISE requires/);
+			assert.doesNotMatch(shader.workerSource, /RANDOM requires/);
 			// 内蔵画像も配布カタログだけから取得でき、Viteの実行環境を要求しない。
 			const symbols = await build('symbols', { ...requirements, effectIds: ['symbols'] });
 			assert.match(symbols.workerSource, /data:image\\/png;base64,/);

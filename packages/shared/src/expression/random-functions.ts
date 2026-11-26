@@ -1,4 +1,5 @@
-import type { ExpressionFunction } from './expression-environment.ts';
+declare const USE_RANDOM_EXPRESSION: boolean;
+declare const USE_NOISE_EXPRESSION: boolean;
 
 const UINT32_RANGE = 0x100000000;
 
@@ -51,7 +52,7 @@ function noise(...args: unknown[]): number {
 }
 
 // 時刻・プロパティ・呼び出し回数に依存しない共通関数。式エンジンへの公開はパラメータ評価器が行う。
-export const randomExpressionFunctions: Readonly<Record<'RANDOM' | 'NOISE', ExpressionFunction>> = {
-	RANDOM: random,
-	NOISE: noise,
+export const randomExpressionFunctions = {
+	...(typeof USE_RANDOM_EXPRESSION === 'undefined' || USE_RANDOM_EXPRESSION ? { RANDOM: random } : {}),
+	...(typeof USE_NOISE_EXPRESSION === 'undefined' || USE_NOISE_EXPRESSION ? { NOISE: noise } : {}),
 };

@@ -52,7 +52,7 @@ test('collects immutable resources and custom shaders without local paths or dev
 	assert.notEqual(encoded.customShaderEffects[0].definition.code, 'changed');
 	assert.equal(encoded.nodesEffect.nodes[0].id, 'fill');
 	assert.deepEqual(encoded.nodesEffects.map(entry => entry.id), ['shared-id']);
-	assert.deepEqual(prepared.runtimeRequirements, { effectIds: ['fill', 'image'], requiresExpressions: true, requiresCustomShaderEffects: true });
+	assert.deepEqual(prepared.runtimeRequirements, { effectIds: ['fill', 'image'], requiresExpressions: true, requiresCustomShaderEffects: true, parameterFeatures: [] });
 	assert.doesNotMatch(JSON.stringify(encoded), /editor-only|private-device|C:\/private/);
 });
 
@@ -71,12 +71,15 @@ test('packages shared curves for direct references and detects FUNCTION_CURVE ex
 	input.nodesEffect.customParameterValues = { motion: direct };
 	const prepared = preparePortableNodesEffect(input, definitions);
 	assert.equal(prepared.runtimeRequirements.requiresExpressions, false);
+	assert.deepEqual(prepared.runtimeRequirements.parameterFeatures, ['curveAnimation', 'fixedFunctionCurve']);
 	const { artwork } = await encodePortableNodesEffect(prepared, 'html');
 	assert.deepEqual(artwork.nodesEffect.functionCurves, [curve]);
 	assert.deepEqual(artwork.nodesEffect.customParameterValues.motion, direct);
 
 	input.nodesEffect.customParameterValues.motion = { ...direct, expressionModifier: { enabled: true, code: 'VALUE + FUNCTION_CURVE("ramp", 0, "clamp")' } };
-	assert.equal(preparePortableNodesEffect(input, definitions).runtimeRequirements.requiresExpressions, true);
+	const withExpression = preparePortableNodesEffect(input, definitions).runtimeRequirements;
+	assert.equal(withExpression.requiresExpressions, true);
+	assert.deepEqual(withExpression.parameterFeatures, ['curveAnimation', 'fixedFunctionCurve', 'functionCurveExpression']);
 });
 
 // 【公開値のHDR・入れ子・参照名を保持し、書き出し元から独立した値を作る】

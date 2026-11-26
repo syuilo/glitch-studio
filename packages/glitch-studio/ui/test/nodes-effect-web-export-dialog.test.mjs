@@ -56,7 +56,7 @@ function fixture(t, fileData = new Blob(['asset'])) {
 		name: 'Nodes Effect', gsVersion: 'test', customShaderEffects: [], aspectRatio: 2,
 		settings: { ...DEFAULT_PORTABLE_NODES_EFFECT_SETTINGS }, initialParameters: {},
 		diagnostics: { resolutionNodes: [] },
-		runtimeRequirements: { effectIds: [], requiresExpressions: false, requiresParameterDefaultExpressions: false, requiresCustomShaderEffects: false },
+		runtimeRequirements: { effectIds: [], requiresExpressions: false, requiresCustomShaderEffects: false, parameterFeatures: ['keyframes'] },
 		assets: [{ id: 'asset', name: 'Asset', sourceFileName: 'asset.png', width: 1, height: 1, fileDataType: 'image/png', fileData }],
 		nodesEffect: { nodes: [], paramDefs: [{ id: 'speed', nameForReference: 'speed', dataType: { kind: 'scalar' }, canNode: false,
 			ui: { label: 'Speed', control: {} }, defaultValue: 1 }],
@@ -155,6 +155,7 @@ test('saves one HTML snapshot despite edits and duplicate requests during asset 
 	assert.equal(artwork.initialParameters.speed, 2);
 	assert.equal(Buffer.from(artwork.assets[0].fileDataBase64, 'base64').toString(), 'original asset');
 	assert.equal(f.calls.filter(call => Array.isArray(call) && call[0] === 'build').length, 1);
+	assert.deepEqual(f.calls.find(call => Array.isArray(call) && call[0] === 'build')[2].parameterFeatures, ['keyframes']);
 	assert.deepEqual(f.calls.slice(-2), ['finish', 'release']);
 });
 

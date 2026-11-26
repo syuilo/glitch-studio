@@ -172,6 +172,7 @@ async function download() {
 		// VueのProxyをIPCへ渡さず、検証した作品と同じ機能集合を値として送る。
 		const runtime = await desktop.buildPortableNodesEffect(buildRequestId, {
 			...snapshot.runtimeRequirements, effectIds: [...snapshot.runtimeRequirements.effectIds],
+			parameterFeatures: [...snapshot.runtimeRequirements.parameterFeatures],
 		});
 		buildRequestId = null;
 		signal.throwIfAborted();

@@ -1,38 +1,43 @@
 import { evaluateCurveAnimation } from '../curve-animation/curve-animation-evaluator.ts';
 import { evaluateFunctionCurve } from '../function-curve/function-curve-evaluator.ts';
-import type { ExpressionEngine } from '../expression/expression-engine.ts';
 import { randomExpressionFunctions } from '../expression/random-functions.ts';
 import { evaluateKeyframesTimeline } from '../keyframes/keyframes-timeline-evaluator.ts';
 import { deepClone } from '../utility/deep-clone.ts';
-import type { Cloneable } from '../utility/deep-clone.ts';
 import { coerceParameterValue } from './coerce-parameter-value.ts';
+import type { Cloneable } from '../utility/deep-clone.ts';
+import type { ExpressionEngine } from '../expression/expression-engine.ts';
 import type { ParameterDefinition } from './parameter-definition.ts';
 import type { ExpressionFunction } from '../expression/expression-environment.ts';
 import type { ValueParameterBinding } from './value-parameter-binding.ts';
 import type { ParameterEvaluationScope } from './parameter-evaluation-scope.ts';
 
+// Evaluatorはstateless/deterministicである必要がある
+
 type EvaluationParameterDefinition = Pick<ParameterDefinition, 'dataType' | 'ui'>;
 
-// Evaluatorはstateless/deterministicである必要がある
+// Web書き出しは作品に合わせて置換する。未定義の通常ビルドでは評価経路を全て使う。
+declare const USE_CURVE_ANIMATION: boolean;
+declare const USE_KEYFRAMES: boolean;
+declare const USE_FUNCTION_CURVE_EXPRESSION: boolean;
+
+function createFunctionCurveReader(scope: ParameterEvaluationScope): ExpressionFunction {
+	return (...args) => {
+		const [nameForReference, coordinate, wrapMode] = args;
+		if (args.length !== 3 || typeof nameForReference !== 'string' || typeof coordinate !== 'number' || !Number.isFinite(coordinate)
+			|| (wrapMode !== 'clamp' && wrapMode !== 'repeat' && wrapMode !== 'repeatMirrored')) {
+			throw new Error('FUNCTION_CURVE requires a nameForReference, finite coordinate and wrap mode');
+		}
+		const functionCurve = scope.functionCurves.find(candidate => candidate.nameForReference === nameForReference);
+		if (functionCurve == null) throw new Error(`Unknown Function Curve nameForReference: ${nameForReference}`);
+		return evaluateFunctionCurve(functionCurve, coordinate, wrapMode);
+	};
+}
 
 // 評価結果やスコープは保持せず、同じBindingとスコープから同じ値を返す。
 export class ParameterBindingEvaluator {
 	private readonly expressionEvaluator: ExpressionEngine | null;
 
 	constructor(expressionEvaluator: ExpressionEngine | null) { this.expressionEvaluator = expressionEvaluator; }
-
-	private functionCurveReader(scope: ParameterEvaluationScope): ExpressionFunction {
-		return (...args) => {
-			const [nameForReference, coordinate, wrapMode] = args;
-			if (args.length !== 3 || typeof nameForReference !== 'string' || typeof coordinate !== 'number' || !Number.isFinite(coordinate)
-				|| (wrapMode !== 'clamp' && wrapMode !== 'repeat' && wrapMode !== 'repeatMirrored')) {
-				throw new Error('FUNCTION_CURVE requires a nameForReference, finite coordinate and wrap mode');
-			}
-			const functionCurve = scope.functionCurves.find(candidate => candidate.nameForReference === nameForReference);
-			if (functionCurve == null) throw new Error(`Unknown Function Curve nameForReference: ${nameForReference}`);
-			return evaluateFunctionCurve(functionCurve, coordinate, wrapMode);
-		};
-	}
 
 	public evaluate(binding: ValueParameterBinding, scope: ParameterEvaluationScope, fallback: any, definition: EvaluationParameterDefinition): any {
 		return this.bind(binding, fallback, definition, scope.functionCurves)(scope);
@@ -46,7 +51,7 @@ export class ParameterBindingEvaluator {
 		if (modifier?.enabled !== true) return read;
 		return scope => {
 			const base = read(scope);
-				// 数値文字列の変換だけを行い、式が返す型・構造の正しさは検査しない。
+			// 数値文字列の変換だけを行い、式が返す型・構造の正しさは検査しない。
 			try {
 				return this.evaluateExpression(modifier.code, scope, 'modifier', definition, coerceParameterValue(definition, base));
 			} catch (error) {
@@ -60,14 +65,14 @@ export class ParameterBindingEvaluator {
 		try {
 			if (this.expressionEvaluator == null) throw new Error('Expression evaluation is unavailable');
 			const variables = { ...scope.variables };
-			const functions = {
+			const functions: Record<string, ExpressionFunction> = {
 				...scope.functions,
 				...randomExpressionFunctions,
-				FUNCTION_CURVE: this.functionCurveReader(scope),
 			};
+			if (typeof USE_FUNCTION_CURVE_EXPRESSION === 'undefined' || USE_FUNCTION_CURVE_EXPRESSION) functions.FUNCTION_CURVE = createFunctionCurveReader(scope);
 			// VALUEは加工式だけに公開する。親スコープの同名変数・関数を基準式へ漏らさない。
 			delete variables.VALUE;
-			delete (functions as Record<string, ExpressionFunction>).VALUE;
+			delete functions.VALUE;
 			// 式エンジンが変数を複製するため、保存値を保護するコピーはそこで一度だけ行う。
 			if (stage === 'modifier') variables.VALUE = value as Cloneable;
 			const result = this.expressionEvaluator.evaluate(code, { variables, functions });
@@ -83,15 +88,21 @@ export class ParameterBindingEvaluator {
 			case 'literal': return () => binding.value;
 			case 'envVariable': return scope => Object.hasOwn(scope.variables, binding.variable) ? deepClone(scope.variables[binding.variable]) ?? fallback : fallback;
 			case 'expression': return scope => this.evaluateExpression(binding.expression, scope, 'base', definition);
-			case 'curveAnimationInline': {
-				const { curveAnimation } = binding;
-				const curveBinding = curveAnimation.curveBinding;
-				const curve = curveBinding.source === 'inline' ? curveBinding.curve : functionCurves.find(candidate => candidate.id === curveBinding.curveId);
-				return curve == null ? () => fallback : scope => evaluateCurveAnimation(curveAnimation, curve, scope.time, scope.endTime);
-			}
-			case 'keyframesTimelineInline': return scope => evaluateKeyframesTimeline(binding.keyframesTimeline, binding, scope.time, scope.endTime, fallback);
-			default: throw new Error('Unsupported value parameter input source');
+			case 'curveAnimationInline':
+				if (typeof USE_CURVE_ANIMATION === 'undefined' || USE_CURVE_ANIMATION) {
+					const { curveAnimation } = binding;
+					const curveBinding = curveAnimation.curveBinding;
+					const curve = curveBinding.source === 'inline' ? curveBinding.curve : functionCurves.find(candidate => candidate.id === curveBinding.curveId);
+					return curve == null ? () => fallback : scope => evaluateCurveAnimation(curveAnimation, curve, scope.time, scope.endTime);
+				}
+				break;
+			case 'keyframesTimelineInline':
+				if (typeof USE_KEYFRAMES === 'undefined' || USE_KEYFRAMES) {
+					return scope => evaluateKeyframesTimeline(binding.keyframesTimeline, binding, scope.time, scope.endTime, fallback);
+				}
+				break;
 		}
+		throw new Error('Unsupported value parameter input source');
 	}
 }
 

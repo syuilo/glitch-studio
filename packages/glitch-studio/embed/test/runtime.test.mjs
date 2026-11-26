@@ -20,10 +20,12 @@ test('detects expression capabilities in nested bindings, modifiers and custom p
 	assert.equal(analyze().requiresExpressions, true);
 	nodesEffect.nodes[0].params.color = literal([1, 0, 0, 1]);
 	assert.equal(analyze().requiresExpressions, false);
-	nodesEffect.nodes[0].params.color.expressionModifier = { enabled: false, code: 'VALUE' };
+	nodesEffect.nodes[0].params.color.expressionModifier = { enabled: false, code: 'NOISE(0.25)' };
 	assert.equal(analyze().requiresExpressions, false);
+	assert.deepEqual(analyze().parameterFeatures, []);
 	nodesEffect.nodes[0].params.color.expressionModifier.enabled = true;
 	assert.equal(analyze().requiresExpressions, true);
+	assert.deepEqual(analyze().parameterFeatures, ['noise']);
 	nodesEffect.nodes[0].params.color = { inputSource: 'envVariable', variable: 'POINTER_POSITION' };
 	assert.equal(analyze().requiresExpressions, false);
 	const nested = { ...parameter('array', [], 'values'), dataType: { kind: 'array', elementType: { kind: 'scalar' } },
@@ -33,8 +35,9 @@ test('detects expression capabilities in nested bindings, modifiers and custom p
 	nestedNodesEffect.outputSources = {};
 	nestedNodesEffect.paramDefs = { values: nested };
 	nodesEffect.nodes.push({ id: 'nested', effectSource: { type: 'inlineNodesEffect', nodesEffect: nestedNodesEffect },
-		params: { values: literal([{ id: 'child', binding: { inputSource: 'expression', expression: '1 + 2' } }]) } });
+		params: { values: literal([{ id: 'child', binding: { inputSource: 'expression', expression: 'let call = RANDOM\ncall(1)' } }]) } });
 	assert.equal(analyze().requiresExpressions, true);
+	assert.deepEqual(analyze().parameterFeatures, ['random']);
 	nodesEffect.nodes[1].params = {};
 	assert.equal(analyze().requiresExpressions, false);
 	nodesEffect.customParameterDefs = { custom: parameter('scalar', 0, 'custom') };
@@ -65,7 +68,7 @@ test('bundles only selected runtime capabilities from a self-contained catalog',
 	for (const output of Object.values(catalog.outputs)) {
 		for (const input of Object.keys(output.inputs)) assert.doesNotMatch(input, excludedRenderingModules);
 	}
-	const requirements = { effectIds: ['fill'], requiresExpressions: false, requiresCustomShaderEffects: false };
+	const requirements = { effectIds: ['fill'], requiresExpressions: false, requiresCustomShaderEffects: false, parameterFeatures: [] };
 	const metadata = [];
 	const plain = await buildPortableNodesEffectRuntime(directory, requirements, (_name, result) => metadata.push(result));
 	assert.doesNotMatch(plain.elementSource + plain.workerSource, /AiScript|VideoSampleSink|Expression is empty|fn gs_fragment/);
@@ -86,6 +89,29 @@ test('bundles only selected runtime capabilities from a self-contained catalog',
 	assert.match(expressions.workerSource, /Expression is empty/);
 	assert.doesNotMatch(expressions.workerSource, excludedValidationMessages);
 	assert.equal(expressions.elementSource, plain.elementSource);
+	// 【式エンジンを使う作品でも、公開していない評価器は同梱しない】
+	// 関数やカーブを別々に使う作品では、その機能から依存する計算だけを最終ビルドで有効にする。
+	const unusedParameterCode = /bezierControlPointA|dutyCycle|7\.5625|trimmedDurationMs|FUNCTION_CURVE requires|RANDOM requires|NOISE requires/;
+	assert.doesNotMatch(plain.workerSource, unusedParameterCode);
+	assert.doesNotMatch(expressions.workerSource, unusedParameterCode);
+	for (const [feature, included, excluded] of [
+		['random', /RANDOM requires/, /NOISE requires|FUNCTION_CURVE requires|bezierControlPointA/],
+		['noise', /NOISE requires/, /RANDOM requires|FUNCTION_CURVE requires|bezierControlPointA/],
+	]) {
+		const runtime = await buildPortableNodesEffectRuntime(directory, { ...requirements, requiresExpressions: true, parameterFeatures: [feature] });
+		assert.match(runtime.workerSource, included);
+		assert.doesNotMatch(runtime.workerSource, excluded);
+	}
+	const keyframes = await buildPortableNodesEffectRuntime(directory, { ...requirements, parameterFeatures: ['keyframes'] });
+	assert.match(keyframes.workerSource, /trimmedDurationMs/);
+	assert.doesNotMatch(keyframes.workerSource, /bezierControlPointA|dutyCycle|7\.5625/);
+	const bezier = await buildPortableNodesEffectRuntime(directory, { ...requirements, parameterFeatures: ['curveAnimation', 'bezier'] });
+	assert.match(bezier.workerSource, /bezierControlPointA/);
+	assert.doesNotMatch(bezier.workerSource, /dutyCycle|7\.5625/);
+	const presets = await buildPortableNodesEffectRuntime(directory, { ...requirements, parameterFeatures: ['curveAnimation', 'fixedFunctionCurve', 'easing'] });
+	assert.match(presets.workerSource, /dutyCycle/);
+	assert.match(presets.workerSource, /7\.5625/);
+	assert.doesNotMatch(presets.workerSource, /bezierControlPointA/);
 	const shaders = await buildPortableNodesEffectRuntime(directory, { ...requirements, requiresCustomShaderEffects: true });
 	assert.match(shaders.workerSource, /fn gs_fragment/);
 	assert.doesNotMatch(shaders.workerSource, /Expression is empty/);
@@ -112,6 +138,7 @@ test('bundles only selected runtime capabilities from a self-contained catalog',
 	assert.match(allEffects.workerSource, /fn flowNoisePermute\(value: vec4f\) -> vec4f \{ let wrapped/);
 	assert.match(allEffects.workerSource, /Copyright \(c\) 2021 Stefan Gustavson and Ian McEwan/);
 	await assert.rejects(buildPortableNodesEffectRuntime(directory, { ...requirements, effectIds: ['../expression'] }), /Invalid/);
+	await assert.rejects(buildPortableNodesEffectRuntime(directory, { ...requirements, parameterFeatures: ['__proto__'] }), /Invalid/);
 	// 【ビルド時の警告を見落として壊れた成果物を保存しない】
 	// 配布カタログへVite専用参照が再混入した場合も、書き出しの段階で明示的に失敗させる。
 	await writeFile(path.join(directory, 'worker.js'), 'export function startPortableNodesEffectWorker() { console.log(import.meta.env.BASE_URL); }');

@@ -21,7 +21,7 @@ function fixture() {
 // 別作品の結果が混ざることと、プロセス異常で永久に処理中となることを防ぐ。
 test('returns runtime results and releases failed or completed build processes', async () => {
 	const f = fixture();
-	const requirements = { effectIds: ['fill'], requiresExpressions: false, requiresCustomShaderEffects: true };
+	const requirements = { effectIds: ['fill'], requiresExpressions: false, requiresCustomShaderEffects: true, parameterFeatures: ['keyframes'] };
 	const first = f.invoke('build-portable-nodes-effect', 'first', requirements);
 	assert.throws(() => f.invoke('build-portable-nodes-effect', 'second', requirements), /already running/);
 	const child = f.children[0];

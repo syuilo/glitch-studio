@@ -2,6 +2,10 @@ import { evaluateEasing, smoothstep, smootherstep } from '../easing.ts';
 import { rawBezierEasing } from '../utility/bezier.ts';
 import type { BezierFunctionCurve, FixedFunctionCurve, FunctionCurve, FunctionCurveWrapMode } from './function-curve.ts';
 
+declare const USE_BEZIER_FUNCTION_CURVE: boolean;
+declare const USE_FIXED_FUNCTION_CURVE: boolean;
+declare const USE_EASING: boolean;
+
 export function getFunctionCurveEndX(curve: FunctionCurve): number | null {
 	if (curve.type !== 'bezier') return 1;
 	if (curve.points.length === 0) return null;
@@ -10,9 +14,13 @@ export function getFunctionCurveEndX(curve: FunctionCurve): number | null {
 }
 
 export function evaluateFunctionCurve(curve: FunctionCurve, x: number, wrapMode: FunctionCurveWrapMode): number {
-	if (curve.type === 'bezier') return evaluateBezierFunctionCurve(curve, x, wrapMode);
-	const position = wrapFunctionCurveX(x, 0, 1, wrapMode);
-	return evaluateFixedFunctionCurve(curve, skewFunctionCurveX(position, 0, 1, curve.skew ?? 0));
+	if (curve.type === 'bezier') {
+		if (typeof USE_BEZIER_FUNCTION_CURVE === 'undefined' || USE_BEZIER_FUNCTION_CURVE) return evaluateBezierFunctionCurve(curve, x, wrapMode);
+	} else if (typeof USE_FIXED_FUNCTION_CURVE === 'undefined' || USE_FIXED_FUNCTION_CURVE) {
+		const position = wrapFunctionCurveX(x, 0, 1, wrapMode);
+		return evaluateFixedFunctionCurve(curve, skewFunctionCurveX(position, 0, 1, curve.skew ?? 0));
+	}
+	throw new Error('Unsupported Function Curve type');
 }
 
 function wrapFunctionCurveX(x: number, startX: number, endX: number, wrapMode: FunctionCurveWrapMode): number {
@@ -53,7 +61,9 @@ function evaluateFixedFunctionCurve(curve: FixedFunctionCurve, x: number): numbe
 		case 'linear': return x;
 		case 'smoothstep': return smoothstep(x);
 		case 'smootherstep': return smootherstep(x);
-		case 'easing': return evaluateEasing(x, curve);
+		case 'easing':
+			if (typeof USE_EASING === 'undefined' || USE_EASING) return evaluateEasing(x, curve);
+			break;
 		case 'smoothPulse': return (1 - Math.cos(2 * Math.PI * x)) / 2;
 		case 'pulse': {
 			if (curve.dutyCycle === 1) return 1;
@@ -73,6 +83,7 @@ function evaluateFixedFunctionCurve(curve: FixedFunctionCurve, x: number): numbe
 			return 0.5;
 		}
 	}
+	throw new Error('Unsupported fixed Function Curve type');
 }
 
 function evaluateBezierFunctionCurve(curve: BezierFunctionCurve, x: number, wrapMode: FunctionCurveWrapMode): number {

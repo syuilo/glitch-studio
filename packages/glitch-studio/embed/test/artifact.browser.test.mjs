@@ -44,6 +44,28 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	const modified = fixture();
 	modified.nodesEffect.nodes[0].params.color = { inputSource: 'literal', value: [0, 0, 0, 1], expressionModifier: { enabled: true, code: '[PUBLIC("level"), 0, 0, 1]' } };
 	await add('modified', modified);
+	// 【公開値で選ぶFunction Curveと、Curve Animation・キーフレーム・式関数が書き出し後も動く】
+	// 初期値では参照されない曲線も、公開値の更新で選べるため、最終バンドルに必要になる。
+	const curves = fixture();
+	curves.nodesEffect.paramDefs = { curve: parameter('string', 'linear', 'curve') };
+	curves.nodesEffect.functionCurves = [
+		{ id: 'linear', nameForReference: 'linear', type: 'linear' },
+		{ id: 'bezier', nameForReference: 'bezier', type: 'bezier', isXNormalized: true, isYNormalized: true, points: [
+			{ id: 'start', x: 0, y: 0.25, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
+			{ id: 'end', x: 1, y: 0.25, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
+		] },
+	];
+	curves.nodesEffect.customParameterDefs = { motion: parameter('scalar', 0, 'motion'), keys: parameter('scalar', 0, 'keys') };
+	const playback = { trimmedDurationMs: null, offsetMode: 'start', wrapMode: 'clamp' };
+	curves.nodesEffect.customParameterValues = {
+		motion: { inputSource: 'curveAnimationInline', curveAnimation: { ...playback, curveBinding: { source: 'reference', curveId: 'bezier' }, yRangeMin: 0, yRangeMax: 1 } },
+		keys: { inputSource: 'keyframesTimelineInline', ...playback, keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [
+			{ id: 'before', x: -1000, value: 0, interpolation: { type: 'ease:quad', direction: 'in' } },
+			{ id: 'after', x: 1000, value: 1, interpolation: { type: 'hold' } },
+		] } },
+	};
+	curves.nodesEffect.nodes[0].params.color = { inputSource: 'expression', expression: '[FUNCTION_CURVE(PUBLIC("curve"), 0.5, "clamp") + NOISE(0), CUSTOM("motion") + RANDOM(0) * 0, CUSTOM("keys"), 1]' };
+	await add('curves', curves);
 	const defaults = fixture();
 	defaults.nodesEffect.paramDefs = { pointsId: { ...parameter('array', [], 'values'), dataType: { kind: 'array', elementType: { kind: 'scalar' } },
 		element: { defaultValue: 0 }, ui: { label: 'Values', control: { element: {} } },
