@@ -9,6 +9,11 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['composite'],
+	thumbnail: {
+		mode: 'customParameters',
+		inputs: { inputA: 'sceneA', inputB: 'sceneB' },
+		params: { angle: 0.15, gap: 0.018 },
+	},
 	paramDefs: {
 		inputA: {
 			dataType: { kind: 'color' },

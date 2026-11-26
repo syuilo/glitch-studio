@@ -8,6 +8,10 @@ export default defineNativeEffect({
 		'en-US': 'Repeats images or colors in a grid to create tiled patterns.',
 	},
 	kind: 'modify',
+	thumbnail: {
+		mode: 'customParameters',
+		params: { inputs: [[0.05, 0.55, 0.8, 1]], frequency: [7, 7], perCellScale: [0.66, 0.66], perCellRotation: 0.125 },
+	},
 	dependsOnRenderHistory: false,
 	tags: ['pattern', 'transform'],
 	paramDefs: {

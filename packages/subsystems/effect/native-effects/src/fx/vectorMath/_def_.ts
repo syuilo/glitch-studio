@@ -10,6 +10,7 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['math', 'utility'],
+	thumbnail: { mode: 'none' },
 	paramDefs: {
 		operation: {
 			dataType: { kind: 'enum', options: vectorMathOperationIds },

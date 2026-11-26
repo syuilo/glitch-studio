@@ -47,6 +47,7 @@ export default defineNativeEffect({
 	kind: 'generate',
 	dependsOnRenderHistory: false,
 	tags: ['pattern', 'fractal', 'math', 'gimmicky', 'experimental'],
+	thumbnail: { mode: 'defaultParameters' },
 	paramDefs: {
 		transforms: {
 			dataType: { kind: 'array', elementType: { kind: 'struct', fields: {

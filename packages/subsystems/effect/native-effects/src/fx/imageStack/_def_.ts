@@ -9,6 +9,18 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['composite', 'transform', 'utility'],
+	thumbnail: {
+		mode: 'customParameters',
+		params: {
+			inputs: [
+				[0.04, 0.32, 0.68, 1],
+				[0.9, 0.29, 0.08, 1],
+				[0.28, 0.68, 0.25, 1],
+			],
+			gap: 0.025,
+			padding: 0.025,
+		},
+	},
 	paramDefs: {
 		inputs: {
 			dataType: { kind: 'array', elementType: { kind: 'color' } },

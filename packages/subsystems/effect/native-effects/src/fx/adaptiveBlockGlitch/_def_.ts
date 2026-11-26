@@ -7,6 +7,10 @@ export default defineNativeEffect({
 		'en-US': 'Divides the input into blocks sized according to color and opacity variation, then applies displacement and color corruption.',
 	},
 	kind: 'modify',
+	thumbnail: {
+		mode: 'customParameters',
+		params: { maxBlockSize: 28, subdivisions: 3, threshold: 0.09, channelShift: 0.18 },
+	},
 	dependsOnRenderHistory: false,
 	tags: ['glitch', 'color'],
 	paramDefs: {

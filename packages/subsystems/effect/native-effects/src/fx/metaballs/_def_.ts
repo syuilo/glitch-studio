@@ -11,6 +11,7 @@ export default defineNativeEffect({
 	kind: 'generate',
 	dependsOnRenderHistory: false,
 	tags: ['liquid'],
+	thumbnail: { mode: 'defaultParameters', inputs: {} },
 	paramDefs: {
 		background: {
 			dataType: { kind: 'color' },

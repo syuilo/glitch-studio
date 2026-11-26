@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Visualizes input audio as a spectrogram showing frequency content over time.',
 	},
 	kind: 'generate',
+	thumbnail: { mode: 'none' },
 	// 入力音声の履歴に加え、過去の描画で解析したスペクトラムを内部に蓄積する。
 	dependsOnRenderHistory: true,
 	tags: ['audio', 'analysis', 'temporal'],

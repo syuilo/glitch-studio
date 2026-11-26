@@ -9,6 +9,7 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['composite', 'glitch'],
+	thumbnail: { mode: 'defaultParameters', inputs: { input: 'sceneA', reference: 'sceneB' } },
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: [0, 0, 0, 0] },
 		reference: { dataType: { kind: 'color' }, ui: { label: 'Reference', control: {} }, canNode: true, defaultValue: [0, 0, 0, 0] },

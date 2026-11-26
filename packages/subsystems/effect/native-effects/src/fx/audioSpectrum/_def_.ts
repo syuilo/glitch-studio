@@ -8,6 +8,7 @@ export default defineNativeEffect({
 		'en-US': 'Visualizes input audio as a frequency spectrum.',
 	},
 	kind: 'generate',
+	thumbnail: { mode: 'none' },
 	// 解析は音声サンプル間隔で進むが、過去の描画で更新した平滑化状態を保持する。
 	dependsOnRenderHistory: true,
 	tags: ['audio', 'analysis'],

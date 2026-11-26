@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Generates interference colors between two polarizers from thickness, birefringence, and fast-axis orientation.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'none' },
 	dependsOnRenderHistory: false,
 	tags: ['color', 'light', 'simulation', 'convert'],
 	paramDefs: {

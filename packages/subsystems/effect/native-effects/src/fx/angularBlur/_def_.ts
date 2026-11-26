@@ -8,6 +8,7 @@ export default defineNativeEffect({
 		'en-US': 'Blurs the image along arcs around a center, with a protected focus zone, spectral dispersion, directional bias, and highlight emphasis.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'customParameters', params: { angle: 0.14, focusRadius: 0.1 } },
 	dependsOnRenderHistory: false,
 	tags: ['blur', 'light'],
 	paramDefs: {

@@ -9,6 +9,7 @@ export default defineNativeEffect({
 	kind: 'generate',
 	dependsOnRenderHistory: false,
 	tags: ['fractal', 'noise', 'utility'],
+	thumbnail: { mode: 'none' },
 	paramDefs: {
 		noiseType: {
 			dataType: { kind: 'enum', options: ['value', 'simplex', 'perlin', 'worley', 'flow'] },

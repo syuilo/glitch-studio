@@ -12,6 +12,10 @@ export default defineNativeEffect({
 	staticSettingDefs: {
 		font: { dataType: { kind: 'assetReference', assetType: 'font' }, ui: { label: 'Font' }, defaultValue: null },
 	},
+	thumbnail: {
+		mode: 'customParameters',
+		params: { text: 'Glitch Studio', size: 0.18 },
+	},
 	paramDefs: {
 		text: { dataType: { kind: 'string' }, ui: { label: 'Text', control: {} }, defaultValue: 'Hello, world!' },
 		writingMode: {

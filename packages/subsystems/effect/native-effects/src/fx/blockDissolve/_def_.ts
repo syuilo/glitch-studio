@@ -7,6 +7,11 @@ export default defineNativeEffect({
 		'en-US': 'Transitions from image A to image B in square cells, in random or directional order.',
 	},
 	kind: 'modify',
+	thumbnail: {
+		mode: 'customParameters',
+		inputs: { inputA: 'sceneA', inputB: 'sceneB' },
+		params: { progress: 0.48, cellSize: 0.14 },
+	},
 	dependsOnRenderHistory: false,
 	tags: ['composite', 'transition'],
 	paramDefs: {

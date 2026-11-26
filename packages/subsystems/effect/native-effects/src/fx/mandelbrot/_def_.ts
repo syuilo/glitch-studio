@@ -16,6 +16,7 @@ export default defineNativeEffect({
 	dependsOnRenderHistory: false,
 	canHaveLongRunningRenderPass: true,
 	tags: ['pattern', 'fractal', 'math', 'gimmicky', 'experimental'],
+	thumbnail: { mode: 'defaultParameters' },
 	paramDefs: {
 		referenceCenter: {
 			dataType: { kind: 'struct', fields: { real: { kind: 'string' }, imaginary: { kind: 'string' } } },

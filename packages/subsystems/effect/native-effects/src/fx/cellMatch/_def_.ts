@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Places image fragments from the input to resemble the reference, with optional cell reuse.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'defaultParameters', inputs: { input: 'sceneA', reference: 'sceneB' } },
 	dependsOnRenderHistory: false,
 	tags: ['glitch', 'pattern', 'stylized'],
 	paramDefs: {

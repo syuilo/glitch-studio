@@ -13,6 +13,7 @@ export default defineNativeEffect({
 		asset: { dataType: { kind: 'assetReference', assetType: 'video' }, ui: { label: 'Asset' }, defaultValue: null },
 	},
 	intrinsicResolutionSetting: 'asset',
+	thumbnail: { mode: 'none' },
 	paramDefs: {
 		time: { dataType: { kind: 'scalar' }, ui: { label: 'Time', control: { controlType: 'number', step: 0.01 } }, defaultValue: 0 },
 		fit: { dataType: { kind: 'fitMode' }, ui: { label: 'Fit', control: {} }, defaultValue: 'contain' },

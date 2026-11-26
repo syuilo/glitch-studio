@@ -9,6 +9,11 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['glitch', 'composite'],
+	thumbnail: {
+		mode: 'customParameters',
+		inputs: { input: 'sceneA', donor: 'sceneB' },
+		params: { blockSize: 6, minFrequency: 0.1, donorGain: 1.6 },
+	},
 	paramDefs: {
 		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: {

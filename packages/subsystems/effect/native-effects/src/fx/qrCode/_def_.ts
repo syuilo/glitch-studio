@@ -9,6 +9,7 @@ export default defineNativeEffect({
 	kind: 'generate',
 	dependsOnRenderHistory: false,
 	tags: ['pattern', 'typography', 'utility'],
+	thumbnail: { mode: 'defaultParameters' },
 	paramDefs: {
 		content: { dataType: { kind: 'string' }, ui: { label: 'Content', control: {} }, defaultValue: 'Hello' },
 		errorCorrection: {

@@ -9,6 +9,7 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['distortion', 'fractal', 'gimmicky', 'experimental'],
+	thumbnail: { mode: 'defaultParameters' },
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' },

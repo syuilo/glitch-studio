@@ -10,6 +10,7 @@ export default defineNativeEffect({
 	// 入力が静止していても、実時刻に対する履歴の古さと保存位置を更新する。
 	dependsOnRenderHistory: true,
 	tags: ['glitch', 'temporal', 'color'],
+	thumbnail: { mode: 'none' },
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' },

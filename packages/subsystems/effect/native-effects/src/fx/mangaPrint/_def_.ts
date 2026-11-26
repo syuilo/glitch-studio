@@ -10,6 +10,7 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['stylized', 'color', 'pattern'],
+	thumbnail: { mode: 'customParameters', params: { toneFrequency: 38, outlineWidth: 0.004 } },
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' },

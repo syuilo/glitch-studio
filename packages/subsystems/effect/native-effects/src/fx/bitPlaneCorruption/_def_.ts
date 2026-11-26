@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Corrupts color bits to create glitches resembling damaged digital data.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'customParameters', params: { density: [14, 14] } },
 	dependsOnRenderHistory: false,
 	tags: ['color', 'glitch'],
 	paramDefs: {

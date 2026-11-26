@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Generates expanding ripples from clicks and taps as a displacement field and a crest mask.',
 	},
 	kind: 'generate',
+	thumbnail: { mode: 'none' },
 	dependsOnRenderHistory: false,
 	tags: ['temporal', 'interactive', 'distortion'],
 	paramDefs: {

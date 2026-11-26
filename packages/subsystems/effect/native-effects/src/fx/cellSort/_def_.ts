@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Splits the input into cells and sorts image fragments by their average color or a custom field.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'defaultParameters' },
 	dependsOnRenderHistory: false,
 	tags: ['glitch'],
 	paramDefs: {

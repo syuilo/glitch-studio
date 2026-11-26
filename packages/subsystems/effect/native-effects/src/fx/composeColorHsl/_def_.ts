@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Combines hue, saturation, lightness, and alpha scalar inputs into a color.',
 	},
 	kind: 'generate',
+	thumbnail: { mode: 'none' },
 	dependsOnRenderHistory: false,
 	tags: ['color', 'utility', 'convert'],
 	paramDefs: {

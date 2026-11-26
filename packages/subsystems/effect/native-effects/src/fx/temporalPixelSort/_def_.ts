@@ -10,6 +10,7 @@ export default defineNativeEffect({
 	// 同じ入力が続いても、時刻に応じて比較対象にする履歴の範囲が更新される。
 	dependsOnRenderHistory: true,
 	tags: ['glitch', 'temporal', 'color'],
+	thumbnail: { mode: 'none' },
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: [0, 0, 0, 0] },
 		rank: { dataType: { kind: 'scalar' }, ui: { label: 'Rank', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, canNode: true, defaultValue: 0.5 },

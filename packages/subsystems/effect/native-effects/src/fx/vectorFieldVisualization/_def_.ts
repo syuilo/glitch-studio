@@ -10,6 +10,10 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['utility', 'convert'],
+	thumbnail: {
+		mode: 'customParameters',
+		params: { vector: [0.65, 0.42], density: 9, gridWidth: 0.1 },
+	},
 	paramDefs: {
 		vector: {
 			dataType: { kind: 'vector' },

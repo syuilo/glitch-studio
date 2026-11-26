@@ -9,6 +9,7 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['stylized'],
+	thumbnail: { mode: 'customParameters', params: { density: [22, 22] } },
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' },

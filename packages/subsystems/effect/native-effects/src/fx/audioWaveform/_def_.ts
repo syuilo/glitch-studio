@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Visualizes input audio as a waveform.',
 	},
 	kind: 'generate',
+	thumbnail: { mode: 'none' },
 	// 入力音声の履歴から毎回計算し、過去の描画結果には依存しない。
 	dependsOnRenderHistory: false,
 	tags: ['audio', 'analysis'],

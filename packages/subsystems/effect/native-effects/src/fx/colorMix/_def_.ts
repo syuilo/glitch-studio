@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Mixes two images at the specified ratio.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'defaultParameters', inputs: { inputA: 'sceneA', inputB: 'sceneB' } },
 	dependsOnRenderHistory: false,
 	tags: ['color', 'composite', 'utility'],
 	paramDefs: {

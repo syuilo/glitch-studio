@@ -7,6 +7,11 @@ export default defineNativeEffect({
 		'en-US': 'Peels a corner of image A diagonally, revealing the curled back and image B underneath.',
 	},
 	kind: 'modify',
+	thumbnail: {
+		mode: 'customParameters',
+		inputs: { inputA: 'sceneA', inputB: 'sceneB' },
+		params: { progress: 0.52 },
+	},
 	dependsOnRenderHistory: false,
 	tags: ['composite', 'transition', 'distortion', '3d'],
 	paramDefs: {

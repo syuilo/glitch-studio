@@ -9,6 +9,10 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['transform', 'utility'],
+	thumbnail: {
+		mode: 'customParameters',
+		params: { scale: [0.72, 0.72], rotation: 0.055 },
+	},
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' },

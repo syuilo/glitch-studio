@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Repeatedly stretches, cuts, and stacks the image using the baker\'s map, with forward and inverse directions.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'defaultParameters' },
 	dependsOnRenderHistory: false,
 	tags: ['transform', 'glitch', 'math', 'experimental'],
 	paramDefs: {

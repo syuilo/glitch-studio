@@ -10,6 +10,7 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['blur', 'light'],
+	thumbnail: { mode: 'customParameters', params: { length: 0.14, angle: 0.08 } },
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' },

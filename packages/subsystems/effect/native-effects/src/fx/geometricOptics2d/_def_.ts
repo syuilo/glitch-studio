@@ -9,6 +9,7 @@ export default defineNativeEffect({
 	kind: 'generate',
 	dependsOnRenderHistory: false,
 	tags: ['light', 'simulation', 'sdf'],
+	thumbnail: { mode: 'none' },
 	paramDefs: {
 		objects: {
 			dataType: { kind: 'array', elementType: { kind: 'struct', fields: {

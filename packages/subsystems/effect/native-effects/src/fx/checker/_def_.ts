@@ -7,6 +7,11 @@ export default defineNativeEffect({
 		'en-US': 'Draws a checkerboard pattern.',
 	},
 	kind: 'generate',
+	thumbnail: {
+		mode: 'customParameters',
+		inputs: {},
+		params: { background: [0.012, 0.025, 0.065, 1], color: [0.12, 0.66, 0.86, 1] },
+	},
 	dependsOnRenderHistory: false,
 	tags: ['pattern'],
 	paramDefs: {

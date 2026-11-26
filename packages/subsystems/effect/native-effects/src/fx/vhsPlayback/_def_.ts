@@ -9,6 +9,10 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['glitch', 'distortion', 'color', 'stylized'],
+	thumbnail: {
+		mode: 'customParameters',
+		params: { tapeDamage: 0.55, timeBaseError: 1.1, scanTimingDrift: 0.9 },
+	},
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true,

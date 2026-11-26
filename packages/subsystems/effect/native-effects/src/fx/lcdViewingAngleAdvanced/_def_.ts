@@ -9,6 +9,7 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['color', 'light', 'simulation'],
+	thumbnail: { mode: 'customParameters', params: { horizontalViewingAngle: 0.1, verticalViewingAngle: -0.14 } },
 	paramDefs: {
 		input: {
 			dataType: { kind: 'color' },

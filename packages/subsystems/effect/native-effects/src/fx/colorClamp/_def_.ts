@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Limits the range of RGB channels to constrain colors and brightness in the input image.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'customParameters', params: { rMax: 0.3, gMax: 0.6, bMax: 0.75 } },
 	dependsOnRenderHistory: false,
 	tags: ['color'],
 	paramDefs: {

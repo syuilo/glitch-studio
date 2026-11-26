@@ -9,6 +9,10 @@ export default defineNativeEffect({
 	kind: 'modify',
 	dependsOnRenderHistory: false,
 	tags: ['stylized', 'experimental'],
+	thumbnail: {
+		mode: 'customParameters',
+		params: { threshold: 0.014, minDivisions: 6, borderWidth: 0.08 },
+	},
 	paramDefs: {
 		sizeReference: { dataType: { kind: 'sizeReference' }, ui: { label: 'Size Reference', isAdvanced: true, control: {} }, defaultValue: 'longSide' },
 		input: {

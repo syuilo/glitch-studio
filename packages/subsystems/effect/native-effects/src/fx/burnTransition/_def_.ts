@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Erodes image A according to a scalar map, revealing image B with a glowing remaining edge.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'none' },
 	dependsOnRenderHistory: false,
 	tags: ['composite', 'transition', 'light'],
 	paramDefs: {

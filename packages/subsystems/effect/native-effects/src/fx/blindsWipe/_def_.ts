@@ -7,6 +7,11 @@ export default defineNativeEffect({
 		'en-US': 'Transitions from image A to image B by opening a series of parallel bands.',
 	},
 	kind: 'modify',
+	thumbnail: {
+		mode: 'customParameters',
+		inputs: { inputA: 'sceneA', inputB: 'sceneB' },
+		params: { progress: 0.5, count: 5 },
+	},
 	dependsOnRenderHistory: false,
 	tags: ['composite', 'transition'],
 	paramDefs: {

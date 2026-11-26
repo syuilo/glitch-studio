@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Creates a two-dimensional vector from angle and length.',
 	},
 	kind: 'generate',
+	thumbnail: { mode: 'none' },
 	dependsOnRenderHistory: false,
 	tags: ['math', 'utility', 'convert'],
 	paramDefs: {

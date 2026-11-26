@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Overlays randomly colored blocks on the input image.',
 	},
 	kind: 'modify',
+	thumbnail: { mode: 'defaultParameters' },
 	dependsOnRenderHistory: false,
 	tags: ['color', 'glitch'],
 	paramDefs: {

@@ -11,7 +11,9 @@ import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 
 export async function runEffectInChrome(entry, functionName, { chromePath, timeout, args = [] }) {
 	const bundle = await build({ entryPoints: [fileURLToPath(entry)],
-		plugins: [wgslShaderEsbuildPlugin()], platform: 'browser', format: 'esm', target: 'esnext', bundle: true, write: false, loader: { '.wgsl': 'text', '.png': 'dataurl' } });
+		plugins: [wgslShaderEsbuildPlugin()], platform: 'browser', format: 'esm', target: 'esnext', bundle: true, write: false,
+		loader: { '.wgsl': 'text', '.png': 'dataurl', '.webp': 'dataurl' },
+	});
 	const result = Promise.withResolvers();
 	const server = createServer(async (req, res) => {
 		if (req.url === '/result') {

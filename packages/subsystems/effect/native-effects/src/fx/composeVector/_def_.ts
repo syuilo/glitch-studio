@@ -7,6 +7,7 @@ export default defineNativeEffect({
 		'en-US': 'Combines X and Y inputs into a two-dimensional vector.',
 	},
 	kind: 'generate',
+	thumbnail: { mode: 'none' },
 	dependsOnRenderHistory: false,
 	tags: ['math', 'utility'],
 	paramDefs: {
