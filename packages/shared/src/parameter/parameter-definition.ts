@@ -4,6 +4,7 @@ import type { DataTypeUiDefinition } from '../data-type/data-type-ui.ts';
 import type { BlendMode } from '../color-blend.ts';
 import type { FitMode, WrapMode } from '../types.ts';
 import type { ColorRamp } from '../color-ramp.ts';
+import type { FunctionCurve } from '../function-curve/function-curve.ts';
 import type { SizeReference } from '../size-reference.ts';
 import type { LinearSrgbColor } from '../color-space.ts';
 import type { Cloneable } from '../utility/deep-clone.ts';
@@ -20,6 +21,7 @@ type ParameterDefaultValueMap = {
 	string: string;
 	color: LinearSrgbColor;
 	colorRamp: ColorRamp;
+	functionCurve: FunctionCurve;
 	vector: [number, number];
 	blendMode: BlendMode;
 	fitMode: FitMode;

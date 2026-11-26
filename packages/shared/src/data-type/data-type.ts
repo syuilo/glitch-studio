@@ -5,6 +5,7 @@ export type DataType =
 	| { kind: 'string' }
 	| { kind: 'color' }
 	| { kind: 'colorRamp' }
+	| { kind: 'functionCurve' }
 	| { kind: 'vector' }
 	| { kind: 'blendMode' }
 	| { kind: 'fitMode' }

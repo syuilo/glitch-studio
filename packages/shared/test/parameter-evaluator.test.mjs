@@ -465,6 +465,20 @@ test('scales normalized Y per Curve Animation while exposing raw samples in expr
 	assertClose(evaluateCurveAnimationInput('inline', { ...functionCurve, isYNormalized: false }, { time: 2000, yRangeMin: 10, yRangeMax: 20 }), 1.2);
 });
 
+// 【垂直接線の近くでもBézierのXを正しく逆算する】
+// X誤差が小さいだけで探索を終えると、プレビューがGPU描画と異なるYを返す。
+test('solves Bézier values close to an interior vertical tangent', () => {
+	const curve = { type: 'bezier', isXNormalized: true, isYNormalized: true, points: [
+		{ id: 'start', x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [1, 1 / 3] },
+		{ id: 'end', x: 1, y: 1, bezierControlPointA: [-1, -1 / 3], bezierControlPointB: [0, 0] },
+	] };
+	const xOffset = 2 ** -20;
+	for (const offset of [-xOffset, xOffset]) {
+		const expected = 0.5 + Math.cbrt(offset / 4);
+		assert.ok(Math.abs(evaluateFunctionCurve(curve, 0.5 + offset, 'clamp') - expected) < 1e-6);
+	}
+});
+
 // 【固定カーブを固有の形と境界で評価する】
 // パルスとステップの境界は値が切り替わる位置であり、ループ中も最終ステップが表示されることを確認する。
 test('evaluates all fixed Function Curve shapes and their boundaries', () => {

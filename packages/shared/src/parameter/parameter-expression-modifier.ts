@@ -6,6 +6,7 @@ import type { ValueParameterBinding } from './value-parameter-binding.ts';
 
 export function supportsParameterExpressionModifier(definition: Pick<ParameterDefinition, 'dataType'>, binding: ParameterBindingBase): binding is ValueParameterBinding {
 	return definition.dataType.kind !== 'array' && definition.dataType.kind !== 'struct' && definition.dataType.kind !== 'audioSource'
+		&& definition.dataType.kind !== 'functionCurve'
 		&& isValueParameterBinding(binding);
 }
 

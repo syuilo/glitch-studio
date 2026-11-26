@@ -1,4 +1,5 @@
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
+import type { FunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import { createEffectInstance } from '@gs/subsystems_effect_renderer/create-effect-instance.ts';
 import type { EffectGpuContext, EffectPointerClick } from '@gs/subsystems_effect_renderer/effect-instance.ts';
@@ -24,7 +25,7 @@ export async function run() {
 	device.pushErrorScope('validation');
 
 	async function createBand(resolution: Resolution, ports: readonly Port[], enable32bitDataTextures: boolean,
-		parameters: { duration?: number; interpolation?: string; reflectivity?: number } = {}) {
+		parameters: { duration?: number; interpolation?: FunctionCurve; reflectivity?: number } = {}) {
 		const effect = await createEffectInstance({
 			effectSource: { type: 'nativeEffect', id: 'clickGradient' },
 			definitions: { getNativeEffect: () => definition, getNodesEffect: () => null, getCustomShaderEffect: () => null },
@@ -163,12 +164,24 @@ export async function run() {
 			near(corner('vector', 44, 12, 1), cornerSlope, 'corner slope y');
 		} finally { reflected.dispose(); }
 
-		const back = await createBand(landscape, ['scalar', 'vector'], true, { interpolation: 'back' });
+		const back = await createBand(landscape, ['scalar', 'vector'], true, {
+			interpolation: { type: 'easing', family: 'back', direction: 'inOut', overshootCoefficient: 1.70158 * 1.525 },
+		});
 		try {
 			const overshoot = await back.render(2);
 			// Gradientと同様に、先頭寄りで1を上回り、後端寄りで負の値に達する。
 			if (!(overshoot('scalar', 30) > 1 && overshoot('scalar', 18) < 0)) throw new Error('Back overshoot was clipped');
 		} finally { back.dispose(); }
+		// 【両端が0のカーブで帯の後端にも段差ができる】
+		// 帯の中でカーブを反転するため、Smooth Pulseは先頭と後端が高く、中心で0になる。
+		const pulse = await createBand(landscape, ['scalar', 'vector'], true, { interpolation: { type: 'smoothPulse' } });
+		try {
+			const band = await pulse.render(2 - 0.00001);
+			near(band('scalar', 16), 1, 'Smooth Pulse at the trailing edge');
+			near(band('scalar', 15), 0, 'outside the trailing edge');
+			near(band('scalar', 24), 0, 'Smooth Pulse midpoint');
+			near(band('vector', 20), -Math.PI / bandWidth, 'Smooth Pulse inward slope');
+		} finally { pulse.dispose(); }
 		const error = await device.popErrorScope();
 		if (error != null) throw new Error(error.message);
 		return true;

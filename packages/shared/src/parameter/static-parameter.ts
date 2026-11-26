@@ -1,5 +1,5 @@
 import { isValidCurveAnimationYRange } from '../curve-animation/curve-animation.ts';
-import { isValueParameterBinding } from './parameter-binding.ts';
+import { isLiteralParameterBinding, isValueParameterBinding } from './parameter-binding.ts';
 import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from './parameter-definition.ts';
 import { validateParameterExpressionModifier } from './parameter-expression-modifier.ts';
 import { validateParameterValue } from './validate-parameter-value.ts';
@@ -54,19 +54,23 @@ function validateDefaultValue(definition: ParameterDefinition, value: unknown): 
 		if (value !== null && (!Array.isArray(value) || value.length !== 4 || !value.every(Number.isFinite))) throw invalidDefault();
 		return;
 	}
-	if (!['scalar', 'bool', 'string', 'color', 'colorRamp', 'vector', 'blendMode', 'fitMode', 'sizeReference', 'wrapMode', 'enum'].includes(kind)) throw new Error('Unsupported parameter data type');
+	if (!['scalar', 'bool', 'string', 'color', 'colorRamp', 'functionCurve', 'vector', 'blendMode', 'fitMode', 'sizeReference', 'wrapMode', 'enum'].includes(kind)) throw new Error('Unsupported parameter data type');
 	// 式が受け取る文字列の数値変換は、型に対応する値を直接保存する定義には適用しない。
 	if (kind === 'scalar' && typeof value !== 'number') throw invalidDefault();
 	validateParameterValue(definition, value);
 }
 
-/** 値の妥当性は評価後に検査する。ここではBindingの構造と静的な参照だけを扱う。 */
+/** Bindingの構造・静的な参照と、リテラル専用のFunction Curveを検査する。 */
 export function inspectStaticParameter<Binding extends ParameterBindingBase>(definition: ParameterDefinition, binding: Binding,
 	inspectLeaf: (definition: ParameterDefinition, binding: Binding) => void): void {
 	if (!binding) throw new Error('Missing parameter binding');
 	validateParameterExpressionModifier(definition, binding);
 	if (!isParameterType(definition, 'array') && !isParameterType(definition, 'struct')) {
 		validateColorRampParameterInputSource(definition, binding);
+		if (definition.dataType.kind === 'functionCurve') {
+			if (!isLiteralParameterBinding(binding)) throw new Error('Function Curve requires a literal input');
+			validateParameterValue(definition, binding.value);
+		}
 		if (isValueParameterBinding(binding) && binding.inputSource === 'curveAnimationInline' && !isValidCurveAnimationYRange(binding.curveAnimation)) {
 			throw new Error('Curve Animation Y range must be finite and ordered');
 		}

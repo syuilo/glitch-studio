@@ -1,12 +1,12 @@
 import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
+import { createFunctionCurveBindings } from '@gs/shared/gpu/function-curve.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import type { NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import { appendVisibleCircularBandSources, MAX_CIRCULAR_BAND_PRESSES } from '../../circular-band-sources.ts';
 import type { CircularBandSource } from '../../circular-band-sources.ts';
 import { createFullscreenEffect } from '../../fullscreen-effect.ts';
-import { gradientInterpolationParameter } from '../../gradient-interpolation.ts';
 import type definition from './_def_.ts';
-import code, { uniforms } from './shader.shader.ts?shader';
+import code, { uniforms } from './shader.wgsl?shader';
 
 const implementation: NativeEffectImplementation<typeof definition.paramDefs> = {
 	async init(context) {
@@ -17,9 +17,10 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
 		const bindGroup = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
+		const interpolationCurveBindings = createFunctionCurveBindings(device, 1);
 		const vector = outputTextures.get('vector');
 		const fullscreen = await createFullscreenEffect(context, {
-			code,
+			code: interpolationCurveBindings.shaderCode + '\n' + code,
 			schema: {},
 			inputs,
 			outputPorts: vector == null ? ['scalar'] : ['scalar', 'vector'],
@@ -28,9 +29,15 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 				CALCULATE_GRADIENT: 1,
 				MAX_GRADIENT: vector.format === 'rg32float' ? 3.4028234663852886e38 : 65504,
 			},
-			internalLayouts: [layout],
-			bindResources(pass) { pass.setBindGroup(0, bindGroup); },
-			disposeResources() { uniformBuffer.destroy(); },
+			internalLayouts: [layout, interpolationCurveBindings.layout],
+			bindResources(pass) {
+				pass.setBindGroup(0, bindGroup);
+				pass.setBindGroup(1, interpolationCurveBindings.update(inputs.interpolation.value));
+			},
+			disposeResources() {
+				uniformBuffer.destroy();
+				interpolationCurveBindings.dispose();
+			},
 		});
 
 		// 押下履歴と内容時刻だけが更新されたフレームも描画するため、全画面パスの固定cacheKeyは公開しない。
@@ -58,7 +65,6 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 					bands,
 					bandCount: bands.length,
 					width,
-					interpolation: gradientInterpolationParameter.dataType.options.indexOf(inputs.interpolation.value),
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				fullscreen.render(frame);

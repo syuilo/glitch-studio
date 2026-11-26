@@ -687,8 +687,8 @@ function selectFunctionCurve(ev: PointerEvent) {
 function getMenu() {
 	const menuItems: MenuItem[] = [];
 
-	// コンテナ自体は静的な構造を維持し、値の種類を変更できるのは末端だけにする。
-	if (props.paramDef.dataType.kind !== 'array' && props.paramDef.dataType.kind !== 'struct') {
+	// コンテナの構造とFunction Curveの入力方式は固定し、値の編集は専用のコントロールで行う。
+	if (props.paramDef.dataType.kind !== 'array' && props.paramDef.dataType.kind !== 'struct' && props.paramDef.dataType.kind !== 'functionCurve') {
 		const children: MenuItem[] = [];
 		const types: { text: string; inputSource: EditableParameterBinding['inputSource']; icon: string }[] = [
 			{ text: i18n.ts._Parameter.Literal, inputSource: 'literal', icon: 'ti ti-adjustments-horizontal' },
@@ -846,8 +846,11 @@ function onRowContextmenu(ev: PointerEvent) {
 	ui.contextMenu(getMenu(), ev);
 }
 
-function updateParamAsLiteral(value: any) {
-	if (mounted) emit('edit', { kind: 'literal', ...target(), value });
+function updateParamAsLiteral(value: any, mergeKey: string | null = null) {
+	if (!mounted) return;
+	const edit: ParamEdit = { kind: 'literal', ...target(), value };
+	if (mergeKey != null) edit.mergeKey = mergeKey;
+	emit('edit', edit);
 }
 
 function updateParamAsExpression(value: string) {

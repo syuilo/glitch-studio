@@ -1,11 +1,11 @@
 // scalar専用パイプラインでは微分計算と追加サンプリングをコンパイル時に除去する。
 override CALCULATE_GRADIENT: bool = false;
+override MAX_GRADIENT: f32 = 65504.0;
 
 struct Uniforms {
 	halfExtent: vec2f,
 	coordinateScale: vec2f,
 	angle: f32,
-	interpolation: u32,
 	clampEdge: u32,
 	mirrorRepeat: u32,
 	mode: u32,
@@ -22,15 +22,15 @@ struct FragmentIn {
 fn evaluateGradient(fragData: FragmentIn) -> vec3f {
 	let startPositionSample = readGradient_startPosition(fragData.uv, CALCULATE_GRADIENT);
 	let endPositionSample = readGradient_endPosition(fragData.uv, CALCULATE_GRADIENT);
-	let startValueSample = readGradient_startValue(fragData.uv, CALCULATE_GRADIENT);
-	let endValueSample = readGradient_endValue(fragData.uv, CALCULATE_GRADIENT);
+	let valueASample = readGradient_startValue(fragData.uv, CALCULATE_GRADIENT);
+	let valueBSample = readGradient_endValue(fragData.uv, CALCULATE_GRADIENT);
 	let frequencySample = readGradient_frequency(fragData.uv, CALCULATE_GRADIENT);
 	let phaseSample = readGradient_phase(fragData.uv, CALCULATE_GRADIENT);
 	let skewSample = readGradient_skew(fragData.uv, CALCULATE_GRADIENT);
 	let startPosition = startPositionSample.x;
 	let endPosition = endPositionSample.x;
-	let startValue = startValueSample.x;
-	let endValue = endValueSample.x;
+	let valueA = valueASample.x;
+	let valueB = valueBSample.x;
 	let frequency = frequencySample.x;
 	let phase = phaseSample.x;
 	let skew = clamp(skewSample.x, -1.0, 1.0);
@@ -99,16 +99,13 @@ fn evaluateGradient(fragData: FragmentIn) -> vec3f {
 		t = 1.0 - abs(2.0 * skewedPosition - 1.0);
 		derivative *= -2.0 * sign(2.0 * skewedPosition - 1.0);
 	} else {
-		// 基準区間の終端で周期が完了した場合は従来どおり終了値を保つ。
+		// 基準区間の終端で周期が完了した場合は曲線の終端を評価する。
 		// その他の周期境界は開始値へ折り返す。
 		t = select(skewedPosition, 1.0, t == 1.0 && cycle > 0.0 && repeatedPosition == 0.0);
 	}
-	// 両端は指定値を厳密に保つ（elastic・expoの指数項も端点では評価しない）。
-	if (t <= 0.0) { return startValueSample; }
-	if (t >= 1.0) { return endValueSample; }
-	let curve = evaluateGradientInterpolation(t, uniforms.interpolation);
-	let resultDerivative = mix(startValueSample.yz, endValueSample.yz, curve.value) + (endValue - startValue) * curve.derivative * derivative;
-	return vec3f(mix(startValue, endValue, curve.value), resultDerivative);
+	let curve = evaluateShaderFunctionCurve(t);
+	let resultDerivative = mix(valueASample.yz, valueBSample.yz, curve.value) + (valueB - valueA) * (derivative * curve.derivative);
+	return vec3f(mix(valueA, valueB, curve.value), resultDerivative);
 }
 
 @fragment
@@ -127,5 +124,5 @@ fn fsWithGradient(fragData: FragmentIn) -> GradientOutputs {
 	// 内部の画像参照座標に対する微分を、共通単位の勾配へ換算する。
 	// Scalar Gradient（Normalize=false、Strength=1）と同じ規約。
 	let vector = result.yz / uniforms.halfExtent;
-	return GradientOutputs(result.x, vector);
+	return GradientOutputs(result.x, clamp(vector, vec2f(-MAX_GRADIENT), vec2f(MAX_GRADIENT)));
 }

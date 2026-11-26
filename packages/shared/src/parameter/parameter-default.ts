@@ -49,6 +49,7 @@ export function genEmptyValue(paramDef: EmptyValueDefinition): any {
 		case 'vector': return [0, 0];
 		case 'color': return [0, 0, 0, 1];
 		case 'colorRamp': return createDefaultColorRamp();
+		case 'functionCurve': return { type: 'linear' };
 		case 'any': case 'audioSource': return null;
 		case 'array': return [];
 		case 'struct': {

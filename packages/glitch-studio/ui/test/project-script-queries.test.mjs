@@ -15,10 +15,12 @@ const bundled = await build({
 		export { SCRIPT_COMMAND_NAMES } from './src/scripting/script-command-names.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
+		export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts';
 	` },
 	plugins: [{ name: 'script-query-effects', setup(build) {
 		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
-		build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ loader: 'ts', contents: `
+		build.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ loader: 'ts', resolveDir: directory, contents: `
+			import gradient from '@gs/subsystems_effect_native-effects/fx/gradient/_def_.ts';
 			export const nativeEffectDefinitions = {
 				fill: {
 					id: 'fill', displayName: 'Fill', summary: { 'ja-JP': '塗りつぶし', 'en-US': 'Fill' },
@@ -27,13 +29,14 @@ const bundled = await build({
 					primaryInputParameter: null, resolutionInputParameters: [],
 					outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output',
 				},
+				gradient,
 			};
 		` }));
 	} }],
 });
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
-const { createProjectScriptQueries, PROJECT_SCRIPT_QUERY_DEFINITIONS, ProjectScriptRuntime, describeProjectApi, SCRIPT_COMMAND_NAMES, COMMAND_DEFS, UndoRedo } = loaded.exports;
+const { createProjectScriptQueries, PROJECT_SCRIPT_QUERY_DEFINITIONS, ProjectScriptRuntime, describeProjectApi, SCRIPT_COMMAND_NAMES, COMMAND_DEFS, UndoRedo, encodeProjectFile, decodeProjectFile } = loaded.exports;
 
 function fixture() {
 	const state = {
@@ -73,6 +76,28 @@ test('queries registered and inline Nodes Effects using references accepted by C
 		assert.ok(query['Query:getNodesEffect'](nodesEffectTarget).nodes.length > 0);
 	}
 	assert.equal(state.nodesEffects.value.length, 1);
+});
+
+// 【Gradientの補間をScripting用の同じリテラル形式で変更する】
+// Function Curveの設定をプロジェクトファイルでも保持し、無効な係数で描画できないBindingを保存する回帰を防ぐ。
+test('sets, reads and saves Gradient interpolation as a literal Function Curve', async () => {
+	const { state, manager, query } = fixture();
+	const nodesEffect = manager.commit('createNodesEffect', { name: 'Gradient' });
+	const target = manager.commit('createNodesEffectEffectNode', { nodesEffect, effectSource: { type: 'nativeEffect', id: 'gradient' } });
+	const change = source => manager.commit('setNodesEffectNodeParameterSource', { target, parameterPath: ['interpolation'], source });
+	const read = () => query['Query:getNode'](target).params.interpolation;
+	assert.deepEqual(read(), { inputSource: 'literal', value: { type: 'linear' } });
+	const source = { inputSource: 'literal', value: { type: 'easing', family: 'elastic', direction: 'inOut', period: 0.45 } };
+	change(source);
+	assert.deepEqual(read(), source);
+	assert.throws(() => change({ ...source, value: { ...source.value, period: 0 } }), /Invalid Function Curve/);
+	assert.throws(() => change({ inputSource: 'expression', expression: '0.5' }), /requires a literal/);
+	assert.deepEqual(read(), source);
+	const file = await encodeProjectFile({ assets: [], generatedSpeech: [], timelineScenes: [], nodesEffects: state.nodesEffects.value, gsVersion: '2.0.0-alpha.94' });
+	const saved = decodeProjectFile(file).nodesEffects[0].definition.nodes.find(node => node.id === target.nodeId);
+	assert.deepEqual(saved.params.interpolation, source);
+	manager.undo();
+	assert.deepEqual(read(), { inputSource: 'literal', value: { type: 'linear' } });
 });
 
 // 【Timelineの一覧は階層を失わず、クリップやパラメータの所在を編集APIへ引き渡せる】
@@ -137,10 +162,11 @@ test('lists all three registered Effect sources and resolves each returned targe
 	state.nodesEffects.value.push({ id: 'fill', name: 'My Graph', definition: testNodesEffect({ primaryOutput: null }) });
 	const effects = query['Query:listEffects']();
 	assert.deepEqual(effects.map(effect => effect.effectSource), [
-		{ type: 'nativeEffect', id: 'fill' }, { type: 'customShaderEffectReference', id: 'fill' }, { type: 'nodesEffectReference', id: 'fill' },
+		{ type: 'nativeEffect', id: 'fill' }, { type: 'nativeEffect', id: 'gradient' },
+		{ type: 'customShaderEffectReference', id: 'fill' }, { type: 'nodesEffectReference', id: 'fill' },
 	]);
-	assert.deepEqual(effects.map(effect => query['Query:getEffect'](effect.target).displayName), ['Fill', 'My Shader', 'My Graph']);
-	assert.equal(query['Query:getEffect'](effects[2].target).primaryOutput, null);
+	assert.deepEqual(effects.map(effect => query['Query:getEffect'](effect.target).displayName), ['Fill', 'Gradient', 'My Shader', 'My Graph']);
+	assert.equal(query['Query:getEffect'](effects[3].target).primaryOutput, null);
 });
 
 // 【不正・削除済みの対象は明示的に失敗し、偶然一致する別の対象へ読み替えない】

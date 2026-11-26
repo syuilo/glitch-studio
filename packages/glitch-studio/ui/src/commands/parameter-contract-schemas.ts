@@ -25,7 +25,7 @@ export const fitModeSchema = z.enum(['stretch', 'cover', 'contain']);
 export const wrapModeSchema = z.enum(['clamp', 'repeat', 'repeatMirrored', 'transparent']);
 export const textureDataTypeSchema: z.ZodType<TextureDataType> = z.object({ kind: z.enum(['scalar', 'color', 'vector', 'any']) });
 export const dataTypeSchema: z.ZodType<DataType> = z.lazy(() => z.union([
-	z.object({ kind: z.enum(['scalar', 'bool', 'string', 'color', 'colorRamp', 'vector', 'blendMode', 'fitMode', 'sizeReference', 'wrapMode', 'audioSource', 'any']) }),
+	z.object({ kind: z.enum(['scalar', 'bool', 'string', 'color', 'colorRamp', 'functionCurve', 'vector', 'blendMode', 'fitMode', 'sizeReference', 'wrapMode', 'audioSource', 'any']) }),
 	z.object({ kind: z.literal('enum'), options: z.array(z.string()) }),
 	z.object({ kind: z.literal('array'), elementType: dataTypeSchema }),
 	z.object({ kind: z.literal('struct'), fields: z.record(z.string(), dataTypeSchema) }),
@@ -177,6 +177,7 @@ export const parameterDefinitionSchema = z.union([
 	leafParameterDefinition('bool', emptyControlSchema, z.boolean()), leafParameterDefinition('string', emptyControlSchema, z.string()),
 	leafParameterDefinition('color', z.object({ controlType: z.enum(['color', 'signal']).optional() }), colorValueSchema, z.boolean().optional()),
 	leafParameterDefinition('colorRamp', emptyControlSchema, colorRampSchema),
+	leafParameterDefinition('functionCurve', emptyControlSchema, functionCurveSchema),
 	leafParameterDefinition('vector', vectorControlSchema, vectorValueSchema, z.boolean().optional()),
 	leafParameterDefinition('blendMode', emptyControlSchema, z.enum(Object.keys(colorBlendModes) as [keyof typeof colorBlendModes, ...(keyof typeof colorBlendModes)[]])),
 	leafParameterDefinition('fitMode', emptyControlSchema, fitModeSchema), leafParameterDefinition('wrapMode', emptyControlSchema, wrapModeSchema),

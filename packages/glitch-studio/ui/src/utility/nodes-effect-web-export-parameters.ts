@@ -1,6 +1,7 @@
 import { getPortableParameterDefinitions } from '@gs/glitch-studio_embed/parameters.ts';
 import { colorBlendModes } from '@gs/shared/color-blend.ts';
 import { validateColorRamp } from '@gs/shared/color-ramp.ts';
+import { validateFunctionCurve } from '@gs/shared/function-curve/validate-function-curve.ts';
 import { SIZE_REFERENCES } from '@gs/shared/size-reference.ts';
 import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
@@ -40,6 +41,7 @@ function validateNodesEffectWebExportParameterValue(definition: ParameterDefinit
 		case 'wrapMode': valid = typeof value === 'string' && ['clamp', 'repeat', 'repeatMirrored', 'transparent'].includes(value); break;
 		case 'sizeReference': valid = typeof value === 'string' && (SIZE_REFERENCES as readonly string[]).includes(value); break;
 		case 'colorRamp': validateColorRamp(value); return;
+		case 'functionCurve': validateFunctionCurve(value); return;
 		default: return fail();
 	}
 	if (!valid) fail();

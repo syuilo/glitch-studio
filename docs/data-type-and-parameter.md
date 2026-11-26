@@ -204,6 +204,8 @@ NOISE(TIME * 3, 1) * 0.03
 
 ## Function CurveとCurve Animation
 
+`{ kind: 'functionCurve' }` のパラメータは、1つの `FunctionCurve` をリテラル値として保持します。カーブ編集ウィンドウで曲線の種類と設定を編集します。GradientとClick Gradientの `Interpolation` では、位置から求めた0〜1の進行率をX、補間係数をYとして使います。Yが0〜1を越えるカーブも、その形のまま描画に反映されます。
+
 Function Curveは `type: "bezier"` のときに点とX・Yそれぞれの正規化フラグを持つ。固定カーブのX・Yは正規化座標で、Xの定義域は0〜1。Curve Animationは `inputSource: "curveAnimationInline"` のBindingに格納され、`curveBinding` と再生設定を持つ。`curveBinding` は `{ source: "inline", curve }` または `{ source: "reference", curveId }` で表す。共有定義はProject・Timelineレイヤー・Nodes Effectの `functionCurves` に格納する。
 
 | 固定カーブ | 形と設定 |

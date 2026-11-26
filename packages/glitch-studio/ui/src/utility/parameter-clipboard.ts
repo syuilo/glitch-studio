@@ -11,6 +11,7 @@ import { inspectStaticParameter } from '@gs/shared/parameter/static-parameter.ts
 import { isBlendMode } from '@gs/shared/color-blend.ts';
 import { isSizeReference } from '@gs/shared/size-reference.ts';
 import { validateColorRamp } from '@gs/shared/color-ramp.ts';
+import { validateFunctionCurve } from '@gs/shared/function-curve/validate-function-curve.ts';
 import { isKeyframesDataType, supportsKeyframeInterpolation } from '@gs/shared/keyframes/keyframes-timeline.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
@@ -24,6 +25,7 @@ import { resolveTimelineAnotherLayerAudioReference } from '@gs/subsystems_timeli
 import { getTimelineLayerPublicParameterContext, resolveTimelineLayerPublicParameterReference } from '@gs/subsystems_timeline_shared/public-parameters.ts';
 import { nodesEffectTargetKey } from '@gs/glitch-studio_shared/project/nodes-effect-target.ts';
 import { getNodesEffect } from './nodes-effect-target.ts';
+import { duplicateFunctionCurve } from './curve-animation.ts';
 import { resolveNodeParam } from './node-params.ts';
 import { getScene, resolveLayerParameter, getLayerParameterValues } from './timeline-scene.ts';
 import type { DataType } from '@gs/shared/data-type/data-type.ts';
@@ -95,7 +97,7 @@ function validateDataType(value: unknown): asserts value is DataType {
 	} else if (dataType.kind === 'enum') {
 		requireValid(Array.isArray(dataType.options) && dataType.options.length > 0 && dataType.options.every(nonemptyString)
 			&& new Set(dataType.options).size === dataType.options.length);
-	} else requireValid(isOneOf(dataType.kind, ['scalar', 'bool', 'string', 'color', 'colorRamp', 'vector', 'blendMode', 'fitMode', 'sizeReference', 'wrapMode', 'audioSource', 'any']));
+	} else requireValid(isOneOf(dataType.kind, ['scalar', 'bool', 'string', 'color', 'colorRamp', 'functionCurve', 'vector', 'blendMode', 'fitMode', 'sizeReference', 'wrapMode', 'audioSource', 'any']));
 }
 
 function validateLiteral(dataType: DataType, value: unknown): void {
@@ -106,6 +108,7 @@ function validateLiteral(dataType: DataType, value: unknown): void {
 		case 'vector': requireValid(components(value, 2)); break;
 		case 'color': requireValid(components(value, 4)); break;
 		case 'colorRamp': validateColorRamp(value); break;
+		case 'functionCurve': validateFunctionCurve(value); break;
 		case 'blendMode': requireValid(isBlendMode(value)); break;
 		case 'sizeReference': requireValid(isSizeReference(value)); break;
 		case 'fitMode': requireValid(isOneOf(value, ['contain', 'cover', 'stretch'])); break;
@@ -147,7 +150,7 @@ function validateSampling(binding: Record<string, unknown>): void {
 
 function validateBinding(dataType: DataType, value: unknown): asserts value is EditableParameterBinding {
 	const binding = object(value);
-	if (dataType.kind === 'array' || dataType.kind === 'struct') requireValid(binding.inputSource === 'literal');
+	if (dataType.kind === 'array' || dataType.kind === 'struct' || dataType.kind === 'functionCurve') requireValid(binding.inputSource === 'literal');
 	if (binding.expressionModifier != null) {
 		const modifier = object(binding.expressionModifier);
 		requireValid(typeof modifier.enabled === 'boolean' && typeof modifier.code === 'string');
@@ -349,6 +352,8 @@ export function prepareParameterBindingPaste(definition: ParameterDefinition, cl
 				}
 			} else if (currentBinding.inputSource === 'literal' && currentDefinition.dataType.kind === 'colorRamp') {
 				for (const stop of currentBinding.value.stops) stop.id = genId();
+			} else if (currentBinding.inputSource === 'literal' && currentDefinition.dataType.kind === 'functionCurve') {
+				currentBinding.value = duplicateFunctionCurve(currentBinding.value);
 			}
 		}
 
