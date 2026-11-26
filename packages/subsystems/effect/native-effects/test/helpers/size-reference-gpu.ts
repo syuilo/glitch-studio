@@ -1,5 +1,5 @@
 import { nativeEffectProbe } from './native-effect-probe.ts';
-import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import { textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import symbolsDefinitionSource from '../../src/fx/symbols/_def_.ts';
 import symbolsImplementationNative from '../../src/fx/symbols/_impl_.ts';
@@ -278,15 +278,12 @@ export async function run() {
 		for (const [definition, implementation] of effects) for (const [width, height] of [[64, 32], [32, 64]]) {
 			device.pushErrorScope('validation');
 			const resolution = { width, height };
-			const params: Record<string, any> = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]: [string, any]) => {
-				const value = parameter.defaultValue;
-				if (parameter.dataType.kind === 'array') return [name, value.map((element: any) => parameter.element.canNode === true ? constantShaderInput(parameter.dataType.elementType.kind, element.binding.value) : element.binding.value)];
-				return [name, parameter.canNode === true ? constantShaderInput(parameter.dataType.kind, value) : value];
-			}));
+			// 配列・構造体も含め、試行で上書きしない値はnativeEffectProbeが定義から補う。
+			const params: Record<string, unknown> = {};
 			// 画像を読む経路も実行し、uniform入力だけでは隠れるbindingの不整合を検出する。
-			if ('input' in params) params.input = textureShaderInput(fallbackTexture, { fitMode: 'contain', wrapMode: 'repeat', filterMode: 'nearest' });
+			if ('input' in definition.paramDefs) params.input = textureShaderInput(fallbackTexture, { fitMode: 'contain', wrapMode: 'repeat', filterMode: 'nearest' });
 			for (const [name, value] of Object.entries({ blockSize: 25, maxBlockSize: 25, subdivisions: 1, analysisResolution: 32, steps: 2, maximumSteps: 16, historyFrames: 2, samples: 4, blurSamples: 4, aberrationSamples: 3, reset: true })) {
-				if (name in params) params[name] = value;
+				if (name in definition.paramDefs) params[name] = value;
 			}
 			const outputs = Object.fromEntries(Object.keys(definition.outputDefs).map(port => {
 				const texture = implementation.createTexture(port, { wgpu, resolution });
@@ -300,8 +297,7 @@ export async function run() {
 				for (const sizeReference of ['height', 'width', 'shortSide', 'longSide']) {
 					params.sizeReference = sizeReference;
 					const encoder = device.createCommandEncoder();
-					await effect.draw({ params, commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0.1, y: 0 }, outputs: outputs,
-					} as any);
+					await effect.draw({ params, commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0.1, y: 0 }, outputs });
 					device.queue.submit([encoder.finish()]);
 					for (const [port, output] of Object.entries(outputs)) {
 						const copy = device.createCommandEncoder();

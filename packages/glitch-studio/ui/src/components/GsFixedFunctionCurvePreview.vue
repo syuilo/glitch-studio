@@ -1,5 +1,10 @@
 <template>
-<canvas ref="canvas" :class="$style.preview" :width="WIDTH" :height="HEIGHT"/>
+<canvas
+	ref="canvas"
+	:class="$style.preview"
+	:width="WIDTH"
+	:height="HEIGHT"
+></canvas>
 </template>
 
 <script lang="ts" setup>

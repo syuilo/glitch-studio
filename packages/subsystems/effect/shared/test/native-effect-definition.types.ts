@@ -33,7 +33,7 @@ const thumbnailDefinition = defineNativeEffect({
 });
 defineNativeEffect({ ...thumbnailDefinition, thumbnail: { mode: 'none' } });
 defineNativeEffect({ ...thumbnailDefinition, thumbnail: { mode: 'static' } });
-defineNativeEffect({ ...thumbnailDefinition, thumbnail: { mode: 'defaultParameters', inputs: { inputA: 'cutout' } } });
+defineNativeEffect({ ...thumbnailDefinition, thumbnail: { mode: 'defaultParameters', inputs: { inputA: 'sceneA' } } });
 defineNativeEffect({ ...thumbnailDefinition, thumbnail: { mode: 'customParameters', inputs: {}, params: { gain: 1, tint: [1, 0.5, 0, 1] } } });
 // @ts-expect-error 定義されていない入力には画像を接続できない
 defineNativeEffect({ ...thumbnailDefinition, thumbnail: { mode: 'defaultParameters', inputs: { inputA: 'sceneA', inputB: 'sceneB' } } });

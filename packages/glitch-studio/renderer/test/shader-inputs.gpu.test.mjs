@@ -8,7 +8,7 @@ import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bundleSource } from './helpers/load-shader-source.mjs';
 
-async function runGpuTest(entry, minimumChecks, exportName = 'run', timeoutMs = 45000) {
+async function runGpuTest(entry, minimumChecks, exportName = 'run', timeoutMs = 45000, args = []) {
 	const bundle = await bundleSource(fileURLToPath(new URL(entry, import.meta.url)), 'browser');
 	let resolveResult;
 	const result = new Promise(resolve => { resolveResult = resolve; });
@@ -23,7 +23,7 @@ async function runGpuTest(entry, minimumChecks, exportName = 'run', timeoutMs = 
 		} else {
 			response.setHeader('Content-Type', 'text/html');
 			response.end(`<script type="module">
-try { const { ${exportName}: run } = await import('/test.js'); await fetch('/result', { method: 'POST', body: JSON.stringify({ passed: await run() }) }); }
+try { const { ${exportName}: run } = await import('/test.js'); await fetch('/result', { method: 'POST', body: JSON.stringify({ passed: await run(...${JSON.stringify(args)}) }) }); }
 catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ error: error.stack }) }); }</script>`);
 		}
 	});
@@ -67,8 +67,17 @@ test('captures fresh preview PNG images from GPU and CPU displays', { skip: proc
 
 // 【ChromeのWebGPUで生成WGSLの実画素を比較する】
 // モックでは検出できないシェーダーとbindingの不整合を検出する。CIではChromeのパスを明示する。
-// 多数の入力構成を実際にコンパイルするため、他のGPUテストとの同時実行時も完了を待つ。
-test('renders generated shader inputs on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 120000 }, () => runGpuTest('./helpers/shader-input-gpu.ts', 20, 'run', 105000));
+test('renders generated shader inputs on WebGPU', { skip: process.env.CHROME_PATH == null, timeout: 60000 }, () => runGpuTest('./helpers/shader-input-gpu.ts', 20));
+
+for (const precision of [16, 32]) {
+	// 【Gradientのすべての入力構成で値と勾配を実GPUで比較する】
+	// 出力の組と入力構成ごとにシェーダーを生成するため、精度ごとに実行時間の上限を設ける。
+	test(`renders Gradient inputs and derivatives with ${precision}-bit data textures on WebGPU`,
+		{ skip: process.env.CHROME_PATH == null, timeout: 120000 }, async t => {
+			const checks = await runGpuTest('./helpers/gradient-shader-input-gpu.ts', precision === 16 ? 1 : 0, 'run', 105000, [precision === 32]);
+			if (checks.length === 0) t.skip('float32-filterable is unavailable');
+		});
+}
 
 // 【CPU表示でも色・透明度・上下方向と全ての映像解析Canvasを保つ】
 // 実GPUでの読み戻しとCanvas 2Dのalpha変換はモックだけでは検証できない。

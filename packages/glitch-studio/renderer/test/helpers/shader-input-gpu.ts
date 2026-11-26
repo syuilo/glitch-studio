@@ -3,7 +3,6 @@ import colorMixDefinition from '@gs/subsystems_effect_native-effects/fx/colorMix
 import imageDefinition from '@gs/subsystems_effect_native-effects/fx/image/_def_.ts';
 import blockShuffleDefinition from '@gs/subsystems_effect_native-effects/fx/blockShuffle/_def_.ts';
 import { checkMigratedEffects } from './migrated-shader-input-gpu.ts';
-import { checkGradientInputs } from './gradient-shader-input-gpu.ts';
 import { checkTimelineCompositor } from './timeline-compositor-gpu.ts';
 import effectNative from '@gs/subsystems_effect_native-effects/fx/colorMix/_impl_.ts';
 import imageEffectNative from '@gs/subsystems_effect_native-effects/fx/image/_impl_.ts';
@@ -322,7 +321,6 @@ export async function run() {
 			}
 		}
 		completed.push(...await checkMigratedEffects(device, vertex, async output => (await mix({ inputA: textureShaderInput(output, { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }), inputB: b, amount: zero }, output.width, output.height)).flat()));
-		completed.push(...await checkGradientInputs(device, vertex));
 		completed.push(...await checkTimelineCompositor(device, vertex, async output => (await mix({ inputA: textureShaderInput(output, { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }), inputB: b, amount: zero }, output.width, output.height)).flat()));
 		const error = await device.popErrorScope();
 		if (error) throw new Error(error.message);

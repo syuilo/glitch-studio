@@ -11,8 +11,8 @@
 		<GsFunctionCurveTypeEditor :curve="functionCurve" @change="curve => emit('change', curve, null)"/>
 		<GsFunctionCurvePointsEditor
 			v-if="functionCurve.type === 'bezier'"
-			:class="$style.editor"
 			:key="String(functionCurve.isXNormalized) + String(functionCurve.isYNormalized)"
+			:class="$style.editor"
 			:points="functionCurve.points"
 			:isXNormalized="functionCurve.isXNormalized"
 			:isYNormalized="functionCurve.isYNormalized"

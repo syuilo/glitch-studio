@@ -2,6 +2,7 @@ import { nativeEffectProbe } from '@gs/subsystems_effect_native-effects/test/nat
 import gradientNative from '@gs/subsystems_effect_native-effects/fx/gradient/_impl_.ts';
 import definition from '@gs/subsystems_effect_native-effects/fx/gradient/_def_.ts';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { evaluateFunctionCurve } from '@gs/shared/function-curve/function-curve-evaluator.ts';
 import { EASING_DIRECTIONS, EASING_FAMILIES } from '@gs/shared/easing.ts';
 import { float32ToFloat16Bits } from '@gs/shared/utility/float32ToFloat16Bits.ts';
@@ -16,13 +17,16 @@ function fromHalf(bits: number) {
 }
 
 // Gradientの値と符号付き微分を、色としてclampせず直接読み戻す。
-export async function checkGradientInputs(device: GPUDevice, vertex: GPUShaderModule) {
-	const completed: string[] = [];
+export async function run(enable32bitDataTextures: boolean) {
+	const adapter = await navigator.gpu.requestAdapter();
+	if (adapter == null) throw new Error('WebGPU adapter unavailable');
+	if (enable32bitDataTextures && !adapter.features.has('float32-filterable')) return [];
+	const device = await adapter.requestDevice({ requiredFeatures: enable32bitDataTextures ? ['float32-filterable'] : [] });
 	function check(name: string, actual: number[], expected: number[]) {
 		if (actual.length !== expected.length || actual.some((v, i) => !Number.isFinite(v) || Math.abs(v - expected[i]) > 0.003)) throw new Error(`${name}: ${actual} != ${expected}`);
 	}
-	for (const enable32bitDataTextures of [false, true]) {
-		if (enable32bitDataTextures && !device.features.has('float32-filterable')) continue;
+	try {
+		const vertex = device.createShaderModule({ code: vertexCode });
 		device.pushErrorScope('validation');
 		const textures: GPUTexture[] = [];
 		const context = { wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures }, resolution: { width: 4, height: 4 } } as any;
@@ -226,12 +230,11 @@ export async function checkGradientInputs(device: GPUDevice, vertex: GPUShaderMo
 			check('restores linear input derivative', linear.vector.slice(2, 4), [1.5, 0]);
 			const error = await device.popErrorScope();
 			if (error) throw new Error(error.message);
-			completed.push(`gradient inputs and derivatives ${enable32bitDataTextures ? 32 : 16}bit`);
+			return [`gradient inputs and derivatives ${enable32bitDataTextures ? 32 : 16}bit`];
 		} finally {
 			instance.dispose();
 			buffer.destroy();
 			for (const t of textures) t.destroy();
 		}
-	}
-	return completed;
+	} finally { device.destroy(); }
 }
