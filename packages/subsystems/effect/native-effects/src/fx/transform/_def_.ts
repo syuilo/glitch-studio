@@ -35,6 +35,12 @@ export default defineNativeEffect({
 			canNode: true,
 			defaultValue: [0, 0],
 		},
+		origin: {
+			dataType: { kind: 'vector' },
+			ui: { label: 'Origin', control: { controlType: 'xy', min: -0.5, max: 0.5, step: 0.01 } },
+			canNode: true,
+			defaultValue: [0, 0],
+		},
 		scale: {
 			dataType: { kind: 'vector' },
 			ui: {

@@ -18,7 +18,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 		const bindGroup = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
 		return createFullscreenEffect(context, {
 			code,
-			schema: { input: 'color', translation: 'vector', scale: 'vector', rotation: 'scalar' },
+			schema: { input: 'color', translation: 'vector', origin: 'vector', scale: 'vector', rotation: 'scalar' },
 			inputs,
 			internalLayouts: [layout],
 			// Scaleがほぼ0の画素を先に返した後も入力を読むため、LODを明示する。

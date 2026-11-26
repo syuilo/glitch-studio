@@ -111,6 +111,38 @@ export async function run() {
 				near(pixel[1], 0.375 - 0.5 / 64, `${definition.id} Y displacement`);
 				checks.push(`${definition.id} ${width}x${height} common displacement`);
 			}
+			// 【中央以外のOriginを基準に拡縮・回転する】
+			// 支点にある画素はTranslation分だけ動く。支点から離れた画素も照合し、
+			// 縦横で異なる拡縮、時計回りの回転、移動の順序と長辺基準の座標を確認する。
+			const renderTransform = effect(transformDefinition, transform, width, height);
+			const transformed = await renderTransform({
+				input,
+				origin: constantShaderInput('vector', [8.5 / 64, 7.5 / 64]),
+				scale: constantShaderInput('vector', [2, 0.5]),
+				rotation: constantShaderInput('scalar', 0.25),
+				translation: constantShaderInput('vector', [-4 / 64, 2 / 64]),
+			});
+			const pivotPixel = transformed(width / 2 + 4, height / 2 - 10);
+			near(pivotPixel[0], 0.5 + 8.5 / 64, 'Transform pivot X');
+			near(pivotPixel[1], 0.5 + 7.5 / 64, 'Transform pivot Y');
+			// Originから右へ4・下へ2画素の点は、拡縮・回転後に左へ1・下へ8画素に来る。
+			const rotatedPixel = transformed(width / 2 + 3, height / 2 - 2);
+			near(rotatedPixel[0], 0.5 + 12.5 / 64, 'Transform away from pivot X');
+			near(rotatedPixel[1], 0.5 + 5.5 / 64, 'Transform away from pivot Y');
+			checks.push(`transform ${width}x${height} rotation and scaling around origin`);
+
+			// 【Originの場を出力位置で読む】
+			// RGが p + 0.5 の場をOriginへ接続すると、1.25倍の逆変換では参照位置が p + 0.1 になる。
+			const transformedByField = await renderTransform({
+				input,
+				origin: input,
+				scale: constantShaderInput('vector', [1.25, 1.25]),
+			});
+			const fieldPixel = transformedByField(width / 2 - 6, height / 2 + 3);
+			near(fieldPixel[0], 0.6 - 5.5 / 64, 'Transform origin field X');
+			near(fieldPixel[1], 0.6 - 3.5 / 64, 'Transform origin field Y');
+			checks.push(`transform ${width}x${height} origin field`);
+
 			// 【偏微分も共通単位で計算する】
 			// f=x+2yの勾配は縦横比にかかわらず(1,2)。正規化後は長さ1を保つ。
 			const renderGradient = effect(gradientDefinition, gradient, width, height);
