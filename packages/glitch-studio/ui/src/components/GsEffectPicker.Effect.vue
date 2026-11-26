@@ -1,7 +1,7 @@
 <template>
 <button class="_button" :class="[$style.root, { [$style.detailed]: detailed }]" @click="emit('click', $event)">
 	<div :class="$style.heading">
-		<div :class="$style.thumbnailContainer">
+		<div v-if="props.detailed && source.type === 'nativeEffect'" :class="$style.thumbnailContainer">
 			<img
 				v-if="thumbnailUrl != null"
 				:class="$style.thumbnail"
