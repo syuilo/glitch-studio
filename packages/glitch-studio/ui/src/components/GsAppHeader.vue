@@ -93,16 +93,6 @@
 		<GsProjectTabs :manager="projectSessions" @newProject="newProject()"/>
 	</div>
 	<div :class="$style.headerRight">
-		<button
-			v-if="desktopUpdateUi?.state.value.version != null"
-			v-tooltip="i18n.ts._DesktopUpdate.Available"
-			class="_button"
-			:class="[$style.headerMenuItem, $style.updateNotification]"
-			data-test-desktop-update-notification
-			@click="desktopUpdateUi?.requestUpdate()"
-		>
-			<i class="ti ti-circle-open-arrow-up"></i>
-		</button>
 	</div>
 </GsWindowTitlebar>
 </template>
@@ -114,7 +104,7 @@ import type { ProjectSessionContext } from '@/ProjectSessionContext.ts';
 import type { EditorEditTarget } from '@/composables/useEditorEditActions.ts';
 import type { WorkspacePanel } from '@/workspace.ts';
 import GsProjectTabs from '@/components/GsProjectTabs.vue';
-import { projectSessions, newProject, newProjectFromImageOrVideo, openProject } from '@/app.ts';
+import { projectSessions, newProject, openProject } from '@/app.ts';
 import { useHeaderEditActions } from '@/composables/useHeaderEditActions.ts';
 import { preferences } from '@/preferences.ts';
 import { desktopUpdateUi } from '@/desktop-update-ui.ts';
@@ -400,10 +390,6 @@ function openHeaderHelpMenu(ev: PointerEvent) {
 	height: 50%;
 	margin: 0 4px;
 	background-color: #fff2;
-}
-
-.updateNotification {
-	color: var(--THEME-accent);
 }
 
 .headerQuickButton {
