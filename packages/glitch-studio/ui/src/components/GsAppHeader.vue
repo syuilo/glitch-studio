@@ -9,9 +9,16 @@
 			data-test-header-undo
 			@click="stateManager?.undo()"
 		>
-			<i class="ti ti-arrow-back-up"></i>
+			<i class="ti ti-chevron-left"></i>
 		</button>
-		<button class="_button" :class="$style.headerQuickButton" :disabled="!stateManager?.canRedo.value" @click="stateManager?.redo()"><i class="ti ti-arrow-forward-up"></i></button>
+		<button
+			class="_button"
+			:class="$style.headerQuickButton"
+			:disabled="!stateManager?.canRedo.value"
+			@click="stateManager?.redo()"
+		>
+			<i class="ti ti-chevron-right"></i>
+		</button>
 		<template v-if="isElectron">
 			<span :class="$style.headerDivider"></span>
 			<button
