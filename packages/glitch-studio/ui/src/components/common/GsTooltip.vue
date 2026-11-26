@@ -1,10 +1,10 @@
 <template>
 <Transition
-	:enterActiveClass="preferences.s.animation ? $style.transition_tooltip_enterActive : ''"
-	:leaveActiveClass="preferences.s.animation ? $style.transition_tooltip_leaveActive : ''"
-	:enterFromClass="preferences.s.animation ? $style.transition_tooltip_enterFrom : ''"
-	:leaveToClass="preferences.s.animation ? $style.transition_tooltip_leaveTo : ''"
-	appear :css="preferences.s.animation"
+	:enterActiveClass="preferences.s.animation && preferences.s.extraAnimation ? $style.transition_tooltip_enterActive : ''"
+	:leaveActiveClass="preferences.s.animation && preferences.s.extraAnimation ? $style.transition_tooltip_leaveActive : ''"
+	:enterFromClass="preferences.s.animation && preferences.s.extraAnimation ? $style.transition_tooltip_enterFrom : ''"
+	:leaveToClass="preferences.s.animation && preferences.s.extraAnimation ? $style.transition_tooltip_leaveTo : ''"
+	appear :css="preferences.s.animation && preferences.s.extraAnimation"
 	@afterLeave="emit('closed')"
 >
 	<div v-show="showing" ref="el" :class="$style.root" class="_acrylic _shadow" :style="{ zIndex, maxWidth: maxWidth + 'px' }">

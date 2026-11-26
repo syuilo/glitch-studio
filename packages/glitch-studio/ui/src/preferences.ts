@@ -21,6 +21,7 @@ export const PREF_DEF = definePreferences({
 	projectBackupSaveEnabled: { default: () => DEFAULT_PROJECT_BACKUP_SETTINGS.saveEnabled },
 	projectBackupSaveRetentionDays: { default: () => DEFAULT_PROJECT_BACKUP_SETTINGS.saveRetentionDays },
 	animation: { default: () => true },
+	extraAnimation: { default: () => false },
 	menuStyle: { default: () => 'auto' },
 	animatedBgInPreview: { default: () => false },
 	previewVolume: { default: () => 0.5 },

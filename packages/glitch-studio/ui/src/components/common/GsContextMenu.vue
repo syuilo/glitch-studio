@@ -1,10 +1,10 @@
 <template>
 <Transition
 	appear
-	:enterActiveClass="preferences.s.animation ? $style.transition_fade_enterActive : ''"
-	:leaveActiveClass="preferences.s.animation ? $style.transition_fade_leaveActive : ''"
-	:enterFromClass="preferences.s.animation ? $style.transition_fade_enterFrom : ''"
-	:leaveToClass="preferences.s.animation ? $style.transition_fade_leaveTo : ''"
+	:enterActiveClass="preferences.s.animation && preferences.s.extraAnimation ? $style.transition_fade_enterActive : ''"
+	:leaveActiveClass="preferences.s.animation && preferences.s.extraAnimation ? $style.transition_fade_leaveActive : ''"
+	:enterFromClass="preferences.s.animation && preferences.s.extraAnimation ? $style.transition_fade_enterFrom : ''"
+	:leaveToClass="preferences.s.animation && preferences.s.extraAnimation ? $style.transition_fade_leaveTo : ''"
 >
 	<div ref="rootEl" :class="$style.root" :style="{ zIndex }" @contextmenu.prevent.stop="() => {}">
 		<GsMenu :items="items" :align="'left'" @close="emit('closed')"/>

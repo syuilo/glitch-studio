@@ -290,12 +290,15 @@ function popout() {
 	height: 100%;
 	border-radius: 10px;
 	overflow: clip;
+	transition: box-shadow 0.3s ease-out;
 
 	&:focus-within {
 		box-shadow: 0 0 0 1px color(from var(--THEME-accent) srgb r g b / 0.5);
+		transition: none;
 
 		.headerIndicator {
 			background: var(--THEME-accent);
+			transition: none;
 		}
 	}
 }
@@ -322,6 +325,7 @@ function popout() {
 	height: 10px;
 	background: #000;
 	border-radius: 999px;
+	transition: background 0.3s ease-out;
 }
 
 .tabShape {

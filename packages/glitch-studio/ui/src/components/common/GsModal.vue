@@ -80,6 +80,7 @@ const props = withDefaults(defineProps<{
 	animatedBg?: boolean;
 	hasInteractionWithOtherFocusTrappedEls?: boolean;
 	returnFocusTo?: HTMLElement | null;
+	animation?: boolean;
 }>(), {
 	manualShowing: null,
 	anchorElement: null,
@@ -91,6 +92,7 @@ const props = withDefaults(defineProps<{
 	animatedBg: false,
 	hasInteractionWithOtherFocusTrappedEls: false,
 	returnFocusTo: null,
+	animation: true,
 });
 
 const emit = defineEmits<{
@@ -127,7 +129,7 @@ const type = computed<ModalTypes>(() => {
 });
 const isEnableBgTransparent = computed(() => props.transparentBg && (type.value === 'popup'));
 const transitionName = computed((() =>
-	preferences.s.animation
+	(preferences.s.animation && props.animation)
 		? useSendAnime.value
 			? 'send'
 			: type.value === 'drawer'

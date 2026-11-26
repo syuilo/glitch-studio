@@ -7,6 +7,7 @@
 	:anchorElement="anchorElement"
 	:transparentBg="true"
 	:returnFocusTo="returnFocusTo"
+	:animation="preferences.s.animation && preferences.s.extraAnimation"
 	@click="click"
 	@close="onModalClose"
 	@closed="onModalClosed"
@@ -29,9 +30,10 @@
 
 <script lang="ts" setup>
 import { ref, useTemplateRef } from 'vue';
+import type { MenuItem } from '@/types/menu.ts';
 import GsModal from '@/components/common/GsModal.vue';
 import GsMenu from '@/components/common/GsMenu.vue';
-import type { MenuItem } from '@/types/menu.ts';
+import { preferences } from '@/preferences.ts';
 
 defineProps<{
 	items: MenuItem[];
