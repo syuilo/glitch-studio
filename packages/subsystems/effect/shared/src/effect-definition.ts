@@ -1,5 +1,5 @@
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { CheckedParameterDefinition, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
+import type { CheckedParameterDefinition, ParameterDefaultValue, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { CheckedStaticSettingDefinition, StaticSettingDefinitions } from '@gs/shared/static-setting.ts';
 import type { CheckedEffectParameterLayout, EffectParameterLayoutItem } from './effect-parameter-layout.ts';
 
@@ -31,6 +31,8 @@ export interface NativeEffectDefinition extends EffectDefinition {
 	/** 説明の翻訳漏れを定義時に検出できるよう、日本語・英語の両方を必須にする。 */
 	readonly summary: Readonly<Record<'ja-JP' | 'en-US', string>>;
 	readonly tags: readonly string[];
+	/** ピッカー用の画像の用意方法。省略時はnoneと同じ。 */
+	readonly thumbnail?: NativeEffectThumbnailDefinition;
 	/**
 	 * 自身の過去の描画で更新した履歴・蓄積状態に依存する。
 	 * 評価時刻・現在の入力・パラメータが同じでも、それまでの描画回数・順序・間隔により
@@ -43,6 +45,19 @@ export interface NativeEffectDefinition extends EffectDefinition {
 	readonly canHaveLongRunningRenderPass?: boolean;
 }
 
+export type NativeEffectThumbnailSample = 'sceneA' | 'sceneB';
+
+export type NativeEffectAutomaticThumbnail = (
+	| { readonly mode: 'defaultParameters'; readonly params?: never }
+	| { readonly mode: 'customParameters'; readonly params: Readonly<Record<string, ParameterDefaultValue>> }
+) & {
+	/** 省略時はcolorの主入力にsceneAを接続する。指定時は列挙した入力だけに接続する。 */
+	readonly inputs?: Readonly<Record<string, NativeEffectThumbnailSample>>;
+};
+
+export type NativeEffectThumbnailDefinition = { readonly mode: 'none' | 'static'; readonly inputs?: never; readonly params?: never }
+	| NativeEffectAutomaticThumbnail;
+
 type ParameterId<D extends NativeEffectDefinition> = Extract<keyof D['paramDefs'], string>;
 type MatchingKeys<T, Shape> = Extract<{ [K in keyof T]: T[K] extends Shape ? K : never }[keyof T], string>;
 // コンテナ自体は接続を受け取らないため、子の定義をたどって接続可能な末端を探す。
@@ -54,12 +69,24 @@ type ResolutionInputKeys<T> = Extract<{ [K in keyof T]: HasTextureInput<T[K]> ex
 type IntrinsicResolutionSource = { kind: 'assetReference'; assetType: 'image' | 'video' };
 type NativeEffectLayout<D extends NativeEffectDefinition> = D extends { ui: { parameterLayout: infer L extends readonly EffectParameterLayoutItem[] } }
 	? { ui: { parameterLayout: readonly EffectParameterLayoutItem<ParameterId<D>>[] & CheckedEffectParameterLayout<L, ParameterId<D>> } } : unknown;
+type CheckedThumbnailInputs<Inputs, D extends NativeEffectDefinition> = {
+	[K in keyof Inputs]: K extends MatchingKeys<D['paramDefs'], { canNode: true; dataType: { kind: 'color' } }> ? NativeEffectThumbnailSample : never;
+};
+type CheckedThumbnailParams<Params, D extends NativeEffectDefinition> = {
+	[K in keyof Params]: K extends keyof D['paramDefs'] ? ParameterDefaultValue<D['paramDefs'][K]['dataType']> : never;
+};
+type CheckedNativeEffectThumbnail<D extends NativeEffectDefinition> = D extends { thumbnail: infer Thumbnail extends NativeEffectAutomaticThumbnail }
+	? { thumbnail: D['primaryOutput'] extends MatchingKeys<D['outputDefs'], { dataType: { kind: 'color' } }>
+		? (Thumbnail extends { inputs: infer Inputs } ? { inputs: CheckedThumbnailInputs<Inputs, D> } : unknown)
+			& (Thumbnail extends { params: infer Params } ? { params: CheckedThumbnailParams<Params, D> } : unknown)
+		: never }
+	: unknown;
 
 /**
  * 開発者が定義するNative Effectの参照IDとレイアウトは型検査で確定する。
  * NoInferにより、参照先の検査に合わせて具体的な定義が広い型に推論されるのを防ぐ。
  */
-export function defineNativeEffect<const D extends NativeEffectDefinition>(definition: D & NoInfer<NativeEffectLayout<D> & {
+export function defineNativeEffect<const D extends NativeEffectDefinition>(definition: D & NoInfer<NativeEffectLayout<D> & CheckedNativeEffectThumbnail<D> & {
 	staticSettingDefs?: { [K in keyof NonNullable<D['staticSettingDefs']>]: CheckedStaticSettingDefinition<NonNullable<D['staticSettingDefs']>[K]> };
 	paramDefs: { [K in keyof D['paramDefs']]: CheckedParameterDefinition<D['paramDefs'][K]> };
 	primaryInputParameter: MatchingKeys<D['paramDefs'], { canNode: true }> | null;

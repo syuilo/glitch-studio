@@ -1,7 +1,20 @@
 <template>
 <button class="_button" :class="[$style.root, { [$style.detailed]: detailed }]" @click="emit('click', $event)">
-	<span :class="$style.title">{{ effect.displayName }}</span>
-	<span v-if="detailed" :class="$style.summary">{{ effect.summary['ja-JP'] }}</span>
+	<div :class="$style.heading">
+		<img
+			v-if="thumbnailUrl != null"
+			:class="$style.thumbnail"
+			data-test-effect-picker-thumbnail
+			:src="thumbnailUrl"
+			alt=""
+			loading="lazy"
+			decoding="async"
+		/>
+		<div :class="$style.description">
+			<span :class="$style.title">{{ effect.displayName }}</span>
+			<span v-if="detailed" :class="$style.summary">{{ effect.summary['ja-JP'] }}</span>
+		</div>
+	</div>
 	<div v-if="detailed" :class="$style.footer">
 		<div :class="$style.ports">
 			<GsNodePort v-for="input in inputPorts.filter(port => port.isPrimary)" :key="input.key" v-tooltip="`${input.label} (${input.dataType.kind})`" style="margin-right: 3px;" :dataType="input.dataType"/>
@@ -22,12 +35,13 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { getNativeEffectThumbnailUrl } from '@gs/subsystems_effect_native-effects/thumbnail-urls.ts';
 import GsNodePort from './GsNodePort.vue';
 import type { EffectChoice } from '@/utility/project-effects.ts';
 import { getEffectInputPorts, getEffectOutputPorts } from '@/utility/effect-ports.ts';
 
 const props = withDefaults(defineProps<{
-	effect: Pick<EffectChoice, 'displayName' | 'summary' | 'paramDefs' | 'outputDefs' | 'primaryInputParameter' | 'primaryOutput'>;
+	effect: Pick<EffectChoice, 'effectSource' | 'displayName' | 'summary' | 'paramDefs' | 'outputDefs' | 'primaryInputParameter' | 'primaryOutput'>;
 	detailed?: boolean;
 }>(), {
 	detailed: false,
@@ -39,6 +53,10 @@ const emit = defineEmits<{
 
 const inputPorts = computed(() => getEffectInputPorts(props.effect));
 const outputPorts = computed(() => getEffectOutputPorts(props.effect));
+const thumbnailUrl = computed(() => {
+	const source = props.effect.effectSource;
+	return props.detailed && source.type === 'nativeEffect' ? getNativeEffectThumbnailUrl(source.id) : null;
+});
 </script>
 
 <style module lang="scss">
@@ -63,6 +81,31 @@ const outputPorts = computed(() => getEffectOutputPorts(props.effect));
 	.title {
 		font-weight: bold;
 	}
+}
+
+.heading {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	width: 100%;
+}
+
+.description {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 0;
+}
+
+.thumbnail {
+	flex: none;
+	width: 96px;
+	max-width: 35%;
+	aspect-ratio: 3 / 2;
+	object-fit: contain;
+	background: light-dark(#0001, #fff1);
+	border-radius: 4px;
 }
 
 .title, .summary {

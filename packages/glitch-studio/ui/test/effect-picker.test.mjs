@@ -24,12 +24,16 @@ const bundle = await build({
 	plugins: [i18nPlugin, { name: 'effect-picker-controls', setup(build) {
 		build.onResolve({ filter: /^@\/(?:app|project-session)\.ts$/ }, () => ({ path: 'app', namespace: 'fixture' }));
 		build.onResolve({ filter: /native-effects\/definitions\.ts$/ }, () => ({ path: 'effects', namespace: 'fixture' }));
+		build.onResolve({ filter: /native-effects\/thumbnail-urls\.ts$/ }, () => ({ path: 'thumbnails', namespace: 'fixture' }));
+		build.onLoad({ filter: /^thumbnails$/, namespace: 'fixture' }, () => ({
+			contents: "export const getNativeEffectThumbnailUrl = id => id === 'withThumbnail' ? '/fixtures/thumbnail.webp' : null;",
+		}));
 		build.onLoad({ filter: /.*/, namespace: 'fixture' }, ({ path }) => ({ contents: path === 'app'
 			? `import { ref } from 'vue';
 				export const state = { customShaderEffects: ref([]), nodesEffects: ref([]) };
 				export function useProjectSession() { return { projectContext: { stateManager: { state } } }; }`
 			: "import { reactive } from 'vue'; export const nativeEffectDefinitions = reactive({});" }));
-		build.onResolve({ filter: /\.vue$/ }, ({ path }) => path.endsWith('GsEffectPicker.vue')
+		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsEffectPicker(?:\.Effect)?\.vue$/.test(path)
 			? null : { path: basename(path, '.vue'), namespace: 'control' });
 		build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ contents: `
 			import { h } from 'vue';
@@ -51,7 +55,7 @@ const { EffectPicker, fixtureDefinitions, state } = module.exports;
 
 function effect(displayName, { inputType = 'color', outputType = 'color', primaryInput = true, primaryOutput = true, tags = ['noise'] } = {}) {
 	return {
-		displayName, tags,
+		displayName, tags, summary: { 'ja-JP': '', 'en-US': '' },
 		paramDefs: { input: { dataType: { kind: inputType }, canNode: true, ui: { label: 'Input' } } },
 		outputDefs: { output: { dataType: { kind: outputType } } },
 		primaryInputParameter: primaryInput ? 'input' : null,
@@ -90,6 +94,7 @@ function fixture(t, definitions, { props = {}, graphs = [], shaders = [], recent
 	const root = element();
 	const chosen = [];
 	const app = renderer.createApp({ render: () => h(EffectPicker, { ...props, onChosen: effect => chosen.push(effect) }) });
+	app.directive('tooltip', {});
 	app.mount(root);
 	t.after(() => app.unmount());
 	const allElements = (element = root) => [element, ...element.children.flatMap(child => allElements(child))];
@@ -97,6 +102,7 @@ function fixture(t, definitions, { props = {}, graphs = [], shaders = [], recent
 		&& (value == null || element.props[attribute] === value)) ?? null;
 	return {
 		chosen, find,
+		thumbnails: () => allElements().filter(element => Object.hasOwn(element.props, 'data-test-effect-picker-thumbnail')),
 		async search(query) {
 			find('data-test-effect-picker-search').props['onUpdate:modelValue'](query);
 			await nextTick();
@@ -109,6 +115,21 @@ function fixture(t, definitions, { props = {}, graphs = [], shaders = [], recent
 			.map(element => JSON.parse(element.props['data-test-effect-picker-effect']).id),
 	};
 }
+
+// 【Native Effectのサムネイルは詳細カードに表示し、同じIDのNodes Effectや履歴には表示しない】
+// 一覧と検索が同じカードを使う場合も、取得した画像を他の登録種別やコンパクト表示へ持ち込まないことを確かめる。
+test('shows available native thumbnails in detailed cards across browsing and search', async t => {
+	const f = fixture(t, { withThumbnail: effect('Previewed'), withoutThumbnail: effect('Plain') }, {
+		graphs: [{ id: 'withThumbnail', name: 'Previewed graph', definition: testNodesEffect() }],
+		recent: [{ type: 'nativeEffect', id: 'withThumbnail' }],
+	});
+	const thumbnails = () => f.thumbnails().map(({ props }) => [props.src, props.loading]);
+	assert.deepEqual(thumbnails(), [['/fixtures/thumbnail.webp', 'lazy']]);
+	await f.search('previewed');
+	assert.deepEqual(thumbnails(), [['/fixtures/thumbnail.webp', 'lazy']]);
+	await f.search('plain');
+	assert.deepEqual(thumbnails(), []);
+});
 
 // 【検索欄の入力でAND・typo検索と順位を反映し、Enterで表示順の先頭を選択する】
 // 純粋関数だけが正しくても、Pickerが元の登録順を使ったままでは誤ったエフェクトを選んでしまう。
