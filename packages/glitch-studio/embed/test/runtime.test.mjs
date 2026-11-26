@@ -70,6 +70,9 @@ test('bundles only selected runtime capabilities from a self-contained catalog',
 	const plain = await buildPortableNodesEffectRuntime(directory, requirements, (_name, result) => metadata.push(result));
 	assert.doesNotMatch(plain.elementSource + plain.workerSource, /AiScript|VideoSampleSink|Expression is empty|fn gs_fragment/);
 	assert.doesNotMatch(plain.workerSource, /maximumTilePixels|timestamp-query|Tiled rendering is already in progress/);
+	// 【通常のWGSL文字列も圧縮した状態でWorkerへ同梱する】
+	// Fillの描画で共有する色変換は?raw由来なので、?shaderとは別の読み込み経路も確認する。
+	assert.match(plain.workerSource, /fn colorSrgbToLinear\(rgb: vec3f\) -> vec3f \{ let magnitude/);
 	// 【式の結果検証と登録IDの静的検証を配布ランタイムへ戻さない】
 	// エディタでは使う検証器も、描画の依存へ置くと未使用型の検証まで同梱されてしまう。
 	// 式を使う作品でも戻り値の型は検査せず、登録の正しさは書き出し時に保証する。
@@ -103,7 +106,11 @@ test('bundles only selected runtime capabilities from a self-contained catalog',
 	// 【どの組み込みエフェクトにもIIFE非対応の依存を残さない】
 	// 一部の作品だけ成功する回帰を防ぐため、カタログ全体を最終形式までビルドする。
 	const { effectIds } = JSON.parse(await readFile(path.join(directory, 'manifest.json'), 'utf8'));
-	await buildPortableNodesEffectRuntime(directory, { ...requirements, effectIds });
+	const allEffects = await buildPortableNodesEffectRuntime(directory, { ...requirements, effectIds });
+	// 【合成された組み込みWGSLを圧縮し、元の著作権表記を保持する】
+	// Noiseは別ファイルにあるFlow Noiseを合成してから?shaderで読み込む。
+	assert.match(allEffects.workerSource, /fn flowNoisePermute\(value: vec4f\) -> vec4f \{ let wrapped/);
+	assert.match(allEffects.workerSource, /Copyright \(c\) 2021 Stefan Gustavson and Ian McEwan/);
 	await assert.rejects(buildPortableNodesEffectRuntime(directory, { ...requirements, effectIds: ['../expression'] }), /Invalid/);
 	// 【ビルド時の警告を見落として壊れた成果物を保存しない】
 	// 配布カタログへVite専用参照が再混入した場合も、書き出しの段階で明示的に失敗させる。

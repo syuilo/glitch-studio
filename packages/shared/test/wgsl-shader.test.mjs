@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
-import { createShaderBufferLayouts, loadWgslShader, wgslShaderEsbuildPlugin, wgslShaderVitePlugin } from '../build/wgsl-shader.mjs';
+import { compactWgsl, createShaderBufferLayouts, loadWgslShader, wgslShaderEsbuildPlugin, wgslShaderVitePlugin } from '../build/wgsl-shader.mjs';
 import { createServer } from 'vite';
 
 const bundled = await build({ entryPoints: [fileURLToPath(new URL('../src/gpu/shader-buffer.ts', import.meta.url))], bundle: true, write: false, format: 'esm', platform: 'node' });
@@ -70,12 +70,28 @@ test('rebuilds composed shaders and reports every source dependency', async t =>
 	const first = await loadWgslShader(entry);
 	assert.equal(first.layouts.uniforms.settings.byteLength, 32);
 	assert.deepEqual(new Set(first.watchFiles), new Set([entry, shader, constants]));
+	const compacted = await loadWgslShader(entry, { compact: true });
+	assert.equal(compacted.code, first.code.replace('\n', ' '));
+	assert.deepEqual(compacted.layouts, first.layouts);
 	await writeFile(constants, 'export const count = 3;');
 	const next = await loadWgslShader(entry);
 	assert.equal(next.layouts.uniforms.settings.byteLength, 48);
 	assert.match(next.code, /COUNT = 3u/);
 	await writeFile(entry, 'export default 123;');
 	await assert.rejects(loadWgslShader(entry), /must export a WGSL string/);
+});
+
+// 【WGSLの圧縮でトークンの区切りと出典を保持する】
+// 入れ子のブロックコメント、WGSL固有の改行、ソース断片の端でもトークンを結合しない。
+// 出典と利用許諾の行コメントは後続のコードを巻き込まないよう、終端の改行も残す。
+test('compacts WGSL trivia while preserving token boundaries and attribution', () => {
+	const attribution = '// adapted from the original shader\n// @license MIT\n// @author Original author\n';
+	const blockAttribution = '/*! Copyright Example /* attribution detail */ */';
+	const source = attribution + 'let\u200Evalue = a-/* outer /* nested */ end */-b; // discard\u0085'
+		+ blockAttribution + '\nlet shifted = value >> 2; // end';
+	assert.equal(compactWgsl(source), attribution + 'let value = a- -b; ' + blockAttribution + ' let shifted = value >> 2; ');
+	assert.equal(compactWgsl('/* start */ empty\n'), ' empty ');
+	assert.throws(() => compactWgsl('/* outer /* nested */'), /Unterminated WGSL block comment/);
 });
 
 // 【最終JSは配置情報だけを使い、解析器や未使用storageを同梱しない】

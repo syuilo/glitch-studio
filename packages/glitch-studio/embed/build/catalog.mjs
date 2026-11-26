@@ -1,5 +1,5 @@
 import { build } from 'esbuild';
-import { wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
+import { compactWgsl, wgslShaderEsbuildPlugin } from '@gs/shared/build/wgsl-shader.mjs';
 import { readdir, readFile, mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -33,7 +33,7 @@ export async function buildPortableNodesEffectCatalog(outdir) {
 		// エフェクト内蔵画像もカタログへ埋め込み、選択された実装と一緒に成果物へ渡す。
 		// UIのpublic配信や、最終出力とは別の画像ファイルを必要としない。
 		loader: { '.png': 'dataurl' },
-		plugins: [wgslShaderEsbuildPlugin(), { name: 'portable-runtime-sources', setup(builder) {
+		plugins: [wgslShaderEsbuildPlugin({ compact: true }), { name: 'portable-runtime-sources', setup(builder) {
 			// effectの通常の静的importをカタログのprivate importにする。最終ビルド時の
 			// package条件で実装を選ぶため、式を使わない作品にAiScriptの初期化も残らない。
 			builder.onResolve({ filter: /^@gs\/shared\/expression\/expression-evaluator\.ts$/ }, () => ({ path: '#expression', external: true }));
@@ -52,7 +52,10 @@ export async function buildPortableNodesEffectCatalog(outdir) {
 				const resolved = await builder.resolve(args.path.slice(0, -4), { resolveDir: args.resolveDir, kind: args.kind });
 				return { path: resolved.path, namespace: 'portable-raw-source', errors: resolved.errors };
 			});
-			builder.onLoad({ filter: /.*/, namespace: 'portable-raw-source' }, async args => ({ contents: await readFile(args.path, 'utf8'), loader: 'text' }));
+			builder.onLoad({ filter: /.*/, namespace: 'portable-raw-source' }, async args => {
+				const source = await readFile(args.path, 'utf8');
+				return { contents: args.path.endsWith('.wgsl') ? compactWgsl(source) : source, loader: 'text' };
+			});
 		} }],
 	});
 	await writeFile(path.join(outdir, 'manifest.json'), JSON.stringify({ effectIds }));
