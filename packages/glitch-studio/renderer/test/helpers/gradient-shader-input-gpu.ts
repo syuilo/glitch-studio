@@ -156,8 +156,31 @@ export async function checkGradientInputs(device: GPUDevice, vertex: GPUShaderMo
 			const mirrored = await render(params, true);
 			check('mirrored Bézier values', mirrored.scalar, rows([0.0625, 0.5625, 0.5625, 0.0625]));
 			check('mirrored Bézier slopes change direction', mirrored.vector, rowVectors([-1, -3, 3, 1]));
-			params.interpolation = definition.paramDefs.interpolation.defaultValue;
+			// 【Function CurveのSkewはミラーの後に適用され、折れ点の勾配は0になる】
+			// ミラー後の進行率が0.75になる2行はSkewの中点に一致し、往路と復路に同じ値を返す。
+			params.interpolation = { type: 'linear', skew: 0.5 };
+			const mirroredSkew = await render(params, true);
+			check('mirrored Function Curve skew values', mirroredSkew.scalar, rows([1 / 6, 0.5, 0.5, 1 / 6]));
+			check('mirrored Function Curve skew slopes', mirroredSkew.vector, rowVectors([-4 / 3, 0, 0, 4 / 3]));
 			params.mirrorRepeat = false;
+			// 【Bézierの点が占める区間を基準にSkewと勾配を評価する】
+			// 点が0と1以外にある場合、入力全体を使ってSkewを掛けるとCPU側の定義域とずれる。
+			const skewedBezier = { ...bezier([bezierPoint('end', 0.8125, 1), bezierPoint('start', 0.1875, 0)]), skew: 0.5 };
+			params.interpolation = skewedBezier;
+			const shortened = await render(params, true);
+			check('skewed Bézier values follow the CPU curve', shortened.scalar, rows(positions.map(position => evaluateFunctionCurve(skewedBezier, position, 'clamp'))));
+			check('skewed Bézier slopes within its own domain', shortened.vector, rowVectors([0, 16 / 15, 16 / 15, 0]));
+			// 【Skewが±1でも端点を保ち、幅が0になった側を評価しない】
+			params.startPosition = constantShaderInput('scalar', 0.25);
+			params.endPosition = constantShaderInput('scalar', 0.75);
+			for (const [skew, expected] of [[-1, [1, 0.875, 0.625, 0]], [1, [1, 0.375, 0.125, 0]]] as const) {
+				params.interpolation = { type: 'linear', skew };
+				const result = await render(params, true);
+				check(`skew ${skew} preserves endpoints`, result.scalar, rows([...expected]));
+				check(`skew ${skew} has finite slopes`, result.vector, rowVectors([0, 1, 1, 0]));
+			}
+			for (const input of inputs) params[input.name] = input.uniform;
+			params.interpolation = definition.paramDefs.interpolation.defaultValue;
 			// 同じ空間入力を両端値へ渡すと、結果と微分は入力そのものになる。
 			// 異なる比率の入力でfitと全wrapを確認し、透明境界の1x1も含める。
 			for (const [width, height, values] of [[4, 2, [0, 0.125, 0.375, 0.75, 0.25, 0.5, 0.625, 1]], [1, 1, [0.75]]] as const) {

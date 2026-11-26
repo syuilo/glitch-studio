@@ -87,10 +87,11 @@ test('sets, reads and saves Gradient interpolation as a literal Function Curve',
 	const change = source => manager.commit('setNodesEffectNodeParameterSource', { target, parameterPath: ['interpolation'], source });
 	const read = () => query['Query:getNode'](target).params.interpolation;
 	assert.deepEqual(read(), { inputSource: 'literal', value: { type: 'linear' } });
-	const source = { inputSource: 'literal', value: { type: 'easing', family: 'elastic', direction: 'inOut', period: 0.45 } };
+	const source = { inputSource: 'literal', value: { type: 'easing', family: 'elastic', direction: 'inOut', period: 0.45, skew: -0.5 } };
 	change(source);
 	assert.deepEqual(read(), source);
 	assert.throws(() => change({ ...source, value: { ...source.value, period: 0 } }), /Invalid Function Curve/);
+	assert.throws(() => change({ ...source, value: { ...source.value, skew: 1.01 } }), /Invalid Function Curve/);
 	assert.throws(() => change({ inputSource: 'expression', expression: '0.5' }), /requires a literal/);
 	assert.deepEqual(read(), source);
 	const file = await encodeProjectFile({ assets: [], generatedSpeech: [], timelineScenes: [], nodesEffects: state.nodesEffects.value, gsVersion: '2.0.0-alpha.94' });

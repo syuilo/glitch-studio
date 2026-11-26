@@ -64,7 +64,7 @@ export function createFunctionCurveBindings(device: GPUDevice, group: number, vi
 				device.queue.writeBuffer(pointsBuffer, 0, pointsData);
 			}
 			const fixedSettings = curve.type === 'bezier' ? {} : getFixedFunctionCurveSettings(curve);
-			settingsData.set({ kind: FUNCTION_CURVE_KINDS[curve.type], pointCount, ...fixedSettings });
+			settingsData.set({ kind: FUNCTION_CURVE_KINDS[curve.type], pointCount, skew: curve.skew ?? 0, ...fixedSettings });
 			device.queue.writeBuffer(settingsBuffer, 0, settingsData.arrayBuffer);
 			previousCurve = deepClone(curve);
 			return bindGroup;

@@ -63,7 +63,7 @@
 		:max="1"
 		:step="0.01"
 		:modelValue="curve.dutyCycle"
-		@update:modelValue="dutyCycle => emit('change', { type: 'pulse', dutyCycle })"
+		@update:modelValue="setDutyCycle"
 	>
 		<template #label>{{ i18n.ts._FunctionCurve.DutyCycle }}</template>
 	</GsInput>
@@ -78,7 +78,7 @@
 		:max="Number.MAX_SAFE_INTEGER"
 		:step="1"
 		:modelValue="curve.levelCount"
-		@update:modelValue="levelCount => emit('change', { type: 'steps', levelCount })"
+		@update:modelValue="setLevelCount"
 	>
 		<template #label>{{ i18n.ts._FunctionCurve.LevelCount }}</template>
 	</GsInput>
@@ -92,9 +92,23 @@
 		:max="1"
 		:step="0.01"
 		:modelValue="curve.deadZoneWidth"
-		@update:modelValue="deadZoneWidth => emit('change', { type: 'deadZone', deadZoneWidth })"
+		@update:modelValue="setDeadZoneWidth"
 	>
 		<template #label>{{ i18n.ts._FunctionCurve.DeadZoneWidth }}</template>
+	</GsInput>
+	<GsInput
+		v-if="curve.type !== 'bezier'"
+		data-test-function-curve-skew
+		type="number"
+		manualSave
+		validateNumberBounds
+		:min="-1"
+		:max="1"
+		:step="0.01"
+		:modelValue="curve.skew ?? 0"
+		@update:modelValue="setSkew"
+	>
+		<template #label>{{ i18n.ts._FunctionCurve.Skew }}</template>
 	</GsInput>
 </div>
 </template>
@@ -130,14 +144,23 @@ const directionLabels: Record<EasingDirection, string> = { in: 'In', out: 'Out',
 const directionItems = EASING_DIRECTIONS.map(direction => ({ label: directionLabels[direction], value: direction }));
 
 function setType(type: FunctionCurve['type']) {
-	if (type !== props.curve.type) emit('change', createFunctionCurve(type));
+	if (type === props.curve.type) return;
+	const next = createFunctionCurve(type);
+	const { skew } = props.curve;
+	// Bézierの点エディターは変形前の座標を扱うため、UIでBézierを作るときは既定のSkewを使う。
+	emit('change', type !== 'bezier' && skew != null ? { ...next, skew } : next);
 }
 
 function setEasingFamily(family: EasingFamily) {
 	const curve = props.curve;
 	if (curve.type !== 'easing' || curve.family === family) return;
 	// 系統固有の設定は持ち越さず、新しい系統の既定値から編集する。
-	emit('change', { type: 'easing', family, direction: curve.direction });
+	const { direction, skew } = curve;
+	emit('change', { type: 'easing', family, direction, ...(skew == null ? {} : { skew }) });
+}
+
+function setSkew(skew: number) {
+	if (props.curve.type !== 'bezier') emit('change', { ...props.curve, skew });
 }
 
 function setEasingDirection(direction: EasingDirection) {
@@ -152,6 +175,21 @@ function setBackOvershootCoefficient(overshootCoefficient: number) {
 function setElasticPeriod(period: number) {
 	const curve = props.curve;
 	if (curve.type === 'easing' && curve.family === 'elastic') emit('change', { ...curve, period });
+}
+
+function setDutyCycle(dutyCycle: number) {
+	const curve = props.curve;
+	if (curve.type === 'pulse') emit('change', { ...curve, dutyCycle });
+}
+
+function setLevelCount(levelCount: number) {
+	const curve = props.curve;
+	if (curve.type === 'steps') emit('change', { ...curve, levelCount });
+}
+
+function setDeadZoneWidth(deadZoneWidth: number) {
+	const curve = props.curve;
+	if (curve.type === 'deadZone') emit('change', { ...curve, deadZoneWidth });
 }
 </script>
 

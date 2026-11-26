@@ -182,6 +182,15 @@ export async function run() {
 			near(band('scalar', 24), 0, 'Smooth Pulse midpoint');
 			near(band('vector', 20), -Math.PI / bandWidth, 'Smooth Pulse inward slope');
 		} finally { pulse.dispose(); }
+
+		// 【Function CurveのSkewで帯の中の変化位置を動かす】
+		// Smooth Pulseの中点を先頭から帯幅の75%へ移すと、反転後はその位置が0になる。
+		const skewedPulse = await createBand(landscape, ['scalar'], true, { interpolation: { type: 'smoothPulse', skew: 0.5 } });
+		try {
+			const band = await skewedPulse.render(2);
+			near(band('scalar', 20), 0, 'skewed Smooth Pulse midpoint');
+			near(band('scalar', 24), 0.25, 'prior midpoint changes');
+		} finally { skewedPulse.dispose(); }
 		const error = await device.popErrorScope();
 		if (error != null) throw new Error(error.message);
 		return true;

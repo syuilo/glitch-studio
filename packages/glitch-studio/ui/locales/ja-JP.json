@@ -976,6 +976,7 @@
 		"BackOvershootCoefficient": "Backのオーバーシュート係数",
 		"ElasticPeriod": "Elasticの周期",
 		"ElasticPeriodHint": "基準カーブの正規化Xでの一周期の長さです。InOutでは前半・後半それぞれで周期が半分になります。",
+		"Skew": "スキュー",
 		"SmoothPulse": "滑らかなパルス",
 		"Pulse": "パルス",
 		"Steps": "ステップ",

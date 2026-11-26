@@ -208,7 +208,11 @@ NOISE(TIME * 3, 1) * 0.03
 
 Function Curveは `type: "bezier"` のときに点とX・Yそれぞれの正規化フラグを持つ。固定カーブのX・Yは正規化座標で、Xの定義域は0〜1。Curve Animationは `inputSource: "curveAnimationInline"` のBindingに格納され、`curveBinding` と再生設定を持つ。`curveBinding` は `{ source: "inline", curve }` または `{ source: "reference", curveId }` で表す。共有定義はProject・Timelineレイヤー・Nodes Effectの `functionCurves` に格納する。
 
-| 固定カーブ | 形と設定 |
+Function Curveの `skew` は `-1〜1` で、省略または `null` の場合は `0` です。Xを折り返しまたはクランプした後、定義域の中点を区間内の `(skew + 1) / 2` の位置に移します。前後をそれぞれ線形に伸縮し、両端の値を保ちます。`±1` では片側の幅が0になり、端に段差が生じる場合があります。GPUの勾配にはXの伸縮率を反映し、Skewによる折れ点ではカーブの傾きの寄与を0にします。
+
+編集画面は固定カーブでSkewを設定できます。BézierのSkewはScriptingや保存データで指定でき、点のXの最小値から最大値までを定義域として評価します。固定カーブ同士を切り替えるとSkewを引き継ぎ、UIでBézierに切り替えると既定値から始まります。
+
+| 固定カーブ | Skewが0のときの形と設定 |
 | --- | --- |
 | `linear` / `smoothstep` / `smootherstep` | 0から1へ向かう線形・3次・5次のカーブ。 |
 | `easing` | `family`・`direction` で評価する。Backでは `overshootCoefficient`、Elasticでは `period` を設定できる。 |

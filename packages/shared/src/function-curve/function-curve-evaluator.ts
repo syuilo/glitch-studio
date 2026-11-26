@@ -1,6 +1,6 @@
 import { evaluateEasing, smoothstep, smootherstep } from '../easing.ts';
 import { rawBezierEasing } from '../utility/bezier.ts';
-import type { FixedFunctionCurve, FunctionCurve, FunctionCurveWrapMode, BezierAnchorPoint } from './function-curve.ts';
+import type { BezierFunctionCurve, FixedFunctionCurve, FunctionCurve, FunctionCurveWrapMode } from './function-curve.ts';
 
 export function getFunctionCurveEndX(curve: FunctionCurve): number | null {
 	if (curve.type !== 'bezier') return 1;
@@ -10,9 +10,9 @@ export function getFunctionCurveEndX(curve: FunctionCurve): number | null {
 }
 
 export function evaluateFunctionCurve(curve: FunctionCurve, x: number, wrapMode: FunctionCurveWrapMode): number {
-	return curve.type === 'bezier'
-		? evaluateBezierFunctionCurve(curve.points, x, wrapMode)
-		: evaluateFixedFunctionCurve(curve, wrapFunctionCurveX(x, 0, 1, wrapMode));
+	if (curve.type === 'bezier') return evaluateBezierFunctionCurve(curve, x, wrapMode);
+	const position = wrapFunctionCurveX(x, 0, 1, wrapMode);
+	return evaluateFixedFunctionCurve(curve, skewFunctionCurveX(position, 0, 1, curve.skew ?? 0));
 }
 
 function wrapFunctionCurveX(x: number, startX: number, endX: number, wrapMode: FunctionCurveWrapMode): number {
@@ -32,6 +32,20 @@ function wrapFunctionCurveX(x: number, startX: number, endX: number, wrapMode: F
 			return startX + (phase <= duration ? phase : period - phase);
 		}
 	}
+}
+
+function skewFunctionCurveX(x: number, startX: number, endX: number, skew: number): number {
+	const midpoint = (skew + 1) * 0.5;
+	if (midpoint === 0.5 || x <= startX || x >= endX) return x;
+	const span = endX - startX;
+	const progress = (x - startX) / span;
+	// 折り返し後に適用することで、Repeat Mirroredの往路と復路を同じ形に保つ。
+	// 両端の座標を厳密に保ち、±1で幅が0になった側は評価しない。
+	if (progress <= 0 || progress >= 1) return x;
+	const remapped = progress < midpoint
+		? 0.5 * (progress / midpoint)
+		: 0.5 + 0.5 * ((progress - midpoint) / (1 - midpoint));
+	return startX + remapped * span;
 }
 
 function evaluateFixedFunctionCurve(curve: FixedFunctionCurve, x: number): number {
@@ -61,21 +75,22 @@ function evaluateFixedFunctionCurve(curve: FixedFunctionCurve, x: number): numbe
 	}
 }
 
-function evaluateBezierFunctionCurve(pointsInEditOrder: readonly BezierAnchorPoint[], x: number, wrapMode: FunctionCurveWrapMode): number {
+function evaluateBezierFunctionCurve(curve: BezierFunctionCurve, x: number, wrapMode: FunctionCurveWrapMode): number {
 	// 元の配列を変更せずX順に並べる。同じXでは元の順序を保ち、後のポイントを優先する。
-	const points = pointsInEditOrder.toSorted((a, b) => a.x - b.x);
+	const points = curve.points.toSorted((a, b) => a.x - b.x);
 	if (points.length === 0) return 0;
 	const first = points[0];
 	const last = points[points.length - 1];
 	// 1点だけの場合や全点が同じXの場合は、周期を作れないので定数として扱う。
 	if (last.x === first.x) return last.y;
 
-	x = wrapFunctionCurveX(x, first.x, last.x, wrapMode);
+	const wrappedX = wrapFunctionCurveX(x, first.x, last.x, wrapMode);
+	const position = skewFunctionCurveX(wrappedX, first.x, last.x, curve.skew ?? 0);
 
-	const prevPoint = points.findLast(point => point.x <= x);
-	const nextPoint = points.find(point => point.x > x);
+	const prevPoint = points.findLast(point => point.x <= position);
+	const nextPoint = points.find(point => point.x > position);
 	if (prevPoint == null) return first.y;
-	if (nextPoint == null || prevPoint.x === x) return prevPoint.y;
+	if (nextPoint == null || prevPoint.x === position) return prevPoint.y;
 	return rawBezierEasing(
 		prevPoint.x,
 		prevPoint.x + prevPoint.bezierControlPointB[0],
@@ -85,6 +100,6 @@ function evaluateBezierFunctionCurve(pointsInEditOrder: readonly BezierAnchorPoi
 		prevPoint.y + prevPoint.bezierControlPointB[1],
 		nextPoint.y + nextPoint.bezierControlPointA[1],
 		nextPoint.y,
-		x,
+		position,
 	);
 }

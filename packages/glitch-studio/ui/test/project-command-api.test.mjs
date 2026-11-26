@@ -67,7 +67,7 @@ test('retains successful project edits in one undo group after an asynchronous f
 // 同じポイントIDを共有すると、複製元の編集やUndoによって複製先へ意図しない変更が伝わり得る。
 test('duplicates Curve Animations with independent point IDs and stable redo', () => {
 	const { state, manager } = fixture();
-	const data = { type: 'bezier', isXNormalized: false, isYNormalized: false, points: [{ x: 0, y: 1, bezierControlPointA: [0, 0], bezierControlPointB: [1, 0] }] };
+	const data = { type: 'bezier', skew: 0.5, isXNormalized: false, isYNormalized: false, points: [{ x: 0, y: 1, bezierControlPointA: [0, 0], bezierControlPointB: [1, 0] }] };
 	const original = manager.commit('createProjectFunctionCurve', { nameForReference: 'curve', data });
 	const duplicated = manager.commit('duplicateProjectFunctionCurve', original);
 	const source = state.functionCurves.value[0];
@@ -76,6 +76,9 @@ test('duplicates Curve Animations with independent point IDs and stable redo', (
 	assert.notEqual(copy.id, source.id);
 	assert.notEqual(copy.points[0].id, source.points[0].id);
 	assert.equal(copy.id, duplicated.functionCurveId);
+	assert.equal(source.skew, 0.5);
+	assert.equal(copy.skew, 0.5);
+	assert.throws(() => manager.commit('createProjectFunctionCurve', { data: { ...data, skew: 1.01 } }));
 	data.points[0].y = 99;
 	assert.equal(source.points[0].y, 1);
 	manager.undo(); manager.redo();
@@ -108,13 +111,13 @@ test('creates, duplicates and replaces fixed Function Curves through the public 
 // 0の係数や非既定の周期を保持し、無効な調整値で既存の共有定義を変更しない。
 test('stores and validates family-specific easing settings through public curve commands', () => {
 	const { state, manager } = fixture();
-	const back = { type: 'easing', family: 'back', direction: 'out', overshootCoefficient: 0 };
+	const back = { type: 'easing', family: 'back', direction: 'out', overshootCoefficient: 0, skew: -0.5 };
 	const target = manager.commit('createProjectFunctionCurve', { nameForReference: 'motion', data: back });
 	const identity = { id: target.functionCurveId, nameForReference: 'motion' };
 	assert.deepEqual(state.functionCurves.value[0], { ...identity, ...back });
-	const elastic = { type: 'easing', family: 'elastic', direction: 'inOut', period: 0.6 };
+	const elastic = { type: 'easing', family: 'elastic', direction: 'inOut', period: 0.6, skew: 1 };
 	manager.commit('replaceProjectFunctionCurve', { ...target, definition: { ...identity, ...elastic } });
-	for (const data of [{ ...elastic, period: 0 }, { ...elastic, period: Infinity }, { ...back, overshootCoefficient: -1 }]) {
+	for (const data of [{ ...elastic, period: 0 }, { ...elastic, period: Infinity }, { ...back, overshootCoefficient: -1 }, { ...back, skew: -1.01 }]) {
 		assert.throws(() => manager.commit('replaceProjectFunctionCurve', { ...target, definition: { ...identity, ...data } }));
 	}
 	assert.deepEqual(state.functionCurves.value[0], { ...identity, ...elastic });

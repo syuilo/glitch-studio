@@ -976,6 +976,7 @@
 		"BackOvershootCoefficient": "Back overshoot coefficient",
 		"ElasticPeriod": "Elastic period",
 		"ElasticPeriodHint": "One cycle in normalized X of the base curve. InOut halves the period in each half.",
+		"Skew": "Skew",
 		"SmoothPulse": "Smooth pulse",
 		"Pulse": "Pulse",
 		"Steps": "Steps",

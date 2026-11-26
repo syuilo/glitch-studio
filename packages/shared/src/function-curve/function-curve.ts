@@ -8,14 +8,16 @@ export type BezierAnchorPoint = {
 	bezierControlPointB: [number, number];
 };
 
-export type BezierFunctionCurve = {
+type FunctionCurveSettings = { skew?: number | null };
+
+export type BezierFunctionCurve = FunctionCurveSettings & {
 	type: 'bezier';
 	points: BezierAnchorPoint[];
 	isXNormalized: boolean;
 	isYNormalized: boolean;
 };
 
-export type FixedFunctionCurve =
+export type FixedFunctionCurve = FunctionCurveSettings & (
 	| { type: 'linear' }
 	| { type: 'smoothstep' }
 	| { type: 'smootherstep' }
@@ -24,7 +26,8 @@ export type FixedFunctionCurve =
 	| { type: 'pulse'; dutyCycle: number }
 	| { type: 'steps'; levelCount: number }
 	| { type: 'sineWave' }
-	| { type: 'deadZone'; deadZoneWidth: number };
+	| { type: 'deadZone'; deadZoneWidth: number }
+);
 
 export type FunctionCurve = BezierFunctionCurve | FixedFunctionCurve;
 

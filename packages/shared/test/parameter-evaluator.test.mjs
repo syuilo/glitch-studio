@@ -501,6 +501,39 @@ test('evaluates all fixed Function Curve shapes and their boundaries', () => {
 	assert.deepEqual(samples({ type: 'deadZone', deadZoneWidth: 1 }, [0, 0.25, 1]), [0.5, 0.5, 0.5]);
 });
 
+// 【Skewは折り返したXを変換し、両端と往復の対称性を保つ】
+// ±1で片側の幅が0になる場合も、端点が移動したり区間内で0除算したりしないようにする。
+test('skews fixed Function Curves after wrapping and preserves endpoints at both limits', () => {
+	const curve = { type: 'linear', skew: 0.5 };
+	const samples = (skew, xs) => xs.map(x => evaluateFunctionCurve({ ...curve, skew }, x, 'clamp'));
+	assert.deepEqual(samples(0.5, [-1, 0.375, 0.75, 0.875, 2]), [0, 0.25, 0.5, 0.75, 1]);
+	assert.deepEqual(samples(-0.5, [-1, 0.125, 0.25, 0.625, 2]), [0, 0.25, 0.5, 0.75, 1]);
+	assert.deepEqual(samples(-1, [0, 0.5, 1]), [0, 0.75, 1]);
+	assert.deepEqual(samples(1, [0, 0.5, 1]), [0, 0.25, 1]);
+	assert.equal(evaluateFunctionCurve(curve, -0.25, 'repeat'), 0.5);
+	assert.equal(evaluateFunctionCurve(curve, 1, 'repeat'), 0);
+	assert.deepEqual([0.75, 1, 1.25].map(x => evaluateFunctionCurve(curve, x, 'repeatMirrored')), [0.5, 1, 0.5]);
+	assert.equal(evaluateFunctionCurve({ type: 'smoothPulse', skew: 0.5 }, 0.75, 'clamp'), 1);
+});
+
+// 【BézierのSkewを実際のXの範囲に適用して式とCurve Animationで共有する】
+// 非正規化のカーブが0以外のXから始まる場合も、経過ミリ秒を勝手に正規化しない。
+test('applies Bézier skew over its authored domain for expressions and Curve Animation', () => {
+	const curve = { id: 'motion', nameForReference: 'motion', type: 'bezier', skew: 0.5, isXNormalized: false, isYNormalized: false, points: [
+		{ id: 'end', x: 500, y: 30, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
+		{ id: 'start', x: 100, y: 10, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
+	] };
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
+	const scope = context({ functionCurves: [curve], time: 400 });
+	assertClose(evaluator.evaluate(expression('FUNCTION_CURVE("motion", 400, "clamp")'), scope, -1, scalarDefinition), 20);
+	const binding = curveAnimationInput('reference', curve);
+	assertClose(evaluator.evaluate(binding, scope, -1, scalarDefinition), 20);
+	assertClose(evaluateFunctionCurve(curve, 600, 'repeatMirrored'), 20);
+	assert.equal(evaluateFunctionCurve(curve, 500, 'clamp'), 30);
+	assert.equal(evaluateFunctionCurve({ ...curve, points: [curve.points[0]] }, 400, 'repeatMirrored'), 30);
+	assert.equal(evaluateFunctionCurve({ ...curve, points: [] }, 400, 'repeatMirrored'), 0);
+});
+
 // 【固定カーブを式と再生に利用する】
 // 固定カーブの終端Xは1。式からは曲線座標を取得し、再生時の終了基準と出力範囲はCurve Animationが解決する。
 test('samples a shared fixed curve from expressions and maps it through end-aligned playback', () => {

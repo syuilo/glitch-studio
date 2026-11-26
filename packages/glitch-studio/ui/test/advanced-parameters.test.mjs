@@ -152,6 +152,31 @@ test('edits only the selected easing family settings and preserves them across d
 	assert.deepEqual(edits.at(-1), { type: 'easing', family: 'elastic', direction: 'out', period: 0.7 });
 });
 
+// 【固定カーブのSkewを編集し、曲線固有の設定を変えても保持する】
+// Bézierにはコントロールを表示せず、UIから新規にBézierへ切り替えた点は元の座標で評価する。
+test('edits skew for fixed Function Curves and hides the control for Bézier curves', async t => {
+	const f = fixture(t, FunctionCurveTypeEditor, { curve: { type: 'pulse', dutyCycle: 0.5 }, onChange: curve => { f.props.curve = curve; } });
+	const skewField = 'data-test-function-curve-skew';
+	const set = (setting, value) => f.find(setting).props['onUpdate:modelValue'](value);
+	assert.equal(f.find(skewField).props.modelValue, 0);
+	set(skewField, 0.5);
+	await nextTick();
+	set('data-test-function-curve-numeric-setting', 0.25);
+	assert.deepEqual(f.props.curve, { type: 'pulse', dutyCycle: 0.25, skew: 0.5 });
+	set('data-test-function-curve-type', 'easing');
+	await nextTick();
+	set('data-test-function-curve-easing-family', 'back');
+	assert.deepEqual(f.props.curve, { type: 'easing', family: 'back', direction: 'inOut', skew: 0.5 });
+	set('data-test-function-curve-type', 'bezier');
+	await nextTick();
+	assert.equal(f.props.curve.type, 'bezier');
+	assert.equal(f.props.curve.skew, undefined);
+	assert.equal(f.find(skewField), null);
+	f.props.curve = { ...f.props.curve, skew: -0.5 };
+	await nextTick();
+	assert.equal(f.find(skewField), null);
+});
+
 // 【リテラルのFunction Curveの編集ウィンドウをパラメータ領域の外に開く】
 // ノードなどの描画領域にウィンドウが切り取られないよう、bodyへ配置する。点のドラッグのmergeKeyも親へ渡す。
 test('opens the literal Function Curve editor outside the parameter and forwards its drag merge key', async t => {

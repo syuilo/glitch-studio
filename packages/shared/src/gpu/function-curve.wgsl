@@ -4,6 +4,7 @@ struct FunctionCurveSettings {
 	direction: u32,
 	pointCount: u32,
 	parameter: f32,
+	skew: f32,
 };
 
 struct FunctionCurvePoint {
@@ -230,14 +231,41 @@ fn functionCurveBezier(x: f32) -> FunctionCurveSample {
 	return functionCurveBezierSegment(point, next, x);
 }
 
+// CPU側と同じ区分線形変換で中点の位置を動かす。戻り値の微分は入力Xに対する変換倍率。
+fn functionCurveSkewedCoordinate(x: f32, startX: f32, endX: f32, midpoint: f32) -> FunctionCurveSample {
+	if (midpoint == 0.5 || x <= startX || x >= endX) { return FunctionCurveSample(x, 1.0); }
+	let span = endX - startX;
+	let progress = (x - startX) / span;
+	if (progress <= 0.0 || progress >= 1.0) { return FunctionCurveSample(x, 1.0); }
+	// 中点では変換の左右で傾きが異なる。値は厳密に中点へ写し、勾配の寄与は0にする。
+	if (progress == midpoint) { return FunctionCurveSample(startX + span * 0.5, 0.0); }
+	if (progress < midpoint) {
+		return FunctionCurveSample(startX + span * (0.5 * (progress / midpoint)), 0.5 / midpoint);
+	}
+	let rightWidth = 1.0 - midpoint;
+	let remapped = 0.5 + 0.5 * ((progress - midpoint) / rightWidth);
+	return FunctionCurveSample(startX + span * remapped, 0.5 / rightWidth);
+}
+
 fn evaluateShaderFunctionCurve(position: f32) -> FunctionCurveSample {
 	let x = clamp(position, 0.0, 1.0);
+	let midpoint = (functionCurveSettings.skew + 1.0) * 0.5;
+	var coordinate = FunctionCurveSample(x, 1.0);
 	var sample: FunctionCurveSample;
 	if (functionCurveSettings.kind == FUNCTION_CURVE_BEZIER) {
-		sample = functionCurveBezier(x);
+		let count = functionCurveSettings.pointCount;
+		if (midpoint != 0.5 && count > 1u) {
+			coordinate = functionCurveSkewedCoordinate(x, functionCurvePoints[0].anchor.x, functionCurvePoints[count - 1u].anchor.x, midpoint);
+		}
+		sample = functionCurveBezier(coordinate.value);
 	} else {
-		sample = functionCurveFixed(x);
+		coordinate = functionCurveSkewedCoordinate(x, 0.0, 1.0, midpoint);
+		sample = functionCurveFixed(coordinate.value);
 	}
-	if (x == 0.0 || x == 1.0) { sample.derivative = 0.0; }
+	if (x == 0.0 || x == 1.0 || coordinate.derivative == 0.0) {
+		sample.derivative = 0.0;
+	} else {
+		sample.derivative *= coordinate.derivative;
+	}
 	return sample;
 }

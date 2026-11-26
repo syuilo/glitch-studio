@@ -36,13 +36,17 @@ export const parameterExpressionModifierSchema = z.object({ enabled: z.boolean()
 const functionCurvePointSchema = z.object({
 	id: z.string().min(1), x: z.number(), y: z.number(), bezierControlPointA: vectorValueSchema, bezierControlPointB: vectorValueSchema,
 });
+const functionCurveSettingsShape = {
+	skew: z.number().min(-1).max(1).nullish().describe('Moves the curve midpoint to (skew + 1) / 2 of its X domain. Omit or pass null for 0.'),
+};
 const bezierFunctionCurveSchema = z.object({
+	...functionCurveSettingsShape,
 	type: z.literal('bezier'),
 	points: z.array(functionCurvePointSchema).refine(points => new Set(points.map(point => point.id)).size === points.length, { message: 'Duplicate Function Curve point ID' }),
 	isXNormalized: z.boolean().describe('X uses normalized coordinates when true.'),
 	isYNormalized: z.boolean().describe('Y uses normalized coordinates when true. Values outside 0 to 1 are valid.'),
 });
-const easingFunctionCurveShape = { type: z.literal('easing'), direction: z.enum(EASING_DIRECTIONS) };
+const easingFunctionCurveShape = { ...functionCurveSettingsShape, type: z.literal('easing'), direction: z.enum(EASING_DIRECTIONS) };
 const easingFunctionCurveSchema = z.discriminatedUnion('family', [
 	z.object({
 		...easingFunctionCurveShape,
@@ -59,15 +63,15 @@ const easingFunctionCurveSchema = z.discriminatedUnion('family', [
 	z.object({ ...easingFunctionCurveShape, family: z.enum(EASING_FAMILIES).exclude(['back', 'elastic']) }),
 ]);
 const fixedFunctionCurveSchemas = [
-	z.object({ type: z.literal('linear') }),
-	z.object({ type: z.literal('smoothstep') }),
-	z.object({ type: z.literal('smootherstep') }),
+	z.object({ ...functionCurveSettingsShape, type: z.literal('linear') }),
+	z.object({ ...functionCurveSettingsShape, type: z.literal('smoothstep') }),
+	z.object({ ...functionCurveSettingsShape, type: z.literal('smootherstep') }),
 	easingFunctionCurveSchema,
-	z.object({ type: z.literal('smoothPulse') }),
-	z.object({ type: z.literal('pulse'), dutyCycle: z.number().min(0).max(1).describe('Fraction of the interval spent at 1, centered at X = 0.5.') }),
-	z.object({ type: z.literal('steps'), levelCount: z.number().int().min(2).describe('Number of equally wide levels, including 0 and 1.') }),
-	z.object({ type: z.literal('sineWave') }),
-	z.object({ type: z.literal('deadZone'), deadZoneWidth: z.number().min(0).max(1).describe('Width of the plateau at Y = 0.5, centered at X = 0.5.') }),
+	z.object({ ...functionCurveSettingsShape, type: z.literal('smoothPulse') }),
+	z.object({ ...functionCurveSettingsShape, type: z.literal('pulse'), dutyCycle: z.number().min(0).max(1).describe('Fraction of the base curve interval spent at 1, centered at X = 0.5.') }),
+	z.object({ ...functionCurveSettingsShape, type: z.literal('steps'), levelCount: z.number().int().min(2).describe('Number of equally wide levels in the base curve, including 0 and 1.') }),
+	z.object({ ...functionCurveSettingsShape, type: z.literal('sineWave') }),
+	z.object({ ...functionCurveSettingsShape, type: z.literal('deadZone'), deadZoneWidth: z.number().min(0).max(1).describe('Width of the base curve plateau at Y = 0.5, centered at X = 0.5.') }),
 ] as const;
 export const functionCurveSchema = z.discriminatedUnion('type', [bezierFunctionCurveSchema, ...fixedFunctionCurveSchemas]);
 export const newFunctionCurveSchema = z.discriminatedUnion('type', [

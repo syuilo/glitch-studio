@@ -19,6 +19,7 @@ function isControlPoint(value: unknown): boolean {
 
 function isFunctionCurve(value: unknown): boolean {
 	if (!isRecord(value)) return false;
+	if (value.skew != null && (!isFiniteNumber(value.skew) || value.skew < -1 || value.skew > 1)) return false;
 	switch (value.type) {
 		case 'linear': case 'smoothstep': case 'smootherstep': case 'smoothPulse': case 'sineWave': return true;
 		case 'pulse': return isUnitInterval(value.dutyCycle);
