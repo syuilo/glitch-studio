@@ -94,7 +94,6 @@
 <script setup lang="ts">
 import { computed, ref, useTemplateRef } from 'vue';
 import { findTimelineEffectOutput } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
-import { EFFECT_TAGS } from '@/utility/effect-tags.ts';
 import GsEffectPickerEffect from './GsEffectPicker.Effect.vue';
 import GsNodePort from './GsNodePort.vue';
 import GsModal from './common/GsModal.vue';
@@ -103,6 +102,7 @@ import GsFolder from './common/GsFolder.vue';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { EffectChoice } from '@/utility/project-effects.ts';
 import type { EffectTags } from '@/utility/effect-tags.ts';
+import { EFFECT_TAGS } from '@/utility/effect-tags.ts';
 import { createEffectNodeCycleCheck, listSelectableEffects } from '@/utility/project-effects.ts';
 import { useProjectSession } from '@/project-session.ts';
 import { i18n } from '@/i18n.ts';
@@ -345,7 +345,7 @@ function choose(key: string, effect: EffectChoice) {
 
 .effects {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+	grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 	gap: 8px;
 }
 </style>
