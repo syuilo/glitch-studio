@@ -7,7 +7,7 @@ const { ShapeParameters } = await loadSource(fileURLToPath(new URL('../src/layer
 const { createShape } = await loadSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_shared/layers/shape/shape.ts')));
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
-const scope = { time: 1500, isExport: true, curveAnimations: [] };
+const scope = { time: 1500, isExport: true, functionCurves: [] };
 
 // 【乱数とノイズをSceneの秒数で評価し、シーク・書き出しで再現する】
 // 式が未登録のため既定値へ落ちることや、ミリ秒・フレーム番号を暗黙に使うことを防ぐ。
@@ -96,14 +96,13 @@ test('evaluates inline Curve Animations and restores defaults for missing refere
 	const other = createShape('ellipse');
 	shape.paramValues.size.value[0] = 0.8;
 	assert.deepEqual(other.paramValues.size.value, [0.5, 0.5]);
-	shape.paramValues.rotation = { inputSource: 'curveAnimationInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
-		curveAnimation: { isNormalized: false, points: [
+	shape.paramValues.rotation = { inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'inline', curve: { type: 'bezier', isXNormalized: false, isYNormalized: false, points: [
 			{ id: 'a', x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 			{ id: 'b', x: 2000, y: 1, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
-		] } };
+		] } }, yRangeMin: null, yRangeMax: null, offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null } };
 	const evaluator = new ShapeParameters();
 	assert.ok(Math.abs(evaluator.evaluate(shape, scope).rotation - 0.75) < 1e-5);
-	shape.paramValues.size = { inputSource: 'curveAnimationReference', curveAnimationId: 'missing', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: 1000 };
+	shape.paramValues.size = { inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'reference', curveId: 'missing' }, yRangeMin: null, yRangeMax: null, offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: 1000 } };
 	assert.deepEqual(evaluator.evaluate(shape, scope).size, [0.5, 0.5]);
 });
 

@@ -36,7 +36,7 @@ const clip = (id, startMs, durationMs, contentOffsetMs = 0) => ({ id, startMs, d
 function layer(id, values = {}) {
 	const textParamValues = { ...createTextParameterValues(), ...values };
 	return { id, name: id, layerType: 'text', textStaticSettings: { font: null }, textParamValues, isDisabled: false,
-		clips: [clip('clip', 100, 1000, 20.5)], curveAnimations: [], compositingParamValues: compositing() };
+		clips: [clip('clip', 100, 1000, 20.5)], functionCurves: [], compositingParamValues: compositing() };
 }
 async function fixture(t) {
 	const calls = { draws: [], outputs: [], submits: 0, uploads: [], glyphs: [] };
@@ -99,7 +99,7 @@ const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-6,
 // 未生成でも本文を描画し、最初のキー前と空文字キー以降は前の字幕を残さない。
 test('renders VOICEVOX subtitles at scene time without requiring generated audio', async t => {
 	const f = await fixture(t);
-	const speech = { id: 'speech', name: 'Speech', isDisabled: false, curveAnimations: [],
+	const speech = { id: 'speech', name: 'Speech', isDisabled: false, functionCurves: [],
 		clips: [clip('speech-clip', 100, 1000, 20.5)], compositingParamValues: compositing(), subtitleStaticSettings: { font: null }, subtitleParamValues: createVoicevoxSubtitleParameterValues(), layerType: 'voicevox', voicevox: { speedScale: 1 },
 		utterances: [{ id: 'first', timeMs: 300, text: 'Speech subtitle', reading: '別の読み', styleId: 1, subtitleDuration: { mode: 'specified', durationMs: 200 } }, { id: 'clear', timeMs: 600, text: '', reading: null, styleId: 1, subtitleDuration: { mode: 'fill' } }],
 		audioParamValues: { volume: literal(1) } };
@@ -122,7 +122,7 @@ test('renders VOICEVOX subtitles at scene time without requiring generated audio
 test('renders subtitles through speech duration and extension using updated prepared speech', async t => {
 	const f = await fixture(t);
 	const key = { id: 'first', timeMs: 300, text: 'Speech subtitle', reading: null, styleId: 1, subtitleDuration: { mode: 'speech', extensionMs: 50 } };
-	const speechLayer = { id: 'speech', name: 'Speech', isDisabled: false, curveAnimations: [],
+	const speechLayer = { id: 'speech', name: 'Speech', isDisabled: false, functionCurves: [],
 		clips: [clip('speech-clip', 100, 1000)], compositingParamValues: compositing(), subtitleStaticSettings: { font: null }, subtitleParamValues: createVoicevoxSubtitleParameterValues(),
 		layerType: 'voicevox', voicevox: { speedScale: 1 }, utterances: [key], audioParamValues: { volume: literal(1) } };
 	const speech = { key: getVoicevoxRequestKey(getVoicevoxRequest(speechLayer.voicevox, key)), sourceId: 'audio', durationMs: 125.5,
@@ -219,7 +219,7 @@ test('uses child scene time and resolution when nested', async t => {
 		layers: [layer('text', { text: expression('Core:to_str(TIME_MS)') })] };
 	const parent = { id: 'scene', name: 'Parent', resolution: { mode: 'project' }, layers: [{
 		id: 'nested', name: 'Nested', layerType: 'scene', clips: [{ ...clip('nested-clip', 100, 1000, 200), sceneId: 'child' }],
-		isDisabled: false, curveAnimations: [], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) },
+		isDisabled: false, functionCurves: [], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) },
 	}] };
 	await f.setup([], { timelineScenes: [parent, child] });
 	await f.manager.renderTimelineFrame(350.25, 0);

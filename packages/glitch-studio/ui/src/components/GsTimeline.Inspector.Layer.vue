@@ -107,8 +107,8 @@
 							keyframesEnabled
 							:curveAnimationEndEnabled="false"
 							:availableVariables="LAYER_VAR_DEFS"
-							:curveAnimations="hasTimelineLayerParameters(layer) ? layer.curveAnimations : []"
-							:projectCurveAnimations="projectSession.projectContext.stateManager.state.curveAnimations.value"
+							:functionCurves="hasTimelineLayerParameters(layer) ? layer.functionCurves : []"
+							:projectFunctionCurves="projectSession.projectContext.stateManager.state.functionCurves.value"
 							:paramPath="[paramId]"
 							:paramDef="paramDef"
 							:paramValue="layer.compositingParamValues[paramId] ?? createDefaultParameterBinding(paramDef)"
@@ -169,8 +169,8 @@
 					keyframesEnabled
 					:curveAnimationEndEnabled="false"
 					:availableVariables="LAYER_VAR_DEFS"
-					:curveAnimations="hasTimelineLayerParameters(layer) ? layer.curveAnimations : []"
-					:projectCurveAnimations="projectSession.projectContext.stateManager.state.curveAnimations.value"
+					:functionCurves="hasTimelineLayerParameters(layer) ? layer.functionCurves : []"
+					:projectFunctionCurves="projectSession.projectContext.stateManager.state.functionCurves.value"
 					:paramPath="['volume']"
 					:paramDef="timelineAudioParamDefs.volume"
 					data-test-layer-volume

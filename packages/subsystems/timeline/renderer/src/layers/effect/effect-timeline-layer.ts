@@ -81,7 +81,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, options: E
 		const output = effect.outputs.get(port);
 		// 出力が未接続のときは下層の画像を維持するため、Replaceでも合成をスキップする。
 		if (output == null) return { gpuTime: 0 };
-		const scope = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, publicParameters: context.publicParameters, curveAnimations: layer.curveAnimations });
+		const scope = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, publicParameters: context.publicParameters, functionCurves: layer.functionCurves });
 		Object.assign(scope.variables, variables);
 		await inputs.update(context, scope, signal);
 		signal.throwIfAborted();
@@ -96,7 +96,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, options: E
 		const settings = compositing.evaluate({
 			time: context.sceneTimeMs, isExport: context.isExport, coordinateSpace: layer.coordinateSpace, mask: layer.mask,
 			layerMask: layer.layerMask, transformTarget: layer.transformTarget, paramValues: layer.compositingParamValues,
-			publicParameters: context.publicParameters, curveAnimations: layer.curveAnimations,
+			publicParameters: context.publicParameters, functionCurves: layer.functionCurves,
 		});
 		return compositor.evaluate(context, { kind: 'texture', texture: output.texture }, settings);
 	}

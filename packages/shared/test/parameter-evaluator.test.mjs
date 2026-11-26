@@ -17,6 +17,7 @@ async function loadSource(name) {
 	new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 	return module.exports;
 }
+const { evaluateFunctionCurve } = await loadSource('function-curve/function-curve-evaluator');
 const { ParameterBindingEvaluator } = await loadSource('parameter/parameter-binding-evaluator');
 const { inspectStaticParameter, staticParameterShape, validateParameterDefaultValues } = await loadSource('parameter/static-parameter');
 
@@ -26,7 +27,7 @@ const expression = expression => ({ inputSource: 'expression', expression });
 const modified = (binding, code = 'VALUE', enabled = true) => ({ ...binding, expressionModifier: { enabled, code } });
 const scalarDefinition = { dataType: { kind: 'scalar' }, ui: { label: 'Amount' } };
 const context = (overrides = {}) => ({
-	variables: {}, curveAnimations: [], time: 500, endTime: 5000,
+	variables: {}, functionCurves: [], time: 500, endTime: 5000,
 	...overrides,
 });
 
@@ -52,7 +53,7 @@ test('evaluates complete Color Ramp expressions and modifiers without mutating s
 	}
 	const code = '{ colorSpace: "linearSrgb", interpolation: "constant", repeatCount: 1, repeatMode: "wrap", stops: [{ id: "only", position: 0, color: [TIME, 0, 0, 1] }] }';
 	assert.equal(evaluator.evaluate(expression(code), context({ variables: { TIME: 0.25 } }), null, definition).stops[0].color[0], 0.25);
-	assert.throws(() => inspectStaticParameter(definition, { inputSource: 'curveAnimationReference' }, () => {}), /does not support/);
+	assert.throws(() => inspectStaticParameter(definition, { inputSource: 'curveAnimationInline' }, () => {}), /does not support/);
 	assert.throws(() => inspectStaticParameter(definition, { inputSource: 'keyframesTimelineInline' }, () => {}), /does not support/);
 });
 
@@ -127,7 +128,7 @@ const keyframesInput = (keyframes, dataType = 'scalar', options = {}) => ({
 });
 function evaluateKeyframes(input, time, endTime = 5000, fallback = -1) {
 	return new ParameterBindingEvaluator(new ExpressionEvaluator()).evaluate(input, {
-		variables: {}, curveAnimations: [], time, endTime,
+		variables: {}, functionCurves: [], time, endTime,
 	}, fallback, { dataType: input.keyframesTimeline.dataType, ui: { label: 'Keyframes' } });
 }
 
@@ -303,22 +304,22 @@ test('applies normalized timing end alignment and wrapping to discrete keyframes
 	assert.equal(evaluateKeyframes(input, 4000, 5000), 'B');
 });
 
-const rampCurveAnimation = (isNormalized = true) => ({
-	id: 'ramp-id', nameForReference: 'ramp', isNormalized,
+const rampFunctionCurve = (isNormalized = true) => ({
+	id: 'ramp-id', nameForReference: 'ramp', type: 'bezier', isXNormalized: isNormalized, isYNormalized: false,
 	// 配列順に依存せず終端を取得できることも確認する。
 	points: [curveAnimationPoint(isNormalized ? 1 : 2000, 10), curveAnimationPoint(0, 0)],
 });
-const curveAnimationInput = (inputSource, curveAnimation, options = {}) => ({
-	inputSource,
-	...(inputSource === 'curveAnimationReference'
-		? { curveAnimationId: curveAnimation.id }
-		: { curveAnimation: { points: curveAnimation.points, isNormalized: curveAnimation.isNormalized } }),
-	trimmedDurationMs: 2000, wrapMode: 'clamp', offsetMode: 'start', ...options,
+const curveAnimationInput = (source, functionCurve, options = {}) => ({
+	inputSource: 'curveAnimationInline',
+	curveAnimation: {
+		curveBinding: source === 'reference' ? { source, curveId: functionCurve.id } : { source, curve: functionCurve },
+		trimmedDurationMs: 2000, yRangeMin: null, yRangeMax: null, wrapMode: 'clamp', offsetMode: 'start', ...options,
+	},
 });
 
 function evaluateCurveAnimationInput(inputSource, curveAnimation, { time = 500, endTime = 5000, ...options } = {}) {
 	return new ParameterBindingEvaluator(new ExpressionEvaluator()).evaluate(curveAnimationInput(inputSource, curveAnimation, options), context({
-		curveAnimations: inputSource === 'curveAnimationReference' ? [curveAnimation] : [], time, endTime,
+		functionCurves: inputSource === 'reference' ? [curveAnimation] : [], time, endTime,
 	}), -1, scalarDefinition);
 }
 
@@ -326,20 +327,20 @@ function assertClose(actual, expected) {
 	assert.ok(Math.abs(actual - expected) < 0.00001, `Expected ${actual} to be close to ${expected}`);
 }
 
-for (const source of ['curveAnimationReference', 'curveAnimationInline']) {
+for (const source of ['reference', 'inline']) {
 	// 正規化Curve Animationはdurationに引き延ばし、ミリ秒単位のCurve Animationはdurationを無視する。
 	test(`evaluates normalized and millisecond coordinates for ${source}`, () => {
-		assertClose(evaluateCurveAnimationInput(source, rampCurveAnimation(), { trimmedDurationMs: 4000, time: 1000 }), 2.5);
-		assertClose(evaluateCurveAnimationInput(source, rampCurveAnimation(false), { trimmedDurationMs: 4000, time: 1000 }), 5);
-		assertClose(evaluateCurveAnimationInput(source, rampCurveAnimation(false), { trimmedDurationMs: null, time: 500 }), 2.5);
-		assert.equal(evaluateCurveAnimationInput(source, rampCurveAnimation(), { time: 0 }), 0);
-		assert.equal(evaluateCurveAnimationInput(source, rampCurveAnimation(), { time: 2000 }), 10);
+		assertClose(evaluateCurveAnimationInput(source, rampFunctionCurve(), { trimmedDurationMs: 4000, time: 1000 }), 2.5);
+		assertClose(evaluateCurveAnimationInput(source, rampFunctionCurve(false), { trimmedDurationMs: 4000, time: 1000 }), 5);
+		assertClose(evaluateCurveAnimationInput(source, rampFunctionCurve(false), { trimmedDurationMs: null, time: 500 }), 2.5);
+		assert.equal(evaluateCurveAnimationInput(source, rampFunctionCurve(), { time: 0 }), 0);
+		assert.equal(evaluateCurveAnimationInput(source, rampFunctionCurve(), { time: 2000 }), 10);
 	});
 
 	// 終端合わせは最大XをendTimeに置き、開始前の値にも指定されたwrapを適用する。
 	test(`aligns the Curve Animation end and preserves wrap semantics for ${source}`, () => {
 		for (const normalized of [true, false]) {
-			const curveAnimation = rampCurveAnimation(normalized);
+			const curveAnimation = rampFunctionCurve(normalized);
 			assertClose(evaluateCurveAnimationInput(source, curveAnimation, { offsetMode: 'end', time: 3500 }), 2.5);
 			assert.equal(evaluateCurveAnimationInput(source, curveAnimation, { offsetMode: 'end', time: 5000 }), 10);
 			for (const [wrapMode, expected] of [['clamp', 0], ['repeat', 7.5], ['repeatMirrored', 2.5]]) {
@@ -353,7 +354,7 @@ for (const source of ['curveAnimationReference', 'curveAnimationInline']) {
 	// 正負の時刻、周期境界、往復再生の折り返しを確認する。
 	test(`applies all wrap modes for ${source}`, () => {
 		for (const normalized of [true, false]) {
-			const curveAnimation = rampCurveAnimation(normalized);
+			const curveAnimation = rampFunctionCurve(normalized);
 			for (const [wrapMode, before, after, boundary] of [
 				['clamp', 0, 10, 10], ['repeat', 7.5, 2.5, 0], ['repeatMirrored', 2.5, 7.5, 10],
 			]) {
@@ -366,20 +367,20 @@ for (const source of ['curveAnimationReference', 'curveAnimationInline']) {
 
 	// 終端はdurationそのものではなく実際の最終point。ms座標の開始位置も勝手に移動しない。
 	test(`uses actual point coordinates for ${source}`, () => {
-		const curveAnimation = { ...rampCurveAnimation(false), points: [curveAnimationPoint(3000, 10), curveAnimationPoint(1000, 0)] };
+		const curveAnimation = { ...rampFunctionCurve(false), points: [curveAnimationPoint(3000, 10), curveAnimationPoint(1000, 0)] };
 		assertClose(evaluateCurveAnimationInput(source, curveAnimation, { time: 1500 }), 2.5);
 		assertClose(evaluateCurveAnimationInput(source, curveAnimation, { offsetMode: 'end', time: 4500 }), 7.5);
 	});
 
 	// 有限な終端を持たないコンテキストではstart扱い。空・1点・無効なdurationでもNaNを返さない。
 	test(`handles unbounded playback and degenerate Curve Animations for ${source}`, () => {
-		assertClose(evaluateCurveAnimationInput(source, rampCurveAnimation(), { offsetMode: 'end', endTime: Infinity }), 2.5);
+		assertClose(evaluateCurveAnimationInput(source, rampFunctionCurve(), { offsetMode: 'end', endTime: Infinity }), 2.5);
 		for (const trimmedDurationMs of [null, 0, -1, Infinity, NaN]) {
-			assertClose(evaluateCurveAnimationInput(source, rampCurveAnimation(), { trimmedDurationMs }), 5);
+			assertClose(evaluateCurveAnimationInput(source, rampFunctionCurve(), { trimmedDurationMs }), 5);
 		}
 		for (const wrapMode of ['clamp', 'repeat', 'repeatMirrored']) {
-			assert.equal(evaluateCurveAnimationInput(source, { ...rampCurveAnimation(), points: [] }, { wrapMode, offsetMode: 'end' }), 0);
-			assert.equal(evaluateCurveAnimationInput(source, { ...rampCurveAnimation(), points: [curveAnimationPoint(0.5, 3)] }, { wrapMode, offsetMode: 'end' }), 3);
+			assert.equal(evaluateCurveAnimationInput(source, { ...rampFunctionCurve(), points: [] }, { wrapMode, offsetMode: 'end' }), 0);
+			assert.equal(evaluateCurveAnimationInput(source, { ...rampFunctionCurve(), points: [curveAnimationPoint(0.5, 3)] }, { wrapMode, offsetMode: 'end' }), 3);
 		}
 	});
 }
@@ -426,20 +427,148 @@ test('clones values read from variables', () => {
 	}
 });
 
-// 【CURVE_ANIMATIONのnameForReferenceによる参照とスコープの更新】
+// 【FUNCTION_CURVEのnameForReferenceによる参照とスコープの更新】
 // ASTを再利用しても、Curve Animationは毎回渡されたスコープからのみ参照する。
-test('evaluates CURVE_ANIMATION by nameForReference and refreshes definitions between scopes', () => {
+test('evaluates FUNCTION_CURVE by nameForReference and refreshes definitions between scopes', () => {
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
-	const binding = expression('CURVE_ANIMATION("ramp", 0.5, "clamp")');
-	assertClose(evaluator.evaluate(binding, context({ curveAnimations: [rampCurveAnimation()] }), -1, scalarDefinition), 5);
-	assert.equal(evaluator.evaluate(binding, context({ curveAnimations: [{ ...rampCurveAnimation(), points: [curveAnimationPoint(0, 20)] }] }), -1, scalarDefinition), 20);
-	assert.throws(() => evaluator.evaluate(binding, context(), -1, scalarDefinition), /Unknown Curve Animation/);
-	assert.equal(evaluator.evaluate(curveAnimationInput('curveAnimationReference', rampCurveAnimation()), context(), 12, scalarDefinition), 12);
-	for (const text of ['CURVE_ANIMATION("ramp-id", 0.5, "clamp")', 'CURVE_ANIMATION("ramp", 0.5, "invalid")', 'CURVE_ANIMATION("ramp", "0.5", "clamp")', 'CURVE_ANIMATION(1, 0.5, "clamp")', 'CURVE_ANIMATION("ramp", 0.5)', 'CURVE_ANIMATION("ramp", 0.5, "clamp", 1)']) {
-		assert.throws(() => evaluator.evaluate(expression(text), context({ curveAnimations: [rampCurveAnimation()] }), -1, scalarDefinition), /Base expression/);
+	const binding = expression('FUNCTION_CURVE("ramp", 0.5, "clamp")');
+	assertClose(evaluator.evaluate(binding, context({ functionCurves: [rampFunctionCurve()] }), -1, scalarDefinition), 5);
+	assert.equal(evaluator.evaluate(binding, context({ functionCurves: [{ ...rampFunctionCurve(), points: [curveAnimationPoint(0, 20)] }] }), -1, scalarDefinition), 20);
+	assert.throws(() => evaluator.evaluate(binding, context(), -1, scalarDefinition), /Unknown Function Curve/);
+	assert.equal(evaluator.evaluate(curveAnimationInput('reference', rampFunctionCurve()), context(), 12, scalarDefinition), 12);
+	for (const text of ['FUNCTION_CURVE("ramp-id", 0.5, "clamp")', 'FUNCTION_CURVE("ramp", 0.5, "invalid")', 'FUNCTION_CURVE("ramp", "0.5", "clamp")', 'FUNCTION_CURVE(1, 0.5, "clamp")', 'FUNCTION_CURVE("ramp", 0.5)', 'FUNCTION_CURVE("ramp", 0.5, "clamp", 1)']) {
+		assert.throws(() => evaluator.evaluate(expression(text), context({ functionCurves: [rampFunctionCurve()] }), -1, scalarDefinition), /Base expression/);
 	}
-	assertClose(evaluator.evaluate(curveAnimationInput('curveAnimationInline', rampCurveAnimation()), context(), -1, scalarDefinition), 2.5);
-	assert.throws(() => evaluator.evaluate(binding, context(), -1, scalarDefinition), /Unknown Curve Animation/);
+	assertClose(evaluator.evaluate(curveAnimationInput('inline', rampFunctionCurve()), context(), -1, scalarDefinition), 2.5);
+	assert.throws(() => evaluator.evaluate(binding, context(), -1, scalarDefinition), /Unknown Function Curve/);
+});
+
+// 【同じFunction Curveを利用側の範囲と再生時間で独立に評価する】
+// 正規化した曲線の範囲外の値も出力へ反映し、式からは曲線座標のYを取得できるようにする。
+test('scales normalized Y per Curve Animation while exposing raw samples in expressions', () => {
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
+	const functionCurve = { ...rampFunctionCurve(), isYNormalized: true, points: [curveAnimationPoint(0, -0.2), curveAnimationPoint(1, 1.2)] };
+	const scope = context({ time: 1000, functionCurves: [functionCurve] });
+	const first = curveAnimationInput('reference', functionCurve, { trimmedDurationMs: 1000, yRangeMin: 10, yRangeMax: 20 });
+	const second = curveAnimationInput('reference', functionCurve, { trimmedDurationMs: 2000, yRangeMin: -10, yRangeMax: 0 });
+	assertClose(evaluator.evaluate(first, scope, -1, scalarDefinition), 22);
+	assertClose(evaluator.evaluate(first, { ...scope, time: 0 }, -1, scalarDefinition), 8);
+	assertClose(evaluator.evaluate(second, scope, -1, scalarDefinition), -5);
+	assertClose(evaluator.evaluate(expression('FUNCTION_CURVE("ramp", 1, "clamp")'), scope, -1, scalarDefinition), 1.2);
+
+	const defaultMin = curveAnimationInput('inline', functionCurve, { trimmedDurationMs: 1000, yRangeMax: 10 });
+	const defaultMax = curveAnimationInput('inline', functionCurve, { trimmedDurationMs: 1000, yRangeMin: -9 });
+	assertClose(evaluator.evaluate(defaultMin, scope, -1, scalarDefinition), 12);
+	assertClose(evaluator.evaluate(defaultMax, scope, -1, scalarDefinition), 3);
+	assert.equal(evaluateCurveAnimationInput('inline', functionCurve, { yRangeMin: 7, yRangeMax: 7 }), 7);
+	assert.equal(evaluateCurveAnimationInput('inline', { ...functionCurve, points: [] }, { yRangeMin: 10, yRangeMax: 20 }), 10);
+	assertClose(evaluateCurveAnimationInput('inline', { ...functionCurve, isYNormalized: false }, { time: 2000, yRangeMin: 10, yRangeMax: 20 }), 1.2);
+});
+
+// 【垂直接線の近くでもBézierのXを正しく逆算する】
+// X誤差が小さいだけで探索を終えると、プレビューがGPU描画と異なるYを返す。
+test('solves Bézier values close to an interior vertical tangent', () => {
+	const curve = { type: 'bezier', isXNormalized: true, isYNormalized: true, points: [
+		{ id: 'start', x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [1, 1 / 3] },
+		{ id: 'end', x: 1, y: 1, bezierControlPointA: [-1, -1 / 3], bezierControlPointB: [0, 0] },
+	] };
+	const xOffset = 2 ** -20;
+	for (const offset of [-xOffset, xOffset]) {
+		const expected = 0.5 + Math.cbrt(offset / 4);
+		assert.ok(Math.abs(evaluateFunctionCurve(curve, 0.5 + offset, 'clamp') - expected) < 1e-6);
+	}
+});
+
+// 【固定カーブを固有の形と境界で評価する】
+// パルスとステップの境界は値が切り替わる位置であり、ループ中も最終ステップが表示されることを確認する。
+test('evaluates all fixed Function Curve shapes and their boundaries', () => {
+	const samples = (curve, xs, wrapMode = 'clamp') => xs.map(x => evaluateFunctionCurve(curve, x, wrapMode));
+	assert.deepEqual(samples({ type: 'linear' }, [-1, 0.25, 2]), [0, 0.25, 1]);
+	assert.deepEqual(samples({ type: 'linear' }, [-0.25, 1, 1.25], 'repeat'), [0.75, 0, 0.25]);
+	assert.deepEqual(samples({ type: 'linear' }, [-0.25, 1, 1.25], 'repeatMirrored'), [0.25, 1, 0.75]);
+	assert.deepEqual(samples({ type: 'smoothstep' }, [0, 0.25, 1]), [0, 0.15625, 1]);
+	assert.deepEqual(samples({ type: 'smootherstep' }, [0, 0.25, 1]), [0, 0.103515625, 1]);
+	assert.deepEqual(samples({ type: 'easing', family: 'quad', direction: 'out' }, [0, 0.25, 1]), [0, 0.4375, 1]);
+	assert.ok(evaluateFunctionCurve({ type: 'easing', family: 'back', direction: 'out' }, 0.75, 'clamp') > 1);
+	assert.deepEqual(samples({ type: 'smoothPulse' }, [-1, 0, 0.5, 1, 2]), [0, 0, 1, 0, 0]);
+	assert.deepEqual(samples({ type: 'pulse', dutyCycle: 0.5 }, [0, 0.25, 0.749, 0.75, 1]), [0, 1, 1, 0, 0]);
+	assert.deepEqual(samples({ type: 'pulse', dutyCycle: 0 }, [0, 0.5, 1]), [0, 0, 0]);
+	assert.deepEqual(samples({ type: 'pulse', dutyCycle: 1 }, [0, 0.5, 1]), [1, 1, 1]);
+	assert.deepEqual(samples({ type: 'steps', levelCount: 4 }, [0, 0.25, 0.5, 0.75, 0.999, 1], 'repeat'), [0, 1 / 3, 2 / 3, 1, 1, 0]);
+	assert.deepEqual(samples({ type: 'sineWave' }, [0, 0.25, 0.75, 1]), [0.5, 1, 0, 0.5]);
+	assert.deepEqual(samples({ type: 'deadZone', deadZoneWidth: 0.5 }, [0, 0.125, 0.25, 0.5, 0.75, 0.875, 1]), [0, 0.25, 0.5, 0.5, 0.5, 0.75, 1]);
+	assert.deepEqual(samples({ type: 'deadZone', deadZoneWidth: 0 }, [0, 0.25, 1]), [0, 0.25, 1]);
+	assert.deepEqual(samples({ type: 'deadZone', deadZoneWidth: 1 }, [0, 0.25, 1]), [0.5, 0.5, 0.5]);
+});
+
+// 【Skewは折り返したXを変換し、両端と往復の対称性を保つ】
+// ±1で片側の幅が0になる場合も、端点が移動したり区間内で0除算したりしないようにする。
+test('skews fixed Function Curves after wrapping and preserves endpoints at both limits', () => {
+	const curve = { type: 'linear', skew: 0.5 };
+	const samples = (skew, xs) => xs.map(x => evaluateFunctionCurve({ ...curve, skew }, x, 'clamp'));
+	assert.deepEqual(samples(0.5, [-1, 0.375, 0.75, 0.875, 2]), [0, 0.25, 0.5, 0.75, 1]);
+	assert.deepEqual(samples(-0.5, [-1, 0.125, 0.25, 0.625, 2]), [0, 0.25, 0.5, 0.75, 1]);
+	assert.deepEqual(samples(-1, [0, 0.5, 1]), [0, 0.75, 1]);
+	assert.deepEqual(samples(1, [0, 0.5, 1]), [0, 0.25, 1]);
+	assert.equal(evaluateFunctionCurve(curve, -0.25, 'repeat'), 0.5);
+	assert.equal(evaluateFunctionCurve(curve, 1, 'repeat'), 0);
+	assert.deepEqual([0.75, 1, 1.25].map(x => evaluateFunctionCurve(curve, x, 'repeatMirrored')), [0.5, 1, 0.5]);
+	assert.equal(evaluateFunctionCurve({ type: 'smoothPulse', skew: 0.5 }, 0.75, 'clamp'), 1);
+});
+
+// 【BézierのSkewを実際のXの範囲に適用して式とCurve Animationで共有する】
+// 非正規化のカーブが0以外のXから始まる場合も、経過ミリ秒を勝手に正規化しない。
+test('applies Bézier skew over its authored domain for expressions and Curve Animation', () => {
+	const curve = { id: 'motion', nameForReference: 'motion', type: 'bezier', skew: 0.5, isXNormalized: false, isYNormalized: false, points: [
+		{ id: 'end', x: 500, y: 30, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
+		{ id: 'start', x: 100, y: 10, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
+	] };
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
+	const scope = context({ functionCurves: [curve], time: 400 });
+	assertClose(evaluator.evaluate(expression('FUNCTION_CURVE("motion", 400, "clamp")'), scope, -1, scalarDefinition), 20);
+	const binding = curveAnimationInput('reference', curve);
+	assertClose(evaluator.evaluate(binding, scope, -1, scalarDefinition), 20);
+	assertClose(evaluateFunctionCurve(curve, 600, 'repeatMirrored'), 20);
+	assert.equal(evaluateFunctionCurve(curve, 500, 'clamp'), 30);
+	assert.equal(evaluateFunctionCurve({ ...curve, points: [curve.points[0]] }, 400, 'repeatMirrored'), 30);
+	assert.equal(evaluateFunctionCurve({ ...curve, points: [] }, 400, 'repeatMirrored'), 0);
+});
+
+// 【固定カーブを式と再生に利用する】
+// 固定カーブの終端Xは1。式からは曲線座標を取得し、再生時の終了基準と出力範囲はCurve Animationが解決する。
+test('samples a shared fixed curve from expressions and maps it through end-aligned playback', () => {
+	const curve = { type: 'linear', id: 'ramp-id', nameForReference: 'ramp' };
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
+	const scope = context({ functionCurves: [curve], time: 3500, endTime: 5000 });
+	const binding = curveAnimationInput('reference', curve, { offsetMode: 'end', yRangeMin: 10, yRangeMax: 30 });
+	assert.equal(evaluator.evaluate(expression('FUNCTION_CURVE("ramp", 0.25, "clamp")'), scope, -1, scalarDefinition), 0.25);
+	assert.equal(evaluator.evaluate(binding, scope, -1, scalarDefinition), 15);
+	assert.equal(evaluator.evaluate(binding, { ...scope, time: 5000 }, -1, scalarDefinition), 30);
+});
+
+// 【共有Function Curveのイージング設定を式と再生で使う】
+// 係数に0を指定した場合も共有参照から読み、同じ曲線の値を再生時にY範囲へ写す。
+test('uses authored easing settings for FUNCTION_CURVE and Curve Animation', () => {
+	const curveIdentity = { id: 'motion', nameForReference: 'motion', type: 'easing', direction: 'in' };
+	const curve = { ...curveIdentity, family: 'back', overshootCoefficient: 0 };
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
+	const scope = context({ functionCurves: [curve], time: 1000 });
+	assert.equal(evaluator.evaluate(expression('FUNCTION_CURVE("motion", 0.5, "clamp")'), scope, -1, scalarDefinition), 0.125);
+	const binding = curveAnimationInput('reference', curve, { yRangeMin: 10, yRangeMax: 18 });
+	assert.equal(evaluator.evaluate(binding, scope, -1, scalarDefinition), 11);
+	const elastic = { ...curveIdentity, family: 'elastic', period: 0.5 };
+	const elasticScope = context({ functionCurves: [elastic] });
+	assertClose(evaluator.evaluate(expression('FUNCTION_CURVE("motion", 0.75, "clamp")'), elasticScope, -1, scalarDefinition), -(2 ** -2.5));
+});
+
+// 【逆順のY範囲を静的検証で拒否する】
+// 片方がnullでも端点の既定値を適用した順序で判定し、設定変更で検証キャッシュを更新する。
+test('rejects reversed Curve Animation Y ranges after applying endpoint defaults', () => {
+	const valid = curveAnimationInput('inline', rampFunctionCurve(), { yRangeMin: 0 });
+	const reversed = curveAnimationInput('inline', rampFunctionCurve(), { yRangeMin: 2 });
+	inspectStaticParameter(scalarDefinition, valid, () => {});
+	assert.throws(() => inspectStaticParameter(scalarDefinition, reversed, () => {}), /Y range must be finite and ordered/);
+	assert.notDeepEqual(staticParameterShape(scalarDefinition, valid), staticParameterShape(scalarDefinition, reversed));
 });
 
 // 【キー・Curve Animation・環境変数による基準値にも同じ加工段階を使う】
@@ -448,13 +577,13 @@ test('modifies keyframe Curve Animation and environment sources without changing
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const sources = [
 		[keyframesInput([keyframe(0, 0), keyframe(1, 10)]), 5],
-		[curveAnimationInput('curveAnimationInline', rampCurveAnimation()), 2.5],
+		[curveAnimationInput('inline', rampFunctionCurve()), 2.5],
 		[{ inputSource: 'envVariable', variable: 'AMOUNT' }, 3],
 	];
 	for (const [source, base] of sources) {
-		const input = modified(source, 'VALUE * 2 + CURVE_ANIMATION("ramp", 0.5, "clamp")');
+		const input = modified(source, 'VALUE * 2 + FUNCTION_CURVE("ramp", 0.5, "clamp")');
 		const before = structuredClone(input);
-		assert.equal(evaluator.evaluate(input, context({ variables: { AMOUNT: 3 }, curveAnimations: [rampCurveAnimation()] }), -1, scalarDefinition), base * 2 + 5);
+		assert.equal(evaluator.evaluate(input, context({ variables: { AMOUNT: 3 }, functionCurves: [rampFunctionCurve()] }), -1, scalarDefinition), base * 2 + 5);
 		assert.deepEqual(input, before);
 	}
 });

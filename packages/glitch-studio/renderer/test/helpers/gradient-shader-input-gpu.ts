@@ -2,7 +2,10 @@ import { nativeEffectProbe } from '@gs/subsystems_effect_native-effects/test/nat
 import gradientNative from '@gs/subsystems_effect_native-effects/fx/gradient/_impl_.ts';
 import definition from '@gs/subsystems_effect_native-effects/fx/gradient/_def_.ts';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import { evaluateFunctionCurve } from '@gs/shared/function-curve/function-curve-evaluator.ts';
+import { EASING_DIRECTIONS, EASING_FAMILIES } from '@gs/shared/easing.ts';
 import { float32ToFloat16Bits } from '@gs/shared/utility/float32ToFloat16Bits.ts';
+import type { BezierAnchorPoint, BezierFunctionCurve, FunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 
 const gradient = nativeEffectProbe(definition, gradientNative);
 
@@ -88,6 +91,96 @@ export async function checkGradientInputs(device: GPUDevice, vertex: GPUShaderMo
 			const radius = Math.hypot(-0.25, 0.25);
 			check('radial value and derivative', [radial.scalar[5], ...radial.vector.slice(10, 12)], [radius, -0.5 / radius, 0.5 / radius]);
 			params.mode = 'linear';
+			// 【同じ配置で曲線を差し替え、プレビューと同じ値・傾きを描画する】
+			// WGSLとCPUの曲線定義のずれや、曲線の変更後にGPUのデータが更新されない回帰を検出する。
+			const positions = [0.875, 0.625, 0.375, 0.125];
+			const rows = (values: number[]) => values.flatMap(value => [value, value, value, value]);
+			const rowVectors = (values: number[]) => rows(values).flatMap(value => [0, value]);
+			const bezierPoint = (id: string, x: number, y: number, incoming: [number, number] = [0, 0], outgoing: [number, number] = [0, 0]): BezierAnchorPoint => ({
+				id, x, y, bezierControlPointA: incoming, bezierControlPointB: outgoing,
+			});
+			const bezier = (points: BezierAnchorPoint[]): BezierFunctionCurve => ({ type: 'bezier', isXNormalized: true, isYNormalized: true, points });
+			const curves: FunctionCurve[] = [
+				{ type: 'smoothstep' }, { type: 'smootherstep' }, { type: 'smoothPulse' }, { type: 'sineWave' }, { type: 'deadZone', deadZoneWidth: 0.5 },
+				bezier([bezierPoint('end', 1, 0.75, [-0.2, -1]), bezierPoint('start', 0, 0.25, [0, 0], [0.15, 1])]),
+				bezier([bezierPoint('only', 0.5, -0.25)]), bezier([]),
+			];
+			for (const family of EASING_FAMILIES) for (const direction of EASING_DIRECTIONS) {
+				if (family === 'back') curves.push({ type: 'easing', family, direction, overshootCoefficient: 2.5 });
+				else if (family === 'elastic') curves.push({ type: 'easing', family, direction, period: 0.45 });
+				else curves.push({ type: 'easing', family, direction });
+			}
+			for (const curve of curves) {
+				params.interpolation = curve;
+				const result = await render(params, true);
+				const evaluate = (position: number) => evaluateFunctionCurve(curve, position, 'clamp');
+				const label = curve.type === 'easing' ? `${curve.family} ${curve.direction}` : curve.type;
+				check(`${label} value follows CPU Function Curve`, result.scalar, rows(positions.map(evaluate)));
+				check(`${label} slope follows CPU Function Curve`, result.vector, rowVectors(positions.map(position => (evaluate(position + 0.0001) - evaluate(position - 0.0001)) / 0.0002)));
+			}
+			// 【不連続な曲線の境界で補間値をにじませず、勾配を作らない】
+			// Pulseの両境界は異なる側に属する。同じXのBézier点では編集順の最後の値を使う。
+			const discontinuous: [FunctionCurve, number[]][] = [
+				[{ type: 'pulse', dutyCycle: 0.25 }, [0, 0, 1, 0]],
+				[{ type: 'steps', levelCount: 4 }, [1, 2 / 3, 1 / 3, 0]],
+				[bezier([bezierPoint('before', 0.375, 0), bezierPoint('end', 1, 0.75), bezierPoint('start', 0, 0), bezierPoint('after', 0.375, 0.75)]), [0.75, 0.75, 0.75, 0]],
+			];
+			for (const [curve, expected] of discontinuous) {
+				params.interpolation = curve;
+				const result = await render(params, true);
+				check(`${curve.type} keeps sharp boundaries`, result.scalar, rows(expected));
+				check(`${curve.type} discontinuous slopes are zero`, result.vector, Array(32).fill(0));
+			}
+			// 【曲線の端点をValue A・Value Bへ写像する】
+			// クランプした区間外でもSmooth Pulseの出力は0なので、上端・下端のどちらもValue Aで止まる。
+			params.interpolation = { type: 'smoothPulse' };
+			params.startPosition = constantShaderInput('scalar', 0.25);
+			params.endPosition = constantShaderInput('scalar', 0.75);
+			params.startValue = constantShaderInput('scalar', 10);
+			params.endValue = constantShaderInput('scalar', 20);
+			check('both Smooth Pulse endpoints produce Value A', (await render(params, false)).scalar, rows([10, 15, 15, 10]));
+			for (const input of inputs) params[input.name] = input.uniform;
+			// 【垂直接線の近くでGPU描画とプレビューのYが一致する】
+			// Yが線形の曲線で、Xがほとんど変化しない中点付近の逆算を確認する。
+			const steepCurve = bezier([bezierPoint('start', 0, 0, [0, 0], [1, 1 / 3]), bezierPoint('end', 1, 1, [-1, -1 / 3])]);
+			const steepXOffset = 2 ** -20;
+			params.interpolation = steepCurve;
+			params.phase = constantShaderInput('scalar', 0.125 + steepXOffset);
+			const steep = await render(params, true);
+			check('steep Bézier follows CPU evaluation', [steep.scalar[8]], [evaluateFunctionCurve(steepCurve, 0.5 + steepXOffset, 'clamp')]);
+			params.phase = constantShaderInput('scalar', 0);
+			// 【ミラー反復でBézierの傾きの符号が反転する】
+			// Xが線形、Yが二次のBézierを往復させ、相対する側へ同じ大きさの勾配が出ることを確認する。
+			params.interpolation = bezier([bezierPoint('start', 0, 0, [0, 0], [1 / 3, 0]), bezierPoint('end', 1, 1, [-1 / 3, -2 / 3])]);
+			params.mirrorRepeat = true;
+			const mirrored = await render(params, true);
+			check('mirrored Bézier values', mirrored.scalar, rows([0.0625, 0.5625, 0.5625, 0.0625]));
+			check('mirrored Bézier slopes change direction', mirrored.vector, rowVectors([-1, -3, 3, 1]));
+			// 【Function CurveのSkewはミラーの後に適用され、折れ点の勾配は0になる】
+			// ミラー後の進行率が0.75になる2行はSkewの中点に一致し、往路と復路に同じ値を返す。
+			params.interpolation = { type: 'linear', skew: 0.5 };
+			const mirroredSkew = await render(params, true);
+			check('mirrored Function Curve skew values', mirroredSkew.scalar, rows([1 / 6, 0.5, 0.5, 1 / 6]));
+			check('mirrored Function Curve skew slopes', mirroredSkew.vector, rowVectors([-4 / 3, 0, 0, 4 / 3]));
+			params.mirrorRepeat = false;
+			// 【Bézierの点が占める区間を基準にSkewと勾配を評価する】
+			// 点が0と1以外にある場合、入力全体を使ってSkewを掛けるとCPU側の定義域とずれる。
+			const skewedBezier = { ...bezier([bezierPoint('end', 0.8125, 1), bezierPoint('start', 0.1875, 0)]), skew: 0.5 };
+			params.interpolation = skewedBezier;
+			const shortened = await render(params, true);
+			check('skewed Bézier values follow the CPU curve', shortened.scalar, rows(positions.map(position => evaluateFunctionCurve(skewedBezier, position, 'clamp'))));
+			check('skewed Bézier slopes within its own domain', shortened.vector, rowVectors([0, 16 / 15, 16 / 15, 0]));
+			// 【Skewが±1でも端点を保ち、幅が0になった側を評価しない】
+			params.startPosition = constantShaderInput('scalar', 0.25);
+			params.endPosition = constantShaderInput('scalar', 0.75);
+			for (const [skew, expected] of [[-1, [1, 0.875, 0.625, 0]], [1, [1, 0.375, 0.125, 0]]] as const) {
+				params.interpolation = { type: 'linear', skew };
+				const result = await render(params, true);
+				check(`skew ${skew} preserves endpoints`, result.scalar, rows([...expected]));
+				check(`skew ${skew} has finite slopes`, result.vector, rowVectors([0, 1, 1, 0]));
+			}
+			for (const input of inputs) params[input.name] = input.uniform;
+			params.interpolation = definition.paramDefs.interpolation.defaultValue;
 			// 同じ空間入力を両端値へ渡すと、結果と微分は入力そのものになる。
 			// 異なる比率の入力でfitと全wrapを確認し、透明境界の1x1も含める。
 			for (const [width, height, values] of [[4, 2, [0, 0.125, 0.375, 0.75, 0.25, 0.5, 0.625, 1]], [1, 1, [0.75]]] as const) {

@@ -27,6 +27,7 @@ const effect = { id: 'test', displayName: 'Test', kind: 'modify', primaryInputPa
 const bundle = await build({ absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
 		export { default as Parameter } from './src/components/GsVisualParam.vue';
+		export { default as FunctionCurveTypeEditor } from './src/components/GsFunctionCurveTypeEditor.vue';
 		export { default as NodeSettings } from './src/components/GsEffectNode.vue';
 		export { default as LayerSettings } from './src/components/GsTimeline.EffectSettings.vue';
 		export { preferences } from './src/preferences.ts';
@@ -38,11 +39,15 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', contents: {
 			preferences: "import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false) } };",
 			effects: `export const nativeEffectDefinitions = { test: ${JSON.stringify(effect)} };`,
-			app: 'export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: { state: { resolution: { value: { width: 1920, height: 1080 } }, curveAnimations: { value: [] } } } } };',
+			app: 'export function useProjectSession() { return projectSession; } export const projectSession = { projectContext: { stateManager: { state: { resolution: { value: { width: 1920, height: 1080 } }, functionCurves: { value: [] } } } } };',
 			ui: 'export function popupMenu() {} export function popup() {} export function contextMenu() {} export function alert() {} export async function inputText() { return { canceled: true }; }',
 		}[path] }));
-		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsVisualParam\.vue$|GsEffectNode\.vue$|GsEffectParameterLayout\.vue$|GsTimeline\.EffectSettings\.vue$/.test(path) ? null : { path: basename(path), namespace: 'control' });
-		build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ loader: 'ts', contents: `
+		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsVisualParam\.vue$|GsLiteralLeafValueControl\.vue$|GsFunctionCurveTypeEditor\.vue$|GsEffectNode\.vue$|GsEffectParameterLayout\.vue$|GsTimeline\.EffectSettings\.vue$/.test(path) ? null : { path: basename(path), namespace: 'control' });
+		build.onLoad({ filter: /.*/, namespace: 'control' }, ({ path }) => ({ loader: 'ts', contents: path === 'GsFunctionCurveEditorWindow.vue' ? `
+			import { h } from 'vue'; export default { props: ['functionCurve'], emits: ['change', 'closed'], setup(props, { emit }) {
+				return () => h('control', { 'data-test-literal-function-curve-window': '', functionCurve: props.functionCurve,
+					onChange: (value, mergeKey) => emit('change', value, mergeKey), onClosed: () => emit('closed') });
+			} };` : `
 			import { h } from 'vue'; export default { inheritAttrs: false, setup(_, { attrs, slots }) {
 				return () => h('control', attrs, Object.values(slots).flatMap(slot => slot()));
 			} };` }));
@@ -55,10 +60,11 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { Parameter, NodeSettings, LayerSettings, preferences } = module.exports;
+const { Parameter, FunctionCurveTypeEditor, NodeSettings, LayerSettings, preferences } = module.exports;
 const element = tag => ({ tag, children: [], parent: null, props: {}, style: {} });
+const body = element('body');
 const renderer = createRenderer({
-	createElement: element, createText: () => element('text'), createComment: () => element('comment'), querySelector: () => element('body'),
+	createElement: element, createText: () => element('text'), createComment: () => element('comment'), querySelector: selector => selector === 'body' ? body : null,
 	setText() {}, setElementText() {}, patchProp(node, key, _previous, value) { node.props[key] = value; },
 	insert(node, parent, anchor = null) {
 		if (node.parent != null) node.parent.children.splice(node.parent.children.indexOf(node), 1);
@@ -92,8 +98,112 @@ function fixture(t, component, initialProps) {
 		}
 		return visit(root);
 	};
-	return { props, paths, section };
+	const find = (node, attribute) => Object.hasOwn(node.props, attribute) ? node : node.children.map(child => find(child, attribute)).find(child => child != null) ?? null;
+	return { props, paths, section, find: attribute => find(root, attribute), findInBody: attribute => find(body, attribute) };
 }
+
+// 【カーブの種類をUIから切り替え、種類に応じた設定を編集する】
+// 固定カーブにはその種類の設定だけを保存し、ベジェへ切り替えると編集可能な点を作る。
+test('switches Function Curve types and edits the selected fixed curve settings', async t => {
+	const edits = [];
+	const f = fixture(t, FunctionCurveTypeEditor, { curve: { type: 'linear' }, onChange: curve => edits.push(curve) });
+	const select = () => f.find('data-test-function-curve-type').props;
+	assert.equal(select().modelValue, 'linear');
+	assert.deepEqual(select().items.map(item => item.value), ['bezier', 'linear', 'smoothstep', 'smootherstep', 'easing', 'smoothPulse', 'pulse', 'steps', 'sineWave', 'deadZone']);
+	select()['onUpdate:modelValue']('steps');
+	assert.deepEqual(edits.at(-1), { type: 'steps', levelCount: 4 });
+	f.props.curve = edits.at(-1);
+	await nextTick();
+	const levelCount = f.find('data-test-function-curve-numeric-setting').props;
+	assert.equal(levelCount.modelValue, 4);
+	levelCount['onUpdate:modelValue'](6);
+	assert.deepEqual(edits.at(-1), { type: 'steps', levelCount: 6 });
+	select()['onUpdate:modelValue']('easing');
+	assert.deepEqual(edits.at(-1), { type: 'easing', family: 'sine', direction: 'inOut' });
+	select()['onUpdate:modelValue']('bezier');
+	assert.equal(edits.at(-1).type, 'bezier');
+	assert.deepEqual(edits.at(-1).points.map(point => point.x), [0, 1]);
+});
+
+// 【BackとElasticの設定をFunction Curveの種類に合わせて編集する】
+// 方向変更では現在の調整値を維持し、系統変更では以前の系統の設定が保存データへ混ざらないようにする。
+test('edits only the selected easing family settings and preserves them across direction changes', async t => {
+	const edits = [];
+	const f = fixture(t, FunctionCurveTypeEditor, { curve: { type: 'easing', family: 'back', direction: 'in' }, onChange: curve => edits.push(curve) });
+	const back = 'data-test-function-curve-back-overshoot';
+	const elastic = 'data-test-function-curve-elastic-period';
+	const set = (setting, value) => f.find(setting).props['onUpdate:modelValue'](value);
+	assert.equal(f.find(back).props.modelValue, 1.70158);
+	assert.equal(f.find(elastic), null);
+	set(back, 0);
+	f.props.curve = edits.at(-1);
+	await nextTick();
+	set('data-test-function-curve-easing-direction', 'out');
+	assert.deepEqual(edits.at(-1), { type: 'easing', family: 'back', direction: 'out', overshootCoefficient: 0 });
+	f.props.curve = edits.at(-1);
+	await nextTick();
+	set('data-test-function-curve-easing-family', 'elastic');
+	assert.deepEqual(edits.at(-1), { type: 'easing', family: 'elastic', direction: 'out' });
+	f.props.curve = edits.at(-1);
+	await nextTick();
+	assert.equal(f.find(elastic).props.modelValue, 0.3);
+	assert.equal(f.find(back), null);
+	set(elastic, 0.7);
+	assert.deepEqual(edits.at(-1), { type: 'easing', family: 'elastic', direction: 'out', period: 0.7 });
+});
+
+// 【固定カーブのSkewを編集し、曲線固有の設定を変えても保持する】
+// Bézierにはコントロールを表示せず、UIから新規にBézierへ切り替えた点は元の座標で評価する。
+test('edits skew for fixed Function Curves and hides the control for Bézier curves', async t => {
+	const f = fixture(t, FunctionCurveTypeEditor, { curve: { type: 'pulse', dutyCycle: 0.5 }, onChange: curve => { f.props.curve = curve; } });
+	const skewField = 'data-test-function-curve-skew';
+	const set = (setting, value) => f.find(setting).props['onUpdate:modelValue'](value);
+	assert.equal(f.find(skewField).props.modelValue, 0);
+	set(skewField, 0.5);
+	await nextTick();
+	set('data-test-function-curve-numeric-setting', 0.25);
+	assert.deepEqual(f.props.curve, { type: 'pulse', dutyCycle: 0.25, skew: 0.5 });
+	set('data-test-function-curve-type', 'easing');
+	await nextTick();
+	set('data-test-function-curve-easing-family', 'back');
+	assert.deepEqual(f.props.curve, { type: 'easing', family: 'back', direction: 'inOut', skew: 0.5 });
+	set('data-test-function-curve-type', 'bezier');
+	await nextTick();
+	assert.equal(f.props.curve.type, 'bezier');
+	assert.equal(f.props.curve.skew, undefined);
+	assert.equal(f.find(skewField), null);
+	f.props.curve = { ...f.props.curve, skew: -0.5 };
+	await nextTick();
+	assert.equal(f.find(skewField), null);
+});
+
+// 【リテラルのFunction Curveの編集ウィンドウをパラメータ領域の外に開く】
+// ノードなどの描画領域にウィンドウが切り取られないよう、bodyへ配置する。点のドラッグのmergeKeyも親へ渡す。
+test('opens the literal Function Curve editor outside the parameter and forwards its drag merge key', async t => {
+	const paramDef = { dataType: { kind: 'functionCurve' }, ui: { label: 'Interpolation', control: {} }, defaultValue: { type: 'linear' } };
+	const edits = [];
+	const f = fixture(t, Parameter, { paramDef, paramValue: createDefaultParameterBinding(paramDef), paramPath: ['interpolation'],
+		functionCurves: [], availableVariables: [], onEdit: edit => edits.push(edit) });
+	f.find('data-test-edit-literal-function-curve').props.onClick();
+	await nextTick();
+	const editorAttribute = 'data-test-literal-function-curve-window';
+	assert.ok(f.find(editorAttribute) == null, 'the parameter row does not contain the editor');
+	const editor = f.findInBody(editorAttribute);
+	assert.ok(editor != null, 'the editor is mounted under body');
+	assert.deepEqual(editor.props.functionCurve, { type: 'linear' });
+	const curve = { type: 'bezier', points: [], isXNormalized: true, isYNormalized: true };
+	editor.props.onChange(curve, 'curve-drag');
+	assert.deepEqual(edits, [{ kind: 'literal', paramPath: ['interpolation'], value: curve, mergeKey: 'curve-drag' }]);
+	f.props.paramValue = literal(curve);
+	await nextTick();
+	assert.deepEqual(f.findInBody(editorAttribute).props.functionCurve, curve);
+	editor.props.onClosed();
+	await nextTick();
+	assert.equal(f.findInBody(editorAttribute), null);
+	f.find('data-test-edit-literal-function-curve').props.onClick();
+	await nextTick();
+	assert.deepEqual(f.findInBody(editorAttribute).props.functionCurve, curve);
+});
 
 for (const target of ['node', 'layer']) {
 	// 【エフェクトの両編集画面で設定を共有し、配置順の表示と変更済みの強制表示を保つ】
@@ -103,9 +213,9 @@ for (const target of ['node', 'layer']) {
 	test(`toggles advanced ${target} parameters in layout order and keeps changed bindings visible`, async t => {
 		const params = Object.fromEntries(Object.entries(effect.paramDefs).map(([key, definition]) => [key, createDefaultParameterBinding(definition)]));
 		if (target === 'layer') params.input = { inputSource: 'lowerLayerOutput' };
-		const owner = { id: 'effect', type: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, resolution: { mode: 'auto', scale: 1 }, curveAnimations: [], params, effectParamValues: params, isBypass: false };
+		const owner = { id: 'effect', type: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, resolution: { mode: 'auto', scale: 1 }, functionCurves: [], params, effectParamValues: params, isBypass: false };
 		const f = fixture(t, target === 'node' ? NodeSettings : LayerSettings, target === 'node'
-			? { node: owner, nodesEffect: testNodesEffect({ customParameterValues: {}, nodes: [owner], curveAnimations: [] }) }
+			? { node: owner, nodesEffect: testNodesEffect({ customParameterValues: {}, nodes: [owner], functionCurves: [] }) }
 			: { layer: owner, contextResolution: { width: 1920, height: 1080 }, imageLayerOptions: [], anotherLayerAudioOptions: [] });
 		const saved = structuredClone(params);
 		assert.deepEqual(f.paths(), [['amount'], ['end']]);
@@ -137,7 +247,7 @@ test('reveals advanced ancestors and compares fields against the parent default 
 		fields: { amount: { defaultValue: 0 }, reference: { defaultValue: 'longSide' } },
 		defaultValue: { amount: 5, reference: 'longSide' },
 	};
-	const f = fixture(t, Parameter, { curveAnimations: [], availableVariables: [], paramPath: ['group'], paramDef: definition, paramValue: createDefaultParameterBinding(definition) });
+	const f = fixture(t, Parameter, { functionCurves: [], availableVariables: [], paramPath: ['group'], paramDef: definition, paramValue: createDefaultParameterBinding(definition) });
 	assert.deepEqual(f.paths(), []);
 	f.props.paramValue.value.reference = literal('width');
 	await nextTick();
@@ -162,7 +272,7 @@ test('propagates array default contents through nested struct fields', async t =
 	};
 	const value = createDefaultParameterBinding(definition);
 	value.value[0].id = 'reset';
-	const f = fixture(t, Parameter, { curveAnimations: [], availableVariables: [], paramPath: ['items'], paramDef: definition, paramValue: value });
+	const f = fixture(t, Parameter, { functionCurves: [], availableVariables: [], paramPath: ['items'], paramDef: definition, paramValue: value });
 	assert.deepEqual(f.paths(), [['items'], ['items', 'reset']]);
 	f.props.paramValue.value[0].binding.value.reference = literal('width');
 	await nextTick();

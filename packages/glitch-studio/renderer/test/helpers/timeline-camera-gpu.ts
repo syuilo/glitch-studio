@@ -43,7 +43,7 @@ export async function run() {
 	const base = {
 		isDisabled: false,
 		forceDisableMotionBlur: false,
-		curveAnimations: [],
+		functionCurves: [],
 		clips: [{
 			id: 'clip',
 			startMs: 0,
@@ -70,7 +70,7 @@ export async function run() {
 	const group = (layers: TimelineLayer[], mode: 'flat' | 'preserveDepth' = 'flat', values = {}): TimelineGroupLayer => ({
 		isDisabled: false,
 		forceDisableMotionBlur: false,
-		curveAnimations: [],
+		functionCurves: [],
 		id: `group${nextId++}`,
 		name: 'group',
 		layerType: 'group',
@@ -84,7 +84,7 @@ export async function run() {
 	const transform = (layers: TimelineLayer[], values = {}): TimelineTransformLayer => ({
 		isDisabled: false,
 		forceDisableMotionBlur: false,
-		curveAnimations: [],
+		functionCurves: [],
 		id: `transform${nextId++}`,
 		name: 'Transform',
 		layerType: 'transform',
@@ -145,7 +145,7 @@ export async function run() {
 							coordinateSpace: layer.coordinateSpace,
 							mask: layer.mask,
 							paramValues: layer.compositingParamValues,
-							curveAnimations: [],
+							functionCurves: [],
 						});
 						const texture = imageSources.get(layer.clips[0].assetId);
 						const source: TimelineImage = texture ? { kind: 'texture', texture } : layer.name === 'red' ? red : transparent;

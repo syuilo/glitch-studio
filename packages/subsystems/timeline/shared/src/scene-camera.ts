@@ -85,7 +85,7 @@ export class TimelineSceneCamera {
 		const active = getActiveTimelineCamera(layers, time, referenceTime);
 		// 有効なカメラがない区間は2D合成とし、Zによる拡縮・近接面での非表示を行わない。
 		if (!active) return null;
-		const settings = { paramValues: active.layer.cameraParamValues, curveAnimations: active.layer.curveAnimations };
+		const settings = { paramValues: active.layer.cameraParamValues, functionCurves: active.layer.functionCurves };
 		const camera = this.parameters.evaluate(settings, active.time, isExport, getTimelineLayerPublicParameterContext([...layers], active.layer.id));
 		let ancestorTime = time;
 		let space: TimelineRenderSpace = { parent: TIMELINE_IDENTITY, depth: 0 };
@@ -93,7 +93,7 @@ export class TimelineSceneCamera {
 			// 子カメラだけのブラー無効では親の揺れを止めない。親を固定した場合は
 			// そこから下の時計を固定し、映像のTransform走査と同じ継承規則にする。
 			if (parent.forceDisableMotionBlur) ancestorTime = referenceTime;
-			const transform = this.transforms.evaluate(parent.transformParamValues, parent.curveAnimations, ancestorTime, isExport, getTimelineLayerPublicParameterContext([...layers], parent.id));
+			const transform = this.transforms.evaluate(parent.transformParamValues, parent.functionCurves, ancestorTime, isExport, getTimelineLayerPublicParameterContext([...layers], parent.id));
 			space = getTimelineTransformSpace(transform, frame, space);
 			// 非等方scale・反転・せん断はカメラの向きや画角へ継承しない。
 			// 行列から角度を抽出せず、親のrotationだけを独立して積み重ねる。

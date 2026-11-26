@@ -81,7 +81,7 @@ async function fixture(t, target) {
 	const change = resolution => { owner.resolution = resolution; changes.push(resolution); };
 	const root = element();
 	const app = renderer.createApp({ render: () => target === 'node'
-		? h(NodeSettings, { node: owner, nodesEffect: { curveAnimations: [] }, onSetResolution: change })
+		? h(NodeSettings, { node: owner, nodesEffect: { functionCurves: [] }, onSetResolution: change })
 		: h(LayerSettings, { layer: owner, contextResolution: { width: 1920, height: 1080 }, imageLayerOptions: [], anotherLayerAudioOptions: [], onResolution: change }) });
 	app.mount(root);
 	t.after(() => app.unmount());

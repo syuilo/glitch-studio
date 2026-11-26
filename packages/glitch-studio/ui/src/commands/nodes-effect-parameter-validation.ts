@@ -12,7 +12,7 @@ import type { ProjectState } from '../Project.ts';
 export function validateNodesEffectNodeParameterBinding(state: ProjectState, nodesEffect: NodesEffect, definition: ParameterDefinition, binding: NodesEffectParameterBinding,
 	previousBinding: NodesEffectParameterBinding | null = null, connectionTypePolicy: ConnectionTypePolicy = 'strict') {
 	inspectStaticParameter<NodesEffectParameterBinding>(definition, binding, (parameterDefinition, parameterBinding) => {
-		if (!['literal', 'expression', 'envVariable', 'curveAnimationReference', 'curveAnimationInline', 'keyframesTimelineInline', 'nodesEffectPublicParameterReference', 'nodesEffectCustomParameterValueReference', 'node'].includes(parameterBinding.inputSource)) throw new Error('Unsupported Nodes Effect parameter input source');
+		if (!['literal', 'expression', 'envVariable', 'curveAnimationInline', 'keyframesTimelineInline', 'nodesEffectPublicParameterReference', 'nodesEffectCustomParameterValueReference', 'node'].includes(parameterBinding.inputSource)) throw new Error('Unsupported Nodes Effect parameter input source');
 		validateNodesEffectAudioBinding(parameterDefinition, parameterBinding, nodesEffect.paramDefs);
 	});
 	const definitions = { parameter: definition };

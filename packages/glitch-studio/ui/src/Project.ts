@@ -1,6 +1,6 @@
 import { getReferencedGeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import { ref } from 'vue';
-import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
+import type { SharedFunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { COMMAND_DEFS } from './commands.ts';
 import { UndoRedo } from './utility/undo-redo.ts';
@@ -29,7 +29,7 @@ export type ProjectAsset = Asset & {
 
 export type ProjectState = {
 	customShaderEffects: Ref<ProjectCustomShaderEffect[]>;
-	curveAnimations: Ref<CurveAnimation[]>;
+	functionCurves: Ref<SharedFunctionCurve[]>;
 	exportSettings: Ref<ExportDialogSettings | null>;
 	name: Ref<string>;
 	description: Ref<string>;
@@ -47,7 +47,7 @@ export type ProjectState = {
 // 状態を所有する側の通知契約。通知先やキャッシュ・実行インスタンスの方針には依存しない。
 export type ProjectContentChange =
 	| { type: 'customShaderEffect'; customShaderEffectId: string }
-	| { type: 'curveAnimations' }
+	| { type: 'functionCurves' }
 	| { type: 'node'; target: NodesEffectTarget; nodeId: string; changes: NodesEffectNodeChange[] }
 	| { type: 'nodesEffect'; target: NodesEffectTarget; customParameterValuesOnly?: boolean }
 	| { type: 'nodesEffectRegistration'; nodesEffectId: string }
@@ -78,7 +78,7 @@ export class ProjectContext {
 		for (const asset of project.assets) this.externalAssetMetadata.record(asset);
 		this.stateManager = new UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>({
 			customShaderEffects: ref(project.customShaderEffects),
-			curveAnimations: ref(project.curveAnimations),
+			functionCurves: ref(project.functionCurves),
 			exportSettings: ref(deepClone(project.exportSettings)),
 			name: ref(project.name),
 			description: ref(project.description),
@@ -105,7 +105,7 @@ export class ProjectContext {
 		// 編集されても、取得済みのスナップショットへ変更が混入しないよう切り離す。
 		return deepClone({
 			customShaderEffects: state.customShaderEffects.value,
-			curveAnimations: state.curveAnimations.value,
+			functionCurves: state.functionCurves.value,
 			exportSettings: state.exportSettings.value,
 			gsVersion: _VERSION_,
 			name: state.name.value,

@@ -1,6 +1,6 @@
 import { effectSourceSchema } from './effect-source-schema.ts';
 import { z } from 'zod';
-import { curveAnimationSchema, effectResolutionSchema, fitModeSchema, identifierSchema, parameterDefinitionSchema, parameterPathSchema, staticSettingValuesSchema, textureDataTypeSchema, valueParameterBindingSchema, valueParameterSourceSchema, wrapModeSchema } from './parameter-contract-schemas.ts';
+import { sharedFunctionCurveSchema, effectResolutionSchema, fitModeSchema, identifierSchema, parameterDefinitionSchema, parameterPathSchema, staticSettingValuesSchema, textureDataTypeSchema, valueParameterBindingSchema, valueParameterSourceSchema, wrapModeSchema } from './parameter-contract-schemas.ts';
 import type { NodesEffect, NodesEffectNode, NodesEffectParameterBinding, NodesEffectValueParameterBinding, NodesEffectNodeParameterBinding, NodesEffectParamDef, NodesEffectCustomParameterDefinition } from '@/types/nodes-effect-view.ts';
 
 export const registeredNodesEffectTargetSchema = z.object({ nodesEffectId: identifierSchema });
@@ -34,8 +34,8 @@ export const nodesEffectParameterBindingSchema: z.ZodType<NodesEffectParameterBi
 	.describe('Binding stored on a Nodes Effect parameter. Literal shape and available sources depend on the parameter definition.');
 export const nodesEffectValueParameterSourceSchema = z.union([valueParameterSourceSchema, publicParameterBindingSchema, customParameterBindingSchema]);
 export const nodesEffectParameterSourceSchema = z.union([nodesEffectValueParameterSourceSchema, nodeParameterBindingSchema]);
-export const nodesEffectParameterInputSourceSchema = z.enum(['literal', 'envVariable', 'expression', 'curveAnimationReference', 'curveAnimationInline', 'keyframesTimelineInline', 'nodesEffectPublicParameterReference', 'nodesEffectCustomParameterValueReference', 'node']);
-export const nodesEffectValueParameterInputSourceSchema = z.enum(['literal', 'envVariable', 'expression', 'curveAnimationReference', 'curveAnimationInline', 'keyframesTimelineInline', 'nodesEffectPublicParameterReference', 'nodesEffectCustomParameterValueReference']);
+export const nodesEffectParameterInputSourceSchema = z.enum(['literal', 'envVariable', 'expression', 'curveAnimationInline', 'keyframesTimelineInline', 'nodesEffectPublicParameterReference', 'nodesEffectCustomParameterValueReference', 'node']);
+export const nodesEffectValueParameterInputSourceSchema = z.enum(['literal', 'envVariable', 'expression', 'curveAnimationInline', 'keyframesTimelineInline', 'nodesEffectPublicParameterReference', 'nodesEffectCustomParameterValueReference']);
 
 export const nodesEffectPublicParameterInputSchema = z.intersection(parameterDefinitionSchema,
 	z.object({ nameForReference: nodesEffectPublicParameterNameSchema, canNode: z.boolean() })) as z.ZodType<Omit<NodesEffectParamDef, 'id'>>;
@@ -62,5 +62,5 @@ export const nodesEffectSchema: z.ZodType<NodesEffect> = z.object({
 	nodes: z.array(nodesEffectNodeSchema), outputDefs: z.array(nodesEffectOutputDefinitionSchema), primaryOutputId: z.string().nullable(),
 	paramDefs: z.array(nodesEffectPublicParameterDefinitionSchema), customParameterDefs: z.array(nodesEffectCustomParameterDefinitionSchema),
 	customParameterValues: z.record(nodesEffectCustomParameterIdSchema, nodesEffectValueParameterBindingSchema),
-	primaryInputId: nodesEffectPublicParameterIdSchema.nullable(), primaryAudioInputId: nodesEffectPublicParameterIdSchema.nullish(), curveAnimations: z.array(curveAnimationSchema),
+	primaryInputId: nodesEffectPublicParameterIdSchema.nullable(), primaryAudioInputId: nodesEffectPublicParameterIdSchema.nullish(), functionCurves: z.array(sharedFunctionCurveSchema),
 });

@@ -79,7 +79,7 @@ export function validateTimelineParameterBinding(binding: ParameterBindingBase, 
 	}
 	// 他ドメインの方式を列挙せず、このスコープが扱える共通の入力方式だけを受け入れる。
 	if (!isValueParameterBinding(binding)) throw new Error('Unsupported layer parameter input source');
-	if ((binding.inputSource === 'curveAnimationInline' || binding.inputSource === 'curveAnimationReference') && binding.offsetMode !== 'start') {
+	if (binding.inputSource === 'curveAnimationInline' && binding.curveAnimation.offsetMode !== 'start') {
 		throw new Error('Layer Curve Animations must use the scene start');
 	}
 	if (binding.inputSource === 'keyframesTimelineInline' && (binding.keyframesTimeline.isNormalized || binding.offsetMode !== 'start' || binding.wrapMode !== 'clamp' || binding.trimmedDurationMs != null)) {

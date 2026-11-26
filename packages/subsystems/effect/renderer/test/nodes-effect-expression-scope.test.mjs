@@ -14,16 +14,16 @@ const nodeParameterDefinitions = {
 	text: def('text', '', 'string'), array: def('array', [0, 0], 'vector'),
 };
 const frame = { time: 500, endTime: 2000, isExport: true, pointerPosition: { x: 0.25, y: -0.75 } };
-const layerScope = { ...frame, endTime: Infinity, variables: { TIME: 0.5, TIME_MS: 500, TEST_ONLY_LAYER: true, TEST_SAME_NAME: 2, IS_EXPORT: true }, curveAnimations: [] };
+const layerScope = { ...frame, endTime: Infinity, variables: { TIME: 0.5, TIME_MS: 500, TEST_ONLY_LAYER: true, TEST_SAME_NAME: 2, IS_EXPORT: true }, functionCurves: [] };
 const nodesEffectScope = { ...frame, variables: {
 	RESOLUTION: [800, 400], TIME: 0.5, TIME_MS: 500,
 	END_TIME: 2, END_TIME_MS: 2000, PROGRESS: 0.25, IS_EXPORT: true,
 	POINTER_POSITION: [0.25, -0.75],
 	TEST_ONLY_NODES_EFFECT: true, TEST_SAME_NAME: 1,
-}, curveAnimations: [] };
+}, functionCurves: [] };
 // 評価器には単一の値と、その式で参照可能な評価済み値だけを渡す。
 function nodes(evaluator, params, scope = nodesEffectScope, external = new Map(), defs = [], inputIds = new Set()) {
-	const graph = { paramDefs: Object.fromEntries(defs.map(def => [def.id, { ...def, canNode: inputIds.has(def.id) }])), curveAnimations: scope.curveAnimations };
+	const graph = { paramDefs: Object.fromEntries(defs.map(def => [def.id, { ...def, canNode: inputIds.has(def.id) }])), functionCurves: scope.functionCurves };
 	const state = createEffectParameterEvaluation(graph, evaluator, id => () => external.get(id));
 	state.bindPublicValues();
 	const size = { width: 800, height: 400 };
@@ -35,7 +35,7 @@ function externalValues(evaluator, defs, params, scope) {
 		const value = params[def.id];
 		return [def.id, value == null ? structuredClone(def.defaultValue) : evaluator.evaluate(value,
 			scope,
-			value.inputSource === 'curveAnimationReference' ? structuredClone(def.defaultValue) : genEmptyValue(def), def)];
+			value.inputSource === 'curveAnimationInline' ? structuredClone(def.defaultValue) : genEmptyValue(def), def)];
 	}));
 }
 
@@ -86,7 +86,7 @@ test('passes evaluated values across the boundary without reinterpreting them', 
 test('passes plain default values through PUBLIC for omitted arguments and unselected graphs', () => {
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const definitions = [def('position', [1, 2], 'vector'), def('amount', 7)];
-	const params = { amount: { inputSource: 'curveAnimationReference', curveAnimationId: null, trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' } };
+	const params = { amount: { inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'reference', curveId: null }, yRangeMin: null, yRangeMax: null, trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' } } };
 	const values = externalValues(evaluator, definitions, params, layerScope);
 	assert.deepEqual(nodes(evaluator, {
 		array: expression('PUBLIC("position")'),
@@ -108,16 +108,16 @@ test('does not retain PUBLIC functions or local declarations between expressions
 
 // 【親子で同名のCurve Animationを区別する】
 // IDとnameForReferenceが同じCurve Animationでも所有者ごとに解決し、削除後は他スコープへフォールバックしない。
-test('isolates Curve Animation references and CURVE_ANIMATION functions without inheriting Curve Animations', () => {
+test('isolates Curve Animation references and FUNCTION_CURVE functions without inheriting Curve Animations', () => {
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
-	const curveAnimation = value => ({ id: 'curve-animation', nameForReference: 'curve-animation', isNormalized: true, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
-	const params = { ref: { inputSource: 'curveAnimationReference', curveAnimationId: 'curve-animation', trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' }, named: expression('CURVE_ANIMATION("curve-animation", 0, "clamp")') };
+	const curveAnimation = value => ({ id: 'curve-animation', nameForReference: 'curve-animation', type: 'bezier', isXNormalized: true, isYNormalized: false, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
+	const params = { ref: { inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'reference', curveId: 'curve-animation' }, yRangeMin: null, yRangeMax: null, trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' } }, named: expression('FUNCTION_CURVE("curve-animation", 0, "clamp")') };
 	const defs = [def('ref'), def('named')];
-	const external = externalValues(evaluator, defs, params, { ...layerScope, curveAnimations: [curveAnimation(2)] });
+	const external = externalValues(evaluator, defs, params, { ...layerScope, functionCurves: [curveAnimation(2)] });
 	assert.deepEqual([...external.values()], [2, 2]);
-	assert.deepEqual(nodes(evaluator, { ...params, external: expression('PUBLIC("ref")') }, { ...nodesEffectScope, curveAnimations: [curveAnimation(1)] }, external, defs), { ref: 1, named: 1, external: 2 });
-	assert.throws(() => externalValues(evaluator, defs, params, layerScope), /Unknown Curve Animation/);
-	assert.throws(() => nodes(evaluator, params), /Unknown Curve Animation/);
+	assert.deepEqual(nodes(evaluator, { ...params, external: expression('PUBLIC("ref")') }, { ...nodesEffectScope, functionCurves: [curveAnimation(1)] }, external, defs), { ref: 1, named: 1, external: 2 });
+	assert.throws(() => externalValues(evaluator, defs, params, layerScope), /Unknown Function Curve/);
+	assert.throws(() => nodes(evaluator, params), /Unknown Function Curve/);
 });
 
 // 【式から参照できる公開引数と値の所有権】

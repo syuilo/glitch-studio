@@ -80,7 +80,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, fileSource: 
 					layerMask: layer.layerMask,
 					paramValues: layer.compositingParamValues,
 					publicParameters: context.publicParameters,
-					curveAnimations: layer.curveAnimations,
+					functionCurves: layer.functionCurves,
 				});
 				return compositor.evaluate(context, cachedFrame.foreground, settings);
 			};

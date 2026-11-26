@@ -17,8 +17,6 @@ export function editNodesEffectCustomParameterBinding(definition: NodesEffectCus
 		case 'envVariable': next = { inputSource: 'envVariable', variable: edit.value }; break;
 		case 'curveAnimationInline':
 		case 'keyframesTimelineInline': next = deepClone(edit.value); break;
-		case 'curveAnimationReference': next = { inputSource: 'curveAnimationReference', trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start',
-			...(current.inputSource === 'curveAnimationReference' ? current : {}), curveAnimationId: edit.value, ...edit.options }; break;
 		case 'nodesEffectPublicParameterReference': next = { inputSource: edit.kind, parameterId: edit.value }; break;
 		case 'nodesEffectCustomParameterValueReference': next = { inputSource: edit.kind, parameterId: edit.value }; break;
 		case 'expressionModifier':
@@ -31,7 +29,6 @@ export function editNodesEffectCustomParameterBinding(definition: NodesEffectCus
 				case 'expression': next = { inputSource: 'expression', expression: AiSON.stringify(current.inputSource === 'literal' ? current.value : definition.defaultValue) }; break;
 				case 'envVariable': next = { inputSource: 'envVariable', variable: '' }; break;
 				case 'curveAnimationInline': next = createInlineCurveAnimation(); break;
-				case 'curveAnimationReference': next = { inputSource: 'curveAnimationReference', curveAnimationId: null, trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
 				case 'keyframesTimelineInline': next = createInlineKeyframesTimeline(definition, current); break;
 				case 'nodesEffectPublicParameterReference': next = { inputSource: edit.inputSource, parameterId: '' }; break;
 				case 'nodesEffectCustomParameterValueReference': next = { inputSource: edit.inputSource, parameterId: '' }; break;

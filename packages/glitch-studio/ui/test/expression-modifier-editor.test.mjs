@@ -58,7 +58,8 @@ test('requests copying and pasting the parameter from its menu without changing 
 
 function fixture(t, timeline = null) {
 	const element = tag => ({ tag, props: {}, style: {}, children: [], parent: null });
-	const renderer = createRenderer({ createElement: element, createText: () => element('text'), createComment: () => element('comment'), querySelector: () => element('body'),
+	const body = element('body');
+	const renderer = createRenderer({ createElement: element, createText: () => element('text'), createComment: () => element('comment'), querySelector: () => body,
 																																			setText() {}, setElementText(node, text) { node.text = text; }, patchProp(node, key, _old, value) { node.props[key] = value; },
 																																			insert(node, parent, anchor = null) {
 																																				if (node.parent != null) node.parent.children.splice(node.parent.children.indexOf(node), 1);
@@ -67,7 +68,7 @@ function fixture(t, timeline = null) {
 																																			parentNode: node => node.parent, nextSibling: node => node.parent?.children[node.parent.children.indexOf(node) + 1] ?? null,
 	});
 	const root = element('root');
-	const props = reactive({ curveAnimations: [], availableVariables: [], paramPath: ['amount'],
+	const props = reactive({ functionCurves: [], availableVariables: [], paramPath: ['amount'],
 																										paramDef: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: 0 },
 																										paramValue: { inputSource: 'expression', expression: 'TIME', expressionModifier: { enabled: true, code: 'VALUE + 1' } },
 	});
@@ -80,8 +81,52 @@ function fixture(t, timeline = null) {
 	app.mount(root);
 	t.after(() => app.unmount());
 	const find = (node, attribute) => Object.hasOwn(node.props, attribute) ? node : node.children.map(child => find(child, attribute)).find(child => child != null) ?? null;
-	return { props, edits, find: attribute => find(root, attribute) };
+	return { props, edits, find: attribute => find(root, attribute) ?? find(body, attribute) };
 }
+
+// 【カーブの点を保存して表示モデルが更新されても編集ウィンドウを開いたままにする】
+// Nodes Effectの値を保存するたびに新しい表示モデルが渡る。ドラッグ中の各保存でウィンドウが閉じると次の点編集に進めない。
+test('keeps the inline Function Curve editor open through Nodes Effect view updates', async t => {
+	const f = fixture(t);
+	const curve = { type: 'bezier', isXNormalized: true, isYNormalized: true, points: [
+		{ id: 'point', x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
+	] };
+	const nodesEffect = { paramDefs: [], customParameterDefs: [], customParameterValues: {}, functionCurves: [], nodes: [] };
+	f.props.nodesEffect = nodesEffect;
+	f.props.paramValue = {
+		inputSource: 'curveAnimationInline',
+		curveAnimation: { curveBinding: { source: 'inline', curve }, trimmedDurationMs: 1000, yRangeMin: null, yRangeMax: null, wrapMode: 'clamp', offsetMode: 'start' },
+	};
+	await nextTick();
+	f.find('data-test-edit-inline-function-curve').props.onClick();
+	await nextTick();
+	const editor = f.find('data-test-inline-function-curve-editor');
+	assert.ok(editor);
+
+	for (const y of [0.25, 0.5]) {
+		const points = [{ ...curve.points[0], y }];
+		editor.props.onChange({ ...curve, points }, 'point-drag');
+		const edit = f.edits.at(-1);
+		assert.equal(edit.mergeKey, 'point-drag');
+		f.props.paramValue = edit.value;
+		f.props.nodesEffect = { ...nodesEffect };
+		await nextTick();
+		assert.ok(f.find('data-test-inline-function-curve-editor') === editor);
+		assert.equal(editor.props.functionCurve.points[0].y, y);
+	}
+
+	const fixedCurve = { type: 'steps', levelCount: 4 };
+	editor.props.onChange(fixedCurve, null);
+	f.props.paramValue = f.edits.at(-1).value;
+	await nextTick();
+	assert.equal(f.find('data-test-inline-function-curve-editor'), editor);
+	assert.deepEqual(editor.props.functionCurve, fixedCurve);
+	assert.equal(f.props.paramValue.curveAnimation.trimmedDurationMs, 1000);
+
+	f.props.paramPath = ['anotherParameter'];
+	await nextTick();
+	assert.equal(f.find('data-test-inline-function-curve-editor'), null);
+});
 
 // 【ノードとカスタム値の両方から、種類とIDを指定して内部の共通値を選べる】
 // 公開引数のエディタへ内部参照を漏らさず、型変更・削除後も元の参照IDを表示して修正できるようにする。
@@ -89,7 +134,7 @@ test('offers custom references only inside Nodes Effects and preserves unavailab
 	const f = fixture(t, { context: computed(() => ({ layer: { id: 'layer', publicParameterDefs: [] }, ancestors: [] })), isPublicParameterValue: false });
 	f.props.paramValue = { inputSource: 'literal', value: 1 };
 	const custom = { ...f.props.paramDef, id: 'custom-id', nameForReference: 'speed', canNode: false };
-	f.props.nodesEffect = { customParameterValues: {}, nodes: [], paramDefs: [], customParameterDefs: [custom, { ...custom, id: 'text', dataType: { kind: 'string' } }], curveAnimations: [] };
+	f.props.nodesEffect = { customParameterValues: {}, nodes: [], paramDefs: [], customParameterDefs: [custom, { ...custom, id: 'text', dataType: { kind: 'string' } }], functionCurves: [] };
 	await nextTick();
 	const menu = () => {
 		f.find('data-test-parameter-menu').props.onClick({ currentTarget: {} });
@@ -128,7 +173,7 @@ test('offers named parameter creation only for literal leaves with an owning sco
 	await nextTick();
 	assert.equal(action(), undefined);
 	assert.equal(action('createCustomParameter'), undefined);
-	f.props.nodesEffect = { customParameterDefs: [], customParameterValues: {}, paramDefs: [], nodes: [], curveAnimations: [] };
+	f.props.nodesEffect = { customParameterDefs: [], customParameterValues: {}, paramDefs: [], nodes: [], functionCurves: [] };
 	f.props.node = { id: 'node', type: 'effect', params: {} };
 	f.props.paramPath = ['settings', 'amount'];
 	await nextTick();
@@ -139,7 +184,7 @@ test('offers named parameter creation only for literal leaves with an owning sco
 	for (const binding of [
 		{ inputSource: 'expression', expression: 'TIME' },
 		{ inputSource: 'keyframesTimelineInline', keyframesTimeline: { keyframes: [] } },
-		{ inputSource: 'curveAnimationReference', curveAnimationId: null },
+		{ inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'reference', curveId: null }, yRangeMin: null, yRangeMax: null, trimmedDurationMs: null, wrapMode: 'clamp', offsetMode: 'start' } },
 		{ inputSource: 'nodesEffectPublicParameterReference', parameterId: '' },
 		{ inputSource: 'node', nodeId: null, outputPort: null },
 		{ inputSource: 'literal', value: 0.3, expressionModifier: { enabled: false, code: 'VALUE' } },

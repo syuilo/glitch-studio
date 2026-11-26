@@ -111,9 +111,9 @@ VALUE
 
 - Nodes Effectの公開パラメータの `id` は接続・引数・直接参照の識別子、`nameForReference` は `PUBLIC` 式から参照する名前、`ui.label` は表示名です。IDと参照名のブランド型を相互に代用せず、表示名を接続のキーにしないでください。Timelineの公開パラメータIDはTimeline固有の型で、Nodes EffectのIDとは区別します。
 - コードで用意する `nameForReference` の初期値・自動生成名・テストデータは、`my_input`・`my_param_2`・`scene_time` のようなsnake caseに統一します。
-- `CurveAnimation` の `nameForReference` は `CURVE_ANIMATION("curve_animation_name", 座標, "clamp")` で照合する参照名で、UIのCurve Animation選択にも表示します。`curveAnimationReference` は `curveAnimationId` とCurve Animationの `id` で参照するため、参照名を変更してもその接続は維持されます。インラインの `CurveAnimationData` は参照名・IDを持ちません。
+- 共有定義の `SharedFunctionCurve` はIDと `nameForReference` を持ちます。式の `FUNCTION_CURVE("curve_name", x, "clamp")` は参照名で検索します。Curve Animationの `curveBinding` はインラインのFunction Curveか共有定義のIDを保持します。IDで参照している場合は、参照名を変更しても接続が維持されます。
 - Nodes Effectの公開パラメータの `canNode: true` はInノードの出力として公開することを表します。内部からはInノードへの配線で参照し、`nodesEffectPublicParameterReference` や `PUBLIC` による直接参照は `canNode: false` の公開パラメータに限定する仕様です。ただし音声は`nodesEffectPublicParameterReference`だけで参照し、`PUBLIC`には公開しません。入力が定数かテクスチャかによって参照方法を変えません。
-- レイヤーの引数・合成設定と、Nodes Effect内部の式は別の評価スコープです。変数・Curve Animation・参照可能なパラメータを呼び出し側から明示し、親スコープを暗黙に継承しません。Curve Animationの再生時刻を渡すことと、同名の変数を式に公開することも別です。
+- レイヤーの引数・合成設定と、Nodes Effect内部の式は別の評価スコープです。変数・Function Curve・参照可能なパラメータを呼び出し側から明示し、親スコープを暗黙に継承しません。Curve Animationの再生時刻を渡すことと、同名の変数を式に公開することも別です。
 
 Nodes Effect内部の共通値には、公開入力と独立したカスタムパラメータを使います。`PUBLIC(name)`と`CUSTOM(name)`で参照先を明示し、`PARAM`による優先順位の探索は行いません。カスタム同士の参照・評価環境・エラーの扱いは[Nodes Effect](./nodes-effect.md#カスタムパラメータ)を参照してください。Timelineの公開パラメータも関数名は`PUBLIC`とし、以下の参照スコープは維持します。Timelineに`CUSTOM`は公開しません。
 
@@ -136,7 +136,7 @@ Nodes Effect内部の共通値には、公開入力と独立したカスタム�
 
 直接参照先の削除・階層移動ではIDを保持し、UIに欠落・範囲外を表示します。未選択・未解決の参照は受け取り側のパラメータ定義の既定値を使い、存在する参照先の型不一致は評価エラーにします。Group複製では範囲内のレイヤーIDだけを付け替えます。直接参照Binding自体への加工式は提供せず、加工したい値は公開パラメータへ受けて通常の式から参照します。
 
-値は所有レイヤーの式環境・Curve Animationを使い、評価サンプルの所属Scene時刻で評価します。子のCurve Animationやクリップの内容時刻は継承しません。参照値はコピーして渡し、式から変更しても保存値や他の利用者へ漏らしません。評価値をシーク間で共有しません。
+値は所有レイヤーの式環境・Function Curveを使い、評価サンプルの所属Scene時刻で評価します。子のFunction Curveやクリップの内容時刻は継承しません。参照値はコピーして渡し、式から変更しても保存値や他の利用者へ漏らしません。評価値をシーク間で共有しません。
 
 参照先Sceneの内部とNodes Effect内部は別スコープです。Scene最上位には呼び出し元Sceneレイヤーのパラメータを渡しません。Nodes Effectへはレイヤー側で評価した値を既存の公開入力へ渡します。合成・Transform・カメラと音量にも同じ参照規則を適用し、音声では参照先のキーも通常の音量キーと同じ時刻で評価します。
 
@@ -202,15 +202,37 @@ NOISE(TIME * 3, 1) * 0.03
 
 加工対象は共通のCPU値の末端Bindingです。配列・構造体のコンテナ、音声、ノード接続・レイヤー画像参照・Nodes Effect公開パラメータ参照（`nodesEffectPublicParameterReference`）などのドメイン固有入力は対象外です。対応する入力方式から対象外の方式へ切り替えた場合、加工式は引き継ぎません。`VALUE_AT`・`WIGGLE`や式の多段適用は提供しません。
 
-## プロジェクト共通のCurve Animation
+## Function CurveとCurve Animation
 
-プロジェクトの`curveAnimations`は曲線の定義（ID・`nameForReference`・点・時間軸の種類）だけを共有する。再生設定は各Binding、評価時刻・終了時刻は参照元の評価スコープが所有する。Timelineでは所属Sceneの時刻を使い、Nodes Effect Live Previewの公開パラメータへの入力ではLive Previewの時刻を使う。
+`{ kind: 'functionCurve' }` のパラメータは、1つの `FunctionCurve` をリテラル値として保持します。カーブ編集ウィンドウで曲線の種類と設定を編集します。GradientとClick Gradientの `Interpolation` では、位置から求めた0〜1の進行率をX、補間係数をYとして使います。Yが0〜1を越えるカーブも、その形のまま描画に反映されます。
 
-`curveAnimationReference`はIDで解決する。レイヤー内とプロジェクト共通の両方を候補に残すので、同じ参照名でも共通定義をIDで選べる。式の`CURVE_ANIMATION(nameForReference, coordinate, wrapMode)`はローカル定義を優先し、見つからない場合にプロジェクト共通の定義を使う。Group・Transform・パラメータコンテナのローカル定義を子レイヤーへ継承しない。
+Function Curveは `type: "bezier"` のときに点とX・Yそれぞれの正規化フラグを持つ。固定カーブのX・Yは正規化座標で、Xの定義域は0〜1。Curve Animationは `inputSource: "curveAnimationInline"` のBindingに格納され、`curveBinding` と再生設定を持つ。`curveBinding` は `{ source: "inline", curve }` または `{ source: "reference", curveId }` で表す。共有定義はProject・Timelineレイヤー・Nodes Effectの `functionCurves` に格納する。
 
-共通定義の`nameForReference`はプロジェクト内で一意とし、名前変更でID参照は変わらない。`CURVE_ANIMATION()`内の文字列は自動変更しない。削除後もBindingの参照IDを保持し、未解決のID参照には既定値を使う。一方、式の`CURVE_ANIMATION()`で参照名が見つからない場合は式エラーにする。Undoで同じID・参照名を復元すれば再び解決される。
+Function Curveの `skew` は `-1〜1` で、省略または `null` の場合は `0` です。Xを折り返しまたはクランプした後、定義域の中点を区間内の `(skew + 1) / 2` の位置に移します。前後をそれぞれ線形に伸縮し、両端の値を保ちます。`±1` では片側の幅が0になり、端に段差が生じる場合があります。GPUの勾配にはXの伸縮率を反映し、Skewによる折れ点ではカーブの傾きの寄与を0にします。
 
-プロジェクト共通の定義はNodes Effect内部のノード・式へ直接公開しない。Nodes Effect自身のローカル定義は維持し、プロジェクト共通の曲線を使う値は公開パラメータへの引数として渡す。
+編集画面は固定カーブでSkewを設定できます。BézierのSkewはScriptingや保存データで指定でき、点のXの最小値から最大値までを定義域として評価します。固定カーブ同士を切り替えるとSkewを引き継ぎ、UIでBézierに切り替えると既定値から始まります。
+
+| 固定カーブ | Skewが0のときの形と設定 |
+| --- | --- |
+| `linear` / `smoothstep` / `smootherstep` | 0から1へ向かう線形・3次・5次のカーブ。 |
+| `easing` | `family`・`direction` で評価する。Backでは `overshootCoefficient`、Elasticでは `period` を設定できる。 |
+| `smoothPulse` | X=0.5で1になり、両端の値と傾きが0になる。 |
+| `pulse` | X=0.5を中心に、幅 `dutyCycle` の半開区間（始点を含む）で1になる。幅0は常に0、幅1は常に1。 |
+| `steps` | `levelCount`（2以上の整数）の等幅区間で、Yが0から1へ段階的に増える。 |
+| `sineWave` | Y=0.5から上昇を始める正弦波の一周期。 |
+| `deadZone` | X=0.5を中心に、幅 `deadZoneWidth` の区間でYを0.5に固定し、両側は端点へ線形に接続する。幅0は線形、幅1は常に0.5。 |
+
+Backの `overshootCoefficient` は0以上。既定値は1.70158で、0の場合はCubicと同じ曲線になる。Elasticの `period` は基準カーブの正規化Xでの一周期の長さで、有限の正数。既定値は0.3。InOutでは前半と後半をそれぞれ半分に縮めて配置するため、全区間上の実際の周期も半分になる。省略または `null` の設定は既定値を使う。
+
+WorkspaceのFunction Curvesパネルでは設定タブ、インラインのFunction Curveでは編集ウィンドウで曲線の種類と設定を選べる。種類をBézierに切り替えると既定の点から始まり、Undoで切り替え前の定義を復元できる。
+
+Curve Animationは評価スコープの時刻を使う。Xが正規化されている場合、Xの1は `trimmedDurationMs` に対応し、未指定の既定値は1000ms。非正規化Xはミリ秒単位で再生する。Timelineでは開始基準と所属Scene時刻を使い、Effect Live Previewの公開入力ではLive Previewの時刻を使う。
+
+Yが正規化されている場合、曲線のサンプル値 `y` を `min + y * (max - min)` で変換する。`yRangeMin` / `yRangeMax` の `null` はそれぞれ0と1。逆順の範囲は無効で、同値は定数出力になる。Yの0〜1を越える値もそのまま変換する。空カーブのサンプル値は0なので、正規化Yでは範囲の最小値が出力される。
+
+式の `FUNCTION_CURVE(nameForReference, x, wrapMode)` はFunction Curveの座標系のXで評価し、同じ座標系のYを返す。Timelineではローカル定義を名前で優先し、同名のProject共通定義もIDで選べる。Group・Transform・パラメータコンテナのローカル定義は各レイヤーのスコープに属する。Nodes Effect内部では自身の共有定義を使う。
+
+Project共通定義の `nameForReference` はProject内で一意。削除後もBindingの参照IDを保持し、未解決のID参照にはパラメータの既定値を使う。式で参照名が見つからない場合は式エラーになる。Undoで同じID・参照名を復元すると再び解決される。
 
 ## Other
 

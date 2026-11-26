@@ -15,12 +15,12 @@ export function createTimelineContainerLayer<Type extends TimelineContainerLayer
 	let layer: TimelineContainerLayer;
 	switch (type) {
 		case 'folder': layer = { ...identity, layerType: 'folder' }; break;
-		case 'parameterContainer': layer = { ...identity, layerType: 'parameterContainer', curveAnimations: [] }; break;
-		case 'transform': layer = { ...identity, layerType: 'transform', curveAnimations: [], forceDisableMotionBlur: false, transformParamValues: createTimelineTransformParameterValues() }; break;
+		case 'parameterContainer': layer = { ...identity, layerType: 'parameterContainer', functionCurves: [] }; break;
+		case 'transform': layer = { ...identity, layerType: 'transform', functionCurves: [], forceDisableMotionBlur: false, transformParamValues: createTimelineTransformParameterValues() }; break;
 		case 'group': layer = {
 			...identity,
 			layerType: 'group',
-			curveAnimations: [],
+			functionCurves: [],
 			forceDisableMotionBlur: false,
 			compositingMode: 'flat',
 			coordinateSpace: 'screen',
@@ -53,7 +53,7 @@ export function convertTimelineContainerLayer(layer: TimelineContainerLayer, tar
 	converted.isSolo = layer.isSolo;
 	converted.layers = layer.layers;
 	if (hasTimelineLayerParameters(layer) && hasTimelineLayerParameters(converted)) {
-		converted.curveAnimations = deepClone(layer.curveAnimations);
+		converted.functionCurves = deepClone(layer.functionCurves);
 		if (layer.publicParameterDefs != null) converted.publicParameterDefs = deepClone(layer.publicParameterDefs);
 		if (layer.publicParameterValues != null) converted.publicParameterValues = deepClone(layer.publicParameterValues);
 	}

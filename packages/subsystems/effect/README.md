@@ -36,7 +36,7 @@ instance.render(frame, commandEncoder);
 
 ## 値・寸法・外部入力
 
-- Nodes Effect の `PUBLIC(name)` は自身の公開CPUパラメータを、`CUSTOM(name)` は自身の内部パラメータを、`CURVE_ANIMATION(name, x, wrap)` は自身の Curve Animation を参照する。内部値は参照されたフレーム内で一度評価する。入れ子のノードに渡す引数のBindingは親グラフに属する。Relay は初期化時に入力のポートへ解決する。
+- Nodes Effect の `PUBLIC(name)` は自身の公開CPUパラメータを、`CUSTOM(name)` は自身の内部パラメータを、`FUNCTION_CURVE(nameForReference, x, wrapMode)` は自身の Function Curve を参照する。内部値は参照されたフレーム内で一度評価する。入れ子のノードに渡す引数のBindingは親グラフに属する。Relay は初期化時に入力のポートへ解決する。
 - `time` と `endTime` は秒、`timeDelta` とキー・Curve Animationの時間軸はミリ秒。`endTime` 省略時は無限の再生区間とする。ポインターの位置・移動量は配置の基準領域の長辺を1とする座標で渡す。各ノードでは描画解像度の縦横比へ換算した値を描画と式評価で共有する。
 - 配置には基準寸法 `resolution`、全体倍率 `resolutionScale`、解像度指定 `resolutionSetting` を渡せる。ルートは既定でcontext、内部ノードはauto。autoは素材原寸、指定入力の最大画素数の寸法、親の順で選ぶ。上流の計画寸法には全体倍率が適用済みで、各配置では自身の倍率だけを掛ける。
 - `resources` に素材メタデータと画像テクスチャを渡す。Native Effectは初期化時に解決済みの画像やファイルの読み取り口を借用する。音声は配置側から通常の入力として`AudioInput`を渡す。素材の選択や寸法を変えた場合は配置を再生成する。

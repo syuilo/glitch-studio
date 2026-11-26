@@ -10,7 +10,7 @@ import { adjustExportResolution, scaleExportResolution } from './export-settings
 import { prepareStillWebp } from './still-webp.ts';
 import { encodeStillOpenExr } from './still-openexr.ts';
 import { renderExportFrames, validateExportSettings } from './timeline-export.ts';
-import { getTimelineScenesWithProjectCurveAnimations } from '@gs/glitch-studio_shared/project/curve-animations.ts';
+import { getTimelineScenesWithProjectFunctionCurves } from '@gs/glitch-studio_shared/project/function-curves.ts';
 import { getExportAudioClips } from './audio-export-settings.ts';
 import { TimelineAudioExport } from './timeline-audio-export.ts';
 import type { ExportRequest, ExportResponse, ExportChunkAcknowledgement } from './types.ts';
@@ -75,7 +75,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest | ExportChunkAcknowled
 		if (gpuValidationError != null) throw new Error(gpuValidationError);
 		const canvas = new OffscreenCanvas(settings.width, settings.height);
 		if (settings.format === 'mp4') {
-			const audioClips = getExportAudioClips(getTimelineScenesWithProjectCurveAnimations(project.timelineScenes, project.curveAnimations), project.sceneId, settings, project.generatedSpeech);
+			const audioClips = getExportAudioClips(getTimelineScenesWithProjectFunctionCurves(project.timelineScenes, project.functionCurves), project.sceneId, settings, project.generatedSpeech);
 			writer = await createMp4Writer(canvas, settings, audioClips.length > 0);
 			if (audioClips.length > 0) audio = new TimelineAudioExport(project.assets, audioClips, settings, project.generatedSpeech);
 		}

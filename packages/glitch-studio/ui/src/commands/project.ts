@@ -2,15 +2,15 @@ import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_
 import * as z from 'zod';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
-import { validateProjectCurveAnimationName } from '@gs/glitch-studio_shared/project/curve-animations.ts';
-import { createProjectCurveAnimation } from '../utility/curve-animation.ts';
+import { validateProjectFunctionCurveName } from '@gs/glitch-studio_shared/project/function-curves.ts';
+import { createProjectFunctionCurve } from '../utility/curve-animation.ts';
 import { defineCommand, definePublicCommand, withCommandContract } from './definition.ts';
 import { prepareProjectValueChange } from './prepared-value.ts';
-import { projectResolutionSchema, timelineMotionBlurSettingsSchema, curveAnimationDefinitionSchema } from './project-contract-schemas.ts';
-import { curveAnimationPointSchema } from './parameter-contract-schemas.ts';
+import { projectResolutionSchema, timelineMotionBlurSettingsSchema, functionCurveDefinitionSchema } from './project-contract-schemas.ts';
+import { newFunctionCurveSchema } from './parameter-contract-schemas.ts';
 import type { ExportDialogSettings } from '../export/export-settings.ts';
 import type { ProjectState } from '../Project.ts';
-import type { CurveAnimation, CurveAnimationData } from '@gs/shared/curve-animation/curve-animation.ts';
+import type { SharedFunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 
 function projectTextCommand<Field extends 'name' | 'description' | 'author'>(field: Field, label: string) {
 	return withCommandContract(defineCommand<Record<Field, string>>({
@@ -87,105 +87,87 @@ const setProjectResolution = definePublicCommand({
 	},
 });
 
-function validateCurveAnimationData(data: CurveAnimationData): void {
-	if (typeof data.isNormalized !== 'boolean' || !Array.isArray(data.points)) throw new Error('Invalid Curve Animation data');
-	const ids = new Set<string>();
-	for (const point of data.points) {
-		if (typeof point.id !== 'string' || point.id.length === 0 || ids.has(point.id)) throw new Error('Invalid or duplicate Curve Animation point ID');
-		ids.add(point.id);
-		if (!Number.isFinite(point.x) || !Number.isFinite(point.y)
-			|| !Array.isArray(point.bezierControlPointA) || point.bezierControlPointA.length !== 2 || !point.bezierControlPointA.every(Number.isFinite)
-			|| !Array.isArray(point.bezierControlPointB) || point.bezierControlPointB.length !== 2 || !point.bezierControlPointB.every(Number.isFinite)) {
-			throw new Error('Curve Animation points must contain finite coordinates');
-		}
-	}
-}
-
-function prepareCurveAnimationCreation(state: ProjectState, curveAnimation: CurveAnimation) {
-	validateCurveAnimationData(curveAnimation);
-	validateProjectCurveAnimationName(state.curveAnimations.value, curveAnimation);
-	const saved = deepClone(curveAnimation);
-	return { result: { curveAnimationId: saved.id }, change: {
-		changes: [{ type: 'curveAnimations' as const }],
-		apply: (current: ProjectState) => { current.curveAnimations.value.push(deepClone(saved)); },
-		revert: (current: ProjectState) => { current.curveAnimations.value = current.curveAnimations.value.filter(curveAnimation => curveAnimation.id !== saved.id); },
+function prepareFunctionCurveCreation(state: ProjectState, functionCurve: SharedFunctionCurve) {
+	validateProjectFunctionCurveName(state.functionCurves.value, functionCurve);
+	const saved = deepClone(functionCurve);
+	return { result: { functionCurveId: saved.id }, change: {
+		changes: [{ type: 'functionCurves' as const }],
+		apply: (current: ProjectState) => { current.functionCurves.value.push(deepClone(saved)); },
+		revert: (current: ProjectState) => { current.functionCurves.value = current.functionCurves.value.filter(functionCurve => functionCurve.id !== saved.id); },
 	} };
 }
 
-const createProjectCurveAnimationCommand = definePublicCommand({
-	label: 'Create project Curve Animation',
+const createProjectFunctionCurveCommand = definePublicCommand({
+	label: 'Create project Function Curve',
 	inputSchema: z.object({
-		nameForReference: z.string().nullish().describe('Omit or pass null to generate a unique name based on my_curve_animation.'),
-		data: z.object({ isNormalized: z.boolean(), points: z.array(curveAnimationPointSchema.omit({ id: true })) }).nullish()
-			.describe('Omit or pass null for the default Curve Animation. When isNormalized is true, X is normalized. Otherwise, X is in milliseconds. Point IDs are generated.'),
-	}), resultSchema: z.object({ curveAnimationId: z.string() }),
-	description: 'Create a project Curve Animation and return its reference. The supplied reference name must be valid and unique in the project.',
-	examples: ['let curveAnimation = Command:createProjectCurveAnimation({ nameForReference: "brightness" })\n<: Query:getProjectCurveAnimation(curveAnimation)'],
+		nameForReference: z.string().nullish().describe('Omit or pass null to generate a unique name based on my_function_curve.'),
+		data: newFunctionCurveSchema.nullish().describe('Omit or pass null for the default Bézier Function Curve. Bézier point IDs are generated.'),
+	}), resultSchema: z.object({ functionCurveId: z.string() }),
+	description: 'Create a project Function Curve and return its reference. The supplied reference name must be valid and unique in the project.',
+	examples: ['let functionCurve = Command:createProjectFunctionCurve({ nameForReference: "brightness", data: { type: "smoothPulse" } })\n<: Query:getProjectFunctionCurve(functionCurve)'],
 	prepare(state, input) {
-		const curveAnimation = createProjectCurveAnimation(state.curveAnimations.value);
-		if (input.nameForReference != null) curveAnimation.nameForReference = input.nameForReference;
-		if (input.data != null) {
-			curveAnimation.isNormalized = input.data.isNormalized;
-			curveAnimation.points = input.data.points.map(point => ({ ...deepClone(point), id: genId() }));
-		}
-		return prepareCurveAnimationCreation(state, curveAnimation);
+		const defaultCurve = createProjectFunctionCurve(state.functionCurves.value);
+		const data = input.data;
+		const functionCurve = data == null ? defaultCurve : data.type === 'bezier'
+			? { ...data, points: data.points.map(point => ({ ...point, id: genId() })) }
+			: data;
+		return prepareFunctionCurveCreation(state, { ...functionCurve, id: defaultCurve.id, nameForReference: input.nameForReference ?? defaultCurve.nameForReference });
 	},
 });
 
-const duplicateProjectCurveAnimation = definePublicCommand({
-	label: 'Duplicate project Curve Animation',
-	inputSchema: z.object({ curveAnimationId: z.string().min(1), nameForReference: z.string().nullish() }),
-	resultSchema: z.object({ curveAnimationId: z.string() }),
-	description: 'Duplicate a project Curve Animation and generate new IDs for the copy and all its points. Omit nameForReference or pass null to generate a unique name from the original.',
-	examples: ['let curveAnimation = Command:createProjectCurveAnimation({})\nlet copy = Command:duplicateProjectCurveAnimation(curveAnimation)'],
+const duplicateProjectFunctionCurve = definePublicCommand({
+	label: 'Duplicate project Function Curve',
+	inputSchema: z.object({ functionCurveId: z.string().min(1), nameForReference: z.string().nullish() }),
+	resultSchema: z.object({ functionCurveId: z.string() }),
+	description: 'Duplicate a project Function Curve and generate a new ID for the copy and for any Bézier points. Omit nameForReference or pass null to generate a unique name from the original.',
+	examples: ['let functionCurve = Command:createProjectFunctionCurve({})\nlet copy = Command:duplicateProjectFunctionCurve(functionCurve)'],
 	prepare(state, input) {
-		const source = state.curveAnimations.value.find(curveAnimation => curveAnimation.id === input.curveAnimationId);
-		if (source == null) throw new Error('Curve Animation not found');
-		const definition = createProjectCurveAnimation(state.curveAnimations.value, source);
+		const source = state.functionCurves.value.find(functionCurve => functionCurve.id === input.functionCurveId);
+		if (source == null) throw new Error('Function Curve not found');
+		const definition = createProjectFunctionCurve(state.functionCurves.value, source);
 		if (input.nameForReference != null) definition.nameForReference = input.nameForReference;
-		return prepareCurveAnimationCreation(state, definition);
+		return prepareFunctionCurveCreation(state, definition);
 	},
 });
 
-const replaceProjectCurveAnimation = definePublicCommand({
-	label: 'Replace project Curve Animation',
-	inputSchema: z.object({ curveAnimationId: z.string().min(1), definition: curveAnimationDefinitionSchema }),
+const replaceProjectFunctionCurve = definePublicCommand({
+	label: 'Replace project Function Curve',
+	inputSchema: z.object({ functionCurveId: z.string().min(1), definition: functionCurveDefinitionSchema }),
 	resultSchema: z.null(),
-	description: 'Replace the reference name and curve data of a project Curve Animation while preserving its ID. Supply all curve data and stable point IDs.',
-	examples: ['let curveAnimation = Command:createProjectCurveAnimation({})\nCommand:replaceProjectCurveAnimation({ curveAnimationId: curveAnimation.curveAnimationId, definition: { nameForReference: "empty_curve_animation", isNormalized: true, points: [] } })'],
-	prepare(state, { curveAnimationId, definition }) {
-		const before = state.curveAnimations.value.find(curveAnimation => curveAnimation.id === curveAnimationId);
-		if (before == null) throw new Error('Curve Animation not found');
-		const after = { ...definition, id: curveAnimationId };
-		validateCurveAnimationData(after);
-		validateProjectCurveAnimationName(state.curveAnimations.value, after);
+	description: 'Replace the reference name and curve data of a project Function Curve while preserving its ID. Supply all settings for the curve type. Preserve point IDs when editing Bézier points.',
+	examples: ['let functionCurve = Command:createProjectFunctionCurve({})\nCommand:replaceProjectFunctionCurve({ functionCurveId: functionCurve.functionCurveId, definition: { nameForReference: "empty_function_curve", type: "bezier", isXNormalized: true, isYNormalized: true, points: [] } })'],
+	prepare(state, { functionCurveId, definition }) {
+		const before = state.functionCurves.value.find(functionCurve => functionCurve.id === functionCurveId);
+		if (before == null) throw new Error('Function Curve not found');
+		const after = { ...definition, id: functionCurveId };
+		validateProjectFunctionCurveName(state.functionCurves.value, after);
 		return prepareProjectValueChange({
 			before,
 			after,
-			changes: [{ type: 'curveAnimations' }],
+			changes: [{ type: 'functionCurves' }],
 			result: undefined,
-			write(current, next) { current.curveAnimations.value[current.curveAnimations.value.findIndex(curveAnimation => curveAnimation.id === curveAnimationId)] = next; },
+			write(current, next) { current.functionCurves.value[current.functionCurves.value.findIndex(functionCurve => functionCurve.id === functionCurveId)] = next; },
 		});
 	},
 });
 
-const removeProjectCurveAnimation = definePublicCommand({
-	label: 'Remove project Curve Animation',
-	inputSchema: z.object({ curveAnimationId: z.string().min(1) }),
+const removeProjectFunctionCurve = definePublicCommand({
+	label: 'Remove project Function Curve',
+	inputSchema: z.object({ functionCurveId: z.string().min(1) }),
 	resultSchema: z.null(),
-	description: 'Remove a project Curve Animation. Existing references to its ID become unresolved. Undo restores the Curve Animation and reconnects them.',
-	examples: ['let curveAnimation = Command:createProjectCurveAnimation({})\nCommand:removeProjectCurveAnimation(curveAnimation)'],
-	prepare(state, { curveAnimationId }) {
-		const index = state.curveAnimations.value.findIndex(curveAnimation => curveAnimation.id === curveAnimationId);
-		if (index < 0) throw new Error('Curve Animation not found');
-		const saved = deepClone(state.curveAnimations.value[index]);
+	description: 'Remove a project Function Curve. Existing references to its ID become unresolved. Undo restores the Function Curve and reconnects them.',
+	examples: ['let functionCurve = Command:createProjectFunctionCurve({})\nCommand:removeProjectFunctionCurve(functionCurve)'],
+	prepare(state, { functionCurveId }) {
+		const index = state.functionCurves.value.findIndex(functionCurve => functionCurve.id === functionCurveId);
+		if (index < 0) throw new Error('Function Curve not found');
+		const saved = deepClone(state.functionCurves.value[index]);
 		// 参照IDを残す既存仕様を維持し、Undoで同じ定義へ再接続する。
 		return {
 			result: undefined,
 			change: {
-				changes: [{ type: 'curveAnimations' }],
-				apply: current => { current.curveAnimations.value = current.curveAnimations.value.filter(curveAnimation => curveAnimation.id !== curveAnimationId); },
-				revert: current => { current.curveAnimations.value.splice(index, 0, deepClone(saved)); },
+				changes: [{ type: 'functionCurves' }],
+				apply: current => { current.functionCurves.value = current.functionCurves.value.filter(functionCurve => functionCurve.id !== functionCurveId); },
+				revert: current => { current.functionCurves.value.splice(index, 0, deepClone(saved)); },
 			},
 		};
 	},
@@ -194,7 +176,7 @@ const removeProjectCurveAnimation = definePublicCommand({
 export const PROJECT_COMMAND_DEFS = {
 	setProjectName, setProjectDescription, setProjectAuthor,
 	setProjectResolution, setExportSettings, setTimelineRenderSettings,
-	createProjectCurveAnimation: createProjectCurveAnimationCommand,
-	duplicateProjectCurveAnimation,
-	replaceProjectCurveAnimation, removeProjectCurveAnimation,
+	createProjectFunctionCurve: createProjectFunctionCurveCommand,
+	duplicateProjectFunctionCurve,
+	replaceProjectFunctionCurve, removeProjectFunctionCurve,
 };

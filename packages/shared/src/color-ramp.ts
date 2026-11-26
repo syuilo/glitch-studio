@@ -1,3 +1,4 @@
+import { smoothstep, smootherstep } from './easing.ts';
 import { linearSrgbToOklab, linearSrgbToOklch, linearSrgbToSrgb, OKLCH_POWERLESS_CHROMA, oklabToLinearSrgb, oklchToLinearSrgb, srgbChannelToLinear } from './color-space.ts';
 import type { LinearSrgbColor } from './color-space.ts';
 
@@ -150,10 +151,10 @@ export function evaluatePreparedColorRamp(ramp: PreparedColorRamp, position: num
 	const right = stops[lower];
 	let amount = (position - left.position) / (right.position - left.position);
 	if (ramp.interpolation === 'smoothstep') {
-		amount = amount * amount * (3 - 2 * amount);
+		amount = smoothstep(amount);
 	} else if (ramp.interpolation === 'smootherstep') {
 		// 両端で1階・2階微分が0になる5次式。stop付近をより長く保ち、中央で速く変化させる。
-		amount = amount * amount * amount * (amount * (amount * 6 - 15) + 10);
+		amount = smootherstep(amount);
 	} else if (ramp.interpolation === 'easeIn') {
 		amount = amount * amount;
 	} else if (ramp.interpolation === 'easeOut') {

@@ -42,12 +42,12 @@ function fixture(projectSessionId = 'session') {
 	const makeNode = id => ({ id, type: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])) });
 	const node = makeNode('destination');
 	const upstream = makeNode('upstream');
-	const nodesEffect = { id: 'nodesEffect', definition: testNodesEffect({ customParameterValues: {}, nodes: [node, upstream], curveAnimations: [] }) };
-	const layer = { id: 'effect', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, curveAnimations: [], effectParamValues: {} };
+	const nodesEffect = { id: 'nodesEffect', definition: testNodesEffect({ customParameterValues: {}, nodes: [node, upstream], functionCurves: [] }) };
+	const layer = { id: 'effect', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, functionCurves: [], effectParamValues: {} };
 	const shape = createShapeTimelineLayer('rectangle', 0);
 	shape.id = 'shape';
 	const scene = { id: 'scene', layers: [layer, shape] };
-	const state = { nodesEffects: { value: [nodesEffect] }, timelineScenes: { value: [scene] }, curveAnimations: { value: [] } };
+	const state = { nodesEffects: { value: [nodesEffect] }, timelineScenes: { value: [scene] }, functionCurves: { value: [] } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	const context = { id: 'same-saved-project', isDisposed: false, stateManager: history };
 	const target = { kind: 'node', nodesEffectTarget: { nodesEffectId: nodesEffect.id }, nodeId: node.id, paramPath: ['foo', 'node'] };
@@ -151,9 +151,9 @@ test('round trips complete nested bindings between projects and renews owned IDs
 	fields.x = { inputSource: 'expression', expression: 'TIME / 1000', expressionModifier: { enabled: true, code: 'VALUE * 2' } };
 	fields.y = createInlineKeyframesTimeline(scalarDefinition);
 	fields.y.keyframesTimeline.keyframes[0].x = 123;
-	fields.image = { inputSource: 'curveAnimationInline', ...playback, curveAnimation: { isNormalized: true, points: [
+	fields.image = { inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'inline', curve: { type: 'bezier', isXNormalized: true, isYNormalized: false, points: [
 		{ id: 'point', x: 0, y: 1, bezierControlPointA: [0, 0], bezierControlPointB: [1, 1] },
-	] } };
+	] } }, yRangeMin: null, yRangeMax: null, ...playback } };
 	const clipboard = from.copy(binding, target);
 	fields.x.expression = '999';
 	const update = prepareProjectParameterPaste(to.state, to.projectSessionId, target, clipboard);
@@ -164,7 +164,7 @@ test('round trips complete nested bindings between projects and renews owned IDs
 	assert.equal(copiedFields.y.keyframesTimeline.keyframes[0].x, 123);
 	assert.notEqual(update.after.value[0].id, binding.value[0].id);
 	assert.notEqual(copiedFields.y.keyframesTimeline.keyframes[0].id, fields.y.keyframesTimeline.keyframes[0].id);
-	assert.notEqual(copiedFields.image.curveAnimation.points[0].id, 'point');
+	assert.notEqual(copiedFields.image.curveAnimation.curveBinding.curve.points[0].id, 'point');
 	assert.deepEqual(to.node.params.buzzs, update.before);
 });
 
@@ -220,10 +220,10 @@ test('preserves connections only in their original available Nodes Effect scope'
 // 同じIDが見つかるだけでは別の定義へ接続してしまうため、コピー時の所有先も保持する。
 test('resolves local and project Curve Animation references in their respective scopes', () => {
 	const f = fixture();
-	f.nodesEffect.definition.curveAnimations.push({ id: 'local' });
-	f.state.curveAnimations.value.push({ id: 'projectCurveAnimation' });
-	const local = f.copy({ inputSource: 'curveAnimationReference', curveAnimationId: 'local', ...playback });
-	const project = f.copy({ inputSource: 'curveAnimationReference', curveAnimationId: 'projectCurveAnimation', ...playback });
+	f.nodesEffect.definition.functionCurves.push({ id: 'local' });
+	f.state.functionCurves.value.push({ id: 'projectCurveAnimation' });
+	const local = f.copy({ inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'reference', curveId: 'local' }, yRangeMin: null, yRangeMax: null, ...playback } });
+	const project = f.copy({ inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'reference', curveId: 'projectCurveAnimation' }, yRangeMin: null, yRangeMax: null, ...playback } });
 	assert.ok(prepareProjectParameterPaste(f.state, f.projectSessionId, f.target, local));
 	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, f.timelineTarget, local), null);
 	assert.ok(prepareProjectParameterPaste(f.state, f.projectSessionId, f.timelineTarget, project));
@@ -232,7 +232,7 @@ test('resolves local and project Curve Animation references in their respective 
 	assert.equal(prepareParameterBindingPaste(f.resolve().def, local, previewContext), null);
 	assert.ok(prepareParameterBindingPaste(f.resolve().def, project, previewContext));
 	assert.equal(prepareProjectParameterPaste(f.state, 'other', f.timelineTarget, project), null);
-	f.nodesEffect.definition.curveAnimations = [];
+	f.nodesEffect.definition.functionCurves = [];
 	assert.equal(prepareProjectParameterPaste(f.state, f.projectSessionId, f.target, local), null);
 });
 
@@ -312,7 +312,7 @@ test('copies an unset camera distance using the fixed default', () => {
 	const f = fixture();
 	f.state.resolution = { value: { width: 200, height: 100 } };
 	f.scene.resolution = { mode: 'project' };
-	f.scene.layers.push({ id: 'camera', layerType: 'camera', curveAnimations: [], cameraParamValues: {} });
+	f.scene.layers.push({ id: 'camera', layerType: 'camera', functionCurves: [], cameraParamValues: {} });
 	const resolved = f.resolve({ ...f.timelineTarget, layerId: 'camera', parameterTarget: 'camera', paramPath: ['z'] });
 	assert.equal(resolved.value.value, 0.5 / Math.tan(Math.PI / 8));
 	assert.equal(resolved.before, null);

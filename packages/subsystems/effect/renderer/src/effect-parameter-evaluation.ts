@@ -34,7 +34,7 @@ export function createEffectFrameMapper(root: Resolution, node: Resolution): (fr
 }
 
 /** 名前は配置に固定し、共有値の評価器は編集時に差し替える。動的なCUSTOM呼出しは実際の経路で循環を検出する。 */
-export function createEffectParameterEvaluation(definition: Pick<NodesEffect, 'paramDefs' | 'customParameterDefs' | 'customParameterValues' | 'curveAnimations'>, evaluator: ParameterBindingEvaluator,
+export function createEffectParameterEvaluation(definition: Pick<NodesEffect, 'paramDefs' | 'customParameterDefs' | 'customParameterValues' | 'functionCurves'>, evaluator: ParameterBindingEvaluator,
 	publicReader: (id: string) => ReadFrameValue) {
 	const publicIds = new Map<string, string>();
 	const publicValues = new Map<string, ReadFrameValue>();
@@ -64,7 +64,7 @@ export function createEffectParameterEvaluation(definition: Pick<NodesEffect, 'p
 			else if (selected.inputSource === 'nodesEffectPublicParameterReference') customReaders.set(id, frame => readPublic(selected.parameterId, frame));
 			else if (selected.inputSource === 'nodesEffectCustomParameterValueReference') customReaders.set(id, frame => readCustom(selected.parameterId, frame));
 			else {
-				const read = evaluator.bind(selected, def.defaultValue, def, definition.curveAnimations ?? []);
+				const read = evaluator.bind(selected, def.defaultValue, def, definition.functionCurves ?? []);
 				customReaders.set(id, frame => {
 					if (customScopeFrame !== frame) {
 						customScope = scope(frame);
@@ -107,7 +107,7 @@ export function createEffectParameterEvaluation(definition: Pick<NodesEffect, 'p
 		const time = frame.time * 1000;
 		const endTime = (frame.endTime ?? Infinity) * 1000;
 		return {
-			time, endTime, curveAnimations: definition.curveAnimations ?? [],
+			time, endTime, functionCurves: definition.functionCurves ?? [],
 			variables: {
 				TIME: frame.time, TIME_MS: time, END_TIME: endTime / 1000, END_TIME_MS: endTime,
 				PROGRESS: frame.progress ?? (endTime === 0 ? 0 : time / endTime), IS_EXPORT: frame.isExport ?? false,
@@ -139,7 +139,7 @@ export function createEffectParameterEvaluation(definition: Pick<NodesEffect, 'p
 	}
 
 	return {
-		nodeScope, readCustom, updateCustomParameterValues, curveAnimations: definition.curveAnimations ?? [],
+		nodeScope, readCustom, updateCustomParameterValues, functionCurves: definition.functionCurves ?? [],
 		bindPublicValues() {
 			for (const id of publicIds.values()) publicValues.set(id, publicReader(id));
 		},

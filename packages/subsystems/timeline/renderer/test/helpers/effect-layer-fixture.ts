@@ -8,7 +8,7 @@ export function testEffectLayer(effectSource: TimelineEffectLayer['effectSource'
 	return {
 		layerType: 'effect', effectSource, id: 'layer', name: 'Effect', color: null, isDisabled: false, isSolo: false, clips: [],
 		isIncludedInComposite: true, forceDisableMotionBlur: false, coordinateSpace: 'screen', mask: null, layerMask: null,
-		resolution: { mode: 'auto', scale: 1 }, effectParamValues: {}, effectStaticSettings: {}, curveAnimations: [],
+		resolution: { mode: 'auto', scale: 1 }, effectParamValues: {}, effectStaticSettings: {}, functionCurves: [],
 		compositingParamValues: Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])) as TimelineEffectLayer['compositingParamValues'],
 	};
 }

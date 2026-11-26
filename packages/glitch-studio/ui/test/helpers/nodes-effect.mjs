@@ -3,6 +3,6 @@ export function testNodesEffect(fields = {}) {
 	return {
 		kind: 'modify', paramDefs: {}, primaryInputParameter: null, primaryOutput: 'output', resolutionInputParameters: [],
 		outputDefs: { output: { label: 'Output', dataType: { kind: 'color' } } }, nodes: [], outputSources: {},
-		customParameterDefs: {}, customParameterValues: {}, curveAnimations: [], ...fields,
+		customParameterDefs: {}, customParameterValues: {}, functionCurves: [], ...fields,
 	};
 }

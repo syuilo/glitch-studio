@@ -40,7 +40,7 @@
 				<i v-else-if="paramValue.inputSource === 'lowerLayerAudio'" v-tooltip="i18n.ts._Parameter.LowerLayerAudio" class="ti ti-wave-sine" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'anotherLayerAudio'" v-tooltip="i18n.ts._Parameter.AnotherLayerAudio" class="ti ti-wave-sine" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'keyframesTimelineInline'" v-tooltip="i18n.ts._Parameter.Keyframes" class="ti ti-timeline" :class="$style.typeIcon"></i>
-				<i v-else-if="paramValue.inputSource === 'curveAnimationReference' || paramValue.inputSource === 'curveAnimationInline'" v-tooltip="i18n.ts._Parameter.CurveAnimation" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'curveAnimationInline'" v-tooltip="i18n.ts._Parameter.CurveAnimation" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
 			</div>
 		</div>
 		<div :class="$style.paramBody">
@@ -62,20 +62,75 @@
 						:items="[{ label: i18n.ts.None, value: '' }, ...envVariableItems]"
 						@update:modelValue="value => emit('edit', { kind: 'envVariable', ...target(), value })"
 					/>
-					<div v-else-if="paramValue.inputSource === 'curveAnimationReference' || paramValue.inputSource === 'curveAnimationInline'" style="display: grid; gap: 6px;">
-						<GsButton v-if="paramValue.inputSource === 'curveAnimationReference'" @click="selectCurveAnimation">{{ selectedCurveAnimation?.nameForReference ?? (paramValue.curveAnimationId == null ? i18n.ts.None : i18n.ts._CurveAnimation.MissingCurveAnimation) }}</GsButton>
-						<GsButton v-else @click="inlineCurveAnimationEditorOpen = true">{{ i18n.ts._Parameter.EditCurveAnimation }}</GsButton>
-						<GsButton v-if="selectedProjectCurveAnimation != null" @click="projectCurveAnimationEditorOpen = true">{{ i18n.ts._Parameter.EditCurveAnimation }}</GsButton>
-						<GsSelect v-if="paramValue.inputSource === 'curveAnimationInline'" :modelValue="paramValue.curveAnimation.isNormalized ? 'normalized' : 'milliseconds'" :items="curveAnimationTimeAxisItems" @update:modelValue="value => updateInlineCurveAnimationNormalized(value === 'normalized')">
+					<div v-else-if="paramValue.inputSource === 'curveAnimationInline'" style="display: grid; gap: 6px;">
+						<GsButton @click="selectFunctionCurve">{{ functionCurveLabel }}</GsButton>
+						<GsButton
+							v-if="inlineFunctionCurve != null"
+							data-test-edit-inline-function-curve
+							@click="inlineFunctionCurveEditorOpen = true"
+						>{{ i18n.ts._FunctionCurve.Edit }}</GsButton>
+						<GsButton v-if="selectedProjectFunctionCurve != null" @click="projectFunctionCurveEditorOpen = true">{{ i18n.ts._FunctionCurve.Edit }}</GsButton>
+						<GsSelect
+							v-if="inlineFunctionCurve?.type === 'bezier'"
+							:modelValue="inlineFunctionCurve.isXNormalized ? 'normalized' : 'milliseconds'"
+							:items="curveAnimationTimeAxisItems"
+							@update:modelValue="value => updateInlineCurveAnimationNormalization('x', value === 'normalized')"
+						>
 							<template #label>{{ i18n.ts._Parameter.TimeAxis }}</template>
 						</GsSelect>
-						<GsInput v-if="paramValue.inputSource === 'curveAnimationInline' ? paramValue.curveAnimation.isNormalized : selectedCurveAnimation?.isNormalized" type="number" manualSave :min="1" :modelValue="paramValue.trimmedDurationMs ?? 1000" @update:modelValue="updateCurveAnimationDuration">
+						<GsSelect
+							v-if="inlineFunctionCurve?.type === 'bezier'"
+							:modelValue="inlineFunctionCurve.isYNormalized ? 'normalized' : 'raw'"
+							:items="curveAnimationValueAxisItems"
+							@update:modelValue="value => updateInlineCurveAnimationNormalization('y', value === 'normalized')"
+						>
+							<template #label>{{ i18n.ts._FunctionCurve.YAxis }}</template>
+						</GsSelect>
+						<GsInput
+							v-if="activeFunctionCurve != null && isFunctionCurveXNormalized(activeFunctionCurve)"
+							type="number"
+							manualSave
+							:min="1"
+							:modelValue="paramValue.curveAnimation.trimmedDurationMs ?? 1000"
+							@update:modelValue="updateCurveAnimationDuration"
+						>
 							<template #label>{{ i18n.ts._Parameter.DurationMs }}</template>
 						</GsInput>
-						<GsSelect :modelValue="paramValue.wrapMode" :items="curveAnimationWrapModeItems" @update:modelValue="wrapMode => updateCurveAnimationOptions({ wrapMode })">
+						<template v-if="activeFunctionCurve != null && isFunctionCurveYNormalized(activeFunctionCurve)">
+							<GsInput
+								type="number"
+								manualSave
+								validateNumberBounds
+								:modelValue="paramValue.curveAnimation.yRangeMin ?? DEFAULT_CURVE_ANIMATION_Y_RANGE_MIN"
+								:max="paramValue.curveAnimation.yRangeMax ?? DEFAULT_CURVE_ANIMATION_Y_RANGE_MAX"
+								@update:modelValue="yRangeMin => updateCurveAnimationOptions({ yRangeMin })"
+							>
+								<template #label>{{ i18n.ts._FunctionCurve.YAtZero }}</template>
+							</GsInput>
+							<GsInput
+								type="number"
+								manualSave
+								validateNumberBounds
+								:modelValue="paramValue.curveAnimation.yRangeMax ?? DEFAULT_CURVE_ANIMATION_Y_RANGE_MAX"
+								:min="paramValue.curveAnimation.yRangeMin ?? DEFAULT_CURVE_ANIMATION_Y_RANGE_MIN"
+								@update:modelValue="yRangeMax => updateCurveAnimationOptions({ yRangeMax })"
+							>
+								<template #label>{{ i18n.ts._FunctionCurve.YAtOne }}</template>
+							</GsInput>
+						</template>
+						<GsSelect
+							:modelValue="paramValue.curveAnimation.wrapMode"
+							:items="curveAnimationWrapModeItems"
+							@update:modelValue="wrapMode => updateCurveAnimationOptions({ wrapMode })"
+						>
 							<template #label>{{ i18n.ts._Parameter.WrapMode }}</template>
 						</GsSelect>
-						<GsSelect v-if="curveAnimationEndEnabled !== false" :modelValue="paramValue.offsetMode" :items="curveAnimationOffsetModeItems" @update:modelValue="offsetMode => updateCurveAnimationOptions({ offsetMode })">
+						<GsSelect
+							v-if="curveAnimationEndEnabled !== false"
+							:modelValue="paramValue.curveAnimation.offsetMode"
+							:items="curveAnimationOffsetModeItems"
+							@update:modelValue="offsetMode => updateCurveAnimationOptions({ offsetMode })"
+						>
 							<template #label>{{ i18n.ts._Parameter.Offset }}</template>
 						</GsSelect>
 					</div>
@@ -164,19 +219,20 @@
 		</GsTextarea>
 	</div>
 	<Teleport to="body">
-		<GsCurveAnimationPointsEditorWindow
-			v-if="projectCurveAnimationEditorOpen && selectedProjectCurveAnimation != null"
-			:curveAnimation="selectedProjectCurveAnimation"
-			:title="i18n.ts._CurveAnimation.ProjectCurveAnimations + ': ' + selectedProjectCurveAnimation.nameForReference"
-			@change="updateProjectCurveAnimationPoints"
-			@closed="projectCurveAnimationEditorOpen = false"
+		<GsFunctionCurveEditorWindow
+			v-if="projectFunctionCurveEditorOpen && selectedProjectFunctionCurve != null"
+			:functionCurve="selectedProjectFunctionCurve"
+			:title="i18n.ts._FunctionCurve.ProjectFunctionCurves + ': ' + selectedProjectFunctionCurve.nameForReference"
+			@change="updateProjectFunctionCurve"
+			@closed="projectFunctionCurveEditorOpen = false"
 		/>
-		<GsCurveAnimationPointsEditorWindow
-			v-if="inlineCurveAnimationEditorOpen && paramValue.inputSource === 'curveAnimationInline'"
-			:curveAnimation="paramValue.curveAnimation"
+		<GsFunctionCurveEditorWindow
+			v-if="inlineFunctionCurveEditorOpen && inlineFunctionCurve != null"
+			data-test-inline-function-curve-editor
+			:functionCurve="inlineFunctionCurve"
 			:title="label ?? paramDef.ui.label"
-			@change="updateInlineCurveAnimationPoints"
-			@closed="inlineCurveAnimationEditorOpen = false"
+			@change="updateInlineFunctionCurve"
+			@closed="inlineFunctionCurveEditorOpen = false"
 		/>
 	</Teleport>
 	<!-- 非表示でも子を保持し、入力途中の内容・子の開閉・プレビューハンドルを失わせない。 -->
@@ -184,8 +240,8 @@
 		<GsVisualParam
 			v-for="(element, index) in arrayValues"
 			:key="element.id"
-			:curveAnimations="curveAnimations"
-			:projectCurveAnimations="projectCurveAnimations"
+			:functionCurves="functionCurves"
+			:projectFunctionCurves="projectFunctionCurves"
 			:availableVariables="availableVariables"
 			:curveAnimationEndEnabled="curveAnimationEndEnabled"
 			:previewParameterGroup="previewParameterGroup"
@@ -212,8 +268,8 @@
 		<GsVisualParam
 			v-for="[key, def] in visibleFields"
 			:key="key"
-			:curveAnimations="curveAnimations"
-			:projectCurveAnimations="projectCurveAnimations"
+			:functionCurves="functionCurves"
+			:projectFunctionCurves="projectFunctionCurves"
 			:availableVariables="availableVariables"
 			:curveAnimationEndEnabled="curveAnimationEndEnabled"
 			:previewParameterGroup="previewParameterGroup"
@@ -245,7 +301,7 @@ import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import GsSelect from './common/GsSelect.vue';
-import GsCurveAnimationPointsEditorWindow from './GsCurveAnimationPointsEditorWindow.vue';
+import GsFunctionCurveEditorWindow from './GsFunctionCurveEditorWindow.vue';
 import type { TimelineLowerLayerOutputBinding, TimelineAnotherLayerOutputBinding, TimelineLayerOutputStage } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 
@@ -275,7 +331,10 @@ import type { Ref } from 'vue';
 import type { NodeOutputReference, NodesEffect, NodesEffectEffectNode } from '@/types/nodes-effect-view.ts';
 import type { ExpressionVariableName } from '@gs/shared/expression/expression-environment.ts';
 import type { ParamPath } from '@/utility/node-params.ts';
-import type { CurveAnimationPlaybackOptions, CurveAnimation, BezierAnchorPoint } from '@gs/shared/curve-animation/curve-animation.ts';
+import { DEFAULT_CURVE_ANIMATION_Y_RANGE_MIN, DEFAULT_CURVE_ANIMATION_Y_RANGE_MAX, isValidCurveAnimationYRange } from '@gs/shared/curve-animation/curve-animation.ts';
+import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
+import { isFunctionCurveXNormalized, isFunctionCurveYNormalized } from '@gs/shared/function-curve/function-curve.ts';
+import type { FunctionCurve, SharedFunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 import type { EditableParameterBinding, ParameterInputSourceEdit, ValueParameterEdit } from '@/types/parameter-edit.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import type { TimelineLayerPublicParameterReferenceBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
@@ -303,8 +362,8 @@ import { getNodeInputSamplingMenuItems } from '@/utility/input-sampling-menu.ts'
 import * as ui from '@/ui.ts';
 import { useProjectSession } from '@/project-session.ts';
 import { preferences } from '@/preferences.ts';
-import { getAvailableCurveAnimations } from '@gs/glitch-studio_shared/project/curve-animations.ts';
-import { setInlineCurveAnimationNormalized } from '@/utility/curve-animation.ts';
+import { getAvailableFunctionCurves } from '@gs/glitch-studio_shared/project/function-curves.ts';
+import { createInlineCurveAnimation, duplicateFunctionCurve, setInlineCurveAnimationXNormalized, setInlineCurveAnimationYNormalized } from '@/utility/curve-animation.ts';
 import { usePreviewParameterHandle } from '@/composables/usePreviewParameterHandle.ts';
 import { isViewport2DParameter } from '@/utility/preview-viewport.ts';
 import { canCreateNamedParameterFromBinding } from '@/utility/named-parameter-creation.ts';
@@ -320,8 +379,8 @@ const connectedParameterPathKeys = inject(connectedNodeParameterPathKeysKey, nul
 const timelineEditor = inject(timelineParameterEditorContextKey, null);
 
 const props = defineProps<{
-	curveAnimations: readonly CurveAnimation[];
-	projectCurveAnimations?: readonly CurveAnimation[];
+	functionCurves: readonly SharedFunctionCurve[];
+	projectFunctionCurves?: readonly SharedFunctionCurve[];
 	availableVariables: readonly ExpressionVariableName[];
 	nodesEffect?: NodesEffect;
 	/** ノードを持たないカスタム値エディタで、内部の参照だけを有効にする。 */
@@ -440,27 +499,42 @@ function updateAnotherLayerAudio(value: string | null) {
 const paramDefs = computed(() => props.nodesEffect?.paramDefs ?? []);
 const nodes = computed(() => props.nodesEffect?.nodes ?? []);
 
-const availableCurveAnimations = computed(() => getAvailableCurveAnimations(props.curveAnimations, props.projectCurveAnimations ?? []));
-const selectedProjectCurveAnimation = computed(() => selectedCurveAnimation.value != null && !props.curveAnimations.some(curveAnimation => curveAnimation.id === selectedCurveAnimation.value?.id)
-	? props.projectCurveAnimations?.find(curveAnimation => curveAnimation.id === selectedCurveAnimation.value?.id) ?? null : null);
-const projectCurveAnimationEditorOpen = ref(false);
-const selectedCurveAnimation = computed(() => {
-	const value = props.paramValue;
-	return value.inputSource === 'curveAnimationReference' ? availableCurveAnimations.value.find(curveAnimation => curveAnimation.id === value.curveAnimationId) : null;
+const availableFunctionCurves = computed(() => getAvailableFunctionCurves(props.functionCurves, props.projectFunctionCurves ?? []));
+const curveBinding = computed(() => props.paramValue.inputSource === 'curveAnimationInline' ? props.paramValue.curveAnimation.curveBinding : null);
+const inlineFunctionCurve = computed(() => curveBinding.value?.source === 'inline' ? curveBinding.value.curve : null);
+const selectedSharedFunctionCurve = computed(() => {
+	const binding = curveBinding.value;
+	return binding?.source === 'reference' ? availableFunctionCurves.value.find(functionCurve => functionCurve.id === binding.curveId) ?? null : null;
 });
+const activeFunctionCurve = computed(() => inlineFunctionCurve.value ?? selectedSharedFunctionCurve.value);
+const selectedProjectFunctionCurve = computed(() => {
+	const selected = selectedSharedFunctionCurve.value;
+	return selected != null && !props.functionCurves.some(functionCurve => functionCurve.id === selected.id) ? selected : null;
+});
+const functionCurveLabel = computed(() => {
+	const binding = curveBinding.value;
+	if (binding?.source === 'inline') return i18n.ts._FunctionCurve.InlineFunctionCurve;
+	if (binding?.curveId == null) return i18n.ts.None;
+	return selectedSharedFunctionCurve.value?.nameForReference ?? i18n.ts._FunctionCurve.MissingFunctionCurve;
+});
+const projectFunctionCurveEditorOpen = ref(false);
 const curveAnimationTimeAxisItems = [
 	{ label: i18n.ts._Parameter.NormalizedTime, value: 'normalized' },
 	{ label: i18n.ts._Parameter.Milliseconds, value: 'milliseconds' },
+];
+const curveAnimationValueAxisItems = [
+	{ label: i18n.ts._FunctionCurve.Normalized, value: 'normalized' },
+	{ label: i18n.ts._FunctionCurve.Raw, value: 'raw' },
 ];
 const curveAnimationWrapModeItems = [
 	{ label: i18n.ts._WrapModes.clamp, value: 'clamp' },
 	{ label: i18n.ts._WrapModes.repeat, value: 'repeat' },
 	{ label: i18n.ts._WrapModes.repeatMirrored, value: 'repeatMirrored' },
-] satisfies { label: string; value: CurveAnimationPlaybackOptions['wrapMode'] }[];
+] satisfies { label: string; value: CurveAnimation['wrapMode'] }[];
 const curveAnimationOffsetModeItems = [
 	{ label: i18n.ts.Start, value: 'start' },
 	{ label: i18n.ts.End, value: 'end' },
-] satisfies { label: string; value: CurveAnimationPlaybackOptions['offsetMode'] }[];
+] satisfies { label: string; value: CurveAnimation['offsetMode'] }[];
 const envVariableItems = computed(() => props.availableVariables.map(variable => {
 	const label = Object.hasOwn(i18n.ts._EnvVariables, variable)
 		? `${i18n.ts._EnvVariables[variable as keyof typeof i18n.ts._EnvVariables]} (${variable})`
@@ -487,12 +561,20 @@ const nodesEffectCustomParameterValueReferenceItems = computed(() => {
 const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.inputSource === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);
 const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value, paramDefs.value, effectDefinitions.value, nodeConnection.value));
 const controlComponent = useTemplateRef('controlComponent');
-const inlineCurveAnimationEditorOpen = ref(false);
+const inlineFunctionCurveEditorOpen = ref(false);
 
 let mounted = true;
 onBeforeUnmount(() => { mounted = false; });
-watch([() => props.nodesEffect, () => JSON.stringify([props.node?.id, props.paramPath, props.paramValue.inputSource])], () => {
-	inlineCurveAnimationEditorOpen.value = false;
+// 点の保存でもNodes Effectの表示モデルは作り直される。所有者の切り替えは親のkeyに任せ、ここでは編集中のBindingを識別する。
+watch([
+	() => props.node?.id,
+	() => paramPathKey(props.paramPath),
+	() => props.paramValue.inputSource,
+	() => curveBinding.value?.source,
+	() => selectedSharedFunctionCurve.value?.id,
+], () => {
+	inlineFunctionCurveEditorOpen.value = false;
+	projectFunctionCurveEditorOpen.value = false;
 });
 
 function target() {
@@ -538,54 +620,65 @@ function hasExpressionSyntaxError(code: string): boolean {
 	try { return code.trim() === '' || aisParser.parse(code).length === 0; } catch { return true; }
 }
 
-function updateInlineCurveAnimationNormalized(isNormalized: boolean) {
-	if (props.paramValue.inputSource !== 'curveAnimationInline' || props.paramValue.curveAnimation.isNormalized === isNormalized) return;
-	emit('edit', { kind: 'curveAnimationInline', ...target(), value: setInlineCurveAnimationNormalized(props.paramValue, isNormalized) });
+function updateInlineCurveAnimationNormalization(axis: 'x' | 'y', normalized: boolean) {
+	const value = props.paramValue;
+	if (value.inputSource !== 'curveAnimationInline' || value.curveAnimation.curveBinding.source !== 'inline') return;
+	const updated = axis === 'x' ? setInlineCurveAnimationXNormalized(value, normalized) : setInlineCurveAnimationYNormalized(value, normalized);
+	emit('edit', { kind: 'curveAnimationInline', ...target(), value: updated });
 }
 
-function updateCurveAnimationOptions(options: Partial<CurveAnimationPlaybackOptions>) {
-	if (props.paramValue.inputSource === 'curveAnimationInline') {
-		emit('edit', { kind: 'curveAnimationInline', ...target(), value: { ...deepClone(props.paramValue), ...options } });
-		return;
-	}
-	if (props.paramValue.inputSource !== 'curveAnimationReference') return;
-	emit('edit', {
-		kind: 'curveAnimationReference',
-		...target(),
-		value: props.paramValue.curveAnimationId,
-		options,
-	});
+function updateCurveAnimationOptions(options: Partial<CurveAnimation>) {
+	if (props.paramValue.inputSource !== 'curveAnimationInline') return;
+	const curveAnimation = { ...props.paramValue.curveAnimation, ...options };
+	if (!isValidCurveAnimationYRange(curveAnimation)) return;
+	emit('edit', { kind: 'curveAnimationInline', ...target(), value: { ...props.paramValue, curveAnimation } });
 }
 
-function updateInlineCurveAnimationPoints(points: BezierAnchorPoint[], mergeKey: string | null) {
-	if (!mounted || props.paramValue.inputSource !== 'curveAnimationInline') return;
-	emit('edit', {
-		kind: 'curveAnimationInline',
-		...target(),
-		mergeKey,
-		value: { ...deepClone(props.paramValue), curveAnimation: { ...props.paramValue.curveAnimation, points: deepClone(points) } },
-	});
+function updateInlineFunctionCurve(curve: FunctionCurve, mergeKey: string | null) {
+	const value = props.paramValue;
+	if (!mounted || value.inputSource !== 'curveAnimationInline' || value.curveAnimation.curveBinding.source !== 'inline') return;
+	const curveAnimation: CurveAnimation = { ...value.curveAnimation, curveBinding: { source: 'inline', curve: deepClone(curve) } };
+	emit('edit', { kind: 'curveAnimationInline', ...target(), mergeKey: mergeKey ?? undefined, value: { ...value, curveAnimation } });
 }
 
 function updateCurveAnimationDuration(trimmedDurationMs: number) {
 	if (Number.isFinite(trimmedDurationMs) && trimmedDurationMs > 0) updateCurveAnimationOptions({ trimmedDurationMs });
 }
 
-function updateProjectCurveAnimationPoints(points: BezierAnchorPoint[], mergeKey: string | null) {
-	if (selectedProjectCurveAnimation.value != null) projectSession.projectContext.stateManager.commit('replaceProjectCurveAnimation', { curveAnimationId: selectedProjectCurveAnimation.value.id, definition: { ...selectedProjectCurveAnimation.value, points } }, mergeKey);
+function updateProjectFunctionCurve(curve: FunctionCurve, mergeKey: string | null) {
+	const selected = selectedProjectFunctionCurve.value;
+	if (selected == null) return;
+	projectSession.projectContext.stateManager.commit('replaceProjectFunctionCurve', {
+		functionCurveId: selected.id,
+		definition: { ...curve, nameForReference: selected.nameForReference },
+	}, mergeKey);
 }
 
-function selectCurveAnimation(ev: PointerEvent) {
+function useInlineFunctionCurve() {
+	if (inlineFunctionCurve.value != null) return;
+	const selected = selectedSharedFunctionCurve.value;
+	if (selected == null) {
+		updateCurveAnimationOptions({ curveBinding: createInlineCurveAnimation().curveAnimation.curveBinding });
+		return;
+	}
+	const { id, nameForReference, ...curve } = selected;
+	updateCurveAnimationOptions({ curveBinding: { source: 'inline', curve: duplicateFunctionCurve(curve) } });
+}
+
+function selectFunctionCurve(ev: PointerEvent) {
+	const binding = curveBinding.value;
 	ui.popupMenu([
-		{ text: i18n.ts.None, action: () => emit('edit', { kind: 'curveAnimationReference', ...target(), value: null }) },
+		{ text: i18n.ts._FunctionCurve.InlineFunctionCurve, active: binding?.source === 'inline', action: useInlineFunctionCurve },
+		{ text: i18n.ts.None, active: binding?.source === 'reference' && binding.curveId == null, action: () => updateCurveAnimationOptions({ curveBinding: { source: 'reference', curveId: null } }) },
 		...([
-			{ curveAnimations: props.curveAnimations, label: i18n.ts._CurveAnimation.LocalCurveAnimations },
-			{ curveAnimations: props.projectCurveAnimations ?? [], label: i18n.ts._CurveAnimation.ProjectCurveAnimations },
-		]).flatMap<MenuItem>(({ curveAnimations, label }) => curveAnimations.length === 0 ? [] : [
+			{ functionCurves: props.functionCurves, label: i18n.ts._FunctionCurve.LocalFunctionCurves },
+			{ functionCurves: props.projectFunctionCurves ?? [], label: i18n.ts._FunctionCurve.ProjectFunctionCurves },
+		]).flatMap<MenuItem>(({ functionCurves, label }) => functionCurves.length === 0 ? [] : [
 			{ type: 'label', text: label },
-			...curveAnimations.map(curveAnimation => ({
-				text: curveAnimation.nameForReference,
-				action: () => emit('edit', { kind: 'curveAnimationReference', ...target(), value: curveAnimation.id }),
+			...functionCurves.map(functionCurve => ({
+				text: functionCurve.nameForReference,
+				active: binding?.source === 'reference' && binding.curveId === functionCurve.id,
+				action: () => updateCurveAnimationOptions({ curveBinding: { source: 'reference', curveId: functionCurve.id } }),
 			})),
 		]),
 	], ev.currentTarget ?? ev.target);
@@ -594,16 +687,15 @@ function selectCurveAnimation(ev: PointerEvent) {
 function getMenu() {
 	const menuItems: MenuItem[] = [];
 
-	// コンテナ自体は静的な構造を維持し、値の種類を変更できるのは末端だけにする。
-	if (props.paramDef.dataType.kind !== 'array' && props.paramDef.dataType.kind !== 'struct') {
+	// コンテナの構造とFunction Curveの入力方式は固定し、値の編集は専用のコントロールで行う。
+	if (props.paramDef.dataType.kind !== 'array' && props.paramDef.dataType.kind !== 'struct' && props.paramDef.dataType.kind !== 'functionCurve') {
 		const children: MenuItem[] = [];
 		const types: { text: string; inputSource: EditableParameterBinding['inputSource']; icon: string }[] = [
 			{ text: i18n.ts._Parameter.Literal, inputSource: 'literal', icon: 'ti ti-adjustments-horizontal' },
 			{ text: i18n.ts._Parameter.EnvironmentVariable, inputSource: 'envVariable', icon: 'ti ti-variable' },
 			{ text: i18n.ts._Parameter.Expression, inputSource: 'expression', icon: 'ti ti-math-function' },
 			{ text: i18n.ts._Parameter.Keyframes, inputSource: 'keyframesTimelineInline', icon: 'ti ti-timeline' },
-			{ text: i18n.ts._Parameter.CurveAnimationReference, inputSource: 'curveAnimationReference', icon: 'ti ti-ease-in-out-control-points' },
-			{ text: i18n.ts._Parameter.CurveAnimationInline, inputSource: 'curveAnimationInline', icon: 'ti ti-ease-in-out-control-points' },
+			{ text: i18n.ts._Parameter.CurveAnimation, inputSource: 'curveAnimationInline', icon: 'ti ti-ease-in-out-control-points' },
 		];
 		if (props.paramDef.dataType.kind === 'audioSource') {
 			types.splice(1);
@@ -627,7 +719,7 @@ function getMenu() {
 			if (canUseEffectLivePreviewInput(props.paramDef, 'previewInputAudio')) types.push({ text: i18n.ts._EffectPreview.AudioInput, inputSource: 'previewInputAudio', icon: 'ti ti-wave-sine' });
 		}
 		for (const { text, inputSource, icon } of types) {
-			if (props.paramDef.dataType.kind === 'colorRamp' && ['curveAnimationReference', 'curveAnimationInline'].includes(inputSource)) continue;
+			if (props.paramDef.dataType.kind === 'colorRamp' && inputSource === 'curveAnimationInline') continue;
 			if (inputSource === 'keyframesTimelineInline' && (!props.keyframesEnabled || !isKeyframesDataType(props.paramDef.dataType))) continue;
 			children.push({
 				id: `inputSource:${inputSource}`,
@@ -754,8 +846,11 @@ function onRowContextmenu(ev: PointerEvent) {
 	ui.contextMenu(getMenu(), ev);
 }
 
-function updateParamAsLiteral(value: any) {
-	if (mounted) emit('edit', { kind: 'literal', ...target(), value });
+function updateParamAsLiteral(value: any, mergeKey: string | null = null) {
+	if (!mounted) return;
+	const edit: ParamEdit = { kind: 'literal', ...target(), value };
+	if (mergeKey != null) edit.mergeKey = mergeKey;
+	emit('edit', edit);
 }
 
 function updateParamAsExpression(value: string) {

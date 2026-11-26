@@ -2,8 +2,7 @@
 
 const NEWTON_ITER = 4;
 const NEWTON_EPSILON = 0.001;
-const SUBDIV_ITER = 10;
-const SUBDIV_EPSILON = 0.000001;
+const SUBDIV_ITER = 24;
 const TABLE_SIZE = 21;
 
 const cache: number[] = [];
@@ -53,9 +52,10 @@ function subdiv(x: number, a: number, b: number, cps_p0: number, cps_p1: number,
 	for (let i = 0; i < SUBDIV_ITER; i ++) {
 		t = a + (b - a) / 2.0;
 		const candidateX = cubicBezier(t, cps_p0, cps_p1, cps_p2, cps_p3) - x;
-		// eslint-disable-next-line @typescript-eslint/no-unused-expressions
-		(0.0 < candidateX) ? (b = t) : (a = t);
-		if (SUBDIV_EPSILON < Math.abs(candidateX)) break;
+		if (candidateX === 0) break;
+		// 垂直接線付近ではXの誤差が小さくてもYの誤差は大きくなるため、区間幅を詰める。
+		if (candidateX > 0) b = t;
+		else a = t;
 	}
 
 	return t;

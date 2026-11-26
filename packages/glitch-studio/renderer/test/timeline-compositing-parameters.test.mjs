@@ -9,7 +9,7 @@ const { timelineCompositingParamDefs } = await loadShaderSource(fileURLToPath(im
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const context = { mask: null, layerMask: null, coordinateSpace: 'screen', time: 500, endTime: 2000, isExport: false };
-const evaluate = (values, curveAnimations = [], overrides = {}) => new TimelineCompositingParameters().evaluate({ ...context, ...overrides, paramValues: { ...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])), ...values }, curveAnimations: curveAnimations });
+const evaluate = (values, functionCurves = [], overrides = {}) => new TimelineCompositingParameters().evaluate({ ...context, ...overrides, paramValues: { ...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])), ...values }, functionCurves: functionCurves });
 
 // 【マスクの設定はキーや式で変更せず、評価済みスナップショットとして合成へ渡す】
 // 非同期待機中に保存値が編集されても、開始済みの描画のchannelや反転だけが途中で変わらない。
@@ -58,13 +58,16 @@ test('evaluates expressions and environment variables in layer context', () => {
 });
 
 const point = (x, y) => ({ id: `${x}`, x, y, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
-const curveAnimation = { id: 'ramp', nameForReference: 'ramp', isNormalized: true, points: [point(0, 0), point(1, 1)] };
-for (const inputSource of ['curveAnimationInline', 'curveAnimationReference']) {
+const curveAnimation = { id: 'ramp', nameForReference: 'ramp', type: 'bezier', isXNormalized: true, isYNormalized: false, points: [point(0, 0), point(1, 1)] };
+for (const source of ['inline', 'reference']) {
 	// duration・Scene開始基準・wrapを含めて、位置や回転も既存Curve Animationと同じ規約で動かす。
-	test(`evaluates timing and wrapping for ${inputSource}`, () => {
+	test(`evaluates timing and wrapping for ${source}`, () => {
 		const input = {
-			inputSource, curveAnimation: curveAnimation, curveAnimationId: curveAnimation.id,
-			trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'repeatMirrored',
+			inputSource: 'curveAnimationInline',
+			curveAnimation: {
+				curveBinding: source === 'inline' ? { source, curve: curveAnimation } : { source, curveId: curveAnimation.id },
+				trimmedDurationMs: 1000, yRangeMin: null, yRangeMax: null, offsetMode: 'start', wrapMode: 'repeatMirrored',
+			},
 		};
 		const result = evaluate({ opacity: input, rotation: input }, [curveAnimation]);
 		for (const value of [result.opacity, result.rotation]) assert.ok(Math.abs(value - 0.5) < 0.00001);
@@ -72,10 +75,10 @@ for (const inputSource of ['curveAnimationInline', 'curveAnimationReference']) {
 }
 
 // 【Curve AnimationをnameForReferenceで参照し、欠落した参照は既定値へ戻す】
-// CURVE_ANIMATION参照は呼び出し側が渡したレイヤーのCurve Animationを使い、他のスコープのCurve Animationを参照しない。
+// FUNCTION_CURVE参照は呼び出し側が渡したレイヤーのCurve Animationを使い、他のスコープのCurve Animationを参照しない。
 test('reads Curve Animations by nameForReference and falls back for missing Curve Animation references', () => {
-	assert.ok(Math.abs(evaluate({ position: expression('[CURVE_ANIMATION("ramp", 0.25, "clamp"), 0]') }, [curveAnimation]).position[0] - 0.25) < 0.00001);
-	assert.equal(evaluate({ scale: { inputSource: 'curveAnimationReference', curveAnimationId: 'missing' } }).scale[0], 1);
+	assert.ok(Math.abs(evaluate({ position: expression('[FUNCTION_CURVE("ramp", 0.25, "clamp"), 0]') }, [curveAnimation]).position[0] - 0.25) < 0.00001);
+	assert.equal(evaluate({ scale: { inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'reference', curveId: 'missing' }, yRangeMin: null, yRangeMax: null, trimmedDurationMs: null, wrapMode: 'clamp', offsetMode: 'start' } } }).scale[0], 1);
 });
 
 // 不正な型・非有限値をGPUへ流さず、負の倍率は反転、0は透明化のために保持する。
@@ -130,5 +133,5 @@ test('evaluates independent origins and positions without clamping finite coordi
 	assert.deepEqual(result.position, [-4, 5]);
 	assert.deepEqual(evaluate({ origin: literal([Infinity, -2]) }).origin, [0, -2]);
 	assert.deepEqual(evaluate({ origin: literal(['bad', NaN]) }).origin, [0, 0]);
-	assert.deepEqual(evaluate({ origin: { inputSource: 'curveAnimationReference', curveAnimationId: 'missing' } }).origin, [0, 0]);
+	assert.deepEqual(evaluate({ origin: { inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'reference', curveId: 'missing' }, yRangeMin: null, yRangeMax: null, trimmedDurationMs: null, wrapMode: 'clamp', offsetMode: 'start' } } }).origin, [0, 0]);
 });

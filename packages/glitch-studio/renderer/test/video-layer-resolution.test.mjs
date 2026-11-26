@@ -162,7 +162,7 @@ async function timingFixture(t, { enableStats = true, videoLayers = 1, motionBlu
 	const statistics = [];
 	manager.on('ev', event => { if (event.type === 'telemetry') statistics.push(event.ctx); });
 	const videos = Array.from({ length: videoLayers }, (_, index) => ({
-		id: `video-${index}`, name: 'Video', layerType: 'video', isDisabled: false, curveAnimations: [],
+		id: `video-${index}`, name: 'Video', layerType: 'video', isDisabled: false, functionCurves: [],
 		compositingParamValues: {}, audioParamValues: { volume: literal(1) },
 		clips: [{ id: `clip-${index}`, startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000,
 			playbackRate: 1, loop: false, assetId: 'asset', audioEnabled: false, videoEnabled: true }],
@@ -261,7 +261,7 @@ test('discards stale, cancelled and failed preview measurements', async t => {
 // 無効にした配置が動画ソースも合成処理も使わないことを確認する。
 test('does not open video sources or composite audio-only clips in preview or export', async t => {
 	const { manager, calls, device } = await timelineFixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
-	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, curveAnimations: [],
+	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, functionCurves: [],
 		compositingParamValues: {}, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'clip', startMs: 0, durationMs: 3000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: -1, loop: true,
 			assetId: 'asset', audioEnabled: true, videoEnabled: false }] };
@@ -293,7 +293,7 @@ test('does not open video sources or composite audio-only clips in preview or ex
 test('preserves lower layers beneath audio-only replace and mask clips including groups', async t => {
 	const { manager, calls } = await timelineFixture(t);
 	const background = { id: 'background', name: 'Background', layerType: 'video', isDisabled: false,
-		curveAnimations: [], coordinateSpace: 'screen', mask: null, forceDisableMotionBlur: false,
+		functionCurves: [], coordinateSpace: 'screen', mask: null, forceDisableMotionBlur: false,
 		compositingParamValues: { blendMode: literal('replace') }, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'background-clip', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: false,
 			assetId: 'asset', audioEnabled: false, videoEnabled: true }] };
@@ -327,7 +327,7 @@ test('preserves lower layers beneath audio-only replace and mask clips including
 // 無効中もソースを保持したりする回帰を防ぐ。
 test('releases decoded video resources when disabling video and recreates them when enabled', async t => {
 	const { manager, calls } = await timelineFixture(t);
-	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, curveAnimations: [],
+	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, functionCurves: [],
 		compositingParamValues: {}, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'clip', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: false,
 			assetId: 'asset', audioEnabled: true, videoEnabled: true }] };
@@ -366,7 +366,7 @@ for (const reversePlayback of [false, true]) {
 			readSample: time => sample(3840, 2160, time < 0.25 ? 0 : time < 0.75 ? 0.25 : 0.75),
 		});
 		const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false,
-			curveAnimations: [], compositingParamValues: { opacity: { inputSource: 'expression', expression: 'TIME' } }, audioParamValues: { volume: literal(1) },
+			functionCurves: [], compositingParamValues: { opacity: { inputSource: 'expression', expression: 'TIME' } }, audioParamValues: { volume: literal(1) },
 			clips: [{ id: 'clip', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: reversePlayback ? -1 : 1, loop: false, assetId: 'asset', audioEnabled: false, videoEnabled: true }] };
 		await manager.updateDynamicOptions({
 			resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
@@ -397,7 +397,7 @@ for (const reversePlayback of [false, true]) {
 test('holds the same source frame across seeks and export while animating composition', async t => {
 	const { manager, calls } = await timelineFixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
 	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, forceDisableMotionBlur: false,
-		curveAnimations: [], coordinateSpace: 'screen',
+		functionCurves: [], coordinateSpace: 'screen',
 		compositingParamValues: { opacity: { inputSource: 'expression', expression: 'TIME / 10' } }, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'hold', startMs: 1000, durationMs: 10000, sourceTimeMs: 2000.25, assetId: 'asset', audioEnabled: false, videoEnabled: true }] };
 	await manager.updateDynamicOptions({
@@ -425,7 +425,7 @@ test('holds the same source frame across seeks and export while animating compos
 test('uploads frozen video once per source time while compositing every motion blur sample', async t => {
 	const { manager, calls } = await timelineFixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
 	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, forceDisableMotionBlur: true,
-		curveAnimations: [], compositingParamValues: {}, audioParamValues: { volume: literal(1) },
+		functionCurves: [], compositingParamValues: {}, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'clip', startMs: 0, durationMs: 2000, sourceInMs: 0, sourceOutMs: 2000, playbackRate: 1, loop: false, assetId: 'asset', audioEnabled: false, videoEnabled: true }] };
 	await manager.updateDynamicOptions({
 		resolution: { width: 1920, height: 1080 }, resolutionScale: 0.5, sceneId: 'scene',
@@ -452,7 +452,7 @@ test('uploads frozen video once per source time while compositing every motion b
 test('refreshes composition at repeated video times and caches transparent foregrounds', async t => {
 	const { manager, calls, sample } = await timelineFixture(t, { readSample: time => time === 0.6 ? null : sample(3840, 2160) });
 	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, forceDisableMotionBlur: false,
-		curveAnimations: [], compositingParamValues: { opacity: { inputSource: 'expression', expression: 'TIME' } }, audioParamValues: { volume: literal(1) },
+		functionCurves: [], compositingParamValues: { opacity: { inputSource: 'expression', expression: 'TIME' } }, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'clip', startMs: 0, durationMs: 3000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: true, assetId: 'asset', audioEnabled: false, videoEnabled: true }] };
 	await manager.updateDynamicOptions({
 		resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
@@ -471,7 +471,7 @@ test('refreshes composition at repeated video times and caches transparent foreg
 // 実際の差分同期も通し、周期・倍率の編集で素材時刻が変わり、再生成時に方向も反映されることを確認する。
 test('loops decoded video timestamps in preview and export and applies clip edits', async t => {
 	const { manager, calls } = await timelineFixture(t);
-	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, curveAnimations: [], compositingParamValues: {}, audioParamValues: { volume: literal(1) },
+	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, functionCurves: [], compositingParamValues: {}, audioParamValues: { volume: literal(1) },
 		clips: [{ id: 'clip', startMs: 1000, sourceInMs: 2000.25, sourceOutMs: 5000.25, playbackRate: 1, loop: true, durationMs: 8000, assetId: 'asset', audioEnabled: false, videoEnabled: true }] };
 	await manager.updateDynamicOptions({
 		resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
@@ -506,7 +506,7 @@ test('loops decoded video timestamps in preview and export and applies clip edit
 // 通常合成では画面寸法を使い、倍率1の書き出しでは素材の原寸を維持する。
 test('scales video sources once through replace composition and automatic processing', async t => {
 	const { manager, calls } = await timelineFixture(t);
-	const timing = { name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], curveAnimations: [] };
+	const timing = { name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], functionCurves: [] };
 	const video = { ...timing, id: 'video', layerType: 'video', clips: [{ id: 'clip', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: false, assetId: 'asset', audioEnabled: false, videoEnabled: true }], audioParamValues: { volume: literal(1) }, compositingParamValues: { fitMode: { inputSource: 'literal', value: 'cover' } } };
 	const processing = { ...timing, id: 'processing', layerType: 'effect', effectParamValues: {}, effectStaticSettings: {}, resolution: { mode: 'context', scale: 1 },
 		compositingParamValues: { blendMode: literal('replace') },

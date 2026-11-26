@@ -1,10 +1,10 @@
 import type { NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import { createFullscreenEffect } from '../../fullscreen-effect.ts';
 import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
+import { createFunctionCurveBindings } from '@gs/shared/gpu/function-curve.ts';
 import { getSpatialHalfExtent, spatialToNormalizedCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { getSizeReferenceLength } from '@gs/shared/size-reference.ts';
-import { gradientInterpolationParameter } from '../../gradient-interpolation.ts';
-import code, { uniforms as codeUniforms } from './shader.shader.ts?shader';
+import code, { uniforms as codeUniforms } from './shader.wgsl?shader';
 import type definition from './_def_.ts';
 
 const implementation: NativeEffectImplementation<typeof definition.paramDefs> = {
@@ -14,20 +14,24 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
 		const bindGroup = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
-		const vector = context.outputTextures.has('vector');
+		const interpolationCurveBindings = createFunctionCurveBindings(device, 1);
+		const vector = context.outputTextures.get('vector');
 		uniformValues.set({
 			halfExtent: getSpatialHalfExtent(resolution),
 		});
 		return createFullscreenEffect(context, {
-			code,
+			code: interpolationCurveBindings.shaderCode + '\n' + code,
 			inputs,
-			internalLayouts: [layout],
+			internalLayouts: [layout, interpolationCurveBindings.layout],
 			sampling: 'level0',
 			scalarGradients: true,
 			schema: { startPosition: 'scalar', endPosition: 'scalar', startValue: 'scalar', endValue: 'scalar', frequency: 'scalar', phase: 'scalar', skew: 'scalar' },
-			outputPorts: vector ? ['scalar', 'vector'] : ['scalar'],
-			entryPoint: vector ? 'fsWithGradient' : 'fs',
-			constants: { CALCULATE_GRADIENT: Number(vector) },
+			outputPorts: vector == null ? ['scalar'] : ['scalar', 'vector'],
+			entryPoint: vector == null ? 'fs' : 'fsWithGradient',
+			constants: vector == null ? { CALCULATE_GRADIENT: 0 } : {
+				CALCULATE_GRADIENT: 1,
+				MAX_GRADIENT: vector.format === 'rg32float' ? 3.4028234663852886e38 : 65504,
+			},
 			bindResources(pass) {
 				const referenceLength = getSizeReferenceLength(inputs.sizeReference.value, resolution);
 				uniformValues.set({
@@ -37,12 +41,15 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 					angle: inputs.angle.value * (2 * Math.PI), // turnをラジアンへ変換。正の角度で時計回り。
 					clampEdge: inputs.clampEdge.value ? 1 : 0,
 					mirrorRepeat: inputs.mirrorRepeat.value ? 1 : 0,
-					interpolation: gradientInterpolationParameter.dataType.options.indexOf(inputs.interpolation.value),
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				pass.setBindGroup(0, bindGroup);
+				pass.setBindGroup(1, interpolationCurveBindings.update(inputs.interpolation.value));
 			},
-			disposeResources() { uniformBuffer.destroy(); },
+			disposeResources() {
+				uniformBuffer.destroy();
+				interpolationCurveBindings.dispose();
+			},
 		});
 	},
 };

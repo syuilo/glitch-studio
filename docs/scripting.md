@@ -39,6 +39,8 @@ Command:setNodesEffectNodeParameterSource({
 
 ## Command
 
+共有の固定カーブは、たとえば `Command:createProjectFunctionCurve({ nameForReference: "flash", data: { type: "pulse", dutyCycle: 0.25 } })` で作成できます。
+
 編集は`Command:<Command名>({ ...入力... })`で行います。名前・入力・戻り値はUIが利用するCommandと共通です。例えば`Command:createNodesEffect`は`{ nodesEffectId }`を返し、そのまま次のCommandの`nodesEffect`へ渡せます。戻り値のないCommandは`null`を返します。引数オブジェクトは必須なので、既定値だけで作る場合も`Command:createNodesEffect({})`と書きます。
 
 利用可能な名前と説明は実行中のアプリから取得できます。
@@ -51,7 +53,7 @@ Command:setNodesEffectNodeParameterSource({
 
 | 対象 | 主な操作例 | 入力・戻り値の定義 |
 |---|---|---|
-| Project・Curve Animation | `setProjectName`、`setProjectResolution`、`createProjectCurveAnimation` | [project.ts](../packages/glitch-studio/ui/src/commands/project.ts) |
+| Project・Function Curve | `setProjectName`、`setProjectResolution`、`createProjectFunctionCurve`、`duplicateProjectFunctionCurve`、`replaceProjectFunctionCurve`、`removeProjectFunctionCurve` | [project.ts](../packages/glitch-studio/ui/src/commands/project.ts) |
 | Nodes Effect・Node | `createNodesEffect`、`createNodesEffectEffectNode`、`removeNodesEffectNode` | [nodes-effect.ts](../packages/glitch-studio/ui/src/commands/nodes-effect.ts) |
 | Nodes Effectのパラメータ・入出力 | `setNodesEffectNodeParameterSource`、`replaceNodesEffectNodeParameterBinding`、`setNodesEffectOutputConnection` | [nodes-effect-parameters.ts](../packages/glitch-studio/ui/src/commands/nodes-effect-parameters.ts) |
 | Scene・Layer・Clipの作成と素材情報を要する操作 | `createTimelineScene`、`createTimelineLayer`、`createTimelineClip`、`trimTimelineClip` | [timeline-api.ts](../packages/glitch-studio/ui/src/commands/timeline-api.ts)、[timeline-creation.ts](../packages/glitch-studio/ui/src/commands/timeline-creation.ts) |
@@ -117,7 +119,7 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 | `Query:getTimelineClip(target)` | Clip参照 | Clipの保存内容 |
 | `Query:listAssets()` / `Query:getAsset(target)` | 一覧は引数なし／Asset参照 | 素材の名前・寸法・ファイル種別などのメタデータ。バイナリ・サムネイルは含まない |
 | `Query:listEffects()` / `Query:getEffect(target)` | 一覧は引数なし／Effect参照 | Native Effect と登録済みの Custom Shader Effect・Nodes Effect を列挙する。各項目の `target` からパラメータ・静的設定・出力を取得できる |
-| `Query:listProjectCurveAnimations()` / `Query:getProjectCurveAnimation(target)` | 一覧は引数なし／Curve Animation参照 | ProjectのCurve Animation |
+| `Query:listProjectFunctionCurves()` / `Query:getProjectFunctionCurve(target)` | 一覧は引数なし／Function Curve参照 | ProjectのFunction Curve |
 | `Query:listCustomShaderEffects()` / `Query:getCustomShaderEffect(target)` | 一覧は引数なし／Custom Shader Effect参照 | どちらも入力された概要を文字列の `summary` で返す。取得では保存された定義全体を返す |
 
 対象参照の形式は次のとおりです。存在しない対象の取得はエラーになります。
@@ -131,7 +133,7 @@ Queryは呼び出した時点の保存内容を取得します。式やキーフ
 | Layer | `{ sceneId: "...", layerId: "..." }` |
 | Clip | `{ sceneId: "...", layerId: "...", clipId: "..." }` |
 | Asset / Effect | `{ assetId: "..." }` / `{ effectSource: { type: "nativeEffect", id: "fill" } }` など |
-| ProjectのCurve Animation | `{ curveAnimationId: "..." }` |
+| ProjectのFunction Curve | `{ functionCurveId: "..." }` |
 | Custom Shader Effect | `{ customShaderEffectId: "..." }` |
 
 Timelineのパラメータグループは`Query:getTimelineLayerParameters`のキーで確認できます。配置したEffectの引数は3種類とも`effect`、Layer自身に宣言した公開パラメータは`publicParameter`です。Commandの`parameterGroup`にも同じ名前を指定します。

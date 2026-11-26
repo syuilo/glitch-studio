@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
@@ -31,7 +32,7 @@ function fixture(dialog = async () => null) {
 		name: { value: 'Project' }, description: { value: '' }, author: { value: '' },
 		resolution: { value: { width: 1920, height: 1080 } }, timelineFps: { value: 30 },
 		timelineMotionBlur: { value: { enabled: false, shutterAngle: 180, samples: 8 } }, exportSettings: { value: null },
-		curveAnimations: { value: [] }, customShaderEffects: { value: [] }, generatedSpeech: { value: [] },
+		functionCurves: { value: [] }, customShaderEffects: { value: [] }, generatedSpeech: { value: [] },
 		assets: { value: [] }, nodesEffects: { value: [] }, timelineScenes: { value: [] },
 	};
 	const manager = new UndoRedo(state, COMMAND_DEFS);
@@ -46,10 +47,14 @@ function deferred() {
 	return { promise, resolve };
 }
 
-// 【初期サンプルから作成した配線・色と対象IDを一履歴として復元する】
+// 【ドキュメントの例から作成した配線・色と対象IDを一履歴として復元する】
 // 実際のAiScript変換、公開Command、読み取りAPIを通し、Redoでスクリプトを再実行しないことを確認する。
-test('runs the default named Command example and redoes its exact result', async () => {
+test('runs the documented named Command example and redoes its exact result', async () => {
 	const { controller, manager, state, errors } = fixture();
+	const guide = readFileSync(new URL('../../../../docs/scripting.md', import.meta.url), 'utf8');
+	const example = guide.match(/```aiscript\r?\n([\s\S]+?)\r?\n```/)?.[1];
+	assert.ok(example);
+	controller.source.value = example;
 	await controller.run();
 	assert.deepEqual(errors, []);
 	const nodesEffect = structuredClone(state.nodesEffects.value[0]);

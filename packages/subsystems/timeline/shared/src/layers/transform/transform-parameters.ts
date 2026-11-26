@@ -2,13 +2,13 @@ import type { TimelineLayerPublicParameterContext } from '../../public-parameter
 import { TimelineParameterBindingEvaluator } from '../../parameter-binding-evaluator.ts';
 import { createTimelineLayerEvaluationScope } from '../../evaluation-scope.ts';
 import { timelineTransformParamDefs } from './transform.ts';
-import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
+import type { SharedFunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 import type { TimelineTransformParameterValues, EvaluatedTimelineTransform } from './transform.ts';
 
 export class TimelineTransformParameters {
 	private evaluator = new TimelineParameterBindingEvaluator();
-	evaluate(values: TimelineTransformParameterValues, curveAnimations: CurveAnimation[], time: number, isExport: boolean, publicParameters?: TimelineLayerPublicParameterContext | null): EvaluatedTimelineTransform {
-		const scope = createTimelineLayerEvaluationScope({ time, isExport, curveAnimations, publicParameters });
+	evaluate(values: TimelineTransformParameterValues, functionCurves: SharedFunctionCurve[], time: number, isExport: boolean, publicParameters?: TimelineLayerPublicParameterContext | null): EvaluatedTimelineTransform {
+		const scope = createTimelineLayerEvaluationScope({ time, isExport, functionCurves, publicParameters });
 		const read = (key: keyof typeof timelineTransformParamDefs): unknown => this.evaluator.evaluate(values[key], scope, timelineTransformParamDefs[key].defaultValue, timelineTransformParamDefs[key]);
 		const position = read('position');
 		const z = read('z');

@@ -1,63 +1,26 @@
-import { rawBezierEasing } from '../utility/bezier.ts';
-import type { CurveAnimationData, CurveAnimationPlaybackOptions, CurveAnimationWrapMode, BezierAnchorPoint } from './curve-animation.ts';
+import { evaluateFunctionCurve, getFunctionCurveEndX } from '../function-curve/function-curve-evaluator.ts';
+import { isFunctionCurveXNormalized, isFunctionCurveYNormalized } from '../function-curve/function-curve.ts';
+import type { FunctionCurve } from '../function-curve/function-curve.ts';
+import { DEFAULT_CURVE_ANIMATION_Y_RANGE_MIN, DEFAULT_CURVE_ANIMATION_Y_RANGE_MAX } from './curve-animation.ts';
+import type { CurveAnimation } from './curve-animation.ts';
 
-export function evaluateCurveAnimation(curveAnimation: CurveAnimationData, playback: CurveAnimationPlaybackOptions, time: number, endTime: number): number {
+export function evaluateCurveAnimation(curveAnimation: CurveAnimation, curve: FunctionCurve, time: number, endTime: number): number {
 	// 正規化Curve Animationの1をtrimmedDurationMsに対応付ける。未指定・無効なdurationはUIの初期値と同じ1秒にする。
-	const scale = curveAnimation.isNormalized
-		? (playback.trimmedDurationMs != null && Number.isFinite(playback.trimmedDurationMs) && playback.trimmedDurationMs > 0 ? playback.trimmedDurationMs : 1000)
+	const scale = isFunctionCurveXNormalized(curve)
+		? (curveAnimation.trimmedDurationMs != null && Number.isFinite(curveAnimation.trimmedDurationMs) && curveAnimation.trimmedDurationMs > 0 ? curveAnimation.trimmedDurationMs : 1000)
 		: 1;
 	let x = time / scale;
 	// 終了時刻を持たないコンテキストではstartと同じ扱いにし、InfinityによるNaNを避ける。
-	// pointsは編集順で保持されるため、配列末尾ではなく最大のXを終端とする。
-	if (playback.offsetMode === 'end' && Number.isFinite(endTime) && curveAnimation.points.length > 0) {
-		const lastX = curveAnimation.points.reduce((last, point) => Math.max(last, point.x), -Infinity);
-		x = (time - endTime) / scale + lastX;
+	if (curveAnimation.offsetMode === 'end' && Number.isFinite(endTime)) {
+		const endX = getFunctionCurveEndX(curve);
+		if (endX != null) x = (time - endTime) / scale + endX;
 	}
-	return evalCurveAnimationValue(curveAnimation, x, playback.wrapMode);
-}
-
-export function evalCurveAnimationValue(curveAnimation: { points: readonly BezierAnchorPoint[] }, x: number, wrapMode: CurveAnimationWrapMode): number {
-	// 元の配列を変更せずX順に並べる。同じXでは元の順序を保ち、後のポイントを優先する。
-	const points = curveAnimation.points.toSorted((a, b) => a.x - b.x);
-	if (points.length === 0) return 0;
-	const first = points[0];
-	const last = points[points.length - 1];
-	const duration = last.x - first.x;
-	// 1点だけの場合や全点が同じXの場合は、周期を作れないので定数として扱う。
-	if (duration === 0) return last.y;
-
-	switch (wrapMode) {
-		case 'clamp':
-			x = Math.max(first.x, Math.min(last.x, x));
-			break;
-		case 'repeat': {
-			// 負のXでも正の周期内へ折り返す。終端は次の周期の先頭になる。
-			const offset = (x - first.x) % duration;
-			x = first.x + (offset < 0 ? offset + duration : offset);
-			break;
-		}
-		case 'repeatMirrored': {
-			const period = duration * 2;
-			const offset = (x - first.x) % period;
-			const phase = offset < 0 ? offset + period : offset;
-			x = first.x + (phase <= duration ? phase : period - phase);
-			break;
-		}
-	}
-
-	const prevPoint = points.findLast(point => point.x <= x);
-	const nextPoint = points.find(point => point.x > x);
-	if (prevPoint == null) return first.y;
-	if (nextPoint == null || prevPoint.x === x) return prevPoint.y;
-	return rawBezierEasing(
-		prevPoint.x,
-		prevPoint.x + prevPoint.bezierControlPointB[0],
-		nextPoint.x + nextPoint.bezierControlPointA[0],
-		nextPoint.x,
-		prevPoint.y,
-		prevPoint.y + prevPoint.bezierControlPointB[1],
-		nextPoint.y + nextPoint.bezierControlPointA[1],
-		nextPoint.y,
-		x,
-	);
+	const y = evaluateFunctionCurve(curve, x, curveAnimation.wrapMode);
+	if (!isFunctionCurveYNormalized(curve)) return y;
+	const min = curveAnimation.yRangeMin ?? DEFAULT_CURVE_ANIMATION_Y_RANGE_MIN;
+	const max = curveAnimation.yRangeMax ?? DEFAULT_CURVE_ANIMATION_Y_RANGE_MAX;
+	// 正規化Yの0と1を各端点へ写す。Bézierのオーバーシュートも再生結果へ反映する。
+	if (y === 0 || min === max) return min;
+	if (y === 1) return max;
+	return min + y * (max - min);
 }

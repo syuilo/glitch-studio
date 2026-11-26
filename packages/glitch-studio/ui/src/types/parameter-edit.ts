@@ -1,6 +1,5 @@
 import type { EffectLivePreviewMediaBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import type { ValueParameterBinding, ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
-import type { CurveAnimationPlaybackOptions } from '@gs/shared/curve-animation/curve-animation.ts';
 import type { ExpressionVariableName } from '@gs/shared/expression/expression-environment.ts';
 import type { NodesEffectParameterBinding } from '@/types/nodes-effect-view.ts';
 import type { TimelineEffectParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
@@ -32,7 +31,6 @@ export type ValueParameterEdit =
 	| { kind: 'envVariable'; value: ExpressionVariableName }
 	| { kind: 'expression'; value: string }
 	| { kind: 'expressionModifier'; value: ParameterExpressionModifier | null }
-	| { kind: 'curveAnimationReference'; value: string | null; options?: Partial<CurveAnimationPlaybackOptions> }
 	| ParameterInputSourceEdit<ValueParameterBinding['inputSource']>
 	| { kind: 'reset' }
 	| { kind: 'addElement' }

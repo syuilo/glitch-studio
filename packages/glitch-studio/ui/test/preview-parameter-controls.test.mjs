@@ -119,7 +119,7 @@ async function fixture(t, { showGrid = false, viewport = false, viewportParamete
 	});
 	const nodesEffect = { id: 'nodesEffect', name: 'Nodes Effect', definition: testNodesEffect({ nodes: [{ id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, isBypass: false,
 		params: { ...Object.fromEntries(Object.entries(testedEffect.paramDefs).map(([key, definition]) => [key, createDefaultParameterBinding(definition)])), scale: literal([1, 1]) } }] }) };
-	const state = { nodesEffects: ref([nodesEffect]), timelineScenes: ref([]), curveAnimations: ref([]), resolution: ref({ width: 800, height: 400 }) };
+	const state = { nodesEffects: ref([nodesEffect]), timelineScenes: ref([]), functionCurves: ref([]), resolution: ref({ width: 800, height: 400 }) };
 	const manager = new UndoRedo(state, COMMAND_DEFS);
 	const editing = new PreviewParameterEditingController();
 	Object.assign(projectSession, { projectContext: { stateManager: manager }, previewParameterEditing: editing,
@@ -134,7 +134,7 @@ async function fixture(t, { showGrid = false, viewport = false, viewportParamete
 	const app = renderer.createApp({ render: () => h('main', [
 		...(showParameters.value ? Object.entries(testedEffect.paramDefs).filter(([key]) => viewportParameter != null ? key === viewportParameter
 			: !['imageTrapView', 'magneticPendulumView', 'doublePendulumView'].includes(key) && (viewport || !['view', 'otherView'].includes(key))).map(([key, definition]) => h(Parameter, {
-			key, node, curveAnimations: [], availableVariables: [], paramDef: definition, paramValue: node.params[key], paramPath: [key],
+			key, node, functionCurves: [], availableVariables: [], paramDef: definition, paramValue: node.params[key], paramPath: [key],
 			onEdit: edit => commitNodesEffectEdit(manager, { nodesEffectId: nodesEffect.id }, { kind: 'editNodeParam', nodeId: node.id, edit }),
 		})) : []),
 		h(Positions, { canvasRect, showGrid }),

@@ -3,7 +3,7 @@ import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { StaticSettingValues } from '@gs/shared/static-setting.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
-import type { CurveAnimation } from '@gs/shared/curve-animation/curve-animation.ts';
+import type { SharedFunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 import type { DataType, TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { EffectResolution } from './resolution.ts';
 import type { EffectDefinition } from './effect-definition.ts';
@@ -49,7 +49,7 @@ export interface NodesEffect extends EffectDefinition {
 	/** グラフ内の複数のノードで共有するCPU値の定義。Nodes Effectの公開入力とは独立する。 */
 	readonly customParameterDefs?: Readonly<Record<string, ParameterDefinition<CustomParameterType> & { readonly nameForReference: string; readonly canNode?: false }>>;
 	readonly customParameterValues?: Readonly<Record<string, NodesEffectValueBinding>>;
-	readonly curveAnimations?: readonly CurveAnimation[];
+	readonly functionCurves?: readonly SharedFunctionCurve[];
 	readonly nodes: readonly NodesEffectNode[];
 	/** outputDefsのポートIDをキーにする。公開入力からの直結はテクスチャのある配置で出力する。未接続の公開出力にはエントリを持たない。 */
 	readonly outputSources: Readonly<Partial<Record<string, NodesEffectOutputSource>>>;

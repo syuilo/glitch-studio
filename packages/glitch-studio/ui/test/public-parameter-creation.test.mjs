@@ -36,8 +36,8 @@ const { COMMAND_DEFS, UndoRedo, commitNodesEffectEdit, createNamedParameterFromL
 
 function fixture() {
 	const node = { id: 'node', type: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, params: { amount: literal(0.3), weights: createDefaultParameterBinding(array) } };
-	const nodesEffect = { id: 'nodes-effect', definition: testNodesEffect({ customParameterValues: {}, nodes: [node], primaryInputParameter: null, primaryAudioInputParameter: null, curveAnimations: [] }) };
-	const layer = { id: 'layer', name: 'Layer', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, curveAnimations: [], effectParamValues: structuredClone(node.params) };
+	const nodesEffect = { id: 'nodes-effect', definition: testNodesEffect({ customParameterValues: {}, nodes: [node], primaryInputParameter: null, primaryAudioInputParameter: null, functionCurves: [] }) };
+	const layer = { id: 'layer', name: 'Layer', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'test' }, functionCurves: [], effectParamValues: structuredClone(node.params) };
 	const scene = { id: 'scene', resolution: { mode: 'customAbsolute', width: 1600, height: 800 }, layers: [layer] };
 	const state = { nodesEffects: { value: [nodesEffect] }, timelineScenes: { value: [scene] }, resolution: { value: { width: 1600, height: 800 } } };
 	const history = new UndoRedo(state, COMMAND_DEFS);
@@ -253,7 +253,7 @@ for (const scope of ['nodesEffect', 'timeline']) {
 test('promotes an unset inline Nodes Effect argument into its owning timeline layer', () => {
 	const f = fixture();
 	f.nodesEffect.definition.paramDefs = { amount: { ...structuredClone(scalar), nameForReference: 'amount', canNode: false, defaultValue: 0.75 } };
-	f.layer = { id: 'inline', layerType: 'effect', effectSource: { type: 'inlineNodesEffect', nodesEffect: f.nodesEffect.definition }, effectParamValues: {}, curveAnimations: [] };
+	f.layer = { id: 'inline', layerType: 'effect', effectSource: { type: 'inlineNodesEffect', nodesEffect: f.nodesEffect.definition }, effectParamValues: {}, functionCurves: [] };
 	f.scene.layers = [f.layer];
 	const before = structuredClone(f.layer);
 	f.history.commit('createTimelineLayerPublicParameterFromParameter', { sceneId: 'scene', layerId: f.layer.id, parameterGroup: 'effect', parameterPath: ['amount'] });
@@ -275,7 +275,7 @@ test('promotes an unset inline Nodes Effect argument into its owning timeline la
 test('uses the fixed default when promoting an unset camera distance', () => {
 	const f = fixture();
 	f.state.resolution.value = { width: 800, height: 1600 };
-	const layer = { id: 'camera', layerType: 'camera', cameraParamValues: {}, curveAnimations: [] };
+	const layer = { id: 'camera', layerType: 'camera', cameraParamValues: {}, functionCurves: [] };
 	f.scene.layers.push(layer);
 	f.history.commit('createTimelineLayerPublicParameterFromParameter', { sceneId: 'scene', layerId: layer.id, parameterGroup: 'camera', parameterPath: ['z'] });
 	assert.ok(Math.abs(layer.publicParameterDefs[0].defaultValue - 0.5 / Math.tan(Math.PI / 8)) < 1e-10);

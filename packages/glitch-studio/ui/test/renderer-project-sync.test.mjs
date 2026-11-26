@@ -14,11 +14,11 @@ const bundle = await build({
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
 		export { ExpressionEvaluator } from '@gs/shared/expression/expression-evaluator.ts';
 		export { ProjectContext } from './src/Project.ts';
-		export { getAvailableCurveAnimations, getTimelineScenesWithProjectCurveAnimations } from '@gs/glitch-studio_shared/project/curve-animations.ts';
+		export { getAvailableFunctionCurves, getTimelineScenesWithProjectFunctionCurves } from '@gs/glitch-studio_shared/project/function-curves.ts';
 		export { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 		export { TimelineAudioRenderer } from '@gs/subsystems_timeline_audio-renderer/timeline-audio-renderer.ts';
 		export { getSceneAudioClips } from '@gs/subsystems_timeline_shared/scene-audio.ts';
-		export { createProjectCurveAnimation } from './src/utility/curve-animation.ts';
+		export { createProjectFunctionCurve } from './src/utility/curve-animation.ts';
 		export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts';
 		export { RendererProjectSynchronizer } from './src/RendererProjectSynchronizer.ts';
 		export { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
@@ -53,11 +53,11 @@ function fixture(t, count = 1, overrides = {}) {
 		id: 'node-' + i, type: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, pos: { x: 0, y: 0 }, isBypass: false, resolution: { mode: 'auto', scale: 1 },
 		params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])),
 	}));
-	const nodesEffect = { id: 'nodesEffect', name: 'Nodes Effect', definition: testNodesEffect({ customParameterValues: {}, nodes, primaryInputParameter: null, curveAnimations: [] }) };
+	const nodesEffect = { id: 'nodesEffect', name: 'Nodes Effect', definition: testNodesEffect({ customParameterValues: {}, nodes, primaryInputParameter: null, functionCurves: [] }) };
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] };
 	manager.state.nodesEffects.value = [nodesEffect];
 	manager.state.timelineScenes.value = [scene];
-	let replica = structuredClone({ curveAnimations: [], customShaderEffects: [], nodesEffects: [nodesEffect], timelineScenes: [scene] });
+	let replica = structuredClone({ functionCurves: [], customShaderEffects: [], nodesEffects: [nodesEffect], timelineScenes: [scene] });
 	const batches = [], errors = [];
 	const sync = new RendererProjectSynchronizer(manager, {
 		apply: async changes => { batches.push(changes); replica = applyRendererProjectChanges(replica, changes); },
@@ -149,7 +149,7 @@ test('synchronizes custom values without hiding structural edits in the same bat
 	assert.equal(f.replica.nodesEffects[0].definition.customParameterValues[parameterId].expression, 'TIME + 2');
 	f.manager.commit('setNodesEffectNodeParameterSource', { ...nodeParameterTarget({ ...f.target }), source: { inputSource: 'nodesEffectCustomParameterValueReference', parameterId } });
 	await f.sync.flush();
-	const decoded = decodeProjectFile(await encodeProjectFile({ assets: [], generatedSpeech: [], curveAnimations: [],
+	const decoded = decodeProjectFile(await encodeProjectFile({ assets: [], generatedSpeech: [], functionCurves: [],
 		nodesEffects: f.manager.state.nodesEffects.value, timelineScenes: f.manager.state.timelineScenes.value }));
 	assert.deepEqual(decoded.nodesEffects[0].definition.customParameterDefs, f.replica.nodesEffects[0].definition.customParameterDefs);
 	assert.deepEqual(decoded.nodesEffects[0].definition.customParameterValues, f.replica.nodesEffects[0].definition.customParameterValues);
@@ -197,7 +197,7 @@ test('synchronizes motion blur overrides through undo and redo without mutating 
 	const child = createImageLayer('asset', 0);
 	assert.equal(child.forceDisableMotionBlur, false);
 	const group = { id: 'group', name: 'Group', layerType: 'group', layers: [child], isDisabled: false,
-		forceDisableMotionBlur: false, curveAnimations: [], compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
+		forceDisableMotionBlur: false, functionCurves: [], compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
 	f.manager.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [child] } });
 	group.id = f.manager.commit('wrapTimelineLayers', { sceneId: 'scene', layerIds: [child.id], containerType: 'group', name: group.name }).layerId;
 	await f.sync.flush();
@@ -267,7 +267,7 @@ test('creates image effect and inline Nodes Effect layers enabled by default', (
 // 影響せず、クリップ・引数・キーは表示切り替えの前後で保持する必要がある。
 test('synchronizes visibility for every layer type through undo and redo with scene-local targeting', async t => {
 	const f = fixture(t);
-	const base = { id: 'layer', name: 'Layer', isDisabled: false, clips: [], curveAnimations: [] };
+	const base = { id: 'layer', name: 'Layer', isDisabled: false, clips: [], functionCurves: [] };
 	const compositing = { compositingParamValues: {} };
 	const audio = { audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
 	const layers = [
@@ -328,7 +328,7 @@ test('coalesces structural changes without replaying obsolete node updates', asy
 // まだ受信側に存在しない子IDへ先に差分を送ったり、削除済みレイヤーの並びを送ったりしない。
 test('absorbs child edits into newly added scenes and layers', async t => {
 	const f = fixture(t);
-	const inline = { id: 'inline', name: 'Inline', resolution: { mode: 'auto', scale: 1 }, layerType: 'effect', effectSource: { type: 'inlineNodesEffect', nodesEffect: structuredClone(f.replica.nodesEffects[0].definition) }, clips: [], effectParamValues: {}, compositingParamValues: {}, curveAnimations: [] };
+	const inline = { id: 'inline', name: 'Inline', resolution: { mode: 'auto', scale: 1 }, layerType: 'effect', effectSource: { type: 'inlineNodesEffect', nodesEffect: structuredClone(f.replica.nodesEffects[0].definition) }, clips: [], effectParamValues: {}, compositingParamValues: {}, functionCurves: [] };
 	f.manager.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [inline] } });
 	f.manager.commit('setNodesEffectNodeParameterSource', { ...nodeParameterTarget({ sceneId: 'scene', layerId: 'inline', nodeId: 'node-0', paramPath: f.target.paramPath }), source: { inputSource: 'literal', value: 0.3 } });
 	await f.sync.flush();
@@ -346,7 +346,7 @@ test('absorbs child edits into newly added scenes and layers', async t => {
 	assert.deepEqual(f.errors, []);
 });
 
-const group = (id, layers = []) => ({ id, name: id, layerType: 'group', layers, isDisabled: false, curveAnimations: [],
+const group = (id, layers = []) => ({ id, name: id, layerType: 'group', layers, isDisabled: false, functionCurves: [],
 	compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } });
 
 // 【階層変更と同時の子の編集を保持し、削除された子への差分は送らない】
@@ -424,7 +424,7 @@ test('retains layer edit kinds through merged history and simultaneous inline ed
 	const nodesEffect = structuredClone(f.replica.nodesEffects[0]);
 	nodesEffect.definition.paramDefs = { amount: { nameForReference: 'amount', dataType: { kind: 'scalar' },
 		ui: { label: 'Amount', control: { controlType: 'number' } }, canNode: false, defaultValue: 1 } };
-	f.manager.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [{ id: 'inline', name: 'Inline', resolution: { mode: 'auto', scale: 1 }, layerType: 'effect', effectSource: { type: 'inlineNodesEffect', nodesEffect: nodesEffect.definition }, clips: [], effectParamValues: {}, compositingParamValues: {}, curveAnimations: [] }] } });
+	f.manager.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [{ id: 'inline', name: 'Inline', resolution: { mode: 'auto', scale: 1 }, layerType: 'effect', effectSource: { type: 'inlineNodesEffect', nodesEffect: nodesEffect.definition }, clips: [], effectParamValues: {}, compositingParamValues: {}, functionCurves: [] }] } });
 	await f.sync.flush();
 	const target = { sceneId: 'scene', layerId: 'inline', target: 'effect', paramPath: ['amount'] };
 	const edit = value => f.manager.commit('setTimelineLayerParameterSource', { ...timelineParameterTarget({ ...target }), source: { inputSource: 'literal', value: value } }, 'arguments');
@@ -571,12 +571,12 @@ test('synchronizes camera layer edits and undo without replacing other layers', 
 	assert.deepEqual(f.errors, []);
 });
 
-const { getAvailableCurveAnimations, getTimelineScenesWithProjectCurveAnimations, ParameterBindingEvaluator,
-	TimelineAudioRenderer, getSceneAudioClips, createProjectCurveAnimation, encodeProjectFile, decodeProjectFile } = module.exports;
-const sharedCurveAnimation = (id = 'shared', nameForReference = 'Curve', value = null) => ({ id, nameForReference, isNormalized: false,
+const { getAvailableFunctionCurves, getTimelineScenesWithProjectFunctionCurves, ParameterBindingEvaluator,
+	TimelineAudioRenderer, getSceneAudioClips, createProjectFunctionCurve, encodeProjectFile, decodeProjectFile } = module.exports;
+const sharedCurveAnimation = (id = 'shared', nameForReference = 'Curve', value = null) => ({ id, nameForReference, type: 'bezier', isXNormalized: false, isYNormalized: false,
 	points: [0, 1000].map((x, index) => ({ id: id + index, x, y: value ?? index, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] })),
 });
-const curveAnimationReference = id => ({ inputSource: 'curveAnimationReference', curveAnimationId: id, trimmedDurationMs: null, wrapMode: 'clamp', offsetMode: 'start' });
+const functionCurveReference = id => ({ inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'reference', curveId: id }, yRangeMin: null, yRangeMax: null, trimmedDurationMs: null, wrapMode: 'clamp', offsetMode: 'start' } });
 
 // 【共通定義の編集・削除・Undo/Redoと同期・保存は、参照元のIDを維持する】
 // 削除時にBindingをnullへ書き換えるとUndoで再接続できない。曲線変更も最新の定義を送り、
@@ -584,53 +584,53 @@ const curveAnimationReference = id => ({ inputSource: 'curveAnimationReference',
 test('synchronizes and saves shared Curve Animations through editing deletion undo and redo', async t => {
 	const f = fixture(t);
 	const input = sharedCurveAnimation();
-	const { curveAnimationId } = f.manager.commit('createProjectCurveAnimation', { nameForReference: input.nameForReference, data: input });
-	const curveAnimation = JSON.parse(JSON.stringify(f.manager.state.curveAnimations.value.find(candidate => candidate.id === curveAnimationId)));
+	const { functionCurveId } = f.manager.commit('createProjectFunctionCurve', { nameForReference: input.nameForReference, data: input });
+	const curveAnimation = JSON.parse(JSON.stringify(f.manager.state.functionCurves.value.find(candidate => candidate.id === functionCurveId)));
 	const layer = createImageLayer('asset', 0);
-	layer.compositingParamValues.opacity = curveAnimationReference(curveAnimation.id);
+	layer.compositingParamValues.opacity = functionCurveReference(curveAnimation.id);
 	f.manager.state.timelineScenes.value[0].layers.push(layer);
 	await f.sync.flush();
-	assert.deepEqual(f.replica.curveAnimations, [curveAnimation]);
+	assert.deepEqual(f.replica.functionCurves, [curveAnimation]);
 	const renamed = { ...curveAnimation, nameForReference: 'Renamed', points: curveAnimation.points.map(point => ({ ...point, y: 0.25 })) };
-	f.manager.commit('replaceProjectCurveAnimation', { curveAnimationId: (renamed).id, definition: renamed });
+	f.manager.commit('replaceProjectFunctionCurve', { functionCurveId: (renamed).id, definition: renamed });
 	await f.sync.flush();
-	assert.deepEqual(f.replica.curveAnimations, [renamed]);
-	const decoded = decodeProjectFile(await encodeProjectFile({ curveAnimations: f.manager.state.curveAnimations.value,
+	assert.deepEqual(f.replica.functionCurves, [renamed]);
+	const decoded = decodeProjectFile(await encodeProjectFile({ functionCurves: f.manager.state.functionCurves.value,
 		assets: [], generatedSpeech: [], nodesEffects: [], timelineScenes: f.manager.state.timelineScenes.value }));
-	assert.deepEqual(decoded.curveAnimations, [renamed]);
-	assert.equal(decoded.timelineScenes[0].layers[0].compositingParamValues.opacity.curveAnimationId, curveAnimation.id);
-	f.manager.commit('removeProjectCurveAnimation', { curveAnimationId: curveAnimation.id });
+	assert.deepEqual(decoded.functionCurves, [renamed]);
+	assert.equal(decoded.timelineScenes[0].layers[0].compositingParamValues.opacity.curveAnimation.curveBinding.curveId, curveAnimation.id);
+	f.manager.commit('removeProjectFunctionCurve', { functionCurveId: curveAnimation.id });
 	await f.sync.flush();
-	assert.deepEqual(f.replica.curveAnimations, []);
-	assert.equal(f.manager.state.timelineScenes.value[0].layers[0].compositingParamValues.opacity.curveAnimationId, curveAnimation.id);
+	assert.deepEqual(f.replica.functionCurves, []);
+	assert.equal(f.manager.state.timelineScenes.value[0].layers[0].compositingParamValues.opacity.curveAnimation.curveBinding.curveId, curveAnimation.id);
 	f.manager.undo();
 	await f.sync.flush();
-	assert.deepEqual(f.replica.curveAnimations, [renamed]);
+	assert.deepEqual(f.replica.functionCurves, [renamed]);
 	f.manager.redo();
 	await f.sync.flush();
-	assert.deepEqual(f.replica.curveAnimations, []);
+	assert.deepEqual(f.replica.functionCurves, []);
 });
 
 // 【共通定義の参照名はプロジェクト内で一意にし、複製では曲線とIDを独立させる】
-// CURVE_ANIMATION()の解決を登録順に依存させず、失敗したコマンドで一覧の一部だけが変更されないようにする。
+// FUNCTION_CURVE()の解決を登録順に依存させず、失敗したコマンドで一覧の一部だけが変更されないようにする。
 test('validates shared Curve Animation names and creates copies with independent data and IDs', t => {
 	const f = fixture(t);
 	const input = sharedCurveAnimation();
-	const { curveAnimationId } = f.manager.commit('createProjectCurveAnimation', { nameForReference: input.nameForReference, data: input });
-	const curveAnimation = JSON.parse(JSON.stringify(f.manager.state.curveAnimations.value.find(candidate => candidate.id === curveAnimationId)));
+	const { functionCurveId } = f.manager.commit('createProjectFunctionCurve', { nameForReference: input.nameForReference, data: input });
+	const curveAnimation = JSON.parse(JSON.stringify(f.manager.state.functionCurves.value.find(candidate => candidate.id === functionCurveId)));
 	for (const invalid of [{ ...curveAnimation, id: 'other' }, { ...curveAnimation, id: 'empty', nameForReference: '  ' }]) {
-		assert.throws(() => f.manager.commit('createProjectCurveAnimation', { nameForReference: invalid.nameForReference, data: invalid }));
+		assert.throws(() => f.manager.commit('createProjectFunctionCurve', { nameForReference: invalid.nameForReference, data: invalid }));
 	}
-	const { curveAnimationId: copyId } = f.manager.commit('duplicateProjectCurveAnimation', { curveAnimationId: curveAnimation.id });
-	const copy = JSON.parse(JSON.stringify(f.manager.state.curveAnimations.value.find(curveAnimation => curveAnimation.id === copyId)));
+	const { functionCurveId: copyId } = f.manager.commit('duplicateProjectFunctionCurve', { functionCurveId: curveAnimation.id });
+	const copy = JSON.parse(JSON.stringify(f.manager.state.functionCurves.value.find(curveAnimation => curveAnimation.id === copyId)));
 	assert.notEqual(copy.id, curveAnimation.id);
 	assert.notEqual(copy.nameForReference, curveAnimation.nameForReference);
 	assert.notEqual(copy.points[0].id, curveAnimation.points[0].id);
 	copy.points[0].y = 100;
 	assert.equal(curveAnimation.points[0].y, 0);
-	f.manager.commit('replaceProjectCurveAnimation', { curveAnimationId: copy.id, definition: copy });
-	assert.throws(() => f.manager.commit('replaceProjectCurveAnimation', { curveAnimationId: ({ ...copy, nameForReference: curveAnimation.nameForReference }).id, definition: { ...copy, nameForReference: curveAnimation.nameForReference } }));
-	assert.equal(f.manager.state.curveAnimations.value[1].nameForReference, copy.nameForReference);
+	f.manager.commit('replaceProjectFunctionCurve', { functionCurveId: copy.id, definition: copy });
+	assert.throws(() => f.manager.commit('replaceProjectFunctionCurve', { functionCurveId: ({ ...copy, nameForReference: curveAnimation.nameForReference }).id, definition: { ...copy, nameForReference: curveAnimation.nameForReference } }));
+	assert.equal(f.manager.state.functionCurves.value[1].nameForReference, copy.nameForReference);
 });
 
 // 【名前参照はローカル優先でも、ID参照は同名の共通定義を選べる】
@@ -641,12 +641,12 @@ test('prefers local names while resolving shared IDs using the caller clock', ()
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	const global = sharedCurveAnimation();
 	const local = sharedCurveAnimation('local', global.nameForReference, 0.75);
-	const scope = { curveAnimations: getAvailableCurveAnimations([local], [global]), time: 200, endTime: Infinity, variables: {} };
-	assert.equal(evaluator.evaluate({ inputSource: 'expression', expression: 'CURVE_ANIMATION("Curve", 200, "clamp")' }, scope, -1, definition), 0.75);
-	assert.equal(evaluator.evaluate(curveAnimationReference(local.id), scope, -1, definition), 0.75);
-	assert.ok(Math.abs(evaluator.evaluate(curveAnimationReference(global.id), scope, -1, definition) - 0.2) < 1e-8);
-	assert.ok(Math.abs(evaluator.evaluate(curveAnimationReference(global.id), { ...scope, time: 800 }, -1, definition) - 0.8) < 1e-8);
-	assert.equal(evaluator.evaluate(curveAnimationReference('deleted'), scope, 0.4, definition), 0.4);
+	const scope = { functionCurves: getAvailableFunctionCurves([local], [global]), time: 200, endTime: Infinity, variables: {} };
+	assert.equal(evaluator.evaluate({ inputSource: 'expression', expression: 'FUNCTION_CURVE("Curve", 200, "clamp")' }, scope, -1, definition), 0.75);
+	assert.equal(evaluator.evaluate(functionCurveReference(local.id), scope, -1, definition), 0.75);
+	assert.ok(Math.abs(evaluator.evaluate(functionCurveReference(global.id), scope, -1, definition) - 0.2) < 1e-8);
+	assert.ok(Math.abs(evaluator.evaluate(functionCurveReference(global.id), { ...scope, time: 800 }, -1, definition) - 0.8) < 1e-8);
+	assert.equal(evaluator.evaluate(functionCurveReference('deleted'), scope, 0.4, definition), 0.4);
 });
 
 // 【グループ内でも参照元レイヤーだけのローカル定義を使い、Nodes Effect内部へ公開しない】
@@ -654,16 +654,16 @@ test('prefers local names while resolving shared IDs using the caller clock', ()
 // コピーされ、編集の二重管理や持ち出し時の意図しない依存が生じる。
 test('composes timeline evaluation Curve Animations without mutating saved layers or Nodes Effect internals', () => {
 	const global = sharedCurveAnimation();
-	const child = { id: 'child', layerType: 'effect', effectSource: { type: 'inlineNodesEffect', nodesEffect: { curveAnimations: [] } }, curveAnimations: [] };
-	const group = { id: 'group', layerType: 'group', curveAnimations: [sharedCurveAnimation('parent')], layers: [child] };
+	const child = { id: 'child', layerType: 'effect', effectSource: { type: 'inlineNodesEffect', nodesEffect: { functionCurves: [] } }, functionCurves: [] };
+	const group = { id: 'group', layerType: 'group', functionCurves: [sharedCurveAnimation('parent')], layers: [child] };
 	const scenes = [{ id: 'scene', layers: [group] }];
-	const [evaluated] = getTimelineScenesWithProjectCurveAnimations(scenes, [global]);
-	assert.deepEqual(evaluated.layers[0].curveAnimations.map(curveAnimation => curveAnimation.id), ['parent', 'shared']);
-	assert.deepEqual(evaluated.layers[0].layers[0].curveAnimations.map(curveAnimation => curveAnimation.id), ['shared']);
+	const [evaluated] = getTimelineScenesWithProjectFunctionCurves(scenes, [global]);
+	assert.deepEqual(evaluated.layers[0].functionCurves.map(curveAnimation => curveAnimation.id), ['parent', 'shared']);
+	assert.deepEqual(evaluated.layers[0].layers[0].functionCurves.map(curveAnimation => curveAnimation.id), ['shared']);
 	assert.equal(evaluated.layers[0].layers[0].effectSource.nodesEffect, child.effectSource.nodesEffect);
-	assert.deepEqual(child.effectSource.nodesEffect.curveAnimations, []);
-	assert.deepEqual(child.curveAnimations, []);
-	assert.deepEqual(group.curveAnimations.map(curveAnimation => curveAnimation.id), ['parent']);
+	assert.deepEqual(child.effectSource.nodesEffect.functionCurves, []);
+	assert.deepEqual(child.functionCurves, []);
+	assert.deepEqual(group.functionCurves.map(curveAnimation => curveAnimation.id), ['parent']);
 });
 
 // 【音量も映像と同じ候補を使い、子Sceneの配置ではそのSceneの時計で評価する】
@@ -671,12 +671,12 @@ test('composes timeline evaluation Curve Animations without mutating saved layer
 // 実際の音声計画とミキサーを通して、プレビュー・書き出し両方のPCMを確認する。
 test('evaluates shared audio gain in nested scene time during preview and export', async () => {
 	const curveAnimation = sharedCurveAnimation();
-	const audioLayer = { id: 'audio', layerType: 'audio', isDisabled: false, curveAnimations: [],
-		audioParamValues: { volume: curveAnimationReference(curveAnimation.id) }, clips: [{ id: 'audio-clip', assetId: 'sound',
+	const audioLayer = { id: 'audio', layerType: 'audio', isDisabled: false, functionCurves: [],
+		audioParamValues: { volume: functionCurveReference(curveAnimation.id) }, clips: [{ id: 'audio-clip', assetId: 'sound',
 			startMs: 0, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: false, durationMs: 1000 }] };
-	const sceneLayer = { id: 'nested', layerType: 'scene', isDisabled: false, curveAnimations: [], audioParamValues: { volume: { inputSource: 'literal', value: 1 } },
+	const sceneLayer = { id: 'nested', layerType: 'scene', isDisabled: false, functionCurves: [], audioParamValues: { volume: { inputSource: 'literal', value: 1 } },
 		clips: [{ id: 'nested-clip', sceneId: 'child', startMs: 1000, contentOffsetMs: 200, durationMs: 500 }] };
-	const scenes = getTimelineScenesWithProjectCurveAnimations([{ id: 'root', layers: [sceneLayer] }, { id: 'child', layers: [audioLayer] }], [curveAnimation]);
+	const scenes = getTimelineScenesWithProjectFunctionCurves([{ id: 'root', layers: [sceneLayer] }, { id: 'child', layers: [audioLayer] }], [curveAnimation]);
 	const clips = getSceneAudioClips(scenes, 'root');
 	assert.equal(clips.length, 1);
 	const renderer = new TimelineAudioRenderer(async (_source, _time, frames) => [new Float32Array(frames).fill(1), new Float32Array(frames).fill(1)]);

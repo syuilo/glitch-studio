@@ -113,7 +113,7 @@ export async function runCustomShaderEffectTimelineUpdates() {
 		manager.updateDynamicOptions({ resolution, sceneId: 'scene', customShaderEffects: [shader], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{
 			id: 'shader', name: 'Shader', layerType: 'effect', effectSource: shaderSource, effectStaticSettings: {}, transformTarget: 'region', isDisabled: false,
 			isSolo: false, color: null, forceDisableMotionBlur: false, mask: null, layerMask: null, isIncludedInComposite: true, coordinateSpace: 'screen',
-			clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }], resolution: { mode: 'context', scale: 1 }, curveAnimations: [],
+			clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }], resolution: { mode: 'context', scale: 1 }, functionCurves: [],
 			effectParamValues: {}, compositingParamValues: {}, audioParamValues: {},
 		}] }] });
 		await manager.renderTimelineFrame(0, 0);

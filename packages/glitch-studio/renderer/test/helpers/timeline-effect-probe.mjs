@@ -6,7 +6,7 @@ const { createEffectTimelineLayer } = await loadShaderSource(fileURLToPath(impor
 
 /** 実際のTimelineとGraphの境界を通り、末端のNative Effectが受け取った入力とフレームを記録する。 */
 export function createTimelineEffectProbe({ paramDefs = {}, params = {}, primaryInputParameter = null, primaryAudioInputParameter = null,
-	getAudioInput, prepare, render, dispose = () => {}, curveAnimations = [] } = {}) {
+	getAudioInput, prepare, render, dispose = () => {}, functionCurves = [] } = {}) {
 	globalThis.GPUTextureUsage ??= { RENDER_ATTACHMENT: 1, TEXTURE_BINDING: 2 };
 	globalThis.GPUBufferUsage ??= { UNIFORM: 1, COPY_DST: 2 };
 	globalThis.GPUShaderStage ??= { VERTEX: 1, FRAGMENT: 2 };
@@ -19,7 +19,7 @@ export function createTimelineEffectProbe({ paramDefs = {}, params = {}, primary
 			params: Object.fromEntries(Object.keys(paramDefs).map(id => [id, { inputSource: 'nodesEffectPublicParameterReference', parameterId: id }])) }] };
 	const renderer = createEffectTimelineLayer({
 		effectSource: { type: 'inlineNodesEffect', nodesEffect: graph }, effectParamValues: params, effectStaticSettings: {},
-		resolution: { mode: 'context', scale: 1 }, curveAnimations, compositingParamValues: {},
+		resolution: { mode: 'context', scale: 1 }, functionCurves, compositingParamValues: {},
 	}, { sceneBaseResolution: resolution, resolutionScale: 1, getAudioInput,
 		definitions: { getNativeEffect: () => definition }, wgpu: { device, defaultVertexShaderModule: {}, enable32bitDataTextures: false },
 		getNativeEffectImplementation: () => ({ init({ inputs }) { return {

@@ -60,7 +60,7 @@ function fixture(t, fileData = new Blob(['asset'])) {
 		assets: [{ id: 'asset', name: 'Asset', sourceFileName: 'asset.png', width: 1, height: 1, fileDataType: 'image/png', fileData }],
 		nodesEffect: { nodes: [], paramDefs: [{ id: 'speed', nameForReference: 'speed', dataType: { kind: 'scalar' }, canNode: false,
 			ui: { label: 'Speed', control: {} }, defaultValue: 1 }],
-		customParameterDefs: [], customParameterValues: {}, outputDefs: [], curveAnimations: [], primaryInputId: null, primaryOutputId: null },
+		customParameterDefs: [], customParameterValues: {}, outputDefs: [], functionCurves: [], primaryInputId: null, primaryOutputId: null },
 	};
 	let input;
 	const app = renderer.createApp({ render: () => h(Dialog, { prepared, ref: instance => { if (instance != null) input = instance.$.setupState; } }) });

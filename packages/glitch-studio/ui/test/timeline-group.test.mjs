@@ -53,7 +53,7 @@ const literal = value => ({ inputSource: 'literal', value });
 const keys = times => ({ inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
 	keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false,
 		keyframes: times.map(x => ({ id: String(x), x, value: 1, interpolation: { type: 'linear' } })) } });
-const sound = (id, start = 1000) => ({ id, name: id, layerType: 'audio', color: null, isDisabled: false, isSolo: false, curveAnimations: [],
+const sound = (id, start = 1000) => ({ id, name: id, layerType: 'audio', color: null, isDisabled: false, isSolo: false, functionCurves: [],
 	clips: [{ id: 'clip', startMs: start, durationMs: 500, sourceInMs: 12.25, sourceOutMs: 512.25, playbackRate: 1, loop: false, assetId: 'asset' }], audioParamValues: { volume: keys([100, 2000]) } });
 const group = (id, layers = []) => ({ ...createTimelineContainerLayer('group', id, id), layers,
 	compositingParamValues: { opacity: keys([200, 3000]) }, audioParamValues: { volume: literal(0.5) } });
@@ -361,7 +361,7 @@ test('restricts folder capabilities and exposes only forward conversion actions'
 // 【Group変換で生じたカメラの制約違反を診断し、子を削除せずUndoで元へ戻す】
 // 合成境界の追加が既存データを暗黙に変更しないことと、無効な編集状態から修正できることを保証する。
 test('diagnoses camera placement after Group conversion without losing descendants', t => {
-	const camera = { id: 'camera', name: 'Camera', layerType: 'camera', color: null, isDisabled: false, forceDisableMotionBlur: false, curveAnimations: [], cameraParamValues: {}, clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }] };
+	const camera = { id: 'camera', name: 'Camera', layerType: 'camera', color: null, isDisabled: false, forceDisableMotionBlur: false, functionCurves: [], cameraParamValues: {}, clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }] };
 	const folder = { id: 'folder', name: 'Folder', layerType: 'folder', color: null, isDisabled: false, layers: [camera] };
 	const f = fixture(t, [folder]);
 	const validation = observeValidation(f);
@@ -393,7 +393,7 @@ test('keeps selected layers on right click and offers rename only for one layer'
 // グループと子の同時選択や、別々の選択レイヤーを参照するBindingでも、
 // 元の木を変更せずコピー側へ参照を付け替え、Redoで同じIDと配置を再現する。
 test('duplicates selected roots together above their sources with one undo', async t => {
-	const visual = { id: 'visual', name: 'Visual', resolution: { mode: 'auto', scale: 1 }, layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'shared' }, isDisabled: false, curveAnimations: [], clips: [], compositingParamValues: {}, effectParamValues: { audio: { inputSource: 'anotherLayerAudio', layerId: 'audio' } } };
+	const visual = { id: 'visual', name: 'Visual', resolution: { mode: 'auto', scale: 1 }, layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'shared' }, isDisabled: false, functionCurves: [], clips: [], compositingParamValues: {}, effectParamValues: { audio: { inputSource: 'anotherLayerAudio', layerId: 'audio' } } };
 	const f = fixture(t, [group('parent', [sound('audio')]), visual]);
 	f.state.assets.value = [{ id: 'asset', fileDataType: 'audio/wav' }];
 	f.state.nodesEffects.value = [{ id: 'shared', definition: testNodesEffect({ paramDefs: { audio: { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: null } } }) }];
@@ -530,7 +530,7 @@ test('groups, reparents and ungroups atomically with stable child IDs', t => {
 // 【複製内の音声参照は複製先へ、外部参照は元のIDへ向ける】
 // 入れ子のパラメータも対応し、元のグループや共有定義を書き換えない。
 test('remaps internal audio references while preserving external references when duplicating', () => {
-	const original = group('group', [sound('sound'), group('nested', [{ id: 'visual', name: 'Visual', resolution: { mode: 'auto', scale: 1 }, layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'shared' }, isDisabled: false, curveAnimations: [], clips: [], compositingParamValues: {}, effectParamValues: { internal: { inputSource: 'anotherLayerAudio', layerId: 'sound' }, external: { inputSource: 'anotherLayerAudio', layerId: 'outside' },
+	const original = group('group', [sound('sound'), group('nested', [{ id: 'visual', name: 'Visual', resolution: { mode: 'auto', scale: 1 }, layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'shared' }, isDisabled: false, functionCurves: [], clips: [], compositingParamValues: {}, effectParamValues: { internal: { inputSource: 'anotherLayerAudio', layerId: 'sound' }, external: { inputSource: 'anotherLayerAudio', layerId: 'outside' },
 			items: { inputSource: 'array', items: [{ id: 'item', value: { inputSource: 'anotherLayerAudio', layerId: 'group' } }] } } }])]);
 	const before = structuredClone(original);
 	const [copy] = duplicateTimelineLayers([original]);

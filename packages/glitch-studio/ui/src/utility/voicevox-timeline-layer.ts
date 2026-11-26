@@ -15,7 +15,7 @@ export function createVoicevoxTimelineLayer(startMs: number): TimelineVoicevoxLa
 		isDisabled: false,
 		isSolo: false,
 		color: null,
-		curveAnimations: [],
+		functionCurves: [],
 		voicevox: { speedScale: 1 },
 		utterances: [],
 		audioParamValues: { volume: { inputSource: 'literal', value: 1 } },

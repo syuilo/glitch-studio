@@ -26,7 +26,7 @@ InからOutへ繋いだ入力は、中継ノードを経由する場合も、テ
 
 入力方式からの直接アサインは、公開・カスタムの種類とIDで参照します。名前変更でID参照は変わらず、式中の文字列は自動変更しません。削除・型変更後も参照IDを残し、カスタムへの欠落・型違いの直接参照は利用時の描画エラーとして報告します。未選択の直接参照は受け取り側の既定値を使います。型の種類を変更すると所有する値Bindingを外して初期状態へ戻し、Undo/Redoでは定義と値をまとめて復元します。UI・既定値だけの編集では保存値を維持します。
 
-カスタムの環境変数は`TIME`・`TIME_MS`・`END_TIME`・`END_TIME_MS`・`PROGRESS`・`IS_EXPORT`です。キー・Curve Animationも同じNodes Effect内部の時刻を使います。`RESOLUTION`・`ASPECT_RATIO`・`POINTER_POSITION`などノード固有の変数は、式・加工式・環境変数入力のいずれでも利用できません。プロジェクトやTimelineのCurve Animationを暗黙に継承せず、Nodes Effect自身のCurve Animationだけを参照します。
+カスタムの環境変数は`TIME`・`TIME_MS`・`END_TIME`・`END_TIME_MS`・`PROGRESS`・`IS_EXPORT`です。キー・Curve Animationも同じNodes Effect内部の時刻を使います。`RESOLUTION`・`ASPECT_RATIO`・`POINTER_POSITION`などノード固有の変数は、式・加工式・環境変数入力のいずれでも利用できません。Nodes Effect内部では自身のFunction Curveを参照します。
 
 カスタム同士の参照は定義の順序に依存せず、参照されたときに評価します。一回の描画評価内で結果を共有し、別の描画・時刻・利用インスタンスには持ち越しません。参照値はコピーして渡します。未使用の式エラーは描画を止めませんが、実行された参照経路の自己参照・相互参照は`a → b → a`のように経路付きで失敗します。条件分岐の循環も、その分岐が実行された評価で報告します。
 
@@ -37,7 +37,7 @@ InからOutへ繋いだ入力は、中継ノードを経由する場合も、テ
 - `.gsne`はMessagePackで、種別・形式バージョン・Glitch Studioバージョン・表示名・`NodesEffect`本体・依存するAsset原本を保存する。プロジェクト内のNodes Effect IDやAssetの元ファイルパス、Nodes Effect Live Previewの引数、配置先レイヤーの設定・実行時の再生状態は含めない。
 - `glitch-studio/shared/src/nodes-effect-resources.ts`が依存収集を、`glitch-studio/ui/src/nodes-effect-file-codec.ts`がエンコード／デコード・取り込み準備を担当する。Glitch Studioが所属プロジェクトからAssetを収集し、Effect subsystemに必要なリソースを渡す。
 - 依存収集はEffectの`staticSettingDefs`に従って`staticSettings`のAsset IDを調べる。素材参照はBindingや加工式から独立した静的設定として保存する。素材の原本は`Blob`から`Uint8Array`へ変換して保存する。
-- 取り込み時はNodes EffectとAssetに新しいプロジェクト内IDを生成し、素材の参照を書き換える。内部のノード・公開パラメータ・出力・Curve AnimationのIDは、そのNodes Effect内のスコープなので維持する。
+- 取り込み時はNodes EffectとAssetに新しいプロジェクト内IDを生成し、素材の参照を書き換える。内部のノード・公開パラメータ・出力・Function CurveのIDは、そのNodes Effect内のスコープなので維持する。
 - `importNodesEffect` Commandが準備済みのNodes EffectとAssetを一括追加する。Undo/Redoの通知で`nodesEffectRegistration`の追加・削除をNodes Effect Live PreviewとTimelineの両レンダラーへ同期する。Nodes Effect Live Preview中のNodes EffectをUndoで除去した場合はTimeline表示へ戻す。
 
 ## Webへの書き出し

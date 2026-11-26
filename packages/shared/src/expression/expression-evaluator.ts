@@ -17,7 +17,7 @@ function expressionDataToJs(value: AiScript.values.Value | undefined): unknown {
 }
 
 // 解析済みASTだけを再利用し、評価環境は式ごとに独立させる。
-// CURVE_ANIMATIONやPUBLICの意味、利用できる変数・関数はこのエンジンでは決めない。
+// FUNCTION_CURVEやPUBLICの意味、利用できる変数・関数はこのエンジンでは決めない。
 export class ExpressionEvaluator {
 	private parser = new AiScript.Parser();
 	private astCache = new Map<string, AiScript.Ast.Node[]>();

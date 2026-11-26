@@ -117,7 +117,6 @@ const switchNodesEffectNodeParameterInputSource = defineNodeParameterCommand<Nod
 			case 'literal': return createDefaultParameterBinding(parameter.def);
 			case 'expression': return { inputSource: 'expression', expression: AiSON.stringify(parameter.value.inputSource === 'literal' ? parameter.value.value : parameter.def.defaultValue) };
 			case 'envVariable': return { inputSource: 'envVariable', variable: '' };
-			case 'curveAnimationReference': return { inputSource: 'curveAnimationReference', curveAnimationId: null, trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' };
 			case 'curveAnimationInline': return createInlineCurveAnimation();
 			case 'keyframesTimelineInline': return createInlineKeyframesTimeline(parameter.def, parameter.value);
 			case 'nodesEffectPublicParameterReference': return { inputSource: input.inputSource, parameterId: '' };

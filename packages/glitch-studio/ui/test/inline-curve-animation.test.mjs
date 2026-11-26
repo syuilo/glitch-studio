@@ -12,7 +12,7 @@ import { build } from 'esbuild';
 const bundled = await build({
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
 	stdin: {
-		contents: "export * from './src/utility/keyframes-timeline.ts'; export { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts'; export { COMMAND_DEFS } from './src/commands.ts'; export { getTimelineParameterEditBinding } from './src/commands/timeline-parameter-api.ts'; export { createTimelineCommandDefinitions } from './src/commands/timeline-api.ts'; export { createInlineCurveAnimation, setInlineCurveAnimationNormalized } from './src/utility/curve-animation.ts'; export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts'; export { createImageLayer } from './src/utility/image-layer.ts'; export { getLayerParameterTargets } from './src/utility/timeline-scene.ts';",
+		contents: "export * from './src/utility/keyframes-timeline.ts'; export { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts'; export { COMMAND_DEFS } from './src/commands.ts'; export { getTimelineParameterEditBinding } from './src/commands/timeline-parameter-api.ts'; export { createTimelineCommandDefinitions } from './src/commands/timeline-api.ts'; export { createInlineCurveAnimation, setInlineCurveAnimationXNormalized, setInlineCurveAnimationYNormalized } from './src/utility/curve-animation.ts'; export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts'; export { createImageLayer } from './src/utility/image-layer.ts'; export { getLayerParameterTargets } from './src/utility/timeline-scene.ts';",
 		resolveDir: fileURLToPath(new URL('../', import.meta.url)),
 		loader: 'ts',
 	},
@@ -35,7 +35,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { timelineCompositingParamDefs, COMMAND_DEFS, createInlineCurveAnimation, setInlineCurveAnimationNormalized, encodeProjectFile, decodeProjectFile, createImageLayer, getLayerParameterTargets } = module.exports;
+const { timelineCompositingParamDefs, COMMAND_DEFS, createInlineCurveAnimation, setInlineCurveAnimationXNormalized, setInlineCurveAnimationYNormalized, encodeProjectFile, decodeProjectFile, createImageLayer, getLayerParameterTargets } = module.exports;
 
 // UIイベントの変換も実際のBinding Commandを通し、履歴と保存値を検証する。
 const uiParameterEdit = { prepare: (state, input) => COMMAND_DEFS.replaceTimelineLayerParameterBinding.prepare(state, module.exports.getTimelineParameterEditBinding(state, input)) };
@@ -323,7 +323,7 @@ test('rejects invalid image sources and timing without mutating layers', () => {
 // 音声無効化が配置長や音量キーを変更しないこと、範囲外トリムが状態を壊さないことも確認する。
 test('round-trips video settings and undoes trimmed timing and independent audio controls', async () => {
 	const { state } = fixture();
-	const layer = { id: 'video', layerType: 'video', name: 'Layer', clips: [{ id: 'clip', startMs: 10000, sourceInMs: 2000, sourceOutMs: 7000, playbackRate: 1, loop: false, durationMs: 5000, assetId: 'movie', audioEnabled: true, videoEnabled: true }], compositingParamValues: defaultCompositing(), audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, curveAnimations: [] };
+	const layer = { id: 'video', layerType: 'video', name: 'Layer', clips: [{ id: 'clip', startMs: 10000, sourceInMs: 2000, sourceOutMs: 7000, playbackRate: 1, loop: false, durationMs: 5000, assetId: 'movie', audioEnabled: true, videoEnabled: true }], compositingParamValues: defaultCompositing(), audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, functionCurves: [] };
 	const target = { sceneId: 'scene', layerId: 'video', clipId: 'clip' };
 	state.assets = { value: [{ id: 'movie', fileDataType: 'video/mp4', fileData: new Blob() }] };
 	const add = prepareTestCommand(importLayer, { sceneId: 'scene', layer, sourceDurationsMs: { [layer.id]: { clip: 10000 } } });
@@ -351,7 +351,7 @@ test('round-trips video settings and undoes trimmed timing and independent audio
 test('round-trips audio layers and undoes timing, volume and removal', async () => {
 	const { state } = fixture();
 	const layer = { id: 'audio', layerType: 'audio', name: 'Layer', clips: [{ id: 'clip', startMs: 150, sourceInMs: 50, sourceOutMs: 1050, playbackRate: 1, loop: false, durationMs: 1000, assetId: 'sound' }],
-		audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, curveAnimations: [] };
+		audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, functionCurves: [] };
 	state.assets = { value: [{ id: 'sound', fileDataType: 'audio/wav', fileData: new Blob() }] };
 	const add = prepareTestCommand(importLayer, { sceneId: 'scene', layer, sourceDurationsMs: { [layer.id]: { clip: 2000 } } });
 	add.execute(state);
@@ -404,20 +404,26 @@ test('preserves compositing Curve Animations and settings through edits and seri
 		return command;
 	};
 	const input = createInlineCurveAnimation();
-	input.curveAnimation.points[0].y = 0.25;
-	layer.curveAnimations.push({ id: 'curve-animation', nameForReference: 'layer_curve_animation', ...structuredClone(input.curveAnimation) });
+	input.curveAnimation.curveBinding.curve.points[0].y = 0.25;
+	layer.functionCurves.push({ id: 'curve-animation', nameForReference: 'layer_curve_animation', ...structuredClone(input.curveAnimation.curveBinding.curve) });
 	const inline = edit('opacity', { kind: 'curveAnimationInline', value: input });
-	input.curveAnimation.points[0].y = 99;
-	assert.equal(layer.compositingParamValues.opacity.curveAnimation.points[0].y, 0.25);
+	input.curveAnimation.curveBinding.curve.points[0].y = 99;
+	assert.equal(layer.compositingParamValues.opacity.curveAnimation.curveBinding.curve.points[0].y, 0.25);
 	inline.undo(state);
 	assert.deepEqual(layer.compositingParamValues, defaultCompositing());
 	inline.execute(state);
-	edit('rotation', { kind: 'curveAnimationReference', value: 'curve-animation', options: { trimmedDurationMs: 2500, offsetMode: 'start', wrapMode: 'clamp' } });
+	edit('rotation', { kind: 'curveAnimationInline', value: {
+		inputSource: 'curveAnimationInline',
+		curveAnimation: {
+			curveBinding: { source: 'reference', curveId: 'curve-animation' },
+			trimmedDurationMs: 2500, yRangeMin: 10, yRangeMax: 20, offsetMode: 'start', wrapMode: 'clamp',
+		},
+	} });
 	edit('blendMode', { kind: 'literal', value: 'replace' });
 	const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] }], assets: [], nodesEffects: [] })).timelineScenes[0].layers[0];
 	assert.deepEqual(restored.compositingParamValues, layer.compositingParamValues);
-	assert.deepEqual(restored.curveAnimations, layer.curveAnimations);
-	assert.equal(restored.compositingParamValues.rotation.trimmedDurationMs, 2500);
+	assert.deepEqual(restored.functionCurves, layer.functionCurves);
+	assert.equal(restored.compositingParamValues.rotation.curveAnimation.trimmedDurationMs, 2500);
 	const reset = edit('blendMode', { kind: 'reset' });
 	assert.equal(layer.compositingParamValues.blendMode.value, 'normal');
 	reset.undo(state);
@@ -427,30 +433,47 @@ test('preserves compositing Curve Animations and settings through edits and seri
 // 単位切り替えはXと制御点のXだけを変換し、曲線の形・Y・元データを維持する。
 test('converts inline Curve Animation coordinates between normalized and millisecond units', () => {
 	const original = createInlineCurveAnimation();
-	original.trimmedDurationMs = 2500;
-	const ms = setInlineCurveAnimationNormalized(original, false);
-	assert.equal(ms.curveAnimation.isNormalized, false);
-	assert.deepEqual(ms.curveAnimation.points.map(point => point.x), [0, 2500]);
-	assert.deepEqual(ms.curveAnimation.points[0].bezierControlPointB, [1250, 0]);
-	assert.deepEqual(ms.curveAnimation.points[1].bezierControlPointA, [-1250, 0]);
-	assert.deepEqual(setInlineCurveAnimationNormalized(ms, true), original);
-	assert.deepEqual(original.curveAnimation.points.map(point => point.x), [0, 1]);
+	original.curveAnimation.trimmedDurationMs = 2500;
+	const ms = setInlineCurveAnimationXNormalized(original, false);
+	assert.equal(ms.curveAnimation.curveBinding.curve.isXNormalized, false);
+	assert.deepEqual(ms.curveAnimation.curveBinding.curve.points.map(point => point.x), [0, 2500]);
+	assert.deepEqual(ms.curveAnimation.curveBinding.curve.points[0].bezierControlPointB, [1250, 0]);
+	assert.deepEqual(ms.curveAnimation.curveBinding.curve.points[1].bezierControlPointA, [-1250, 0]);
+	assert.deepEqual(setInlineCurveAnimationXNormalized(ms, true), original);
+	assert.deepEqual(original.curveAnimation.curveBinding.curve.points.map(point => point.x), [0, 1]);
 	// ミリ秒単位のCurve Animationの開始時刻が0以外でも、実際の区間を正規化する。
-	for (const point of ms.curveAnimation.points) point.x += 500;
-	const normalized = setInlineCurveAnimationNormalized(ms, true);
-	assert.equal(normalized.trimmedDurationMs, 2500);
-	assert.deepEqual(normalized.curveAnimation.points.map(point => point.x), [0, 1]);
+	for (const point of ms.curveAnimation.curveBinding.curve.points) point.x += 500;
+	const normalized = setInlineCurveAnimationXNormalized(ms, true);
+	assert.equal(normalized.curveAnimation.trimmedDurationMs, 2500);
+	assert.deepEqual(normalized.curveAnimation.curveBinding.curve.points.map(point => point.x), [0, 1]);
 });
 
 // 空・1点のCurve Animationから切り替えても、編集可能な固定端点と有限の座標を用意する。
 test('provides normalized endpoints for empty and single-point inline Curve Animations', () => {
 	for (const empty of [true, false]) {
 		const input = createInlineCurveAnimation();
-		input.curveAnimation.isNormalized = false;
-		input.curveAnimation.points = empty ? [] : [{ ...input.curveAnimation.points[0], x: 300, y: 4 }];
-		const result = setInlineCurveAnimationNormalized(input, true);
-		assert.deepEqual(result.curveAnimation.points.map(point => [point.x, point.y]), empty ? [[0, 0], [1, 0]] : [[0, 4], [1, 4]]);
+		input.curveAnimation.curveBinding.curve.isXNormalized = false;
+		input.curveAnimation.curveBinding.curve.points = empty ? [] : [{ ...input.curveAnimation.curveBinding.curve.points[0], x: 300, y: 4 }];
+		const result = setInlineCurveAnimationXNormalized(input, true);
+		assert.deepEqual(result.curveAnimation.curveBinding.curve.points.map(point => [point.x, point.y]), empty ? [[0, 0], [1, 0]] : [[0, 4], [1, 4]]);
 	}
+});
+
+// 【インラインのY軸の切り替えで出力値とベジェの形を維持する】
+// アンカーのYは端点に写し、相対ハンドルのYは幅だけで変換する。
+test('converts inline Y coordinates and relative handles in both directions', () => {
+	const original = createInlineCurveAnimation();
+	original.curveAnimation.yRangeMin = 10;
+	original.curveAnimation.yRangeMax = 18;
+	const { curve } = original.curveAnimation.curveBinding;
+	curve.points[0].y = -0.5;
+	curve.points[0].bezierControlPointB[1] = 0.25;
+	const raw = setInlineCurveAnimationYNormalized(original, false);
+	const rawCurve = raw.curveAnimation.curveBinding.curve;
+	assert.equal(rawCurve.isYNormalized, false);
+	assert.deepEqual(rawCurve.points.map(point => point.y), [6, 18]);
+	assert.deepEqual(rawCurve.points[0].bezierControlPointB, [0.5, 2]);
+	assert.deepEqual(setInlineCurveAnimationYNormalized(raw, true), original);
 });
 
 function fixture() {
@@ -458,7 +481,7 @@ function fixture() {
 	const node = { id: 'node', type: 'effect', resolution: { mode: 'context', scale: 1 }, staticSettings: {}, effectSource: { type: 'nativeEffect', id: 'test' }, params: { values: { inputSource: 'literal', value: [{ id: 'first', binding: initial }] } } };
 	const state = {
 		nodesEffects: { value: [{ id: 'nodesEffect', definition: testNodesEffect({ customParameterValues: {}, nodes: [node], primaryInputParameter: null, paramDefs: { "gain": { ...keyframeDefinition({ kind: 'scalar' }, initial.value) } } }) }] },
-		timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'nodesEffect' }, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], effectParamValues: {}, compositingParamValues: defaultCompositing(), curveAnimations: [] }] }] },
+		timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'nodesEffect' }, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], effectParamValues: {}, compositingParamValues: defaultCompositing(), functionCurves: [] }] }] },
 	};
 	return { state, node, target: { nodesEffectId: 'nodesEffect', nodeId: 'node', paramPath: ['values', 'first'] } };
 }
@@ -472,8 +495,8 @@ test('restores inline Curve Animation creation in nested node parameters', () =>
 	const created = structuredClone(node.params.values.value[0].binding);
 	assert.equal(node.params.values.value[0].id, 'first');
 	assert.equal(created.inputSource, 'curveAnimationInline');
-	assert.equal(created.curveAnimation.isNormalized, true);
-	assert.deepEqual(created.curveAnimation.points.map(point => point.x), [0, 1]);
+	assert.equal(created.curveAnimation.curveBinding.curve.isXNormalized, true);
+	assert.deepEqual(created.curveAnimation.curveBinding.curve.points.map(point => point.x), [0, 1]);
 	command.undo(state);
 	assert.deepEqual(node.params.values.value[0], { id: 'first', binding: { inputSource: 'literal', value: 3 } });
 	command.execute(state);
@@ -487,17 +510,17 @@ test('restores the first and final snapshots of a merged Curve Animation drag', 
 	prepareTestCommand(COMMAND_DEFS.switchNodesEffectNodeParameterInputSource, { ...nodeParameterTarget({ ...target }), inputSource: 'curveAnimationInline' }).execute(state);
 	const before = structuredClone(node.params.values.value[0].binding);
 	const intermediate = structuredClone(before);
-	intermediate.curveAnimation.points[0].y = 2;
+	intermediate.curveAnimation.curveBinding.curve.points[0].y = 2;
 	const first = prepareTestCommand(COMMAND_DEFS.setNodesEffectNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: intermediate });
 	first.execute(state);
 	const final = structuredClone(intermediate);
-	final.curveAnimation.points[0].y = 4;
-	final.curveAnimation.points[1].bezierControlPointA = [-0.25, 2];
+	final.curveAnimation.curveBinding.curve.points[0].y = 4;
+	final.curveAnimation.curveBinding.curve.points[1].bezierControlPointA = [-0.25, 2];
 	const last = prepareTestCommand(COMMAND_DEFS.setNodesEffectNodeParameterSource, { ...nodeParameterTarget({ ...target }), source: final });
 	last.execute(state);
 	// エディタが次に可変配列を編集しても、履歴のスナップショットは変わらない。
-	intermediate.curveAnimation.points[0].y = 99;
-	node.params.values.value[0].binding.curveAnimation.points[0].y = 100;
+	intermediate.curveAnimation.curveBinding.curve.points[0].y = 99;
+	node.params.values.value[0].binding.curveAnimation.curveBinding.curve.points[0].y = 100;
 	first.undo(state);
 	assert.deepEqual(node.params.values.value[0].binding, before);
 	last.execute(state);
@@ -513,11 +536,11 @@ test('undoes inline Curve Animation edits and creation on timeline layers', () =
 	create.execute(state);
 	const before = structuredClone(layer.effectParamValues.gain);
 	const after = structuredClone(before);
-	after.curveAnimation.isNormalized = false;
-	after.trimmedDurationMs = 2500;
-	after.wrapMode = 'repeatMirrored';
-	after.offsetMode = 'start';
-	after.curveAnimation.points[0].y = -2;
+	after.curveAnimation.curveBinding.curve.isXNormalized = false;
+	after.curveAnimation.trimmedDurationMs = 2500;
+	after.curveAnimation.wrapMode = 'repeatMirrored';
+	after.curveAnimation.offsetMode = 'start';
+	after.curveAnimation.curveBinding.curve.points[0].y = -2;
 	const edit = prepareTestCommand(uiParameterEdit, { sceneId: 'scene', ...target, edit: { kind: 'curveAnimationInline', value: after } });
 	edit.execute(state);
 	assert.deepEqual(layer.effectParamValues.gain, after);
@@ -553,7 +576,7 @@ test('targets scene definitions explicitly across layer parameter undo and redo'
 test('rejects referenced deletion and cyclic placement without mutating scenes', () => {
 	const { state } = fixture();
 	const nested = { id: 'nested', layerType: 'scene', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000, sceneId: 'scene' }],
-		compositingParamValues: defaultCompositing(), audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, curveAnimations: [] };
+		compositingParamValues: defaultCompositing(), audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, functionCurves: [] };
 	const parent = prepareTestCommand(COMMAND_DEFS.createTimelineScene, { name: 'Parent' }).execute(state);
 	prepareTestCommand(importLayer, { sceneId: parent.sceneId, layer: nested }).execute(state);
 	const before = structuredClone(state.timelineScenes.value);
@@ -611,7 +634,7 @@ test('reverses generated trims within a gesture and disallows subsequent left ex
 test('resets a video source within its gap and restores it on undo', () => {
 	const { state } = fixture();
 	state.assets = { value: ['old', 'new'].map(id => ({ id, fileDataType: 'video/mp4', fileData: new Blob() })) };
-	const layer = { id: 'video', name: 'Video', layerType: 'video', curveAnimations: [], compositingParamValues: defaultCompositing(),
+	const layer = { id: 'video', name: 'Video', layerType: 'video', functionCurves: [], compositingParamValues: defaultCompositing(),
 		audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } }, clips: [
 			{ id: 'a', assetId: 'old', audioEnabled: false, videoEnabled: true, startMs: 100, durationMs: 100, sourceInMs: 50, sourceOutMs: 150, playbackRate: 1, loop: false },
 			{ id: 'b', assetId: 'old', audioEnabled: true, videoEnabled: true, startMs: 400, durationMs: 100, sourceInMs: 0, sourceOutMs: 100, playbackRate: 1, loop: false },
@@ -630,7 +653,7 @@ function mediaFixture(layerType, contentOffsetMs = 0.25, durationMs = 5000) {
 	const { state } = fixture();
 	const asset = { id: 'media', fileDataType: layerType + '/test', fileData: new Blob(['original']), hash: 'original', width: 100, height: 100 };
 	state.assets = { value: [asset] };
-	const layer = { id: 'media-layer', name: 'Media', layerType, curveAnimations: [],
+	const layer = { id: 'media-layer', name: 'Media', layerType, functionCurves: [],
 		...(layerType === 'video' ? { compositingParamValues: defaultCompositing() } : {}),
 		audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } },
 		clips: [{ id: 'clip', startMs: 100, durationMs, sourceInMs: contentOffsetMs, sourceOutMs: contentOffsetMs + durationMs, playbackRate: 1, loop: false, assetId: asset.id, ...(layerType === 'video' ? { audioEnabled: true, videoEnabled: true } : {}) }] };

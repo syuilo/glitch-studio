@@ -23,14 +23,14 @@ function evaluate(evaluator, input) {
 		if (input.inputParamIds.has(def.id)) continue;
 		const value = input.paramValues[def.id];
 		paramValues.set(def.id, structuredClone(value == null ? def.defaultValue : evaluator.evaluate(value, {
-			variables, curveAnimations: input.callerCurveAnimations ?? [], time: input.time, endTime: input.endTime,
-		}, value.inputSource === 'curveAnimationReference' ? def.defaultValue : genEmptyValue(def), def)));
+			variables, functionCurves: input.callerFunctionCurves ?? [], time: input.time, endTime: input.endTime,
+		}, value.inputSource === 'curveAnimationInline' ? def.defaultValue : genEmptyValue(def), def)));
 	}
 	const asRecord = defs => Object.fromEntries(defs.map(def => [def.id, def]));
 	const outputDefs = { output: { dataType: { kind: 'color' } } };
 	const nodes = input.nodes;
 	const graph = { paramDefs: asRecord(input.paramDefs), customParameterDefs: asRecord(input.customParameterDefs), customParameterValues: input.customParameterValues,
-		curveAnimations: input.curveAnimations, primaryInputParameter: null, primaryOutput: 'output', resolutionInputParameters: [],
+		functionCurves: input.functionCurves, primaryInputParameter: null, primaryOutput: 'output', resolutionInputParameters: [],
 		nodes, outputDefs, outputSources: nodes.length === 0 ? {} : { output: { nodeId: 'node', outputPort: 'output' } } };
 	const { steps, outputs } = planEffect({ effectSource: { type: 'inlineNodesEffect', nodesEffect: graph },
 		definitions: { getNativeEffect: () => ({ ...input.effectDefinitions.test, outputDefs, primaryOutput: 'output' }) },
@@ -94,7 +94,7 @@ const context = (defs, params, overrides = {}) => ({
 	nodes: [node(params)],
 	paramDefs: [],
 	effectDefinitions: { test: { id: 'test', displayName: 'Test', summary: { 'ja-JP': 'パラメータの評価を検証します。', 'en-US': 'Verifies parameter evaluation.' }, tags: [], paramDefs: defs, primaryInputParameter: null, resolutionInputParameters: [], outputDefs: {}, primaryOutput: null } },
-	curveAnimations: [],
+	functionCurves: [],
 	resolution: { width: 640, height: 360 },
 	time: 500,
 	endTime: 2000,
@@ -173,20 +173,20 @@ test('coerces public string and enum references to scalar inputs', () => {
 	}
 });
 
-const rampCurveAnimation = (isNormalized = true) => ({
-	id: 'ramp-id', nameForReference: 'ramp', isNormalized,
+const rampFunctionCurve = (isNormalized = true) => ({
+	id: 'ramp-id', nameForReference: 'ramp', type: 'bezier', isXNormalized: isNormalized, isYNormalized: false,
 	// 配列順に依存せず終端を取得できることも確認する。
 	points: [curveAnimationPoint(isNormalized ? 1 : 2000, 10), curveAnimationPoint(0, 0)],
 });
 // 【呼び出し側とNodes Effect内部のCurve Animation参照を分離する】
 // 同じID・nameForReferenceでも、Nodes Effectの公開パラメータ引数と内部ノードはそれぞれの所有者のCurve Animationを読む。
-test('isolates caller and Nodes Effect Curve Animations for references and CURVE_ANIMATION expressions', () => {
-	const internal = { ...rampCurveAnimation(), points: [curveAnimationPoint(0, 9)] };
+test('isolates caller and Nodes Effect Curve Animations for references and FUNCTION_CURVE expressions', () => {
+	const internal = { ...rampFunctionCurve(), points: [curveAnimationPoint(0, 9)] };
 	const external = { ...internal, points: [curveAnimationPoint(0, 3)] };
-	const reference = { inputSource: 'curveAnimationReference', curveAnimationId: internal.id, trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' };
-	const named = expression('CURVE_ANIMATION("ramp", 0, "clamp")');
+	const reference = { inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'reference', curveId: internal.id }, yRangeMin: null, yRangeMax: null, trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' } };
+	const named = expression('FUNCTION_CURVE("ramp", 0, "clamp")');
 	const input = context({ reference: number, named: number }, { reference, named }, {
-		curveAnimations: [internal], callerCurveAnimations: [external],
+		functionCurves: [internal], callerFunctionCurves: [external],
 		paramDefs: [paramDef('reference'), paramDef('named')], paramValues: { reference, named },
 	});
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
@@ -194,65 +194,65 @@ test('isolates caller and Nodes Effect Curve Animations for references and CURVE
 	assert.deepEqual([...result.paramValues.values()], [3, 3]);
 	assert.deepEqual(result.nodeParams.get('node'), { reference: 9, named: 9 });
 	// 再評価で外部スコープが空になっても、内部や前回のCurve Animationへフォールバックしない。
-	assert.throws(() => evaluate(evaluator, { ...input, callerCurveAnimations: undefined }), /Unknown Curve Animation/);
-	assert.throws(() => evaluate(evaluator, { ...input, curveAnimations: [] }), /Unknown Curve Animation/);
+	assert.throws(() => evaluate(evaluator, { ...input, callerFunctionCurves: undefined }), /Unknown Function Curve/);
+	assert.throws(() => evaluate(evaluator, { ...input, functionCurves: [] }), /Unknown Function Curve/);
 });
 
-const curveAnimationInput = (inputSource, curveAnimation, options = {}) => ({
-	inputSource,
-	...(inputSource === 'curveAnimationReference'
-		? { curveAnimationId: curveAnimation.id }
-		: { curveAnimation: { points: curveAnimation.points, isNormalized: curveAnimation.isNormalized } }),
-	trimmedDurationMs: 2000, wrapMode: 'clamp', offsetMode: 'start', ...options,
+const curveAnimationInput = (source, functionCurve, options = {}) => ({
+	inputSource: 'curveAnimationInline',
+	curveAnimation: {
+		curveBinding: source === 'reference' ? { source, curveId: functionCurve.id } : { source, curve: functionCurve },
+		trimmedDurationMs: 2000, yRangeMin: null, yRangeMax: null, wrapMode: 'clamp', offsetMode: 'start', ...options,
+	},
 });
 
 function assertClose(actual, expected) {
 	assert.ok(Math.abs(actual - expected) < 0.00001, `Expected ${actual} to be close to ${expected}`);
 }
 
-// 【CURVE_ANIMATIONをnameForReferenceで参照し、Nodes Effectとノードの式で評価する】
+// 【FUNCTION_CURVEをnameForReferenceで参照し、Nodes Effectとノードの式で評価する】
 // Curve Animation固有の座標を使い、IDによる参照と混同せずに両スコープから値を取得する。
-test('evaluates CURVE_ANIMATION by nameForReference in Nodes Effect and node expressions', () => {
-	const curveAnimation = rampCurveAnimation();
-	const msCurveAnimation = { ...rampCurveAnimation(false), id: 'ms-id', nameForReference: 'milliseconds' };
+test('evaluates FUNCTION_CURVE by nameForReference in Nodes Effect and node expressions', () => {
+	const curveAnimation = rampFunctionCurve();
+	const msCurveAnimation = { ...rampFunctionCurve(false), id: 'ms-id', nameForReference: 'milliseconds' };
 	const result = evaluate(new ParameterBindingEvaluator(new ExpressionEvaluator()), context({ values: arrayParameter(number) }, {
 		values: arrayBinding([
-			expression('CURVE_ANIMATION("ramp", 0.25, "clamp")'),
-			expression('CURVE_ANIMATION("ramp", 1.25, "repeat")'),
-			expression('CURVE_ANIMATION("ramp", -0.25, "repeatMirrored")'),
-			expression('CURVE_ANIMATION("milliseconds", TIME_MS, "clamp") + PUBLIC("gain")'),
+			expression('FUNCTION_CURVE("ramp", 0.25, "clamp")'),
+			expression('FUNCTION_CURVE("ramp", 1.25, "repeat")'),
+			expression('FUNCTION_CURVE("ramp", -0.25, "repeatMirrored")'),
+			expression('FUNCTION_CURVE("milliseconds", TIME_MS, "clamp") + PUBLIC("gain")'),
 		]),
-	}, { curveAnimations: [curveAnimation, msCurveAnimation], callerCurveAnimations: [curveAnimation], paramDefs: [paramDef('gain')], paramValues: { gain: expression('CURVE_ANIMATION("ramp", 0.5, "clamp")') } }));
+	}, { functionCurves: [curveAnimation, msCurveAnimation], callerFunctionCurves: [curveAnimation], paramDefs: [paramDef('gain')], paramValues: { gain: expression('FUNCTION_CURVE("ramp", 0.5, "clamp")') } }));
 	assertClose(result.paramValues.get('gain'), 5);
 	result.nodeParams.get('node').values.forEach((value, index) => assertClose(value, [2.5, 2.5, 2.5, 7.5][index]));
 });
 
-// 【不正なCURVE_ANIMATIONの式は失敗とし、インラインのCurve Animationも名前参照へ公開しない】
+// 【不正なFUNCTION_CURVEの式は失敗とし、インラインのCurve Animationも名前参照へ公開しない】
 // 入力ミスを0へ置換せず、呼び出し元へ伝播してレンダリングを止める。
-test('rejects invalid CURVE_ANIMATION calls and does not expose inline Curve Animations', () => {
-	const curveAnimation = rampCurveAnimation();
+test('rejects invalid FUNCTION_CURVE calls and does not expose inline Curve Animations', () => {
+	const curveAnimation = rampFunctionCurve();
 	const invalid = [
-		'CURVE_ANIMATION("missing", 0.5, "clamp")', 'CURVE_ANIMATION("ramp-id", 0.5, "clamp")',
-		'CURVE_ANIMATION("ramp", 0.5, "invalid")', 'CURVE_ANIMATION("ramp", "0.5", "clamp")',
-		'CURVE_ANIMATION(1, 0.5, "clamp")', 'CURVE_ANIMATION("ramp", 0.5)', 'CURVE_ANIMATION("ramp", 0.5, "clamp", 1)',
+		'FUNCTION_CURVE("missing", 0.5, "clamp")', 'FUNCTION_CURVE("ramp-id", 0.5, "clamp")',
+		'FUNCTION_CURVE("ramp", 0.5, "invalid")', 'FUNCTION_CURVE("ramp", "0.5", "clamp")',
+		'FUNCTION_CURVE(1, 0.5, "clamp")', 'FUNCTION_CURVE("ramp", 0.5)', 'FUNCTION_CURVE("ramp", 0.5, "clamp", 1)',
 	];
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
-	for (const code of invalid) assert.throws(() => evaluate(evaluator, context({ value: number }, { value: expression(code) }, { curveAnimations: [curveAnimation] })), /Base expression/);
+	for (const code of invalid) assert.throws(() => evaluate(evaluator, context({ value: number }, { value: expression(code) }, { functionCurves: [curveAnimation] })), /Base expression/);
 	const inline = evaluate(evaluator, context({ inline: number }, {
-		inline: curveAnimationInput('curveAnimationInline', curveAnimation),
+		inline: curveAnimationInput('inline', curveAnimation),
 	}));
 	assertClose(inline.nodeParams.get('node').inline, 2.5);
-	assert.throws(() => evaluate(evaluator, context({ value: number }, { value: expression('CURVE_ANIMATION("ramp", 0.5, "clamp")') })), /Unknown Curve Animation/);
+	assert.throws(() => evaluate(evaluator, context({ value: number }, { value: expression('FUNCTION_CURVE("ramp", 0.5, "clamp")') })), /Unknown Function Curve/);
 });
 
 // 【Curve Animationの変更を反映する】
 // ASTを再利用しても別Nodes Effectや変更前のCurve Animationを参照しない。
-test('refreshes CURVE_ANIMATION definitions between evaluations', () => {
+test('refreshes FUNCTION_CURVE definitions between evaluations', () => {
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
-	const input = context({ value: number }, { value: expression('CURVE_ANIMATION("ramp", 0.5, "clamp")') }, { curveAnimations: [rampCurveAnimation()] });
+	const input = context({ value: number }, { value: expression('FUNCTION_CURVE("ramp", 0.5, "clamp")') }, { functionCurves: [rampFunctionCurve()] });
 	assertClose(evaluate(evaluator, input).nodeParams.get('node').value, 5);
-	assertClose(evaluate(evaluator, { ...input, curveAnimations: [{ ...rampCurveAnimation(), points: [curveAnimationPoint(0, 20)] }] }).nodeParams.get('node').value, 20);
-	assert.throws(() => evaluate(evaluator, { ...input, curveAnimations: [] }), /Unknown Curve Animation/);
+	assertClose(evaluate(evaluator, { ...input, functionCurves: [{ ...rampFunctionCurve(), points: [curveAnimationPoint(0, 20)] }] }).nodeParams.get('node').value, 20);
+	assert.throws(() => evaluate(evaluator, { ...input, functionCurves: [] }), /Unknown Function Curve/);
 });
 
 // 【単独の変数は直接読み出す】
@@ -331,7 +331,7 @@ test('defaults unassigned direct references and rejects invalid expressions', ()
 		invalid: expression('1 +'),
 		empty: expression(''),
 		missingNodesEffectPublicParameterReference: { inputSource: 'nodesEffectPublicParameterReference', parameterId: 'missing' },
-		missingCurveAnimation: { inputSource: 'curveAnimationReference', curveAnimationId: 'missing' },
+		missingCurveAnimation: { inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'reference', curveId: 'missing' }, yRangeMin: null, yRangeMax: null, trimmedDurationMs: null, wrapMode: 'clamp', offsetMode: 'start' } },
 	};
 	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
 	for (const binding of Object.values(params).filter(binding => binding.inputSource === 'expression')) {

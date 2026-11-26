@@ -10,7 +10,7 @@ Glitch Studioドメイン内で共通の型や処理などを置く
 
 `src/effect-live-preview-input.ts`はEffect Live Previewの配置で使う映像・音声入力Bindingと、対応する公開パラメータの判定を定義する。
 
-`src/project/curve-animations.ts`は、プロジェクト共通のCurve Animationとレイヤーのローカル定義を評価用に組み合わせる。保存状態・Nodes Effect内部の定義は変更しない。名前参照はローカルを優先し、ID参照には両方の候補を残す。Timeline subsystemへは組み合わせた定義だけを渡し、プロジェクトへの依存を持ち込まない。
+`src/project/function-curves.ts`は、プロジェクト共通のFunction Curveとレイヤーのローカル定義を評価用に組み合わせる。保存状態・Nodes Effect内部の定義は変更しない。名前参照はローカルを優先し、ID参照には両方の候補を残す。Timeline subsystemへは組み合わせた定義だけを渡し、プロジェクトへの依存を持ち込まない。
 
 ## Effectの登録と受け渡し
 

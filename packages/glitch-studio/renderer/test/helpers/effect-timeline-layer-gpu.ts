@@ -41,7 +41,7 @@ export async function checkBlurRegionTimelineLayer(device: GPUDevice, vertex: GP
 			contentOffsetMs: 0,
 		}],
 		resolution: { mode: 'auto', scale: 1 },
-		curveAnimations: [],
+		functionCurves: [],
 		effectParamValues: Object.fromEntries(Object.keys(blurDefinition.paramDefs).map(key => [key, getEffectLayerParameterDefault(blurDefinition, key)])),
 		compositingParamValues: {
 			...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])) as TimelineEffectLayer['compositingParamValues'],
@@ -122,7 +122,7 @@ export async function checkEffectTimelineLayers(device: GPUDevice, vertex: GPUSh
 				contentOffsetMs: 0,
 			}],
 			resolution: { mode: 'auto', scale: 1 },
-			curveAnimations: [],
+			functionCurves: [],
 			forceDisableMotionBlur: false,
 			mask: null,
 			coordinateSpace: 'screen',

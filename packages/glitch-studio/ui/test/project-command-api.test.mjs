@@ -24,7 +24,7 @@ const { PROJECT_COMMAND_DEFS, RESOURCES_COMMAND_DEFS, UndoRedo } = loaded.export
 function fixture() {
 	const state = {
 		name: { value: 'Original' }, description: { value: '' }, author: { value: '' },
-		resolution: { value: { width: 1920, height: 1080 } }, curveAnimations: { value: [] },
+		resolution: { value: { width: 1920, height: 1080 } }, functionCurves: { value: [] },
 		assets: { value: [] }, nodesEffects: { value: [] }, timelineScenes: { value: [] },
 	};
 	return { state, manager: new UndoRedo(state, { ...PROJECT_COMMAND_DEFS, ...RESOURCES_COMMAND_DEFS }) };
@@ -45,41 +45,84 @@ test('retains successful project edits in one undo group after an asynchronous f
 	let created;
 	await assert.rejects(manager.runGroup('Script', async () => {
 		await manager.execute('setProjectName', { name: 'Script result' });
-		created = await manager.execute('createProjectCurveAnimation', { nameForReference: 'curve' });
+		created = await manager.execute('createProjectFunctionCurve', { nameForReference: 'curve' });
 		await Promise.resolve();
 		await manager.execute('setProjectResolution', { resolution: { width: 0, height: 1080 } });
 	}), /positive integers/);
 	assert.equal(state.name.value, 'Script result');
 	assert.deepEqual(state.resolution.value, { width: 1920, height: 1080 });
-	assert.equal(state.curveAnimations.value[0].id, created.curveAnimationId);
+	assert.equal(state.functionCurves.value[0].id, created.functionCurveId);
 	assert.equal(manager.undoStack.value.length, 1);
 	assert.equal(manager.undoStack.value[0].label, 'Script');
-	const curveAnimation = structuredClone(state.curveAnimations.value[0]);
+	const curveAnimation = structuredClone(state.functionCurves.value[0]);
 	manager.undo();
 	assert.equal(state.name.value, 'Original');
-	assert.deepEqual(state.curveAnimations.value, []);
+	assert.deepEqual(state.functionCurves.value, []);
 	manager.redo();
 	assert.equal(state.name.value, 'Script result');
-	assert.deepEqual(state.curveAnimations.value, [curveAnimation]);
+	assert.deepEqual(state.functionCurves.value, [curveAnimation]);
 });
 
 // 【Curve Animation複製の所有IDはCommandが作成し、呼び出し側の値を書き換えない】
 // 同じポイントIDを共有すると、複製元の編集やUndoによって複製先へ意図しない変更が伝わり得る。
 test('duplicates Curve Animations with independent point IDs and stable redo', () => {
 	const { state, manager } = fixture();
-	const data = { isNormalized: false, points: [{ x: 0, y: 1, bezierControlPointA: [0, 0], bezierControlPointB: [1, 0] }] };
-	const original = manager.commit('createProjectCurveAnimation', { nameForReference: 'curve', data });
-	const duplicated = manager.commit('duplicateProjectCurveAnimation', original);
-	const source = state.curveAnimations.value[0];
-	const copy = structuredClone(state.curveAnimations.value[1]);
+	const data = { type: 'bezier', skew: 0.5, isXNormalized: false, isYNormalized: false, points: [{ x: 0, y: 1, bezierControlPointA: [0, 0], bezierControlPointB: [1, 0] }] };
+	const original = manager.commit('createProjectFunctionCurve', { nameForReference: 'curve', data });
+	const duplicated = manager.commit('duplicateProjectFunctionCurve', original);
+	const source = state.functionCurves.value[0];
+	const copy = structuredClone(state.functionCurves.value[1]);
 	assert.equal(copy.nameForReference, 'curve_2');
 	assert.notEqual(copy.id, source.id);
 	assert.notEqual(copy.points[0].id, source.points[0].id);
-	assert.equal(copy.id, duplicated.curveAnimationId);
+	assert.equal(copy.id, duplicated.functionCurveId);
+	assert.equal(source.skew, 0.5);
+	assert.equal(copy.skew, 0.5);
+	assert.throws(() => manager.commit('createProjectFunctionCurve', { data: { ...data, skew: 1.01 } }));
 	data.points[0].y = 99;
 	assert.equal(source.points[0].y, 1);
 	manager.undo(); manager.redo();
-	assert.deepEqual(state.curveAnimations.value[1], copy);
+	assert.deepEqual(state.functionCurves.value[1], copy);
+});
+
+// 【共有の固定カーブをCommandで作成・複製・型変更できる】
+// 型変更後もIDを維持して参照を解決できるようにする。無効な設定は保存せず、Undoでは元の型と設定を復元する。
+test('creates, duplicates and replaces fixed Function Curves through the public contracts', () => {
+	const { state, manager } = fixture();
+	const original = manager.commit('createProjectFunctionCurve', { nameForReference: 'flash', data: { type: 'pulse', dutyCycle: 0.25 } });
+	const duplicate = manager.commit('duplicateProjectFunctionCurve', original);
+	assert.deepEqual(state.functionCurves.value, [
+		{ id: original.functionCurveId, nameForReference: 'flash', type: 'pulse', dutyCycle: 0.25 },
+		{ id: duplicate.functionCurveId, nameForReference: 'flash_2', type: 'pulse', dutyCycle: 0.25 },
+	]);
+	const change = { ...original, definition: { nameForReference: 'flash', type: 'steps', levelCount: 4 } };
+	manager.commit('replaceProjectFunctionCurve', change);
+	assert.deepEqual(state.functionCurves.value[0], { ...change.definition, id: original.functionCurveId });
+	for (const data of [{ type: 'steps', levelCount: 1 }, { type: 'steps', levelCount: 3.5 }, { type: 'pulse', dutyCycle: 1.1 }, { type: 'deadZone', deadZoneWidth: -0.1 }, { type: 'easing', family: 'quad' }]) {
+		assert.throws(() => manager.commit('createProjectFunctionCurve', { data }));
+	}
+	manager.undo();
+	assert.deepEqual(state.functionCurves.value[0], { id: original.functionCurveId, nameForReference: 'flash', type: 'pulse', dutyCycle: 0.25 });
+	manager.redo();
+	assert.deepEqual(state.functionCurves.value[0], { ...change.definition, id: original.functionCurveId });
+});
+
+// 【公開CommandでBackの係数とElasticの周期を保存・検証する】
+// 0の係数や非既定の周期を保持し、無効な調整値で既存の共有定義を変更しない。
+test('stores and validates family-specific easing settings through public curve commands', () => {
+	const { state, manager } = fixture();
+	const back = { type: 'easing', family: 'back', direction: 'out', overshootCoefficient: 0, skew: -0.5 };
+	const target = manager.commit('createProjectFunctionCurve', { nameForReference: 'motion', data: back });
+	const identity = { id: target.functionCurveId, nameForReference: 'motion' };
+	assert.deepEqual(state.functionCurves.value[0], { ...identity, ...back });
+	const elastic = { type: 'easing', family: 'elastic', direction: 'inOut', period: 0.6, skew: 1 };
+	manager.commit('replaceProjectFunctionCurve', { ...target, definition: { ...identity, ...elastic } });
+	for (const data of [{ ...elastic, period: 0 }, { ...elastic, period: Infinity }, { ...back, overshootCoefficient: -1 }, { ...back, skew: -1.01 }]) {
+		assert.throws(() => manager.commit('replaceProjectFunctionCurve', { ...target, definition: { ...identity, ...data } }));
+	}
+	assert.deepEqual(state.functionCurves.value[0], { ...identity, ...elastic });
+	manager.undo();
+	assert.deepEqual(state.functionCurves.value[0], { ...identity, ...back });
 });
 
 // 【素材名の変更をUndoでき、同値設定ではRedoを消さない】

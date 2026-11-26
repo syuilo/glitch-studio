@@ -77,7 +77,7 @@ export async function run() {
 				timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{
 					id: 'fill', name: 'Fill', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'fill' }, resolution: { mode: 'auto', scale: 1 },
 					effectParamValues: { color: { inputSource: 'literal', value: [4, -1, 0.5, 0.5] } },
-					compositingParamValues: {}, curveAnimations: [], clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }],
+					compositingParamValues: {}, functionCurves: [], clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }],
 				}] }],
 			});
 			const rendered = await manager.renderTimelineLinearFrame(500, new AbortController().signal);

@@ -99,6 +99,9 @@ const props = withDefaults(defineProps<{
 	/** stepperの変更をmanualSave・debounce・throttleに関わらず即時反映する。 */
 	stepperImmediateUpdate?: boolean;
 	allowExpression?: boolean;
+	/** 手動保存の数値・式の評価結果にもmin/maxを適用する。 */
+	validateNumberBounds?: boolean;
+	validateNumericValue?: (value: number) => boolean;
 	small?: boolean;
 	large?: boolean;
 	monospace?: boolean;
@@ -246,7 +249,9 @@ const onKeydown = (ev: KeyboardEvent) => {
 const updated = () => {
 	if (expressionEnabled.value) {
 		const numericValue = evaluateNumericInputExpression(v.value);
-		if (numericValue == null) {
+		if (numericValue == null
+			|| (props.validateNumberBounds === true && (numericValue < (props.min ?? -Infinity) || numericValue > (props.max ?? Infinity)))
+			|| props.validateNumericValue?.(numericValue) === false) {
 			// 入力を残して修正できるよう、失敗時は未保存状態も維持する。
 			invalid.value = true;
 			return;

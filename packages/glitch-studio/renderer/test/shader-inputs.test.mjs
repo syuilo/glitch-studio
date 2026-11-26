@@ -133,7 +133,7 @@ test('scales image layer sources once and preserves borrowed asset textures', as
 		let submissions = 0;
 		device.queue.submit = () => { submissions++; };
 		const source = device.createTexture({ size: [3840, 2160], format: 'rgba8unorm' });
-		const layer = { compositingParamValues: { blendMode: literal('replace') }, curveAnimations: [] };
+		const layer = { compositingParamValues: { blendMode: literal('replace') }, functionCurves: [] };
 		const renderer = createImageTimelineLayer(layer, source, {
 			device, vertex: {}, resolution: { width: 1920 * resolutionScale, height: 1080 * resolutionScale }, resolutionScale
 		});

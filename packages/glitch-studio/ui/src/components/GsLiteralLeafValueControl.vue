@@ -160,6 +160,21 @@
 		/>
 	</div>
 	<GsColorRampInput v-else-if="dataType.kind === 'colorRamp'" :modelValue="value" :title="title" @beginChanging="onBeginChanging" @update:modelValue="changeContinuous" @changeFinished="onFinishChanging"/>
+	<template v-else-if="dataType.kind === 'functionCurve'">
+		<GsButton
+			data-test-edit-literal-function-curve
+			icon="ti ti-ease-in-out-control-points"
+			@click="functionCurveEditorOpen = true"
+		>{{ i18n.ts._FunctionCurve.Edit }}</GsButton>
+		<Teleport v-if="functionCurveEditorOpen" to="body">
+			<GsFunctionCurveEditorWindow
+				:functionCurve="value"
+				:title="title"
+				@change="changeFunctionCurve"
+				@closed="functionCurveEditorOpen = false"
+			/>
+		</Teleport>
+	</template>
 	<div v-else-if="dataType.kind === 'color'" :class="$style.colorControl">
 		<GsSignal
 			v-if="colorControl?.controlType === 'signal'"
@@ -187,6 +202,7 @@
 <script lang="ts" setup generic="T extends LeafDataType">
 import { computed, onBeforeUnmount, ref } from 'vue';
 import { SIZE_REFERENCES } from '@gs/shared/size-reference.ts';
+import GsFunctionCurveEditorWindow from './GsFunctionCurveEditorWindow.vue';
 import GsXy from './common/GsXy.vue';
 import GsColorInput from './common/GsColorInput.vue';
 import GsColorRampInput from './common/GsColorRampInput.vue';
@@ -199,6 +215,7 @@ import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import type { DataTypeUiControlDefinitionMap, DataTypeUiDefinition } from '@gs/shared/data-type/data-type-ui.ts';
 import type { LeafDataType } from '@gs/shared/data-type/data-type.ts';
+import type { FunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
 import { i18n } from '@/i18n.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
 
@@ -212,7 +229,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-	(ev: 'input', value: any): void;
+	(ev: 'input', value: any, mergeKey?: string | null): void;
 	(ev: 'beginChanging'): void;
 	(ev: 'changeFinished'): void;
 	(ev: 'changeContinuous', value: any): void;
@@ -238,9 +255,14 @@ const enumItems = computed(() => {
 const sizeReferenceItems = computed(() => SIZE_REFERENCES.map(reference => ({ value: reference, label: i18n.ts._SizeReferences[reference] })));
 
 const directEditMode = ref(false);
+const functionCurveEditorOpen = ref(false);
 
 function changeValue(value: any) {
 	emit('input', value);
+}
+
+function changeFunctionCurve(value: FunctionCurve, mergeKey: string | null) {
+	emit('input', value, mergeKey);
 }
 
 function changeSignal(signal: [boolean, boolean, boolean]) {
@@ -270,6 +292,10 @@ function reset() {
 const tempValueForDirectEdit = ref('');
 
 function directEdit() {
+	if (props.dataType.kind === 'functionCurve') {
+		functionCurveEditorOpen.value = true;
+		return;
+	}
 	tempValueForDirectEdit.value = JSON.stringify(props.value);
 	directEditMode.value = true;
 }

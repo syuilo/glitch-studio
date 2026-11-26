@@ -22,17 +22,17 @@
 			<div :class="$style.valueBar" class="_monospace" :style="{ top: valueBarPos + 'px' }"><div :class="$style.valueBarValue">{{ currentValue.toFixed(2) }}</div></div>
 			<div :class="$style.crossPoint" :style="{ left: seekBarPos + 'px', top: valueBarPos + 'px' }"></div>
 			<div v-if="!bezierDragging" :class="$style.cursorBar" :style="{ left: cursorBarPos + 'px' }"></div>
-			<div :class="$style.curveAnimation">
+			<div :class="$style.functionCurve">
 				<svg version="1.1" :viewBox="`0 0 ${tlElWidth} ${tlElHeight}`" :class="$style.lines">
 					<defs>
-						<linearGradient id="tlCurveAnimationGradient" x1="0" x2="0" y1="0" y2="1">
+						<linearGradient id="tlFunctionCurveGradient" x1="0" x2="0" y1="0" y2="1">
 							<stop offset="0%" stop-color="var(--accentAlphaMiddleLow)"/>
-							<stop :offset="curveAnimationPathGradientCenter + '%'" stop-color="var(--accentAlphaVeryLow)"/>
+							<stop :offset="functionCurvePathGradientCenter + '%'" stop-color="var(--accentAlphaVeryLow)"/>
 							<stop offset="100%" stop-color="var(--accentAlphaMiddleLow)"/>
 						</linearGradient>
 					</defs>
-					<path :d="curveAnimationSvgFillPath" style="fill: url(#tlCurveAnimationGradient); stroke: none;"/>
-					<path :d="curveAnimationSvgPath" style="stroke: currentColor; fill: none; stroke-width: 2;"/>
+					<path :d="functionCurveSvgFillPath" style="fill: url(#tlFunctionCurveGradient); stroke: none;"/>
+					<path :d="functionCurveSvgPath" style="stroke: currentColor; fill: none; stroke-width: 2;"/>
 				</svg>
 
 				<svg v-if="!nowSelecting && selectedPoint" version="1.1" :viewBox="`0 0 ${tlElWidth} ${tlElHeight}`" :class="$style.lines">
@@ -103,10 +103,10 @@
 			</template>
 
 			<div :class="$style.infoBar" class="_monospace">
-				<div><b>{{ i18n.ts._CurveAnimation.TimelineOffset }}</b>{{ tlPosX.toFixed(2) }}, {{ tlPosY.toFixed(2) }}</div>
-				<div><b>{{ i18n.ts._CurveAnimation.Cursor }}</b>{{ cursorValueX.toFixed(2) }}, {{ cursorValueY }}</div>
-				<div><b>{{ i18n.ts._CurveAnimation.Current }}</b>{{ currentValueX.toFixed(2) }}, {{ currentValue.toFixed(2) }}</div>
-				<div><b>{{ i18n.ts._ParameterEditor.MinMax }}</b>{{ minMaxValuesInTheCurveAnimation.min.toFixed(2) }}, {{ minMaxValuesInTheCurveAnimation.max.toFixed(2) }}</div>
+				<div><b>{{ i18n.ts._FunctionCurve.TimelineOffset }}</b>{{ tlPosX.toFixed(2) }}, {{ tlPosY.toFixed(2) }}</div>
+				<div><b>{{ i18n.ts._FunctionCurve.Cursor }}</b>{{ cursorValueX.toFixed(2) }}, {{ cursorValueY }}</div>
+				<div><b>{{ i18n.ts._FunctionCurve.Current }}</b>{{ currentValueX.toFixed(2) }}, {{ currentValue.toFixed(2) }}</div>
+				<div><b>{{ i18n.ts._ParameterEditor.MinMax }}</b>{{ minMaxValuesInTheFunctionCurve.min.toFixed(2) }}, {{ minMaxValuesInTheFunctionCurve.max.toFixed(2) }}</div>
 			</div>
 		</div>
 		<div v-if="selectedPoint" :class="$style.rightSidePanel">
@@ -120,12 +120,12 @@
 
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { evalCurveAnimationValue } from '@gs/shared/curve-animation/curve-animation-evaluator.ts';
+import { evaluateFunctionCurve } from '@gs/shared/function-curve/function-curve-evaluator.ts';
 import { insertIntermediateNumbers, nearlyEqual, niceScale, niceNormalizedScale } from '@gs/shared/utility/misc.js';
 import { genId } from '@gs/shared/utility/id.js';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import GsButton from './common/GsButton.vue';
-import type { CurveAnimation, BezierAnchorPoint } from '@gs/shared/curve-animation/curve-animation.ts';
+import type { BezierAnchorPoint } from '@gs/shared/function-curve/function-curve.ts';
 import { i18n } from '@/i18n.ts';
 import { dragListen } from '@/utility/drag.ts';
 import { useEditorEditActions } from '@/composables/useEditorEditActions.ts';
@@ -137,7 +137,8 @@ const Y_TICKS_WIDTH = 60;
 
 const props = defineProps<{
 	points: BezierAnchorPoint[];
-	isNormalized: boolean;
+	isXNormalized: boolean;
+	isYNormalized: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -185,7 +186,7 @@ onBeforeUnmount(() => {
 });
 
 function isFixedEndpoint(point: BezierAnchorPoint): boolean {
-	return props.isNormalized && (point === ppints.value[0] || point === ppints.value[ppints.value.length - 1]);
+	return props.isXNormalized && (point === ppints.value[0] || point === ppints.value[ppints.value.length - 1]);
 }
 
 // 最も長いxをもつpointのx
@@ -202,10 +203,10 @@ function toMs(value: number): number {
 const tlEl = useTemplateRef('tlEl');
 const tlElWidth = ref(0);
 const tlElHeight = ref(0);
-const tlRangeX = ref(props.isNormalized ? 2 : toMs(2));
-const tlRangeY = ref(5);
-const tlPosX = ref(props.isNormalized ? -0.5 : toMs(-0.5));
-const tlPosY = ref(-2.5);
+const tlRangeX = ref(props.isXNormalized ? 2 : toMs(2));
+const tlRangeY = ref(props.isYNormalized ? 2 : 5);
+const tlPosX = ref(props.isXNormalized ? -0.5 : toMs(-0.5));
+const tlPosY = ref(props.isYNormalized ? -0.5 : -2.5);
 const snappingX = ref<number | null>(null);
 const snappingY = ref<number | null>(null);
 const selectedPoints = ref<BezierAnchorPoint[]>([]);
@@ -228,7 +229,7 @@ const seekBarPos = computed(() => {
 	return valueXToDomX(currentValueX.value);
 });
 const currentValue = computed(() => {
-	return evalCurveAnimationValue({ points: ppints.value }, currentValueX.value, 'clamp');
+	return evaluateFunctionCurve({ type: 'bezier', points: ppints.value, isXNormalized: props.isXNormalized, isYNormalized: props.isYNormalized }, currentValueX.value, 'clamp');
 });
 const valueBarPos = computed(() => {
 	return valueYToDomY(currentValue.value);
@@ -297,15 +298,18 @@ const bezierSnapLinesY = ref<{ active?: boolean; x: number; y: number; width: nu
 // TODO: TLの表示DOMサイズに応じて変更
 const xTicksCount = ref(10);
 const xTicks = computed(() => {
-	const scale = props.isNormalized ? niceNormalizedScale : niceScale;
+	const scale = props.isXNormalized ? niceNormalizedScale : niceScale;
 	return scale(tlPosX.value, tlPosX.value + tlRangeX.value, xTicksCount.value);
 });
 const xTicksWithHalf = computed(() => insertIntermediateNumbers(xTicks.value));
 const yTicksCount = ref(6);
-const yTicks = computed(() => niceScale(tlPosY.value, tlPosY.value + tlRangeY.value, yTicksCount.value));
+const yTicks = computed(() => {
+	const scale = props.isYNormalized ? niceNormalizedScale : niceScale;
+	return scale(tlPosY.value, tlPosY.value + tlRangeY.value, yTicksCount.value);
+});
 const yTicksWithHalf = computed(() => insertIntermediateNumbers(yTicks.value));
 
-const minMaxValuesInTheCurveAnimation = computed(() => {
+const minMaxValuesInTheFunctionCurve = computed(() => {
 	// 塗りつぶしは値0まで閉じるため、範囲に0も含める。
 	// Xを整数刻みで評価すると0〜1のカーブを始点でしか評価できない。
 	// SVGと同じ三次ベジェの端点と極値を使い、Xの単位や長さに依存させない。
@@ -343,7 +347,7 @@ const minMaxValuesInTheCurveAnimation = computed(() => {
 	};
 });
 
-const curveAnimationSvgPath = computed(() => {
+const functionCurveSvgPath = computed(() => {
 	const points = ppints.value;
 	if (points.length === 0) return '';
 	let d = `M ${valueXToDomX(points[0].x)}, ${valueYToDomY(points[0].y)}`;
@@ -359,15 +363,15 @@ const curveAnimationSvgPath = computed(() => {
 	}
 	return d;
 });
-const curveAnimationSvgFillPath = computed(() => {
+const functionCurveSvgFillPath = computed(() => {
 	const points = ppints.value;
 	if (points.length === 0) return '';
 	// 値0へ閉じる線は塗りつぶし専用にし、曲線のstrokeには含めない。
-	return `${curveAnimationSvgPath.value} L ${valueXToDomX(points[points.length - 1].x)}, ${valueYToDomY(0)} L ${valueXToDomX(0)}, ${valueYToDomY(0)} Z`;
+	return `${functionCurveSvgPath.value} L ${valueXToDomX(points[points.length - 1].x)}, ${valueYToDomY(0)} L ${valueXToDomX(0)}, ${valueYToDomY(0)} Z`;
 });
-const curveAnimationPathGradientCenter = computed(() => {
-	const max = minMaxValuesInTheCurveAnimation.value.max;
-	const min = Math.min(0, minMaxValuesInTheCurveAnimation.value.min);
+const functionCurvePathGradientCenter = computed(() => {
+	const max = minMaxValuesInTheFunctionCurve.value.max;
+	const min = Math.min(0, minMaxValuesInTheFunctionCurve.value.min);
 	if (max === 0 && min === 0) return 0;
 	return ((max) / (max + Math.abs(min))) * 100;
 });
@@ -406,14 +410,14 @@ function domYToValueY(y: number): number {
 
 function addPoint(x: number, y: number): BezierAnchorPoint | null {
 	// 正規化された曲線の両端は既存のポイントで維持する。貼り付けも同じ制限に従う。
-	if (props.isNormalized && (x <= 0 || x >= 1)) return null;
+	if (props.isXNormalized && (x <= 0 || x >= 1)) return null;
 	const _points = [] as BezierAnchorPoint[];
 	const point: BezierAnchorPoint = {
 		id: genId(),
 		x,
 		y,
-		bezierControlPointA: [props.isNormalized ? -0.1 : toMs(-0.1), 0],
-		bezierControlPointB: [props.isNormalized ? 0.1 : toMs(0.1), 0],
+		bezierControlPointA: [props.isXNormalized ? -0.1 : toMs(-0.1), 0],
+		bezierControlPointB: [props.isXNormalized ? 0.1 : toMs(0.1), 0],
 	};
 	let pushed = false;
 	if (ppints.value.filter(kf => kf.x === x).length > 1) return null;
@@ -614,8 +618,8 @@ function onPointsXYHandleMousedown(ev: MouseEvent, point: BezierAnchorPoint, tre
 		if (treatX && !isFixedEndpoint(point)) {
 			const draggedX = valueXToDomX(baseTime) + (x - moveBaseX);
 			const minX = Math.max(0, (prevPoint?.x ?? -Infinity) + firstFrameOffset);
-			const maxX = Math.min(props.isNormalized ? 1 : Infinity, (nextPoint?.x ?? Infinity) + lastFrameOffset);
-			const candidates = [...xTicksWithHalf.value, prevPoint?.x, nextPoint?.x, 0, ...(props.isNormalized ? [1] : [])];
+			const maxX = Math.min(props.isXNormalized ? 1 : Infinity, (nextPoint?.x ?? Infinity) + lastFrameOffset);
+			const candidates = [...xTicksWithHalf.value, prevPoint?.x, nextPoint?.x, 0, ...(props.isXNormalized ? [1] : [])];
 			let nearestDistance = SNAP_THRESHOLD;
 			for (const step of candidates) {
 				// スナップで隣のポイントを越えたり、固定範囲の外へ移動したりしない。
@@ -649,7 +653,7 @@ function onPointsXYHandleMousedown(ev: MouseEvent, point: BezierAnchorPoint, tre
 			const point = selectedPoints.value[i];
 			// 複数選択でも端点のXは動かさず、Yの変更は通常どおり適用する。
 			if (treatX && !isFixedEndpoint(point)) {
-				point.x = Math.max(0, Math.min(props.isNormalized ? 1 : Infinity, baseNewTime + (baseFrames[i] - baseTime)));
+				point.x = Math.max(0, Math.min(props.isXNormalized ? 1 : Infinity, baseNewTime + (baseFrames[i] - baseTime)));
 			}
 			if (treatY) point.y = baseNewValue + (baseValues[i] - baseValue);
 		}
@@ -913,7 +917,7 @@ const editEvents = useEditorEditActions(useTemplateRef('root'), {
 function toggleBezierA() {
 	if (selectedPoint.value == null) return;
 	if (isBezierAZero.value) {
-		selectedPoint.value.bezierControlPointA = [props.isNormalized ? -0.1 : toMs(-0.1), 0];
+		selectedPoint.value.bezierControlPointA = [props.isXNormalized ? -0.1 : toMs(-0.1), 0];
 	} else {
 		selectedPoint.value.bezierControlPointA = [0, 0];
 	}
@@ -922,14 +926,14 @@ function toggleBezierA() {
 function toggleBezierB() {
 	if (selectedPoint.value == null) return;
 	if (isBezierBZero.value) {
-		selectedPoint.value.bezierControlPointB = [props.isNormalized ? 0.1 : toMs(0.1), 0];
+		selectedPoint.value.bezierControlPointB = [props.isXNormalized ? 0.1 : toMs(0.1), 0];
 	} else {
 		selectedPoint.value.bezierControlPointB = [0, 0];
 	}
 }
 
 function formatValueXWithUnit(x: number): string {
-	if (props.isNormalized) {
+	if (props.isXNormalized) {
 		return x.toFixed(2);
 	} else {
 		const totalSeconds = Math.floor(x / 1000);
@@ -1187,7 +1191,7 @@ onMounted(() => {
 	background: #fff1;
 }
 
-.curveAnimation {
+.functionCurve {
 	position: absolute;
 	top: 0;
 	left: 0;

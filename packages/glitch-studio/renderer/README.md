@@ -100,7 +100,7 @@ High-res中の`analysisPaused`は通常解析だけを止める。保持側は�
 
 `EffectLivePreviewManager` の `startEffectLivePreview()` には `effectSource` と、必要に応じて `outputPort`・`params`・`staticSettings` を渡す。Native Effect、登録・インラインのCustom Shader EffectとNodes Effectを同じ入口から描画する。出力ポートを省略すると主出力、主出力も未指定なら定義順の先頭を選ぶ。スカラーはR、ベクトルはRGとしてGPUのチャンネルをそのまま表示し、未接続の出力には透明黒を表示する。
 
-プロジェクト共通のCurve Animationは両Managerのプロジェクト状態として同期する。Timeline Managerは保存用Sceneと評価用Sceneを分け、Glitch Studio sharedで各レイヤーの定義へ共通定義を加えてからTimelineへ渡す。共通定義の変更時は既存のTimeline描画インスタンスを破棄し、停止中の同一時刻でも最新の曲線を評価する。カメラ・Transform・合成設定・音声入力にも同じ一覧を使う。Live Preview Managerは公開パラメータへの入力評価にだけ共通定義を渡し、Nodes Effect内部には渡さない。音声試聴と書き出しも評価用Sceneから音声計画を作り、所属Sceneの時計を維持する。
+プロジェクト共通のFunction Curveは両Managerのプロジェクト状態として同期する。Timeline Managerは保存用Sceneと評価用Sceneを分け、Glitch Studio sharedで各レイヤーの定義へ共通定義を加えてからTimelineへ渡す。共通定義の変更時は既存のTimeline描画インスタンスを破棄し、停止中の同一時刻でも最新の曲線を評価する。カメラ・Transform・合成設定・音声入力にも同じ一覧を使う。Live Preview Managerは公開パラメータへの入力評価にだけ共通定義を渡し、Nodes Effect内部には渡さない。音声試聴と書き出しも評価用Sceneから音声計画を作り、所属Sceneの時計を維持する。
 登録済みの Custom Shader Effect と Nodes Effect は両 Manager の dynamic options で受け取る。編集時は `applyProjectChanges()` へ定義と利用側の修正をまとめて渡す。入れ子の参照をたどり、影響する配置は次の描画へ向けて再生成する。準備状態は Live Preview の `effectState`、Timeline の `effectLayerState` で配置単位に通知し、配置を破棄したときは `status: null` を送る。
 
 Effect Live Preview は描画時刻・ポインター・公開入力をフレームごとに確定し、Effect の準備とタイル描画を待ってから Canvas へ送る。待機中の経過時間は次の描画へ引き継ぐ。解像度変更・履歴リセット・停止は保留中のフレームを中断する。

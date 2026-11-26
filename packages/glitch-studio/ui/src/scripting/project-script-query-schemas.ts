@@ -3,13 +3,13 @@ import * as z from 'zod';
 import { parameterDefinitionSchema, textureDataTypeSchema, staticSettingDefinitionSchema } from '../commands/parameter-contract-schemas.ts';
 import { nodesEffectTargetSchema, nodesEffectNodeReferenceSchema, nodesEffectNodeSchema, nodesEffectSchema } from '../commands/nodes-effect-contract-schemas.ts';
 import { timelineLayerSchema, timelineClipSchema, timelineSceneResolutionSchema, timelineSceneReferenceSchema, timelineLayerReferenceSchema, timelineClipReferenceSchema, timelineEditableParameterBindingSchema } from '../commands/timeline-contract-schemas.ts';
-import { curveAnimationSchema, projectCustomShaderEffectSchema, projectResolutionSchema, timelineMotionBlurSettingsSchema } from '../commands/project-contract-schemas.ts';
+import { sharedFunctionCurveSchema, projectCustomShaderEffectSchema, projectResolutionSchema, timelineMotionBlurSettingsSchema } from '../commands/project-contract-schemas.ts';
 import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 
 const identifierSchema = z.string().min(1).describe('An existing identifier returned by a Query or creation Command.');
 export const assetReferenceSchema = z.looseObject({ assetId: identifierSchema });
 export const effectReferenceSchema = z.looseObject({ effectSource: effectSourceSchema });
-export const projectCurveAnimationReferenceSchema = z.looseObject({ curveAnimationId: identifierSchema });
+export const projectFunctionCurveReferenceSchema = z.looseObject({ functionCurveId: identifierSchema });
 export const customShaderEffectReferenceSchema = z.looseObject({ customShaderEffectId: identifierSchema });
 
 const exportScaleSchema = z.union([z.literal(0.25), z.literal(0.5), z.literal(1), z.literal(2), z.literal(4), z.literal('custom')]);
@@ -118,6 +118,6 @@ export const effectDefinitionResultSchema = effectSummarySchema.extend({
 	primaryOutput: z.string().nullable(),
 });
 
-export const projectCurveAnimationResultSchema = z.intersection(curveAnimationSchema, z.looseObject({ target: projectCurveAnimationReferenceSchema }));
+export const projectFunctionCurveResultSchema = z.intersection(sharedFunctionCurveSchema, z.looseObject({ target: projectFunctionCurveReferenceSchema }));
 export const customShaderEffectSummarySchema = z.looseObject({ target: customShaderEffectReferenceSchema, name: z.string(), summary: z.string() });
 export const customShaderEffectResultSchema = z.intersection(projectCustomShaderEffectSchema, customShaderEffectSummarySchema);

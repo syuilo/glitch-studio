@@ -31,7 +31,7 @@ export default defineNativeEffect({
 			ui: { label: 'Reflectivity', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 			defaultValue: 0,
 		},
-		interpolation: { ...gradientInterpolationParameter, defaultValue: 'smoothstep' },
+		interpolation: { ...gradientInterpolationParameter, defaultValue: { type: 'smoothstep' } },
 	},
 	primaryInputParameter: null,
 	resolutionInputParameters: [],

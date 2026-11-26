@@ -12,7 +12,6 @@ struct Params {
 	bands: array<Band, 144>,
 	halfExtent: vec2f,
 	width: f32,
-	interpolation: u32,
 	bandCount: u32,
 };
 
@@ -33,7 +32,7 @@ fn evaluateClickGradient(position: vec2f) -> ClickGradientOutputs {
 		let distanceFromCenter = length(offset);
 		let distanceBehindFront = band.radius - distanceFromCenter;
 		if (distanceBehindFront < 0.0 || distanceBehindFront > params.width) { continue; }
-		let curve = evaluateGradientInterpolation(distanceBehindFront / params.width, params.interpolation);
+		let curve = evaluateShaderFunctionCurve(distanceBehindFront / params.width);
 		let scalar = (1.0 - curve.value) * band.fade;
 		// 帯の中だけを比較してBackやElasticの負の値を保持する。同値なら先に評価した新しい押下を優先する。
 		if (hasBand && scalar <= result.scalar) { continue; }
@@ -57,6 +56,6 @@ fn fs(@location(0) position: vec2f) -> @location(0) f32 {
 @fragment
 fn fsWithGradient(@location(0) position: vec2f) -> ClickGradientOutputs {
 	let result = evaluateClickGradient(position);
-	// Circularの中点付近などで勾配が急でも、出力テクスチャに無限大を書き込まない。
+	// カーブの勾配が急でも、出力テクスチャに無限大を書き込まない。
 	return ClickGradientOutputs(result.scalar, clamp(result.vector, vec2f(-MAX_GRADIENT), vec2f(MAX_GRADIENT)));
 }

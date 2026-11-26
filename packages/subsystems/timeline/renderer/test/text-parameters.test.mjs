@@ -6,7 +6,7 @@ import { loadSource } from './helpers/load-source.mjs';
 const { TextParameters } = await loadSource(fileURLToPath(new URL('../src/layers/text/text-parameters.ts', import.meta.url)));
 const { createTextParameterValues } = await loadSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_shared/layers/text/text.ts')));
 const literal = value => ({ inputSource: 'literal', value });
-const scope = { time: 1500, isExport: true, curveAnimations: [] };
+const scope = { time: 1500, isExport: true, functionCurves: [] };
 
 // 【縦書きの方向と最大高さを通常のパラメータとして評価する】
 // UIのリテラル編集に加え、式による切り替えも描画側へ伝える。
@@ -72,11 +72,10 @@ test('evaluates Curve Animation and uses independent defaults', () => {
 	const other = createTextParameterValues();
 	bindings.color.value[0] = 0;
 	assert.equal(other.color.value[0], 1);
-	bindings.outlineWidth = { inputSource: 'curveAnimationInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
-		curveAnimation: { isNormalized: false, points: [
+	bindings.outlineWidth = { inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'inline', curve: { type: 'bezier', isXNormalized: false, isYNormalized: false, points: [
 			{ id: 'a', x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 			{ id: 'b', x: 2000, y: 0.1, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
-		] } };
+		] } }, yRangeMin: null, yRangeMax: null, offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null } };
 	delete bindings.lineHeight;
 	const result = new TextParameters().evaluate(bindings, scope);
 	assert.ok(Math.abs(result.outlineWidth - 0.075) < 1e-5);

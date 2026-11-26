@@ -45,7 +45,10 @@ export function evaluateKeyframesTimeline<T>(timeline: KeyframesTimelineData, pl
 			const linearProgress = (x - previous.x) / (next.x - previous.x);
 			const interpolation = previous.interpolation;
 			const progress = interpolation.type === 'linear' ? linearProgress
-				: evaluateEasing(linearProgress, interpolation.type.slice('ease:'.length) as EasingFamily, interpolation.direction);
+				: evaluateEasing(linearProgress, {
+					family: interpolation.type.slice('ease:'.length) as EasingFamily,
+					direction: interpolation.direction,
+				});
 			const from = previous.value;
 			const to = next.value;
 			if (typeof from === 'number' && typeof to === 'number') {

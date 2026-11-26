@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { customShaderEffectDefinitionSchema } from './project-contract-schemas.ts';
-import { curveAnimationSchema, effectResolutionSchema, parameterDefinitionSchema, staticSettingValuesSchema, textureDataTypeSchema, valueParameterBindingSchema } from './parameter-contract-schemas.ts';
+import { sharedFunctionCurveSchema, effectResolutionSchema, parameterDefinitionSchema, staticSettingValuesSchema, textureDataTypeSchema, valueParameterBindingSchema } from './parameter-contract-schemas.ts';
 import type { EffectSource } from '@gs/subsystems_effect_shared/effect-source.ts';
 import type { NodesEffect } from '@gs/subsystems_effect_shared/nodes-effect.ts';
 
@@ -18,7 +18,7 @@ const binding = z.union([valueBinding, z.object({ inputSource: z.literal('node')
 export const storedNodesEffectSchema: z.ZodType<NodesEffect> = z.lazy(() => z.looseObject({
 	kind: z.enum(['generate', 'modify']), primaryInputParameter: id.nullable(), primaryOutput: id.nullable(), primaryAudioInputParameter: id.nullish(),
 	resolutionInputParameters: z.array(id), paramDefs: record(parameterDefinitionSchema), outputDefs: record(z.looseObject({ dataType: textureDataTypeSchema, label: z.string().optional() })),
-	customParameterDefs: record(parameterDefinitionSchema).optional(), customParameterValues: record(valueBinding).optional(), curveAnimations: z.array(curveAnimationSchema).optional(),
+	customParameterDefs: record(parameterDefinitionSchema).optional(), customParameterValues: record(valueBinding).optional(), functionCurves: z.array(sharedFunctionCurveSchema).optional(),
 	outputSources: record(outputSource), nodes: z.array(z.union([
 		z.looseObject({ type: z.literal('relay'), id, input: outputSource.nullable(), dataType: textureDataTypeSchema }),
 		z.looseObject({ type: z.literal('effect').optional(), id, effectSource: effectSourceSchema, params: record(binding), staticSettings: staticSettingValuesSchema.optional(),

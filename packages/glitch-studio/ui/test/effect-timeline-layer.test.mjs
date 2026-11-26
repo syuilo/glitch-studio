@@ -49,7 +49,7 @@ function mediaCommand(name, { sourceDurationMs, ...input }) {
 }
 
 const literal = value => ({ inputSource: 'literal', value });
-const audioLayer = id => ({ id, name: id, layerType: 'audio', isDisabled: false, clips: [], audioParamValues: { volume: literal(1) }, curveAnimations: [] });
+const audioLayer = id => ({ id, name: id, layerType: 'audio', isDisabled: false, clips: [], audioParamValues: { volume: literal(1) }, functionCurves: [] });
 
 // 【指定レイヤーの選択は同じSceneの音声出力だけを許可し、Undo/RedoでIDを維持する】
 // UI候補の絞り込みだけではCommandから別Sceneや画像レイヤーを混入できるため、保存前にも検証する。
@@ -168,7 +168,7 @@ test('validates and edits nested audio bindings using stable parameter paths', t
 test('edits primary audio parameters and timeline arguments with independent undo history', () => {
 	const f = fixture('audioWaveform');
 	const audio = { ...effectDefinitions.audioWaveform.paramDefs.audio, id: 'sound', nameForReference: 'sound', canNode: false };
-	const nodesEffect = { id: 'visual', definition: testNodesEffect({ customParameterValues: {}, nodes: [], primaryOutput: null, primaryInputParameter: null, primaryAudioInputParameter: null, paramDefs: { [audio.id]: audio }, curveAnimations: [] }) };
+	const nodesEffect = { id: 'visual', definition: testNodesEffect({ customParameterValues: {}, nodes: [], primaryOutput: null, primaryInputParameter: null, primaryAudioInputParameter: null, paramDefs: { [audio.id]: audio }, functionCurves: [] }) };
 	f.state.nodesEffects.value.push(nodesEffect);
 	const command = (name, payload) => prepareTestCommand(COMMAND_DEFS[name], payload);
 	const primary = command('setNodesEffectPrimaryAudioInput', { target: { nodesEffectId: nodesEffect.id }, primaryAudioInputId: 'sound' });
@@ -562,7 +562,7 @@ test('edits public primary image inputs and resets them to lower layers', () => 
 	const visual = { id: 'visual', definition: testNodesEffect({ primaryInputParameter: 'image',
 		paramDefs: { image: { nameForReference: 'image', dataType: { kind: 'color' }, ui: { label: 'Image', control: {} }, canNode: true, defaultValue: [0, 0, 0, 0] } } }) };
 	f.state.nodesEffects.value.push(visual);
-	const publicLayer = { id: 'public', layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'visual' }, effectParamValues: {}, curveAnimations: [] };
+	const publicLayer = { id: 'public', layerType: 'effect', effectSource: { type: 'nodesEffectReference', id: 'visual' }, effectParamValues: {}, functionCurves: [] };
 	f.state.timelineScenes.value[0].layers.push(publicLayer);
 	const read = () => resolveLayerParameter(f.state, publicLayer, 'effect', ['image']).value;
 	const edit = value => { const command = prepareTestCommand(uiParameterEdit, { sceneId: 'scene', layerId: 'public', target: 'effect', paramPath: ['image'], edit: value }); command.execute(f.state); return command; };

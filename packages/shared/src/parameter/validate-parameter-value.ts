@@ -1,5 +1,6 @@
 import { isBlendMode } from '../color-blend.ts';
 import { validateColorRamp } from '../color-ramp.ts';
+import { validateFunctionCurve } from '../function-curve/validate-function-curve.ts';
 import { isSizeReference } from '../size-reference.ts';
 import type { ParameterDefinition } from './parameter-definition.ts';
 
@@ -13,6 +14,7 @@ export function validateParameterValue(definition: Pick<ParameterDefinition, 'da
 		case 'vector': valid = components(2); break;
 		case 'color': valid = components(4); break;
 		case 'colorRamp': validateColorRamp(value); valid = true; break;
+		case 'functionCurve': validateFunctionCurve(value); valid = true; break;
 		case 'bool': valid = typeof value === 'boolean'; break;
 		case 'string': valid = typeof value === 'string'; break;
 		case 'enum': valid = typeof value === 'string' && definition.dataType.options.includes(value); break;

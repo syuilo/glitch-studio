@@ -18,7 +18,7 @@ test('compares stored values and input sources without evaluating bindings', () 
 		{ inputSource: 'envVariable', variable: 'TIME' },
 		{ inputSource: 'node', nodeId: 'source', outputPort: 'output' },
 		{ inputSource: 'keyframesTimelineInline', keyframesTimeline: { keyframes: [] } },
-		{ inputSource: 'curveAnimationReference', curveAnimationId: null },
+		{ inputSource: 'curveAnimationInline', curveAnimation: { curveBinding: { source: 'reference', curveId: null }, yRangeMin: null, yRangeMax: null, trimmedDurationMs: null, wrapMode: 'clamp', offsetMode: 'start' } },
 	]) assert.equal(isParameterBindingDefault(scalar, binding), false);
 });
 

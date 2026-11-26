@@ -149,11 +149,11 @@ const appBundle = await build({
 							Object.assign(this.options, options);
 						}
 						async applyProjectChanges(changes) {
-							const patch = deepClone(this.timeline ? changes : changes.filter(change => ['customShaderEffectRegistration', 'curveAnimations', 'nodesEffectRegistration', 'node', 'nodesEffect'].includes(change.type)));
+							const patch = deepClone(this.timeline ? changes : changes.filter(change => ['customShaderEffectRegistration', 'functionCurves', 'nodesEffectRegistration', 'node', 'nodesEffect'].includes(change.type)));
 							if (!patch.length) return;
 							this.patches.push(patch);
-							const next = applyRendererProjectChanges({ curveAnimations: this.options.curveAnimations, customShaderEffects: this.options.customShaderEffects, nodesEffects: this.options.nodesEffects, timelineScenes: this.options.timelineScenes ?? [] }, patch);
-							Object.assign(this.options, this.timeline ? next : { curveAnimations: next.curveAnimations, customShaderEffects: next.customShaderEffects, nodesEffects: next.nodesEffects });
+							const next = applyRendererProjectChanges({ functionCurves: this.options.functionCurves, customShaderEffects: this.options.customShaderEffects, nodesEffects: this.options.nodesEffects, timelineScenes: this.options.timelineScenes ?? [] }, patch);
+							Object.assign(this.options, this.timeline ? next : { functionCurves: next.functionCurves, customShaderEffects: next.customShaderEffects, nodesEffects: next.nodesEffects });
 						}
 						startEffectLivePreviewRenderLoop(effectSource, params, customResolution) { this.lifecycle.push('start'); this.livePreviewPlacement = deepClone({ effectSource, params, customResolution }); }
 						updateEffectLivePreviewParamValues(params) { this.livePreviewPlacement.params = deepClone(params); }
@@ -527,7 +527,7 @@ for (const desktop of [false, true]) {
 function project(overrides = {}) {
 	return {
 		customShaderEffects: [],
-		curveAnimations: [],
+		functionCurves: [],
 		exportSettings: null,
 		timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
 		gsVersion: '2.0.0-alpha.2', name: 'Example', description: 'First line\n日本語の説明', author: 'Author',
@@ -1149,7 +1149,7 @@ test('freezes prepared speech during playback and stops for utterance edits and 
 	window.cancelAnimationFrame = () => {};
 	const key = JSON.stringify([1, 1, 'Hello']);
 	const speech = { key, sourceId: 'first', durationMs: 1000, fileData: new Blob(['first']), engineVersion: 'test', audioQuery: { accent_phrases: [{ moras: [{ text: 'ハ', vowel_length: 0.1 }] }] } };
-	const layer = { id: 'speech', name: 'Speech', layerType: 'voicevox', isDisabled: false, curveAnimations: [],
+	const layer = { id: 'speech', name: 'Speech', layerType: 'voicevox', isDisabled: false, functionCurves: [],
 																	voicevox: { speedScale: 1 }, utterances: [{ id: 'key', timeMs: 0, text: 'Hello', reading: null, styleId: 1, subtitleDuration: { mode: 'fill' } }],
 																	clips: [{ id: 'clip', startMs: 0, durationMs: 2000, contentOffsetMs: 0 }],
 																	subtitleParamValues: {}, compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
@@ -1203,7 +1203,7 @@ test('leaves Effect Live Preview when an imported Nodes Effect is undone and res
 	const { projectSession } = evaluateSession();
 	await startActiveProjectSession(projectSession);
 	const manager = projectSession.projectContext.stateManager;
-	const nodesEffect = { id: 'imported', name: 'Imported Nodes Effect', definition: testNodesEffect({ customParameterValues: {}, nodes: [], primaryInputParameter: null, primaryOutput: null, curveAnimations: [] }) };
+	const nodesEffect = { id: 'imported', name: 'Imported Nodes Effect', definition: testNodesEffect({ customParameterValues: {}, nodes: [], primaryInputParameter: null, primaryOutput: null, functionCurves: [] }) };
 	manager.commit('importNodesEffect', { nodesEffect, nodesEffects: [], customShaderEffects: [], assets: [] });
 	await setImmediate();
 	const nodesEffectLivePreview = projectSession.effectLivePreviewManagerController;
@@ -1561,7 +1561,7 @@ test('round-trips scene references without changing their source origins', async
 	const original = project({ timelineScenes: [
 		{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [{ id: 'nested', layerType: 'scene',
 																																																																										name: 'Layer', clips: [{ id: 'clip', startMs: 50, contentOffsetMs: 100, durationMs: 200, sceneId: 'child' }],
-																																																																										compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } }, curveAnimations: [] }] },
+																																																																										compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } }, functionCurves: [] }] },
 		{ id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [] },
 	] });
 	assert.deepEqual(decodeProjectFile(await encodeProjectFile(original)), original);
@@ -2787,7 +2787,7 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	projectSession.previewPlayback.seekTimeline(500);
 	assert.equal(projectSession.activePreviewRenderer.value, timeline);
 	timeline.renders.length = 0;
-	projectSession.projectContext.stateManager.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [{ id: 'layer', layerType: 'effect', resolution: { mode: 'auto', scale: 1 }, effectSource: { type: 'nodesEffectReference', id: 'first' }, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], effectParamValues: {}, compositingParamValues: {}, curveAnimations: [] }] } });
+	projectSession.projectContext.stateManager.commit('insertImportedAssets', { assets: [], timeline: { sceneId: 'scene', layers: [{ id: 'layer', layerType: 'effect', resolution: { mode: 'auto', scale: 1 }, effectSource: { type: 'nodesEffectReference', id: 'first' }, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], effectParamValues: {}, compositingParamValues: {}, functionCurves: [] }] } });
 	await nextTick();
 	await setImmediate();
 	assert.equal('timelineScenes' in nodesEffectLivePreview.options, false);
@@ -2888,8 +2888,8 @@ test('refreshes audio only for audio content, source files or loop duration chan
 		nodesEffects: [{ id: 'nodesEffect', definition: testNodesEffect({ customParameterValues: {}, nodes: [] }) }],
 		assets: [{ id: 'audio', name: 'sound.wav', fileData: new Blob(['audio']) }, { id: 'image', fileData: new Blob(['image']) }],
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
-			{ id: 'visual', isDisabled: false, layerType: 'effect', resolution: { mode: 'auto', scale: 1 }, effectSource: { type: 'nodesEffectReference', id: 'nodesEffect' }, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 10000 }], effectParamValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, curveAnimations: [] },
-			{ id: 'audio', isDisabled: false, layerType: 'audio', name: 'Layer', clips: [{ id: 'clip', startMs: 0, sourceInMs: 0, sourceOutMs: 5000, playbackRate: 1, loop: false, durationMs: 5000, assetId: 'audio' }], audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, curveAnimations: [] },
+			{ id: 'visual', isDisabled: false, layerType: 'effect', resolution: { mode: 'auto', scale: 1 }, effectSource: { type: 'nodesEffectReference', id: 'nodesEffect' }, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 10000 }], effectParamValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, functionCurves: [] },
+			{ id: 'audio', isDisabled: false, layerType: 'audio', name: 'Layer', clips: [{ id: 'clip', startMs: 0, sourceInMs: 0, sourceOutMs: 5000, playbackRate: 1, loop: false, durationMs: 5000, assetId: 'audio' }], audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, functionCurves: [] },
 		] }],
 	}));
 	await startActiveProjectSession(projectSession);
@@ -3328,9 +3328,9 @@ test('rejects updates during save cleanup without suspending the open project', 
 // 再開後の画面が変わる。式Bindingを含むScene全体を実際のMessagePack経由で確認する。
 test('round-trips camera layers and group compositing modes', async () => {
 	const original = project({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' },
-																																															layers: [{ id: 'camera', name: 'Camera', layerType: 'camera', isDisabled: false, forceDisableMotionBlur: false, curveAnimations: [],
+																																															layers: [{ id: 'camera', name: 'Camera', layerType: 'camera', isDisabled: false, forceDisableMotionBlur: false, functionCurves: [],
 																																																										clips: [{ id: 'view', startMs: 0, durationMs: 5000, contentOffsetMs: 0 }], cameraParamValues: { z: { inputSource: 'expression', expression: '3 + TIME' }, position: { inputSource: 'literal', value: [0.2, 0.4] } } }, { id: 'group', name: 'Group', layerType: 'group', compositingMode: 'preserveDepth', layers: [], isDisabled: false,
-																																																																																																																																																																																																																																																																																			forceDisableMotionBlur: false, coordinateSpace: 'world', curveAnimations: [], compositingParamValues: { depth: { inputSource: 'literal', value: 0.5 }, clipToFrame: { inputSource: 'literal', value: true } }, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } }],
+																																																																																																																																																																																																																																																																																			forceDisableMotionBlur: false, coordinateSpace: 'world', functionCurves: [], compositingParamValues: { depth: { inputSource: 'literal', value: 0.5 }, clipToFrame: { inputSource: 'literal', value: true } }, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } }],
 	}] });
 	const decoded = decodeProjectFile(await encodeProjectFile(original));
 	assert.deepEqual(decoded.timelineScenes, original.timelineScenes);
@@ -3421,23 +3421,23 @@ test('ignores an asset relink selected after its project closes', async t => {
 // 実際のProjectContextとProjectSessionContextを通し、スナップショットが曲線を保持することを確認する。
 test('loads snapshots and synchronizes project Curve Animation definitions to both previews', async t => {
 	setup(t);
-	const curveAnimation = { id: 'shared', nameForReference: 'Curve', isNormalized: false, points: [
+	const curveAnimation = { id: 'shared', nameForReference: 'Curve', type: 'bezier', isXNormalized: false, isYNormalized: false, points: [
 		{ id: 'point', x: 0, y: 0.5, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 	] };
-	const { projectSession } = evaluateSession(project({ curveAnimations: [curveAnimation] }));
+	const { projectSession } = evaluateSession(project({ functionCurves: [curveAnimation] }));
 	await startActiveProjectSession(projectSession);
 	const context = projectSession.projectContext;
-	assert.deepEqual(context.snapshot().curveAnimations, [curveAnimation]);
+	assert.deepEqual(context.snapshot().functionCurves, [curveAnimation]);
 	for (const renderer of [projectSession.effectLivePreviewManagerController, projectSession.timelineRendererManagerController]) {
-		assert.deepEqual(renderer.options.curveAnimations, [curveAnimation]);
+		assert.deepEqual(renderer.options.functionCurves, [curveAnimation]);
 	}
-	context.stateManager.commit('replaceProjectCurveAnimation', { curveAnimationId: ({ ...curveAnimation, nameForReference: 'Renamed' }).id, definition: { ...curveAnimation, nameForReference: 'Renamed' } });
+	context.stateManager.commit('replaceProjectFunctionCurve', { functionCurveId: ({ ...curveAnimation, nameForReference: 'Renamed' }).id, definition: { ...curveAnimation, nameForReference: 'Renamed' } });
 	await nextTick();
 	await setImmediate();
 	for (const renderer of [projectSession.effectLivePreviewManagerController, projectSession.timelineRendererManagerController]) {
-		assert.equal(renderer.options.curveAnimations[0].nameForReference, 'Renamed');
+		assert.equal(renderer.options.functionCurves[0].nameForReference, 'Renamed');
 	}
-	assert.equal(context.snapshot().curveAnimations[0].id, curveAnimation.id);
+	assert.equal(context.snapshot().functionCurves[0].id, curveAnimation.id);
 });
 
 // 【終了したセッションの購読と資源を解放し、別セッションは動作を続ける】
@@ -3488,11 +3488,11 @@ test('observes edits and scene selection before startup and synchronizes once af
 	const playback = projectSession.previewPlayback;
 	const controllers = [projectSession.effectLivePreviewManagerController, projectSession.timelineRendererManagerController];
 	const manager = projectSession.projectContext.stateManager;
-	const curveAnimation = { id: 'curve', nameForReference: 'Curve', isNormalized: false, points: [
+	const curveAnimation = { id: 'curve', nameForReference: 'Curve', type: 'bezier', isXNormalized: false, isYNormalized: false, points: [
 		{ id: 'point', x: 0, y: 0.5, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 	] };
-	manager.commit('createProjectCurveAnimation', { nameForReference: curveAnimation.nameForReference, data: curveAnimation });
-	Object.assign(curveAnimation, manager.state.curveAnimations.value[0]);
+	manager.commit('createProjectFunctionCurve', { nameForReference: curveAnimation.nameForReference, data: curveAnimation });
+	Object.assign(curveAnimation, manager.state.functionCurves.value[0]);
 	await projectSession.flushRendererProjectChanges();
 	playback.seekTimeline(1000);
 	projectSession.activeSceneId.value = 'second';
@@ -3512,13 +3512,13 @@ test('observes edits and scene selection before startup and synchronizes once af
 	assert.equal(projectSession.timelineRendererManagerController.options.sceneId, 'first');
 	for (const controller of controllers) {
 		assert.equal(controller.snapshots.length, 1);
-		assert.deepEqual(controller.options.curveAnimations, [curveAnimation]);
+		assert.deepEqual(controller.options.functionCurves, [curveAnimation]);
 	}
-	manager.commit('replaceProjectCurveAnimation', { curveAnimationId: ({ ...curveAnimation, nameForReference: 'Renamed' }).id, definition: { ...curveAnimation, nameForReference: 'Renamed' } });
+	manager.commit('replaceProjectFunctionCurve', { functionCurveId: ({ ...curveAnimation, nameForReference: 'Renamed' }).id, definition: { ...curveAnimation, nameForReference: 'Renamed' } });
 	await projectSession.flushRendererProjectChanges();
 	for (const controller of controllers) {
 		assert.equal(controller.patches.length, 1);
-		assert.equal(controller.options.curveAnimations[0].nameForReference, 'Renamed');
+		assert.equal(controller.options.functionCurves[0].nameForReference, 'Renamed');
 	}
 });
 
@@ -3540,7 +3540,7 @@ test('does not initialize renderers after a session closes during project loadin
 	await registered.promise;
 	assert.equal(schedule.mock.callCount(), 0);
 	await projectSession.dispose();
-	projectSession.projectContext.stateManager.commit('createProjectCurveAnimation', { nameForReference: 'AfterClose', data: { isNormalized: false, points: [] } });
+	projectSession.projectContext.stateManager.commit('createProjectFunctionCurve', { nameForReference: 'AfterClose', data: { type: 'bezier', isXNormalized: false, isYNormalized: false, points: [] } });
 	await projectSession.flushRendererProjectChanges();
 	completeRegistration.resolve();
 	await loading;

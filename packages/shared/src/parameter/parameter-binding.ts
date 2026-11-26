@@ -12,7 +12,7 @@ export function isLiteralParameterBinding(binding: ParameterBindingBase): bindin
 // 入力方式の判定。保存データのフィールド全体を検証するものではない。
 export function isValueParameterBinding(binding: ParameterBindingBase): binding is ValueParameterBinding {
 	return binding.inputSource === 'literal' || binding.inputSource === 'envVariable' || binding.inputSource === 'expression'
-		|| binding.inputSource === 'curveAnimationReference' || binding.inputSource === 'curveAnimationInline' || binding.inputSource === 'keyframesTimelineInline';
+		|| binding.inputSource === 'curveAnimationInline' || binding.inputSource === 'keyframesTimelineInline';
 }
 
 // IDは同じ配列内で一意。値やBindingの種類が変わっても編集対象を追跡できるよう、

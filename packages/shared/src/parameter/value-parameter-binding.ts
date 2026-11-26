@@ -1,4 +1,4 @@
-import type { CurveAnimationData, CurveAnimationPlaybackOptions } from '../curve-animation/curve-animation.ts';
+import type { CurveAnimation } from '../curve-animation/curve-animation.ts';
 import type { ExpressionVariableName } from '../expression/expression-environment.ts';
 import type { KeyframesTimelineData, KeyframesTimelinePlaybackOptions } from '../keyframes/keyframes-timeline.ts';
 
@@ -17,13 +17,10 @@ export type ValueParameterSource = {
 } | {
 	inputSource: 'expression';
 	expression: string;
-} | ({
-	inputSource: 'curveAnimationReference';
-	curveAnimationId: string | null;
-} & CurveAnimationPlaybackOptions) | ({
+} | {
 	inputSource: 'curveAnimationInline';
-	curveAnimation: CurveAnimationData;
-} & CurveAnimationPlaybackOptions) | ({
+	curveAnimation: CurveAnimation;
+} | ({
 	inputSource: 'keyframesTimelineInline';
 	keyframesTimeline: KeyframesTimelineData;
 } & KeyframesTimelinePlaybackOptions);

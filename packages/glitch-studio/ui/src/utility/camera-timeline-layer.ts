@@ -11,7 +11,7 @@ export function createCameraTimelineLayer(startMs: number): TimelineCameraLayer 
 		isDisabled: false,
 		isSolo: false,
 		color: null,
-		curveAnimations: [],
+		functionCurves: [],
 		forceDisableMotionBlur: false,
 		cameraParamValues: createTimelineCameraParameterValues(),
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
