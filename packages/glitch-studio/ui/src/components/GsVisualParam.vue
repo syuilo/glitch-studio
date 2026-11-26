@@ -41,7 +41,7 @@
 				<i v-else-if="paramValue.inputSource === 'anotherLayerAudio'" v-tooltip="i18n.ts._Parameter.AnotherLayerAudio" class="ti ti-wave-sine" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'keyframesTimelineInline'" v-tooltip="i18n.ts._Parameter.Keyframes" class="ti ti-timeline" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'curveAnimationInline'" v-tooltip="i18n.ts._Parameter.CurveAnimation" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
-				<i v-else-if="vectorComponents != null" v-tooltip="i18n.ts._Parameter.SplitVectorComponents" class="ti ti-list-details" :class="$style.typeIcon"></i>
+				<i v-else-if="vectorComponents != null" v-tooltip="i18n.ts._Parameter.Decompose" class="ti ti-arrows-split-2" :class="$style.typeIcon"></i>
 			</div>
 		</div>
 		<div :class="$style.paramBody">
@@ -69,7 +69,9 @@
 							v-if="inlineFunctionCurve != null"
 							data-test-edit-inline-function-curve
 							@click="inlineFunctionCurveEditorOpen = true"
-						>{{ i18n.ts._FunctionCurve.Edit }}</GsButton>
+						>
+							{{ i18n.ts._FunctionCurve.Edit }}
+						</GsButton>
 						<GsButton v-if="selectedProjectFunctionCurve != null" @click="projectFunctionCurveEditorOpen = true">{{ i18n.ts._FunctionCurve.Edit }}</GsButton>
 						<GsSelect
 							v-if="inlineFunctionCurve?.type === 'bezier'"
@@ -208,6 +210,7 @@
 				:disabled="!previewParameterHandle.available.value"
 				@click="previewParameterHandle.toggle"
 			/>
+			<GsButton v-if="vectorComponents != null" v-tooltip="i18n.ts._Parameter.CombineComponents" iconOnly danger icon="ti ti-arrows-join-2" @click="combineComponents()"/>
 			<slot name="actions"></slot>
 		</div>
 	</div>
@@ -719,6 +722,14 @@ function selectFunctionCurve(ev: PointerEvent) {
 	], ev.currentTarget ?? ev.target);
 }
 
+function combineComponents() {
+	emit('edit', { kind: 'inputSource', ...target(), inputSource: 'literal' });
+}
+
+function splitComponents() {
+	emit('edit', { kind: 'inputSource', ...target(), inputSource: 'components' });
+}
+
 function getMenu() {
 	const menuItems: MenuItem[] = [];
 
@@ -776,13 +787,21 @@ function getMenu() {
 			});
 		}
 		if (props.paramDef.dataType.kind === 'vector') {
-			const split = vectorComponents.value != null;
-			menuItems.push({
-				id: split ? 'combineVectorComponents' : 'splitVectorComponents',
-				text: split ? i18n.ts._Parameter.CombineVectorComponents : i18n.ts._Parameter.SplitVectorComponents,
-				icon: 'ti ti-list-details',
-				action: () => emit('edit', { kind: 'inputSource', ...target(), inputSource: split ? 'literal' : 'components' }),
-			});
+			if (vectorComponents.value != null) {
+				menuItems.push({
+					id: 'combineComponents',
+					text: i18n.ts._Parameter.CombineComponents,
+					icon: 'ti ti-arrows-join-2',
+					action: () => combineComponents(),
+				});
+			} else {
+				menuItems.push({
+					id: 'splitComponents',
+					text: i18n.ts._Parameter.Decompose,
+					icon: 'ti ti-arrows-split-2',
+					action: () => splitComponents(),
+				});
+			}
 		}
 
 		if (expressionModifier.value == null && supportsParameterExpressionModifier(props.paramDef, props.paramValue)) {

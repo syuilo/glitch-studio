@@ -1,11 +1,11 @@
-import { getArrayElementDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { basename, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
+import { getArrayElementDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import { build } from 'esbuild';
 import { compileScript, parse } from 'vue/compiler-sfc';
 import { computed, createRenderer, h, markRaw, nextTick, ref, shallowReactive, toRaw } from 'vue';
@@ -13,7 +13,7 @@ import { i18nPlugin } from './helpers/i18n.mjs';
 
 const directory = fileURLToPath(new URL('../', import.meta.url));
 const bundle = await build({ absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
-	stdin: { resolveDir: directory, loader: 'ts', contents: `
+																													stdin: { resolveDir: directory, loader: 'ts', contents: `
 		export { default as NodeSettings } from './src/components/GsEffectNode.vue';
 		export { default as LayerSettings } from './src/components/GsTimeline.EffectSettings.vue';
 		export { default as Wires } from './src/components/GsWires.vue';
@@ -25,28 +25,28 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		export { preferences } from './src/preferences.ts';
 		export { lastMenu } from './src/ui.ts';
 	` },
-	plugins: [i18nPlugin, { name: 'parameter-expansion', setup(build) {
-		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'platform' }));
-		build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'platform' }));
-		build.onResolve({ filter: /(?:^@\/|\/src\/)(app|project-session|ui)\.ts$/ }, ({ path }) => ({ path: path.endsWith('ui.ts') ? 'ui' : 'app', namespace: 'platform' }));
-		build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', resolveDir: directory, contents: {
-			preferences: "import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false), nodesEffectWireStyle: ref('straight') } };",
-			effects: "import definition from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };",
-			app: 'export const projectSession = {}; export function useProjectSession() { return projectSession; }',
-			ui: 'export let lastMenu; export function popupMenu(items) { lastMenu = items; } export function popup() {} export function contextMenu() {} export function alert() {} export async function inputText() { return { canceled: true }; }',
-		}[path] }));
-		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsVisualParam\.vue$|GsEffectNode\.vue$|GsEffectParameterLayout\.vue$|GsTimeline\.EffectSettings\.vue$|GsWires\.vue$|GsNodePort\.vue$/.test(path)
-			? null : { path: basename(path), namespace: 'control' });
-		build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ loader: 'ts', contents: `
+																													plugins: [i18nPlugin, { name: 'parameter-expansion', setup(build) {
+																														build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'platform' }));
+																														build.onResolve({ filter: /(?:effect-definitions|native-effects[\\/]definitions)\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'platform' }));
+																														build.onResolve({ filter: /(?:^@\/|\/src\/)(app|project-session|ui)\.ts$/ }, ({ path }) => ({ path: path.endsWith('ui.ts') ? 'ui' : 'app', namespace: 'platform' }));
+																														build.onLoad({ filter: /.*/, namespace: 'platform' }, ({ path }) => ({ loader: 'ts', resolveDir: directory, contents: {
+																															preferences: 'import { ref } from \'vue\'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false), nodesEffectWireStyle: ref(\'straight\') } };',
+																															effects: 'import definition from \'@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts\'; export const nativeEffectDefinitions = { testStructArray: definition };',
+																															app: 'export const projectSession = {}; export function useProjectSession() { return projectSession; }',
+																															ui: 'export let lastMenu; export function popupMenu(items) { lastMenu = items; } export function popup() {} export function contextMenu() {} export function alert() {} export async function inputText() { return { canceled: true }; }',
+																														}[path] }));
+																														build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsVisualParam\.vue$|GsEffectNode\.vue$|GsEffectParameterLayout\.vue$|GsTimeline\.EffectSettings\.vue$|GsWires\.vue$|GsNodePort\.vue$/.test(path)
+																															? null : { path: basename(path), namespace: 'control' });
+																														build.onLoad({ filter: /.*/, namespace: 'control' }, () => ({ loader: 'ts', contents: `
 			import { h } from 'vue'; export default { inheritAttrs: false, setup(_, { attrs, slots }) {
 				return () => h('control', attrs, Object.entries(slots).flatMap(([name, slot]) => name === 'caption' ? [] : slot()));
 			} };` }));
-		build.onLoad({ filter: /\.vue$/ }, async ({ path }) => {
-			const descriptor = parse(await readFile(path, 'utf8'), { filename: path }).descriptor;
-			const script = compileScript(descriptor, { id: basename(path), inlineTemplate: true, genDefaultAs: 'component', templateOptions: { compilerOptions: { hoistStatic: false } } }).content;
-			return { loader: 'ts', resolveDir: dirname(path), contents: `${script}; component.__cssModules = { $style: {} }; export default component;` };
-		});
-	} }],
+																														build.onLoad({ filter: /\.vue$/ }, async ({ path }) => {
+																															const descriptor = parse(await readFile(path, 'utf8'), { filename: path }).descriptor;
+																															const script = compileScript(descriptor, { id: basename(path), inlineTemplate: true, genDefaultAs: 'component', templateOptions: { compilerOptions: { hoistStatic: false } } }).content;
+																															return { loader: 'ts', resolveDir: dirname(path), contents: `${script}; component.__cssModules = { $style: {} }; export default component;` };
+																														});
+																													} }],
 });
 
 class TestElement {
@@ -91,7 +91,9 @@ const renderer = createRenderer({
 });
 const findAll = (root, predicate) => [root, ...root.children.flatMap(child => findAll(child, predicate))].filter(predicate);
 const hasAttribute = name => node => Object.hasOwn(node.props, name);
+
 function isVisible(node) { return node != null && node.style.display !== 'none' && (node.parent == null || isVisible(node.parent)); }
+
 function click(node) { node.props.onClick({ currentTarget: node, stopPropagation() {} }); }
 
 async function fixture(t, { target = 'node', defaultCollapsed = false, elementCollapsed = false, connected = false, layout = null, advancedParameterKeys = [], extraParameters = {} } = {}) {
@@ -110,17 +112,17 @@ async function fixture(t, { target = 'node', defaultCollapsed = false, elementCo
 		const params = Object.fromEntries(Object.entries(definition.paramDefs).map(([key, parameter]) => [key, createDefaultParameterBinding(parameter)]));
 		if (connected) params.buzzs.value[0].binding.value.image = { inputSource: 'node', nodeId: 'source', outputPort: 'output' };
 		return { id, type: 'effect', layerType: 'effect', effectSource: { type: 'nativeEffect', id: 'testStructArray' }, resolution: { mode: 'auto', scale: 1 },
-			isBypass: false, functionCurves: [], params, effectParamValues: params, staticSettings: {}, effectStaticSettings: {} };
+											isBypass: false, functionCurves: [], params, effectParamValues: params, staticSettings: {}, effectStaticSettings: {} };
 	};
 	const owners = ref([createOwner('first-owner'), createOwner('second-owner')]);
 	const selection = ref(0);
 	const owner = computed(() => owners.value[selection.value]);
 	const nodesEffect = computed(() => ({ nodes: [{ id: 'source', type: 'relay', dataType: { kind: 'color' } }, ...owners.value],
-		paramDefs: [], outputDefs: [], functionCurves: [], customParameterDefs: [] }));
+																																							paramDefs: [], outputDefs: [], functionCurves: [], customParameterDefs: [] }));
 	const scope = ref(JSON.stringify(target === 'node' ? ['nodesEffect', 'first-nodes-effect'] : ['timelineLayer', 'scene', 'first-layer']));
 	const state = shallowReactive(new Map());
 	Object.assign(projectSession, { parameterExpansionStates: state,
-		projectContext: { stateManager: { state: { functionCurves: ref([]), resolution: ref({ width: 800, height: 600 }) } } } });
+																																	projectContext: { stateManager: { state: { functionCurves: ref([]), resolution: ref({ width: 800, height: 600 }) } } } });
 	const showEditor = ref(true);
 	const edits = [];
 	let wireMap;
@@ -177,7 +179,7 @@ async function fixture(t, { target = 'node', defaultCollapsed = false, elementCo
 		return paths[0]?.props.d.split(' L ').at(-1).split(' ').map(Number);
 	};
 	return { root, row, toggleButton, collapsedPort, expanded, toggle, owners, selection, scope, owner, showEditor, edits, state, wireMap, measure, position, destination,
-		section, sectionToggleButton, sectionExpanded, toggleSection, sectionPort };
+										section, sectionToggleButton, sectionExpanded, toggleSection, sectionPort };
 }
 
 const nestedLayout = (defaultExpanded = true) => ['bars', {
@@ -193,7 +195,7 @@ test('shows split vector components and edits them using indexed paths', async t
 	const f = await fixture(t, { extraParameters: { pair: vector } });
 	const openPairMenu = () => click(findAll(f.row(['pair']), hasAttribute('data-test-parameter-menu'))[0]);
 	openPairMenu();
-	module.exports.lastMenu.find(item => item.id === 'splitVectorComponents').action();
+	module.exports.lastMenu.find(item => item.id === 'splitComponents').action();
 	assert.deepEqual(f.edits.pop(), { kind: 'inputSource', paramPath: ['pair'], inputSource: 'components' });
 	f.owner.value.params.pair = { inputSource: 'components', components: [
 		{ inputSource: 'literal', value: 2 }, { inputSource: 'literal', value: 4 },
@@ -205,7 +207,7 @@ test('shows split vector components and edits them using indexed paths', async t
 	openPairMenu();
 	module.exports.lastMenu.find(item => item.id === 'addExpressionModifier').action();
 	assert.deepEqual(f.edits.pop(), { kind: 'expressionModifier', paramPath: ['pair'], value: { enabled: true, code: 'VALUE' } });
-	module.exports.lastMenu.find(item => item.id === 'combineVectorComponents').action();
+	module.exports.lastMenu.find(item => item.id === 'combineComponents').action();
 	assert.deepEqual(f.edits.pop(), { kind: 'inputSource', paramPath: ['pair'], inputSource: 'literal' });
 });
 
