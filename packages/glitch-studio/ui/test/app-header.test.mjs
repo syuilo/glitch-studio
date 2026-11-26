@@ -51,6 +51,7 @@ const { Header, operations, projectSessions, menus } = module.exports;
 // ヘッダーをエディタの外へ移した後も、保存・Undoの対象を取り違えず、
 // Dashboardの再表示や新規作成のためにダミーセッションを必要としないことを確認する。
 // 他タブのファイル操作中も編集は使え、追加のファイル操作だけが無効になる必要がある。
+// 未編集の新規プロジェクトもヘッダーの保存ボタンで初回保存できることを確認する。
 test('keeps application actions available without a project and binds project actions to their session', async t => {
 	const element = () => ({ children: [], parent: null, props: {} });
 	const renderer = createRenderer({
@@ -92,7 +93,7 @@ test('keeps application actions available without a project and binds project ac
 	assert.equal(emptyMenu.find(item => item.id === 'save-project').disabled, true);
 	assert.equal(emptyMenu.find(item => item.id === 'add-assets').disabled, true);
 	assert.equal(emptyMenu.find(item => item.id === 'close-project').disabled, true);
-	const session = id => ({ id, hasUnsavedChanges: ref(true), isProjectSaving: ref(false), projectFileName: ref(null),
+	const session = id => ({ id, hasUnsavedChanges: ref(false), isProjectSaving: ref(false), projectFileName: ref(null),
 		projectContext: { stateManager: { state: { name: ref(id) }, canUndo: ref(true), canRedo: ref(false), undo: () => operations.push(['undo', id]) } },
 		saveProject: () => operations.push(['save', id]),
 	});
@@ -102,7 +103,8 @@ test('keeps application actions available without a project and binds project ac
 	assert.equal(find('data-test-header-save').props.disabled, false);
 	assert.equal(find('data-test-header-undo').props.disabled, false);
 	const firstMenu = fileMenu();
-	activeSession.value = session('second');
+	const second = session('second');
+	activeSession.value = second;
 	await nextTick();
 	firstMenu.find(item => item.id === 'save-project').action();
 	assert.deepEqual(operations.at(-1), ['save', 'first']);
@@ -115,6 +117,12 @@ test('keeps application actions available without a project and binds project ac
 	assert.deepEqual(operations.at(-1), ['add-assets', 'first']);
 	find('data-test-header-save').props.onClick();
 	assert.deepEqual(operations.at(-1), ['save', 'second']);
+	second.projectFileName.value = 'second.gsproj';
+	await nextTick();
+	assert.equal(find('data-test-header-save').props.disabled, true);
+	second.hasUnsavedChanges.value = true;
+	await nextTick();
+	assert.equal(find('data-test-header-save').props.disabled, false);
 	find('data-test-header-undo').props.onClick();
 	assert.deepEqual(operations.at(-1), ['undo', 'second']);
 	projectSessions.fileOperations.isBusy.value = true;

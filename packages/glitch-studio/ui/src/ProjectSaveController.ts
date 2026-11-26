@@ -64,14 +64,14 @@ export class ProjectSaveController {
 	private readonly saveTarget = shallowRef<ProjectSaveTarget | null>(null);
 	private readonly initialFileName: string | null;
 	private backupFingerprint = createProjectBackupFingerprint();
-	private savedFingerprint = ref<string | null>(null);
+	private readonly baselineFingerprint = ref<string | null>(null);
 	private readonly saving = ref(false);
 	public readonly isProjectSaving = readonly(this.saving);
 	// 履歴の件数では、Undo・直接編集されるプロジェクト情報・生成音声の変更を判定できない。
 	// 保存対象そのものを比較し、不変なBlobはバックアップと同じ同一性で扱う。
 	public hasUnsavedChanges = computed(() => {
 		const project = this.disposed.value ? null : this.getSnapshot();
-		return project != null && this.backupFingerprint(project) !== this.savedFingerprint.value;
+		return project != null && this.backupFingerprint(project) !== this.baselineFingerprint.value;
 	});
 	// Fileだけで開いた名前は保存先が確定するまで使い、ハンドルやアクセス状態は保存先から導出する。
 	public readonly projectFileName = computed(() => this.disposed.value ? null : this.saveTarget.value?.handle.name ?? this.initialFileName);
@@ -108,11 +108,11 @@ export class ProjectSaveController {
 		this.stopBackupSettings = watch(() => [preferences.r.projectBackupAutoEnabled.value, preferences.r.projectBackupAutoIntervalMinutes.value],
 			() => this.projectBackupController.refreshSchedule());
 
-		const { fileName, fileHandle } = options;
-		// Fileから開いた場合も読み込み直後は保存済みとする。新規プロジェクトは初回保存が必要。
-		// 比較基準を生成時に確定し、非同期の起動中に行われた編集を保存済みとして取り込まない。
-		const savedProject = fileName != null || fileHandle != null ? this.getSnapshot() : null;
-		this.savedFingerprint.value = savedProject != null ? this.backupFingerprint(savedProject) : null;
+		const { fileHandle } = options;
+		// 保存先の有無にかかわらず、生成時の内容からの差分を未保存変更として扱う。
+		// 非同期の起動中に行われた編集も検出できるよう、比較基準はここで確定する。
+		const initialProject = this.getSnapshot();
+		this.baselineFingerprint.value = initialProject != null ? this.backupFingerprint(initialProject) : null;
 		this.setSaveTarget(fileHandle != null ? { handle: fileHandle, backup: resolveBackupTarget(fileHandle, null) } : null);
 	}
 
@@ -180,7 +180,7 @@ export class ProjectSaveController {
 					if (!this.disposed.value) {
 						// 保存中の編集を保存済みにしないよう、書き込んだスナップショットを基準にする。
 						// バックアップ整理の成否ではなく、本体の書き込み成功時点で更新する。
-						this.savedFingerprint.value = fingerprint;
+						this.baselineFingerprint.value = fingerprint;
 						this.setSaveTarget({ handle, backup: target });
 						void recentProjects.remember(handle, project.name);
 						if (target != null) await this.projectBackupController.afterSave(target, saveBackupTime);

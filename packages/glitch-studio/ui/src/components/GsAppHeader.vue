@@ -75,7 +75,7 @@
 			v-tooltip="i18n.ts.Save"
 			class="_button"
 			:class="$style.headerQuickButton"
-			:disabled="projectSession == null || fileOperationBusy || !hasUnsavedChanges"
+			:disabled="fileOperationBusy || !canQuickSave"
 			data-test-header-save
 			@click="projectSession?.saveProject()"
 		>
@@ -134,7 +134,10 @@ const props = defineProps<{ projectSession: ProjectSessionContext | null; editor
 const emit = defineEmits<{ showDashboard: [] }>();
 const isElectron = __ELECTRON__;
 const stateManager = computed(() => props.projectSession?.projectContext.stateManager);
-const hasUnsavedChanges = computed(() => props.projectSession?.hasUnsavedChanges.value ?? false);
+const canQuickSave = computed(() => {
+	const projectSession = props.projectSession;
+	return projectSession != null && (projectSession.projectFileName.value == null || projectSession.hasUnsavedChanges.value);
+});
 const fileOperationBusy = projectSessions.fileOperations.isBusy;
 const showAdvancedParameters = preferences.model('showAdvancedParameters');
 const showShortLabels = preferences.model('showShortLabels');

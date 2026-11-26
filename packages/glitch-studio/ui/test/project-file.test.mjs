@@ -1599,7 +1599,7 @@ function fileHandle(name, options = {}) {
 }
 
 // 【生成直後から保存状態を判定し、起動前の編集を保存済みにしない】
-// 新規作成とFileだけで開いた状態は、どちらも保存先がなくても未保存判定が異なる。
+// 保存先がない新規プロジェクトやFileだけで開いたプロジェクトでも、生成時の内容を比較基準にする。
 // プレビューの起動時に比較基準を取り直すと、その前に行われた編集が保存済みになってしまう。
 test('initializes save state at construction and preserves unsaved edits across startup', async t => {
 	for (const source of ['new project', 'file only', 'file handle']) {
@@ -1613,14 +1613,14 @@ test('initializes save state at construction and preserves unsaved edits across 
 			assert.equal(projectSession.projectFileName.value, fileName);
 			assert.equal(projectSession.projectFileHandle.value, handle);
 			assert.equal(projectSession.projectBackupAccess.value, handle == null ? 'unsaved' : 'folder-required');
-			assert.equal(projectSession.hasUnsavedChanges.value, source === 'new project');
+			assert.equal(projectSession.hasUnsavedChanges.value, false);
 			const state = projectSession.projectContext.stateManager.state;
 			state.name.value = 'Edited before startup';
 			assert.equal(projectSession.hasUnsavedChanges.value, true);
 			await startActiveProjectSession(projectSession);
 			assert.equal(projectSession.hasUnsavedChanges.value, true);
 			state.name.value = 'Initial content';
-			assert.equal(projectSession.hasUnsavedChanges.value, source === 'new project');
+			assert.equal(projectSession.hasUnsavedChanges.value, false);
 		});
 	}
 });
@@ -2011,6 +2011,7 @@ test('creates a new project from a media path and chooses a separate project sav
 	});
 	const app = evaluate(appBundle);
 	assert.equal(await app.newProjectFromMediaPath(filePath, 'image/png'), true);
+	assert.equal(app.projectSession.hasUnsavedChanges.value, false);
 	const manager = app.projectSession.projectContext.stateManager;
 	assert.deepEqual({ ...manager.state.resolution.value }, { width: 640, height: 360 });
 	assert.equal(manager.state.assets.value[0].sourceFilePath, filePath);
@@ -2339,8 +2340,8 @@ test('distinguishes automatic backups from manual saves queued behind them', asy
 	assert.equal(projectSession.isProjectSaving.value, false);
 });
 
-// 【手動保存した内容と比較し、履歴操作と履歴外の変更を反映する】
-// 履歴数だけの判定では、保存時に戻るUndoや、履歴を増やさない連続編集・メタデータ編集を扱えない。
+// 【生成時と手動保存時の内容を基準に、履歴操作と履歴外の変更を反映する】
+// 履歴数だけの判定では、生成時や保存時の状態に戻る操作、履歴を増やさない連続編集・メタデータ編集を扱えない。
 // 素材のBlobを変更検出のために読み出さず、プレビューの操作だけでは未保存にしないことも確認する。
 test('tracks unsaved content across undo, redo, continuous edits and direct changes', async t => {
 	const window = setup(t);
@@ -2348,11 +2349,9 @@ test('tracks unsaved content across undo, redo, continuous edits and direct chan
 	assert.equal(app.projectSessions.hasUnsavedChanges.value, false);
 	await app.newProject();
 	const { projectSession } = app;
-	assert.equal(projectSession.hasUnsavedChanges.value, true);
+	assert.equal(projectSession.hasUnsavedChanges.value, false);
 	const handle = fileHandle('saved.gsproj');
 	window.selectProjectSaveFile = async () => handle;
-	await projectSession.saveProject();
-	assert.equal(projectSession.hasUnsavedChanges.value, false);
 	const manager = projectSession.projectContext.stateManager;
 	manager.commit('createNodesEffectEffectNode', { nodesEffect: { nodesEffectId: manager.state.nodesEffects.value[0].id }, effectSource: { type: 'nativeEffect', id: 'fill' } });
 	assert.equal(projectSession.hasUnsavedChanges.value, true);
@@ -2394,7 +2393,7 @@ test('tracks unsaved content across undo, redo, continuous edits and direct chan
 	assert.equal(projectSession.hasUnsavedChanges.value, false);
 	assert.equal(projectSession.projectFileName.value, handle.name);
 	await app.newProject();
-	assert.equal(app.projectSession.hasUnsavedChanges.value, true);
+	assert.equal(app.projectSession.hasUnsavedChanges.value, false);
 });
 
 // 【保存完了前の編集と、別セッションの変更を保存済みにしない】
@@ -2514,6 +2513,7 @@ test('keeps display names in sync with project names and committed file names wi
 	const second = await app.newProject();
 	assert.equal(second.projectDisplayName.value, '(Unsaved)');
 	assert.equal(window.document.title, 'Glitch Studio ((Unsaved))');
+	second.projectContext.stateManager.state.description.value = 'Edited description';
 	await app.projectSessions.select(first);
 	assert.equal(window.document.title, 'Glitch Studio (copy)');
 	assert.equal(await app.projectSessions.close(second), true);
@@ -3891,6 +3891,7 @@ test('protects owned destinations and rejects file operations across tabs until 
 	await app.openProject(null, target);
 	const first = app.projectSession;
 	const second = await app.newProject();
+	second.projectContext.stateManager.state.name.value = 'Edited before saving';
 	window.selectProjectSaveFile = async () => target;
 	const original = target.bytes;
 	await second.saveProject();
@@ -3989,6 +3990,7 @@ test('holds file operation acceptance through close confirmation and session cle
 	app = evaluate(appBundle);
 	const first = await app.newProject();
 	const second = await app.newProject();
+	first.projectContext.stateManager.state.name.value = 'Edited before closing';
 	const confirmation = Promise.withResolvers();
 	window.confirmProjectClose = () => confirmation.promise;
 	window.selectProjectSaveFile = () => assert.fail('A rejected save must not show a picker');
@@ -4023,7 +4025,8 @@ test('holds file operation acceptance through close confirmation and session cle
 // 【最後のタブを閉じたらセッション0件へ戻し、アプリ終了ですべてのセッションを破棄する】
 // 閉じた作品の保存先・Workerを残さず、次の新規作成で空タブが余分に増えないことを保証する。
 test('returns to zero sessions after the final close and disposes every remaining session', async t => {
-	setup(t);
+	const window = setup(t);
+	window.confirmProjectClose = () => assert.fail('An unedited project must close without confirmation');
 	const app = evaluate(appBundle);
 	const first = await app.newProject();
 	assert.equal(await app.projectSessions.close(first), true);
@@ -4036,6 +4039,8 @@ test('returns to zero sessions after the final close and disposes every remainin
 	const second = await app.newProject();
 	const third = await app.newProject();
 	assert.equal(app.projectSessions.sessions.value.length, 2);
+	assert.equal(app.projectSessions.hasUnsavedChanges.value, false);
+	second.projectContext.stateManager.state.name.value = 'Edited in an inactive tab';
 	assert.equal(app.projectSessions.hasUnsavedChanges.value, true);
 	await app.disposeApplication();
 	assert.equal(second.isDisposed, true);
