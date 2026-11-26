@@ -23,6 +23,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 		export { projectSession } from './src/project-session.ts';
 		export { nativeEffectDefinitions as effectDefinitions } from '@gs/subsystems_effect_native-effects/definitions.ts';
 		export { preferences } from './src/preferences.ts';
+		export { lastMenu } from './src/ui.ts';
 	` },
 	plugins: [i18nPlugin, { name: 'parameter-expansion', setup(build) {
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'platform' }));
@@ -32,7 +33,7 @@ const bundle = await build({ absWorkingDir: directory, bundle: true, platform: '
 			preferences: "import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: false }, r: { showAdvancedParameters: ref(false), nodesEffectWireStyle: ref('straight') } };",
 			effects: "import definition from '@gs/subsystems_effect_native-effects/fx/testStructArray/_def_.ts'; export const nativeEffectDefinitions = { testStructArray: definition };",
 			app: 'export const projectSession = {}; export function useProjectSession() { return projectSession; }',
-			ui: 'export function popupMenu() {} export function popup() {} export function contextMenu() {} export function alert() {} export async function inputText() { return { canceled: true }; }',
+			ui: 'export let lastMenu; export function popupMenu(items) { lastMenu = items; } export function popup() {} export function contextMenu() {} export function alert() {} export async function inputText() { return { canceled: true }; }',
 		}[path] }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => /GsVisualParam\.vue$|GsEffectNode\.vue$|GsEffectParameterLayout\.vue$|GsTimeline\.EffectSettings\.vue$|GsWires\.vue$|GsNodePort\.vue$/.test(path)
 			? null : { path: basename(path), namespace: 'control' });
@@ -93,8 +94,9 @@ const hasAttribute = name => node => Object.hasOwn(node.props, name);
 function isVisible(node) { return node != null && node.style.display !== 'none' && (node.parent == null || isVisible(node.parent)); }
 function click(node) { node.props.onClick({ currentTarget: node, stopPropagation() {} }); }
 
-async function fixture(t, { target = 'node', defaultCollapsed = false, elementCollapsed = false, connected = false, layout = null, advancedParameterKeys = [] } = {}) {
+async function fixture(t, { target = 'node', defaultCollapsed = false, elementCollapsed = false, connected = false, layout = null, advancedParameterKeys = [], extraParameters = {} } = {}) {
 	const definition = structuredClone(originalDefinition);
+	Object.assign(definition.paramDefs, extraParameters);
 	preferences.r.showAdvancedParameters.value = false;
 	if (layout != null) definition.ui = { parameterLayout: layout };
 	for (const key of advancedParameterKeys) definition.paramDefs[key].ui.isAdvanced = true;
@@ -183,6 +185,29 @@ const nestedLayout = (defaultExpanded = true) => ['bars', {
 		type: 'section', id: 'inner', label: 'Inner', defaultExpanded, children: ['buzzs'],
 	}],
 }];
+
+// 【分割メニューから成分行を開き、文字列の添字で編集する】
+// 入力方式の操作と数値入力が正しいパスに届き、親の加工式も分割中に編集できることを確認する。
+test('shows split vector components and edits them using indexed paths', async t => {
+	const vector = { dataType: { kind: 'vector' }, ui: { label: 'Pair', control: { controlType: 'vector' } }, defaultValue: [2, 4] };
+	const f = await fixture(t, { extraParameters: { pair: vector } });
+	const openPairMenu = () => click(findAll(f.row(['pair']), hasAttribute('data-test-parameter-menu'))[0]);
+	openPairMenu();
+	module.exports.lastMenu.find(item => item.id === 'splitVectorComponents').action();
+	assert.deepEqual(f.edits.pop(), { kind: 'inputSource', paramPath: ['pair'], inputSource: 'components' });
+	f.owner.value.params.pair = { inputSource: 'components', components: [
+		{ inputSource: 'literal', value: 2 }, { inputSource: 'literal', value: 4 },
+	] };
+	await nextTick();
+	assert.ok(isVisible(f.row(['pair', '0'])));
+	findAll(f.row(['pair', '1']), hasAttribute('data-test-parameter-value-control'))[0].props.onInput(5);
+	assert.deepEqual(f.edits.pop(), { kind: 'literal', paramPath: ['pair', '1'], value: 5 });
+	openPairMenu();
+	module.exports.lastMenu.find(item => item.id === 'addExpressionModifier').action();
+	assert.deepEqual(f.edits.pop(), { kind: 'expressionModifier', paramPath: ['pair'], value: { enabled: true, code: 'VALUE' } });
+	module.exports.lastMenu.find(item => item.id === 'combineVectorComponents').action();
+	assert.deepEqual(f.edits.pop(), { kind: 'inputSource', paramPath: ['pair'], inputSource: 'literal' });
+});
 
 for (const target of ['node', 'layer']) {
 	// 【両編集画面でセクションとパラメータを配置順に表示し、入れ子を独立して開閉する】

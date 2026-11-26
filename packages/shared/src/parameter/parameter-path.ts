@@ -1,9 +1,10 @@
-import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from './parameter-definition.ts';
-import { isLiteralParameterBinding } from './parameter-binding.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, getVectorComponentDefinition, isParameterType } from './parameter-definition.ts';
+import { isLiteralParameterBinding, isValueParameterBinding } from './parameter-binding.ts';
 import type { ParameterArrayElement, ParameterBindingBase } from './parameter-binding.ts';
 import type { ParameterDefinition } from './parameter-definition.ts';
+import type { ScalarParameterBinding } from './value-parameter-binding.ts';
 
-// 配列はindexではなく要素IDで指定する。親までのパスがIDのスコープとなる。
+// 配列は要素ID、分割したベクトルは固定の添字文字列「0」「1」で指定する。
 export type ParamPath = readonly [string, ...string[]];
 
 export function paramPathKey(path: ParamPath): string {
@@ -17,6 +18,7 @@ export function resolveParameter<Binding extends ParameterBindingBase = never>(d
 	let value = params[path[0]];
 	let setValue = (next: NoInfer<Binding>) => { params[path[0]] = next; };
 	let hasArrayElementInPath = false;
+	let isVectorComponent = false;
 	if (def == null || value == null) throw new Error(`Unknown parameter: ${paramPathKey(path)}`);
 	for (const segment of path.slice(1)) {
 		if (isParameterType(def, 'array') && isLiteralParameterBinding(value) && Array.isArray(value.value)) {
@@ -33,11 +35,18 @@ export function resolveParameter<Binding extends ParameterBindingBase = never>(d
 			value = fields[segment];
 			setValue = next => { fields[segment] = next; };
 			if (def == null || value == null) throw new Error(`Unknown struct field: ${paramPathKey(path)}`);
+		} else if (isParameterType(def, 'vector') && isValueParameterBinding(value) && value.inputSource === 'components' && (segment === '0' || segment === '1')) {
+			const index = segment === '0' ? 0 : 1;
+			const components = value.components;
+			isVectorComponent = true;
+			def = getVectorComponentDefinition(def, index, def.defaultValue[index]);
+			value = components[index] as unknown as Binding;
+			setValue = next => { components[index] = next as unknown as ScalarParameterBinding; };
 		} else {
 			throw new Error(`Invalid parameter path: ${paramPathKey(path)}`);
 		}
 	}
-	return { def, value, setValue, hasArrayElementInPath };
+	return { def, value, setValue, hasArrayElementInPath, isVectorComponent };
 }
 
 // 呼び出し側が渡したBindingを定義順でたどる。
@@ -56,6 +65,12 @@ export function* walkParameters<Binding extends ParameterBindingBase = never>(de
 			}
 		} else {
 			yield { path, def, value };
+			// 親の加工式と成分のキー・式をそれぞれ処理できるよう、双方を走査する。
+			if (isParameterType(def, 'vector') && isValueParameterBinding(value) && value.inputSource === 'components') {
+				for (const index of [0, 1] as const) {
+					yield { path: [...path, String(index)], def: getVectorComponentDefinition(def, index, def.defaultValue[index]), value: value.components[index] as unknown as Binding };
+				}
+			}
 		}
 	}
 

@@ -74,6 +74,7 @@ export const createTimelineLayerPublicParameterFromParameterCommandDef = defineT
   if (rootDefinition == null) throw new Error('Timeline parameter not found');
   const draft = { [rootKey]: deepClone(resolveLayerParameter(state, layer, target, [rootKey]).value) };
   const parameter = resolveParameter<EditableTimelineParameterBinding>(definitions, draft, input.parameterPath);
+  if (parameter.isVectorComponent) throw new Error('Vector components do not support direct parameter references');
   const parameterId = timelineLayerPublicParameterId(genId());
   const definition = { ...createNamedParameterFromLiteral(parameter.def, parameter.value, layer.publicParameterDefs ?? []), id: parameterId };
   const publicParameterDefinitions = [...layer.publicParameterDefs ?? [], definition];

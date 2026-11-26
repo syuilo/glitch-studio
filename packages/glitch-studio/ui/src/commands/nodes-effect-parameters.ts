@@ -1,9 +1,9 @@
-import { createDefaultParameterBinding, isParameterBindingDefault } from '@gs/shared/parameter/parameter-default.ts';
+import { createDefaultParameterBinding, createDefaultVectorComponentsParameterBinding, isParameterBindingDefault } from '@gs/shared/parameter/parameter-default.ts';
 import { canConnectNodeDataTypes } from '@gs/shared/data-type/node-compatibility.ts';
 import { AiSON } from '@syuilo/aiscript';
 import { validateStaticSettingValue } from '@gs/shared/static-setting.ts';
 import { preserveParameterExpressionModifier, supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
-import { validateParameterDefaultValues } from '@gs/shared/parameter/static-parameter.ts';
+import { validateParameterDefaultValues, validateVectorComponentBinding } from '@gs/shared/parameter/static-parameter.ts';
 import { getArrayElementDefinition, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter-path.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
@@ -35,7 +35,7 @@ import type { StructParameterFieldBindings } from '../utility/struct-parameter-e
 import type { ConnectionTypePolicy } from '@gs/shared/data-type/node-compatibility.ts';
 import type { ParameterExpressionModifier } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
-import type { ParameterChangeKind } from '@gs/shared/parameter/parameter-definition.ts';
+import type { ParameterChangeKind, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { NodesEffectCustomParameterDefinition, NodesEffectValueParameterBinding, NodesEffectParameterBinding, NodesEffectEffectNode, NodesEffect, NodesEffectParamDef, NodesEffectOutputDef } from '@/types/nodes-effect-view.ts';
 import type { NodesEffectTarget } from '@gs/glitch-studio_shared/project/nodes-effect-target.ts';
@@ -80,6 +80,7 @@ function defineNodeParameterCommand<Input extends NodesEffectNodeParameterRefere
 			const updated = update(draftParameter, input);
 			const after = options.preserveModifier === true ? preserveParameterExpressionModifier(parameter.value, updated) : updated;
 
+			if (parameter.isVectorComponent) validateVectorComponentBinding(after);
 			validateNodesEffectNodeParameterBinding(state, getNodesEffect(state, input.target.nodesEffect), parameter.def, after, parameter.value, input.connectionTypePolicy ?? 'strict');
 			return prepareNodesEffectValue(parameter.value, after, (currentState, value) => {
 				resolveNodeParam(getNodesEffectEffectNode(currentState, input.target), input.parameterPath, getEffectDefinitions(currentState)).setValue(value);
@@ -115,6 +116,7 @@ const switchNodesEffectNodeParameterInputSource = defineNodeParameterCommand<Nod
 		assertLeafParameter(parameter);
 		switch (input.inputSource) {
 			case 'literal': return createDefaultParameterBinding(parameter.def);
+			case 'components': return createDefaultVectorComponentsParameterBinding(parameter.def);
 			case 'expression': return { inputSource: 'expression', expression: AiSON.stringify(parameter.value.inputSource === 'literal' ? parameter.value.value : parameter.def.defaultValue) };
 			case 'envVariable': return { inputSource: 'envVariable', variable: '' };
 			case 'curveAnimationInline': return createInlineCurveAnimation();
@@ -383,6 +385,7 @@ const createNodesEffectPublicParameterFromParameter = defineCommand<NodesEffectN
 		const node = nodesEffect.nodes.find(candidate => candidate.id === input.target.nodeId);
 		if (node?.type !== 'effect') throw new Error('Effect node not found');
 		const parameter = resolveNodeParam(node, input.parameterPath, getEffectDefinitions(state));
+		if (parameter.isVectorComponent) throw new Error('Vector components do not support direct parameter references');
 		const named = createNamedParameterFromLiteral(parameter.def, parameter.value, nodesEffect.paramDefs);
 		const definition: NodesEffectParamDef = { ...named, id: genId(), nameForReference: named.nameForReference };
 		validateNodesEffectPublicParameterDefinition(nodesEffect, definition);
@@ -397,6 +400,7 @@ const createNodesEffectCustomParameterFromParameter = defineCommand<NodesEffectN
 		const node = nodesEffect.nodes.find(candidate => candidate.id === input.target.nodeId);
 		if (node?.type !== 'effect') throw new Error('Effect node not found');
 		const parameter = resolveNodeParam(node, input.parameterPath, getEffectDefinitions(state));
+		if (parameter.isVectorComponent) throw new Error('Vector components do not support direct parameter references');
 		const named = createNamedParameterFromLiteral(parameter.def, parameter.value, nodesEffect.customParameterDefs);
 		const definition: NodesEffectCustomParameterDefinition = { ...named, id: genId(), nameForReference: named.nameForReference };
 		validateCustomParameterDefinition(nodesEffect, definition);
@@ -407,15 +411,15 @@ const createNodesEffectCustomParameterFromParameter = defineCommand<NodesEffectN
 });
 
 function defineCustomParameterCommand<Input extends { target: NodesEffectCustomParameterReference }>(label: string,
-	update: (definition: NodesEffectCustomParameterDefinition, current: NodesEffectValueParameterBinding, input: Input) => NodesEffectValueParameterBinding | null,
+	update: (definition: ParameterDefinition, current: NodesEffectValueParameterBinding, input: Input) => NodesEffectValueParameterBinding | null,
 	autoMerge = false,
 ) {
-	return defineCommand<Input>({
+	return defineCommand<Input & { parameterPath?: ParamPath }>({
 		label,
 		getAutoMergeKey: input => {
 			const source = 'source' in input ? input.source as NodesEffectCustomParameterSource : null;
 			return autoMerge && (source?.inputSource === 'literal' || source?.inputSource === 'expression')
-				? JSON.stringify([nodesEffectTargetKey(input.target.nodesEffect), input.target.parameterId, source.inputSource]) : null;
+				? JSON.stringify([nodesEffectTargetKey(input.target.nodesEffect), input.target.parameterId, ...(input.parameterPath?.slice(1) ?? []), source.inputSource]) : null;
 		},
 		prepare(state, input) {
 			const nodesEffect = getNodesEffect(state, input.target.nodesEffect);
@@ -423,7 +427,18 @@ function defineCustomParameterCommand<Input extends { target: NodesEffectCustomP
 			if (definition == null) throw new Error('Nodes Effect custom parameter not found');
 			const before = nodesEffect.customParameterValues[input.target.parameterId] ?? null;
 			const defaultBinding = createDefaultParameterBinding(definition);
-			const after = update(definition, deepClone(before ?? defaultBinding), input);
+			const rootKey = definition.id;
+			const path = input.parameterPath ?? [rootKey];
+			if (path[0] !== rootKey) throw new Error('Parameter path must start with the custom parameter ID');
+			const draft = { [rootKey]: deepClone(before ?? defaultBinding) };
+			const parameter = resolveParameter<NodesEffectValueParameterBinding>({ [rootKey]: definition }, draft, path);
+			let after = update(parameter.def, parameter.value, input);
+			if (parameter.isVectorComponent) {
+				const component = after ?? createDefaultParameterBinding(parameter.def);
+				validateVectorComponentBinding(component);
+				parameter.setValue(component);
+				after = draft[rootKey];
+			}
 			validateNodesEffectCustomParameterBinding(definition, after ?? defaultBinding);
 			const customParameterValuesOnly = getParameterBindingChangeKind(definition, before ?? defaultBinding, after ?? defaultBinding) === 'value';
 			return prepareNodesEffectValue(before, after, (currentState, value) => {

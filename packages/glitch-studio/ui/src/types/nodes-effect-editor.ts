@@ -2,6 +2,7 @@ import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.t
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { NodeOutputReference, NodesEffectOutputDef, NodesEffectParamDef } from '@/types/nodes-effect-view.ts';
 import type { ParamEdit } from '@/components/GsVisualParam.vue';
+import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { NodesEffectCustomParameterDefinition } from '@/types/nodes-effect-view.ts';
 import type { NodesEffectValueParameterEdit } from './parameter-edit.ts';
 
@@ -13,10 +14,10 @@ export type NodesEffectAssetDropActions = {
 
 // 編集操作だけを通知し、保存先の特定とUndo/Redo用コマンドへの変換は親が行う。
 export type NodesEffectEdit =
-	| { kind: 'customParameterClipboard'; parameterId: string; operation: 'copy' | 'paste' }
+	| { kind: 'customParameterClipboard'; parameterId: string; paramPath?: ParamPath; operation: 'copy' | 'paste' }
 	| { kind: 'updateCustomParameter'; definition: NodesEffectCustomParameterDefinition; mergeKey?: string | null }
 	| { kind: 'removeCustomParameter'; parameterId: string }
-	| { kind: 'editCustomParameter'; parameterId: string; edit: NodesEffectValueParameterEdit; mergeKey?: string | null }
+	| { kind: 'editCustomParameter'; parameterId: string; paramPath?: ParamPath; edit: NodesEffectValueParameterEdit; mergeKey?: string | null }
 	| { kind: 'addRelayNode' }
 	| { kind: 'setRelayInput'; nodeId: string; value: NodeOutputReference | null }
 	| { kind: 'setRelayDataType'; nodeId: string; dataType: TextureDataType }

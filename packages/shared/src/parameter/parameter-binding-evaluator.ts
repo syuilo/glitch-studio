@@ -4,6 +4,7 @@ import { randomExpressionFunctions } from '../expression/random-functions.ts';
 import { evaluateKeyframesTimeline } from '../keyframes/keyframes-timeline-evaluator.ts';
 import { deepClone } from '../utility/deep-clone.ts';
 import { coerceParameterValue } from './coerce-parameter-value.ts';
+import { getVectorComponentDefinition } from './parameter-definition.ts';
 import type { Cloneable } from '../utility/deep-clone.ts';
 import type { ExpressionEngine } from '../expression/expression-engine.ts';
 import type { ParameterDefinition } from './parameter-definition.ts';
@@ -86,6 +87,12 @@ export class ParameterBindingEvaluator {
 		functionCurves: ParameterEvaluationScope['functionCurves']): (scope: ParameterEvaluationScope) => unknown {
 		switch (binding.inputSource) {
 			case 'literal': return () => binding.value;
+			case 'components': {
+				const first = this.bind(binding.components[0], fallback[0], getVectorComponentDefinition(definition, 0, fallback[0]), functionCurves);
+				const second = this.bind(binding.components[1], fallback[1], getVectorComponentDefinition(definition, 1, fallback[1]), functionCurves);
+				// 各成分の加工を終えてから、親の加工式に完成したベクトルを一度だけ渡す。
+				return scope => [first(scope), second(scope)];
+			}
 			case 'envVariable': return scope => Object.hasOwn(scope.variables, binding.variable) ? deepClone(scope.variables[binding.variable]) ?? fallback : fallback;
 			case 'expression': return scope => this.evaluateExpression(binding.expression, scope, 'base', definition);
 			case 'curveAnimationInline':

@@ -1,4 +1,4 @@
-import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
+import { createDefaultParameterBinding, createDefaultVectorComponentsParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { preserveParameterExpressionModifier, supportsParameterExpressionModifier } from '@gs/shared/parameter/parameter-expression-modifier.ts';
@@ -6,10 +6,11 @@ import { validateNodesEffectCustomParameterBinding } from '@/utility/nodes-effec
 import { createResetParameterBinding } from './parameter-default.ts';
 import { createInlineCurveAnimation } from './curve-animation.ts';
 import { createInlineKeyframesTimeline } from './keyframes-timeline.ts';
-import type { NodesEffectCustomParameterDefinition, NodesEffectValueParameterBinding } from '@/types/nodes-effect-view.ts';
+import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
+import type { NodesEffectValueParameterBinding } from '@/types/nodes-effect-view.ts';
 import type { NodesEffectValueParameterEdit } from '../types/parameter-edit.ts';
 
-export function editNodesEffectCustomParameterBinding(definition: NodesEffectCustomParameterDefinition, current: NodesEffectValueParameterBinding, edit: NodesEffectValueParameterEdit): NodesEffectValueParameterBinding {
+export function editNodesEffectCustomParameterBinding(definition: ParameterDefinition, current: NodesEffectValueParameterBinding, edit: NodesEffectValueParameterEdit): NodesEffectValueParameterBinding {
 	let next: NodesEffectValueParameterBinding;
 	switch (edit.kind) {
 		case 'literal': next = { inputSource: 'literal', value: deepClone(edit.value) }; break;
@@ -26,6 +27,7 @@ export function editNodesEffectCustomParameterBinding(definition: NodesEffectCus
 		case 'inputSource':
 			switch (edit.inputSource) {
 				case 'literal': next = createDefaultParameterBinding(definition); break;
+				case 'components': next = createDefaultVectorComponentsParameterBinding(definition); break;
 				case 'expression': next = { inputSource: 'expression', expression: AiSON.stringify(current.inputSource === 'literal' ? current.value : definition.defaultValue) }; break;
 				case 'envVariable': next = { inputSource: 'envVariable', variable: '' }; break;
 				case 'curveAnimationInline': next = createInlineCurveAnimation(); break;

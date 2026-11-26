@@ -24,7 +24,7 @@ export const timelineClipTargetSchema = z.looseObject({ layerId: identifier, cli
 export const timelineParameterGroupSchema = z.enum(['publicParameter', 'effect', 'shape', 'text', 'voicevoxSubtitle', 'camera', 'transform', 'compositing', 'audio']);
 export const timelineParameterReferenceSchema = timelineLayerReferenceSchema.extend({
 	parameterGroup: timelineParameterGroupSchema,
-	parameterPath: parameterPathSchema.describe('Parameter keys and stable array element IDs; array indexes are not accepted.'),
+	parameterPath: parameterPathSchema,
 });
 // ブランドはドメイン内の取り違え防止だけに使い、通信上のIDは通常の文字列で表す。
 export const timelineLayerPublicParameterIdSchema = identifier as unknown as z.ZodType<TimelineLayerPublicParameterId>;

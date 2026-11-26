@@ -63,7 +63,7 @@ Command:setNodesEffectNodeParameterSource({
 | 既存Asset | `setAssetName`、`removeAsset` | [resources.ts](../packages/glitch-studio/ui/src/commands/resources.ts) |
 | Custom Shader Effect | `createCustomShaderEffect`、`replaceCustomShaderEffectDefinition` | [custom-shader-effect.ts](../packages/glitch-studio/ui/src/commands/custom-shader-effect.ts) |
 
-固定値・式・接続は、各Commandが受け取る入力方式で明示します。例えば`setNodesEffectNodeParameterSource`は入力元を設定して既存の加工式を保持し、`replaceNodesEffectNodeParameterBinding`は加工式を含めたBinding全体を置き換えます。`parameterPath`は配列で指定し、配列要素のパスにはインデックスではなく要素IDを使います。
+固定値・式・接続は、各Commandが受け取る入力方式で明示します。例えば`setNodesEffectNodeParameterSource`は入力元を設定して既存の加工式を保持し、`replaceNodesEffectNodeParameterBinding`は加工式を含めたBinding全体を置き換えます。`parameterPath`は文字列の配列で指定します。配列要素には要素IDを使い、`inputSource: "components"` のベクトル成分には `["vectorParam", "0"]` のように添字の文字列を使います。
 
 公開するCommandはプロジェクト内容の編集に限ります。プロジェクト保存、環境設定変更、パネル操作、書き出し設定の変更、ファイル選択や素材の新規取り込みは提供しません。Blobや取り込み済みの内部配置情報を必要とするCommandも公開しません。
 

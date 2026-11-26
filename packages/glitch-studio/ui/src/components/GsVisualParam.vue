@@ -14,7 +14,7 @@
 					<i :class="expanded ? 'ti ti-chevron-down' : 'ti ti-chevron-right'"></i>
 				</button>
 				<GsNodePort
-					v-if="node != null"
+					v-if="node != null && vectorComponents == null"
 					v-show="!expanded && hasConnectedChildren"
 					data-test-parameter-collapsed-port
 					:dataType="{ kind: 'any' }"
@@ -41,6 +41,7 @@
 				<i v-else-if="paramValue.inputSource === 'anotherLayerAudio'" v-tooltip="i18n.ts._Parameter.AnotherLayerAudio" class="ti ti-wave-sine" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'keyframesTimelineInline'" v-tooltip="i18n.ts._Parameter.Keyframes" class="ti ti-timeline" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'curveAnimationInline'" v-tooltip="i18n.ts._Parameter.CurveAnimation" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
+				<i v-else-if="vectorComponents != null" v-tooltip="i18n.ts._Parameter.SplitVectorComponents" class="ti ti-list-details" :class="$style.typeIcon"></i>
 			</div>
 		</div>
 		<div :class="$style.paramBody">
@@ -48,7 +49,7 @@
 				<span :class="$style.count">{{ arrayValues.length }}<template v-if="arrayMaxElements != null"> / {{ arrayMaxElements }}</template></span>
 				<GsButton v-tooltip="i18n.ts._Parameter.AddElement" iconOnly icon="ti ti-plus" :disabled="!canAddArrayElement" @click="addElement"/>
 			</template>
-			<template v-else-if="paramDef.dataType.kind !== 'struct'">
+			<template v-else-if="paramDef.dataType.kind !== 'struct' && vectorComponents == null">
 				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs, effectDefinitions) || ((paramValue.inputSource === 'lowerLayerOutput' || paramValue.inputSource === 'anotherLayerOutput') && !imageInputTypeCompatible)" v-tooltip="i18n.ts._Node.TypeMismatch" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
 					<GsTextarea v-if="paramValue.inputSource === 'expression'" :key="paramPathKey(paramPath)" adaptiveHeight data-test-base-expression-code manualSave class="_monospace" :modelValue="paramValue.expression" @update:modelValue="updateParamAsExpression">
@@ -135,7 +136,13 @@
 						</GsSelect>
 					</div>
 					<div v-else-if="paramValue.inputSource === 'keyframesTimelineInline'" style="display: grid; gap: 6px;">
-						{{ paramValue.keyframesTimeline.keyframes.length }} {{ i18n.ts._Parameter.InlineKeyframes }}
+						<GsInlineKeyframesEditor
+							v-if="vectorComponent && timelineEditor == null"
+							:definition="paramDef"
+							:binding="paramValue"
+							@update="(value, mergeKey) => emit('edit', { kind: 'keyframesTimelineInline', ...target(), value, mergeKey })"
+						/>
+						<template v-else>{{ paramValue.keyframesTimeline.keyframes.length }} {{ i18n.ts._Parameter.InlineKeyframes }}</template>
 					</div>
 					<GsSelect v-else-if="paramValue.inputSource === 'timelineLayerPublicParameterReference'" data-test-timeline-public-parameter-reference :modelValue="timelinePublicParameterKey" :items="timelinePublicParameterItems" @update:modelValue="updateTimelinePublicParameterReference"/>
 					<GsSelect
@@ -192,7 +199,7 @@
 				</div>
 			</template>
 			<GsButton
-				v-if="(isParameterType(paramDef, 'vector') && paramDef.ui.control.controlType === 'xy') || isViewport2DParameter(paramDef)"
+				v-if="(vectorComponents == null && isParameterType(paramDef, 'vector') && paramDef.ui.control.controlType === 'xy') || isViewport2DParameter(paramDef)"
 				data-test-preview-parameter-toggle
 				:data-test-preview-viewport-toggle="isViewport2DParameter(paramDef) ? '' : null"
 				iconOnly
@@ -288,6 +295,23 @@
 			@edit="emit('edit', $event)"
 		/>
 	</div>
+	<div v-else-if="vectorComponents != null" v-show="expanded" :class="$style.children" data-test-parameter-children>
+		<GsVisualParam
+			v-for="{ index, definition, binding } in vectorComponents"
+			:key="index"
+			vectorComponent
+			:functionCurves="functionCurves"
+			:projectFunctionCurves="projectFunctionCurves"
+			:availableVariables="availableVariables"
+			:curveAnimationEndEnabled="curveAnimationEndEnabled"
+			:keyframesEnabled="keyframesEnabled || node != null"
+			:paramPath="[...paramPath, String(index)]"
+			:paramDef="definition"
+			:paramValue="binding"
+			:label="'[' + index + ']'"
+			@edit="emit('edit', $event)"
+		/>
+	</div>
 </div>
 </template>
 
@@ -302,6 +326,7 @@ import GsInput from './common/GsInput.vue';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsFunctionCurveEditorWindow from './GsFunctionCurveEditorWindow.vue';
+import GsInlineKeyframesEditor from './GsInlineKeyframesEditor.vue';
 import type { TimelineLowerLayerOutputBinding, TimelineAnotherLayerOutputBinding, TimelineLayerOutputStage } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 
@@ -340,7 +365,7 @@ import type { MenuItem } from '@/types/menu.ts';
 import type { TimelineLayerPublicParameterReferenceBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
 import { getEffectDefinitions } from '@/utility/project-effects.ts';
-import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, getVectorComponentDefinition, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { isKeyframesDataType } from '@gs/shared/keyframes/keyframes-timeline.ts';
 import { canUseEffectLivePreviewInput, isEffectLivePreviewMediaBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
@@ -393,6 +418,7 @@ const props = defineProps<{
 	defaultBinding?: EditableParameterBinding;
 	label?: string;
 	keyframesEnabled?: boolean;
+	vectorComponent?: boolean;
 	previewMediaInputEnabled?: boolean;
 	imageInputEnabled?: boolean;
 	imageInputSamplingEnabled?: boolean;
@@ -408,7 +434,16 @@ const props = defineProps<{
 const emit = defineEmits<{ edit: [event: ParamEdit] }>();
 const previewParameterHandle = usePreviewParameterHandle(projectSession, props);
 const expanded = useParameterExpansion(projectSession, props);
-const isContainer = computed(() => props.paramDef.dataType.kind === 'struct' || props.paramDef.dataType.kind === 'array');
+const vectorComponents = computed(() => {
+	const { paramDef, paramValue } = props;
+	if (paramValue.inputSource !== 'components' || !isParameterType(paramDef, 'vector')) return null;
+	return ([0, 1] as const).map(index => ({
+		index,
+		definition: getVectorComponentDefinition(paramDef, index, paramDef.defaultValue[index]),
+		binding: paramValue.components[index],
+	}));
+});
+const isContainer = computed(() => props.paramDef.dataType.kind === 'struct' || props.paramDef.dataType.kind === 'array' || vectorComponents.value != null);
 const hasConnectedChildren = computed(() => connectedParameterPathKeys?.value.has(paramPathKey(props.paramPath)) === true);
 
 const timelinePublicParameterItems = computed(() => {
@@ -463,7 +498,7 @@ const visibleFields = computed(() => {
 	}
 	return Object.entries(fields);
 });
-const canNode = computed(() => props.paramDef.canNode);
+const canNode = computed(() => vectorComponents.value == null && props.paramDef.canNode);
 const inputDataType = computed(() => getNodeInputDataType(props.paramDef));
 const imageInputTypeCompatible = computed(() => areNodeDataTypesCompatible({ kind: 'color' }, inputDataType.value));
 const lowerLayerOutputConnection = computed<TimelineLowerLayerOutputBinding | null>(() => props.paramValue.inputSource === 'lowerLayerOutput' ? props.paramValue as TimelineLowerLayerOutputBinding : null);
@@ -719,6 +754,8 @@ function getMenu() {
 			if (canUseEffectLivePreviewInput(props.paramDef, 'previewInputAudio')) types.push({ text: i18n.ts._EffectPreview.AudioInput, inputSource: 'previewInputAudio', icon: 'ti ti-wave-sine' });
 		}
 		for (const { text, inputSource, icon } of types) {
+			if (vectorComponents.value != null) break;
+			if (props.vectorComponent === true && (inputSource === 'envVariable' || inputSource === 'timelineLayerPublicParameterReference')) continue;
 			if (props.paramDef.dataType.kind === 'colorRamp' && inputSource === 'curveAnimationInline') continue;
 			if (inputSource === 'keyframesTimelineInline' && (!props.keyframesEnabled || !isKeyframesDataType(props.paramDef.dataType))) continue;
 			children.push({
@@ -730,12 +767,23 @@ function getMenu() {
 			});
 		}
 
-		menuItems.push({
-			type: 'parent',
-			icon: 'ti ti-adjustments-horizontal',
-			text: i18n.ts._Parameter.InputSource + '...',
-			children: children,
-		});
+		if (children.length > 0) {
+			menuItems.push({
+				type: 'parent',
+				icon: 'ti ti-adjustments-horizontal',
+				text: i18n.ts._Parameter.InputSource + '...',
+				children,
+			});
+		}
+		if (props.paramDef.dataType.kind === 'vector') {
+			const split = vectorComponents.value != null;
+			menuItems.push({
+				id: split ? 'combineVectorComponents' : 'splitVectorComponents',
+				text: split ? i18n.ts._Parameter.CombineVectorComponents : i18n.ts._Parameter.SplitVectorComponents,
+				icon: 'ti ti-list-details',
+				action: () => emit('edit', { kind: 'inputSource', ...target(), inputSource: split ? 'literal' : 'components' }),
+			});
+		}
 
 		if (expressionModifier.value == null && supportsParameterExpressionModifier(props.paramDef, props.paramValue)) {
 			menuItems.push({
@@ -749,7 +797,7 @@ function getMenu() {
 
 	const hasPublicParameterOwner = props.node != null ? props.nodesEffect != null
 		: props.nodesEffectParameterReferencesEnabled !== true && timelineEditor?.context.value != null && !timelineEditor.isPublicParameterValue;
-	if (hasPublicParameterOwner && !isEffectLivePreviewMediaBinding(props.paramValue) && canCreateNamedParameterFromBinding(props.paramDef, props.paramValue)) {
+	if (props.vectorComponent !== true && hasPublicParameterOwner && !isEffectLivePreviewMediaBinding(props.paramValue) && canCreateNamedParameterFromBinding(props.paramDef, props.paramValue)) {
 		menuItems.push({
 			id: 'createPublicParameter',
 			text: i18n.ts._Parameter.CreatePublicParameter,

@@ -923,6 +923,8 @@
 		"Expression": "Expression",
 		"BaseExpression": "Base expression",
 		"ExpressionModifier": "Expression modifier",
+		"SplitVectorComponents": "Control components separately",
+		"CombineVectorComponents": "Return to combined control",
 		"AddExpressionModifier": "Add expression modifier",
 		"RemoveExpressionModifier": "Remove expression modifier",
 		"ExpressionModifierHelp": "VALUE is the base value before this expression.",

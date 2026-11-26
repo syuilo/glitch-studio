@@ -34,8 +34,8 @@ export const nodesEffectParameterBindingSchema: z.ZodType<NodesEffectParameterBi
 	.describe('Binding stored on a Nodes Effect parameter. Literal shape and available sources depend on the parameter definition.');
 export const nodesEffectValueParameterSourceSchema = z.union([valueParameterSourceSchema, publicParameterBindingSchema, customParameterBindingSchema]);
 export const nodesEffectParameterSourceSchema = z.union([nodesEffectValueParameterSourceSchema, nodeParameterBindingSchema]);
-export const nodesEffectParameterInputSourceSchema = z.enum(['literal', 'envVariable', 'expression', 'curveAnimationInline', 'keyframesTimelineInline', 'nodesEffectPublicParameterReference', 'nodesEffectCustomParameterValueReference', 'node']);
-export const nodesEffectValueParameterInputSourceSchema = z.enum(['literal', 'envVariable', 'expression', 'curveAnimationInline', 'keyframesTimelineInline', 'nodesEffectPublicParameterReference', 'nodesEffectCustomParameterValueReference']);
+export const nodesEffectValueParameterInputSourceSchema = z.enum(['literal', 'envVariable', 'expression', 'curveAnimationInline', 'keyframesTimelineInline', 'components', 'nodesEffectPublicParameterReference', 'nodesEffectCustomParameterValueReference']);
+export const nodesEffectParameterInputSourceSchema = z.enum([...nodesEffectValueParameterInputSourceSchema.options, 'node']);
 
 export const nodesEffectPublicParameterInputSchema = z.intersection(parameterDefinitionSchema,
 	z.object({ nameForReference: nodesEffectPublicParameterNameSchema, canNode: z.boolean() })) as z.ZodType<Omit<NodesEffectParamDef, 'id'>>;

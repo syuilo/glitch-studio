@@ -4,6 +4,7 @@ import { preserveParameterExpressionModifier, validateParameterExpressionModifie
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import { canUseEffectLivePreviewInput } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
+import { createDefaultVectorComponentsParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import type { ParamEdit } from '@/components/GsVisualParam.vue';
 import { createInlineCurveAnimation } from './curve-animation.ts';
 import { createInlineKeyframesTimeline } from './keyframes-timeline.ts';
@@ -41,6 +42,7 @@ export function editEffectLivePreviewParameter(def: ParameterDefinition, current
 				case 'previewInputAudio':
 					return canUseEffectLivePreviewInput(def, event.inputSource) ? { inputSource: event.inputSource } : null;
 				case 'literal': next = reset(); break;
+				case 'components': next = createDefaultVectorComponentsParameterBinding(def); break;
 				case 'envVariable': next = { inputSource: 'envVariable', variable: '' }; break;
 				case 'expression': next = {
 					inputSource: 'expression',

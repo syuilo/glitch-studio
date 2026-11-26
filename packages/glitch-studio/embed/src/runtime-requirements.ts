@@ -1,4 +1,4 @@
-import { walkParameterLeaves } from '@gs/shared/parameter/parameter-tree.ts';
+import { walkParameters } from '@gs/shared/parameter/parameter-path.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { FunctionCurve } from '@gs/shared/function-curve/function-curve.ts';
@@ -49,7 +49,7 @@ export function analyzePortableNodesEffectRuntime(resources: NodesEffectResource
 	function analyzeBindings(definitions: Readonly<Record<string, ParameterDefinition>>, bindings: Readonly<Record<string, NodesEffectParameterBinding>>, scope: NodesEffect) {
 		// 省略された入力と外から変更できる公開値は末端までliteralなので、配置にあるBindingだけを調べる。
 		for (const [key, binding] of Object.entries(bindings)) {
-			for (const { param } of walkParameterLeaves<NodesEffectParameterBinding>({ value: definitions[key] }, { value: binding })) {
+			for (const { value: param } of walkParameters<NodesEffectParameterBinding>({ [key]: definitions[key] }, { [key]: binding })) {
 				if (!isValueParameterBinding(param)) continue;
 				if (param.inputSource === 'expression') analyzeExpression(param.expression, scope);
 				if (param.expressionModifier?.enabled === true) analyzeExpression(param.expressionModifier.code, scope);

@@ -1,4 +1,4 @@
-import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, getVectorComponentDefinition, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import type { ParameterDefinition, ParameterChangeKind } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
@@ -11,6 +11,10 @@ import type { EditableParameterBinding } from '../types/parameter-edit.ts';
  */
 export function getParameterBindingChangeKind(definition: ParameterDefinition, before: EditableParameterBinding, after: EditableParameterBinding): ParameterChangeKind {
 	if (before.inputSource !== after.inputSource) return 'inputSource';
+	if (before.inputSource === 'components' && after.inputSource === 'components' && isParameterType(definition, 'vector')) {
+		return combineChangeKinds(([0, 1] as const).map(index => getParameterBindingChangeKind(
+			getVectorComponentDefinition(definition, index, definition.defaultValue[index]), before.components[index], after.components[index])));
+	}
 	if (before.inputSource === 'literal' && after.inputSource === 'literal') {
 		if (isParameterType(definition, 'array')) {
 			const previousElements = before.value as ParameterArrayElement<EditableParameterBinding>[];

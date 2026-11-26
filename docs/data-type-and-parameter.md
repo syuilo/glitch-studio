@@ -59,6 +59,12 @@ ui: {
 
 サイズ指定には専用型`{ kind: 'sizeReference' }`を使用できます。Height・Width・Short Side・Long Sideから選び、共通の既定値はLong Sideです。汎用enumへ変換せずに保存・式評価・公開パラメータ・Holdのキーで扱います。[サイズ基準の規約と対象パラメータ](./size-reference.md)を参照してください。
 
+## ベクトルの成分別制御
+
+`vector`の「成分ごとに制御」は、`{ inputSource: 'components', components: [firstBinding, secondBinding] }` を保存します。成分は固定値・式・キーフレーム・Curve Animationで設定できます。UIとCommandでは `["vectorParam", "0"]`・`["vectorParam", "1"]` のように0始まりの文字列の添字を使います。
+
+各成分を評価し、数値を`VALUE`として成分の加工式に渡します。組み立てたベクトルを親の加工式の`VALUE`に渡します。分割と一括制御の切り替えは基準入力を定義の既定値へ初期化し、親の加工式を保持します。パラメータ全体のリセットは親の加工式も初期化します。
+
 ## Color
 
 `color`の保存値・式の戻り値・キーフレームは、未乗算linear sRGBのRGBAです。RGBはHDR・負値を許し、alphaは0〜1の被覆率として扱います。HEX・sRGB 0〜255・HSL・スポイトはUIの境界で変換します。`[0.5, 0.5, 0.5, 1]`はlinearの0.5で、標準sRGB表示では約`#BCBCBC`です。[色空間の規約](color-management.md)も参照してください。

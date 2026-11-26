@@ -4,10 +4,10 @@ import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-de
 import { getEffectDefinitions } from './project-effects.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { canConnectNodeDataTypes, getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
-import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, getVectorComponentDefinition, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
-import { inspectStaticParameter } from '@gs/shared/parameter/static-parameter.ts';
+import { inspectStaticParameter, validateVectorComponentBinding } from '@gs/shared/parameter/static-parameter.ts';
 import { isBlendMode } from '@gs/shared/color-blend.ts';
 import { isSizeReference } from '@gs/shared/size-reference.ts';
 import { validateColorRamp } from '@gs/shared/color-ramp.ts';
@@ -157,6 +157,13 @@ function validateBinding(dataType: DataType, value: unknown): asserts value is E
 	}
 	switch (binding.inputSource) {
 		case 'literal': validateLiteral(dataType, binding.value); break;
+		case 'components':
+			requireValid(dataType.kind === 'vector' && Array.isArray(binding.components) && binding.components.length === 2);
+			for (const component of binding.components) {
+				validateBinding({ kind: 'scalar' }, component);
+				validateVectorComponentBinding(component);
+			}
+			break;
 		case 'expression': requireValid(typeof binding.expression === 'string'); break;
 		case 'envVariable': requireValid(typeof binding.variable === 'string'); break;
 		case 'curveAnimationInline': {
@@ -343,6 +350,8 @@ export function prepareParameterBindingPaste(definition: ParameterDefinition, cl
 				for (const element of elements) { element.id = genId(); prepareTree(getArrayElementDefinition(currentDefinition), element.binding); }
 			} else if (currentBinding.inputSource === 'literal' && isParameterType(currentDefinition, 'struct')) {
 				for (const [key, field] of Object.entries(getStructFieldDefinitions(currentDefinition))) prepareTree(field, currentBinding.value[key]);
+			} else if (currentBinding.inputSource === 'components' && isParameterType(currentDefinition, 'vector')) {
+				for (const index of [0, 1] as const) prepareTree(getVectorComponentDefinition(currentDefinition, index, currentDefinition.defaultValue[index]), currentBinding.components[index]);
 			} else if (currentBinding.inputSource === 'keyframesTimelineInline') {
 				for (const point of currentBinding.keyframesTimeline.keyframes) point.id = genId();
 			} else if (currentBinding.inputSource === 'curveAnimationInline' && currentBinding.curveAnimation.curveBinding.source === 'inline') {
@@ -402,6 +411,7 @@ export function prepareProjectParameterPaste(state: ProjectState, projectSession
 		const resolved = resolveProjectClipboardTarget(state, projectSessionId, target);
 		const binding = prepareParameterBindingPaste(resolved.def, clipboard, { ...resolved.context, connectionTypePolicy });
 		if (binding == null) return null;
+		if (resolved.isVectorComponent) validateVectorComponentBinding(binding);
 		resolved.setValue(binding);
 		return { before: resolved.before, after: resolved.draft[target.paramPath[0]] };
 	} catch { return null; }

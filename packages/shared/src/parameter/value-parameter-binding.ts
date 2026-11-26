@@ -8,7 +8,7 @@ export type ParameterExpressionModifier = {
 	code: string;
 };
 
-export type ValueParameterSource = {
+type AtomicValueParameterSource = {
 	inputSource: 'literal';
 	value: any;
 } | {
@@ -24,6 +24,19 @@ export type ValueParameterSource = {
 	inputSource: 'keyframesTimelineInline';
 	keyframesTimeline: KeyframesTimelineData;
 } & KeyframesTimelinePlaybackOptions);
+
+export type ScalarParameterBinding = (
+	| { inputSource: 'literal'; value: number }
+	| Extract<AtomicValueParameterSource, { inputSource: 'expression' | 'curveAnimationInline' }>
+	| ({ inputSource: 'keyframesTimelineInline'; keyframesTimeline: KeyframesTimelineData<{ kind: 'scalar' }> } & KeyframesTimelinePlaybackOptions)
+) & { expressionModifier?: ParameterExpressionModifier | null };
+
+export type VectorComponentsParameterSource = {
+	inputSource: 'components';
+	components: [first: ScalarParameterBinding, second: ScalarParameterBinding];
+};
+
+export type ValueParameterSource = AtomicValueParameterSource | VectorComponentsParameterSource;
 
 // 未指定とnullは加工なし。未編集のBindingには不要な設定を追加しない。
 // コンテナ・音声入力・各ドメイン固有の接続は加工対象に含めない。

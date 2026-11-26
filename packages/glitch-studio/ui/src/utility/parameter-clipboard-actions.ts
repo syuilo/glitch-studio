@@ -7,6 +7,7 @@ import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
+import { validateVectorComponentBinding } from '@gs/shared/parameter/static-parameter.ts';
 import { createParameterClipboard, parseParameterClipboard, prepareParameterBindingPaste, prepareProjectParameterPaste, resolveProjectClipboardTarget } from './parameter-clipboard.ts';
 import { clipboardText } from './clipboard-text.ts';
 import type { EffectLivePreviewParameterBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
@@ -147,6 +148,7 @@ export async function handlePreviewParameterClipboard(
 			kind: 'preview', state, nodesEffect: readNodesEffect(), source,
 		});
 		if (binding == null) return;
+		if (current.parameter.isVectorComponent) validateVectorComponentBinding(binding);
 		current.parameter.setValue(binding as ValueParameterBinding);
 		nextRoot = current.draft[rootId];
 	} catch { return; }

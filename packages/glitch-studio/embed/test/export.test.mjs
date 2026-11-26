@@ -82,6 +82,29 @@ test('packages shared curves for direct references and detects FUNCTION_CURVE ex
 	assert.deepEqual(withExpression.parameterFeatures, ['curveAnimation', 'fixedFunctionCurve', 'functionCurveExpression']);
 });
 
+// 【分割ベクトルの親の加工式と成分のキーをWeb書き出しの依存に含める】
+// 親だけが式を使う構成でも式エンジンを同梱し、成分のアニメーションも再現できるようにする。
+test('includes runtime requirements from both split vector parents and components', () => {
+	const input = fixture();
+	input.nodesEffect.nodes[0].params.color = { inputSource: 'literal', value: [0, 0, 0, 1] };
+	input.nodesEffect.customParameterDefs = { motion: {
+		...parameter('vector', [0, 0], 'motion'), ui: { label: 'Motion', control: { controlType: 'vector' } },
+	} };
+	input.nodesEffect.customParameterValues = { motion: {
+		inputSource: 'components',
+		components: [
+			{ inputSource: 'literal', value: 1 },
+			{ inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
+				keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false,
+					keyframes: [{ id: 'key', x: 0, value: 2, interpolation: { type: 'linear' } }] } },
+		],
+		expressionModifier: { enabled: true, code: 'VALUE' },
+	} };
+	const { runtimeRequirements } = preparePortableNodesEffect(input, definitions);
+	assert.equal(runtimeRequirements.requiresExpressions, true);
+	assert.deepEqual(runtimeRequirements.parameterFeatures, ['keyframes']);
+});
+
 // 【公開値のHDR・入れ子・参照名を保持し、書き出し元から独立した値を作る】
 // 書き出しの非同期処理中に元の値が編集されても、準備済みの作品や公開既定値に影響させない。
 test('preserves HDR colors and nested public values in independent export snapshots', () => {

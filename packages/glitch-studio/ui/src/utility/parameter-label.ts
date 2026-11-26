@@ -18,6 +18,8 @@ export function getParameterPathLabel(defs: Record<string, ParameterDefinition>,
 		if (parent.def.dataType.kind === 'array' && isLiteralParameterBinding(parent.value)) {
 			const index = (parent.value.value as ParameterArrayElement<ParameterBindingBase>[]).findIndex(element => element.id === segment);
 			label += ` [${index}]`;
+		} else if (current.isVectorComponent) {
+			label += ` [${segment}]`;
 		} else {
 			label += ` / ${current.def.ui.label}`;
 		}

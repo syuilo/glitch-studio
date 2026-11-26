@@ -13,6 +13,7 @@ const bundled = await build({
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { commitTimelineParameterEdit } from './src/utility/timeline-parameter-command-actions.ts';
 		export { getTimelineParameterEditBinding } from './src/commands/timeline-parameter-api.ts';
+		export { getLayerKeyframeParameters } from './src/utility/timeline-scene.ts';
 		export { createEffectTimelineLayer } from './src/utility/effect-timeline-layer.ts';
 		export { createInlineNodesEffectLayer } from './src/utility/inline-nodes-effect-layer.ts';
 		export { createTextTimelineLayer } from './src/utility/text-timeline-layer.ts';
@@ -29,7 +30,7 @@ const bundled = await build({
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
 const { COMMAND_DEFS, UndoRedo, commitTimelineParameterEdit, getTimelineParameterEditBinding,
-	createEffectTimelineLayer, createInlineNodesEffectLayer, createTextTimelineLayer, definition } = loaded.exports;
+	getLayerKeyframeParameters, createEffectTimelineLayer, createInlineNodesEffectLayer, createTextTimelineLayer, definition } = loaded.exports;
 const defaultBuzzId = createDefaultParameterBinding(definition.paramDefs.buzzs).value[0].id;
 
 function fixture(t, layer) {
@@ -43,6 +44,34 @@ function fixture(t, layer) {
 		edit(target, paramPath, edit) { commitTimelineParameterEdit(manager, { sceneId: 'scene', layerId: layer.id, target, paramPath, edit }); },
 	};
 }
+
+// 【ベクトルのモード切り替えで親の加工式を保ち、各成分のキーを独立して編集する】
+// 既定値に戻る操作で親の設定を失ったり、Undo時に分割前後の値を取り違えたりする回帰を防ぐ。
+test('switches vector modes with independent component paths and preserves the parent modifier', t => {
+	const layer = createTextTimelineLayer(0);
+	const f = fixture(t, layer);
+	const modifier = { enabled: false, code: '[VALUE[1], VALUE[0]]' };
+	const edit = (path, edit) => f.edit('compositing', path, edit);
+	const scale = () => layer.compositingParamValues.scale;
+	edit(['scale'], { kind: 'literal', value: [4, 6] });
+	edit(['scale'], { kind: 'expressionModifier', value: modifier });
+	edit(['scale'], { kind: 'inputSource', inputSource: 'components' });
+	assert.deepEqual(scale(), { inputSource: 'components', components: [
+		{ inputSource: 'literal', value: 1 }, { inputSource: 'literal', value: 1 },
+	], expressionModifier: modifier });
+	edit(['scale', '0'], { kind: 'inputSource', inputSource: 'keyframesTimelineInline' });
+	edit(['scale', '1'], { kind: 'literal', value: 3 });
+	assert.deepEqual(getLayerKeyframeParameters(f.state, layer).map(({ paramPath }) => paramPath), [['scale', '0']]);
+	assert.equal(scale().components[0].keyframesTimeline.keyframes[0].value, 1);
+	const split = structuredClone(scale());
+	edit(['scale'], { kind: 'inputSource', inputSource: 'literal' });
+	assert.deepEqual(scale(), { inputSource: 'literal', value: [1, 1], expressionModifier: modifier });
+	f.manager.undo();
+	assert.deepEqual(scale(), split);
+	f.manager.redo();
+	edit(['scale'], { kind: 'reset' });
+	assert.deepEqual(scale(), { inputSource: 'literal', value: [1, 1] });
+});
 
 // 【値の連続入力だけをまとめ、加工式・リセットは独立してUndoする】
 // 編集後のBindingがどれもliteralでも、UIで行った別操作を同じ履歴へ潰さない。

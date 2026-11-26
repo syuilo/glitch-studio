@@ -53,6 +53,8 @@
 import { computed, onBeforeUnmount, provide, ref } from 'vue';
 import { EFFECT_LIVE_PREVIEW_VAR_DEFS } from '@gs/glitch-studio_shared/effect-live-preview-expression.ts';
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
+import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
+import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsCustomShaderEffectEditor from './GsCustomShaderEffectEditor.vue';
@@ -137,12 +139,16 @@ function onPreviewParamEdit(event: ParamEdit) {
 		).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;
 	}
-	if (event.kind === 'reset') {
+	if (event.kind === 'reset' && event.paramPath.length === 1) {
 		setPreviewParameterValue(customShaderEffect.id, id, null);
 		return;
 	}
-	const next = editEffectLivePreviewParameter(definition, previewParamValues.value[id] ?? previewDefaultBindings.value[id], event);
-	if (next != null) setPreviewParameterValue(customShaderEffect.id, id, next);
+	const draft = { [id]: deepClone(previewParamValues.value[id] ?? previewDefaultBindings.value[id]) };
+	const parameter = resolveParameter<EffectLivePreviewParameterBinding>({ [id]: definition }, draft, event.paramPath);
+	const next = editEffectLivePreviewParameter(parameter.def, parameter.value, event);
+	if (next == null) return;
+	parameter.setValue(next);
+	setPreviewParameterValue(customShaderEffect.id, id, draft[id]);
 }
 
 function add(source: ProjectCustomShaderEffect | null = null) {

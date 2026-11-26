@@ -1,10 +1,12 @@
 import { isValidCurveAnimationYRange } from '../curve-animation/curve-animation.ts';
 import { isLiteralParameterBinding, isValueParameterBinding } from './parameter-binding.ts';
-import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from './parameter-definition.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, getVectorComponentDefinition, isParameterType } from './parameter-definition.ts';
 import { validateParameterExpressionModifier } from './parameter-expression-modifier.ts';
 import { validateParameterValue } from './validate-parameter-value.ts';
 import type { ParameterDefinition } from './parameter-definition.ts';
 import type { ParameterBindingBase, ParameterArrayElement } from './parameter-binding.ts';
+import type { ScalarParameterBinding } from './value-parameter-binding.ts';
+import type { KeyframesTimelineData } from '../keyframes/keyframes-timeline.ts';
 
 /** 共通の入力方式のうち、対応表への変換を定義していない方式を入口で拒否する。 */
 export function validateColorRampParameterInputSource(definition: Pick<ParameterDefinition, 'dataType'>, binding: ParameterBindingBase): void {
@@ -60,11 +62,44 @@ function validateDefaultValue(definition: ParameterDefinition, value: unknown): 
 	validateParameterValue(definition, value);
 }
 
+/** 分割モードの成分はCPUで数値として評価できるBindingに限る。 */
+export function validateVectorComponentBinding(binding: ParameterBindingBase): asserts binding is ScalarParameterBinding {
+	if (binding == null || !isValueParameterBinding(binding)) throw new Error('Unsupported vector component input source');
+	switch (binding.inputSource) {
+		case 'literal':
+			if (typeof binding.value === 'number' && Number.isFinite(binding.value)) return;
+			throw new Error('Vector component literal must be a finite number');
+		case 'expression':
+		case 'curveAnimationInline':
+			return;
+		case 'keyframesTimelineInline':
+			if (hasScalarKeyframes(binding.keyframesTimeline)) return;
+			throw new Error('Vector components require scalar keyframes');
+		default: throw new Error('Unsupported vector component input source');
+	}
+}
+
+function hasScalarKeyframes(timeline: KeyframesTimelineData): boolean {
+	return timeline?.dataType?.kind === 'scalar' && Array.isArray(timeline.keyframes)
+		&& timeline.keyframes.every(point => typeof point?.value === 'number' && Number.isFinite(point.value));
+}
+
 /** Bindingの構造・静的な参照と、リテラル専用のFunction Curveを検査する。 */
 export function inspectStaticParameter<Binding extends ParameterBindingBase>(definition: ParameterDefinition, binding: Binding,
 	inspectLeaf: (definition: ParameterDefinition, binding: Binding) => void): void {
 	if (!binding) throw new Error('Missing parameter binding');
 	validateParameterExpressionModifier(definition, binding);
+	if (binding.inputSource === 'components') {
+		if (!isParameterType(definition, 'vector') || !isValueParameterBinding(binding) || binding.inputSource !== 'components'
+			|| !Array.isArray(binding.components) || binding.components.length !== 2) throw new Error('Components input requires a vector with two bindings');
+		inspectLeaf(definition, binding);
+		for (const index of [0, 1] as const) {
+			const component = binding.components[index];
+			validateVectorComponentBinding(component);
+			inspectStaticParameter(getVectorComponentDefinition(definition, index, definition.defaultValue[index]), component as unknown as Binding, inspectLeaf);
+		}
+		return;
+	}
 	if (!isParameterType(definition, 'array') && !isParameterType(definition, 'struct')) {
 		validateColorRampParameterInputSource(definition, binding);
 		if (definition.dataType.kind === 'functionCurve') {
@@ -120,6 +155,13 @@ function staticParameterSourceShape(definition: ParameterDefinition | null | und
 		return ['literal', kind != null && ['audioSource', 'array', 'struct'].includes(kind) ? binding.value : null];
 	}
 	if (binding.inputSource === 'expression') return ['expression'];
+	if (binding.inputSource === 'components' && Array.isArray(binding.components) && definition != null && isParameterType(definition, 'vector')) {
+		return ['components', binding.components.map((component: any, index: number) => index === 0 || index === 1
+			? [component?.inputSource === 'literal' ? typeof component.value === 'number' && Number.isFinite(component.value) : null,
+				component?.inputSource === 'keyframesTimelineInline' ? hasScalarKeyframes(component.keyframesTimeline) : null,
+				staticParameterShape(getVectorComponentDefinition(definition, index, definition.defaultValue[index]), component)]
+			: component)];
+	}
 	if (binding.inputSource === 'curveAnimationInline') {
 		const { curveAnimation, ...settings } = binding;
 		if (curveAnimation == null) return settings;

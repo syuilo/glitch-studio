@@ -77,9 +77,10 @@ function update(definition: NodesEffectCustomParameterDefinition, changes: Publi
 }
 
 function editValue(parameterId: string, event: ParamEdit) {
+	const target = event.paramPath.length > 1 ? { parameterId, paramPath: event.paramPath } : { parameterId };
 	switch (event.kind) {
 		case 'copy':
-		case 'paste': emit('edit', { kind: 'customParameterClipboard', parameterId, operation: event.kind }); return;
+		case 'paste': emit('edit', { kind: 'customParameterClipboard', ...target, operation: event.kind }); return;
 		case 'createPublicParameter':
 		case 'createCustomParameter':
 		case 'node':
@@ -90,9 +91,9 @@ function editValue(parameterId: string, event: ParamEdit) {
 		case 'inputSource':
 			if (event.inputSource === 'previewInputImage' || event.inputSource === 'previewInputAudio') return;
 			if (event.inputSource === 'node' || event.inputSource === 'anotherLayerOutput' || event.inputSource === 'lowerLayerOutput' || event.inputSource === 'lowerLayerAudio' || event.inputSource === 'anotherLayerAudio' || event.inputSource === 'timelineLayerPublicParameterReference') return;
-			emit('edit', { kind: 'editCustomParameter', parameterId, edit: { kind: 'inputSource', inputSource: event.inputSource }, mergeKey: event.mergeKey });
+			emit('edit', { kind: 'editCustomParameter', ...target, edit: { kind: 'inputSource', inputSource: event.inputSource }, mergeKey: event.mergeKey });
 			return;
-		default: emit('edit', { kind: 'editCustomParameter', parameterId, edit: event, mergeKey: event.mergeKey });
+		default: emit('edit', { kind: 'editCustomParameter', ...target, edit: event, mergeKey: event.mergeKey });
 	}
 }
 </script>

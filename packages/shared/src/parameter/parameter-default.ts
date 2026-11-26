@@ -5,9 +5,19 @@ import { isLiteralParameterBinding } from './parameter-binding.ts';
 import type { DataType } from '../data-type/data-type.ts';
 import type { ParameterArrayElement, ParameterBindingBase } from './parameter-binding.ts';
 import type { ParameterDefaultValue, ParameterDefinition, ParameterSettings } from './parameter-definition.ts';
-import type { ParameterExpressionModifier, ValueParameterBinding } from './value-parameter-binding.ts';
+import { isParameterType } from './parameter-definition.ts';
+import type { ParameterExpressionModifier, ValueParameterBinding, VectorComponentsParameterSource } from './value-parameter-binding.ts';
 
 type LiteralBinding = Extract<ValueParameterBinding, { inputSource: 'literal' }>;
+
+export function createDefaultVectorComponentsParameterBinding(definition: ParameterDefinition): VectorComponentsParameterSource {
+	if (!isParameterType(definition, 'vector')) throw new Error('Components input requires a vector parameter');
+	const [first, second] = definition.defaultValue;
+	return { inputSource: 'components', components: [
+		{ inputSource: 'literal', value: first },
+		{ inputSource: 'literal', value: second },
+	] };
+}
 
 /**
  * 未設定の配列を表示したパスでそのまま初回編集できるよう、既定のIDは配列内の位置から作る。

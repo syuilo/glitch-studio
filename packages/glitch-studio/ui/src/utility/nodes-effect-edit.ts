@@ -1,4 +1,5 @@
 import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
+import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
 import { preferences } from '@/preferences.ts';
 import type { ProjectState, AppStateChange } from '../Project.ts';
 import type { COMMAND_DEFS } from '../commands.ts';
@@ -31,16 +32,17 @@ export function commitNodesEffectEdit(manager: ProjectCommands, target: NodesEff
 			manager.commit('removeNodesEffectCustomParameter', { target: { nodesEffect: target, parameterId: event.parameterId } });
 			break;
 		case 'editCustomParameter': {
-			const parameterTarget = { nodesEffect: target, parameterId: event.parameterId };
-			if (event.edit.kind === 'reset') manager.commit('resetNodesEffectCustomParameter', { target: parameterTarget });
-			else if (event.edit.kind === 'expressionModifier') manager.commit('setNodesEffectCustomParameterExpressionModifier', { target: parameterTarget, expressionModifier: event.edit.value }, event.mergeKey);
-			else if (event.edit.kind === 'inputSource') manager.commit('switchNodesEffectCustomParameterInputSource', { target: parameterTarget, inputSource: event.edit.inputSource });
+			const parameterTarget = { target: { nodesEffect: target, parameterId: event.parameterId }, parameterPath: event.paramPath };
+			if (event.edit.kind === 'reset') manager.commit('resetNodesEffectCustomParameter', parameterTarget);
+			else if (event.edit.kind === 'expressionModifier') manager.commit('setNodesEffectCustomParameterExpressionModifier', { ...parameterTarget, expressionModifier: event.edit.value }, event.mergeKey);
+			else if (event.edit.kind === 'inputSource') manager.commit('switchNodesEffectCustomParameterInputSource', { ...parameterTarget, inputSource: event.edit.inputSource });
 			else {
 				const definition = nodesEffect.customParameterDefs.find(candidate => candidate.id === event.parameterId);
 				if (definition == null) throw new Error('Nodes Effect custom parameter not found');
 				const current: NodesEffectValueParameterBinding = nodesEffect.customParameterValues[event.parameterId] ?? createDefaultParameterBinding(definition);
-				const source = editNodesEffectCustomParameterBinding(definition, current, event.edit);
-				manager.commit('setNodesEffectCustomParameterSource', { target: parameterTarget, source }, event.mergeKey);
+				const parameter = resolveParameter<NodesEffectValueParameterBinding>({ [definition.id]: definition }, { [definition.id]: current }, event.paramPath ?? [definition.id]);
+				const source = editNodesEffectCustomParameterBinding(parameter.def, parameter.value, event.edit);
+				manager.commit('setNodesEffectCustomParameterSource', { ...parameterTarget, source }, event.mergeKey);
 			}
 			break;
 		}

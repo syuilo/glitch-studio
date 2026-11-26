@@ -102,6 +102,19 @@ export type ParameterDefinition_Boolean = ParameterDefinition<{ kind: 'bool' }>;
 export type ParameterDefinition_String = ParameterDefinition<{ kind: 'string' }>;
 export type ParameterDefinition_Color = ParameterDefinition<{ kind: 'color' }>;
 export type ParameterDefinition_Vector = ParameterDefinition<{ kind: 'vector' }>;
+
+export function getVectorComponentDefinition(definition: Pick<ParameterDefinition, 'ui'>, index: 0 | 1, defaultValue: number): ParameterDefinition_Scalar {
+	const { min, max, step } = definition.ui.control as ParameterDefinition_Vector['ui']['control'];
+	return {
+		dataType: { kind: 'scalar' },
+		ui: {
+			label: `${definition.ui.label} [${index}]`,
+			control: { controlType: 'number', min, max, step: step ?? 0.1 },
+		},
+		defaultValue,
+		canNode: false,
+	};
+}
 export type ParameterDefinition_BlendMode = ParameterDefinition<{ kind: 'blendMode' }>;
 export type ParameterDefinition_FitMode = ParameterDefinition<{ kind: 'fitMode' }>;
 export type ParameterDefinition_SizeReference = ParameterDefinition<{ kind: 'sizeReference' }>;

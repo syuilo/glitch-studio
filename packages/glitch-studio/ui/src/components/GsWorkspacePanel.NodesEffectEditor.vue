@@ -324,7 +324,7 @@ function onEdit(event: NodesEffectEdit) {
 	if (currentNodesEffect == null) return;
 	if (event.kind === 'customParameterClipboard') {
 		void handleProjectParameterClipboard(projectSession.projectContext, projectSession.id,
-			{ kind: 'customParameter', nodesEffectTarget: { nodesEffectId: currentNodesEffect.id }, paramPath: [event.parameterId] },
+			{ kind: 'customParameter', nodesEffectTarget: { nodesEffectId: currentNodesEffect.id }, paramPath: event.paramPath ?? [event.parameterId] },
 			event.operation, () => !disposed && nodesEffect.value === currentNodesEffect).catch(error => ui.alert({ type: 'error', text: String(error) }));
 		return;
 	}

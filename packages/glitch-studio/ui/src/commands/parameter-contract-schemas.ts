@@ -16,7 +16,7 @@ import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 export const connectionTypePolicySchema = z.enum(['strict', 'allowMismatch']).describe('strict rejects incompatible port data types. allowMismatch permits the connection without converting the data.');
 
 export const identifierSchema = z.string().min(1).describe('Existing or newly returned identifier. Names and array indexes are not identifiers.');
-export const parameterPathSchema: z.ZodType<ParamPath> = z.tuple([z.string()], z.string()).describe('Nonempty parameter path. Array entries are addressed by element IDs, not numeric indexes.');
+export const parameterPathSchema: z.ZodType<ParamPath> = z.tuple([z.string()], z.string()).describe('Nonempty parameter path with array element IDs or the strings "0" and "1" for split vector components.');
 export const vectorValueSchema = z.tuple([z.number(), z.number()]);
 export const colorValueSchema = z.tuple([z.number(), z.number(), z.number(), z.number()])
 	.describe('Linear sRGB RGBA. Negative and HDR RGB values are preserved.');
@@ -129,12 +129,21 @@ export const curveAnimationSchema = z.object({
 }).refine(isValidCurveAnimationYRange, { message: 'Curve Animation Y range must be finite and ordered' });
 
 export const keyframesParameterBindingSchema = z.object({ inputSource: z.literal('keyframesTimelineInline'), keyframesTimeline: keyframesTimelineDataSchema, ...parameterPlaybackShape, ...expressionModifierShape });
+const expressionParameterSourceSchema = z.object({ inputSource: z.literal('expression'), expression: z.string() });
+const curveAnimationParameterSourceSchema = z.object({ inputSource: z.literal('curveAnimationInline'), curveAnimation: curveAnimationSchema });
+const scalarParameterBindingSchema = z.union([
+	z.object({ inputSource: z.literal('literal'), value: z.number(), ...expressionModifierShape }),
+	expressionParameterSourceSchema.extend(expressionModifierShape),
+	curveAnimationParameterSourceSchema.extend(expressionModifierShape),
+	keyframesParameterBindingSchema.extend({ keyframesTimeline: keyframesOf('scalar', z.number(), true) as z.ZodType<KeyframesTimelineData<{ kind: 'scalar' }>> }),
+]);
 export const valueParameterSourceSchema: z.ZodType<ValueParameterSource> = z.union([
 	z.object({ inputSource: z.literal('literal'), value: literalParameterValueSchema }),
 	z.object({ inputSource: z.literal('envVariable'), variable: z.string() }),
-	z.object({ inputSource: z.literal('expression'), expression: z.string() }),
-	z.object({ inputSource: z.literal('curveAnimationInline'), curveAnimation: curveAnimationSchema }),
+	expressionParameterSourceSchema,
+	curveAnimationParameterSourceSchema,
 	z.object({ inputSource: z.literal('keyframesTimelineInline'), keyframesTimeline: keyframesTimelineDataSchema, ...parameterPlaybackShape }),
+	z.object({ inputSource: z.literal('components'), components: z.tuple([scalarParameterBindingSchema, scalarParameterBindingSchema]) }),
 ]);
 export const valueParameterBindingSchema: z.ZodType<ValueParameterBinding> = z.intersection(valueParameterSourceSchema, z.object(expressionModifierShape));
 export const structParameterFieldBindingsSchema = z.record(z.string(), z.union([literalParameterBindingSchema, keyframesParameterBindingSchema]));

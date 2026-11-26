@@ -59,6 +59,24 @@ test('evaluates complete Color Ramp expressions and modifiers without mutating s
 
 const keyframe = (x, value, type = 'linear') => ({ id: `${x}`, x, value, interpolation: { type } });
 
+// 【成分の加工を終えてからベクトル全体を加工する】
+// 基準式とキーが同じFrameで評価され、親のVALUEに両方の加工済みの数値が入ることを確認する。
+test('evaluates vector component sources and modifiers before the parent modifier', () => {
+	const evaluator = new ParameterBindingEvaluator(new ExpressionEvaluator());
+	const definition = { dataType: { kind: 'vector' }, ui: { label: 'Pair', control: { controlType: 'vector' } }, defaultValue: [1, 2] };
+	const binding = modified({
+		inputSource: 'components',
+		components: [modified(expression('TIME'), 'VALUE * 2'), modified(keyframesInput([keyframe(0, 3), keyframe(1, 5)]), 'VALUE + 1')],
+	}, '[VALUE[0] + VALUE[1], VALUE[0]]');
+	const visited = [];
+	inspectStaticParameter(definition, binding, (def, value) => visited.push([def.dataType.kind, value.inputSource]));
+	assert.deepEqual(visited, [['vector', 'components'], ['scalar', 'expression'], ['scalar', 'keyframesTimelineInline']]);
+	assert.deepEqual(evaluator.evaluate(binding, context({ variables: { TIME: 0.5 } }), definition.defaultValue, definition), [6, 1]);
+	assert.deepEqual(evaluator.evaluate(binding, context({ time: 0, variables: { TIME: 0 } }), definition.defaultValue, definition), [4, 0]);
+	assert.throws(() => inspectStaticParameter(definition, { ...binding, components: [literal(0)] }, () => {}), /two bindings/);
+	assert.throws(() => inspectStaticParameter(definition, { ...binding, components: [literal(0), keyframesInput([], 'vector')] }, () => {}), /scalar keyframes/);
+});
+
 // 【基準式と加工式を独立した環境で順に評価する】
 // 基準式を入力方式として残し、加工式だけがVALUEを参照する。数値文字列も基準値の段階で型を揃え、
 // 同じ評価器で往復シークしても以前のVALUEや時刻が残らないことを確認する。

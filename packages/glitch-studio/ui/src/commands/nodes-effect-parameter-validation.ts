@@ -1,4 +1,5 @@
 import { inspectStaticParameter } from '@gs/shared/parameter/static-parameter.ts';
+import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import { walkParameters, paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import { canConnectNodeDataTypes, getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import { validateNodesEffectAudioBinding } from '@/utility/nodes-effect-audio-parameters.ts';
@@ -12,7 +13,8 @@ import type { ProjectState } from '../Project.ts';
 export function validateNodesEffectNodeParameterBinding(state: ProjectState, nodesEffect: NodesEffect, definition: ParameterDefinition, binding: NodesEffectParameterBinding,
 	previousBinding: NodesEffectParameterBinding | null = null, connectionTypePolicy: ConnectionTypePolicy = 'strict') {
 	inspectStaticParameter<NodesEffectParameterBinding>(definition, binding, (parameterDefinition, parameterBinding) => {
-		if (!['literal', 'expression', 'envVariable', 'curveAnimationInline', 'keyframesTimelineInline', 'nodesEffectPublicParameterReference', 'nodesEffectCustomParameterValueReference', 'node'].includes(parameterBinding.inputSource)) throw new Error('Unsupported Nodes Effect parameter input source');
+		if (!isValueParameterBinding(parameterBinding) && parameterBinding.inputSource !== 'nodesEffectPublicParameterReference'
+			&& parameterBinding.inputSource !== 'nodesEffectCustomParameterValueReference' && parameterBinding.inputSource !== 'node') throw new Error('Unsupported Nodes Effect parameter input source');
 		validateNodesEffectAudioBinding(parameterDefinition, parameterBinding, nodesEffect.paramDefs);
 	});
 	const definitions = { parameter: definition };

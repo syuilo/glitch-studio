@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { connectionTypePolicySchema, effectResolutionSchema, parameterExpressionModifierSchema, staticSettingValueSchema, structParameterFieldBindingsSchema } from './parameter-contract-schemas.ts';
+import { connectionTypePolicySchema, effectResolutionSchema, parameterExpressionModifierSchema, parameterPathSchema, staticSettingValueSchema, structParameterFieldBindingsSchema } from './parameter-contract-schemas.ts';
 import { nodesEffectCustomParameterInputSchema, nodesEffectCustomParameterReferenceSchema, nodesEffectNodeParameterReferenceSchema, nodesEffectNodeReferenceSchema, nodesEffectOutputInputSchema, nodesEffectOutputReferenceSchema, nodesEffectParameterBindingSchema, nodesEffectParameterInputSourceSchema, nodesEffectParameterSourceSchema, nodesEffectPublicParameterIdSchema, nodesEffectPublicParameterInputSchema, nodesEffectPublicParameterReferenceSchema, nodesEffectTargetSchema, nodesEffectValueParameterBindingSchema, nodesEffectValueParameterInputSourceSchema, nodesEffectValueParameterSourceSchema } from './nodes-effect-contract-schemas.ts';
 
 const nodeSetup = 'let nodesEffect = Command:createNodesEffect({})\nlet node = Command:createNodesEffectEffectNode({ nodesEffect: nodesEffect, effectSource: { type: "nativeEffect", id: "fill" } })\n';
@@ -132,27 +132,27 @@ export const NODES_EFFECT_PARAMETER_CONTRACTS = {
 	setNodesEffectCustomParameterSource: {
 		description: 'Set a custom parameter input source while preserving its expression modifier. Node texture connections are unavailable; use literal values, expressions, animation, or compatible parameter references.',
 		examples: [customParameterSetup + 'Command:setNodesEffectCustomParameterSource({ target: parameter, source: { inputSource: "literal", value: [0.2, 0.5, 1, 1] } })'],
-		inputSchema: z.object({ target: nodesEffectCustomParameterReferenceSchema, source: nodesEffectValueParameterSourceSchema }), resultSchema: z.null(),
+		inputSchema: z.object({ target: nodesEffectCustomParameterReferenceSchema, parameterPath: parameterPathSchema.optional(), source: nodesEffectValueParameterSourceSchema }), resultSchema: z.null(),
 	},
 	switchNodesEffectCustomParameterInputSource: {
 		description: 'Switch a custom parameter input source and create suitable initial settings, preserving a compatible expression modifier. Supported sources depend on the parameter dataType.',
 		examples: [customParameterSetup + 'Command:switchNodesEffectCustomParameterInputSource({ target: parameter, inputSource: "expression" })'],
-		inputSchema: z.object({ target: nodesEffectCustomParameterReferenceSchema, inputSource: nodesEffectValueParameterInputSourceSchema }), resultSchema: z.null(),
+		inputSchema: z.object({ target: nodesEffectCustomParameterReferenceSchema, parameterPath: parameterPathSchema.optional(), inputSource: nodesEffectValueParameterInputSourceSchema }), resultSchema: z.null(),
 	},
 	setNodesEffectCustomParameterExpressionModifier: {
 		description: 'Replace or clear a custom parameter\'s post-input expression modifier without changing its source. null removes the modifier; the current definition and binding must support it.',
 		examples: [customParameterSetup + 'Command:setNodesEffectCustomParameterExpressionModifier({ target: parameter, expressionModifier: null })'],
-		inputSchema: z.object({ target: nodesEffectCustomParameterReferenceSchema, expressionModifier: parameterExpressionModifierSchema.nullable() }), resultSchema: z.null(),
+		inputSchema: z.object({ target: nodesEffectCustomParameterReferenceSchema, parameterPath: parameterPathSchema.optional(), expressionModifier: parameterExpressionModifierSchema.nullable() }), resultSchema: z.null(),
 	},
 	replaceNodesEffectCustomParameterBinding: {
 		description: 'Replace the complete custom parameter binding, including its expression modifier. An omitted modifier removes any previous modifier.',
 		examples: [customParameterSetup + 'Command:replaceNodesEffectCustomParameterBinding({ target: parameter, binding: { inputSource: "literal", value: [0, 0, 0, 1] } })'],
-		inputSchema: z.object({ target: nodesEffectCustomParameterReferenceSchema, binding: nodesEffectValueParameterBindingSchema }), resultSchema: z.null(),
+		inputSchema: z.object({ target: nodesEffectCustomParameterReferenceSchema, parameterPath: parameterPathSchema.optional(), binding: nodesEffectValueParameterBindingSchema }), resultSchema: z.null(),
 	},
 	resetNodesEffectCustomParameter: {
-		description: 'Remove the custom parameter\'s stored binding so its definition default is used again.',
+		description: 'Reset a custom parameter or a split vector component to its definition default.',
 		examples: [customParameterSetup + 'Command:resetNodesEffectCustomParameter({ target: parameter })'],
-		inputSchema: z.object({ target: nodesEffectCustomParameterReferenceSchema }), resultSchema: z.null(),
+		inputSchema: z.object({ target: nodesEffectCustomParameterReferenceSchema, parameterPath: parameterPathSchema.optional() }), resultSchema: z.null(),
 	},
 	createNodesEffectOutput: {
 		description: 'Create a named texture output with a generated ID. The name and ID must be unique within the Nodes Effect. The first color output becomes primary if no primary output is selected. Connect it separately with setNodesEffectOutputConnection.',

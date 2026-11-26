@@ -1,4 +1,4 @@
-import { createDefaultParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
+import { createDefaultParameterBinding, createDefaultVectorComponentsParameterBinding } from '@gs/shared/parameter/parameter-default.ts';
 import { getTimelineLayerPublicParameterContext, resolveTimelineLayerPublicParameterReference, areTimelinePublicParameterTypesCompatible } from "@gs/subsystems_timeline_shared/public-parameters.ts";
 import { resolveTimelineImageLayerReference } from "@gs/subsystems_timeline_shared/layer-output.ts";
 import { hasTimelineLayerParameters } from "@gs/subsystems_timeline_shared/types.ts";
@@ -142,6 +142,7 @@ export function applyTimelineParameterEdit(state: ProjectState, payload: Timelin
 		case 'inputSource':
 			switch (edit.inputSource) {
 				case 'literal': next = createDefaultParameterBinding(def); break;
+				case 'components': next = createDefaultVectorComponentsParameterBinding(def); break;
 				case 'envVariable': next = { inputSource: 'envVariable', variable: '' }; break;
 				case 'expression': next = { inputSource: 'expression', expression: AiSON.stringify(current.inputSource === 'literal' ? current.value : def.defaultValue) }; break;
 				case 'curveAnimationInline': next = createInlineCurveAnimation(); break;
