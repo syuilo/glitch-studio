@@ -70,6 +70,8 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs, 'u
 				const captureSpeed = Math.max(0, inputs.captureSpeed.value) * SIMULATION_UNITS_PER_SPATIAL_UNIT;
 				uniformValues.set({
 					spatialHalfExtent,
+					// サンプル位置にそのまま足せるよう、画素間隔も各軸[-1, +1]の画像参照座標で渡す。
+					pixelStep: [2 / resolution.width, 2 / resolution.height],
 					viewCenter: inputs.view.fields.center.value.map(value => value * SIMULATION_UNITS_PER_SPATIAL_UNIT),
 					initialVelocity: inputs.initialVelocity.value.map(value => value * SIMULATION_UNITS_PER_SPATIAL_UNIT),
 					zoom: Math.max(MAGNETIC_PENDULUM_MINIMUM_ZOOM, inputs.view.fields.zoom.value),

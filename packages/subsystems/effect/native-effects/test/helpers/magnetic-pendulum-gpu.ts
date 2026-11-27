@@ -17,12 +17,21 @@ export async function run() {
 	const device = await adapter.requestDevice();
 	const wgpu = { device, defaultVertexShaderModule: device.createShaderModule({ code: vertexCode }), enable32bitDataTextures: false };
 	const checks: string[] = [];
+	const antialiasingChecks: string[] = [];
 	const resources: (() => void)[] = [];
 	const defaults = Object.fromEntries(Object.entries(definition.paramDefs).map(([name, parameter]) => [name,
 		mapParameterTree<ReturnType<typeof createDefaultParameterBinding>>(parameter, createDefaultParameterBinding(parameter), [], (field, binding) => {
 			return 'canNode' in field && field.canNode === true ? constantShaderInput(field.dataType.kind, binding.value) : binding.value;
 		}),
 	])) as Parameters;
+	const stationaryParameters = {
+		...defaults,
+		damping: constantShaderInput('scalar', 0),
+		restoringStrength: constantShaderInput('scalar', 0),
+		timeStep: 0.1,
+		maximumSteps: 6,
+		settlingShading: 0,
+	};
 	const reader = device.createRenderPipeline({ layout: 'auto', vertex: { module: wgpu.defaultVertexShaderModule }, fragment: {
 		module: device.createShaderModule({ code: `@group(0) @binding(0) var image: texture_2d<f32>;
 @fragment fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f { return textureLoad(image, vec2i(position.xy), 0); }` }), targets: [{ format: 'rgba32float' }],
@@ -62,6 +71,8 @@ export async function run() {
 		// UIへ持ち出した場合や、拡大率・縦横比によって移動量が変わる場合を検出する。
 		for (const [width, height] of [[9, 9], [9, 5], [5, 9], [27, 27]]) {
 			const render = createRenderer(width, height);
+			const centerX = (width - 1) / 2;
+			const centerY = (height - 1) / 2;
 			for (const zoom of [1, 1000]) {
 				const center: [number, number] = [0.1, -0.05];
 				const distance = 1 / (9 * zoom);
@@ -70,12 +81,7 @@ export async function run() {
 				const magnets: Parameters['magnets'] = positions.map((position, index) => ({
 					position, height: 0.08, strength: 1e-20, color: constantShaderInput('color', colors[index]), value: index,
 				}));
-				const pixel = await render({ ...defaults, view: { center, zoom }, magnets,
-					damping: constantShaderInput('scalar', 0), restoringStrength: constantShaderInput('scalar', 0),
-					timeStep: 0.1, maximumSteps: 6, settlingShading: 0,
-				});
-				const centerX = (width - 1) / 2;
-				const centerY = (height - 1) / 2;
+				const pixel = await render({ ...stationaryParameters, view: { center, zoom }, magnets });
 				const offset = width === 27 ? 3 : 1;
 				for (const [index, [x, y]] of [[centerX, centerY], [centerX + offset, centerY], [centerX, centerY - offset]].entries()) {
 					const actual = pixel(x, y);
@@ -86,8 +92,30 @@ export async function run() {
 					checks.push(label);
 				}
 			}
+
+			// 真ん中の画素の右上のサンプル点にだけ磁石を置く。中心と残りの3点は収束範囲外なので、
+			// Antialiasingを有効にしたときだけ、磁石の色と透明度が1/4ずつ出力に寄与する。
+			const zoom = 4;
+			const quarterPixel = 0.25 / (Math.max(width, height) * zoom);
+			const antialiasingParameters: Parameters = {
+				...stationaryParameters,
+				view: { center: [0, 0], zoom },
+				magnets: [{ position: [quarterPixel, quarterPixel], height: 0.08, strength: 1e-20, color: constantShaderInput('color', [1, 0, 0, 1]), value: 1 }],
+				captureRadius: quarterPixel * 0.25,
+				unconvergedColor: constantShaderInput('color', [0, 0, 0, 0]),
+			};
+			for (const antialiasing of [false, true]) {
+				const pixel = await render({ ...antialiasingParameters, antialiasing });
+				const actual = pixel(centerX, centerY);
+				const expected = antialiasing ? [0.25, 0, 0, 0.25] : [0, 0, 0, 0];
+				const label = `${width}x${height} antialiasing ${antialiasing}`;
+				if (!actual.every((value, channel) => value === expected[channel])) {
+					throw new Error(`${label}: ${actual} != ${expected}`);
+				}
+				antialiasingChecks.push(label);
+			}
 		}
-		return { checks };
+		return { checks, antialiasingChecks };
 	} finally {
 		for (const dispose of resources.reverse()) dispose();
 		device.destroy();
