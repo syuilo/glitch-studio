@@ -9,8 +9,7 @@ export default defineNativeEffect({
 	},
 	kind: 'generate',
 	dependsOnRenderHistory: false,
-	canHaveLongRunningRenderPass: true,
-	tags: ['pattern', 'light', '3d'],
+	tags: ['light', '3d'],
 	thumbnail: { mode: 'defaultParameters' },
 	paramDefs: {
 		time: {
