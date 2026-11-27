@@ -113,6 +113,7 @@ import paletteMatch from './fx/paletteMatch/_def_.ts';
 import phaseScramble from './fx/phaseScramble/_def_.ts';
 import phaseTransfer from './fx/phaseTransfer/_def_.ts';
 import pixelSort from './fx/pixelSort/_def_.ts';
+import pixelStretch from './fx/pixelStretch/_def_.ts';
 import pixelate from './fx/pixelate/_def_.ts';
 import pixelateTransition from './fx/pixelateTransition/_def_.ts';
 import pointNetwork3d from './fx/pointNetwork3d/_def_.ts';
@@ -297,6 +298,7 @@ export const nativeEffectDefinitions = {
 	phaseScramble,
 	phaseTransfer,
 	pixelSort,
+	pixelStretch,
 	pixelate,
 	pixelateTransition,
 	pointNetwork3d,
