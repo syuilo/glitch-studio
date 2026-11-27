@@ -25,7 +25,7 @@
 	},
 	"dependencies": {
 		"@gs/shared": "workspace:*",
-		"mediabunny": "1.66.0",
+		"mediabunny": "1.66.2",
 		"@gs/subsystems_audio_shared": "workspace:*"
 	}
 }
