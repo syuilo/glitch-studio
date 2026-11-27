@@ -2,7 +2,7 @@
 <div :class="[$style.root]">
 	<div :class="[$style.header]">
 		<div :class="$style.headerLeft">
-			<b><i class="ti ti-arrow-right"></i> Out</b>
+			<b><i class="ti ti-arrow-right ti_gap"></i> Out</b>
 		</div>
 	</div>
 

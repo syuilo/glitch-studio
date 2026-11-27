@@ -2,7 +2,7 @@
 <div :class="[$style.root]">
 	<div :class="[$style.header]">
 		<div :class="$style.headerLeft">
-			<b>In <i class="ti ti-arrow-right"></i></b>
+			<b>In <i class="ti ti-arrow-right ti_gap"></i></b>
 		</div>
 	</div>
 

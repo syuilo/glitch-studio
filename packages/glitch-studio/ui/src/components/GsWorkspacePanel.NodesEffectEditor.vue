@@ -30,31 +30,39 @@
 	>
 		<template #preview>
 			<div :class="$style.previewParams">
-				<GsEffectLivePreviewResolution
-					:key="nodesEffect.id"
-					:effectSource="{ type: 'nodesEffectReference', id: nodesEffect.id }"
-					@activate="previewNodesEffectLivePreview"
-				/>
-				<GsEffectLivePreviewTimeFactor/>
-				<GsEffectLivePreviewInput
-					:effectSource="{ type: 'nodesEffectReference', id: nodesEffect.id }"
-					@activate="previewNodesEffectLivePreview"
-				/>
-				<!-- 構造化された公開パラメータのプレビュー編集は未対応。 -->
-				<template v-for="paramDef of nodesEffect.paramDefs" :key="paramDef.id">
-					<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array'">{{ paramDef.ui.label }}{{ i18n.ts._TimelineLayer.EditingUnsupported }}</div>
-					<GsVisualParam
-						v-else
-						previewMediaInputEnabled
-						:availableVariables="EFFECT_LIVE_PREVIEW_VAR_DEFS"
-						:paramPath="[paramDef.id]"
-						:functionCurves="[]"
-						:projectFunctionCurves="stateManager.state.functionCurves.value"
-						:paramDef="paramDef"
-						:paramValue="previewParamValues[paramDef.id]"
-						@edit="onPreviewParamEdit"
+				<div class="_gaps_m _spacer">
+					<GsEffectLivePreviewResolution
+						:key="nodesEffect.id"
+						:effectSource="{ type: 'nodesEffectReference', id: nodesEffect.id }"
+						@activate="previewNodesEffectLivePreview"
 					/>
-				</template>
+					<GsEffectLivePreviewTimeFactor/>
+					<GsEffectLivePreviewInput
+						:effectSource="{ type: 'nodesEffectReference', id: nodesEffect.id }"
+						@activate="previewNodesEffectLivePreview"
+					/>
+				</div>
+				<GsFolder :asSection="true">
+					<template #label>
+						Parameters
+					</template>
+
+					<!-- 構造化された公開パラメータのプレビュー編集は未対応。 -->
+					<template v-for="paramDef of nodesEffect.paramDefs" :key="paramDef.id">
+						<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array'">{{ paramDef.ui.label }}{{ i18n.ts._TimelineLayer.EditingUnsupported }}</div>
+						<GsVisualParam
+							v-else
+							previewMediaInputEnabled
+							:availableVariables="EFFECT_LIVE_PREVIEW_VAR_DEFS"
+							:paramPath="[paramDef.id]"
+							:functionCurves="[]"
+							:projectFunctionCurves="stateManager.state.functionCurves.value"
+							:paramDef="paramDef"
+							:paramValue="previewParamValues[paramDef.id]"
+							@edit="onPreviewParamEdit"
+						/>
+					</template>
+				</GsFolder>
 			</div>
 		</template>
 	</GsNodesEffectEditor>
@@ -77,6 +85,7 @@ import GsEffectLivePreviewTimeFactor from './GsEffectLivePreviewTimeFactor.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
 import GsButton from './common/GsButton.vue';
+import GsFolder from './common/GsFolder.vue';
 import type { EffectLivePreviewParameterBinding } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import type { ProjectNodesEffect } from '@gs/glitch-studio_shared/project/types.ts';
 import type { NodesEffectParamDef } from '@/types/nodes-effect-view.ts';

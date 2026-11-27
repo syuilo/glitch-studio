@@ -31,7 +31,7 @@
 					<button v-if="previewPlayback.state.value.mode === 'timeline' && stateManager.state.timelineMotionBlur.value.enabled" v-tooltip="i18n.ts._App.MotionBlurSamplesHint" :class="$style.footerItem" class="_button" @click="openMotionBlurSamplesMenu">{{ i18n.ts._App.MotionBlur }}: {{ timelinePreviewMotionBlurSamples === 0 ? i18n.ts.Off : `${timelinePreviewMotionBlurSamples} samples` }}</button>
 					<button v-if="previewPlayback.state.value.mode !== 'mediaPlayer'" :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'effectLivePreview' ? effectLivePreviewFpsLabel : `${stateManager.state.timelineFps.value * timelinePreviewFpsFactor}fps (${timelinePreviewFpsFactor}x)` }}</button>
 					<div :class="[$style.footerItem, $style.previewVolume]">
-						<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
+						<i :class="previewVolume === 0 ? 'ti ti-volume-off ti_gap' : 'ti ti-volume ti_gap'"></i>
 						<GsRange v-model="previewVolume" small :min="0" :max="1" :step="0.01" :continuousUpdate="true" style="width: 150px;"/>
 						<span :class="$style.volumeValue">{{ Math.round(previewVolume * 100) }}%</span>
 					</div>

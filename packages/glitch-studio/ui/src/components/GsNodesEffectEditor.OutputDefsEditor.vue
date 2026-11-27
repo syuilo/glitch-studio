@@ -3,12 +3,14 @@
 	<GsFolder v-for="def in nodesEffect.outputDefs" :key="def.id" defaultOpen>
 		<template #label>{{ def.label }}</template>
 
-		<div class="_gaps_s _spacer">
-			<span>{{ i18n.ts.Label }}</span>
-			<GsInput large :modelValue="def.label" @update:modelValue="update(def.id, { label: $event })"/>
-			<span>{{ i18n.ts.Name }}</span>
-			<GsInput large :modelValue="def.name" @update:modelValue="update(def.id, { name: $event })"/>
-			<GsSelect large :modelValue="def.dataType.kind" :items="dataTypes" @update:modelValue="update(def.id, { dataType: { kind: $event } })"/>
+		<div class="_gaps_m">
+			<GsInput :modelValue="def.label" @update:modelValue="update(def.id, { label: $event })">
+				<template #label>{{ i18n.ts.Label }}</template>
+			</GsInput>
+			<GsInput :modelValue="def.name" @update:modelValue="update(def.id, { name: $event })">
+				<template #label>{{ i18n.ts.Name }}</template>
+			</GsInput>
+			<GsSelect :modelValue="def.dataType.kind" :items="dataTypes" @update:modelValue="update(def.id, { dataType: { kind: $event } })"/>
 			<GsSwitch
 				v-if="def.dataType.kind === 'color'"
 				:modelValue="nodesEffect.primaryOutputId === def.id"
@@ -25,7 +27,6 @@
 </template>
 
 <script lang="ts" setup>
-import { i18n } from '@/i18n.ts';
 import { genId } from '@gs/shared/utility/id.js';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
@@ -33,6 +34,7 @@ import GsSwitch from './common/GsSwitch.vue';
 import GsButton from './common/GsButton.vue';
 import GsFolder from './common/GsFolder.vue';
 import type { NodesEffect, NodesEffectOutputDef } from '@/types/nodes-effect-view.ts';
+import { i18n } from '@/i18n.ts';
 
 type OutputDef = NodesEffectOutputDef;
 const props = defineProps<{ nodesEffect: NodesEffect }>();
