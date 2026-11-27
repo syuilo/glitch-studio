@@ -270,6 +270,11 @@
 			@edit="emit('edit', $event)"
 		>
 			<template #actions>
+				<div :class="$style.grabber" draggable="true">
+					<svg viewBox="0 0 16 16" version="1.1" :class="$style.grabberSvg">
+						<path fill="currentColor" d="M10 13a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm-4 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm5-9a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM6 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path>
+					</svg>
+				</div>
 				<GsButton v-tooltip="i18n.ts._Parameter.RemoveElement" iconOnly danger icon="ti ti-x" @click="removeElement(element.id)"/>
 			</template>
 		</GsVisualParam>
@@ -1052,7 +1057,7 @@ function onReset() {
 }
 
 .children {
-	margin-left: 16px;
+	margin-left: 18px;
 	border-left: 1px solid #ffffff18;
 
 	&:hover {
@@ -1080,5 +1085,21 @@ function onReset() {
 
 .typeWarning {
 	color: var(--THEME-warn);
+}
+
+.grabber {
+	display: grid;
+	padding: 5px;
+	box-sizing: border-box;
+	aspect-ratio: 1;
+	height: 100%;
+	cursor: move;
+	user-select: none;
+	color: color(from currentColor srgb r g b / 0.5);
+}
+
+.grabberSvg {
+	height: 100%;
+	pointer-events: none;
 }
 </style>
