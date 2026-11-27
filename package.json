@@ -2,7 +2,7 @@
 	"name": "glitch-studio",
 	"private": true,
 	"version": "2.0.0-alpha.100",
-	"packageManager": "pnpm@12.21.0",
+	"packageManager": "pnpm@12.22.0",
 	"workspaces": [
 		"docs-site",
 		"packages/shared",
