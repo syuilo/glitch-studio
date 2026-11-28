@@ -27,11 +27,12 @@ function observePortableNodesEffectFrames() {
 	Worker.prototype.postMessage = function (message, ...options) {
 		if (message.type === 'initialize') {
 			const element = elementsByCanvas.get(message.canvas);
-			const frames = { lastRequested: null };
+			const frames = { initialized: Promise.withResolvers(), lastRequested: null };
 			framesByWorker.set(this, frames);
 			framesByElement.set(element, frames);
 			this.addEventListener('message', ({ data }) => {
-				if (data.type === 'frameComplete') element.dispatchEvent(new CustomEvent('test-frame-complete', { detail: frames.lastRequested }));
+				if (data.type === 'ready') frames.initialized.resolve();
+				else if (data.type === 'frameComplete') element.dispatchEvent(new CustomEvent('test-frame-complete', { detail: frames.lastRequested }));
 			});
 			this.addEventListener('error', ({ message }) => element.dispatchEvent(new CustomEvent('test-renderer-error', { detail: message })));
 		} else if (message.type === 'frame') framesByWorker.get(this).lastRequested = message.frame;
@@ -65,6 +66,15 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 		}
 	}
 	await add('test', fixture());
+	const scaled = fixture();
+	scaled.settings.resolutionScale = 0.5;
+	scaled.initialParameters.level = 0.5;
+	await add('scaled', scaled);
+	for (const [name, fpsLimit] of [['limited', 60], ['slow', 15]]) {
+		const input = fixture();
+		input.settings.fpsLimit = fpsLimit;
+		await add(name, input);
+	}
 	const literal = fixture();
 	literal.nodesEffect.nodes[0].params.color = { inputSource: 'literal', value: [0.25, 0, 0, 1] };
 	await add('literal', literal);

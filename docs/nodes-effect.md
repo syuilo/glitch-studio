@@ -44,7 +44,7 @@ InからOutへ繋いだ入力は、中継ノードを経由する場合も、テ
 
 Nodes Effectエディタの「その他」から、HTML + JavaScriptのZIPまたは単一HTMLとして書き出せます。Web Component・Worker・使用するCustom Shader Effect・参照Assetを同梱し、HTTPSまたはlocalhost上のWebGPU対応Chromeでエディタなしに再生します。ZIPでは素材原本を`assets/`に格納し、単一HTMLではBase64でHTMLに含めます。
 
-表示寸法は埋め込み先のCSSで決まります。描画寸法は物理ピクセルに描画倍率を掛け、固定の画素数上限とGPUのテクスチャ寸法上限に収まるように縮小します。公開値は`parameters`属性のJSONまたは`setParameter` / `setParameters` APIで設定できます。primary pointerの位置を既存の`POINTER_POSITION`へ渡します。音声入力は未接続で、タイルレンダリングは行いません。
+表示寸法は埋め込み先のCSSで決まります。描画寸法は物理ピクセルに描画倍率を掛け、固定の画素数上限とGPUのテクスチャ寸法上限に収まるように縮小します。描画倍率とFPSは書き出し時に設定します。埋め込み先で公開値を変更するには、`setParameter` / `setParameters` APIを使います。primary pointerの位置を既存の`POINTER_POSITION`へ渡します。音声入力は未接続で、タイルレンダリングは行いません。
 
 生成物の構成、公開API、停止・リサイズ・再接続の規約、配信条件は[embedパッケージのREADME](../packages/glitch-studio/embed/README.md)を参照してください。`.gsne`の保存・取り込みとは独立した配布形式です。
 

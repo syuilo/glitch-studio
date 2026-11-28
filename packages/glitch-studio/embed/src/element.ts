@@ -9,15 +9,12 @@ export function registerNodesEffectElement(tagName: string, artwork: PortableNod
 	// 同じ成果物を複数回読み込んでも登録済みのクラスを使う。タグは書き出しごとに一意にする。
 	if (customElements.get(tagName) != null) return;
 	const definitions = getPortableParameterDefinitions(artwork.nodesEffect);
-	const defaults = getPortableParameterDefaults(definitions);
-	const initial = structuredClone(artwork.initialParameters);
+	const initialParameters = { ...getPortableParameterDefaults(definitions), ...structuredClone(artwork.initialParameters) };
+	const { resolutionScale, fpsLimit } = artwork.settings;
 
 	class PortableNodesEffectElement extends HTMLElement {
-		static observedAttributes = ['parameters', 'resolution-scale', 'fps-limit'];
 		private readonly root = this.attachShadow({ mode: 'open' });
 		private canvas: HTMLCanvasElement | null = null;
-		private readyState = Promise.withResolvers<void>();
-		private connectedOnce = false;
 		private worker: Worker | null = null;
 		private workerUrl: string | null = null;
 		private generation = 0;
@@ -26,14 +23,11 @@ export function registerNodesEffectElement(tagName: string, artwork: PortableNod
 		private intersectionObserver: IntersectionObserver | null = null;
 		private visible = false;
 		private physicalSize = { width: 0, height: 0 };
-		private settings = { ...artwork.settings };
-		private attributeParameters: Record<string, unknown> = {};
-		private apiParameters: Record<string, unknown> = {};
+		private parameterOverrides: Record<string, unknown> = {};
 		private parametersChanged = true;
 		private frameId: number | null = null;
 		private frameInFlight = false;
 		private resetHistory = true;
-		private playbackTimeAtStart = 0;
 		private playbackStartTimestamp: number | null = null;
 		private readonly frameRateLimiter = new PortableNodesEffectFrameRateLimiter();
 		private pointerElementPosition: PortablePointerPosition | null = null;
@@ -47,46 +41,24 @@ export function registerNodesEffectElement(tagName: string, artwork: PortableNod
 			style.textContent = `:host { display: block; position: relative; aspect-ratio: ${artwork.aspectRatio}; }
 canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0; }`;
 			this.root.append(style);
-			// readyを待たない宣言的利用でも、DOMから取り外したときのキャンセルをunhandled rejectionにしない。
-			void this.ready.catch(() => {});
 		}
 
-		public get ready(): Promise<void> { return this.readyState.promise; }
-		public get currentTime(): number { return this.getPlaybackTime(performance.now()) / 1000; }
 		public setParameter(name: string, value: unknown) { this.setParameters({ [name]: value }); }
 		public setParameters(values: Record<string, unknown>) {
-			this.apiParameters = { ...this.apiParameters, ...structuredClone(values) };
+			this.parameterOverrides = { ...this.parameterOverrides, ...structuredClone(values) };
 			this.parametersChanged = true;
 		}
 		public getParameter(name: string): unknown {
 			return structuredClone(this.parameters()[name]);
 		}
 		public resetParameter(name: string) {
-			delete this.apiParameters[name];
+			delete this.parameterOverrides[name];
 			this.parametersChanged = true;
 		}
-		private parameters() { return { ...defaults, ...initial, ...this.attributeParameters, ...this.apiParameters }; }
-
-		public attributeChangedCallback(name: string) {
-			if (name === 'parameters') {
-				this.attributeParameters = JSON.parse(this.getAttribute(name) ?? '{}');
-				this.parametersChanged = true;
-				return;
-			}
-			const fpsLimitAttribute = this.getAttribute('fps-limit');
-			this.settings = {
-				resolutionScale: Number(this.getAttribute('resolution-scale') ?? artwork.settings.resolutionScale),
-				fpsLimit: fpsLimitAttribute == null ? artwork.settings.fpsLimit : fpsLimitAttribute === 'auto' ? null : Number(fpsLimitAttribute),
-			};
-		}
+		private parameters() { return { ...initialParameters, ...this.parameterOverrides }; }
 
 		public connectedCallback() {
 			if (this.worker != null || !this.isConnected) return;
-			if (this.connectedOnce) {
-				this.readyState = Promise.withResolvers<void>();
-				void this.ready.catch(() => {});
-			}
-			this.connectedOnce = true;
 			this.parametersChanged = true;
 			this.canvas?.remove();
 			this.canvas = document.createElement('canvas');
@@ -147,10 +119,8 @@ canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0
 			this.worker = worker;
 			worker.addEventListener('message', (event: MessageEvent<PortableNodesEffectResponse>) => {
 				if (generation !== this.generation) return;
-				if (event.data.type === 'ready') {
-					this.playbackStartTimestamp = performance.now();
-					this.readyState.resolve();
-				} else this.frameInFlight = false;
+				if (event.data.type === 'ready') this.playbackStartTimestamp = performance.now();
+				else this.frameInFlight = false;
 				this.schedule();
 			}, { signal });
 			const canvas = this.canvas.transferControlToOffscreen();
@@ -175,8 +145,6 @@ canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0
 			this.worker = null;
 			if (this.workerUrl != null) URL.revokeObjectURL(this.workerUrl);
 			this.workerUrl = null;
-			this.readyState.reject(new DOMException('Nodes Effect disconnected', 'AbortError'));
-			this.playbackTimeAtStart = this.getPlaybackTime(performance.now());
 			this.playbackStartTimestamp = null;
 			this.frameInFlight = false;
 			this.visible = false;
@@ -187,9 +155,9 @@ canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0
 		}
 
 		private getPlaybackTime(timestamp: number): number {
-			// 描画するかどうかにかかわらず、初期化時に始めた時計を使う。再接続時は切断前の作品時刻から進める。
+			// 描画の休止中も同じ起点を使い、新しい接続では初期化完了を0秒とする。
 			const startTimestamp = this.playbackStartTimestamp;
-			return this.playbackTimeAtStart + (startTimestamp == null ? 0 : Math.max(0, timestamp - startTimestamp));
+			return startTimestamp == null ? 0 : Math.max(0, timestamp - startTimestamp);
 		}
 		private resetFrameRateLimiterAndPointerStroke() {
 			this.frameRateLimiter.reset();
@@ -212,8 +180,8 @@ canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0
 		private tick(timestamp: number) {
 			this.frameId = null;
 			if (!this.canRender()) { this.updateRenderingAvailability(); return; }
-			if (this.frameRateLimiter.takeFrame(timestamp, this.settings.fpsLimit)) {
-				const resolution = getPortableRenderResolution(this.physicalSize.width, this.physicalSize.height, this.settings.resolutionScale)!;
+			if (this.frameRateLimiter.takeFrame(timestamp, fpsLimit)) {
+				const resolution = getPortableRenderResolution(this.physicalSize.width, this.physicalSize.height, resolutionScale)!;
 				const message: PortableNodesEffectRequest = { type: 'frame', frame: {
 					resolution, time: this.getPlaybackTime(timestamp), pointerElementPosition: this.pointerElementPosition, pointerElementClicks: this.pointerElementClicks,
 					pointerElementStrokeSegments: this.pointerStroke.takeSegments(),

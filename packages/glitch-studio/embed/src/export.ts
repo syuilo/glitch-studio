@@ -97,10 +97,10 @@ Embed:
 <script type="module" src="./artwork.js"></script>
 <${tagName} id="artwork" style="display:block;width:100%;height:60vh" parameters='{}'></${tagName}>
 
-JavaScript (after customElements.whenDefined('${tagName}')):
+JavaScript
 
+await customElements.whenDefined('${tagName}');
 const nodesEffectElement = document.querySelector('#artwork');
-await nodesEffectElement.ready;
 // nodesEffectElement.setParameter('public-parameter-name', value);
 // nodesEffectElement.setParameters({ ...values });
 // nodesEffectElement.getParameter(name);
@@ -109,15 +109,13 @@ await nodesEffectElement.ready;
 Public parameters:
 ${Array.from(getPortableParameterDefinitions(artwork.nodesEffect), ([name, definition]) => '- ' + JSON.stringify(name) + ': ' + definition.dataType.kind).join('\n')}
 
-API overrides > parameters attribute > exported initial values > public defaults. Colors use straight linear sRGB RGBA. RGB may be outside 0..1. The caller must supply valid JSON for the parameters attribute and use names, values, and settings that match their definitions.
+API overrides take precedence over exported initial values, followed by public defaults. The caller must use names and values that match their definitions. Colors use straight linear sRGB RGBA. RGB may be outside 0..1.
 
-The supported attributes are parameters (JSON), resolution-scale, and fps-limit (auto or a positive number).
-By default, automatic FPS follows requestAnimationFrame. fps-limit="auto" overrides an exported numeric limit. Removing the attribute restores the exported setting.
-The ready promise resolves after GPU and image initialization. Removing the element during initialization cancels that connection's wait with an AbortError.
+Rendering scale and FPS are set at export. FPS defaults to automatic, which follows requestAnimationFrame.
 
 CSS determines the size. Rendering follows device pixels subject to the rendering scale, a fixed cap of 8,294,400 pixels, and the GPU texture dimension limit. Node resolution settings determine intermediate sizes. Mismatched output ratios use transparent letterboxing. Resizing or changing the length of a bound public array resets effect history and preserves time.
-The artwork clock starts when initialization finishes, and currentTime reports it in seconds. Rendering pauses while the element is offscreen or zero-sized, or while its document is hidden. The clock keeps advancing. Rendering resumes at the current time with fresh history. Pointer movement starts a new stroke after rendering resumes.
-Removing an element releases resources and stops its clock. Reconnecting retains parameter values and resumes from the saved time after initialization with fresh history. Pointer input uses the primary pointer and does not prevent touch scrolling.
+The artwork clock starts when initialization finishes. Rendering pauses while the element is offscreen or zero-sized, or while its document is hidden. The clock keeps advancing. Rendering resumes at the current time with fresh history. Pointer movement starts a new stroke after rendering resumes.
+Removing an element releases resources. Reconnecting the same element retains its parameter values and starts playback at zero after initialization with fresh history. Pointer input uses the primary pointer and does not prevent touch scrolling.
 
 Video Frame reads bundled video assets. No tile rendering, external image/audio API or timeline playback is included. IS_EXPORT is false; END_TIME is Infinity; PROGRESS is 0.
 `;

@@ -27,10 +27,9 @@ async function mount(name, parameters = null) {
 	await import('/' + name + '/artwork.js');
 	const element = document.createElement('gs-nodes-effect-' + name);
 	element.style.cssText = 'display:block;width:200px;height:100px';
-	if (parameters != null) element.setAttribute('parameters', JSON.stringify(parameters));
+	if (parameters != null) element.setParameters(parameters);
 	element.addEventListener('test-renderer-error', event => { fatalErrors.push(event.detail); });
-	const first = rendered(element, () => document.body.append(element));
-	await Promise.all([element.ready, first]);
+	await rendered(element, () => document.body.append(element));
 	return element;
 }
 async function pixel(element, x = 0.5, y = 0.5) {
@@ -46,13 +45,11 @@ async function checkRenderingSuspension(element, label, suspend, resume, inputWh
 	// ResizeObserverやIntersectionObserverが休止を検出するまでのフレームと、観測期間を分ける。
 	for (let index = 0; index < 4; index++) await frame();
 	const requestBefore = lastRequestedFrame(element);
-	const timeBefore = element.currentTime;
 	inputWhileSuspended();
 	await delay(80);
-	check(lastRequestedFrame(element) === requestBefore && element.currentTime >= timeBefore + 0.06,
-		label + ' suspend rendering while the clock advances');
+	check(lastRequestedFrame(element) === requestBefore, label + ' suspend rendering');
 	const resumed = await rendered(element, resume);
-	check(resumed.resetHistory && resumed.time >= (timeBefore + 0.06) * 1000 && resumed.pointerElementStrokeSegments.length === 0,
+	check(resumed.resetHistory && resumed.time >= requestBefore.time + 60 && resumed.pointerElementStrokeSegments.length === 0,
 		label + ' resume at the current time with new history and no old strokes');
 }
 
@@ -82,7 +79,7 @@ async function checkPointerdownBand(element, pointerType) {
 	const { PointerEvent } = canvas.ownerDocument.defaultView;
 	const label = element.localName + ' / ' + pointerType;
 	const x = 0.65, y = 0.43;
-	const waitForTime = time => rendered(element, undefined, renderedFrame => renderedFrame.time >= time * 1000);
+	const waitForTime = time => rendered(element, undefined, renderedFrame => renderedFrame.time >= time);
 	function dispatchPointer(type, buttons) {
 		const rect = canvas.getBoundingClientRect();
 		canvas.dispatchEvent(new PointerEvent(type, { isPrimary: true, pointerId: 1, pointerType, button: type === 'pointerdown' ? 0 : -1, buttons,
@@ -93,12 +90,11 @@ async function checkPointerdownBand(element, pointerType) {
 		element.style.cssText = 'display:block;width:200px;height:100px';
 	}, renderedFrame => renderedFrame.resolution.width === Math.round(200 * devicePixelRatio));
 	dispatchPointer('pointermove', 0);
-	await waitForTime(element.currentTime + 0.12);
+	await waitForTime(lastRequestedFrame(element).time + 120);
 	check(await bandCenter(canvas) === null, 'pointer movement leaves the band empty: ' + label);
-	const pressTime = element.currentTime;
 	// pointerdownだけを送り、押下位置がこの時点でEffectに届くことを出力画素で確認する。
-	dispatchPointer('pointerdown', 1);
-	await waitForTime(pressTime + 0.16);
+	const pressedFrame = await rendered(element, () => dispatchPointer('pointerdown', 1));
+	await waitForTime(pressedFrame.pointerElementClicks[0].time + 160);
 	const center = await bandCenter(canvas);
 	check(center != null && Math.abs(center[0] - x) < 0.025 && Math.abs(center[1] - y) < 0.025,
 		'pointerdown produces a band at the pressed point through contain fitting: ' + label + ' ' + center);
@@ -120,8 +116,8 @@ async function checkCursorRipples(element) {
 		canvas.dispatchEvent(new PointerEvent(type, { ...eventAt(x), coalescedEvents }));
 	}
 	async function advance(action) {
-		const minimum = (element.currentTime + 0.025) * 1000;
-		await rendered(element, action, renderedFrame => renderedFrame.time >= minimum);
+		const inputFrame = await rendered(element, action);
+		await rendered(element, undefined, renderedFrame => renderedFrame.time >= inputFrame.time + 25);
 	}
 	const suspend = () => { element.style.translate = '0 200vh'; };
 	const resume = () => { element.style.translate = ''; };
@@ -176,9 +172,8 @@ async function checkSymbolTextureRendering(element, name) {
 	check(visiblePixels > 100 && visiblePixels < canvas.width * canvas.height * 0.9, 'bundled Symbols textures render without external assets: ' + name);
 }
 
-async function measureFrameRate(element, fpsLimit) {
-	if (fpsLimit == null) element.removeAttribute('fps-limit');
-	else element.setAttribute('fps-limit', String(fpsLimit));
+async function measureFrameRate(name) {
+	const element = await mount(name);
 	for (let index = 0; index < 10; index++) await frame();
 	let completedFrames = 0;
 	const completed = () => { completedFrames++; };
@@ -187,8 +182,9 @@ async function measureFrameRate(element, fpsLimit) {
 	let end = start;
 	for (let index = 0; index < 120; index++) end = await frame();
 	element.removeEventListener('test-frame-complete', completed);
+	element.remove();
 	const seconds = (end - start) / 1000;
-	return { fpsLimit, completedFrames, fps: Math.round(completedFrames / seconds * 10) / 10, rafFps: Math.round(120 / seconds * 10) / 10 };
+	return { completedFrames, fps: Math.round(completedFrames / seconds * 10) / 10, rafFps: Math.round(120 / seconds * 10) / 10 };
 }
 try {
 	const element = await mount('test', { level: 0.5 });
@@ -196,40 +192,42 @@ try {
 	let color = await pixel(element, 0.05, 0.05);
 	const initialCanvas = element.shadowRoot.querySelector('canvas');
 	check(initialCanvas.width === Math.round(200 * devicePixelRatio) && initialCanvas.height === Math.round(100 * devicePixelRatio), 'renders at device pixel resolution');
-	check(Math.abs(color[0] - 188) <= 2 && color[3] === 255, 'public attribute reaches linear color output across the full canvas: ' + color);
-	// 【廃止した再生操作・描画設定・フレーム完了イベントを公開しない】
-	// Workerの内部完了通知はあるため、埋め込み先のページにはフレーム完了イベントを発火しないことも確認する。
+	check(Math.abs(color[0] - 188) <= 2 && color[3] === 255, 'public values set before connection reach the first canvas output: ' + color);
+	// 【埋め込み先からはJavaScript APIだけで公開パラメータを設定する】
+	// Workerの初期化やフレーム完了の管理と、書き出しで決めた描画設定を公開APIに持ち込まない。
 	let publicRenderEvents = 0;
 	element.addEventListener('render', () => { publicRenderEvents++; });
 	await rendered(element, () => element.setParameters({ level: 1 }));
 	color = await pixel(element);
 	check(color[0] === 255, 'API updates while rendering');
 	check(publicRenderEvents === 0 && !('pause' in element) && !('play' in element) && !('paused' in element) && !('restart' in element)
-		&& !element.constructor.observedAttributes.includes('paused') && !element.constructor.observedAttributes.includes('max-pixels'),
-		'playback controls and pixel cap overrides are absent from the public API');
-	await rendered(element, () => element.setAttribute('parameters', '{"level":0.25}'));
-	check(element.getParameter('level') === 1, 'API overrides retain priority over changed attributes');
+		&& !('ready' in element) && !('currentTime' in element) && element.constructor.observedAttributes == null,
+		'playback state and attribute overrides are absent from the public API');
 	await rendered(element, () => element.resetParameter('level'));
-	check(element.getParameter('level') === 0.25, 'reset restores the current attribute value');
+	check(element.getParameter('level') === 0.25, 'reset restores the default public value');
 	await rendered(element, () => { element.style.width = '300px'; element.style.height = '150px'; },
 		renderedFrame => renderedFrame.resolution.width === Math.round(300 * devicePixelRatio));
 	await frame(); await frame();
 	check(initialCanvas.width === Math.round(300 * devicePixelRatio), 'CSS resize changes actual render resolution');
-	await rendered(element, () => element.setAttribute('resolution-scale', '0.5'),
-		renderedFrame => renderedFrame.resolution.width === Math.floor(150 * devicePixelRatio));
-	await frame(); await frame();
-	check(initialCanvas.width === Math.floor(150 * devicePixelRatio), 'render scale remains responsive');
+	// 【書き出し時の描画倍率と公開値を最初のフレームから使う】
+	// HTMLに値を指定する属性がなくても、完成した作品をそのまま埋め込める。
+	const scaled = await mount('scaled');
+	const scaledColor = await pixel(scaled);
+	const scaledCanvas = scaled.shadowRoot.querySelector('canvas');
+	check(scaledCanvas.width === Math.floor(100 * devicePixelRatio) && Math.abs(scaledColor[0] - 188) <= 2,
+		'the export settings determine the rendering scale and initial public value');
+	scaled.remove();
 	const independent = await mount('test', { level: 0.8 });
 	check(independent.getParameter('level') === 0.8 && element.getParameter('level') === 0.25, 'instances keep independent public values');
 	independent.remove();
+	// 【再接続で再生時刻をやり直し、同じ要素に設定した公開値を使う】
+	// 連続再生中の時計を新しいWorkerに持ち越すと、再接続の最初のフレームから途中の時刻になる。
+	const beforeDisconnect = await rendered(element, () => element.setParameter('level', 0.6), renderedFrame => renderedFrame.time >= 200);
 	element.remove(); await Promise.resolve();
-	const disconnectedTime = element.currentTime;
-	await delay(60);
-	check(element.currentTime === disconnectedTime, 'removing the element freezes its clock across disconnection');
-	const reconnected = rendered(element, () => document.body.append(element));
-	await element.ready;
-	check((await reconnected).time >= disconnectedTime * 1000 - 1 && element.getParameter('level') === 0.25,
-		'reconnection transfers a fresh canvas and resumes the saved time and parameters');
+	const reconnected = await rendered(element, () => document.body.append(element));
+	check(element.shadowRoot.querySelector('canvas') !== initialCanvas && reconnected.time < beforeDisconnect.time
+		&& reconnected.resetHistory && reconnected.parameters.level === 0.6,
+		'reconnection transfers a fresh canvas and starts a new clock with the existing public values');
 	// 【表示サイズゼロやページの非表示中も作品時刻を進める】
 	// 画面に戻るまで描画要求を送らず、復帰した時刻と空の履歴で描画を始める。
 	await checkRenderingSuspension(element, 'zero-sized elements',
@@ -326,35 +324,32 @@ try {
 	transient.style.cssText = 'width:100px;height:50px';
 	let readyEvents = 0;
 	transient.addEventListener('ready', () => { readyEvents++; });
-	document.body.append(transient); const abandoned = transient.ready.catch(error => error.name); transient.remove();
-	check(await abandoned === 'AbortError', 'removal during initialization cancels the abandoned ready promise');
-	// 【初回から画面外にある作品もreadyで時刻を進める】
+	document.body.append(transient);
+	const abandonedCanvas = transient.shadowRoot.querySelector('canvas');
+	transient.remove(); await Promise.resolve();
+	// 【初回から画面外にある作品も初期化完了で時刻を進める】
 	// 初めて画面に入るまで0秒で止まると、画面外の経過時間が作品に反映されない。
 	transient.style.translate = '0 200vh';
 	document.body.append(transient);
-	await transient.ready;
+	await portableNodesEffectFrames.get(transient).initialized.promise;
 	await delay(80);
-	check(readyEvents === 0 && transient.currentTime >= 0.06 && lastRequestedFrame(transient) == null,
-		'the ready promise starts the artwork clock before its first visible frame without a public ready event');
+	check(readyEvents === 0 && transient.shadowRoot.querySelector('canvas') !== abandonedCanvas && lastRequestedFrame(transient) == null,
+		'removal during initialization allows a fresh offscreen connection without a ready event');
 	const firstVisibleFrame = await rendered(transient, () => { transient.style.translate = ''; });
 	check(firstVisibleFrame.time >= 60 && firstVisibleFrame.resetHistory, 'initially offscreen artwork starts drawing at the elapsed time');
 	transient.remove();
-	const frameRateProbe = await mount('test');
-	const defaultRate = await measureFrameRate(frameRateProbe, null);
+	const defaultRate = await measureFrameRate('test');
 	check(defaultRate.fps >= defaultRate.rafFps * 0.92, 'default automatic pacing follows requestAnimationFrame: ' + JSON.stringify(defaultRate));
-	const limitedRate = await measureFrameRate(frameRateProbe, 60);
-	const lowRate = await measureFrameRate(frameRateProbe, 15);
-	check(Math.abs(lowRate.fps - Math.min(15, lowRate.rafFps)) < 1.5, 'numeric FPS attributes retain their limit: ' + JSON.stringify(lowRate));
-	const refreshRate = await measureFrameRate(frameRateProbe, 'auto');
-	check(refreshRate.fps >= refreshRate.rafFps * 0.92, 'auto attribute removes a previous numeric limit: ' + JSON.stringify(refreshRate));
-	check(limitedRate.fps >= Math.min(60, refreshRate.fps) * 0.92 && limitedRate.fps <= 62,
-		'frame limiter sustains the available refresh rate: ' + JSON.stringify({ limitedRate, refreshRate }));
-	frameRateProbe.remove();
+	const limitedRate = await measureFrameRate('limited');
+	const lowRate = await measureFrameRate('slow');
+	check(Math.abs(lowRate.fps - Math.min(15, lowRate.rafFps)) < 1.5, 'rendering observes the exported FPS limit: ' + JSON.stringify(lowRate));
+	check(limitedRate.fps >= Math.min(60, limitedRate.rafFps) * 0.92 && limitedRate.fps <= 62,
+		'frame limiter sustains the available refresh rate: ' + JSON.stringify({ limitedRate, defaultRate }));
 	for (const name of ['standalone', 'symbols', 'image', 'ripple']) {
 		const iframe = document.createElement('iframe'); iframe.style.cssText = 'width:300px;height:150px';
 		await new Promise(resolve => { iframe.onload = resolve; iframe.src = '/' + name + '.html'; document.body.append(iframe); });
 		const standalone = iframe.contentDocument.querySelector('gs-nodes-effect-' + name);
-		await standalone.ready; await rendered(standalone);
+		await rendered(standalone);
 		if (name === 'symbols') await checkSymbolTextureRendering(standalone, 'single HTML');
 		else if (name === 'image') check((await pixel(standalone, 0.5, 0.1))[0] > 250, 'single HTML renders its embedded image');
 		else if (name === 'ripple') await checkPointerdownBand(standalone, 'touch');
