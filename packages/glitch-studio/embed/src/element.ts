@@ -13,15 +13,13 @@ export function registerNodesEffectElement(tagName: string, artwork: PortableNod
 	const initial = structuredClone(artwork.initialParameters);
 
 	class PortableNodesEffectElement extends HTMLElement {
-		static observedAttributes = ['parameters', 'resolution-scale', 'max-pixels', 'fps-limit'];
+		static observedAttributes = ['parameters', 'resolution-scale', 'fps-limit'];
 		private readonly root = this.attachShadow({ mode: 'open' });
 		private canvas: HTMLCanvasElement | null = null;
-		private readonly status = document.createElement('div');
 		private readyState = Promise.withResolvers<void>();
 		private connectedOnce = false;
 		private worker: Worker | null = null;
 		private workerUrl: string | null = null;
-		private failed = false;
 		private generation = 0;
 		private listeners: AbortController | null = null;
 		private resizeObserver: ResizeObserver | null = null;
@@ -47,24 +45,14 @@ export function registerNodesEffectElement(tagName: string, artwork: PortableNod
 			super();
 			const style = document.createElement('style');
 			style.textContent = `:host { display: block; position: relative; aspect-ratio: ${artwork.aspectRatio}; }
-canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0; }
-div { position: absolute; inset: 0; padding: 1em; font: 14px sans-serif; overflow: auto; }
-div:empty { display: none; }`;
-			this.root.append(style, this.status);
-			// readyを待たない宣言的利用でも、初期化失敗をunhandled rejectionにしない。
+canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0; }`;
+			this.root.append(style);
+			// readyを待たない宣言的利用でも、DOMから取り外したときのキャンセルをunhandled rejectionにしない。
 			void this.ready.catch(() => {});
 		}
 
 		public get ready(): Promise<void> { return this.readyState.promise; }
 		public get currentTime(): number { return this.getPlaybackTime(performance.now()) / 1000; }
-		public restart() {
-			this.playbackTimeAtStart = 0;
-			if (this.playbackStartTimestamp != null) this.playbackStartTimestamp = performance.now();
-			this.pointerElementClicks = [];
-			this.resetFrameRateLimiterAndPointerStroke();
-			this.resetHistory = true;
-			if (this.failed) { this.disconnect(); this.connectedCallback(); }
-		}
 		public setParameter(name: string, value: unknown) { this.setParameters({ [name]: value }); }
 		public setParameters(values: Record<string, unknown>) {
 			this.apiParameters = { ...this.apiParameters, ...structuredClone(values) };
@@ -80,19 +68,16 @@ div:empty { display: none; }`;
 		private parameters() { return { ...defaults, ...initial, ...this.attributeParameters, ...this.apiParameters }; }
 
 		public attributeChangedCallback(name: string) {
-			try {
-				if (name === 'parameters') {
-					this.attributeParameters = JSON.parse(this.getAttribute(name) ?? '{}');
-					this.parametersChanged = true;
-				} else {
-					const fpsLimitAttribute = this.getAttribute('fps-limit');
-					this.settings = {
-						resolutionScale: Number(this.getAttribute('resolution-scale') ?? artwork.settings.resolutionScale),
-						maxPixels: Number(this.getAttribute('max-pixels') ?? artwork.settings.maxPixels),
-						fpsLimit: fpsLimitAttribute == null ? artwork.settings.fpsLimit : fpsLimitAttribute === 'auto' ? null : Number(fpsLimitAttribute),
-					};
-				}
-			} catch (error) { this.reportError(error, false); }
+			if (name === 'parameters') {
+				this.attributeParameters = JSON.parse(this.getAttribute(name) ?? '{}');
+				this.parametersChanged = true;
+				return;
+			}
+			const fpsLimitAttribute = this.getAttribute('fps-limit');
+			this.settings = {
+				resolutionScale: Number(this.getAttribute('resolution-scale') ?? artwork.settings.resolutionScale),
+				fpsLimit: fpsLimitAttribute == null ? artwork.settings.fpsLimit : fpsLimitAttribute === 'auto' ? null : Number(fpsLimitAttribute),
+			};
 		}
 
 		public connectedCallback() {
@@ -103,8 +88,6 @@ div:empty { display: none; }`;
 			}
 			this.connectedOnce = true;
 			this.parametersChanged = true;
-			this.failed = false;
-			this.status.textContent = '';
 			this.canvas?.remove();
 			this.canvas = document.createElement('canvas');
 			this.root.prepend(this.canvas);
@@ -159,30 +142,20 @@ div:empty { display: none; }`;
 			this.canvas.addEventListener('pointerleave', endPointerStroke, { signal });
 			this.canvas.addEventListener('pointercancel', endPointerStroke, { signal });
 			this.canvas.addEventListener('pointerup', event => { if (event.pointerType === 'touch') endPointerStroke(event); }, { signal });
-			try {
-				this.workerUrl = URL.createObjectURL(new Blob([workerSource], { type: 'text/javascript' }));
-				const worker = new Worker(this.workerUrl, { name: tagName });
-				this.worker = worker;
-				worker.addEventListener('error', event => { event.preventDefault(); this.reportError(new Error(event.message || 'Could not start the renderer worker. Check worker-src in the page CSP.'), true); }, { signal });
-				worker.addEventListener('messageerror', () => this.reportError(new Error('Could not receive renderer data'), true), { signal });
-				worker.addEventListener('message', (event: MessageEvent<PortableNodesEffectResponse>) => {
-					if (generation !== this.generation) return;
-					const message = event.data;
-					if (message.type === 'ready') {
-						this.playbackStartTimestamp = performance.now();
-						this.readyState.resolve();
-						this.dispatchEvent(new CustomEvent('ready'));
-						this.schedule();
-					} else if (message.type === 'error') this.reportError(new Error(message.message), true);
-					else {
-						this.frameInFlight = false;
-						this.schedule();
-					}
-				}, { signal });
-				const canvas = this.canvas.transferControlToOffscreen();
-				const message: PortableNodesEffectRequest = { type: 'initialize', canvas, artwork, artworkModuleUrl };
-				worker.postMessage(message, [canvas]);
-			} catch (error) { this.reportError(error, true); }
+			this.workerUrl = URL.createObjectURL(new Blob([workerSource], { type: 'text/javascript' }));
+			const worker = new Worker(this.workerUrl, { name: tagName });
+			this.worker = worker;
+			worker.addEventListener('message', (event: MessageEvent<PortableNodesEffectResponse>) => {
+				if (generation !== this.generation) return;
+				if (event.data.type === 'ready') {
+					this.playbackStartTimestamp = performance.now();
+					this.readyState.resolve();
+				} else this.frameInFlight = false;
+				this.schedule();
+			}, { signal });
+			const canvas = this.canvas.transferControlToOffscreen();
+			const message: PortableNodesEffectRequest = { type: 'initialize', canvas, artwork, artworkModuleUrl };
+			worker.postMessage(message, [canvas]);
 		}
 
 		public disconnectedCallback() {
@@ -202,7 +175,7 @@ div:empty { display: none; }`;
 			this.worker = null;
 			if (this.workerUrl != null) URL.revokeObjectURL(this.workerUrl);
 			this.workerUrl = null;
-			this.readyState.reject(new Error('Nodes Effect disconnected'));
+			this.readyState.reject(new DOMException('Nodes Effect disconnected', 'AbortError'));
 			this.playbackTimeAtStart = this.getPlaybackTime(performance.now());
 			this.playbackStartTimestamp = null;
 			this.frameInFlight = false;
@@ -211,17 +184,6 @@ div:empty { display: none; }`;
 			this.pointerElementClicks = [];
 			this.resetFrameRateLimiterAndPointerStroke();
 			this.resetHistory = true;
-		}
-
-		private reportError(error: unknown, fatal: boolean) {
-			const message = error instanceof Error ? error.message : String(error);
-			if (fatal) {
-				this.failed = true;
-				this.status.textContent = message;
-				this.readyState.reject(new Error(message));
-				this.disconnect();
-			}
-			this.dispatchEvent(new CustomEvent('error', { detail: { message, fatal } }));
 		}
 
 		private getPlaybackTime(timestamp: number): number {
@@ -251,7 +213,7 @@ div:empty { display: none; }`;
 			this.frameId = null;
 			if (!this.canRender()) { this.updateRenderingAvailability(); return; }
 			if (this.frameRateLimiter.takeFrame(timestamp, this.settings.fpsLimit)) {
-				const resolution = getPortableRenderResolution(this.physicalSize.width, this.physicalSize.height, this.settings)!;
+				const resolution = getPortableRenderResolution(this.physicalSize.width, this.physicalSize.height, this.settings.resolutionScale)!;
 				const message: PortableNodesEffectRequest = { type: 'frame', frame: {
 					resolution, time: this.getPlaybackTime(timestamp), pointerElementPosition: this.pointerElementPosition, pointerElementClicks: this.pointerElementClicks,
 					pointerElementStrokeSegments: this.pointerStroke.takeSegments(),

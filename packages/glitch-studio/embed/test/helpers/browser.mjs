@@ -16,10 +16,10 @@ function rendered(element, action = () => {}, matchesFrame = () => true) {
 			cleanup();
 			resolve(detail);
 		};
-		const error = event => { if (event.detail.fatal) { cleanup(); reject(new Error(event.detail.message)); } };
-		const cleanup = () => { clearTimeout(timer); element.removeEventListener('test-frame-complete', done); element.removeEventListener('error', error); };
+		const error = event => { cleanup(); reject(new Error(event.detail)); };
+		const cleanup = () => { clearTimeout(timer); element.removeEventListener('test-frame-complete', done); element.removeEventListener('test-renderer-error', error); };
 		element.addEventListener('test-frame-complete', done);
-		element.addEventListener('error', error);
+		element.addEventListener('test-renderer-error', error);
 		action();
 	});
 }
@@ -28,7 +28,7 @@ async function mount(name, parameters = null) {
 	const element = document.createElement('gs-nodes-effect-' + name);
 	element.style.cssText = 'display:block;width:200px;height:100px';
 	if (parameters != null) element.setAttribute('parameters', JSON.stringify(parameters));
-	element.addEventListener('error', event => { if (event.detail.fatal) fatalErrors.push(event.detail.message); });
+	element.addEventListener('test-renderer-error', event => { fatalErrors.push(event.detail); });
 	const first = rendered(element, () => document.body.append(element));
 	await Promise.all([element.ready, first]);
 	return element;
@@ -91,10 +91,9 @@ async function checkPointerdownBand(element, pointerType) {
 
 	await rendered(element, () => {
 		element.style.cssText = 'display:block;width:200px;height:100px';
-		element.restart();
 	}, renderedFrame => renderedFrame.resolution.width === Math.round(200 * devicePixelRatio));
 	dispatchPointer('pointermove', 0);
-	await waitForTime(0.12);
+	await waitForTime(element.currentTime + 0.12);
 	check(await bandCenter(canvas) === null, 'pointer movement leaves the band empty: ' + label);
 	const pressTime = element.currentTime;
 	// pointerdownだけを送り、押下位置がこの時点でEffectに届くことを出力画素で確認する。
@@ -103,8 +102,6 @@ async function checkPointerdownBand(element, pointerType) {
 	const center = await bandCenter(canvas);
 	check(center != null && Math.abs(center[0] - x) < 0.025 && Math.abs(center[1] - y) < 0.025,
 		'pointerdown produces a band at the pressed point through contain fitting: ' + label + ' ' + center);
-	await rendered(element, () => element.restart(), renderedFrame => renderedFrame.resetHistory);
-	check(await bandCenter(canvas) === null, 'restart clears band presses: ' + label);
 }
 
 async function checkCursorRipples(element) {
@@ -126,6 +123,8 @@ async function checkCursorRipples(element) {
 		const minimum = (element.currentTime + 0.025) * 1000;
 		await rendered(element, action, renderedFrame => renderedFrame.time >= minimum);
 	}
+	const suspend = () => { element.style.translate = '0 200vh'; };
+	const resume = () => { element.style.translate = ''; };
 
 	const flat = await columns();
 	await advance(() => {
@@ -134,14 +133,19 @@ async function checkCursorRipples(element) {
 	});
 	const changed = await columns();
 	check(changed.every((column, x) => column.some((value, index) => Math.abs(value - flat[x][index]) > 8)), 'fast pointer movement distorts every sampled column');
-	await rendered(element, () => element.restart(), renderedFrame => renderedFrame.resetHistory);
-	check((await columns()).every((column, x) => column.every((value, index) => value === flat[x][index])), 'restart restores the undistorted image');
+	await checkRenderingSuspension(element, 'offscreen elements', suspend, resume);
+	check((await columns()).every((column, x) => column.every((value, index) => value === flat[x][index])), 'returning onscreen resets the waves');
 	await advance(() => {
 		dispatch('pointerenter', 0.1);
 		dispatch('pointermove', 0.1, 'mouse', 0, [0.9, 0.1]);
 	});
 	check((await columns()).every((column, x) => column.some((value, index) => Math.abs(value - flat[x][index]) > 8)), 'coalesced samples preserve an out-and-back stroke within one pointermove');
-	await rendered(element, () => element.restart(), renderedFrame => renderedFrame.resetHistory);
+	// 【画面外で受けたポインターの入力を復帰後の軌跡へつながない】
+	// 画面外で別の位置へ移動してから表示を戻しても、休止中の入力で波を生成しない。
+	await checkRenderingSuspension(element, 'offscreen elements with pointer input', suspend, resume,
+		() => { dispatch('pointerenter', 0.1); dispatch('pointermove', 0.9); });
+	await advance(() => dispatch('pointermove', 0.1));
+	check((await columns()).every((column, x) => column.every((value, index) => value === flat[x][index])), 'returning onscreen starts a new stroke');
 	await advance(() => {
 		dispatch('pointerenter', 0.1);
 		dispatch('pointerleave', 0.1);
@@ -154,14 +158,6 @@ async function checkCursorRipples(element) {
 		dispatch('pointerup', 0.1, 'touch');
 	});
 	check((await columns()).every((column, x) => column.some((value, index) => Math.abs(value - flat[x][index]) > 8)), 'a touch drag ending in the same frame still distorts the full path');
-	// 【画面外に出ると描画履歴と描画待ちの軌跡を区切る】
-	// 画面に戻った時刻のフレームで、休止前の波や休止中のポインター移動が描画されないことを確かめる。
-	await checkRenderingSuspension(element, 'offscreen elements',
-		() => { element.style.translate = '0 200vh'; },
-		() => { element.style.translate = ''; },
-		() => { dispatch('pointerenter', 0.1); dispatch('pointermove', 0.9); });
-	await advance(() => dispatch('pointermove', 0.1));
-	check((await columns()).every((column, x) => column.every((value, index) => value === flat[x][index])), 'returning onscreen resets the waves and starts a new stroke');
 }
 
 async function checkSymbolTextureRendering(element, name) {
@@ -201,23 +197,20 @@ try {
 	const initialCanvas = element.shadowRoot.querySelector('canvas');
 	check(initialCanvas.width === Math.round(200 * devicePixelRatio) && initialCanvas.height === Math.round(100 * devicePixelRatio), 'renders at device pixel resolution');
 	check(Math.abs(color[0] - 188) <= 2 && color[3] === 255, 'public attribute reaches linear color output across the full canvas: ' + color);
-	// 【一時停止とフレーム完了の公開APIを削除する】
-	// Workerの内部完了通知が生きていても、埋め込み先のページへフレーム完了イベントを発火しないことを確認する。
+	// 【廃止した再生操作・描画設定・フレーム完了イベントを公開しない】
+	// Workerの内部完了通知はあるため、埋め込み先のページにはフレーム完了イベントを発火しないことも確認する。
 	let publicRenderEvents = 0;
 	element.addEventListener('render', () => { publicRenderEvents++; });
 	await rendered(element, () => element.setParameters({ level: 1 }));
 	color = await pixel(element);
 	check(color[0] === 255, 'API updates while rendering');
-	check(publicRenderEvents === 0 && !('pause' in element) && !('play' in element) && !('paused' in element)
-		&& !element.constructor.observedAttributes.includes('paused'), 'frame completion and pause are absent from the public API');
+	check(publicRenderEvents === 0 && !('pause' in element) && !('play' in element) && !('paused' in element) && !('restart' in element)
+		&& !element.constructor.observedAttributes.includes('paused') && !element.constructor.observedAttributes.includes('max-pixels'),
+		'playback controls and pixel cap overrides are absent from the public API');
 	await rendered(element, () => element.setAttribute('parameters', '{"level":0.25}'));
 	check(element.getParameter('level') === 1, 'API overrides retain priority over changed attributes');
 	await rendered(element, () => element.resetParameter('level'));
 	check(element.getParameter('level') === 0.25, 'reset restores the current attribute value');
-	let attributeError = false;
-	element.addEventListener('error', event => { if (!event.detail.fatal) attributeError = true; });
-	element.setAttribute('parameters', '{"level":');
-	check(attributeError && element.getParameter('level') === 0.25, 'invalid JSON attributes preserve the previous attribute parameters');
 	await rendered(element, () => { element.style.width = '300px'; element.style.height = '150px'; },
 		renderedFrame => renderedFrame.resolution.width === Math.round(300 * devicePixelRatio));
 	await frame(); await frame();
@@ -226,11 +219,6 @@ try {
 		renderedFrame => renderedFrame.resolution.width === Math.floor(150 * devicePixelRatio));
 	await frame(); await frame();
 	check(initialCanvas.width === Math.floor(150 * devicePixelRatio), 'render scale remains responsive');
-	const timeBeforeRestart = element.currentTime;
-	await rendered(element, () => {
-		element.restart();
-		check(element.currentTime < Math.min(timeBeforeRestart, 0.05), 'restart resets the artwork clock');
-	}, renderedFrame => renderedFrame.resetHistory);
 	const independent = await mount('test', { level: 0.8 });
 	check(independent.getParameter('level') === 0.8 && element.getParameter('level') === 0.25, 'instances keep independent public values');
 	independent.remove();
@@ -336,15 +324,18 @@ try {
 	noOutput.remove();
 	const transient = document.createElement('gs-nodes-effect-test');
 	transient.style.cssText = 'width:100px;height:50px';
-	document.body.append(transient); const abandoned = transient.ready.catch(() => 'aborted'); transient.remove();
-	check(await abandoned === 'aborted', 'removal during initialization rejects the abandoned ready promise');
+	let readyEvents = 0;
+	transient.addEventListener('ready', () => { readyEvents++; });
+	document.body.append(transient); const abandoned = transient.ready.catch(error => error.name); transient.remove();
+	check(await abandoned === 'AbortError', 'removal during initialization cancels the abandoned ready promise');
 	// 【初回から画面外にある作品もreadyで時刻を進める】
 	// 初めて画面に入るまで0秒で止まると、画面外の経過時間が作品に反映されない。
 	transient.style.translate = '0 200vh';
 	document.body.append(transient);
 	await transient.ready;
 	await delay(80);
-	check(transient.currentTime >= 0.06 && lastRequestedFrame(transient) == null, 'ready starts the artwork clock before its first visible frame');
+	check(readyEvents === 0 && transient.currentTime >= 0.06 && lastRequestedFrame(transient) == null,
+		'the ready promise starts the artwork clock before its first visible frame without a public ready event');
 	const firstVisibleFrame = await rendered(transient, () => { transient.style.translate = ''; });
 	check(firstVisibleFrame.time >= 60 && firstVisibleFrame.resetHistory, 'initially offscreen artwork starts drawing at the elapsed time');
 	transient.remove();

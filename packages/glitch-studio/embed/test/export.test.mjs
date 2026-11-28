@@ -132,11 +132,11 @@ test('preserves HDR colors and nested public values in independent export snapsh
 // 【レスポンシブ解像度は画素数・GPU上限で等方的に縮小する】
 // 幅だけのclampや0サイズのGPU確保は座標の歪みやデバイスエラーに繋がる。
 test('preserves aspect ratio under scale pixel and device limits', () => {
-	const settings = { resolutionScale: 1, maxPixels: 500000, fpsLimit: 60 };
-	assert.deepEqual(getPortableRenderResolution(2000, 1000, settings), { width: 1000, height: 500 });
-	assert.deepEqual(getPortableRenderResolution(2000, 1000, settings, 600), { width: 600, height: 300 });
-	assert.equal(getPortableRenderResolution(0, 100, settings), null);
-	assert.deepEqual(getPortableRenderResolution(1000, 1, { ...settings, maxPixels: 1 }), { width: 1, height: 1 });
+	assert.deepEqual(getPortableRenderResolution(2000, 1000, 0.5), { width: 1000, height: 500 });
+	assert.deepEqual(getPortableRenderResolution(5120, 2880, 1), { width: 3840, height: 2160 });
+	assert.deepEqual(getPortableRenderResolution(2000, 1000, 1, 600), { width: 600, height: 300 });
+	assert.equal(getPortableRenderResolution(0, 100, 1), null);
+	assert.deepEqual(getPortableRenderResolution(100_000_000, 1, 1), { width: 8_294_400, height: 1 });
 });
 
 // 【HTMLの終端に似た作品データを実行コードとして解釈しない】

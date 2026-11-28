@@ -849,7 +849,6 @@
 		"WebExportZip": "HTML + JavaScript (ZIP)",
 		"WebExportHtml": "Single HTML file",
 		"WebExportScale": "Rendering scale",
-		"WebExportMaxPixels": "Maximum rendering pixels",
 		"WebExportFps": "Maximum frames per second",
 		"WebExportParameters": "Initial public parameter values (JSON)",
 		"Drop": "Nodes Effect drop",

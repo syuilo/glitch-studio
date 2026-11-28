@@ -33,6 +33,7 @@ function observePortableNodesEffectFrames() {
 			this.addEventListener('message', ({ data }) => {
 				if (data.type === 'frameComplete') element.dispatchEvent(new CustomEvent('test-frame-complete', { detail: frames.lastRequested }));
 			});
+			this.addEventListener('error', ({ message }) => element.dispatchEvent(new CustomEvent('test-renderer-error', { detail: message })));
 		} else if (message.type === 'frame') framesByWorker.get(this).lastRequested = message.frame;
 		return postMessage.call(this, message, ...options);
 	};
@@ -123,7 +124,7 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	}
 	// 【Web Componentは描画間に取得したポインターの軌跡をEffectへ渡す】
 	// DOMで取得した位置が軌跡全体の描画に反映されることを、検証用グラフの出力画素から確認する。
-	// 退出と再進入で軌跡が分かれ、restartで履歴が消えることも検証する。
+	// 退出と再進入で軌跡が分かれ、表示休止から復帰すると描画履歴が消えることも検証する。
 	const cursor = fixture();
 	const stripe = shaderDefinition('fn main(position: vec2f) -> Output { return Output(vec4f(vec3f(0.5 + 0.45 * sin(position.y * 100.0)), 1.0)); }');
 	const connect = nodeId => ({ inputSource: 'node', source: { nodeId, outputPort: 'output' }, sampling: { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' } });

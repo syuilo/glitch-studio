@@ -150,8 +150,7 @@ test('saves one HTML snapshot despite edits and duplicate requests during asset 
 	assert.equal(f.downloads[0].name, 'Nodes Effect.html');
 	const html = await f.downloads[0].blob.text();
 	const artwork = readArtwork(html.match(/<script type="module">([\s\S]*?)<\/script>/)[1]);
-	assert.equal(artwork.settings.resolutionScale, 0.5);
-	assert.equal(artwork.settings.fpsLimit, null);
+	assert.deepEqual({ ...artwork.settings }, { resolutionScale: 0.5, fpsLimit: null });
 	assert.equal(artwork.initialParameters.speed, 2);
 	assert.equal(Buffer.from(artwork.assets[0].fileDataBase64, 'base64').toString(), 'original asset');
 	assert.equal(f.calls.filter(call => Array.isArray(call) && call[0] === 'build').length, 1);

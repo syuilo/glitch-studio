@@ -21,8 +21,7 @@ export function startPortableNodesEffectWorker(definitions: NativeEffectDefiniti
 	let assetTextures: AssetTextures | null = null;
 	let effect: EffectInstance | null = null;
 	let presenter: PortableCanvasRenderer | null = null;
-	let renderFrame: ((frame: PortableNodesEffectFrame) => Promise<void>) | null = null;
-	let processingFrame = false;
+	let renderFrame: (frame: PortableNodesEffectFrame) => Promise<void>;
 
 	function dispose() {
 		controller.abort();
@@ -31,39 +30,28 @@ export function startPortableNodesEffectWorker(definitions: NativeEffectDefiniti
 		presenter?.destroy();
 		device?.destroy();
 		effect = null;
-		renderFrame = null;
 		device = null;
 	}
 
-	function fail(error: unknown) {
-		if (controller.signal.aborted) return;
-		worker.postMessage({ type: 'error', message: error instanceof Error ? error.message : String(error) });
-		dispose();
+	function ignoreCancellation(error: unknown) {
+		// DOMからの取り外しで、待機中の素材取得や描画準備がキャンセルされる。
+		if (!controller.signal.aborted) throw error;
 	}
 
 	async function initialize(canvas: OffscreenCanvas, data: PortableNodesEffect, artworkModuleUrl: string | null) {
-		if (navigator.gpu == null) throw new Error('WebGPU requires a supported browser and a secure context (HTTPS or localhost)');
-		const adapter = await navigator.gpu.requestAdapter();
+		const adapter = (await navigator.gpu.requestAdapter())!;
 		controller.signal.throwIfAborted();
-		if (adapter == null) throw new Error('A WebGPU adapter is unavailable');
 		const createdDevice = await adapter.requestDevice();
 		if (controller.signal.aborted) { createdDevice.destroy(); return; }
 		device = createdDevice;
-		void device.lost.then(info => { if (!controller.signal.aborted) fail(new Error(`WebGPU device lost: ${info.message}`)); });
-		device.addEventListener('uncapturederror', event => fail(event.error));
 		const assets: Asset[] = [];
 		for (const encodedAsset of data.assets) {
 			if ('fileDataPath' in encodedAsset) {
 				const { fileDataPath, ...asset } = encodedAsset;
-				try {
-					const response = await fetch(new URL(fileDataPath, artworkModuleUrl!), { signal: controller.signal });
-					if (!response.ok) throw new Error(`HTTP ${response.status}`);
-					const contents = await response.blob();
-					// サーバーのMIME判定によらず、デコーダーには書き出し時の型を渡す。
-					assets.push({ ...asset, fileData: contents.slice(0, contents.size, asset.fileDataType) });
-				} catch (error) {
-					throw new Error(`Could not load Asset ${JSON.stringify(asset.name)} (${fileDataPath}): ${error instanceof Error ? error.message : String(error)}`, { cause: error });
-				}
+				const response = await fetch(new URL(fileDataPath, artworkModuleUrl!), { signal: controller.signal });
+				const contents = await response.blob();
+				// サーバーのMIME判定によらず、デコーダーには書き出し時の型を渡す。
+				assets.push({ ...asset, fileData: contents.slice(0, contents.size, asset.fileDataType) });
 			} else {
 				const { fileDataBase64, ...asset } = encodedAsset;
 				assets.push({ ...asset, fileData: new Blob([Uint8Array.fromBase64(fileDataBase64)], { type: asset.fileDataType }) });
@@ -83,8 +71,7 @@ export function startPortableNodesEffectWorker(definitions: NativeEffectDefiniti
 		let inputs: ReturnType<typeof createPortableEffectInputs> | null = null;
 		let previousTime = 0;
 		renderFrame = async frame => {
-			const resolution = getPortableRenderResolution(frame.resolution.width, frame.resolution.height,
-				{ resolutionScale: 1, maxPixels: Number.MAX_SAFE_INTEGER, fpsLimit: null }, createdDevice.limits.maxTextureDimension2D)!;
+			const resolution = getPortableRenderResolution(frame.resolution.width, frame.resolution.height, 1, createdDevice.limits.maxTextureDimension2D)!;
 			const resized = canvas.width !== resolution.width || canvas.height !== resolution.height;
 			if (resized) { canvas.width = resolution.width; canvas.height = resolution.height; }
 			const layoutChanged = frame.parameters != null && inputs != null && !inputs.update(frame.parameters);
@@ -132,12 +119,10 @@ export function startPortableNodesEffectWorker(definitions: NativeEffectDefiniti
 	worker.onmessage = event => {
 		if (controller.signal.aborted) return;
 		const message = event.data;
-		if (message.type === 'initialize') void initialize(message.canvas, message.artwork, message.artworkModuleUrl).catch(fail);
+		if (message.type === 'initialize') void initialize(message.canvas, message.artwork, message.artworkModuleUrl).catch(ignoreCancellation);
 		else if (message.type === 'frame') {
-			// GPU完了まで一つのフレームを処理し、重い作品でGPUキューと入力遅延が積み上がるのを防ぐ。
-			if (renderFrame == null || processingFrame) return;
-			processingFrame = true;
-			void renderFrame(message.frame).catch(fail).finally(() => { processingFrame = false; });
+			// Elementはreadyを受けてから描画を始め、前のフレームが完了するたびに次の要求を送る。
+			void renderFrame(message.frame).catch(ignoreCancellation);
 		} else dispose();
 	};
 }

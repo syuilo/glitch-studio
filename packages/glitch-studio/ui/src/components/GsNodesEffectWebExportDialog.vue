@@ -22,16 +22,6 @@
 		>
 			<template #label>{{ i18n.ts._NodesEffect.WebExportScale }}</template>
 		</GsInput>
-		<GsInput
-			v-model="maxPixels"
-			type="number"
-			large
-			:min="1"
-			:step="1"
-			:disabled="exporting"
-		>
-			<template #label>{{ i18n.ts._NodesEffect.WebExportMaxPixels }}</template>
-		</GsInput>
 		<GsSelect
 			v-model="fpsMode"
 			large
@@ -101,7 +91,6 @@ const formats = [
 ];
 // 開いた時点の設定を編集する。外側のプロジェクト編集には追従させない。
 const resolutionScale = ref(props.prepared.settings.resolutionScale);
-const maxPixels = ref(props.prepared.settings.maxPixels);
 const fpsMode = ref<'auto' | 'custom'>(props.prepared.settings.fpsLimit == null ? 'auto' : 'custom');
 const customFpsLimit = ref(props.prepared.settings.fpsLimit ?? 60);
 const fpsModes = [
@@ -124,7 +113,6 @@ onBeforeUnmount(cancelExport);
 const exportError = ref<string | null>(null);
 const settings = computed(() => ({
 	resolutionScale: resolutionScale.value,
-	maxPixels: maxPixels.value,
 	fpsLimit: fpsMode.value === 'auto' ? null : customFpsLimit.value,
 }));
 const validationError = computed(() => {

@@ -849,7 +849,6 @@
 		"WebExportZip": "HTML＋JavaScript（ZIP）",
 		"WebExportHtml": "単一HTMLファイル",
 		"WebExportScale": "描画倍率",
-		"WebExportMaxPixels": "描画画素数の上限",
 		"WebExportFps": "フレームレート上限",
 		"WebExportParameters": "公開パラメータの初期値（JSON）",
 		"Drop": "Nodes Effectへのドロップ",

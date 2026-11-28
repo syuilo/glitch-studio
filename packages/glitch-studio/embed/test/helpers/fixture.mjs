@@ -15,7 +15,7 @@ export function shaderDefinition(code) {
 export function fixture() {
 	return {
 		name: 'Portable Nodes Effect', gsVersion: 'test', assets: [], customShaderEffects: [], nodesEffects: [],
-		aspectRatio: 2, settings: { resolutionScale: 1, maxPixels: 8294400, fpsLimit: null }, initialParameters: {},
+		aspectRatio: 2, settings: { resolutionScale: 1, fpsLimit: null }, initialParameters: {},
 		nodesEffect: {
 			kind: 'generate', paramDefs: { levelId: parameter('scalar', 0.25, 'level') },
 			primaryInputParameter: null, primaryOutput: 'output', resolutionInputParameters: [],

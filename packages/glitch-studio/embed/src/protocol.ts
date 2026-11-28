@@ -1,5 +1,5 @@
 import { normalizedToSpatialCoordinates } from '@gs/shared/spatial-coordinate.ts';
-import type { PortableNodesEffect, PortableNodesEffectSettings } from '@gs/glitch-studio_shared/portable-nodes-effect.ts';
+import type { PortableNodesEffect } from '@gs/glitch-studio_shared/portable-nodes-effect.ts';
 import type { PointerStrokeSegment } from '@gs/glitch-studio_shared/pointer-stroke-input.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 
@@ -29,18 +29,20 @@ export type PortableNodesEffectRequest =
 
 export type PortableNodesEffectResponse =
 	| { type: 'ready' }
-	| { type: 'frameComplete' }
-	| { type: 'error'; message: string };
+	| { type: 'frameComplete' };
+
+// 高DPIの埋め込み先でも出力Canvasの画素数を抑えるため、従来の既定値だった4K相当を共通で適用する。
+const MAX_PORTABLE_NODES_EFFECT_RENDER_PIXELS = 8_294_400;
 
 /** GPU限界でも片軸だけを切り詰めず、公開座標の縦横比を維持する。 */
-export function getPortableRenderResolution(width: number, height: number, settings: PortableNodesEffectSettings, maxDimension = Infinity): Resolution | null {
+export function getPortableRenderResolution(width: number, height: number, resolutionScale: number, maxDimension = Infinity): Resolution | null {
 	if (!(width > 0) || !(height > 0)) return null;
-	const scale = Math.min(settings.resolutionScale, Math.sqrt(settings.maxPixels / width / height), maxDimension / width, maxDimension / height);
+	const scale = Math.min(resolutionScale, Math.sqrt(MAX_PORTABLE_NODES_EFFECT_RENDER_PIXELS / width / height), maxDimension / width, maxDimension / height);
 	const resolution = { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)) };
 	// 極端に細長い領域では短辺を1pxへ丸めた分だけ上限を超える。残る長辺で予算を守る。
-	if (resolution.width * resolution.height > settings.maxPixels) {
-		if (resolution.width >= resolution.height) resolution.width = Math.max(1, Math.floor(settings.maxPixels / resolution.height));
-		else resolution.height = Math.max(1, Math.floor(settings.maxPixels / resolution.width));
+	if (resolution.width * resolution.height > MAX_PORTABLE_NODES_EFFECT_RENDER_PIXELS) {
+		if (resolution.width >= resolution.height) resolution.width = Math.max(1, Math.floor(MAX_PORTABLE_NODES_EFFECT_RENDER_PIXELS / resolution.height));
+		else resolution.height = Math.max(1, Math.floor(MAX_PORTABLE_NODES_EFFECT_RENDER_PIXELS / resolution.width));
 	}
 	return resolution;
 }
