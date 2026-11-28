@@ -881,6 +881,41 @@ test('keeps invalid projects editable and recreates both previews after correcti
 	}
 });
 
+// 【Nodes Effectの主入力にプレビュー入力画像を初期設定し、対象を切り替えてもリセット結果を保つ】
+// セッション起動時にもエディターと同じ初期値を描画に渡す。リセットで上書きが空になっても、
+// 別のNodes Effectから戻った際は初期化済みの設定を使い、画像入力を再設定しない。
+test('initializes only the primary Nodes Effect preview input and preserves its reset across switches', async t => {
+	setup(t);
+	const definition = testNodesEffect({
+		primaryInputParameter: 'primary',
+		paramDefs: {
+			primary: { nameForReference: 'primary', dataType: { kind: 'color' }, canNode: true, ui: { label: 'Primary', control: {} }, defaultValue: [0, 0, 0, 0] },
+			secondary: { nameForReference: 'secondary', dataType: { kind: 'color' }, canNode: true, ui: { label: 'Secondary', control: {} }, defaultValue: [1, 1, 1, 1] },
+		},
+	});
+	const nodesEffectSource = { type: 'nodesEffectReference', id: 'with-primary' };
+	const nodesEffects = [
+		{ id: nodesEffectSource.id, name: 'With primary input', definition },
+		{ id: 'without-primary', name: 'Without primary input', definition: { ...definition, primaryInputParameter: null } },
+	];
+	const { projectSession } = evaluateSession(project({ nodesEffects }));
+	await startActiveProjectSession(projectSession);
+	t.after(() => projectSession.previewPlayback.dispose());
+	const controller = projectSession.effectLivePreviewManagerController;
+	const initialValues = { primary: { inputSource: 'previewInputImage' } };
+	assert.deepEqual(controller.livePreviewPlacement.params, initialValues);
+	assert.deepEqual(projectSession.getNodesEffectPreviewParamValues(nodesEffectSource.id), initialValues);
+
+	projectSession.storeNodesEffectPreviewParamValues(nodesEffectSource.id, {});
+	projectSession.previewPlayback.updateEffectLivePreviewParamValues(nodesEffectSource, {});
+	projectSession.startNodesEffectLivePreview('without-primary');
+	assert.deepEqual(controller.livePreviewPlacement.params, {});
+	projectSession.startNodesEffectLivePreview(nodesEffectSource.id);
+	assert.deepEqual(controller.livePreviewPlacement.params, {});
+	assert.deepEqual(projectSession.getNodesEffectPreviewParamValues(nodesEffectSource.id), {});
+	assert.deepEqual(projectSession.projectContext.snapshot().nodesEffects, nodesEffects);
+});
+
 // 【Effect Live Preview引数だけの静的エラーは、Timelineへ切り替えると診断解除と再生成を行う】
 // プレビュー対象の変更はProjectの編集通知を出さない。
 // エラー表示だけが消えてWorkerを持たない状態のままにならないよう、両エンジンの復帰を確認する。

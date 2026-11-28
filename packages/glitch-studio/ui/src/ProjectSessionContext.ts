@@ -12,6 +12,7 @@ import type { PreviewWaveformViewports } from '@gs/glitch-studio_shared/preview-
 import type { PreviewGamutCompressionSettings } from '@gs/glitch-studio_shared/preview-gamut-compression.ts';
 import type { PreviewGamutWarningSettings } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
 import type { PreviewImageSource } from '@gs/glitch-studio_shared/preview-image-source.ts';
+import { canUseEffectLivePreviewInput } from '@gs/glitch-studio_shared/effect-live-preview-input.ts';
 import { findTimelineLayer, flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getVoicevoxRequests } from '@gs/subsystems_timeline_shared/voicevox-requests.ts';
 import { getVoicevoxRequestKey, createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
@@ -815,12 +816,24 @@ export class ProjectSessionContext {
 	}
 
 	public getNodesEffectPreviewParamValues(id: string): EffectLivePreviewParamValues {
-		return this.nodesEffectPreviewParamValues.get(id) ?? {};
+		const storedValues = this.nodesEffectPreviewParamValues.get(id);
+		if (storedValues != null) return storedValues;
+
+		const definition = this.projectContext.stateManager.state.nodesEffects.value.find(nodesEffect => nodesEffect.id === id)?.definition;
+		if (definition == null) return {};
+		const primaryInputId = definition.primaryInputParameter;
+		const primaryInputDefinition = primaryInputId == null ? null : definition.paramDefs[primaryInputId];
+		const initialValues: EffectLivePreviewParamValues = primaryInputId != null && primaryInputDefinition != null
+			&& canUseEffectLivePreviewInput(primaryInputDefinition, 'previewInputImage')
+			? { [primaryInputId]: { inputSource: 'previewInputImage' } }
+			: {};
+		this.nodesEffectPreviewParamValues.set(id, initialValues);
+		return initialValues;
 	}
 
 	public storeNodesEffectPreviewParamValues(id: string, values: EffectLivePreviewParamValues) {
-		if (Object.keys(values).length === 0) this.nodesEffectPreviewParamValues.delete(id);
-		else this.nodesEffectPreviewParamValues.set(id, values);
+		// リセットで上書きがなくなっても初期化済みとして扱い、対象を切り替えたときにプレビュー入力画像を再設定しない。
+		this.nodesEffectPreviewParamValues.set(id, values);
 	}
 
 	public startNodesEffectLivePreview(id: string) {
