@@ -41,7 +41,7 @@ export interface NativeEffectDefinition extends EffectDefinition {
 	 * 描画キャッシュやGPUリソースの再利用は、ここでいう履歴・蓄積状態とは区別する。
 	 */
 	readonly dependsOnRenderHistory: boolean;
-	/** 設定・入力・解像度によって単一のRender Passが長時間実行になる可能性がある。trueのとき自動タイル制御の対象にする。 */
+	/** 場合によって単一のRender Passが非常に長時間の実行になる可能性があることを示す(例: 高精度のフラクタルの計算)。trueのとき自動タイル制御の対象にする。 */
 	readonly canHaveLongRunningRenderPass?: boolean;
 }
 
