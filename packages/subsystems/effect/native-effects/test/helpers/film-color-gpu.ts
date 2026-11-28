@@ -59,7 +59,7 @@ export async function run() {
 			const encoder = device.createCommandEncoder();
 			await instance.draw({
 				params: { ...defaults, ...overrides }, commandEncoder: encoder, time, timeDelta: time * 1000,
-				pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+				pointerPosition: { x: 0, y: 0 },
 				outputs: { output },
 			});
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: target.createView(), loadOp: 'clear', storeOp: 'store' }] });

@@ -19,7 +19,7 @@ type Operation = Parameters['operation'];
 
 function renderContext<Parameters>(encoder: GPUCommandEncoder, output: GPUTexture, params: Parameters, time = 0) {
 	return {
-		params, commandEncoder: encoder, time, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+		params, commandEncoder: encoder, time, timeDelta: 0, pointerPosition: { x: 0, y: 0 },
 		outputs: { output },
 	};
 }

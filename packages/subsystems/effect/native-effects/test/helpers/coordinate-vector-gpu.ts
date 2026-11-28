@@ -61,7 +61,7 @@ export async function run() {
 			input: (sampling: Partial<ShaderInputSampling> = {}) => textureShaderInput(output, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest', ...sampling }),
 			render: async (overrides: Record<string, unknown> = {}, time = 0) => {
 				const encoder = device.createCommandEncoder();
-				await instance.draw({ params: { ...defaults, ...overrides }, commandEncoder: encoder, time, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+				await instance.draw({ params: { ...defaults, ...overrides }, commandEncoder: encoder, time, timeDelta: 0, pointerPosition: { x: 0, y: 0 },
 					outputs: { output },
 				});
 				const pass = encoder.beginRenderPass({ colorAttachments: [{ view: target.createView(), loadOp: 'clear', storeOp: 'store' }] });

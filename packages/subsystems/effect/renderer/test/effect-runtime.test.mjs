@@ -12,7 +12,7 @@ const inline = nodesEffect => ({ type: 'inlineNodesEffect', nodesEffect });
 const definition = { kind: 'generate', primaryInputParameter: null, primaryOutput: 'image', paramDefs: {},
 	outputDefs: { image: { dataType: { kind: 'color' } } }, resolutionInputParameters: [] };
 const output = { nodeId: 'draw', outputPort: 'image' };
-const frame = (time = 1) => ({ time, timeDelta: 40, endTime: 4, pointerPosition: [0.25, 0.125], pointerVector: [0.1, 0.1] });
+const frame = (time = 1) => ({ time, timeDelta: 40, endTime: 4, pointerPosition: [0.25, 0.125] });
 function create(effectSource, def, init, options = {}) {
 	return createEffectInstance({ effectSource, definitions: { getNativeEffect: () => def }, resolution: size,
 		usedOutputPorts: new Set(['image']), ...options }, {}, () => ({ createOutputTexture() { return { destroy() {} }; }, init }));

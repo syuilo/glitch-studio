@@ -151,8 +151,8 @@ export async function createEffectInstance(placement: EffectPlacement, gpu: Effe
 			const map = createEffectFrameMapper(contextResolution, resolution);
 			const nodeFrame = (frame: EffectFrameContext) => {
 				const mapped = map(frame);
-				// リセットをまたぐ時間・移動量の積算を防ぐ。内容時刻と現在の位置は保持する。
-				return historyResetPending ? { ...mapped, timeDelta: 0, pointerVector: [0, 0] as const, pointerStrokeSegments: [] } : mapped;
+				// リセットより前の経過時間や軌跡が、新しい描画履歴に持ち込まれるのを防ぐ。
+				return historyResetPending ? { ...mapped, timeDelta: 0, pointerStrokeSegments: [] } : mapped;
 			};
 			if (operation.prepare != null) prepareSources.push((frame, signal) => operation.prepare!(nodeFrame(frame), signal));
 			renderSteps.push({

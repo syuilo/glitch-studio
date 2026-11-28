@@ -79,7 +79,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 			async render(changes: Partial<QrCodeParameters> = {}) {
 				const params = { ...base, ...changes };
 				const encoder = device.createCommandEncoder();
-				await instance.draw({ params, commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+				await instance.draw({ params, commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 },
 					outputs: { output },
 				});
 				device.queue.submit([encoder.finish()]);

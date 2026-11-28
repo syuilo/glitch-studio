@@ -54,8 +54,6 @@ export interface EffectFrameContext {
 	readonly progress?: number;
 	/** 中央原点・上が+Y・配置の描画領域の長辺を1とする共通座標。各ノードの寸法へ換算する。両軸が-999以下なら未入力。 */
 	readonly pointerPosition?: readonly [number, number];
-	/** pointerPositionと同じ共通単位で測った移動量。 */
-	readonly pointerVector?: readonly [number, number];
 	/** このフレームで参照できるクリックのスナップショット。新しい入力順。 */
 	readonly pointerClicks?: readonly EffectPointerClick[];
 	/** 前回描画以降に取得した連続移動。古い入力順。 */

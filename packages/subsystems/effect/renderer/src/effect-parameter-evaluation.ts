@@ -28,7 +28,6 @@ export function createEffectFrameMapper(root: Resolution, node: Resolution): (fr
 		...frame,
 		pointerPosition: frame.pointerPosition == null || (frame.pointerPosition[0] <= -999 && frame.pointerPosition[1] <= -999)
 			? frame.pointerPosition : convert(frame.pointerPosition),
-		pointerVector: frame.pointerVector == null ? frame.pointerVector : convert(frame.pointerVector),
 		pointerClicks: frame.pointerClicks?.map(click => ({ position: convert(click.position), time: click.time })),
 		pointerStrokeSegments: frame.pointerStrokeSegments?.map(segment => ({ ...segment, start: convert(segment.start), end: convert(segment.end) })),
 	});

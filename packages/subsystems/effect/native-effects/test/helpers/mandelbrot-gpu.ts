@@ -66,7 +66,7 @@ export async function run(benchmark = false) {
 				const encoder = device.createCommandEncoder();
 				await instance.draw({ params, commandEncoder: encoder, time, timeDelta: 1,
 					outputs: outputs as TestOutputTextures<typeof definition.outputDefs>, usedOutputPorts: new Set(ports),
-					pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+					pointerPosition: { x: 0, y: 0 },
 				});
 				for (const readback of readbacks.values()) {
 					const pass = encoder.beginRenderPass({ colorAttachments: [{ view: readback.texture.createView(), loadOp: 'clear', storeOp: 'store' }] });

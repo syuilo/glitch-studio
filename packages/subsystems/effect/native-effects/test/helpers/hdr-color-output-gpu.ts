@@ -102,7 +102,7 @@ export async function run() {
 			const encoder = device.createCommandEncoder();
 			await instance.draw({
 				params: { ...params, ...changes }, commandEncoder: encoder, time: 0, timeDelta: 1000 / 60,
-				pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+				pointerPosition: { x: 0, y: 0 },
 				outputs: { output: texture },
 			});
 			device.queue.submit([encoder.finish()]);

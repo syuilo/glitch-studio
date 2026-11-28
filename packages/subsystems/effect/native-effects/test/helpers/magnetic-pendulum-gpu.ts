@@ -50,7 +50,7 @@ export async function run() {
 			const encoder = device.createCommandEncoder();
 			await instance.draw({ params, commandEncoder: encoder, time: 0, timeDelta: 0,
 				outputs: { output },
-				pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+				pointerPosition: { x: 0, y: 0 },
 			});
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: copy.createView(), loadOp: 'clear', storeOp: 'store' }] });
 			pass.setPipeline(reader); pass.setBindGroup(0, group); pass.draw(3); pass.end();

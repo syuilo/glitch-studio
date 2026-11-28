@@ -64,7 +64,7 @@ export async function run() {
 			async render(overrides: Partial<Parameters> = {}, time = 0) {
 				const commandEncoder = device.createCommandEncoder();
 				await effect.draw({ params: { ...defaults, ...overrides }, commandEncoder, time, timeDelta: 16,
-					pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+					pointerPosition: { x: 0, y: 0 },
 					outputs: { output },
 				});
 				device.queue.submit([commandEncoder.finish()]);

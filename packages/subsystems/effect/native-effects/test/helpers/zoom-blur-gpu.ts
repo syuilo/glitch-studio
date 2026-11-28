@@ -110,7 +110,7 @@ export async function run() {
 			};
 			await instance.draw({
 				params: { ...defaults, ...overrides }, commandEncoder: encoder, time: options.time ?? 0, timeDelta: 16,
-				pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+				pointerPosition: { x: 0, y: 0 },
 				outputs: { output },
 			});
 			device.queue.submit([encoder.finish()]);

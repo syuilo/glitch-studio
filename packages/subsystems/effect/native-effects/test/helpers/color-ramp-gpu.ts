@@ -55,7 +55,7 @@ export async function run() {
 			? { input: constantShaderInput('scalar', repetition.repeatCount), values: Array<number>(coordinates.length).fill(repetition.repeatCount) }
 			: repetition.repeatCount;
 		const commandEncoder = device.createCommandEncoder();
-		await effect.draw({ params: { ramp, input: shaderInput, mode, repeatCount: repeatCount.input, repeatMode: repetition.repeatMode }, commandEncoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+		await effect.draw({ params: { ramp, input: shaderInput, mode, repeatCount: repeatCount.input, repeatMode: repetition.repeatMode }, commandEncoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 },
 			outputs: { output },
 		});
 		const pass = commandEncoder.beginRenderPass({ colorAttachments: [{ view: copyTarget.createView(), loadOp: 'clear', storeOp: 'store' }] });

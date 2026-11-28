@@ -36,7 +36,7 @@ export async function run() {
 	function renderContext(output: GPUTexture, time = 0) {
 		return {
 			commandEncoder: device.createCommandEncoder(), time, timeDelta: time * 1000,
-			pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+			pointerPosition: { x: 0, y: 0 },
 			outputs: { output },
 		};
 	}

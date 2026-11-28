@@ -32,7 +32,7 @@
 - 原則として解像度・フレームレートによらず見た目や変化速度を保ち、同じ時刻・入力・パラメータから同じ結果を生成する。乱数には明示的なseedを使う。
 - 公開する位置・移動ベクトル・距離・SDFは「長辺全体=1」、中央`[0, 0]`、右が+X、上が+Y。正方形の端は±0.5。画像参照用の内部座標との境界で`@gs/shared/spatial-coordinate.ts`を使って換算する。SDFは内側が負、外側が正。詳細は[空間座標](../../../../docs/spatial-coordinate.md)を参照する。
 - 見た目の寸法の換算には専用型`sizeReference`と`getSizeReferenceLength()`を使い、既定値は`longSide`とする。位置・ベクトル・SDFの単位は変えない。詳細は[Size Reference](../../../../docs/size-reference.md)を参照する。
-- 角度は1を1周とするturn単位。`ctx.time`は秒、`ctx.timeDelta`はミリ秒なので混同しない。ポインターの位置・移動量も長辺全体=1の共通単位。
+- 角度は1を1周とするturn単位。`ctx.time`は秒、`ctx.timeDelta`はミリ秒なので混同しない。ポインターの位置、押下位置、軌跡の端点にも長辺全体=1の共通座標を使う。
 - 画像の入出力はpremultiplied alphaのlinear sRGB、形式は`INTERMEDIATE_TEXTURE_FORMAT`（`rgba16float`）。保存色・通常の色パラメータは未乗算linear sRGBだが、色の`ShaderInput`は既に乗算済みなので再乗算しない。色を生成する境界では一度だけpremultiplyする。
 - HDR・負のRGBを保持し、仕様上必要な場合以外は0〜1へclampしない。透明・半透明も正しく扱う。知覚色空間や映像信号で計算する場合も出力をlinearへ戻す。詳細は[色空間](../../../../docs/color-management.md)を参照する。
 - `scalar` / `vector` / `any`は色ではなく、色変換・alpha乗算を行わない。出力はそれぞれ`r` / `rg` / `rgba`のfloat形式で、`enable32bitDataTextures`に応じて16bit / 32bitを選ぶ。画像の形式にはこの設定を適用しない。

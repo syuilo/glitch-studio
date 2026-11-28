@@ -191,7 +191,6 @@ export class EffectLivePreviewManager extends EventEmitter<{
 	private previewAudioPosition = 0;
 	private previewAudioGeneration = 0;
 	private pointerPosition: { x: number; y: number } = { x: -99999, y: -99999 };
-	private pointerPositionPrev: { x: number; y: number } = { x: -99999, y: -99999 };
 	private readonly pointerStroke = new PointerStrokeInput();
 	private clicks: { x: number; y: number; time: number }[] = [];
 	private definitions: EffectDefinitions;
@@ -580,7 +579,6 @@ export class EffectLivePreviewManager extends EventEmitter<{
 			timeDelta: this.skippedFrameTimeDelta,
 			endTime: Infinity,
 			pointerPosition: pointer.x <= -999 && pointer.y <= -999 ? [pointer.x, pointer.y] : normalizedToSpatialCoordinates([pointer.x, pointer.y], resolution),
-			pointerVector: this.pointerPositionPrev.x === -99999 ? [0, 0] : normalizedToSpatialCoordinates([pointer.x - this.pointerPositionPrev.x, pointer.y - this.pointerPositionPrev.y], resolution),
 			// GPU準備・描画中に新しいクリックが届いても、進行中のフレームは同じ履歴を使う。
 			pointerClicks: this.clicks.map(({ x, y, time }) => ({ position: normalizedToSpatialCoordinates([x, y], resolution), time })),
 			pointerStrokeSegments: this.pointerStroke.takeSegments().map(segment => ({ ...segment, start: pointerToSpatial(segment.start), end: pointerToSpatial(segment.end) })),
@@ -608,7 +606,6 @@ export class EffectLivePreviewManager extends EventEmitter<{
 				cpuFrame?.prepareReadback(encoder);
 			});
 			signal.throwIfAborted();
-			this.pointerPositionPrev = pointer;
 			const gpuTiming = active.gpuTiming;
 			if (gpuTiming != null) {
 				if (realTimeDelta > 0) this.fpsAverage.addSample(1000 / realTimeDelta);
@@ -659,7 +656,6 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		this.previewRenderDelayMonitor.clear();
 		this.previewRenderGeneration++;
 		this.activeEffect?.instance?.resetRenderHistory();
-		this.pointerPositionPrev = this.pointerPosition;
 		this.clicks = [];
 		this.resetPointerStroke();
 		this.skippedFrameTimeDelta = this.skippedFrameRealTimeDelta = 0;

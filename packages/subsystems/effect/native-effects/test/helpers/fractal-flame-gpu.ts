@@ -63,7 +63,7 @@ export async function run() {
 				encoder.beginComputePass = descriptor => { computePasses++; return beginPass(descriptor); };
 				await instance.draw({ params: { ...defaults, ...overrides }, time, timeDelta, commandEncoder: encoder,
 					usedOutputPorts: new Set(ports), outputs: outputs as TestOutputTextures<typeof definition.outputDefs>,
-					pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+					pointerPosition: { x: 0, y: 0 },
 				});
 				for (const readback of readbacks.values()) {
 					const pass = encoder.beginRenderPass({ colorAttachments: [{ view: readback.texture.createView(), loadOp: 'clear', storeOp: 'store' }] });

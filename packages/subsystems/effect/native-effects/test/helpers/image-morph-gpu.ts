@@ -83,7 +83,7 @@ export async function run({ benchmark = false }: { benchmark?: boolean } = {}) {
 		};
 	}
 	const context = (encoder: GPUCommandEncoder) => ({
-		commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+		commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 },
 	});
 	async function validate() {
 		const error = await device.popErrorScope();

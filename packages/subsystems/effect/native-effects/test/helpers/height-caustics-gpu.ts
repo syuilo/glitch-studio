@@ -60,7 +60,7 @@ export async function run() {
 			async render(overrides: Partial<Parameters> = {}, usedOutputPorts?: Set<'output' | 'irradiance'>, time = 0) {
 				const encoder = device.createCommandEncoder();
 				await instance.draw({ params: { ...defaults, samples: 128, ...overrides }, commandEncoder: encoder, time, timeDelta: 16,
-					pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 }, usedOutputPorts,
+					pointerPosition: { x: 0, y: 0 }, usedOutputPorts,
 					outputs: { output: outputData(output), ...(irradiance == null ? {} : { irradiance: outputData(irradiance) }) },
 				});
 				device.queue.submit([encoder.finish()]);

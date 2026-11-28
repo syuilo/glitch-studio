@@ -94,7 +94,7 @@ export async function run() {
 			const encoder = device.createCommandEncoder();
 			await instance.draw({
 				params: { ...defaults, ...overrides }, commandEncoder: encoder, time, timeDelta: time,
-				pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 }, outputs,
+				pointerPosition: { x: 0, y: 0 }, outputs,
 			});
 			device.queue.submit([encoder.finish()]);
 			const pixels: Record<OutputPort, Float32Array> = { output: new Float32Array(), mask: new Float32Array(), edge: new Float32Array() };

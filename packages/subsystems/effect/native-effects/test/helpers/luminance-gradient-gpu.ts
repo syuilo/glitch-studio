@@ -43,7 +43,7 @@ export async function run() {
 		return async (overrides: Partial<Parameters> = {}, time = 0): Promise<number[]> => {
 			const commandEncoder = device.createCommandEncoder();
 			const createPassEncoderFor = (encoder: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] });
-			await instance.draw({ commandEncoder, time, timeDelta: time * 1000, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+			await instance.draw({ commandEncoder, time, timeDelta: time * 1000, pointerPosition: { x: 0, y: 0 },
 				params: { ...defaults, ...overrides },
 				outputs: { output },
 			});

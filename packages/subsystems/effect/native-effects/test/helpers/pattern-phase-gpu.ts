@@ -88,7 +88,7 @@ export async function run() {
 			const readGroup = device.createBindGroup({ layout: reader.getBindGroupLayout(0), entries: [{ binding: 0, resource: output.createView() }] });
 			async function render(overrides: Partial<typeof base> = {}) {
 				const commandEncoder = device.createCommandEncoder();
-				await effect.draw({ params: { ...base, ...overrides }, commandEncoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+				await effect.draw({ params: { ...base, ...overrides }, commandEncoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 },
 					outputs: { output },
 				});
 				const pass = commandEncoder.beginRenderPass({ colorAttachments: [{ view: copyTarget.createView(), loadOp: 'clear', storeOp: 'store' }] });

@@ -79,7 +79,7 @@ export async function run() {
 			async render(overrides: Partial<Parameters> = {}, time = 0) {
 				const encoder = device.createCommandEncoder();
 				await instance.draw({ params: { ...defaults, ...overrides }, commandEncoder: encoder, time, timeDelta: time,
-					pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+					pointerPosition: { x: 0, y: 0 },
 					outputs: { output },
 				});
 				device.queue.submit([encoder.finish()]);
@@ -182,7 +182,7 @@ export async function run() {
 		owned.push(() => { thinFilm.dispose(); output.destroy(); });
 		async function renderThinFilm(overrides: Partial<typeof thinFilmDefaults> = {}) {
 			const encoder = device.createCommandEncoder();
-			await thinFilm.draw({ params: { ...thinFilmDefaults, filmIor: 1, substrateIor: 1, mode: 'transmission', ...overrides }, commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+			await thinFilm.draw({ params: { ...thinFilmDefaults, filmIor: 1, substrateIor: 1, mode: 'transmission', ...overrides }, commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 },
 				outputs: { output },
 			});
 			device.queue.submit([encoder.finish()]);

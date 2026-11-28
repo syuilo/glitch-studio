@@ -107,7 +107,7 @@ export async function run() {
 			const encoder = device.createCommandEncoder();
 			await instance.draw({
 				params: { ...defaults, ...overrides }, commandEncoder: encoder, time, timeDelta: time,
-				pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 }, outputs,
+				pointerPosition: { x: 0, y: 0 }, outputs,
 			});
 			device.queue.submit([encoder.finish()]);
 			const color = mode === 'mask' ? new Float32Array() : await read(textures.get('output')!);

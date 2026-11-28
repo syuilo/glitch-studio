@@ -79,7 +79,7 @@ export async function run(benchmarkEnabled = false) {
 		const dispose = () => { effect.dispose(); output.destroy(); copyTarget.destroy(); buffer.destroy(); };
 		disposables.push(dispose);
 		const encode = async (encoder: GPUCommandEncoder, input: ShaderInput, overrides: Partial<Parameters> = {}, time = 0) => {
-			await effect.draw({ params: { ...defaults, ...overrides, input }, commandEncoder: encoder, time, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+			await effect.draw({ params: { ...defaults, ...overrides, input }, commandEncoder: encoder, time, timeDelta: 0, pointerPosition: { x: 0, y: 0 },
 				outputs: { output },
 			});
 		};

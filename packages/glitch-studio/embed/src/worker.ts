@@ -82,7 +82,6 @@ export function startPortableNodesEffectWorker(definitions: NativeEffectDefiniti
 		presenter = new PortableCanvasRenderer(device, canvas);
 		let inputs: ReturnType<typeof createPortableEffectInputs> | null = null;
 		let previousTime = 0;
-		let previousPointer: [number, number] | null = null;
 		renderFrame = async frame => {
 			const resolution = getPortableRenderResolution(frame.resolution.width, frame.resolution.height,
 				{ resolutionScale: 1, maxPixels: Number.MAX_SAFE_INTEGER, fpsLimit: null }, createdDevice.limits.maxTextureDimension2D)!;
@@ -97,11 +96,9 @@ export function startPortableNodesEffectWorker(definitions: NativeEffectDefiniti
 					effectSource: { type: 'inlineNodesEffect', nodesEffect }, definitions: effectDefinitions,
 					resolution, resources, inputs: inputs.inputs, usedOutputPorts: new Set([port]),
 				}, gpu, id => implementations[id], controller.signal);
-				previousPointer = null;
 				previousTime = frame.time;
 			} else if (frame.resetHistory) {
 				effect.resetRenderHistory();
-				previousPointer = null;
 				previousTime = frame.time;
 			}
 			const output = effect.outputs.get(port);
@@ -111,8 +108,7 @@ export function startPortableNodesEffectWorker(definitions: NativeEffectDefiniti
 			const position = frame.pointerElementPosition == null ? null : pointerToSpatial(frame.pointerElementPosition);
 			const context: EffectFrameContext = {
 				time: frame.time / 1000, timeDelta: Math.max(0, frame.time - previousTime), endTime: Infinity, progress: 0, isExport: false,
-				pointerPosition: position ?? [-99999, -99999], pointerVector: position == null || previousPointer == null
-					? [0, 0] : [position[0] - previousPointer[0], position[1] - previousPointer[1]],
+				pointerPosition: position ?? [-99999, -99999],
 				pointerClicks: frame.pointerElementClicks.map(click => ({
 					position: pointerToSpatial(click.position), time: click.time / 1000,
 				})),
@@ -128,7 +124,6 @@ export function startPortableNodesEffectWorker(definitions: NativeEffectDefiniti
 			await createdDevice.queue.onSubmittedWorkDone();
 			controller.signal.throwIfAborted();
 			previousTime = frame.time;
-			previousPointer = position;
 			worker.postMessage({ type: 'frame', resolution, time: frame.time });
 		};
 		worker.postMessage({ type: 'ready' });

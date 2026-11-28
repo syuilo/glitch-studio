@@ -46,7 +46,7 @@ export async function run() {
 			async render(parameters: Partial<Parameters> = {}, time = 0) {
 				device.pushErrorScope('validation');
 				const commandEncoder = device.createCommandEncoder();
-				await effect.draw({ params: { ...defaults, ...parameters }, commandEncoder, time, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+				await effect.draw({ params: { ...defaults, ...parameters }, commandEncoder, time, timeDelta: 0, pointerPosition: { x: 0, y: 0 },
 					outputs: { output },
 				});
 				const pass = commandEncoder.beginRenderPass({ colorAttachments: [{ view: copyTarget.createView(), loadOp: 'clear', storeOp: 'store' }] });

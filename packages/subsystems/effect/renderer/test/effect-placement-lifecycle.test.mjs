@@ -13,14 +13,17 @@ const graph = (nodes, outputSources, paramDefs = {}) => ({
 });
 const node = (id, params = {}) => ({ id, effectSource: native(id), params });
 const output = nodeId => ({ nodeId, outputPort: 'main' });
-const frame = (time = 1) => ({ time, timeDelta: 0.2, pointerPosition: [0.4, -0.1], pointerVector: [0.2, 0.1] });
+const frame = (time = 1) => ({
+	time, timeDelta: 0.2, pointerPosition: [0.4, -0.1],
+	pointerStrokeSegments: [{ start: [0.2, -0.2], end: [0.4, -0.1], startTime: time - 0.0002, endTime: time }],
+});
 const placement = (source, overrides = {}) => ({ effectSource: source, definitions: { getNativeEffect: () => definition },
 	usedOutputPorts: new Set(['main', 'other']), resolution: size, ...overrides });
 const implementation = init => ({ init, createOutputTexture: () => ({ destroy() {} }) });
 
 // 【履歴リセットは借用した入力と絶対時刻を保持する】
-// シーク直後だけ移動量と経過時間をゼロにし、利用中の入力や出力の所有権を変えない。
-test('resets only the next temporal delta and retains borrowed inputs and allocated outputs', async t => {
+// シーク前の経過時間と軌跡が新しい履歴に入らないようにし、リセット直後も入力や出力を利用できることを確認する。
+test('clears the next time delta and pointer strokes while retaining borrowed inputs and allocated outputs', async t => {
 	const borrowed = { destroy: assert.fail };
 	const source = { kind: 'texture', texture: borrowed, resolution: size };
 	const records = [];
@@ -28,17 +31,22 @@ test('resets only the next temporal delta and retains borrowed inputs and alloca
 	const effect = await createEffectInstance(placement(native('history'), {
 		inputs: { source }, definitions: { getNativeEffect: () => ({ ...definition, paramDefs: { source: color } }) },
 	}), {}, () => implementation(({ inputs }) => ({
-		render(f) { records.push([inputs.source.texture, f.time, f.timeDelta, f.pointerPosition, f.pointerVector]); },
+		render(f) { records.push([inputs.source.texture, f.time, f.timeDelta, f.pointerPosition, f.pointerStrokeSegments]); },
 		resetRenderHistory() { resets++; }, dispose() {},
 	})));
 	t.after(() => effect.dispose());
 	const main = effect.outputs.get('main').texture;
-	effect.render(frame(4));
+	const beforeReset = frame(4);
+	const subsequentFrame = frame(10);
+	effect.render(beforeReset);
 	effect.resetRenderHistory();
 	effect.render(frame(9));
-	effect.render(frame(10));
-	assert.deepEqual(records, [[borrowed, 4, 0.2, [0.4, -0.1], [0.2, 0.1]],
-		[borrowed, 9, 0, [0.4, -0.1], [0, 0]], [borrowed, 10, 0.2, [0.4, -0.1], [0.2, 0.1]]]);
+	effect.render(subsequentFrame);
+	assert.deepEqual(records, [
+		[borrowed, 4, 0.2, [0.4, -0.1], beforeReset.pointerStrokeSegments],
+		[borrowed, 9, 0, [0.4, -0.1], []],
+		[borrowed, 10, 0.2, [0.4, -0.1], subsequentFrame.pointerStrokeSegments],
+	]);
 	assert.equal(effect.outputs.get('main').texture, main);
 	assert.equal(resets, 1);
 });
@@ -166,25 +174,30 @@ test('invalidates only consumers of the public texture whose version changed', a
 	assert.deepEqual(renders, ['left', 'right', 'right']);
 });
 
-// 【ポインターの位置と移動量を各ノードの縦横比へ換算する】
-// 座標を読むキャッシュ可能なノードでも、同じ絶対時刻でポインターを動かせば描画結果が更新される。
-test('maps pointer expressions and motion into node coordinates on each frame', async t => {
+// 【ポインターの位置と軌跡の両端を各ノードの縦横比へ換算する】
+// 座標を読むキャッシュ可能なノードでも、同じ内容時刻でポインター位置が変われば描画を更新する。
+// 軌跡の端点にも同じ換算を適用し、線分の時刻は内容時刻のまま渡す。
+test('maps pointer expressions and stroke endpoints into node coordinates on each frame', async t => {
 	const vector = { dataType: { kind: 'vector' }, defaultValue: [0, 0] };
 	const source = graph([{ ...node('cursor', { position: { inputSource: 'expression', expression: 'POINTER_POSITION' } }),
 		resolution: { mode: 'customAbsolute', width: 20, height: 20 } }], { main: output('cursor') });
-	const positions = [];
+	const records = [];
 	const effect = await createEffectInstance(placement(source, { usedOutputPorts: new Set(['main']),
 		definitions: { getNativeEffect: () => ({ ...definition, paramDefs: { position: vector } }) } }), {},
 		() => implementation(({ inputs, resolution }) => {
 			assert.deepEqual(resolution, { width: 20, height: 20 });
-			return { cacheKey: 0, dispose() {}, render(f) { positions.push([inputs.position.value, f.pointerPosition, f.pointerVector]); } };
+			return { cacheKey: 0, dispose() {}, render(f) { records.push([inputs.position.value, f.pointerPosition, f.pointerStrokeSegments]); } };
 		}));
 	t.after(() => effect.dispose());
-	const first = { ...frame(), pointerPosition: [0.25, 0.25], pointerVector: [0.25, -0.25] };
+	const stroke = { start: [-0.125, 0.125], end: [0.25, 0.25], startTime: 0.9998, endTime: 1 };
+	const first = { ...frame(), pointerPosition: stroke.end, pointerStrokeSegments: [stroke] };
 	effect.render(first);
 	effect.render({ ...first });
-	effect.render({ ...first, pointerPosition: [-0.25, 0] });
-	assert.deepEqual(positions, [[[0.25, 0.375], [0.25, 0.375], [0.25, -0.375]], [[-0.25, 0], [-0.25, 0], [0.25, -0.375]]]);
+	effect.render({ ...first, pointerPosition: [-0.25, 0], pointerStrokeSegments: [] });
+	assert.deepEqual(records, [
+		[[0.25, 0.375], [0.25, 0.375], [{ ...stroke, start: [-0.125, 0.1875], end: [0.25, 0.375] }]],
+		[[-0.25, 0], [-0.25, 0], []],
+	]);
 });
 
 // 【同じノードID・同じ寸法へ戻しても旧配置の出力を再利用しない】

@@ -61,7 +61,7 @@ export async function run() {
 		return async (overrides: Partial<Parameters> = {}, includeMask = true, time = 0) => {
 			const encoder = device.createCommandEncoder();
 			await instance.draw({ params: { ...defaults, ...overrides }, commandEncoder: encoder, time, timeDelta: time,
-				pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0, y: 0 },
+				pointerPosition: { x: 0, y: 0 },
 				outputs: { output: outputData(output), ...(includeMask ? { mask: outputData(mask) } : {}) },
 			});
 			device.queue.submit([encoder.finish()]);
