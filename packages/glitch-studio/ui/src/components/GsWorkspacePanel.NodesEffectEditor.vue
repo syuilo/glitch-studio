@@ -42,7 +42,7 @@
 						@activate="previewNodesEffectLivePreview"
 					/>
 				</div>
-				<GsFolder :asSection="true">
+				<GsFolder :asSection="true" :defaultOpen="true">
 					<template #label>
 						Parameters
 					</template>

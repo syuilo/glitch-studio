@@ -19,7 +19,7 @@ for (const id of ['pointerTrail', 'positionTrail']) {
 	});
 }
 
-// 【Pointer Trailは未入力区間をまたいでストロークをつながない】
+// 【Pointer Trailは未入力区間をまたいでストロークを繋がない】
 // ポインターが再び有効になっても、途切れる前の履歴には経過時間分の減衰だけを適用する。
 test('decays pointer trail history without bridging missing input', options, () => runEffectGpuTest(entry, 'pointerTrailMissingInput'));
 
