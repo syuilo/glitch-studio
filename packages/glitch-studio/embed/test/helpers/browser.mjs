@@ -94,6 +94,52 @@ async function checkPointerdownBand(element, pointerType) {
 	check(await bandCenter(canvas) === null, 'restart clears band presses: ' + label);
 }
 
+async function checkCursorRipples(element) {
+	const canvas = element.shadowRoot.querySelector('canvas');
+	const context = new OffscreenCanvas(canvas.width, canvas.height).getContext('2d');
+	async function columns() {
+		await frame(); await frame();
+		context.drawImage(canvas, 0, 0);
+		return [0.25, 0.5, 0.75].map(x => [...context.getImageData(Math.floor(x * canvas.width), 0, 1, canvas.height).data]);
+	}
+	function dispatch(type, x, pointerType = 'mouse', buttons = 0) {
+		const rect = canvas.getBoundingClientRect();
+		canvas.dispatchEvent(new PointerEvent(type, { isPrimary: true, pointerId: pointerType === 'mouse' ? 1 : 2, pointerType, buttons,
+			clientX: rect.left + rect.width * x, clientY: rect.top + rect.height * 0.5 }));
+	}
+	async function advance(action) {
+		const minimum = element.currentTime + 0.025;
+		let detail = await rendered(element, action);
+		while (detail.time < minimum) detail = await rendered(element);
+		await rendered(element, () => element.pause());
+	}
+
+	const flat = await columns();
+	await rendered(element, () => element.play());
+	await advance(() => {
+		dispatch('pointerenter', 0.1);
+		dispatch('pointermove', 0.9);
+	});
+	const changed = await columns();
+	check(changed.every((column, x) => column.some((value, index) => Math.abs(value - flat[x][index]) > 8)), 'fast pointer movement distorts every sampled column');
+	await rendered(element, () => element.restart());
+	check((await columns()).every((column, x) => column.every((value, index) => value === flat[x][index])), 'restart restores the undistorted image');
+	await rendered(element, () => element.play());
+	await advance(() => {
+		dispatch('pointerenter', 0.1);
+		dispatch('pointerleave', 0.1);
+		dispatch('pointerenter', 0.9);
+	});
+	check((await columns()).every((column, x) => column.every((value, index) => value === flat[x][index])), 'reentering at a distant point leaves the image undistorted');
+	await rendered(element, () => element.play());
+	await advance(() => {
+		dispatch('pointerdown', 0.9, 'touch', 1);
+		dispatch('pointermove', 0.1, 'touch', 1);
+		dispatch('pointerup', 0.1, 'touch');
+	});
+	check((await columns()).every((column, x) => column.some((value, index) => Math.abs(value - flat[x][index]) > 8)), 'a touch drag ending in the same frame still distorts the full path');
+}
+
 async function checkSymbolTextureRendering(element, name) {
 	const canvas = element.shadowRoot.querySelector('canvas');
 	const context = new OffscreenCanvas(canvas.width, canvas.height).getContext('2d');
@@ -210,6 +256,9 @@ try {
 	const { element: clickGradient } = await mount('clickgradient');
 	await checkPointerdownBand(clickGradient, 'touch');
 	clickGradient.remove();
+	const { element: cursorRipples } = await mount('cursorripples');
+	await checkCursorRipples(cursorRipples);
+	cursorRipples.remove();
 	const { element: custom } = await mount('custom');
 	const topLeft = await pixel(custom, 0.1, 0.1);
 	const bottomRight = await pixel(custom, 0.9, 0.9);

@@ -1,5 +1,6 @@
 import { normalizedToSpatialCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import type { PortableNodesEffect, PortableNodesEffectSettings } from '@gs/glitch-studio_shared/portable-nodes-effect.ts';
+import type { PointerStrokeSegment } from '@gs/glitch-studio_shared/pointer-stroke-input.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 
 export type PortablePointerPosition = { x: number; y: number };
@@ -15,6 +16,7 @@ export type PortableNodesEffectFrame = {
 	pointerElementPosition: PortablePointerPosition | null;
 	/** 要素内の押下位置と時刻のスナップショット。新しい入力順。 */
 	pointerElementClicks: readonly PortablePointerClick[];
+	pointerElementStrokeSegments: readonly PointerStrokeSegment[];
 	/** 初回と公開値の変更時だけスナップショットを送る。 */
 	parameters: Record<string, unknown> | null;
 	resetHistory: boolean;

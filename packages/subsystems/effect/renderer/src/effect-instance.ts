@@ -34,6 +34,15 @@ export type EffectPointerClick = {
 	readonly time: number;
 };
 
+export type EffectPointerStrokeSegment = {
+	/** pointerPositionと同じ共通座標。 */
+	readonly start: readonly [number, number];
+	readonly end: readonly [number, number];
+	/** フレームのtimeと同じ内容時刻（秒）。 */
+	readonly startTime: number;
+	readonly endTime: number;
+};
+
 export interface EffectFrameContext {
 	/** 呼び出し側が選んだ内容時刻（秒）。 */
 	readonly time: number;
@@ -49,6 +58,8 @@ export interface EffectFrameContext {
 	readonly pointerVector?: readonly [number, number];
 	/** このフレームで参照できるクリックのスナップショット。新しい入力順。 */
 	readonly pointerClicks?: readonly EffectPointerClick[];
+	/** 前回描画以降に取得した連続移動。古い入力順。 */
+	readonly pointerStrokeSegments?: readonly EffectPointerStrokeSegment[];
 }
 
 export interface EffectRenderContext extends EffectFrameContext {

@@ -441,8 +441,12 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 		await media.play();
 	}
 
-	public async updatePointerPosition(newPointerPosition: { x: number; y: number }) {
-		if (this.isReady.value) this.call('updatePointerPosition', [newPointerPosition]);
+	public async updatePointerPosition(newPointerPosition: { x: number; y: number }, pointer: { id: number; strokeActive: boolean } | null) {
+		if (this.isReady.value) this.call('updatePointerPosition', [newPointerPosition, pointer]);
+	}
+
+	public endPointerStroke(pointerId: number) {
+		if (this.isReady.value) this.call('endPointerStroke', [pointerId]);
 	}
 
 	public async click(pointerPosition: { x: number; y: number }) {

@@ -48,8 +48,9 @@
 				@wheel="onViewWheel"
 				@pointerenter="onRulerPointermove"
 				@pointermove.capture="onRulerPointermove"
-				@pointerleave="clearRulerPointer"
-				@pointercancel.capture="clearRulerPointer"
+				@pointerleave="onPreviewPointerExit"
+				@pointercancel.capture="onPreviewPointerExit"
+				@pointerup.capture="onPreviewPointerup"
 				@pointermove="onPointermove"
 				@pointerdown="onViewPointerdown"
 				@auxclick.prevent
@@ -59,6 +60,8 @@
 					ref="canvasContainer"
 					:style="{ scale: zoom / previewDevicePixelRatio, translate: `${pan[0]}px ${pan[1]}px` }"
 					data-test-preview-canvas-container
+					@pointerenter="onPointermove"
+					@pointerleave="endEffectPointerStroke"
 					@pointerdown="onCanvasPointerdown"
 				></div>
 				<div v-if="mediaPlayerStatus != null" :class="$style.mediaPlayerStatus">{{ mediaPlayerStatus }}</div>
@@ -427,6 +430,7 @@ function onExposureKeydown(event: KeyboardEvent) {
 }
 
 function onViewPointerdown(event: PointerEvent) {
+	if (event.isPrimary && event.pointerType === 'touch') onPointermove(event);
 	if (event.button !== 1 || stopPan) return;
 	const initial = [...pan.value];
 	panning.value = true;
@@ -497,13 +501,27 @@ function clearRulerPointer() {
 	previewPointerPosition.value = null;
 }
 
+function onPreviewPointerExit(event: PointerEvent) {
+	clearRulerPointer();
+	endEffectPointerStroke(event);
+}
+
+function onPreviewPointerup(event: PointerEvent) {
+	if (event.pointerType === 'touch') endEffectPointerStroke(event);
+}
+
+function endEffectPointerStroke(event: PointerEvent) {
+	if (event.isPrimary) effectLivePreviewManagerController.endPointerStroke(event.pointerId);
+}
+
 function onPointermove(ev: PointerEvent) {
 	if (canvasContainer.value == null || previewPlayback.state.value.mode !== 'effectLivePreview') return;
 	const rect = canvasContainer.value.getBoundingClientRect();
-	effectLivePreviewManagerController.updatePointerPosition({
-		x: (((ev.clientX - rect.left) / rect.width) - 0.5) * 2,
-		y: -(((ev.clientY - rect.top) / rect.height) - 0.5) * 2,
-	});
+	if (rect.width <= 0 || rect.height <= 0) return;
+	const x = (ev.clientX - rect.left) / rect.width;
+	const y = (ev.clientY - rect.top) / rect.height;
+	const strokeActive = x >= 0 && x <= 1 && y >= 0 && y <= 1 && !panning.value && (ev.pointerType !== 'touch' || (ev.buttons & 1) !== 0);
+	effectLivePreviewManagerController.updatePointerPosition({ x: x * 2 - 1, y: 1 - y * 2 }, ev.isPrimary ? { id: ev.pointerId, strokeActive } : null);
 }
 
 function onViewWheel(ev: WheelEvent) {

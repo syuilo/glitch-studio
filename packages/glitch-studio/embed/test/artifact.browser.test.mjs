@@ -11,7 +11,7 @@ import { buildPortableNodesEffectRuntime } from '../build/runtime.mjs';
 import { implementation } from './helpers/load.mjs';
 import { fixture, parameter, shaderDefinition } from './helpers/fixture.mjs';
 
-const { preparePortableNodesEffect, encodePortableNodesEffect, createPortableNodesEffectFiles, fill, image, symbols, clickGradient, clickRipple, colorRamp } = implementation;
+const { preparePortableNodesEffect, encodePortableNodesEffect, createPortableNodesEffectFiles, fill, image, symbols, clickGradient, clickRipple, colorRamp, cursorRipples, vectorChromaticAberration } = implementation;
 
 // 【書き出したJSと単一HTMLをエディタなし・非隔離のChromeで実行する】
 // 実GPU・Worker転送・HTML parser・DOM寿命をまとめて通し、モックでは分からない画素・入力・リサイズの不整合を検出する。
@@ -26,7 +26,7 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	await buildPortableNodesEffectCatalog(catalog);
 	const artifacts = new Map();
 	async function add(name, input) {
-		const prepared = preparePortableNodesEffect(input, { fill, image, symbols, clickGradient, clickRipple, colorRamp });
+		const prepared = preparePortableNodesEffect(input, { fill, image, symbols, clickGradient, clickRipple, colorRamp, cursorRipples, vectorChromaticAberration });
 		const runtime = await buildPortableNodesEffectRuntime(catalog, prepared.runtimeRequirements);
 		const tagName = `gs-nodes-effect-${name}`;
 		const archive = createPortableNodesEffectFiles(await encodePortableNodesEffect(prepared, 'zip'), runtime, tagName);
@@ -94,6 +94,21 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 		band.nodesEffect.outputSources = { output: { nodeId: 'colorize', outputPort: 'output' } };
 		await add(name, band);
 	}
+	// 【描画間に通過した軌跡がWeb Componentでも画像を連続して歪ませる】
+	// DOMで取得した位置からWorkerの変位場までを通し、離れた位置での再進入やrestartも確認する。
+	const cursor = fixture();
+	const stripe = shaderDefinition('fn main(position: vec2f) -> Output { return Output(vec4f(vec3f(0.5 + 0.45 * sin(position.y * 100.0)), 1.0)); }');
+	const connect = nodeId => ({ inputSource: 'node', source: { nodeId, outputPort: 'output' }, sampling: { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' } });
+	cursor.nodesEffect.nodes = [
+		{ id: 'stripe', effectSource: { type: 'inlineCustomShaderEffect', customShaderEffect: stripe }, params: {} },
+		{ id: 'cursor', effectSource: { type: 'nativeEffect', id: 'cursorRipples' }, params: {} },
+		{ id: 'distort', effectSource: { type: 'nativeEffect', id: 'vectorChromaticAberration' }, params: {
+			input: connect('stripe'), vector: connect('cursor'), amount: { inputSource: 'literal', value: 1 }, samples: { inputSource: 'literal', value: 1 },
+			rStrength: { inputSource: 'literal', value: 1.1 }, gStrength: { inputSource: 'literal', value: 1 }, bStrength: { inputSource: 'literal', value: 0.9 },
+		} },
+	];
+	cursor.nodesEffect.outputSources = { output: { nodeId: 'distort', outputPort: 'output' } };
+	await add('cursorripples', cursor);
 	const solid = fixture();
 	const tint = parameter('color', [0.5, 0, 0, 0.5], 'tint');
 	solid.nodesEffect.paramDefs = { tint };

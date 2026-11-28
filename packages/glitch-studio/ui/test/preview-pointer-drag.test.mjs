@@ -116,3 +116,37 @@ test('sends primary canvas pointerdowns as normalized positions only in Effect L
 	press(primary);
 	assert.deepEqual(clicks, [{ x: 0.5, y: 0.5 }, { x: -0.5, y: -0.5 }]);
 });
+
+// 【プレビューの軌跡をCanvas内の主ポインターに限定する】
+// 余白、指を離した後、別の指の位置を線分で結ぶと、画面を横切る意図しない波が発生する。
+test('forwards stroke continuity only for the primary pointer over the preview image', async () => {
+	assert.match(template.content, /@pointerleave="endEffectPointerStroke"/);
+	assert.match(template.content, /@pointerup\.capture="onPreviewPointerup"/);
+	const handlers = await Promise.all(['onPointermove', 'onPreviewPointerup', 'endEffectPointerStroke'].map(compilePreviewHandler));
+	const createHandlers = new Function('context', `const { previewPlayback, effectLivePreviewManagerController, canvasContainer, panning } = context;
+		${handlers.join('\n')}; return { move: onPointermove, up: onPreviewPointerup };`);
+	const positions = [];
+	const ends = [];
+	const { move, up } = createHandlers({
+		previewPlayback: { state: { value: { mode: 'effectLivePreview' } } }, panning: { value: false },
+		canvasContainer: { value: { getBoundingClientRect: () => ({ left: 100, top: 200, width: 400, height: 200 }) } },
+		effectLivePreviewManagerController: { updatePointerPosition: (...args) => positions.push(args), endPointerStroke: id => ends.push(id) },
+	});
+	const mouse = { pointerId: 1, pointerType: 'mouse', isPrimary: true, clientX: 400, clientY: 250, buttons: 0 };
+	const touch = { ...mouse, pointerId: 2, pointerType: 'touch', buttons: 1 };
+	move(mouse);
+	move({ ...mouse, clientX: 600 });
+	move(touch);
+	move({ ...touch, isPrimary: false });
+	move({ ...touch, buttons: 0 });
+	up(touch);
+	up(mouse);
+	assert.deepEqual(positions, [
+		[{ x: 0.5, y: 0.5 }, { id: 1, strokeActive: true }],
+		[{ x: 1.5, y: 0.5 }, { id: 1, strokeActive: false }],
+		[{ x: 0.5, y: 0.5 }, { id: 2, strokeActive: true }],
+		[{ x: 0.5, y: 0.5 }, null],
+		[{ x: 0.5, y: 0.5 }, { id: 2, strokeActive: false }],
+	]);
+	assert.deepEqual(ends, [2]);
+});

@@ -1,6 +1,7 @@
 import { getPortableParameterDefinitions, getPortableParameterDefaults } from './parameters.ts';
 import { getPortableRenderResolution } from './protocol.ts';
 import { PortableNodesEffectFrameRateLimiter } from './frame-rate-limiter.ts';
+import { PointerStrokeInput } from '@gs/glitch-studio_shared/pointer-stroke-input.ts';
 import type { PortableNodesEffect } from '@gs/glitch-studio_shared/portable-nodes-effect.ts';
 import type { PortableNodesEffectRequest, PortableNodesEffectResponse, PortablePointerClick, PortablePointerPosition } from './protocol.ts';
 
@@ -41,6 +42,7 @@ export function registerNodesEffectElement(tagName: string, artwork: PortableNod
 		private readonly frameRateLimiter = new PortableNodesEffectFrameRateLimiter();
 		private pointerElementPosition: PortablePointerPosition | null = null;
 		private pointerElementClicks: PortablePointerClick[] = [];
+		private readonly pointerStroke = new PointerStrokeInput();
 
 		constructor() {
 			super();
@@ -141,16 +143,26 @@ div:empty { display: none; }`;
 				if (rect.width <= 0 || rect.height <= 0) return;
 				const position = { x: (event.clientX - rect.left) / rect.width, y: (event.clientY - rect.top) / rect.height };
 				this.pointerElementPosition = position;
+				const elapsed = this.paused || this.lastTick == null ? 0 : Math.max(0, event.timeStamp - this.lastTick);
+				const time = this.time + elapsed;
 				if (event.type === 'pointerdown' && event.button === 0) {
 					// FPS制限やWorkerの応答待ちでも、押下した瞬間をフレームと同じ時計に載せる。
-					const elapsed = this.paused || this.lastTick == null ? 0 : Math.max(0, event.timeStamp - this.lastTick);
-					this.pointerElementClicks.unshift({ position, time: this.time + elapsed });
+					this.pointerElementClicks.unshift({ position, time });
 					if (this.pointerElementClicks.length > 16) this.pointerElementClicks.pop();
 				}
+				const isInside = position.x >= 0 && position.x <= 1 && position.y >= 0 && position.y <= 1;
+				if (!this.paused && isInside && (event.pointerType !== 'touch' || (event.buttons & 1) !== 0)) {
+					this.pointerStroke.sample(event.pointerId, position, time / 1000);
+				} else this.pointerStroke.end(event.pointerId);
 				this.requestRender();
 			};
+			const endPointerStroke = (event: PointerEvent) => { if (event.isPrimary) this.pointerStroke.end(event.pointerId); };
+			this.canvas.addEventListener('pointerenter', pointer, { signal });
 			this.canvas.addEventListener('pointermove', pointer, { signal });
 			this.canvas.addEventListener('pointerdown', pointer, { signal });
+			this.canvas.addEventListener('pointerleave', endPointerStroke, { signal });
+			this.canvas.addEventListener('pointercancel', endPointerStroke, { signal });
+			this.canvas.addEventListener('pointerup', event => { if (event.pointerType === 'touch') endPointerStroke(event); }, { signal });
 			try {
 				this.workerUrl = URL.createObjectURL(new Blob([workerSource], { type: 'text/javascript' }));
 				const worker = new Worker(this.workerUrl, { name: tagName });
@@ -215,7 +227,11 @@ div:empty { display: none; }`;
 			this.dispatchEvent(new CustomEvent('error', { detail: { message, fatal } }));
 		}
 
-		private resetFrameTiming() { this.lastTick = null; this.frameRateLimiter.reset(); }
+		private resetFrameTiming() {
+			this.lastTick = null;
+			this.frameRateLimiter.reset();
+			this.pointerStroke.reset();
+		}
 		private requestRender() { this.dirty = true; this.schedule(); }
 		private schedule() {
 			if (this.frameId != null || !this.readyForFrames || !this.visible || this.ownerDocument.hidden
@@ -231,6 +247,7 @@ div:empty { display: none; }`;
 				const resolution = getPortableRenderResolution(this.physicalSize.width, this.physicalSize.height, this.settings)!;
 				const message: PortableNodesEffectRequest = { type: 'frame', frame: {
 					resolution, time: this.time, pointerElementPosition: this.pointerElementPosition, pointerElementClicks: this.pointerElementClicks,
+					pointerElementStrokeSegments: this.pointerStroke.takeSegments(),
 					parameters: this.parametersChanged ? this.parameters() : null, resetHistory: this.resetHistory,
 				} };
 				this.worker!.postMessage(message);

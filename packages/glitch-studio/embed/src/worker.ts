@@ -107,14 +107,16 @@ export function startPortableNodesEffectWorker(definitions: NativeEffectDefiniti
 			const output = effect.outputs.get(port);
 			// リサイズ直後も、今回の出力寸法でポインターの座標を変換する。
 			const outputResolution = output?.resolution ?? resolution;
-			const position = frame.pointerElementPosition == null ? null : getPortablePointerPosition(frame.pointerElementPosition, resolution, outputResolution);
+			const pointerToSpatial = (position: { x: number; y: number }) => getPortablePointerPosition(position, resolution, outputResolution);
+			const position = frame.pointerElementPosition == null ? null : pointerToSpatial(frame.pointerElementPosition);
 			const context: EffectFrameContext = {
 				time: frame.time / 1000, timeDelta: Math.max(0, frame.time - previousTime), endTime: Infinity, progress: 0, isExport: false,
 				pointerPosition: position ?? [-99999, -99999], pointerVector: position == null || previousPointer == null
 					? [0, 0] : [position[0] - previousPointer[0], position[1] - previousPointer[1]],
 				pointerClicks: frame.pointerElementClicks.map(click => ({
-					position: getPortablePointerPosition(click.position, resolution, outputResolution), time: click.time / 1000,
+					position: pointerToSpatial(click.position), time: click.time / 1000,
 				})),
+				pointerStrokeSegments: frame.pointerElementStrokeSegments.map(segment => ({ ...segment, start: pointerToSpatial(segment.start), end: pointerToSpatial(segment.end) })),
 			};
 			// 動画などの準備と描画に同じContextを使い、準備中に再生時刻が進んでも対象フレームを保つ。
 			await effect.prepare(context, controller.signal);

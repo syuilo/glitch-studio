@@ -100,6 +100,7 @@ nodesEffectElement.restart();
 - DOMからの削除でObserver・イベント・Worker・GPUリソースを解放します。再接続時はcanvasを作り直し、時刻と公開値を保持して履歴をリセットします。同一Document内の同期的なDOM移動では維持します。
 - 一要素につき一Worker・一GPUDeviceです。GPU完了まで次のフレームを送らず、描画が遅い場合のキュー蓄積を防ぎます。
 - primary pointerの移動・押下を受け取り、`POINTER_POSITION`へ既存の等方座標規約で渡します。余白の位置も出力座標へ換算し、最後の位置を保持します。主ボタンや最初の指の`pointerdown`は直近16件を保持し、Click Rippleへ渡します。押下履歴は`restart()`または接続の解除で消去します。タッチのスクロールを妨げず、複数ポインター・筆圧・押下状態の新しい環境変数は追加しません。
+- Cursor Ripplesには、描画間に受け取った連続した位置を、内容時刻付きの線分として渡します。ポインターの退出・キャンセルや指を離した位置で軌跡を区切り、一時停止中の移動は再開後に持ち越しません。
 - 音声入力は未接続です。Video Frameは同梱した動画Assetを読み出せます。Timeline・音声出力・タイルレンダリング・パフォーマンス統計は含めません。
 - Nodes Effect内の環境変数は`IS_EXPORT=false`、`END_TIME=Infinity`、`PROGRESS=0`です。
 

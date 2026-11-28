@@ -5,6 +5,7 @@ import { resolveEffectSource, type EffectDefinitions, type EffectSource } from '
 import { normalizedToSpatialCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { applyRendererProjectChanges, isEffectLivePreviewProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
+import { PointerStrokeInput } from '@gs/glitch-studio_shared/pointer-stroke-input.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import EventEmitter from 'eventemitter3';
 import { INTERMEDIATE_TEXTURE_FORMAT } from '@gs/shared/types.ts';
@@ -180,6 +181,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 	private previewAudioGeneration = 0;
 	private pointerPosition: { x: number; y: number } = { x: -99999, y: -99999 };
 	private pointerPositionPrev: { x: number; y: number } = { x: -99999, y: -99999 };
+	private readonly pointerStroke = new PointerStrokeInput();
 	private clicks: { x: number; y: number; time: number }[] = [];
 	private definitions: EffectDefinitions;
 	private readonly nativeEffectDefinitions: NativeEffectDefinitions;
@@ -339,9 +341,15 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		if (this.previewImage.update(frame, assetTexture) && this.activeEffect?.inputs.usesImage === true) this.initializePlacement();
 	}
 
-	public updatePointerPosition(newPointerPosition: { x: number; y: number }) {
+	public updatePointerPosition(newPointerPosition: { x: number; y: number }, pointer: { id: number; strokeActive: boolean } | null = null) {
 		this.pointerPosition = newPointerPosition;
+		if (pointer == null) return;
+		if (pointer.strokeActive && this.effectLivePreviewRenderLoop.timeFactor > 0) {
+			this.pointerStroke.sample(pointer.id, newPointerPosition, this.effectLivePreviewRenderLoop.getCurrentTime() / 1000);
+		} else this.pointerStroke.end(pointer.id);
 	}
+
+	public endPointerStroke(pointerId: number) { this.pointerStroke.end(pointerId); }
 
 	public click(pointerPosition: { x: number; y: number }) {
 		this.clicks.unshift({ ...pointerPosition, time: this.effectLivePreviewRenderLoop.getCurrentTime() / 1000 });
@@ -391,6 +399,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 			this.effectLivePreviewRenderLoop.fpsLimit = this.dynamicOptions.fpsLimit;
 		}
 		if (Object.hasOwn(newOptions, 'effectLivePreviewTimeFactor')) {
+			if (this.dynamicOptions.effectLivePreviewTimeFactor <= 0) this.pointerStroke.reset();
 			this.effectLivePreviewRenderLoop.timeFactor = this.dynamicOptions.effectLivePreviewTimeFactor;
 		}
 		if (reinitialize) this.initializePlacement();
@@ -442,6 +451,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 	}
 
 	private releasePlacement() {
+		this.pointerStroke.reset();
 		this.previewTiledFrameController?.abort();
 		this.previewRenderGeneration++;
 		this.previewRenderDelayMonitor.clear();
@@ -540,6 +550,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		const pointer = this.pointerPosition;
 		const placementResolution = this.getPlacementResolutionOptions();
 		const resolution = scaleResolution(placementResolution.resolution, placementResolution.resolutionScale);
+		const pointerToSpatial = ({ x, y }: { x: number; y: number }) => normalizedToSpatialCoordinates([x, y], resolution);
 		const frame: EffectFrameContext = {
 			time: timing.time / 1000,
 			timeDelta: this.skippedFrameTimeDelta,
@@ -548,6 +559,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 			pointerVector: this.pointerPositionPrev.x === -99999 ? [0, 0] : normalizedToSpatialCoordinates([pointer.x - this.pointerPositionPrev.x, pointer.y - this.pointerPositionPrev.y], resolution),
 			// GPU準備・描画中に新しいクリックが届いても、進行中のフレームは同じ履歴を使う。
 			pointerClicks: this.clicks.map(({ x, y, time }) => ({ position: normalizedToSpatialCoordinates([x, y], resolution), time })),
+			pointerStrokeSegments: this.pointerStroke.takeSegments().map(segment => ({ ...segment, start: pointerToSpatial(segment.start), end: pointerToSpatial(segment.end) })),
 		};
 		const realTimeDelta = this.skippedFrameRealTimeDelta;
 		// 見送った描画の時間差は今回のContextへ渡し、準備中に進んだ分は次の描画へ回す。
@@ -625,6 +637,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		this.activeEffect?.instance?.resetRenderHistory();
 		this.pointerPositionPrev = this.pointerPosition;
 		this.clicks = [];
+		this.pointerStroke.reset();
 		this.skippedFrameTimeDelta = this.skippedFrameRealTimeDelta = 0;
 	}
 

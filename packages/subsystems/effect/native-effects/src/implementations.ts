@@ -41,6 +41,7 @@ import composeVectorPolar from './fx/composeVectorPolar/_impl_.ts';
 import contentErrorPropagation from './fx/contentErrorPropagation/_impl_.ts';
 import contrast from './fx/contrast/_impl_.ts';
 import cornerPeel from './fx/cornerPeel/_impl_.ts';
+import cursorRipples from './fx/cursorRipples/_impl_.ts';
 import dataBlend from './fx/dataBlend/_impl_.ts';
 import dataMix from './fx/dataMix/_impl_.ts';
 import datamosh from './fx/datamosh/_impl_.ts';
@@ -228,6 +229,7 @@ export const nativeEffectImplementations = {
 	contentErrorPropagation,
 	contrast,
 	cornerPeel,
+	cursorRipples,
 	dataBlend,
 	dataMix,
 	datamosh,

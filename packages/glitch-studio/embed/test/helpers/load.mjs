@@ -13,9 +13,11 @@ const result = await build({
 		export { default as clickGradient } from '@gs/subsystems_effect_native-effects/fx/clickGradient/_def_.ts';
 		export { default as clickRipple } from '@gs/subsystems_effect_native-effects/fx/clickRipple/_def_.ts';
 		export { default as colorRamp } from '@gs/subsystems_effect_native-effects/fx/colorRamp/_def_.ts';
+		export { default as cursorRipples } from '@gs/subsystems_effect_native-effects/fx/cursorRipples/_def_.ts';
 		export { default as fill } from '@gs/subsystems_effect_native-effects/fx/fill/_def_.ts';
 		export { default as image } from '@gs/subsystems_effect_native-effects/fx/image/_def_.ts';
 		export { default as symbols } from '@gs/subsystems_effect_native-effects/fx/symbols/_def_.ts';
+		export { default as vectorChromaticAberration } from '@gs/subsystems_effect_native-effects/fx/vectorChromaticAberration/_def_.ts';
 	` },
 	bundle: true, write: false, format: 'cjs', platform: 'node',
 });
