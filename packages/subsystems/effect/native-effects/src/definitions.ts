@@ -9,6 +9,7 @@ import birefringence from './fx/birefringence/_def_.ts';
 import bitPlaneCorruption from './fx/bitPlaneCorruption/_def_.ts';
 import blindsWipe from './fx/blindsWipe/_def_.ts';
 import blockDissolve from './fx/blockDissolve/_def_.ts';
+import blockGlitch from './fx/blockGlitch/_def_.ts';
 import blockShiftGlitch from './fx/blockShiftGlitch/_def_.ts';
 import blockShuffle from './fx/blockShuffle/_def_.ts';
 import bloom from './fx/bloom/_def_.ts';
@@ -194,6 +195,7 @@ export const nativeEffectDefinitions = {
 	bitPlaneCorruption,
 	blindsWipe,
 	blockDissolve,
+	blockGlitch,
 	blockShiftGlitch,
 	blockShuffle,
 	bloom,
