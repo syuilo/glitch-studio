@@ -13,7 +13,7 @@ export function registerNodesEffectElement(tagName: string, artwork: PortableNod
 	const initial = structuredClone(artwork.initialParameters);
 
 	class PortableNodesEffectElement extends HTMLElement {
-		static observedAttributes = ['parameters', 'resolution-scale', 'max-pixels', 'fps-limit', 'paused'];
+		static observedAttributes = ['parameters', 'resolution-scale', 'max-pixels', 'fps-limit'];
 		private readonly root = this.attachShadow({ mode: 'open' });
 		private canvas: HTMLCanvasElement | null = null;
 		private readonly status = document.createElement('div');
@@ -21,7 +21,6 @@ export function registerNodesEffectElement(tagName: string, artwork: PortableNod
 		private connectedOnce = false;
 		private worker: Worker | null = null;
 		private workerUrl: string | null = null;
-		private readyForFrames = false;
 		private failed = false;
 		private generation = 0;
 		private listeners: AbortController | null = null;
@@ -35,15 +34,14 @@ export function registerNodesEffectElement(tagName: string, artwork: PortableNod
 		private parametersChanged = true;
 		private frameId: number | null = null;
 		private frameInFlight = false;
-		private dirty = true;
 		private resetHistory = true;
-		private time = 0;
-		private lastTick: number | null = null;
+		private playbackTimeAtStart = 0;
+		private playbackStartTimestamp: number | null = null;
 		private readonly frameRateLimiter = new PortableNodesEffectFrameRateLimiter();
 		private pointerElementPosition: PortablePointerPosition | null = null;
 		private pointerElementClicks: PortablePointerClick[] = [];
 		private readonly pointerStroke = new PointerStrokeInput();
-		private pointerStrokeClockStart = { timestamp: 0, time: 0 };
+		private pointerStrokeStartTimestamp = 0;
 
 		constructor() {
 			super();
@@ -58,23 +56,19 @@ div:empty { display: none; }`;
 		}
 
 		public get ready(): Promise<void> { return this.readyState.promise; }
-		public get currentTime(): number { return this.time / 1000; }
-		public get paused(): boolean { return this.hasAttribute('paused'); }
-		public play() { this.removeAttribute('paused'); }
-		public pause() { this.setAttribute('paused', ''); }
+		public get currentTime(): number { return this.getPlaybackTime(performance.now()) / 1000; }
 		public restart() {
-			this.time = 0;
+			this.playbackTimeAtStart = 0;
+			if (this.playbackStartTimestamp != null) this.playbackStartTimestamp = performance.now();
 			this.pointerElementClicks = [];
-			this.resetFrameTiming();
+			this.resetFrameRateLimiterAndPointerStroke();
 			this.resetHistory = true;
 			if (this.failed) { this.disconnect(); this.connectedCallback(); }
-			this.requestRender();
 		}
 		public setParameter(name: string, value: unknown) { this.setParameters({ [name]: value }); }
 		public setParameters(values: Record<string, unknown>) {
 			this.apiParameters = { ...this.apiParameters, ...structuredClone(values) };
 			this.parametersChanged = true;
-			this.requestRender();
 		}
 		public getParameter(name: string): unknown {
 			return structuredClone(this.parameters()[name]);
@@ -82,7 +76,6 @@ div:empty { display: none; }`;
 		public resetParameter(name: string) {
 			delete this.apiParameters[name];
 			this.parametersChanged = true;
-			this.requestRender();
 		}
 		private parameters() { return { ...defaults, ...initial, ...this.attributeParameters, ...this.apiParameters }; }
 
@@ -91,7 +84,7 @@ div:empty { display: none; }`;
 				if (name === 'parameters') {
 					this.attributeParameters = JSON.parse(this.getAttribute(name) ?? '{}');
 					this.parametersChanged = true;
-				} else if (name !== 'paused') {
+				} else {
 					const fpsLimitAttribute = this.getAttribute('fps-limit');
 					this.settings = {
 						resolutionScale: Number(this.getAttribute('resolution-scale') ?? artwork.settings.resolutionScale),
@@ -99,8 +92,6 @@ div:empty { display: none; }`;
 						fpsLimit: fpsLimitAttribute == null ? artwork.settings.fpsLimit : fpsLimitAttribute === 'auto' ? null : Number(fpsLimitAttribute),
 					};
 				}
-				if (name === 'paused') this.resetFrameTiming();
-				this.requestRender();
 			} catch (error) { this.reportError(error, false); }
 		}
 
@@ -127,17 +118,15 @@ div:empty { display: none; }`;
 				this.physicalSize = physical == null
 					? { width: entry.contentRect.width * devicePixelRatio, height: entry.contentRect.height * devicePixelRatio }
 					: { width: vertical ? physical.blockSize : physical.inlineSize, height: vertical ? physical.inlineSize : physical.blockSize };
-				this.resetFrameTiming();
-				this.requestRender();
+				this.updateRenderingAvailability();
 			});
 			this.resizeObserver.observe(this.canvas, { box: 'device-pixel-content-box' });
 			this.intersectionObserver = new IntersectionObserver(entries => {
 				this.visible = entries[0].isIntersecting;
-				this.resetFrameTiming();
-				this.schedule();
+				this.updateRenderingAvailability();
 			});
 			this.intersectionObserver.observe(this);
-			this.ownerDocument.addEventListener('visibilitychange', () => { this.resetFrameTiming(); this.schedule(); }, { signal });
+			this.ownerDocument.addEventListener('visibilitychange', () => this.updateRenderingAvailability(), { signal });
 			const pointerTimeOriginOffset = (this.ownerDocument.defaultView?.performance.timeOrigin ?? performance.timeOrigin) - performance.timeOrigin;
 			const pointer = (event: PointerEvent) => {
 				if (!event.isPrimary) return;
@@ -146,29 +135,22 @@ div:empty { display: none; }`;
 				const toCanvasPosition = ({ clientX, clientY }: PointerEvent) => ({ x: (clientX - rect.left) / rect.width, y: (clientY - rect.top) / rect.height });
 				const position = toCanvasPosition(event);
 				this.pointerElementPosition = position;
-				const lastTick = this.lastTick;
-				const paused = this.paused;
 				if (event.type === 'pointerdown' && event.button === 0) {
 					// FPS制限やWorkerの応答待ちでも、押下した瞬間をフレームと同じ時計に載せる。
-					const elapsed = paused || lastTick == null ? 0 : Math.max(0, event.timeStamp + pointerTimeOriginOffset - lastTick);
-					this.pointerElementClicks.unshift({ position, time: this.time + elapsed });
+					this.pointerElementClicks.unshift({ position, time: this.getPlaybackTime(event.timeStamp + pointerTimeOriginOffset) });
 					if (this.pointerElementClicks.length > 16) this.pointerElementClicks.pop();
 				}
-				if (paused) this.pointerStroke.end(event.pointerId);
-				else {
-					for (const sample of getPointerStrokeEvents(event)) {
-						const timestamp = sample.timeStamp + pointerTimeOriginOffset;
-						if (timestamp < this.pointerStrokeClockStart.timestamp) continue;
-						const samplePosition = sample === event ? position : toCanvasPosition(sample);
-						const { x, y } = samplePosition;
-						if (x >= 0 && x <= 1 && y >= 0 && y <= 1 && (sample.pointerType !== 'touch' || (sample.buttons & 1) !== 0)) {
-							// 描画より前に取得したサンプルも時間差を保ち、再開後の最初のフレームを内容時刻の下限にする。
-							const time = lastTick == null ? this.time : Math.max(this.pointerStrokeClockStart.time, this.time + (timestamp - lastTick));
-							this.pointerStroke.sample(event.pointerId, samplePosition, time / 1000);
-						} else this.pointerStroke.end(event.pointerId);
-					}
+				if (!this.canRender()) return;
+				for (const sample of getPointerStrokeEvents(event)) {
+					const timestamp = sample.timeStamp + pointerTimeOriginOffset;
+					// 再表示後にまとめて届いた入力に、休止中の軌跡が含まれている場合も除外する。
+					if (timestamp < this.pointerStrokeStartTimestamp) continue;
+					const samplePosition = sample === event ? position : toCanvasPosition(sample);
+					const { x, y } = samplePosition;
+					if (x >= 0 && x <= 1 && y >= 0 && y <= 1 && (sample.pointerType !== 'touch' || (sample.buttons & 1) !== 0)) {
+						this.pointerStroke.sample(event.pointerId, samplePosition, this.getPlaybackTime(timestamp) / 1000);
+					} else this.pointerStroke.end(event.pointerId);
 				}
-				this.requestRender();
 			};
 			const endPointerStroke = (event: PointerEvent) => { if (event.isPrimary) this.pointerStroke.end(event.pointerId); };
 			this.canvas.addEventListener('pointerenter', pointer, { signal });
@@ -187,14 +169,13 @@ div:empty { display: none; }`;
 					if (generation !== this.generation) return;
 					const message = event.data;
 					if (message.type === 'ready') {
-						this.readyForFrames = true;
+						this.playbackStartTimestamp = performance.now();
 						this.readyState.resolve();
 						this.dispatchEvent(new CustomEvent('ready'));
-						this.requestRender();
+						this.schedule();
 					} else if (message.type === 'error') this.reportError(new Error(message.message), true);
 					else {
 						this.frameInFlight = false;
-						this.dispatchEvent(new CustomEvent('render', { detail: { resolution: message.resolution, time: message.time / 1000 } }));
 						this.schedule();
 					}
 				}, { signal });
@@ -222,11 +203,13 @@ div:empty { display: none; }`;
 			if (this.workerUrl != null) URL.revokeObjectURL(this.workerUrl);
 			this.workerUrl = null;
 			this.readyState.reject(new Error('Nodes Effect disconnected'));
-			this.readyForFrames = false;
+			this.playbackTimeAtStart = this.getPlaybackTime(performance.now());
+			this.playbackStartTimestamp = null;
 			this.frameInFlight = false;
 			this.visible = false;
+			this.physicalSize = { width: 0, height: 0 };
 			this.pointerElementClicks = [];
-			this.resetFrameTiming();
+			this.resetFrameRateLimiterAndPointerStroke();
 			this.resetHistory = true;
 		}
 
@@ -241,32 +224,40 @@ div:empty { display: none; }`;
 			this.dispatchEvent(new CustomEvent('error', { detail: { message, fatal } }));
 		}
 
-		private resetFrameTiming() {
-			this.lastTick = null;
+		private getPlaybackTime(timestamp: number): number {
+			// 描画するかどうかにかかわらず、初期化時に始めた時計を使う。再接続時は切断前の作品時刻から進める。
+			const startTimestamp = this.playbackStartTimestamp;
+			return this.playbackTimeAtStart + (startTimestamp == null ? 0 : Math.max(0, timestamp - startTimestamp));
+		}
+		private resetFrameRateLimiterAndPointerStroke() {
 			this.frameRateLimiter.reset();
 			this.pointerStroke.reset();
-			this.pointerStrokeClockStart = { timestamp: performance.now(), time: this.time };
+			this.pointerStrokeStartTimestamp = performance.now();
 		}
-		private requestRender() { this.dirty = true; this.schedule(); }
+		private canRender(): boolean {
+			return this.visible && !this.ownerDocument.hidden && this.physicalSize.width > 0 && this.physicalSize.height > 0;
+		}
+		private updateRenderingAvailability() {
+			this.resetFrameRateLimiterAndPointerStroke();
+			// 再表示時には現在の作品時刻へ進むので、休止前の画像を直前のフレームとして使わない。
+			if (!this.canRender()) this.resetHistory = true;
+			this.schedule();
+		}
 		private schedule() {
-			if (this.frameId != null || !this.readyForFrames || !this.visible || this.ownerDocument.hidden
-				|| this.physicalSize.width <= 0 || this.physicalSize.height <= 0 || (this.paused && !this.dirty)) return;
+			if (this.frameId != null || this.frameInFlight || this.playbackStartTimestamp == null || !this.canRender()) return;
 			this.frameId = requestAnimationFrame(timestamp => this.tick(timestamp));
 		}
 		private tick(timestamp: number) {
 			this.frameId = null;
-			if (!this.readyForFrames || !this.visible || this.ownerDocument.hidden || this.physicalSize.width <= 0 || this.physicalSize.height <= 0) { this.resetFrameTiming(); return; }
-			if (!this.paused && this.lastTick != null) this.time += timestamp - this.lastTick;
-			this.lastTick = timestamp;
-			if (!this.frameInFlight && (!this.paused || this.dirty) && this.frameRateLimiter.takeFrame(timestamp, this.settings.fpsLimit)) {
+			if (!this.canRender()) { this.updateRenderingAvailability(); return; }
+			if (this.frameRateLimiter.takeFrame(timestamp, this.settings.fpsLimit)) {
 				const resolution = getPortableRenderResolution(this.physicalSize.width, this.physicalSize.height, this.settings)!;
 				const message: PortableNodesEffectRequest = { type: 'frame', frame: {
-					resolution, time: this.time, pointerElementPosition: this.pointerElementPosition, pointerElementClicks: this.pointerElementClicks,
+					resolution, time: this.getPlaybackTime(timestamp), pointerElementPosition: this.pointerElementPosition, pointerElementClicks: this.pointerElementClicks,
 					pointerElementStrokeSegments: this.pointerStroke.takeSegments(),
 					parameters: this.parametersChanged ? this.parameters() : null, resetHistory: this.resetHistory,
 				} };
 				this.worker!.postMessage(message);
-				this.dirty = false;
 				this.parametersChanged = false;
 				this.resetHistory = false;
 				this.frameInFlight = true;

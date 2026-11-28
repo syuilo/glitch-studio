@@ -124,7 +124,7 @@ export function startPortableNodesEffectWorker(definitions: NativeEffectDefiniti
 			await createdDevice.queue.onSubmittedWorkDone();
 			controller.signal.throwIfAborted();
 			previousTime = frame.time;
-			worker.postMessage({ type: 'frame', resolution, time: frame.time });
+			worker.postMessage({ type: 'frameComplete' });
 		};
 		worker.postMessage({ type: 'ready' });
 	}

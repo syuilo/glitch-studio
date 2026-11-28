@@ -105,8 +105,6 @@ await nodesEffectElement.ready;
 // nodesEffectElement.setParameters({ ...values });
 // nodesEffectElement.getParameter(name);
 // nodesEffectElement.resetParameter(name);
-nodesEffectElement.pause();
-nodesEffectElement.play();
 nodesEffectElement.restart();
 
 Public parameters:
@@ -114,11 +112,13 @@ ${Array.from(getPortableParameterDefinitions(artwork.nodesEffect), ([name, defin
 
 API overrides > parameters attribute > exported initial values > public defaults. Colors use straight linear sRGB RGBA; RGB may be outside 0..1. The caller must supply parameter names, values and settings according to their definitions; the embed API does not validate them. Invalid JSON in the parameters attribute emits error and keeps the previous parsed parameters.
 
-Attributes: parameters (JSON), resolution-scale, max-pixels, fps-limit (auto or a positive number), paused (presence).
+Attributes: parameters (JSON), resolution-scale, max-pixels, fps-limit (auto or a positive number).
 The default FPS setting is automatic: follow requestAnimationFrame without additional frame limiting. fps-limit="auto" overrides an exported numeric limit; removing the attribute restores the exported setting.
-Events: ready, render (detail: resolution, time in seconds), error (detail: message, fatal). ready resolves after GPU and image initialization; render signals a completed frame. Video/font/shader preparation may fail afterwards.
+Events: ready and error (detail: message, fatal). The ready promise resolves after GPU and image initialization. Video, font, and shader preparation may fail afterwards.
 
-CSS determines the size. Rendering follows device pixels subject to scale and pixel limits. Existing node resolutions are preserved; mismatched output ratios use transparent letterboxing. Resizing or changing the length of a bound public array resets effect history and preserves time. Offscreen/hidden/zero-sized elements suspend their clocks. Removing an element releases resources; reconnecting retains parameter values and time but resets history. restart resets time/history and can retry a failed renderer. Pointer input uses the primary pointer and does not prevent touch scrolling.
+CSS determines the size. Rendering follows device pixels subject to scale and pixel limits. Nodes retain their own resolution settings. Mismatched output ratios use transparent letterboxing. Resizing or changing the length of a bound public array resets effect history and preserves time.
+The artwork clock starts when initialization finishes, and currentTime reports it in seconds. Rendering pauses while the element is offscreen or zero-sized, or while its document is hidden. The clock keeps advancing. Rendering resumes at the current time with fresh history. Pointer movement starts a new stroke after rendering resumes.
+Removing an element releases resources and stops its clock. Reconnecting retains parameter values and resumes from the saved time after initialization with fresh history. restart resets time and history and can retry a failed renderer. Pointer input uses the primary pointer and does not prevent touch scrolling.
 
 Video Frame reads bundled video assets. No tile rendering, external image/audio API or timeline playback is included. IS_EXPORT is false; END_TIME is Infinity; PROGRESS is 0.
 `;

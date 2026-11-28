@@ -13,6 +13,32 @@ import { fixture, parameter, shaderDefinition } from './helpers/fixture.mjs';
 
 const { preparePortableNodesEffect, encodePortableNodesEffect, createPortableNodesEffectFiles, fill, image, symbols, clickGradient, clickRipple, colorRamp, cursorRipples, vectorChromaticAberration } = implementation;
 
+function observePortableNodesEffectFrames() {
+	const elementsByCanvas = new WeakMap();
+	const framesByWorker = new WeakMap();
+	const framesByElement = new WeakMap();
+	const transferControlToOffscreen = HTMLCanvasElement.prototype.transferControlToOffscreen;
+	HTMLCanvasElement.prototype.transferControlToOffscreen = function () {
+		const canvas = transferControlToOffscreen.call(this);
+		elementsByCanvas.set(canvas, this.getRootNode().host);
+		return canvas;
+	};
+	const postMessage = Worker.prototype.postMessage;
+	Worker.prototype.postMessage = function (message, ...options) {
+		if (message.type === 'initialize') {
+			const element = elementsByCanvas.get(message.canvas);
+			const frames = { lastRequested: null };
+			framesByWorker.set(this, frames);
+			framesByElement.set(element, frames);
+			this.addEventListener('message', ({ data }) => {
+				if (data.type === 'frameComplete') element.dispatchEvent(new CustomEvent('test-frame-complete', { detail: frames.lastRequested }));
+			});
+		} else if (message.type === 'frame') framesByWorker.get(this).lastRequested = message.frame;
+		return postMessage.call(this, message, ...options);
+	};
+	globalThis.portableNodesEffectFrames = framesByElement;
+}
+
 // 【書き出したJSと単一HTMLをエディタなし・非隔離のChromeで実行する】
 // 実GPU・Worker転送・HTML parser・DOM寿命をまとめて通し、モックでは分からない画素・入力・リサイズの不整合を検出する。
 test('runs exported artifacts with responsive pixels independent inputs and reconnectable lifecycles', { skip: process.env.CHROME_PATH == null, timeout: 120000 }, async t => {
@@ -60,8 +86,9 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	curves.nodesEffect.customParameterValues = {
 		motion: { inputSource: 'curveAnimationInline', curveAnimation: { ...playback, curveBinding: { source: 'reference', curveId: 'bezier' }, yRangeMin: 0, yRangeMax: 1 } },
 		keys: { inputSource: 'keyframesTimelineInline', ...playback, keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [
-			{ id: 'before', x: -1000, value: 0, interpolation: { type: 'ease:quad', direction: 'in' } },
-			{ id: 'after', x: 1000, value: 1, interpolation: { type: 'hold' } },
+			// 自動再生中に画素を読み取っても、経過時間による変化よりイージングの効果が十分大きくなる区間を使う。
+			{ id: 'before', x: -1_000_000, value: 0, interpolation: { type: 'ease:quad', direction: 'in' } },
+			{ id: 'after', x: 1_000_000, value: 1, interpolation: { type: 'hold' } },
 		] } },
 	};
 	curves.nodesEffect.nodes[0].params.color = { inputSource: 'expression', expression: '[FUNCTION_CURVE(PUBLIC("curve"), 0.5, "clamp") + NOISE(0), CUSTOM("motion") + RANDOM(0) * 0, CUSTOM("keys"), 1]' };
@@ -154,6 +181,8 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	dangerous.name = '<!--<script></script><script>throw new Error("injected")</script>';
 	await add('standalone', dangerous);
 	const harness = await readFile(new URL('./helpers/browser.mjs', import.meta.url), 'utf8');
+	// 配布物にはテスト用APIを設けず、親ページと単一HTMLでWorkerの内部完了通知を観測する。
+	const frameObservationScript = `<script>(${observePortableNodesEffectFrames})();</script>`;
 	let resolveResult;
 	const result = new Promise(resolve => { resolveResult = resolve; });
 	const requests = [];
@@ -170,10 +199,10 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 		else if (artifacts.has(request.url)) {
 			const content = artifacts.get(request.url);
 			response.setHeader('Content-Type', Buffer.isBuffer(content) ? 'application/octet-stream' : request.url.endsWith('.js') ? 'text/javascript' : 'text/html');
-			response.end(content);
+			response.end(request.url.endsWith('.html') ? content.replace('</head>', frameObservationScript + '</head>') : content);
 		} else {
 			response.setHeader('Content-Type', 'text/html');
-			response.end('<!doctype html><html><body><script type="module" src="/harness.js"></script></body></html>');
+			response.end(`<!doctype html><html lang="en"><head><meta charset="utf-8">${frameObservationScript}</head><body><script type="module" src="/harness.js"></script></body></html>`);
 		}
 	});
 	const temporaryRoot = resolve(tmpdir());

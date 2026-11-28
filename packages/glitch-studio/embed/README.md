@@ -61,8 +61,6 @@ nodesEffectElement.setParameter('speed', 1.2);
 nodesEffectElement.setParameters({ speed: 0.5, color: [1, 0.2, 0, 1] });
 const speed = nodesEffectElement.getParameter('speed');
 nodesEffectElement.resetParameter('speed');
-nodesEffectElement.pause();
-nodesEffectElement.play();
 nodesEffectElement.restart();
 ```
 
@@ -78,14 +76,12 @@ nodesEffectElement.restart();
 | `resolution-scale` | 書き出し設定。初期値1 |
 | `max-pixels` | 書き出し設定。初期値8,294,400 |
 | `fps-limit` | `auto`または正の数値。省略時は書き出し設定。初期値は自動 |
-| `paused` | 存在すれば時間を停止。`paused="false"`も停止 |
 
 `currentTime`は秒単位の読み取り専用値です。`ready`は接続ごとのPromiseでGPUと画像の初期化後に解決します。最初の描画完了を保証せず、動画・フォント・シェーダー準備の失敗は後から届く場合があります。
 
 | イベント | detail |
 | --- | --- |
 | `ready` | 初期化完了 |
-| `render` | `{ resolution: { width, height }, time }`。GPU処理完了、timeは秒 |
 | `error` | `{ message, fatal }`。fatalなら描画を停止し要素内にも表示 |
 
 ## 描画と寿命
@@ -93,15 +89,15 @@ nodesEffectElement.restart();
 - CSSで表示寸法を決めます。高さが未指定の場合だけ、書き出し時のプロジェクトの縦横比をCSSの`aspect-ratio`に使います。固定の出力解像度は保存しません。
 - ResizeObserverの物理ピクセル寸法に描画倍率を掛け、最大画素数・GPU上限で縦横比を保って縮小します。ノード自身の`auto`・固定解像度・倍率は保持します。これらによる中間テクスチャの大きさは`max-pixels`の対象外です。
 - テクスチャ出力と表示先の縦横比が異なる場合はcontainで表示し、余白は透明です。均一な色の出力は表示領域全体に描きます。作業色空間は既存のlinear sRGB・rgba16floatで、表示時に既存のCanvas出力規約へ変換します。
-- 時間は可視状態の経過時間を使い、フレーム数に依存しません。画面外・非表示ページ・0サイズ・`paused`では進めず、復帰時に飛ばしません。停止中もパラメータ・ポインター・サイズ更新は再描画します。
+- 作品時刻は初期化完了（`ready`）からの経過時間で、フレーム数に依存しません。画面外・非表示ページ・表示サイズゼロでは描画を休止し、作品時刻は進み続けます。復帰時はその時点の作品時刻で描画履歴をリセットし、最初のフレームの `timeDelta` をゼロにします。
 - FPS設定の初期値は「自動」です。内部の`fpsLimit: null`で表し、`requestAnimationFrame`の周期に追加の間引きを行いません。画面のリフレッシュレートが変わった場合も追従します。`fps-limit="auto"`は書き出し時に数値指定した設定も上書きし、属性を削除すると書き出し設定へ戻ります。
 - 数値指定のFPS制限は予定時刻の位相を保って間引きます。時刻の丸めに対して最大0.5msを許容し、60Hzで60fpsを指定した場合や表示周期が目標FPSで割り切れない場合も、不必要に描画回数を減らしません。GPU処理が遅れた場合は古い枠を捨て、一度に送るフレームは一つのままです。
 - 公開値の更新は変更時のフレームでWorkerへ送ります。フィールド値や配列要素の値を変更しても同じ配置を使います。描画解像度または束縛済みの配列長が変わると配置を再生成し、現在時刻を保持して履歴をリセットします。`restart()`は時間と履歴をリセットし、致命的エラー後の再初期化も行えます。
-- DOMからの削除でObserver・イベント・Worker・GPUリソースを解放します。再接続時はcanvasを作り直し、時刻と公開値を保持して履歴をリセットします。同一Document内の同期的なDOM移動では維持します。
+- DOMからの削除で作品時刻を止め、Observer・イベント・Worker・GPUリソースを解放します。再接続時はcanvasを作り直して履歴をリセットし、初期化完了後に削除前の時刻から進めます。公開値は再接続後も利用できます。同一Document内の同期的なDOM移動では維持します。
 - 一要素につき一Worker・一GPUDeviceです。GPU完了まで次のフレームを送らず、描画が遅い場合のキュー蓄積を防ぎます。
 - primary pointerの移動・押下を受け取り、`POINTER_POSITION`へ既存の等方座標規約で渡します。余白の位置も出力座標へ換算し、最後の位置を保持します。タッチのスクロールを妨げず、複数ポインター・筆圧・押下状態の新しい環境変数は追加しません。
 - 主ボタンや最初の指の`pointerdown`を直近16件保持し、押下位置と内容時刻をEffect共通の描画コンテキストの`pointerClicks`に新しい順で渡します。押下履歴は`restart()`または接続の解除で消去します。
-- primary pointerの連続した移動を、両端の位置と内容時刻を持つ線分の列として、Effect共通の描画コンテキストの`pointerStrokeSegments`に渡します。`pointermove`にまとめられた位置も`getCoalescedEvents()`で取得し、それぞれの取得時刻を内容時刻に換算します。ポインターの退出・キャンセルや指を離した位置で軌跡を区切り、一時停止中の移動は再開後に持ち越しません。
+- primary pointerの連続した移動を、両端の位置と内容時刻を持つ線分の列として、Effect共通の描画コンテキストの`pointerStrokeSegments`に渡します。`pointermove`にまとめられた位置も`getCoalescedEvents()`で取得し、それぞれの取得時刻を内容時刻に換算します。ポインターの退出・キャンセルや指を離した位置で軌跡を区切ります。描画を休止すると未描画の軌跡を破棄し、再開後の入力から新しい軌跡を作ります。
 - 音声入力は未接続です。Video Frameは同梱した動画Assetを読み出せます。Timeline・音声出力・タイルレンダリング・パフォーマンス統計は含めません。
 - Nodes Effect内の環境変数は`IS_EXPORT=false`、`END_TIME=Infinity`、`PROGRESS=0`です。
 

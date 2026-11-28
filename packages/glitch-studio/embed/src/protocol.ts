@@ -29,7 +29,7 @@ export type PortableNodesEffectRequest =
 
 export type PortableNodesEffectResponse =
 	| { type: 'ready' }
-	| { type: 'frame'; resolution: Resolution; time: number }
+	| { type: 'frameComplete' }
 	| { type: 'error'; message: string };
 
 /** GPU限界でも片軸だけを切り詰めず、公開座標の縦横比を維持する。 */
