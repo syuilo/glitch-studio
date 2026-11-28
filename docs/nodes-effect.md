@@ -42,7 +42,7 @@ InからOutへ繋いだ入力は、中継ノードを経由する場合も、テ
 
 ## Webへの書き出し
 
-Nodes Effectエディタの「その他」から、HTML + JavaScriptのZIPまたは単一HTMLとして書き出せます。描画の実行先は既定のワーカーまたはメインスレッドを選べます。Web Component・選択した実行先のレンダラー・使用するCustom Shader Effect・参照Assetを同梱し、HTTPSまたはlocalhost上のWebGPU対応Chromeでエディタなしに再生します。ZIPでは素材原本を`assets/`に格納し、単一HTMLではBase64でHTMLに含めます。
+Nodes Effectエディタの「その他」から、HTML + JavaScriptのZIPまたは単一HTMLとして書き出せます。描画の実行先はメインスレッドが既定で、ワーカーも選べます。Web Component・選択した実行先のレンダラー・使用するCustom Shader Effect・参照Assetを同梱し、HTTPSまたはlocalhost上のWebGPU対応Chromeでエディタなしに再生します。ZIPでは素材原本を`assets/`に格納し、単一HTMLではBase64でHTMLに含めます。
 
 表示寸法は埋め込み先のCSSで決まります。描画寸法は物理ピクセルに描画倍率を掛け、固定の画素数上限とGPUのテクスチャ寸法上限に収まるように縮小します。描画倍率とFPSは書き出し時に設定します。埋め込み先で公開値を変更するには、`setParameter` / `setParameters` APIを使います。primary pointerの位置を既存の`POINTER_POSITION`へ渡します。音声入力は未接続で、タイルレンダリングは行いません。
 

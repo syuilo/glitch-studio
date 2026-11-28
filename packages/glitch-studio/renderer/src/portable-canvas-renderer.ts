@@ -1,6 +1,7 @@
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import colorSpaceCode from '@gs/shared/gpu/color-space.wgsl?raw';
 import outputCode from './canvas-output.wgsl?raw';
+import fragmentCode from './portable-canvas-fragment.wgsl?raw';
 import { createCanvasOutputConfigurator, createGpuPreviewCanvasOutputSettings } from './canvas-output.ts';
 
 /** 埋め込み用の表示境界。エディタの露出・解析・警告表示を持たず、色のencode規約だけを共有する。 */
@@ -20,12 +21,7 @@ export class PortableCanvasRenderer {
 			layout: 'auto',
 			vertex: { module: device.createShaderModule({ code: vertexCode }) },
 			fragment: {
-				module: device.createShaderModule({ code: `${colorSpaceCode}\n${outputCode}\n
-@group(0) @binding(0) var image: texture_2d<f32>;
-@group(0) @binding(1) var imageSampler: sampler;
-@fragment fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
-	return encodeCanvasOutput(textureSample(image, imageSampler, vec2f(uv.x, -uv.y) * 0.5 + vec2f(0.5)));
-}` }),
+				module: device.createShaderModule({ code: `${colorSpaceCode}\n${outputCode}\n${fragmentCode}` }),
 				entryPoint: 'fs', constants: { canvasOutputWideGamut: 1 }, targets: [{ format: output.format }],
 			},
 		});

@@ -108,11 +108,11 @@ test('validates handwritten public JSON while preserving HDR colors and nested v
 	assert.throws(() => parseParameters('{"Tracks":[{"audio":{"type":"player","playerId":"mic"}}]}'), /Invalid audioSource/);
 });
 
-// 【初期値の自動と数値指定を切り替えても、入力した上限を失わない】
+// 【描画の初期値はメインスレッド・自動FPSで、数値指定に戻しても入力した上限を失わない】
 // 自動を0fpsとして扱わず、カスタムの入力エラーはそのモードだけで書き出しを止める。
-test('defaults to automatic pacing and retains the custom limit across mode changes', t => {
+test('defaults to main-thread rendering with automatic pacing and preserves the custom limit', t => {
 	const f = fixture(t);
-	assert.equal(f.input.executionTarget, 'worker');
+	assert.equal(f.input.executionTarget, 'mainThread');
 	assert.equal(f.input.fpsMode, 'auto');
 	assert.equal(f.input.settings.fpsLimit, null);
 	f.input.fpsMode = 'custom';
@@ -137,14 +137,14 @@ test('saves one HTML snapshot despite edits and duplicate requests during asset 
 		async arrayBuffer() { started.resolve(); await released.promise; return super.arrayBuffer(); }
 	}(['original asset']));
 	f.input.format = 'html';
-	f.input.executionTarget = 'mainThread';
+	f.input.executionTarget = 'worker';
 	f.input.initialParameters = '{"speed":2}';
 	f.input.resolutionScale = 0.5;
 	const downloading = f.input.download();
 	await started.promise;
 	assert.equal(applicationActivity.isExporting.value, true);
 	f.input.format = 'zip';
-	f.input.executionTarget = 'worker';
+	f.input.executionTarget = 'mainThread';
 	f.input.initialParameters = '{"speed":9}';
 	f.input.resolutionScale = 0.25;
 	f.input.fpsMode = 'custom';
@@ -156,14 +156,14 @@ test('saves one HTML snapshot despite edits and duplicate requests during asset 
 	assert.equal(f.downloads.length, 1);
 	assert.equal(f.downloads[0].name, 'Nodes Effect.html');
 	const html = await f.downloads[0].blob.text();
-	assert.doesNotMatch(html, /test worker/);
+	assert.match(html, /test worker/);
 	const artwork = readArtwork(html.match(/<script type="module">([\s\S]*?)<\/script>/)[1]);
 	assert.deepEqual({ ...artwork.settings }, { resolutionScale: 0.5, fpsLimit: null });
 	assert.equal(artwork.initialParameters.speed, 2);
 	assert.equal(Buffer.from(artwork.assets[0].fileDataBase64, 'base64').toString(), 'original asset');
 	const buildCalls = f.calls.filter(call => Array.isArray(call) && call[0] === 'build');
 	assert.equal(buildCalls.length, 1);
-	assert.equal(buildCalls[0][2].executionTarget, 'mainThread');
+	assert.equal(buildCalls[0][2].executionTarget, 'worker');
 	assert.deepEqual(f.calls.find(call => Array.isArray(call) && call[0] === 'build')[2].parameterFeatures, ['keyframes']);
 	assert.deepEqual(f.calls.slice(-2), ['finish', 'release']);
 });
@@ -201,6 +201,7 @@ test('recovers from activity rejection and invalid public values and saves a com
 	assert.deepEqual([...entries.keys()], ['index.html', 'artwork.js', 'README.md', 'assets/1.png']);
 	assert.equal(entries.get('assets/1.png'), 'asset');
 	assert.match(entries.get('index.html'), /src="\.\/artwork.js"/);
+	assert.doesNotMatch(entries.get('artwork.js'), /test worker/);
 	// VMで登録引数だけを取り出す。モジュールURLでの解決はembedのブラウザテストで通す。
 	const artwork = readArtwork(entries.get('artwork.js').replace('import.meta.url', '"https://example.test/artwork.js"'));
 	assert.equal(artwork.assets[0].fileDataPath, 'assets/1.png');

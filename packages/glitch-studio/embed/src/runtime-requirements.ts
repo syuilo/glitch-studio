@@ -16,6 +16,7 @@ export type PortableNodesEffectRuntimeRequirements = {
 };
 
 export type PortableNodesEffectExecutionTarget = 'worker' | 'mainThread';
+export const DEFAULT_PORTABLE_NODES_EFFECT_EXECUTION_TARGET = 'mainThread' satisfies PortableNodesEffectExecutionTarget;
 
 export type PortableNodesEffectRuntimeBuildRequest = PortableNodesEffectRuntimeRequirements & {
 	executionTarget: PortableNodesEffectExecutionTarget;

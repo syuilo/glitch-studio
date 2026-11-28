@@ -69,21 +69,28 @@ test('bundles only selected runtime capabilities from a self-contained catalog',
 		for (const input of Object.keys(output.inputs)) assert.doesNotMatch(input, excludedRenderingModules);
 	}
 	const requirements = { effectIds: ['fill'], requiresExpressions: false, requiresCustomShaderEffects: false, parameterFeatures: [] };
+	const workerRequirements = { ...requirements, executionTarget: 'worker' };
 	const metadata = [];
-	const plain = await buildPortableNodesEffectRuntime(directory, requirements, (_name, result) => metadata.push(result));
+	const plain = await buildPortableNodesEffectRuntime(directory, workerRequirements, (_name, result) => metadata.push(result));
 	// 【実行先ごとに選んだ起動経路だけを同梱する】
 	// ワーカー実行でElement側にループが残ったり、メインスレッド版がBlob Workerを要求したりすると用途が失われる。
 	assert.doesNotMatch(plain.elementSource, /requestAnimationFrame|onSubmittedWorkDone/);
 	assert.match(plain.workerSource, /requestAnimationFrame/);
-	const mainThread = await buildPortableNodesEffectRuntime(directory, { ...requirements, executionTarget: 'mainThread' });
+	// 【実行先を省略した作品はメインスレッドで描画する】
+	// UIと同じ既定値を使い、Workerを明示した作品だけがWorkerソースを持つことを確認する。
+	const mainThread = await buildPortableNodesEffectRuntime(directory, requirements);
 	assert.equal(mainThread.workerSource, null);
 	assert.match(mainThread.elementSource, /requestAnimationFrame|onSubmittedWorkDone/);
 	assert.ok(!/new Worker\(/.test(mainThread.elementSource), 'the main-thread bundle must not create a worker');
 	assert.doesNotMatch(plain.elementSource + plain.workerSource, /AiScript|VideoSampleSink|Expression is empty|fn gs_fragment/);
 	assert.doesNotMatch(plain.workerSource, /maximumTilePixels|timestamp-query|Tiled rendering is already in progress/);
-	// 【通常のWGSL文字列も圧縮した状態でWorkerへ同梱する】
-	// Fillの描画で共有する色変換は?raw由来なので、?shaderとは別の読み込み経路も確認する。
-	assert.match(plain.workerSource, /fn colorSrgbToLinear\(rgb: vec3f\) -> vec3f \{ let magnitude/);
+	// 【Canvasの表示に使うWGSLはどちらの実行先でも圧縮する】
+	// 共通の色変換に加え、TypeScriptに直接書かれて圧縮を通らなかった表示用fragmentも確認する。
+	const compactedCanvasFragment = /@fragment fn fs\(@location\(0\) uv: vec2f\) -> @location\(0\) vec4f \{ return encodeCanvasOutput\(/;
+	for (const source of [mainThread.elementSource, plain.workerSource]) {
+		assert.match(source, /fn colorSrgbToLinear\(rgb: vec3f\) -> vec3f \{ let magnitude/);
+		assert.ok(compactedCanvasFragment.test(source), 'portable canvas fragment shader must be compacted');
+	}
 	// 【式の結果検証と登録IDの静的検証を配布ランタイムへ戻さない】
 	// エディタでは使う検証器も、描画の依存へ置くと未使用型の検証まで同梱されてしまう。
 	// 式を使う作品でも戻り値の型は検査せず、登録の正しさは書き出し時に保証する。
@@ -93,7 +100,7 @@ test('bundles only selected runtime capabilities from a self-contained catalog',
 		assert.ok(Object.keys(result.inputs).filter(file => file.includes('/effects/')).every(file => file.includes('/effects/fill/')));
 		assert.ok(Object.values(result.outputs).every(output => output.imports.length === 0));
 	}
-	const expressions = await buildPortableNodesEffectRuntime(directory, { ...requirements, requiresExpressions: true });
+	const expressions = await buildPortableNodesEffectRuntime(directory, { ...workerRequirements, requiresExpressions: true });
 	assert.match(expressions.workerSource, /Expression is empty/);
 	assert.doesNotMatch(expressions.workerSource, excludedValidationMessages);
 	assert.equal(expressions.elementSource, plain.elementSource);
@@ -106,33 +113,33 @@ test('bundles only selected runtime capabilities from a self-contained catalog',
 		['random', /RANDOM requires/, /NOISE requires|FUNCTION_CURVE requires|bezierControlPointA/],
 		['noise', /NOISE requires/, /RANDOM requires|FUNCTION_CURVE requires|bezierControlPointA/],
 	]) {
-		const runtime = await buildPortableNodesEffectRuntime(directory, { ...requirements, requiresExpressions: true, parameterFeatures: [feature] });
+		const runtime = await buildPortableNodesEffectRuntime(directory, { ...workerRequirements, requiresExpressions: true, parameterFeatures: [feature] });
 		assert.match(runtime.workerSource, included);
 		assert.doesNotMatch(runtime.workerSource, excluded);
 	}
-	const keyframes = await buildPortableNodesEffectRuntime(directory, { ...requirements, parameterFeatures: ['keyframes'] });
+	const keyframes = await buildPortableNodesEffectRuntime(directory, { ...workerRequirements, parameterFeatures: ['keyframes'] });
 	assert.match(keyframes.workerSource, /trimmedDurationMs/);
 	assert.doesNotMatch(keyframes.workerSource, /bezierControlPointA|dutyCycle|7\.5625/);
-	const bezier = await buildPortableNodesEffectRuntime(directory, { ...requirements, parameterFeatures: ['curveAnimation', 'bezier'] });
+	const bezier = await buildPortableNodesEffectRuntime(directory, { ...workerRequirements, parameterFeatures: ['curveAnimation', 'bezier'] });
 	assert.match(bezier.workerSource, /bezierControlPointA/);
 	assert.doesNotMatch(bezier.workerSource, /dutyCycle|7\.5625/);
-	const presets = await buildPortableNodesEffectRuntime(directory, { ...requirements, parameterFeatures: ['curveAnimation', 'fixedFunctionCurve', 'easing'] });
+	const presets = await buildPortableNodesEffectRuntime(directory, { ...workerRequirements, parameterFeatures: ['curveAnimation', 'fixedFunctionCurve', 'easing'] });
 	assert.match(presets.workerSource, /dutyCycle/);
 	assert.match(presets.workerSource, /7\.5625/);
 	assert.doesNotMatch(presets.workerSource, /bezierControlPointA/);
-	const shaders = await buildPortableNodesEffectRuntime(directory, { ...requirements, requiresCustomShaderEffects: true });
+	const shaders = await buildPortableNodesEffectRuntime(directory, { ...workerRequirements, requiresCustomShaderEffects: true });
 	assert.match(shaders.workerSource, /fn gs_fragment/);
 	assert.doesNotMatch(shaders.workerSource, /Expression is empty/);
 	assert.ok(expressions.workerSource.length > plain.workerSource.length + 50000);
 	// 【内蔵画像は必要なエフェクトと一緒に同梱する】
 	// 公開値から選べる全セットを持ちつつ、Symbolsを使わない作品へ画像を混入させない。
-	const symbols = await buildPortableNodesEffectRuntime(directory, { ...requirements, effectIds: ['symbols'] });
+	const symbols = await buildPortableNodesEffectRuntime(directory, { ...workerRequirements, effectIds: ['symbols'] });
 	assert.match(symbols.workerSource, /data:image\/png;base64,/);
 	assert.doesNotMatch(symbols.workerSource, /BASE_URL/);
 	assert.doesNotMatch(plain.elementSource + plain.workerSource, /data:image\/png;base64,/);
 	// 【QRコードの符号化依存と利用許諾を、必要な作品のWorkerだけへ同梱する】
 	// 配布カタログから再ビルドした単独JSでも、npmの実行時参照や通知の欠落を残さない。
-	const qrCode = await buildPortableNodesEffectRuntime(directory, { ...requirements, effectIds: ['qrCode'] });
+	const qrCode = await buildPortableNodesEffectRuntime(directory, { ...workerRequirements, effectIds: ['qrCode'] });
 	assert.match(qrCode.workerSource, /rg8uint/);
 	assert.match(qrCode.workerSource, /Copyright \(c\) Project Nayuki/);
 	assert.match(qrCode.workerSource, /Permission is hereby granted/);
@@ -140,7 +147,7 @@ test('bundles only selected runtime capabilities from a self-contained catalog',
 	// 【どの組み込みエフェクトにもIIFE非対応の依存を残さない】
 	// 一部の作品だけ成功する回帰を防ぐため、カタログ全体を最終形式までビルドする。
 	const { effectIds } = JSON.parse(await readFile(path.join(directory, 'manifest.json'), 'utf8'));
-	const allEffects = await buildPortableNodesEffectRuntime(directory, { ...requirements, effectIds });
+	const allEffects = await buildPortableNodesEffectRuntime(directory, { ...workerRequirements, effectIds });
 	// 【合成された組み込みWGSLを圧縮し、元の著作権表記を保持する】
 	// Noiseは別ファイルにあるFlow Noiseを合成してから?shaderで読み込む。
 	assert.match(allEffects.workerSource, /fn flowNoisePermute\(value: vec4f\) -> vec4f \{ let wrapped/);
@@ -151,6 +158,6 @@ test('bundles only selected runtime capabilities from a self-contained catalog',
 	// 【ビルド時の警告を見落として壊れた成果物を保存しない】
 	// 配布カタログへVite専用参照が再混入した場合も、書き出しの段階で明示的に失敗させる。
 	await writeFile(path.join(directory, 'worker.js'), 'export function startPortableNodesEffectWorker() { console.log(import.meta.env.BASE_URL); }');
-	await assert.rejects(buildPortableNodesEffectRuntime(directory, requirements), error => error.errors?.some(entry => entry.id === 'empty-import-meta'));
+	await assert.rejects(buildPortableNodesEffectRuntime(directory, workerRequirements), error => error.errors?.some(entry => entry.id === 'empty-import-meta'));
 	t.diagnostic(`Fill without expressions: element ${plain.elementSource.length} bytes, worker ${plain.workerSource.length} bytes; worker with AiScript: ${expressions.workerSource.length} bytes`);
 });

@@ -19,6 +19,7 @@
 			data-test-web-export-execution-target
 		>
 			<template #label>{{ i18n.ts._NodesEffect.WebExportExecutionTarget }}</template>
+			<template #caption>{{ i18n.ts._NodesEffect.WebExportExecutionTargetCaption }}</template>
 		</GsSelect>
 		<GsInput
 			v-model="resolutionScale"
@@ -79,6 +80,7 @@
 import { computed, ref, useTemplateRef, onBeforeUnmount } from 'vue';
 import { createPortableNodesEffectFiles, encodePortableNodesEffect } from '@gs/glitch-studio_embed/export.ts';
 import { createPortableNodesEffectArchive } from '@gs/glitch-studio_embed/archive.ts';
+import { DEFAULT_PORTABLE_NODES_EFFECT_EXECUTION_TARGET } from '@gs/glitch-studio_embed/runtime-requirements.ts';
 import { validatePortableNodesEffectSettings } from '@gs/glitch-studio_shared/portable-nodes-effect.ts';
 import GsModal from './common/GsModal.vue';
 import GsSelect from './common/GsSelect.vue';
@@ -99,10 +101,10 @@ const formats = [
 	{ value: 'zip', label: i18n.ts._NodesEffect.WebExportZip },
 	{ value: 'html', label: i18n.ts._NodesEffect.WebExportHtml },
 ];
-const executionTarget = ref<PortableNodesEffectExecutionTarget>('worker');
+const executionTarget = ref<PortableNodesEffectExecutionTarget>(DEFAULT_PORTABLE_NODES_EFFECT_EXECUTION_TARGET);
 const executionTargets = [
-	{ value: 'worker', label: i18n.ts._NodesEffect.WebExportWorker },
 	{ value: 'mainThread', label: i18n.ts._NodesEffect.WebExportMainThread },
+	{ value: 'worker', label: i18n.ts._NodesEffect.WebExportWorker },
 ];
 // 開いた時点の設定を編集する。外側のプロジェクト編集には追従させない。
 const resolutionScale = ref(props.prepared.settings.resolutionScale);

@@ -31,7 +31,7 @@ Nodes Effectをエディタから独立したWeb Componentとして配布するG
 
 どちらも画像・動画・フォント・LUTなどの参照Asset原本を含みます。CDNやエディタへの接続は不要です。元ファイルのパスとデバイス識別子は含めません。Native Effectは配置されている種類だけを同梱します。登録型・インライン型のCustom Effectを再帰的にたどり、参照された登録定義を種類・IDごとに一度ずつ同梱します。出力からの到達性やバイパスによるノード削除は行いません。タグ名は書き出しごとのUUIDを持ち、別作品との登録衝突を避けます。
 
-書き出し時に描画の実行先を選びます。既定はワーカーです。メインスレッドを選んだ場合は、Custom Elementと同じスレッドで描画を始めます。
+書き出し時に描画の実行先を選びます。既定はメインスレッドで、Custom Elementと同じスレッドで描画を始めます。
 
 HTTPSまたはlocalhost上のWebGPU対応Chromeを対象にします。COOP/COEPによるcross-origin isolationは必要ありません。配信先のCSPでは成果物のscriptとコンポーネントのインラインstyleを許可します。ワーカー実行を選んだ場合は`worker-src`で`blob:`も許可します。ZIPに素材がある場合は`connect-src`でも素材の配信元を許可してください。別オリジンへ埋め込む場合、JavaScriptと素材の配信サーバーは埋め込み先からのCORSリクエストを許可する必要があります。単一HTMLはインラインscriptの許可も必要です。式の評価に`unsafe-eval`は使いません。HTML + JavaScriptを`file://`で直接開く使い方は対象外です。
 

@@ -849,6 +849,7 @@
 		"WebExportZip": "HTML＋JavaScript（ZIP）",
 		"WebExportHtml": "単一HTMLファイル",
 		"WebExportExecutionTarget": "描画の実行先",
+		"WebExportExecutionTargetCaption": "ワーカーにすると、レンダリングの準備処理が別スレッドで行われ、複雑なNodes Effectを表示する際の負荷をメインスレッドから分離できます。ただし、メモリ使用量が増加するほか、初回レンダリングまでの待ち時間が増えるなどのコストが発生します。",
 		"WebExportWorker": "ワーカー",
 		"WebExportMainThread": "メインスレッド",
 		"WebExportScale": "描画倍率",

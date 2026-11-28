@@ -2,10 +2,11 @@ import { build } from 'esbuild';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { portableParameterDefines } from '../src/parameter-features.ts';
+import { DEFAULT_PORTABLE_NODES_EFFECT_EXECUTION_TARGET } from '../src/runtime-requirements.ts';
 
 /** パス・ソースコード・ビルド設定は受け取らず、同梱カタログ内の機能だけを選ぶ。 */
 export function validatePortableNodesEffectRuntimeRequirements(requirements, effectIds) {
-	const executionTarget = requirements?.executionTarget ?? 'worker';
+	const executionTarget = requirements?.executionTarget ?? DEFAULT_PORTABLE_NODES_EFFECT_EXECUTION_TARGET;
 	if (requirements == null || !Array.isArray(requirements.effectIds)
 		|| requirements.effectIds.some(id => typeof id !== 'string' || !effectIds.includes(id))
 		|| !Array.isArray(requirements.parameterFeatures)

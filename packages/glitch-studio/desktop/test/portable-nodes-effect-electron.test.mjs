@@ -37,23 +37,24 @@ test('builds portable runtimes in a real Electron utility process', { skip: proc
 				${JSON.stringify(workerPath)}, ${JSON.stringify(catalog)}, () => {}, ${JSON.stringify(binary)});
 			const build = (id, requirements) => handlers.get('desktop:build-portable-nodes-effect')(event, id, requirements);
 			const requirements = { effectIds: ['fill'], requiresExpressions: false, requiresCustomShaderEffects: false, parameterFeatures: [] };
+			const workerRequirements = { ...requirements, executionTarget: 'worker' };
 			const canceled = build('canceled', requirements);
 			handlers.get('desktop:cancel-portable-nodes-effect')(event, 'canceled');
 			await assert.rejects(canceled, /canceled/);
-			const runtime = await build('complete', requirements);
+			const runtime = await build('complete', workerRequirements);
 			assert.doesNotMatch(runtime.workerSource, /AiScript|VideoSampleSink|fn gs_fragment/);
 			assert.ok(runtime.workerSource.length > 1000);
-			const mainThread = await build('main-thread', { ...requirements, executionTarget: 'mainThread' });
+			const mainThread = await build('main-thread', requirements);
 			assert.equal(mainThread.workerSource, null);
 			assert.match(mainThread.elementSource, /requestAnimationFrame/);
 			// Native Effectを含まない作品でもShader用の入口と式評価器を配布資材から解決できる。
-			const shader = await build('shader', { effectIds: [], requiresExpressions: true, requiresCustomShaderEffects: true, parameterFeatures: ['noise'] });
+			const shader = await build('shader', { ...workerRequirements, effectIds: [], requiresExpressions: true, requiresCustomShaderEffects: true, parameterFeatures: ['noise'] });
 			assert.match(shader.workerSource, /fn gs_fragment/);
 			assert.match(shader.workerSource, /Expression is empty/);
 			assert.match(shader.workerSource, /NOISE requires/);
 			assert.doesNotMatch(shader.workerSource, /RANDOM requires/);
 			// 内蔵画像も配布カタログだけから取得でき、Viteの実行環境を要求しない。
-			const symbols = await build('symbols', { ...requirements, effectIds: ['symbols'] });
+			const symbols = await build('symbols', { ...workerRequirements, effectIds: ['symbols'] });
 			assert.match(symbols.workerSource, /data:image\\/png;base64,/);
 			assert.doesNotMatch(symbols.workerSource, /BASE_URL/);
 			await assert.rejects(build('invalid', { ...requirements, effectIds: ['../expression'] }), /Invalid/);

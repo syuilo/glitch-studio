@@ -849,6 +849,7 @@
 		"WebExportZip": "HTML + JavaScript (ZIP)",
 		"WebExportHtml": "Single HTML file",
 		"WebExportExecutionTarget": "Rendering thread",
+		"WebExportExecutionTargetCaption": "Using a worker moves rendering preparation to a separate thread, keeping that work off the main thread when displaying complex Nodes Effects. This can increase memory usage and delay the first rendered frame.",
 		"WebExportWorker": "Worker",
 		"WebExportMainThread": "Main thread",
 		"WebExportScale": "Rendering scale",
