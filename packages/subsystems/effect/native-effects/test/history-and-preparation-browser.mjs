@@ -43,8 +43,10 @@ export async function trailFrameRate(id, enable32bitDataTextures) {
 			...(id === 'positionTrail' ? { position: { kind: 'value', get value() { return position; } } } : {}),
 		}, { resolution });
 		const draw = (time, timeDelta, sample) => {
+			const start = position;
 			position = sample;
-			render(instance, { time, timeDelta, pointerPosition: sample });
+			const pointerStrokeSegments = id === 'pointerTrail' && timeDelta > 0 ? [{ start, end: sample, startTime: time - timeDelta / 1000, endTime: time }] : [];
+			render(instance, { time, timeDelta, pointerStrokeSegments });
 		};
 		const readPort = port => read(instance.outputs.get(port).texture);
 		const centerRowOffset = 4 * resolution.width * Math.floor(resolution.height / 2);
@@ -90,19 +92,49 @@ export async function trailFrameRate(id, enable32bitDataTextures) {
 export async function pointerTrailMissingInput() {
 	await withGpu(async ({ create, render, read }) => {
 		const instance = await create({ type: 'nativeEffect', id: 'pointerTrail' }, ['scalar']);
-		const draw = (time, timeDelta, pointerPosition) => render(instance, { time, timeDelta, pointerPosition });
 		const samples = async () => (await read(instance.outputs.get('scalar').texture)).filter((_, index) => index % 4 === 0);
 		try {
-			draw(0, 0, [-0.4, 0]);
-			draw(0.02, 20, [0.4, 0]);
+			render(instance, { time: 0.02, timeDelta: 20, pointerPosition: [0.4, 0],
+				pointerStrokeSegments: [{ start: [-0.4, 0], end: [0.4, 0], startTime: 0, endTime: 0.02 }],
+			});
 			const trail = await samples();
 			check(trail.some(value => value > 0), 'motion before missing input');
-			draw(0.32, 300, [-99999, -99999]);
-			draw(0.32, 0, [-0.4, 0]);
-			(await samples()).forEach((value, index) => near(value, trail[index] / 2, 'history decays without connecting across missing input'));
+			render(instance, { time: 0.32, timeDelta: 300, pointerPosition: [-0.4, 0], pointerStrokeSegments: [] });
+			(await samples()).forEach((value, index) => near(value, trail[index] / 2, 'empty segments only decay history'));
+			render(instance, { time: 0.62, timeDelta: 300, pointerPosition: [0.4, 0] });
+			(await samples()).forEach((value, index) => near(value, trail[index] / 4, 'absent segments only decay history'));
 		} finally {
 			instance.dispose();
 		}
+	});
+}
+
+export async function pointerTrailSegments() {
+	await withGpu(async ({ create, render, read }) => {
+		const resolution = { width: 65, height: 65 };
+		const instance = await create({ type: 'nativeEffect', id: 'pointerTrail' }, ['output', 'scalar'], {
+			radius: { kind: 'value', value: 0.035 }, halfLife: { kind: 'value', value: 300 },
+		}, { resolution });
+		const point = (x, y) => [x / resolution.width, y / resolution.height];
+		const indexAt = (x, y) => ((32 - y) * resolution.width + 32 + x) * 4;
+		try {
+			const passCount = render(instance, { time: 0.41, timeDelta: 410, pointerStrokeSegments: [
+				{ start: point(-20, 12), end: point(-3, 12), startTime: 0.01, endTime: 0.11 },
+				{ start: point(-3, 12), end: point(-3, 20), startTime: 0.11, endTime: 0.15 },
+				{ start: point(-20, -12), end: point(-3, -12), startTime: 0.31, endTime: 0.41 },
+			] });
+			check(passCount === 1, 'a batch of segments accumulates in one render pass');
+			const vector = await read(instance.outputs.get('output').texture);
+			const scalar = await read(instance.outputs.get('scalar').texture);
+			const early = indexAt(-12, 12);
+			const late = indexAt(-12, -12);
+			const corner = indexAt(-3, 17);
+			const gap = indexAt(-12, 0);
+			check(scalar[early] > 0.01 && vector[early] > 0.01 && vector[corner + 1] > 0.01, 'both directions of the corner are present');
+			check(scalar[gap] === 0, 'separate strokes do not connect across the gap');
+			near(scalar[early], scalar[late] / 2, 'older scalar segment decays for an extra half life');
+			near(vector[early], vector[late] / 2, 'older vector segment decays for an extra half life');
+		} finally { instance.dispose(); }
 	});
 }
 

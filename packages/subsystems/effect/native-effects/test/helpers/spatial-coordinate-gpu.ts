@@ -1,6 +1,7 @@
 import { nativeEffectProbe } from './native-effect-probe.ts';
 import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
+import type { EffectFrameContext } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import transformDefinitionSource from '../../src/fx/transform/_def_.ts';
 import transformNative from '../../src/fx/transform/_impl_.ts';
 import displacementDefinitionSource from '../../src/fx/vectorDisplacement/_def_.ts';
@@ -80,10 +81,10 @@ export async function run() {
 		const bytesPerRow = Math.ceil(width * 16 / 256) * 256;
 		const buffer = device.createBuffer({ size: bytesPerRow * height, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
 		resources.push(() => { instance.dispose(); copy.destroy(); buffer.destroy(); });
-		return async (overrides: Record<string, any>, pointerPosition = { x: 0, y: 0 }, timeDelta = 16) => {
+		return async (overrides: Record<string, any>, timeDelta = 16, pointerStrokeSegments?: EffectFrameContext['pointerStrokeSegments']) => {
 			const encoder = device.createCommandEncoder();
 			await instance.draw({ params: { ...defaults, ...overrides }, outputs: outputs, commandEncoder: encoder, time: 0, timeDelta,
-				pointerPosition,
+				pointerStrokeSegments,
 			});
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: copy.createView(), loadOp: 'clear', storeOp: 'store' }] });
 			pass.setPipeline(reader);
@@ -175,12 +176,11 @@ export async function run() {
 			const renderTrail = effect(trailDefinition, trail, 65, 33);
 			const renderPointer = effect(pointerDefinition, pointer, 65, 33);
 			await renderTrail({ position: [0, 0] });
-			await renderPointer({});
 			const [x, y] = axis === 0 ? [distance, 0] : [0, distance];
 			// 短辺基準にしても共通座標で半径が等しくなる値を指定し、移動や出力の単位が変わらないことを確認する。
 			const brush = { radius: radius * 65 / 33, sizeReference: 'shortSide', strength: 1 };
-			const positionField = await renderTrail({ ...brush, position: [x, y] }, { x: 0, y: 0 }, 0);
-			const pointerField = await renderPointer(brush, { x, y }, 0);
+			const positionField = await renderTrail({ ...brush, position: [x, y] }, 0);
+			const pointerField = await renderPointer(brush, 0, [{ start: [0, 0], end: [x, y], startTime: 0, endTime: 0 }]);
 			for (const readField of [positionField, pointerField]) {
 				const pixel = readField(axis === 0 ? 40 : 32, axis === 0 ? 16 : 8);
 				near(pixel[axis], expected, 'integrated trail along the axis');

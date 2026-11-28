@@ -23,6 +23,10 @@ for (const id of ['pointerTrail', 'positionTrail']) {
 // ポインターが再び有効になっても、途切れる前の履歴には経過時間分の減衰だけを適用する。
 test('decays pointer trail history without bridging missing input', options, () => runEffectGpuTest(entry, 'pointerTrailMissingInput'));
 
+// 【同じフレームに届いた曲がり角・ストロークの切れ目・線分ごとの時刻を使う】
+// フレーム両端の位置からは復元できない形状を読み戻し、半減期ぶん古い線分の強さが半分になることも確認する。
+test('accumulates separate timed pointer segments in one render pass', options, () => runEffectGpuTest(entry, 'pointerTrailSegments'));
+
 // 【QR Codeで符号化に失敗しても直前の有効な内容に戻せる】
 // セルの寸法だけが壊れると、同じ内容のキャッシュを再利用した次の描画が空になる。
 test('restores previously encoded QR cells after an encoding failure', options, () => runEffectGpuTest(entry, 'recoverQrCode'));

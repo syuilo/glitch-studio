@@ -10,9 +10,7 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 		return {
 			...history,
 			render(ctx) {
-				const position = ctx.pointerPosition;
-				const isMissing = position == null || (position[0] <= -999 && position[1] <= -999);
-				history.render(ctx, isMissing ? null : position, params);
+				history.render(ctx, ctx.pointerStrokeSegments ?? [], params);
 			},
 		};
 	},

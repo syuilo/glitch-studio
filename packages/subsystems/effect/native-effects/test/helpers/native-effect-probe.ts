@@ -1,6 +1,6 @@
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
-import type { EffectGpuContext, EffectParameterInput, EffectRenderOperation, NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
+import type { EffectFrameContext, EffectGpuContext, EffectParameterInput, EffectRenderOperation, NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import { createTestInputs } from './native-inputs.ts';
 
 export type TestOutputTextures<Outputs> = { [Port in keyof Outputs]?: GPUTexture };
@@ -35,7 +35,8 @@ export function nativeEffectProbe(definition: EffectDefinition, implementation: 
 			return {
 				async draw(options: { params: Record<string, unknown>; outputs: Record<string, GPUTexture>; usedOutputPorts?: ReadonlySet<string>;
 					commandEncoder: GPUCommandEncoder; time?: number; timeDelta?: number;
-					pointerPosition?: { x: number; y: number }; pointerVector?: { x: number; y: number } }) {
+					pointerPosition?: { x: number; y: number }; pointerVector?: { x: number; y: number };
+					pointerStrokeSegments?: EffectFrameContext['pointerStrokeSegments'] }) {
 					values = options.params;
 					const inputs = createTestInputs(definition.paramDefs, () => values);
 					const ports = options.usedOutputPorts ?? Object.keys(options.outputs);
@@ -54,9 +55,9 @@ export function nativeEffectProbe(definition: EffectDefinition, implementation: 
 						new Map(Array.from(textures.keys(), port => [port, texture => { published.set(port, texture); }])));
 						layout = nextLayout;
 					}
-					const { time = 0, timeDelta = 0, pointerPosition, pointerVector, commandEncoder } = options;
+					const { time = 0, timeDelta = 0, pointerPosition, pointerVector, pointerStrokeSegments, commandEncoder } = options;
 					const frame = { time, timeDelta, pointerPosition: pointerPosition == null ? undefined : [pointerPosition.x, pointerPosition.y] as const,
-						pointerVector: pointerVector == null ? undefined : [pointerVector.x, pointerVector.y] as const };
+						pointerVector: pointerVector == null ? undefined : [pointerVector.x, pointerVector.y] as const, pointerStrokeSegments };
 					await operation.prepare?.(frame, controller.signal);
 					operation.render({ ...frame, commandEncoder });
 				},

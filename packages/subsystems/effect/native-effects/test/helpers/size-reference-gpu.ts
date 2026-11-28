@@ -297,7 +297,9 @@ export async function run() {
 				for (const sizeReference of ['height', 'width', 'shortSide', 'longSide']) {
 					params.sizeReference = sizeReference;
 					const encoder = device.createCommandEncoder();
-					await effect.draw({ params, commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0.1, y: 0 }, outputs });
+					await effect.draw({ params, commandEncoder: encoder, time: 0, timeDelta: 0, pointerPosition: { x: 0, y: 0 }, pointerVector: { x: 0.1, y: 0 }, outputs,
+						pointerStrokeSegments: definition.id === 'pointerTrail' ? [{ start: [-0.1, 0], end: [0, 0], startTime: 0, endTime: 0 }] : undefined,
+					});
 					device.queue.submit([encoder.finish()]);
 					for (const [port, output] of Object.entries(outputs)) {
 						const copy = device.createCommandEncoder();
