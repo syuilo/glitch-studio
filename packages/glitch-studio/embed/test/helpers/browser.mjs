@@ -83,7 +83,7 @@ async function checkPointerdownBand(element, pointerType) {
 	await playUntil(0.12);
 	check(await bandCenter(canvas) === null, 'pointer movement leaves the band empty: ' + label);
 	const pressTime = element.currentTime;
-	// pointerupやclickを送らず、押下時点でWorkerが帯の発生源を保持することを確かめる。
+	// pointerdownだけを送り、押下位置がこの時点でEffectに届くことを出力画素で確認する。
 	dispatchPointer('pointerdown', 1);
 	await playUntil(pressTime + 0.16);
 	const center = await bandCenter(canvas);

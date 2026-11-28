@@ -75,8 +75,8 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	const pointer = fixture();
 	pointer.nodesEffect.nodes[0].params.color.expression = '[POINTER_POSITION[0] + 0.5, POINTER_POSITION[1] + 0.5, 0, 1]';
 	await add('pointer', pointer);
-	// 【固定解像度のClick RippleとClick GradientをCSSの表示領域にcontainする】
-	// 画像の縦横比とCanvasの縦横比を変え、押下座標が表示位置に対応することを実際の画素で検証する。
+	// 【Web Componentの押下位置を表示中の出力に対応させる】
+	// 固定解像度の出力をcontainで表示し、押下位置が表示中の画像上の座標に対応することを、検証用グラフの出力画素で確認する。
 	for (const [name, effectId, definition, outputPort] of [
 		['ripple', 'clickRipple', clickRipple, 'mask'],
 		['clickgradient', 'clickGradient', clickGradient, 'scalar'],
@@ -94,8 +94,9 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 		band.nodesEffect.outputSources = { output: { nodeId: 'colorize', outputPort: 'output' } };
 		await add(name, band);
 	}
-	// 【描画間に通過した軌跡がWeb Componentでも画像を連続して歪ませる】
-	// DOMで取得した位置からWorkerの変位場までを通し、離れた位置での再進入やrestartも確認する。
+	// 【Web Componentは描画間に取得したポインターの軌跡をEffectへ渡す】
+	// DOMで取得した位置が軌跡全体の描画に反映されることを、検証用グラフの出力画素から確認する。
+	// 退出と再進入で軌跡が分かれ、restartで履歴が消えることも検証する。
 	const cursor = fixture();
 	const stripe = shaderDefinition('fn main(position: vec2f) -> Output { return Output(vec4f(vec3f(0.5 + 0.45 * sin(position.y * 100.0)), 1.0)); }');
 	const connect = nodeId => ({ inputSource: 'node', source: { nodeId, outputPort: 'output' }, sampling: { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' } });

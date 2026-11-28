@@ -118,7 +118,8 @@ test('sends primary canvas pointerdowns as normalized positions only in Effect L
 });
 
 // 【プレビューの軌跡をCanvas内の主ポインターに限定する】
-// 余白、指を離した後、別の指の位置を線分で結ぶと、画面を横切る意図しない波が発生する。
+// Canvas外や別の指の位置が混ざると、意図しない区間までEffectの軌跡入力に含まれる。
+// 指を離した時点で軌跡の終了を通知し、次の接触との間で軌跡を区切る。
 test('forwards stroke continuity only for the primary pointer over the preview image', async () => {
 	assert.match(template.content, /@pointerleave="endEffectPointerStroke"/);
 	assert.match(template.content, /@pointerup\.capture="onPreviewPointerup"/);
