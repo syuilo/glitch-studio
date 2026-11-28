@@ -94,7 +94,9 @@ canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0
 				if (event.isPrimary) renderer.update({ type: 'endPointerStroke', pointerId: event.pointerId });
 			};
 			canvas.addEventListener('pointerenter', pointer, { signal });
-			canvas.addEventListener('pointermove', pointer, { signal });
+			// 同じ移動のサンプルを二重に取り込まないよう、対応状況に応じて移動イベントを一方だけ購読する。
+			const pointerMoveEventType = 'onpointerrawupdate' in canvas ? 'pointerrawupdate' : 'pointermove';
+			canvas.addEventListener(pointerMoveEventType, event => pointer(event as PointerEvent), { passive: true, signal });
 			canvas.addEventListener('pointerdown', pointer, { signal });
 			canvas.addEventListener('pointerleave', endPointerStroke, { signal });
 			canvas.addEventListener('pointercancel', endPointerStroke, { signal });

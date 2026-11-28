@@ -81,6 +81,29 @@ async function bandCenter(canvas) {
 	return right < 0 ? null : [(left + right + 1) / (2 * width), (top + bottom + 1) / (2 * height)];
 }
 
+async function checkPointerPosition(element, moveEventType) {
+	const canvas = element.shadowRoot.querySelector('canvas');
+	const rect = canvas.getBoundingClientRect();
+	function dispatch(type, x, y) {
+		canvas.dispatchEvent(new PointerEvent(type, { isPrimary: true, pointerId: 1, pointerType: 'touch',
+			clientX: rect.left + rect.width * x, clientY: rect.top + rect.height * y }));
+	}
+	await rendered(element, () => {
+		dispatch(moveEventType, 0.75, 0.25);
+		dispatch(moveEventType === 'pointerrawupdate' ? 'pointermove' : 'pointerrawupdate', 0.25, 0.75);
+	});
+	let color = await pixel(element);
+	check(Math.abs(color[0] - 225) <= 2 && Math.abs(color[1] - 207) <= 2, element.localName + ' uses ' + moveEventType + ' in isotropic units: ' + color);
+	const resizedWidth = Math.round(100 * devicePixelRatio);
+	const resizedHeight = Math.round(200 * devicePixelRatio);
+	const hasResized = ({ width, height }) => width === resizedWidth && height === resizedHeight;
+	await rendered(element, () => { element.style.width = '100px'; element.style.height = '200px'; },
+		renderedFrame => hasResized(renderedFrame.resolution));
+	color = await pixelAfterUpdate(element, () => hasResized(canvas));
+	check(hasResized(canvas) && Math.abs(color[0] - 207) <= 2 && Math.abs(color[1] - 225) <= 2,
+		element.localName + ' uses the new output aspect on the resized canvas: ' + color);
+}
+
 async function checkPointerdownBand(element, pointerType) {
 	const canvas = element.shadowRoot.querySelector('canvas');
 	// 単一HTMLのiframeでも、入力の採取時刻をCanvasのDocumentと同じ時間原点にする。
@@ -96,7 +119,7 @@ async function checkPointerdownBand(element, pointerType) {
 	await rendered(element, () => {
 		element.style.cssText = 'display:block;width:200px;height:100px';
 	}, renderedFrame => renderedFrame.resolution.width === Math.round(200 * devicePixelRatio));
-	dispatchPointer('pointermove', 0);
+	dispatchPointer('pointerrawupdate', 0);
 	await delay(120);
 	check(await bandCenter(canvas) === null, 'pointer movement leaves the band empty: ' + label);
 	// pointerdownだけを送り、押下位置がこの時点でEffectに届くことを出力画素で確認する。
@@ -119,7 +142,7 @@ async function checkCursorRipples(element) {
 		const rect = canvas.getBoundingClientRect();
 		const eventAt = x => ({ isPrimary: true, pointerId: pointerType === 'mouse' ? 1 : 2, pointerType, buttons,
 			clientX: rect.left + rect.width * x, clientY: rect.top + rect.height * 0.5 });
-		const coalescedEvents = coalescedPositions.map(position => new PointerEvent('pointermove', eventAt(position)));
+		const coalescedEvents = coalescedPositions.map(position => new PointerEvent(type, eventAt(position)));
 		canvas.dispatchEvent(new PointerEvent(type, { ...eventAt(x), coalescedEvents }));
 	}
 	async function advance(action) {
@@ -132,7 +155,7 @@ async function checkCursorRipples(element) {
 	const flat = await columns();
 	await advance(() => {
 		dispatch('pointerenter', 0.1);
-		dispatch('pointermove', 0.9);
+		dispatch('pointerrawupdate', 0.9);
 	});
 	const changed = await columns();
 	check(changed.every((column, x) => column.some((value, index) => Math.abs(value - flat[x][index]) > 8)), 'fast pointer movement distorts every sampled column');
@@ -140,14 +163,14 @@ async function checkCursorRipples(element) {
 	check((await columns()).every((column, x) => column.every((value, index) => value === flat[x][index])), 'returning onscreen resets the waves');
 	await advance(() => {
 		dispatch('pointerenter', 0.1);
-		dispatch('pointermove', 0.1, 'mouse', 0, [0.9, 0.1]);
+		dispatch('pointerrawupdate', 0.1, 'mouse', 0, [0.9, 0.1]);
 	});
-	check((await columns()).every((column, x) => column.some((value, index) => Math.abs(value - flat[x][index]) > 8)), 'coalesced samples preserve an out-and-back stroke within one pointermove');
+	check((await columns()).every((column, x) => column.some((value, index) => Math.abs(value - flat[x][index]) > 8)), 'coalesced samples preserve an out-and-back stroke within one pointerrawupdate');
 	// 【画面外で受けたポインターの入力を復帰後の軌跡へつながない】
 	// 画面外で別の位置へ移動してから表示を戻しても、休止中の入力で波を生成しない。
 	await checkRenderingSuspension(element, 'offscreen elements with pointer input', suspend, resume,
-		() => { dispatch('pointerenter', 0.1); dispatch('pointermove', 0.9); });
-	await advance(() => dispatch('pointermove', 0.1));
+		() => { dispatch('pointerenter', 0.1); dispatch('pointerrawupdate', 0.9); });
+	await advance(() => dispatch('pointerrawupdate', 0.1));
 	check((await columns()).every((column, x) => column.every((value, index) => value === flat[x][index])), 'returning onscreen starts a new stroke');
 	await advance(() => {
 		dispatch('pointerenter', 0.1);
@@ -157,7 +180,7 @@ async function checkCursorRipples(element) {
 	check((await columns()).every((column, x) => column.every((value, index) => value === flat[x][index])), 'reentering at a distant point leaves the image undistorted');
 	await advance(() => {
 		dispatch('pointerdown', 0.9, 'touch', 1);
-		dispatch('pointermove', 0.1, 'touch', 1);
+		dispatch('pointerrawupdate', 0.1, 'touch', 1);
 		dispatch('pointerup', 0.1, 'touch');
 	});
 	check((await columns()).every((column, x) => column.some((value, index) => Math.abs(value - flat[x][index]) > 8)), 'a touch drag ending in the same frame still distorts the full path');
@@ -339,17 +362,25 @@ try {
 	color = await pixelAfterUpdate(curves, matchesBezierColor);
 	check(matchesBezierColor(color), 'public values select another Function Curve in the exported runtime: ' + color);
 	curves.remove();
-	const pointer = await mount('pointer');
-	const canvas = pointer.shadowRoot.querySelector('canvas');
-	const rect = canvas.getBoundingClientRect();
-	await rendered(pointer, () => canvas.dispatchEvent(new PointerEvent('pointermove', { isPrimary: true, pointerId: 1, pointerType: 'touch', clientX: rect.left + rect.width * 0.75, clientY: rect.top + rect.height * 0.25 })));
-	color = await pixel(pointer);
-	check(Math.abs(color[0] - 225) <= 2 && Math.abs(color[1] - 207) <= 2, 'pointer coordinates use the common isotropic units: ' + color);
-	await rendered(pointer, () => { pointer.style.width = '100px'; pointer.style.height = '200px'; },
-		renderedFrame => renderedFrame.resolution.width === Math.round(100 * devicePixelRatio));
-	color = await pixel(pointer);
-	check(Math.abs(color[0] - 207) <= 2 && Math.abs(color[1] - 225) <= 2, 'resize uses the new output aspect for the first pointer frame: ' + color);
-	pointer.remove();
+	// 【実行先やイベントの対応状況に応じて移動入力を一系統だけ受ける】
+	// 両方を購読すると同じ移動を重複して取り込むため、異なる座標を続けて送って出力画素を確認する。
+	for (const name of ['pointer', 'mainpointer']) {
+		const pointer = await mount(name);
+		await checkPointerPosition(pointer, 'pointerrawupdate');
+		pointer.remove();
+	}
+	const fallbackPointer = document.createElement('gs-nodes-effect-pointer');
+	fallbackPointer.style.cssText = 'display:block;width:200px;height:100px';
+	await rendered(fallbackPointer, () => {
+		// 接続中だけブラウザーの対応状況を差し替え、同じ書き出し成果物でフォールバックを検証する。
+		const rawUpdateHandler = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'onpointerrawupdate');
+		delete HTMLElement.prototype.onpointerrawupdate;
+		try { document.body.append(fallbackPointer); } finally {
+			Object.defineProperty(HTMLElement.prototype, 'onpointerrawupdate', rawUpdateHandler);
+		}
+	});
+	await checkPointerPosition(fallbackPointer, 'pointermove');
+	fallbackPointer.remove();
 	const ripple = await mount('ripple');
 	await checkPointerdownBand(ripple, 'mouse');
 	ripple.remove();

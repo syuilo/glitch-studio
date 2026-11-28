@@ -8,9 +8,11 @@ export type PointerStrokeSegment = {
 	readonly endTime: number;
 };
 
-/** pointermoveにまとめられた途中の位置を取得する。サンプルが空なら通知された位置を使う。 */
+/** 移動イベントにまとめられた途中の位置を取得する。サンプルが空なら通知された位置を使う。 */
 export function getPointerStrokeEvents(event: PointerEvent): readonly PointerEvent[] {
-	const samples = event.type === 'pointermove' ? event.getCoalescedEvents?.() : null;
+	const samples = event.type === 'pointermove' || event.type === 'pointerrawupdate'
+		? event.getCoalescedEvents?.()
+		: null;
 	return samples != null && samples.length > 0 ? samples : [event];
 }
 

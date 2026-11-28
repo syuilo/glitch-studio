@@ -51,7 +51,7 @@
 				@pointerleave="onPreviewPointerExit"
 				@pointercancel.capture="onPreviewPointerExit"
 				@pointerup.capture="onPreviewPointerup"
-				@pointermove="onPointermove"
+				@pointerrawupdate.passive="updateEffectPointerPosition($event as PointerEvent)"
 				@pointerdown="onViewPointerdown"
 				@auxclick.prevent
 			>
@@ -60,7 +60,7 @@
 					ref="canvasContainer"
 					:style="{ scale: zoom / previewDevicePixelRatio, translate: `${pan[0]}px ${pan[1]}px` }"
 					data-test-preview-canvas-container
-					@pointerenter="onPointermove"
+					@pointerenter="updateEffectPointerPosition"
 					@pointerleave="endEffectPointerStroke"
 					@pointerdown="onCanvasPointerdown"
 				></div>
@@ -431,7 +431,7 @@ function onExposureKeydown(event: KeyboardEvent) {
 }
 
 function onViewPointerdown(event: PointerEvent) {
-	if (event.isPrimary && event.pointerType === 'touch') onPointermove(event);
+	if (event.isPrimary && event.pointerType === 'touch') updateEffectPointerPosition(event);
 	if (event.button !== 1 || stopPan) return;
 	const initial = [...pan.value];
 	panning.value = true;
@@ -515,7 +515,7 @@ function endEffectPointerStroke(event: PointerEvent) {
 	if (event.isPrimary) effectLivePreviewManagerController.endPointerStroke(event.pointerId);
 }
 
-function onPointermove(ev: PointerEvent) {
+function updateEffectPointerPosition(event: PointerEvent) {
 	const canvas = canvasContainer.value;
 	if (canvas == null || previewPlayback.state.value.mode !== 'effectLivePreview') return;
 	const rect = canvas.getBoundingClientRect();
@@ -524,12 +524,12 @@ function onPointermove(ev: PointerEvent) {
 		x: ((clientX - rect.left) / rect.width) * 2 - 1,
 		y: 1 - ((clientY - rect.top) / rect.height) * 2,
 	});
-	const position = toCanvasPosition(ev);
-	const stroke = ev.isPrimary ? {
-		pointerId: ev.pointerId,
+	const position = toCanvasPosition(event);
+	const stroke = event.isPrimary ? {
+		pointerId: event.pointerId,
 		timeOrigin: canvas.ownerDocument.defaultView?.performance.timeOrigin ?? performance.timeOrigin,
-		samples: getPointerStrokeEvents(ev).map(sample => {
-			const samplePosition = sample === ev ? position : toCanvasPosition(sample);
+		samples: getPointerStrokeEvents(event).map(sample => {
+			const samplePosition = sample === event ? position : toCanvasPosition(sample);
 			const isInside = Math.abs(samplePosition.x) <= 1 && Math.abs(samplePosition.y) <= 1;
 			const strokeActive = isInside && !panning.value && (sample.pointerType !== 'touch' || (sample.buttons & 1) !== 0);
 			return { position: strokeActive ? samplePosition : null, timeStamp: sample.timeStamp };

@@ -121,13 +121,15 @@ test('sends primary canvas pointerdowns as normalized positions only in Effect L
 // 【プレビューの軌跡をCanvas内の主ポインターに限定する】
 // Canvas外や別の指の位置が混ざると、意図しない区間までEffectの軌跡入力に含まれる。
 // 指を離した時点で軌跡の終了を通知し、次の接触との間で軌跡を区切る。
-// ブラウザーがまとめた移動でも、各点の時刻と領域内外の判定を一度に送る。
+// pointerrawupdateにまとめられた移動でも、各点の時刻と領域内外の判定を一度に送る。
 test('forwards time-stamped stroke batches for the primary pointer over the preview image', async () => {
+	assert.match(template.content, /data-test-preview-viewport[^>]*@pointerrawupdate\.passive=/);
+	assert.doesNotMatch(template.content, /@pointermove="updateEffectPointerPosition"/);
 	assert.match(template.content, /@pointerleave="endEffectPointerStroke"/);
 	assert.match(template.content, /@pointerup\.capture="onPreviewPointerup"/);
-	const handlers = await Promise.all(['onPointermove', 'onPreviewPointerup', 'endEffectPointerStroke'].map(compilePreviewHandler));
+	const handlers = await Promise.all(['updateEffectPointerPosition', 'onPreviewPointerup', 'endEffectPointerStroke'].map(compilePreviewHandler));
 	const createHandlers = new Function('context', `const { previewPlayback, effectLivePreviewManagerController, canvasContainer, panning, getPointerStrokeEvents } = context;
-		${handlers.join('\n')}; return { move: onPointermove, up: onPreviewPointerup };`);
+		${handlers.join('\n')}; return { move: updateEffectPointerPosition, up: onPreviewPointerup };`);
 	const positions = [];
 	const ends = [];
 	const timeOrigin = 1000;
@@ -139,7 +141,7 @@ test('forwards time-stamped stroke batches for the primary pointer over the prev
 		} },
 		effectLivePreviewManagerController: { updatePointerPosition: (...args) => positions.push(args), endPointerStroke: id => ends.push(id) },
 	});
-	const mouse = { type: 'pointermove', pointerId: 1, pointerType: 'mouse', isPrimary: true, clientX: 400, clientY: 250, buttons: 0, timeStamp: 20 };
+	const mouse = { type: 'pointerrawupdate', pointerId: 1, pointerType: 'mouse', isPrimary: true, clientX: 400, clientY: 250, buttons: 0, timeStamp: 20 };
 	const touch = { ...mouse, pointerId: 2, pointerType: 'touch', buttons: 1, getCoalescedEvents: () => [] };
 	move(mouse);
 	move({ ...mouse, clientX: 600 });

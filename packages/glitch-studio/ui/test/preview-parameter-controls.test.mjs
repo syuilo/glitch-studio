@@ -131,7 +131,8 @@ async function fixture(t, { showGrid = false, viewport = false, viewportParamete
 	const showParameters = ref(true);
 	const root = element('root');
 	const canvasRect = { left: 0, top: 0, width: 800, height: 400 };
-	const app = renderer.createApp({ render: () => h('main', [
+	const effectPointerUpdates = [];
+	const app = renderer.createApp({ render: () => h('main', { onPointerrawupdate: event => effectPointerUpdates.push([event.clientX, event.clientY]) }, [
 		...(showParameters.value ? Object.entries(testedEffect.paramDefs).filter(([key]) => viewportParameter != null ? key === viewportParameter
 			: !['imageTrapView', 'magneticPendulumView', 'doublePendulumView'].includes(key) && (viewport || !['view', 'otherView'].includes(key))).map(([key, definition]) => h(Parameter, {
 			key, node, functionCurves: [], availableVariables: [], paramDef: definition, paramValue: node.params[key], paramPath: [key],
@@ -155,8 +156,7 @@ async function fixture(t, { showGrid = false, viewport = false, viewportParamete
 	const pointer = (type, x, y) => {
 		const event = Object.assign(new Event(type, { cancelable: true, bubbles: true }), { pointerId: 7, clientX: x, clientY: y });
 		if (capturedTarget == null) return doc.dispatchEvent(event);
-		// 実DOMと同じくcapture→対象→bubbleの順で伝える。Documentへ直接dispatchするだけでは、
-		// SVGの@pointermove.stopで追跡が遮られ、pointerup時だけ更新される不具合を検出できない。
+		// 実DOMと同じくcapture→対象→bubbleの順で伝え、編集オーバーレイから親プレビューへの伝播も確認する。
 		for (const entry of [...documentListeners]) if (entry.type === type && entry.capture) entry.listener(event);
 		for (let target = capturedTarget; target != null; target = target.parent) {
 			target.props[`on${type[0].toUpperCase()}${type.slice(1)}`]?.(event);
@@ -190,7 +190,7 @@ async function fixture(t, { showGrid = false, viewport = false, viewportParamete
 		return root;
 	};
 	return { root, doc, manager, node, editing, scope, showParameters, toggles, handles, begin, pointer, frame,
-		viewportEditor, viewportToggles, beginViewport, wheel, mountControl };
+		viewportEditor, viewportToggles, beginViewport, wheel, mountControl, effectPointerUpdates };
 }
 
 // 【通常入力は操作開始通知に依存せず、ドラッグ中の休止でも時間で履歴を分ける】
@@ -231,14 +231,17 @@ test('shows buttons only for XY controls and enables overlapping handles indepen
 
 // 【プレビューの実イベントからスナップとCommand・Undo/Redoまで接続する】
 // 画面のY反転やpointerupの最終座標を取り落とすと、数式だけのテストでは検出できない。
-// オーバーレイ内で伝播が停止しても、ボタンを離す前の各フレームで保存値を反映する。
+// ボタンを離す前の各フレームで保存値を反映し、編集中のpointerrawupdateはEffectの位置入力へも渡す。
 // ラベルの二行目も同じフレームの基準値を表示し、ドラッグ中の座標を確認できるようにする。
 test('drags one handle to snapped coordinates through commands and undo and redo', async t => {
 	const f = await fixture(t);
 	for (const toggle of f.toggles()) toggle.props.onClick(); await nextTick();
 	const coordinateLabel = () => findAll(f.handles()[0], node => Object.hasOwn(node.props, 'data-test-preview-parameter-position'))[0].text;
 	assert.equal(coordinateLabel(), 'X: 0  Y: 0');
-	f.begin(); f.pointer('pointermove', 799, 198); await f.frame();
+	f.begin();
+	f.pointer('pointerrawupdate', 799, 198);
+	assert.deepEqual(f.effectPointerUpdates, [[799, 198]]);
+	f.pointer('pointermove', 799, 198); await f.frame();
 	assert.deepEqual(f.node.params.first.value, [0.5, 0]);
 	assert.equal(coordinateLabel(), 'X: 0.5  Y: 0');
 	assert.equal(f.manager.undoStack.value.length, 0);
@@ -321,13 +324,17 @@ test('keeps viewport preview editing active while its struct fields are collapse
 
 // 【深いズームと回転を反映した微小な中心移動を、ドラッグ中と一回のUndoで扱う】
 // 画面のY反転・回転・倍率の換算漏れや、小数第3位への丸めで移動が失われる回帰を防ぐ。
+// Viewport編集のpointerrawupdateもEffectの位置入力へ届く。
 test('pans a deeply zoomed rotated viewport continuously and undoes the whole drag', async t => {
 	const f = await fixture(t, { viewport: true });
 	const initialCenter = [...f.node.params.view.value.center.value];
 	f.node.params.view.value.zoom.value = 1000;
 	f.node.params.view.value.rotation.value = 0.25;
 	f.viewportToggles()[0].props.onClick(); await nextTick();
-	f.beginViewport(); f.pointer('pointermove', 480, 160); await f.frame();
+	f.beginViewport();
+	f.pointer('pointerrawupdate', 480, 160);
+	assert.deepEqual(f.effectPointerUpdates, [[480, 160]]);
+	f.pointer('pointermove', 480, 160); await f.frame();
 	close(f.node.params.view.value.center.value, [initialCenter[0] + 0.0002, initialCenter[1] - 0.0004]);
 	assert.equal(f.manager.undoStack.value.length, 0);
 	f.pointer('pointerup', 560, 120); await nextTick();

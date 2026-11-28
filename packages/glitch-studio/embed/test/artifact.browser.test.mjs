@@ -177,6 +177,7 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	const pointer = fixture();
 	pointer.nodesEffect.nodes[0].params.color.expression = '[POINTER_POSITION[0] + 0.5, POINTER_POSITION[1] + 0.5, 0, 1]';
 	await add('pointer', pointer);
+	await add('mainpointer', pointer, 'mainThread');
 	// 【Web Componentの押下位置を表示中の出力に対応させる】
 	// 固定解像度の出力をcontainで表示し、押下位置が表示中の画像上の座標に対応することを、検証用グラフの出力画素で確認する。
 	for (const [name, effectId, definition, outputPort] of [

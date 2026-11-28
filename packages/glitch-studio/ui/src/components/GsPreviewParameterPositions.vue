@@ -1,5 +1,10 @@
 <template>
-<svg v-if="handles.length > 0" ref="overlay" :class="$style.overlay" data-test-preview-parameter-overlay @pointermove.stop>
+<svg
+	v-if="handles.length > 0"
+	ref="overlay"
+	:class="$style.overlay"
+	data-test-preview-parameter-overlay
+>
 	<g v-for="handle in handles" :key="handle.key" :data-test-preview-parameter-handle="handle.key">
 		<circle :cx="handle.point[0]" :cy="handle.point[1]" r="9" :class="$style.handle" @pointerdown="startDrag($event, handle)"/>
 		<path :d="`M ${handle.point[0] - 5} ${handle.point[1]} h 10 M ${handle.point[0]} ${handle.point[1] - 5} v 10`" :class="$style.cross"/>

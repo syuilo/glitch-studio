@@ -6,7 +6,6 @@
 	:style="{ left: `${canvasRect.left}px`, top: `${canvasRect.top}px`, width: `${canvasRect.width}px`, height: `${canvasRect.height}px` }"
 	data-test-preview-viewport-editor
 	@pointerdown="startDrag"
-	@pointermove.stop
 	@wheel="onWheel"
 	@click.stop
 >

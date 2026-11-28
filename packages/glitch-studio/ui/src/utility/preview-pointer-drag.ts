@@ -30,8 +30,7 @@ export function startPreviewPointerDrag(event: PointerEvent, handlers: { move(ev
 	};
 	event.preventDefault();
 	target.setPointerCapture(pointerId);
-	// 編集用オーバーレイは通常のプレビュー入力へ伝えないためpointermoveを止める。
-	// Documentのcaptureで先に追跡し、pointerup時だけ値が反映されるのを防ぐ。
+	// 対象要素を含む各リスナーに届く前に、表示先のDocumentでドラッグ中の座標を追跡する。
 	doc.addEventListener('pointermove', move, { capture: true });
 	doc.addEventListener('pointerup', up);
 	doc.addEventListener('pointercancel', cancelPointer);

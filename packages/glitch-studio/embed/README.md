@@ -84,7 +84,7 @@ nodesEffectElement.resetParameter('speed');
 - 一要素につき一GPUDeviceを使います。レンダラーはGPU完了後に次のフレームを予約し、描画が遅い場合のキュー蓄積を防ぎます。
 - primary pointerの移動・押下を受け取り、`POINTER_POSITION`へ既存の等方座標規約で渡します。余白の位置も出力座標へ換算し、最後の位置を保持します。タッチのスクロールを妨げず、複数ポインター・筆圧・押下状態の新しい環境変数は追加しません。
 - 主ボタンや最初の指の`pointerdown`を直近16件保持し、押下位置と内容時刻をEffect共通の描画コンテキストの`pointerClicks`に新しい順で渡します。押下履歴は接続の解除で消去します。
-- primary pointerの連続した移動を、両端の位置と内容時刻を持つ線分の列として、Effect共通の描画コンテキストの`pointerStrokeSegments`に渡します。`pointermove`にまとめられた位置も`getCoalescedEvents()`で取得し、それぞれの取得時刻を内容時刻に換算します。ポインターの退出・キャンセルや指を離した位置で軌跡を区切ります。描画を休止すると未描画の軌跡を破棄し、再開後の入力から新しい軌跡を作ります。
+- primary pointerの連続した移動を、両端の位置と内容時刻を持つ線分の列として、Effect共通の描画コンテキストの`pointerStrokeSegments`に渡します。移動の取得には、対応環境では`pointerrawupdate`、それ以外では`pointermove`を使います。イベントにまとめられた位置も`getCoalescedEvents()`で取得し、それぞれの取得時刻を内容時刻に換算します。ポインターの退出・キャンセルや指を離した位置で軌跡を区切ります。描画を休止すると未描画の軌跡を破棄し、再開後の入力から新しい軌跡を作ります。
 - 音声入力は未接続です。タイルレンダリング・パフォーマンス統計は含めません。
 - Nodes Effect内の環境変数は`IS_EXPORT=false`、`END_TIME=Infinity`、`PROGRESS=0`です。
 
