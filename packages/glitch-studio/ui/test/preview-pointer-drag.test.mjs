@@ -6,6 +6,7 @@ import { build, transform } from 'esbuild';
 import { parse } from 'vue/compiler-sfc';
 import { createSourceFile, isFunctionDeclaration, ScriptTarget } from 'typescript';
 import { fileURLToPath } from 'node:url';
+import { getPointerStrokeEvents } from '@gs/glitch-studio_shared/pointer-stroke-input.ts';
 
 const result = await build({ entryPoints: [fileURLToPath(new URL('../src/utility/preview-pointer-drag.ts', import.meta.url))], bundle: true, platform: 'node', format: 'cjs', write: false });
 const module = { exports: {} };
@@ -120,21 +121,26 @@ test('sends primary canvas pointerdowns as normalized positions only in Effect L
 // 【プレビューの軌跡をCanvas内の主ポインターに限定する】
 // Canvas外や別の指の位置が混ざると、意図しない区間までEffectの軌跡入力に含まれる。
 // 指を離した時点で軌跡の終了を通知し、次の接触との間で軌跡を区切る。
-test('forwards stroke continuity only for the primary pointer over the preview image', async () => {
+// ブラウザーがまとめた移動でも、各点の時刻と領域内外の判定を一度に送る。
+test('forwards time-stamped stroke batches for the primary pointer over the preview image', async () => {
 	assert.match(template.content, /@pointerleave="endEffectPointerStroke"/);
 	assert.match(template.content, /@pointerup\.capture="onPreviewPointerup"/);
 	const handlers = await Promise.all(['onPointermove', 'onPreviewPointerup', 'endEffectPointerStroke'].map(compilePreviewHandler));
-	const createHandlers = new Function('context', `const { previewPlayback, effectLivePreviewManagerController, canvasContainer, panning } = context;
+	const createHandlers = new Function('context', `const { previewPlayback, effectLivePreviewManagerController, canvasContainer, panning, getPointerStrokeEvents } = context;
 		${handlers.join('\n')}; return { move: onPointermove, up: onPreviewPointerup };`);
 	const positions = [];
 	const ends = [];
+	const timeOrigin = 1000;
 	const { move, up } = createHandlers({
+		getPointerStrokeEvents,
 		previewPlayback: { state: { value: { mode: 'effectLivePreview' } } }, panning: { value: false },
-		canvasContainer: { value: { getBoundingClientRect: () => ({ left: 100, top: 200, width: 400, height: 200 }) } },
+		canvasContainer: { value: { getBoundingClientRect: () => ({ left: 100, top: 200, width: 400, height: 200 }),
+			ownerDocument: { defaultView: { performance: { timeOrigin } } },
+		} },
 		effectLivePreviewManagerController: { updatePointerPosition: (...args) => positions.push(args), endPointerStroke: id => ends.push(id) },
 	});
-	const mouse = { pointerId: 1, pointerType: 'mouse', isPrimary: true, clientX: 400, clientY: 250, buttons: 0 };
-	const touch = { ...mouse, pointerId: 2, pointerType: 'touch', buttons: 1 };
+	const mouse = { type: 'pointermove', pointerId: 1, pointerType: 'mouse', isPrimary: true, clientX: 400, clientY: 250, buttons: 0, timeStamp: 20 };
+	const touch = { ...mouse, pointerId: 2, pointerType: 'touch', buttons: 1, getCoalescedEvents: () => [] };
 	move(mouse);
 	move({ ...mouse, clientX: 600 });
 	move(touch);
@@ -142,12 +148,23 @@ test('forwards stroke continuity only for the primary pointer over the preview i
 	move({ ...touch, buttons: 0 });
 	up(touch);
 	up(mouse);
+	move({ ...mouse, timeStamp: 48, getCoalescedEvents: () => [
+		{ ...mouse, clientX: 200, clientY: 350, timeStamp: 36 },
+		{ ...mouse, clientX: 600, timeStamp: 40 },
+		{ ...mouse, clientX: 300, clientY: 300, timeStamp: 44 },
+	] });
+	const singleSample = (pointerId, position) => ({ pointerId, timeOrigin, samples: [{ position, timeStamp: 20 }] });
 	assert.deepEqual(positions, [
-		[{ x: 0.5, y: 0.5 }, { id: 1, strokeActive: true }],
-		[{ x: 1.5, y: 0.5 }, { id: 1, strokeActive: false }],
-		[{ x: 0.5, y: 0.5 }, { id: 2, strokeActive: true }],
+		[{ x: 0.5, y: 0.5 }, singleSample(1, { x: 0.5, y: 0.5 })],
+		[{ x: 1.5, y: 0.5 }, singleSample(1, null)],
+		[{ x: 0.5, y: 0.5 }, singleSample(2, { x: 0.5, y: 0.5 })],
 		[{ x: 0.5, y: 0.5 }, null],
-		[{ x: 0.5, y: 0.5 }, { id: 2, strokeActive: false }],
+		[{ x: 0.5, y: 0.5 }, singleSample(2, null)],
+		[{ x: 0.5, y: 0.5 }, { pointerId: 1, timeOrigin, samples: [
+			{ position: { x: -0.5, y: -0.5 }, timeStamp: 36 },
+			{ position: null, timeStamp: 40 },
+			{ position: { x: 0, y: 0 }, timeStamp: 44 },
+		] }],
 	]);
 	assert.deepEqual(ends, [2]);
 });

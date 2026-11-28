@@ -74,6 +74,52 @@ test('snapshots recent clicks in node coordinates and clears them for a new prev
 	assert.deepEqual(f.errors, []);
 });
 
+// 【まとめられたポインター位置の時刻を内容時刻に換算し、途切れた入力をつながない】
+// UIとWorkerのtimeOriginや受信時刻が異なっても、描画間の折り返しと実際の入力間隔を保つ。
+// 停止中に取得した位置が再開後の軌跡に混ざる回帰も防ぐ。
+test('preserves the sampled positions and times in a pointer stroke batch', async t => {
+	const frames = [];
+	const f = await fixture(t, { init() { return { render(frame) { frames.push(frame); }, dispose() {} }; } });
+	f.manager.updateDynamicOptions({ resolution: { width: 8, height: 4 }, effectLivePreviewTimeFactor: 2 });
+	f.setClock(100);
+	f.manager.startEffectLivePreview({ effectSource: { type: 'nativeEffect', id: 'shared' } });
+	await f.frame(120);
+
+	const timeOrigin = performance.timeOrigin - 1000;
+	const sample = (timeStamp, x, y) => ({ position: { x, y }, timeStamp });
+	const update = samples => f.manager.updatePointerPosition({ x: 0.5, y: -0.5 }, { pointerId: 1, timeOrigin, samples });
+	f.setClock(147);
+	update([sample(1120, 0.5, 0.5)]);
+	update([
+		sample(1095, -1, -1),
+		sample(1110, -0.5, 0), sample(1115, 0, 0.5), sample(1125, -0.5, 0),
+		{ position: null, timeStamp: 1130 },
+		sample(1135, 0.5, 0), sample(1140, 0.5, -0.5),
+	]);
+	await f.frame(150);
+	assert.deepEqual(frames.at(-1).pointerPosition, [0.25, -0.125]);
+	assert.deepEqual(frames.at(-1).pointerStrokeSegments, [
+		{ start: [-0.25, 0], end: [0, 0.125], startTime: 0.02, endTime: 0.03 },
+		{ start: [0, 0.125], end: [-0.25, 0], startTime: 0.03, endTime: 0.05 },
+		{ start: [0.25, 0], end: [0.25, -0.125], startTime: 0.07, endTime: 0.08 },
+	]);
+
+	f.setClock(155);
+	f.manager.updateDynamicOptions({ effectLivePreviewTimeFactor: 0 });
+	update([sample(1157, -1, -1), sample(1159, -1, 1)]);
+	await f.frame(160);
+	assert.deepEqual(frames.at(-1).pointerStrokeSegments, []);
+
+	f.setClock(170);
+	f.manager.updateDynamicOptions({ effectLivePreviewTimeFactor: 2 });
+	update([sample(1165, -1, 0), sample(1171, 0, 0), sample(1175, 0.5, 0)]);
+	await f.frame(180);
+	assert.deepEqual(frames.at(-1).pointerStrokeSegments, [
+		{ start: [0, 0], end: [0.25, 0], startTime: 0.122, endTime: 0.13 },
+	]);
+	assert.deepEqual(f.errors, []);
+});
+
 // 【全5種類のEffectSourceを同じWorker用Managerから描画する】
 // 名前空間に同じIDを持つ登録があっても指定した種類・ポートだけを計画し、データ出力を元のチャンネル形式で表示する。
 test('previews every source kind with a fixed output port and native channel format', async t => {

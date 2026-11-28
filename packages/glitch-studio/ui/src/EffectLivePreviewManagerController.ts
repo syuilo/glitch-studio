@@ -17,7 +17,7 @@ import type { Asset } from '@gs/shared/types.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { EffectPreparationStatus } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import type { EffectRenderTilingProgress } from '@gs/subsystems_effect_shared/effect-render-tiling.ts';
-import type { EffectLivePreviewManager, EffectLivePreviewManagerResources, EffectLivePreviewManagerStaticOptions, EffectLivePreviewManagerDynamicOptions, EffectLivePreviewManagerEvents } from '@gs/glitch-studio_renderer/effect-live-preview-manager.ts';
+import type { EffectLivePreviewManager, EffectLivePreviewManagerResources, EffectLivePreviewManagerStaticOptions, EffectLivePreviewManagerDynamicOptions, EffectLivePreviewManagerEvents, EffectLivePreviewPointerStroke } from '@gs/glitch-studio_renderer/effect-live-preview-manager.ts';
 
 export type EffectLivePreviewManagerInitialOptions = {
 	staticOptions: EffectLivePreviewManagerStaticOptions;
@@ -441,8 +441,8 @@ export class EffectLivePreviewManagerController extends RendererManagerControlle
 		await media.play();
 	}
 
-	public async updatePointerPosition(newPointerPosition: { x: number; y: number }, pointer: { id: number; strokeActive: boolean } | null) {
-		if (this.isReady.value) this.call('updatePointerPosition', [newPointerPosition, pointer]);
+	public async updatePointerPosition(newPointerPosition: { x: number; y: number }, stroke: EffectLivePreviewPointerStroke | null) {
+		if (this.isReady.value) this.call('updatePointerPosition', [newPointerPosition, stroke]);
 	}
 
 	public endPointerStroke(pointerId: number) {

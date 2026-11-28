@@ -102,10 +102,12 @@ async function checkCursorRipples(element) {
 		context.drawImage(canvas, 0, 0);
 		return [0.25, 0.5, 0.75].map(x => [...context.getImageData(Math.floor(x * canvas.width), 0, 1, canvas.height).data]);
 	}
-	function dispatch(type, x, pointerType = 'mouse', buttons = 0) {
+	function dispatch(type, x, pointerType = 'mouse', buttons = 0, coalescedPositions = []) {
 		const rect = canvas.getBoundingClientRect();
-		canvas.dispatchEvent(new PointerEvent(type, { isPrimary: true, pointerId: pointerType === 'mouse' ? 1 : 2, pointerType, buttons,
-			clientX: rect.left + rect.width * x, clientY: rect.top + rect.height * 0.5 }));
+		const eventAt = x => ({ isPrimary: true, pointerId: pointerType === 'mouse' ? 1 : 2, pointerType, buttons,
+			clientX: rect.left + rect.width * x, clientY: rect.top + rect.height * 0.5 });
+		const coalescedEvents = coalescedPositions.map(position => new PointerEvent('pointermove', eventAt(position)));
+		canvas.dispatchEvent(new PointerEvent(type, { ...eventAt(x), coalescedEvents }));
 	}
 	async function advance(action) {
 		const minimum = element.currentTime + 0.025;
@@ -124,6 +126,13 @@ async function checkCursorRipples(element) {
 	check(changed.every((column, x) => column.some((value, index) => Math.abs(value - flat[x][index]) > 8)), 'fast pointer movement distorts every sampled column');
 	await rendered(element, () => element.restart());
 	check((await columns()).every((column, x) => column.every((value, index) => value === flat[x][index])), 'restart restores the undistorted image');
+	await rendered(element, () => element.play());
+	await advance(() => {
+		dispatch('pointerenter', 0.1);
+		dispatch('pointermove', 0.1, 'mouse', 0, [0.9, 0.1]);
+	});
+	check((await columns()).every((column, x) => column.some((value, index) => Math.abs(value - flat[x][index]) > 8)), 'coalesced samples preserve an out-and-back stroke within one pointermove');
+	await rendered(element, () => element.restart());
 	await rendered(element, () => element.play());
 	await advance(() => {
 		dispatch('pointerenter', 0.1);

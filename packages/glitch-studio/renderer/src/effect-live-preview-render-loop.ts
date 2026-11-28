@@ -28,6 +28,8 @@ export class EffectLivePreviewRenderLoop {
 	private running = false;
 	private generation = 0;
 	private latestTimestamp = 0;
+	private latestFrameTimeFactor: number;
+	private earliestInputTimestamp = 0;
 	private nextFrameTimestamp: number | null = null;
 	private previousFpsLimit: number | null = null;
 	private time = 0;
@@ -44,12 +46,15 @@ export class EffectLivePreviewRenderLoop {
 		this.onSkippedFrame = options.onSkippedFrame ?? null;
 		this.fpsLimit = options.fpsLimit;
 		this.timeFactor = options.timeFactor;
+		this.latestFrameTimeFactor = options.timeFactor;
 	}
 
 	public start() {
 		this.stop();
 		this.running = true;
 		this.latestTimestamp = this.scheduler.now();
+		this.earliestInputTimestamp = this.latestTimestamp;
+		this.latestFrameTimeFactor = this.timeFactor;
 		this.nextFrameTimestamp = null;
 		this.previousFpsLimit = null;
 		this.scheduleFrame(this.generation);
@@ -109,6 +114,7 @@ export class EffectLivePreviewRenderLoop {
 		this.time += timeDelta;
 		// スキップしたフレームの時間も含め、出力の有無によらず描画前に時刻を更新する。
 		this.latestTimestamp = timestamp;
+		this.latestFrameTimeFactor = this.timeFactor;
 		const timing = { time: this.time, timeDelta, realTimeDelta };
 		if (this.frameInFlight != null) {
 			this.onSkippedFrame?.(timing);
@@ -128,5 +134,19 @@ export class EffectLivePreviewRenderLoop {
 		// FPS制限で次の描画を待っている間も、入力の時刻は実際に経過した分だけ進める。
 		const elapsed = this.running ? Math.max(0, this.scheduler.now() - this.latestTimestamp) : 0;
 		return this.time + elapsed * this.timeFactor;
+	}
+
+	/** 履歴のリセットより前に取得された入力が、遅れて届いても新しい軌跡に混ざらないようにする。 */
+	public resetInputTiming() {
+		this.earliestInputTimestamp = this.scheduler.now();
+	}
+
+	/** このWorkerと同じtimeOriginで測った入力時刻（ミリ秒）を、内容時刻（ミリ秒）へ換算する。 */
+	public getInputTime(timestamp: number): number | null {
+		if (!this.running || timestamp < this.earliestInputTimestamp) return null;
+		// Workerに届くまでに描画が進んでも、直前の描画時刻からの符号付きの差を使ってサンプル間隔を保つ。
+		const elapsed = timestamp - this.latestTimestamp;
+		const timeFactor = elapsed < 0 ? this.latestFrameTimeFactor : this.timeFactor;
+		return this.time + elapsed * timeFactor;
 	}
 }

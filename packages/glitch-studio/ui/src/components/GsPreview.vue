@@ -127,6 +127,7 @@ import { scaleResolution } from '@gs/shared/resolution.js';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.js';
 import { PREVIEW_GAMUT_WARNING_BOUNDS, PREVIEW_GAMUT_WARNING_REFERENCE_GAMUTS } from '@gs/glitch-studio_shared/preview-gamut-warning.ts';
 import { PREVIEW_IMAGE_SOURCES } from '@gs/glitch-studio_shared/preview-image-source.ts';
+import { getPointerStrokeEvents } from '@gs/glitch-studio_shared/pointer-stroke-input.ts';
 import GsDetachableView from './GsDetachableView.vue';
 import GsPreviewTransform from './GsPreviewTransform.vue';
 import GsPreviewParameterPositions from './GsPreviewParameterPositions.vue';
@@ -515,13 +516,26 @@ function endEffectPointerStroke(event: PointerEvent) {
 }
 
 function onPointermove(ev: PointerEvent) {
-	if (canvasContainer.value == null || previewPlayback.state.value.mode !== 'effectLivePreview') return;
-	const rect = canvasContainer.value.getBoundingClientRect();
+	const canvas = canvasContainer.value;
+	if (canvas == null || previewPlayback.state.value.mode !== 'effectLivePreview') return;
+	const rect = canvas.getBoundingClientRect();
 	if (rect.width <= 0 || rect.height <= 0) return;
-	const x = (ev.clientX - rect.left) / rect.width;
-	const y = (ev.clientY - rect.top) / rect.height;
-	const strokeActive = x >= 0 && x <= 1 && y >= 0 && y <= 1 && !panning.value && (ev.pointerType !== 'touch' || (ev.buttons & 1) !== 0);
-	effectLivePreviewManagerController.updatePointerPosition({ x: x * 2 - 1, y: 1 - y * 2 }, ev.isPrimary ? { id: ev.pointerId, strokeActive } : null);
+	const toCanvasPosition = ({ clientX, clientY }: PointerEvent) => ({
+		x: ((clientX - rect.left) / rect.width) * 2 - 1,
+		y: 1 - ((clientY - rect.top) / rect.height) * 2,
+	});
+	const position = toCanvasPosition(ev);
+	const stroke = ev.isPrimary ? {
+		pointerId: ev.pointerId,
+		timeOrigin: canvas.ownerDocument.defaultView?.performance.timeOrigin ?? performance.timeOrigin,
+		samples: getPointerStrokeEvents(ev).map(sample => {
+			const samplePosition = sample === ev ? position : toCanvasPosition(sample);
+			const isInside = Math.abs(samplePosition.x) <= 1 && Math.abs(samplePosition.y) <= 1;
+			const strokeActive = isInside && !panning.value && (sample.pointerType !== 'touch' || (sample.buttons & 1) !== 0);
+			return { position: strokeActive ? samplePosition : null, timeStamp: sample.timeStamp };
+		}),
+	} : null;
+	effectLivePreviewManagerController.updatePointerPosition(position, stroke);
 }
 
 function onViewWheel(ev: WheelEvent) {

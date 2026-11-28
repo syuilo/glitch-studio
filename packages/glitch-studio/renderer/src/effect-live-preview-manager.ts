@@ -127,6 +127,17 @@ export type EffectLivePreviewPlacement = {
 
 export type EffectLivePreviewStatusSource = { type: 'effectLivePreview'; instanceId: string };
 
+export type EffectLivePreviewPointerStroke = {
+	readonly pointerId: number;
+	/** 位置を取得したWindowのtimeOrigin。各サンプルのtimeStampはこの時刻を基準とする。 */
+	readonly timeOrigin: number;
+	readonly samples: readonly {
+		/** Canvas外などで軌跡を区切るサンプルはnull。 */
+		readonly position: { x: number; y: number } | null;
+		readonly timeStamp: number;
+	}[];
+};
+
 export type EffectLivePreviewManagerEvents = {
 	'cpuPreviewFrame': (ctx: CpuPreviewFrame) => void;
 	'renderDelay': (ctx: { instanceId: string | null; isDelayed: boolean; tilingProgress: EffectRenderTilingProgress | null }) => void;
@@ -341,15 +352,28 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		if (this.previewImage.update(frame, assetTexture) && this.activeEffect?.inputs.usesImage === true) this.initializePlacement();
 	}
 
-	public updatePointerPosition(newPointerPosition: { x: number; y: number }, pointer: { id: number; strokeActive: boolean } | null = null) {
+	public updatePointerPosition(newPointerPosition: { x: number; y: number }, stroke: EffectLivePreviewPointerStroke | null = null) {
 		this.pointerPosition = newPointerPosition;
-		if (pointer == null) return;
-		if (pointer.strokeActive && this.effectLivePreviewRenderLoop.timeFactor > 0) {
-			this.pointerStroke.sample(pointer.id, newPointerPosition, this.effectLivePreviewRenderLoop.getCurrentTime() / 1000);
-		} else this.pointerStroke.end(pointer.id);
+		if (stroke == null) return;
+		if (this.effectLivePreviewRenderLoop.timeFactor <= 0) {
+			this.pointerStroke.end(stroke.pointerId);
+			return;
+		}
+		const timeOriginOffset = stroke.timeOrigin - performance.timeOrigin;
+		for (const { position, timeStamp } of stroke.samples) {
+			const time = this.effectLivePreviewRenderLoop.getInputTime(timeStamp + timeOriginOffset);
+			if (time == null) continue;
+			if (position == null) this.pointerStroke.end(stroke.pointerId);
+			else this.pointerStroke.sample(stroke.pointerId, position, time / 1000);
+		}
 	}
 
 	public endPointerStroke(pointerId: number) { this.pointerStroke.end(pointerId); }
+
+	private resetPointerStroke() {
+		this.pointerStroke.reset();
+		this.effectLivePreviewRenderLoop.resetInputTiming();
+	}
 
 	public click(pointerPosition: { x: number; y: number }) {
 		this.clicks.unshift({ ...pointerPosition, time: this.effectLivePreviewRenderLoop.getCurrentTime() / 1000 });
@@ -399,7 +423,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 			this.effectLivePreviewRenderLoop.fpsLimit = this.dynamicOptions.fpsLimit;
 		}
 		if (Object.hasOwn(newOptions, 'effectLivePreviewTimeFactor')) {
-			if (this.dynamicOptions.effectLivePreviewTimeFactor <= 0) this.pointerStroke.reset();
+			if (previous.effectLivePreviewTimeFactor <= 0 || this.dynamicOptions.effectLivePreviewTimeFactor <= 0) this.resetPointerStroke();
 			this.effectLivePreviewRenderLoop.timeFactor = this.dynamicOptions.effectLivePreviewTimeFactor;
 		}
 		if (reinitialize) this.initializePlacement();
@@ -451,7 +475,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 	}
 
 	private releasePlacement() {
-		this.pointerStroke.reset();
+		this.resetPointerStroke();
 		this.previewTiledFrameController?.abort();
 		this.previewRenderGeneration++;
 		this.previewRenderDelayMonitor.clear();
@@ -637,7 +661,7 @@ export class EffectLivePreviewManager extends EventEmitter<{
 		this.activeEffect?.instance?.resetRenderHistory();
 		this.pointerPositionPrev = this.pointerPosition;
 		this.clicks = [];
-		this.pointerStroke.reset();
+		this.resetPointerStroke();
 		this.skippedFrameTimeDelta = this.skippedFrameRealTimeDelta = 0;
 	}
 

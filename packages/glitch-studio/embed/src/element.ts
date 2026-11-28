@@ -1,7 +1,7 @@
 import { getPortableParameterDefinitions, getPortableParameterDefaults } from './parameters.ts';
 import { getPortableRenderResolution } from './protocol.ts';
 import { PortableNodesEffectFrameRateLimiter } from './frame-rate-limiter.ts';
-import { PointerStrokeInput } from '@gs/glitch-studio_shared/pointer-stroke-input.ts';
+import { getPointerStrokeEvents, PointerStrokeInput } from '@gs/glitch-studio_shared/pointer-stroke-input.ts';
 import type { PortableNodesEffect } from '@gs/glitch-studio_shared/portable-nodes-effect.ts';
 import type { PortableNodesEffectRequest, PortableNodesEffectResponse, PortablePointerClick, PortablePointerPosition } from './protocol.ts';
 
@@ -43,6 +43,7 @@ export function registerNodesEffectElement(tagName: string, artwork: PortableNod
 		private pointerElementPosition: PortablePointerPosition | null = null;
 		private pointerElementClicks: PortablePointerClick[] = [];
 		private readonly pointerStroke = new PointerStrokeInput();
+		private pointerStrokeClockStart = { timestamp: 0, time: 0 };
 
 		constructor() {
 			super();
@@ -137,23 +138,36 @@ div:empty { display: none; }`;
 			});
 			this.intersectionObserver.observe(this);
 			this.ownerDocument.addEventListener('visibilitychange', () => { this.resetFrameTiming(); this.schedule(); }, { signal });
+			const pointerTimeOriginOffset = (this.ownerDocument.defaultView?.performance.timeOrigin ?? performance.timeOrigin) - performance.timeOrigin;
 			const pointer = (event: PointerEvent) => {
 				if (!event.isPrimary) return;
 				const rect = this.canvas!.getBoundingClientRect();
 				if (rect.width <= 0 || rect.height <= 0) return;
-				const position = { x: (event.clientX - rect.left) / rect.width, y: (event.clientY - rect.top) / rect.height };
+				const toCanvasPosition = ({ clientX, clientY }: PointerEvent) => ({ x: (clientX - rect.left) / rect.width, y: (clientY - rect.top) / rect.height });
+				const position = toCanvasPosition(event);
 				this.pointerElementPosition = position;
-				const elapsed = this.paused || this.lastTick == null ? 0 : Math.max(0, event.timeStamp - this.lastTick);
-				const time = this.time + elapsed;
+				const lastTick = this.lastTick;
+				const paused = this.paused;
 				if (event.type === 'pointerdown' && event.button === 0) {
 					// FPS制限やWorkerの応答待ちでも、押下した瞬間をフレームと同じ時計に載せる。
-					this.pointerElementClicks.unshift({ position, time });
+					const elapsed = paused || lastTick == null ? 0 : Math.max(0, event.timeStamp + pointerTimeOriginOffset - lastTick);
+					this.pointerElementClicks.unshift({ position, time: this.time + elapsed });
 					if (this.pointerElementClicks.length > 16) this.pointerElementClicks.pop();
 				}
-				const isInside = position.x >= 0 && position.x <= 1 && position.y >= 0 && position.y <= 1;
-				if (!this.paused && isInside && (event.pointerType !== 'touch' || (event.buttons & 1) !== 0)) {
-					this.pointerStroke.sample(event.pointerId, position, time / 1000);
-				} else this.pointerStroke.end(event.pointerId);
+				if (paused) this.pointerStroke.end(event.pointerId);
+				else {
+					for (const sample of getPointerStrokeEvents(event)) {
+						const timestamp = sample.timeStamp + pointerTimeOriginOffset;
+						if (timestamp < this.pointerStrokeClockStart.timestamp) continue;
+						const samplePosition = sample === event ? position : toCanvasPosition(sample);
+						const { x, y } = samplePosition;
+						if (x >= 0 && x <= 1 && y >= 0 && y <= 1 && (sample.pointerType !== 'touch' || (sample.buttons & 1) !== 0)) {
+							// 描画より前に取得したサンプルも時間差を保ち、再開後の最初のフレームを内容時刻の下限にする。
+							const time = lastTick == null ? this.time : Math.max(this.pointerStrokeClockStart.time, this.time + (timestamp - lastTick));
+							this.pointerStroke.sample(event.pointerId, samplePosition, time / 1000);
+						} else this.pointerStroke.end(event.pointerId);
+					}
+				}
 				this.requestRender();
 			};
 			const endPointerStroke = (event: PointerEvent) => { if (event.isPrimary) this.pointerStroke.end(event.pointerId); };
@@ -231,6 +245,7 @@ div:empty { display: none; }`;
 			this.lastTick = null;
 			this.frameRateLimiter.reset();
 			this.pointerStroke.reset();
+			this.pointerStrokeClockStart = { timestamp: performance.now(), time: this.time };
 		}
 		private requestRender() { this.dirty = true; this.schedule(); }
 		private schedule() {
