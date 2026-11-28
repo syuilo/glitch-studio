@@ -1,4 +1,5 @@
 import { createShaderBuffer } from '@gs/shared/gpu/shader-buffer.ts';
+import { inputUvScale } from '@gs/shared/gpu/input-fit.ts';
 import { getSpatialHalfExtent } from '@gs/shared/spatial-coordinate.ts';
 import type { NativeEffectImplementation } from '@gs/subsystems_effect_renderer/effect-instance.ts';
 import { createNativeEffectInputBindings } from '../../shader-input.ts';
@@ -35,6 +36,9 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 			colorAttachments: [{ view: output.createView(), loadOp: 'clear', storeOp: 'store' }],
 		};
 		const [halfExtentX, halfExtentY] = getSpatialHalfExtent(resolution);
+		const [sourceFitX, sourceFitY] = inputs.image.kind === 'texture'
+			? inputUvScale(inputs.image.resolution, resolution, inputs.image.sampling.fitMode)
+			: [1, 1];
 		const instanceData = createShaderBuffer(storages.blockInstances);
 		const inputBindings = createNativeEffectInputBindings({
 			device, resolution, inputs, schema: { image: 'color' }, group: 1, sampling: 'level0',
@@ -44,10 +48,11 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 		function createInstances(): BlockInstance[] {
 			const instances = [inputImageInstance];
 			const [width, height] = inputs.dimension.value;
+			const useRandomPosition = inputs.imageSource.value === 'randomPosition';
 			const maxImageShift = Math.max(0, inputs.maxImageShift.value);
 			const maxChannelShift = Math.max(0, inputs.maxChannelShift.value);
 			const blockCount = Math.min(MAX_BLOCK_COUNT, Math.max(0, Math.trunc(inputs.blockCount.value)));
-			if (blockCount === 0 || width <= 0 || height <= 0 || (maxImageShift === 0 && maxChannelShift === 0)) return instances;
+			if (blockCount === 0 || width <= 0 || height <= 0 || (!useRandomPosition && maxImageShift === 0 && maxChannelShift === 0)) return instances;
 
 			const seed = Math.trunc(inputs.seed.value);
 			const aspectRatioRandomness = Math.min(1, Math.max(0, inputs.aspectRatioRandomness.value));
@@ -66,13 +71,19 @@ const implementation: NativeEffectImplementation<typeof definition.paramDefs> = 
 				const sine = Math.sin(radians);
 				const widthAxisX = cosine / halfExtentX;
 				const widthAxisY = sine / halfExtentY;
-				const imageShift = maxImageShift * blockRandom(seed, blockIndex, 5);
+				const center: BlockInstance['center'] = [blockRandom(seed, blockIndex, 0), blockRandom(seed, blockIndex, 1)];
+				const localImageShift = maxImageShift * blockRandom(seed, blockIndex, 5);
+				// 入力画像上で選んだ中心をFitの逆変換で描画座標に戻し、矩形内の相対位置を保って読む。
+				// Containの余白を抽選対象から外しつつ、Coverで隠れた箇所にも参照先を置ける。
+				const imageShift: BlockInstance['imageShift'] = useRandomPosition
+					? [center[0] - blockRandom(seed, blockIndex, 7) / sourceFitX, center[1] - blockRandom(seed, blockIndex, 8) / sourceFitY]
+					: [localImageShift * widthAxisX, localImageShift * widthAxisY];
 				const channelShift = maxChannelShift * blockRandom(seed, blockIndex, 6);
 				instances.push({
-					center: [blockRandom(seed, blockIndex, 0), blockRandom(seed, blockIndex, 1)],
+					center,
 					halfWidthAxis: [halfWidth * widthAxisX, halfWidth * widthAxisY],
 					halfHeightAxis: [-halfHeight * sine / halfExtentX, halfHeight * cosine / halfExtentY],
-					imageShift: [imageShift * widthAxisX, imageShift * widthAxisY],
+					imageShift,
 					channelShift: [channelShift * widthAxisX, channelShift * widthAxisY],
 				});
 			}

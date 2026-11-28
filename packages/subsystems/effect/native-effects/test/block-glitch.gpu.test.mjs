@@ -15,3 +15,9 @@ test('rotates image and channel shifts with each block on a non-square tiled out
 test('replaces overlapping blocks even when the winning sample is transparent', { skip: chromePathUnavailable }, async () => {
 	await runEffectGpuTest(entry, 'checkBlockGlitchOverlap');
 });
+
+// 【入力画像の別の位置から矩形をサンプリングする】
+// Containの余白を避けて参照中心を選び、周囲の位置関係とSeedによる再現性を保つことを確認する。
+test('samples a deterministic image patch from a random source position', { skip: chromePathUnavailable }, async () => {
+	await runEffectGpuTest(entry, 'checkBlockGlitchRandomPosition');
+});

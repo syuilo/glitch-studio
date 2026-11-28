@@ -54,6 +54,11 @@ export default defineNativeEffect({
 			ui: { label: 'Angle Spread', control: { controlType: 'angle', step: 1 / 360 } },
 			defaultValue: 0,
 		},
+		imageSource: {
+			dataType: { kind: 'enum', options: ['shift', 'randomPosition'] },
+			ui: { label: 'Image Source', control: { labels: { shift: 'Shift', randomPosition: 'Random Position' } } },
+			defaultValue: 'shift',
+		},
 		maxImageShift: {
 			dataType: { kind: 'scalar' },
 			ui: { label: 'Max Image Shift', control: { controlType: 'range', min: 0, max: 0.25, step: 0.001 } },

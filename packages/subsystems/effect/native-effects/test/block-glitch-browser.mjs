@@ -3,10 +3,10 @@ import { check, near, withGpu } from './native-effect-gpu-fixture.mjs';
 const resolution = { width: 64, height: 32 };
 const frame = { time: 0, timeDelta: 0 };
 
-async function withBlockGlitch(run) {
+async function withBlockGlitch(run, { inputResolution = resolution, fitMode = 'cover' } = {}) {
 	await withGpu(async ({ gpu: { device }, create, render, read }) => {
-		const { width, height } = resolution;
-		const texture = device.createTexture({ size: resolution, format: 'rgba16float',
+		const { width, height } = inputResolution;
+		const texture = device.createTexture({ size: inputResolution, format: 'rgba16float',
 			usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING });
 		const inputPixels = new Float16Array(width * height * 4);
 		for (let y = 0; y < height; y++) {
@@ -15,8 +15,8 @@ async function withBlockGlitch(run) {
 				inputPixels.set([x / width, y / width, (x + 2 * y) / width, 1], (y * width + x) * 4);
 			}
 		}
-		device.queue.writeTexture({ texture }, inputPixels, { bytesPerRow: width * 8 }, resolution);
-		const image = { kind: 'texture', texture, resolution, sampling: { fitMode: 'cover', wrapMode: 'transparent', filterMode: 'linear' } };
+		device.queue.writeTexture({ texture }, inputPixels, { bytesPerRow: width * 8 }, inputResolution);
+		const image = { kind: 'texture', texture, resolution: inputResolution, sampling: { fitMode, wrapMode: 'transparent', filterMode: 'linear' } };
 		try {
 			await run(async (overrides, tileSize = null) => {
 				const values = { dimension: [3, 2.5], aspectRatioRandomness: 0, scaleRandomness: 0, maxImageShift: 0, maxChannelShift: 0,
@@ -87,4 +87,24 @@ export async function checkBlockGlitchOverlap() {
 		near(pixel(oneBlock, 60, 16)[3], 1, 'the first block samples an opaque texel at the right edge');
 		check(pixel(twoBlocks, 60, 16).every(value => value === 0), 'the later block takes precedence with a transparent sample');
 	});
+}
+
+export async function checkBlockGlitchRandomPosition() {
+	await withBlockGlitch(async draw => {
+		const options = { imageSource: 'randomPosition', seed: 3 };
+		const original = await draw({ ...options, blockCount: 0 });
+		const copied = await draw(options);
+		// このSeedでは、出力の余白にあるブロックの中心が入力画像の上端付近を参照する。
+		const center = pixel(copied, 52, 28);
+		const neighbor = pixel(copied, 53, 29);
+		near(pixel(original, 52, 28)[3], 0, 'the destination is in the contain padding');
+		near(center[3], 1, 'the random source center is inside the input image');
+		near(neighbor[0] - center[0], 1 / resolution.width, 'the patch preserves horizontal spacing');
+		near(neighbor[1] - center[1], 1 / resolution.width, 'the patch preserves vertical spacing');
+
+		const tiled = await draw({ ...options, maxImageShift: 0.25 }, 13);
+		check(copied.every((value, index) => value === tiled[index]), 'random positions are stable across tiles and independent of Max Image Shift');
+		const otherSeed = await draw({ ...options, seed: 0 });
+		check(copied.some((value, index) => value !== otherSeed[index]), 'changing the seed changes which input regions appear');
+	}, { inputResolution: { width: 64, height: 16 }, fitMode: 'contain' });
 }
