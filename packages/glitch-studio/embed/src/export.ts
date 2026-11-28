@@ -68,7 +68,7 @@ export async function encodePortableNodesEffect(prepared: ReturnType<typeof prep
 	return { format, artwork: { ...data, assets: encodedAssets }, assetFiles };
 }
 
-export type PortableNodesEffectRuntime = { elementSource: string; workerSource: string };
+export type PortableNodesEffectRuntime = { elementSource: string; workerSource: string | null };
 
 function htmlText(value: string) {
 	return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
@@ -80,22 +80,24 @@ export function createPortableNodesEffectFiles({ format, artwork, assetFiles }: 
 	const scriptString = (value: string) => JSON.stringify(value).replaceAll('<', '\\u003c');
 	const data = scriptString(JSON.stringify(artwork));
 	// 埋め込み先ページやBlob WorkerのURLではなく、同梱ファイルと同じ場所にあるモジュールのURLを使う。
-	const moduleUrlArgument = format === 'zip' ? ', import.meta.url' : '';
-	const javascript = `(() => {\n${runtime.elementSource}\nGlitchStudioNodesEffectEmbed.registerNodesEffectElement(${JSON.stringify(tagName)}, JSON.parse(${data}), ${scriptString(runtime.workerSource)}${moduleUrlArgument});\n})();\n`;
+	const moduleUrl = format === 'zip' ? 'import.meta.url' : 'null';
+	const workerSourceArgument = runtime.workerSource == null ? '' : `, ${scriptString(runtime.workerSource)}`;
+	const javascript = `(() => {\n${runtime.elementSource}\nGlitchStudioNodesEffectEmbed.registerNodesEffectElement(${JSON.stringify(tagName)}, JSON.parse(${data}), ${moduleUrl}${workerSourceArgument});\n})();\n`;
 	const document = (script: string) => `<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${htmlText(artwork.name)}</title>\n<style>html, body { margin: 0; width: 100%; height: 100%; } ${tagName} { display: block; width: 100%; height: 100%; }</style>\n</head>\n<body>\n<${tagName} id="artwork"></${tagName}>\n${script}\n</body>\n</html>\n`;
 	if (format === 'html') {
 		// 実行コード自体もASCIIでビルドする。HTML parserがscriptを途中で閉じる文字列を残さない。
 		return { format, html: document(`<script type="module">\n${javascript.replace(/<\/script/gi, '<\\/script')}\n</script>`) };
 	}
 	const html = document('<script type="module" src="./artwork.js"></script>');
+	const workerCsp = runtime.workerSource == null ? '' : ' The worker-src directive must allow blob: URLs.';
 	const readme = `# ${artwork.name}
 
-Serve index.html and artwork.js over HTTPS (or localhost) with WebGPU enabled. If an assets/ directory is included, deploy it alongside artwork.js. Assets are loaded relative to artwork.js. No CDN or Glitch Studio installation is required. The page CSP must allow the script, a blob: worker, inline component styles and asset fetches (connect-src). If served from a different origin, the script and assets must allow CORS requests from the embedding page.
+Serve index.html and artwork.js over HTTPS (or localhost) with WebGPU enabled. If an assets/ directory is included, deploy it alongside artwork.js. Assets are loaded relative to artwork.js. No CDN or Glitch Studio installation is required. The page CSP must allow the script, inline component styles, and asset fetches (connect-src).${workerCsp} If served from a different origin, the script and assets must allow CORS requests from the embedding page.
 
 Embed:
 
 <script type="module" src="./artwork.js"></script>
-<${tagName} id="artwork" style="display:block;width:100%;height:60vh" parameters='{}'></${tagName}>
+<${tagName} id="artwork" style="display:block;width:100%;height:60vh"></${tagName}>
 
 JavaScript
 

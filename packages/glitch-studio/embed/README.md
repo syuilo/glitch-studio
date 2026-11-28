@@ -6,14 +6,15 @@ Nodes Effectをエディタから独立したWeb Componentとして配布するG
 
 - `src/export.ts`: 依存収集・静的検証・素材の読み出し・HTML/JavaScript/利用案内の生成。収集規則は`.gsne`と`glitch-studio/shared/nodes-effect-resources.ts`を共有します。
 - `src/archive.ts`: HTML・JavaScript・利用案内・素材原本をまとめる非圧縮ZIPの生成。
-- `src/element.ts`: Custom Elementの登録、Shadow DOM、表示サイズ・可視性・時間・ポインター・公開値とWorkerの管理。
+- `src/element.ts`: Custom Elementの登録、Shadow DOM、表示サイズ・可視性・ポインター・公開値の変更通知。
+- `src/renderer.ts`: 両方の実行先で使うレンダラー。WebGPU・素材・`EffectInstance`の寿命、作品時刻、描画ループを管理します。
+- `src/worker-element.ts`・`src/main-thread-element.ts`: 選択した実行先でレンダラーに接続します。`src/worker.ts`はWorker内で初期化・更新を受け付けます。
 - `src/frame-rate-limiter.ts`: 表示周期の端数を持ち越すFPS制限。rAF時刻の丸めによる余分な間引きを防ぎ、失った描画枠は再実行しません。
-- `src/worker.ts`: WebGPU・素材・`effect` の `EffectInstance` の生成と破棄。主出力を指定して描画を準備し、完了したフレームをCanvasへ渡します。
 - `src/parameters.ts`: 公開パラメータの参照名と既定値の解決。編集用Bindingではなく通常の値をAPI境界で扱います。
-- `src/effect-inputs.ts` は公開パラメータの値をWorker内のEffect入力へ束縛します。
+- `src/effect-inputs.ts` は公開パラメータの値をEffect入力へ束縛します。
 - `src/runtime-requirements.ts`: 検証済みの作品から、配置済みエフェクトと式評価・Custom Shader Effectの必要性を判定します。
 - `build/catalog.mjs`: アプリのビルド時に、TS・WGSL・npm依存を解決したES Modulesのカタログを生成します。
-- `build/runtime.mjs`: カタログから使用するエフェクトだけをimportし、esbuildでElementとWorkerをそれぞれ独立したIIFEに束ねます。配布先ではビルドや外部importを行いません。
+- `build/runtime.mjs`: カタログから使用するエフェクトを選び、実行先に応じたIIFEをesbuildで生成します。ワーカー実行ではElementとWorkerを個別に、メインスレッド実行ではレンダラーを含むElementをまとめて束ねます。
 
 エフェクト内蔵画像はエフェクトのディレクトリ内で所有して静的importし、カタログではData URLへ変換します。Symbolsの記号・数字・絵文字も使用時だけ同梱され、公開パラメータによるアイコンセットの変更に備えて全セットを含めます。アプリの`public`配信やViteの`import.meta.env.BASE_URL`には依存しません。IIFEで使えない`import.meta`が残った場合は、成果物を保存する前にビルドを失敗させます。
 
@@ -30,11 +31,13 @@ Nodes Effectをエディタから独立したWeb Componentとして配布するG
 
 どちらも画像・動画・フォント・LUTなどの参照Asset原本を含みます。CDNやエディタへの接続は不要です。元ファイルのパスとデバイス識別子は含めません。Native Effectは配置されている種類だけを同梱します。登録型・インライン型のCustom Effectを再帰的にたどり、参照された登録定義を種類・IDごとに一度ずつ同梱します。出力からの到達性やバイパスによるノード削除は行いません。タグ名は書き出しごとのUUIDを持ち、別作品との登録衝突を避けます。
 
-HTTPSまたはlocalhost上のWebGPU対応Chromeを対象にします。COOP/COEPによるcross-origin isolationは必要ありません。配信先のCSPは成果物のscript、`worker-src blob:`、コンポーネントのインラインstyleを許可する必要があります。ZIPに素材がある場合は`connect-src`でも素材の配信元を許可してください。別オリジンへ埋め込む場合、JavaScriptと素材の配信サーバーは埋め込み先からのCORSリクエストを許可する必要があります。単一HTMLはインラインscriptの許可も必要です。式の評価に`unsafe-eval`は使いません。HTML + JavaScriptを`file://`で直接開く使い方は対象外です。
+書き出し時に描画の実行先を選びます。既定はワーカーです。メインスレッドを選んだ場合は、Custom Elementと同じスレッドで描画を始めます。
+
+HTTPSまたはlocalhost上のWebGPU対応Chromeを対象にします。COOP/COEPによるcross-origin isolationは必要ありません。配信先のCSPでは成果物のscriptとコンポーネントのインラインstyleを許可します。ワーカー実行を選んだ場合は`worker-src`で`blob:`も許可します。ZIPに素材がある場合は`connect-src`でも素材の配信元を許可してください。別オリジンへ埋め込む場合、JavaScriptと素材の配信サーバーは埋め込み先からのCORSリクエストを許可する必要があります。単一HTMLはインラインscriptの許可も必要です。式の評価に`unsafe-eval`は使いません。HTML + JavaScriptを`file://`で直接開く使い方は対象外です。
 
 ## ランタイムの最適化
 
-Workerにはノードまたはカスタムパラメータが式や有効な式Modifierを使う場合だけAiScriptを同梱します。配列・構造体の子Bindingも調べます。Elementは公開パラメータの既定値を末端までリテラルとして読み取ります。
+レンダラーにはノードまたはカスタムパラメータが式や有効な式Modifierを使う場合だけAiScriptを同梱します。配列・構造体の子Bindingも調べます。Elementは公開パラメータの既定値を末端までリテラルとして読み取ります。
 
 カスタムパラメータは動的な名前による参照があるため、現在参照されていない式も保守的に含めます。公開APIが受け取るのは値だけなので、外部からの更新でエフェクトや式エンジンの追加が必要になることはありません。
 
@@ -49,7 +52,6 @@ Workerにはノードまたはカスタムパラメータが式や有効な式Mo
 <gs-nodes-effect-example
   id="artwork"
   style="width: 100%; height: 60vh"
-  parameters='{"speed": 0.8}'
 ></gs-nodes-effect-example>
 ```
 
@@ -75,10 +77,11 @@ nodesEffectElement.resetParameter('speed');
 - テクスチャ出力と表示先の縦横比が異なる場合はcontainで表示し、余白は透明です。均一な色の出力は表示領域全体に描きます。作業色空間は既存のlinear sRGB・rgba16floatで、表示時に既存のCanvas出力規約へ変換します。
 - 作品時刻は初期化完了からの経過時間で、フレーム数に依存しません。画面外・非表示ページ・表示サイズゼロでは描画を休止し、作品時刻は進み続けます。復帰時はその時点の作品時刻で描画履歴をリセットし、最初のフレームの `timeDelta` をゼロにします。
 - 描画倍率とFPSは書き出し時に設定します。描画倍率の初期値は1、FPSの初期値は「自動」です。自動は内部の`fpsLimit: null`で表し、`requestAnimationFrame`の周期で描画します。画面のリフレッシュレートが変わった場合も追従します。
-- 数値指定のFPS制限は予定時刻の位相を保って間引きます。時刻の丸めに対して最大0.5msを許容し、60Hzで60fpsを指定した場合や表示周期が目標FPSで割り切れない場合も、不必要に描画回数を減らしません。GPU処理が遅れた場合は古い枠を捨て、一度に送るフレームは一つのままです。
-- 公開値の更新は変更時のフレームでWorkerへ送ります。フィールド値や配列要素の値を変更しても同じ配置を使います。描画解像度または束縛済みの配列長が変わると配置を再生成し、現在時刻を保持して履歴をリセットします。
-- DOMからの削除でObserver・イベント・Worker・GPUリソースを解放します。同じ要素を再接続した場合はCanvasを作り直し、設定済みの公開値を使い、初期化完了を0秒として新しい履歴で再生します。同一Document内の同期的なDOM移動では再生を続けます。
-- 一要素につき一Worker・一GPUDeviceです。GPU完了まで次のフレームを送らず、描画が遅い場合のキュー蓄積を防ぎます。
+- `requestAnimationFrame`はレンダラーが動くスレッドで実行します。ワーカー実行ではElementから表示状態・寸法・公開値・入力の変更を送り、各フレームの描画はWorker内で完結します。
+- 数値指定のFPS制限は予定時刻の位相を保って間引きます。時刻の丸めに対して最大0.5msを許容し、60Hzで60fpsを指定した場合や表示周期が目標FPSで割り切れない場合も、不必要に描画回数を減らしません。GPU処理が遅れた場合は過ぎた枠を飛ばします。
+- フィールド値や配列要素の値を変更しても同じ配置を使います。描画解像度または束縛済みの配列長が変わると配置を再生成し、現在時刻を保持して履歴をリセットします。
+- DOMからの削除でObserver・イベント・レンダラーを解放します。同じ要素を再接続した場合はCanvasを作り直し、設定済みの公開値を使い、初期化完了を0秒として新しい履歴で再生します。同一Document内の同期的なDOM移動では再生を続けます。
+- 一要素につき一GPUDeviceを使います。レンダラーはGPU完了後に次のフレームを予約し、描画が遅い場合のキュー蓄積を防ぎます。
 - primary pointerの移動・押下を受け取り、`POINTER_POSITION`へ既存の等方座標規約で渡します。余白の位置も出力座標へ換算し、最後の位置を保持します。タッチのスクロールを妨げず、複数ポインター・筆圧・押下状態の新しい環境変数は追加しません。
 - 主ボタンや最初の指の`pointerdown`を直近16件保持し、押下位置と内容時刻をEffect共通の描画コンテキストの`pointerClicks`に新しい順で渡します。押下履歴は接続の解除で消去します。
 - primary pointerの連続した移動を、両端の位置と内容時刻を持つ線分の列として、Effect共通の描画コンテキストの`pointerStrokeSegments`に渡します。`pointermove`にまとめられた位置も`getCoalescedEvents()`で取得し、それぞれの取得時刻を内容時刻に換算します。ポインターの退出・キャンセルや指を離した位置で軌跡を区切ります。描画を休止すると未描画の軌跡を破棄し、再開後の入力から新しい軌跡を作ります。
@@ -87,4 +90,4 @@ nodesEffectElement.resetParameter('speed');
 
 ## 検証
 
-`pnpm --filter @gs/glitch-studio_embed test`で素材収集・公開値・解像度・HTML/ZIP生成・依存判定・カタログからの最適化ビルドを検証します。ブラウザ統合テストは`CHROME_PATH`にChromeの実行ファイルを設定して同じコマンドで実行します。実際に生成したファイルをローカルHTTPで配信し、WebGPUの画素・透過・ポインター・再接続・複数要素・単一HTMLを検証します。設定がない場合はブラウザテストだけをskipします。
+`pnpm --filter @gs/glitch-studio_embed test`で素材収集・公開値・解像度・HTML/ZIP生成・依存判定・カタログからの最適化ビルドを検証します。ブラウザ統合テストは`CHROME_PATH`にChromeの実行ファイルを設定して同じコマンドで実行します。実際に生成したファイルをローカルHTTPで配信し、WebGPUの画素・透過・ポインター・再接続・複数要素・単一HTMLを検証します。ワーカーの自律描画、両方の実行先での作品時刻、`worker-src 'none'`を設定したメインスレッド版の単一HTMLも対象です。設定がない場合はブラウザテストだけをskipします。

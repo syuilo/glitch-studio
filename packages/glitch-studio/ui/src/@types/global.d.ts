@@ -16,7 +16,7 @@ interface Window {
 		onMcpCancel(listener: (requestId: string) => void): () => void;
 		respondMcpRequest(response: import('@gs/glitch-studio_shared/mcp.ts').McpEditorResponse): Promise<void>;
 		updateMcpProjectSessions(sessions: import('@gs/glitch-studio_shared/mcp.ts').McpProjectSessionSummary[]): Promise<void>;
-		buildPortableNodesEffect(requestId: string, requirements: import('@gs/glitch-studio_embed/runtime-requirements.ts').PortableNodesEffectRuntimeRequirements): Promise<import('@gs/glitch-studio_embed/export.ts').PortableNodesEffectRuntime>;
+		buildPortableNodesEffect(requestId: string, request: import('@gs/glitch-studio_embed/runtime-requirements.ts').PortableNodesEffectRuntimeBuildRequest): Promise<import('@gs/glitch-studio_embed/export.ts').PortableNodesEffectRuntime>;
 		cancelPortableNodesEffect(requestId: string): Promise<void>;
 		onProjectCloseRequested(listener: (requestId: number) => void): () => void;
 		completeProjectClose(requestId: number, confirmed: boolean): Promise<boolean>;

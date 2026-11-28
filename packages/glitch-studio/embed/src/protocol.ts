@@ -1,35 +1,33 @@
 import { normalizedToSpatialCoordinates } from '@gs/shared/spatial-coordinate.ts';
 import type { PortableNodesEffect } from '@gs/glitch-studio_shared/portable-nodes-effect.ts';
-import type { PointerStrokeSegment } from '@gs/glitch-studio_shared/pointer-stroke-input.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 
 export type PortablePointerPosition = { x: number; y: number };
-export type PortablePointerClick = {
-	position: PortablePointerPosition;
-	/** フレームのtimeと同じ内容時刻（ミリ秒）。 */
-	time: number;
-};
-
-export type PortableNodesEffectFrame = {
-	resolution: Resolution;
-	time: number;
+export type PortableNodesEffectRendererInitialization = {
+	canvas: OffscreenCanvas;
+	artwork: PortableNodesEffect;
+	artworkModuleUrl: string | null;
+	parameters: Record<string, unknown>;
 	pointerElementPosition: PortablePointerPosition | null;
-	/** 要素内の押下位置と時刻のスナップショット。新しい入力順。 */
-	pointerElementClicks: readonly PortablePointerClick[];
-	pointerElementStrokeSegments: readonly PointerStrokeSegment[];
-	/** 初回と公開値の変更時だけスナップショットを送る。 */
-	parameters: Record<string, unknown> | null;
-	resetHistory: boolean;
 };
 
-export type PortableNodesEffectRequest =
-	| { type: 'initialize'; canvas: OffscreenCanvas; artwork: PortableNodesEffect; artworkModuleUrl: string | null }
-	| { type: 'frame'; frame: PortableNodesEffectFrame }
-	| { type: 'dispose' };
+/** 採取時刻はDocumentとWorkerの時間原点をまたいで比較できるミリ秒で渡す。 */
+export type PortableNodesEffectPointerSample = { position: PortablePointerPosition | null; timestamp: number };
 
-export type PortableNodesEffectResponse =
-	| { type: 'ready' }
-	| { type: 'frameComplete' };
+export type PortableNodesEffectRendererUpdate =
+	| { type: 'layout'; physicalSize: Resolution; canRender: boolean; timestamp: number }
+	| { type: 'parameters'; parameters: Record<string, unknown> }
+	| { type: 'pointer'; pointerId: number; position: PortablePointerPosition; clickTimestamp: number | null; samples: readonly PortableNodesEffectPointerSample[] }
+	| { type: 'endPointerStroke'; pointerId: number };
+
+export type PortableNodesEffectWorkerRequest =
+	| ({ type: 'initialize' } & PortableNodesEffectRendererInitialization)
+	| PortableNodesEffectRendererUpdate;
+
+export type PortableNodesEffectRendererConnection = {
+	update(update: PortableNodesEffectRendererUpdate): void;
+	dispose(): void;
+};
 
 // 高DPIの埋め込み先でも出力Canvasの画素数を抑えるため、従来の既定値だった4K相当を共通で適用する。
 const MAX_PORTABLE_NODES_EFFECT_RENDER_PIXELS = 8_294_400;

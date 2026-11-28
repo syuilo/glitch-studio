@@ -12,7 +12,7 @@ const { analyzePortableNodesEffectRuntime, fill } = implementation;
 
 // 【基準式・有効な加工式・コンテナの子・カスタム値を漏らさず解析する】
 // 公開値の変更やCUSTOMの動的参照で後から通る処理もあるため、現在値だけで式を削らない。
-// 公開既定値は末端までliteralであり、式はWorkerでのみ評価する。
+// 公開既定値は末端までliteralであり、式は描画の実行先で評価する。
 test('detects expression capabilities in nested bindings, modifiers and custom parameters', () => {
 	const resources = fixture();
 	const { nodesEffect } = resources;
@@ -71,6 +71,14 @@ test('bundles only selected runtime capabilities from a self-contained catalog',
 	const requirements = { effectIds: ['fill'], requiresExpressions: false, requiresCustomShaderEffects: false, parameterFeatures: [] };
 	const metadata = [];
 	const plain = await buildPortableNodesEffectRuntime(directory, requirements, (_name, result) => metadata.push(result));
+	// 【実行先ごとに選んだ起動経路だけを同梱する】
+	// ワーカー実行でElement側にループが残ったり、メインスレッド版がBlob Workerを要求したりすると用途が失われる。
+	assert.doesNotMatch(plain.elementSource, /requestAnimationFrame|onSubmittedWorkDone/);
+	assert.match(plain.workerSource, /requestAnimationFrame/);
+	const mainThread = await buildPortableNodesEffectRuntime(directory, { ...requirements, executionTarget: 'mainThread' });
+	assert.equal(mainThread.workerSource, null);
+	assert.match(mainThread.elementSource, /requestAnimationFrame|onSubmittedWorkDone/);
+	assert.ok(!/new Worker\(/.test(mainThread.elementSource), 'the main-thread bundle must not create a worker');
 	assert.doesNotMatch(plain.elementSource + plain.workerSource, /AiScript|VideoSampleSink|Expression is empty|fn gs_fragment/);
 	assert.doesNotMatch(plain.workerSource, /maximumTilePixels|timestamp-query|Tiled rendering is already in progress/);
 	// 【通常のWGSL文字列も圧縮した状態でWorkerへ同梱する】
@@ -139,6 +147,7 @@ test('bundles only selected runtime capabilities from a self-contained catalog',
 	assert.match(allEffects.workerSource, /Copyright \(c\) 2021 Stefan Gustavson and Ian McEwan/);
 	await assert.rejects(buildPortableNodesEffectRuntime(directory, { ...requirements, effectIds: ['../expression'] }), /Invalid/);
 	await assert.rejects(buildPortableNodesEffectRuntime(directory, { ...requirements, parameterFeatures: ['__proto__'] }), /Invalid/);
+	await assert.rejects(buildPortableNodesEffectRuntime(directory, { ...requirements, executionTarget: 'other' }), /Invalid/);
 	// 【ビルド時の警告を見落として壊れた成果物を保存しない】
 	// 配布カタログへVite専用参照が再混入した場合も、書き出しの段階で明示的に失敗させる。
 	await writeFile(path.join(directory, 'worker.js'), 'export function startPortableNodesEffectWorker() { console.log(import.meta.env.BASE_URL); }');

@@ -13,30 +13,90 @@ import { fixture, parameter, shaderDefinition } from './helpers/fixture.mjs';
 
 const { preparePortableNodesEffect, encodePortableNodesEffect, createPortableNodesEffectFiles, fill, image, symbols, clickGradient, clickRipple, colorRamp, cursorRipples, vectorChromaticAberration } = implementation;
 
-function observePortableNodesEffectFrames() {
-	const elementsByCanvas = new WeakMap();
+function observeCanvasFrames(report) {
+	const queuesByContext = new WeakMap();
+	const canvasesByDevice = new WeakMap();
+	const pendingPresentations = new WeakMap();
+	const configure = GPUCanvasContext.prototype.configure;
+	GPUCanvasContext.prototype.configure = function (configuration) {
+		configure.call(this, configuration);
+		queuesByContext.set(this, configuration.device.queue);
+		canvasesByDevice.set(configuration.device, this.canvas);
+		report(this.canvas, { type: 'test-renderer-initialized' });
+	};
+	const getCurrentTexture = GPUCanvasContext.prototype.getCurrentTexture;
+	GPUCanvasContext.prototype.getCurrentTexture = function () {
+		const texture = getCurrentTexture.call(this);
+		pendingPresentations.set(queuesByContext.get(this), this.canvas);
+		return texture;
+	};
+	const onSubmittedWorkDone = GPUQueue.prototype.onSubmittedWorkDone;
+	GPUQueue.prototype.onSubmittedWorkDone = function () {
+		const completed = onSubmittedWorkDone.call(this);
+		const canvas = pendingPresentations.get(this);
+		if (canvas != null) {
+			pendingPresentations.delete(this);
+			const resolution = { width: canvas.width, height: canvas.height };
+			void completed.then(() => report(canvas, { type: 'test-frame-complete', resolution }), () => {});
+		}
+		return completed;
+	};
+	const destroy = GPUDevice.prototype.destroy;
+	GPUDevice.prototype.destroy = function () {
+		destroy.call(this);
+		const canvas = canvasesByDevice.get(this);
+		if (canvas != null) report(canvas, { type: 'test-renderer-disposed' });
+	};
+}
+
+function observePortableNodesEffectFrames(observeCanvasFrames) {
+	const framesByCanvas = new WeakMap();
 	const framesByWorker = new WeakMap();
 	const framesByElement = new WeakMap();
 	const transferControlToOffscreen = HTMLCanvasElement.prototype.transferControlToOffscreen;
 	HTMLCanvasElement.prototype.transferControlToOffscreen = function () {
 		const canvas = transferControlToOffscreen.call(this);
-		elementsByCanvas.set(canvas, this.getRootNode().host);
+		const element = this.getRootNode().host;
+		const frames = { element, initialized: Promise.withResolvers(), lastCompleted: null, requests: 0, replies: 0, disposed: false };
+		framesByCanvas.set(canvas, frames);
+		framesByElement.set(element, frames);
 		return canvas;
+	};
+	function handleObservation(frames, message) {
+		if (message.type === 'test-renderer-initialized') frames.initialized.resolve();
+		else if (message.type === 'test-renderer-disposed') frames.disposed = true;
+		else if (message.type === 'test-frame-complete') {
+			frames.lastCompleted = message;
+			frames.element.dispatchEvent(new CustomEvent('test-frame-complete', { detail: message }));
+		} else frames.replies++;
+	}
+	observeCanvasFrames((canvas, message) => {
+		const frames = framesByCanvas.get(canvas);
+		if (frames != null) handleObservation(frames, message);
+	});
+	const workerObservation = `(${observeCanvasFrames})((_canvas, message) => postMessage(message));\n`;
+	const createObjectURL = URL.createObjectURL;
+	URL.createObjectURL = function (source) {
+		const observedSource = source.type === 'text/javascript' ? new Blob([workerObservation, source], { type: source.type }) : source;
+		return createObjectURL.call(this, observedSource);
 	};
 	const postMessage = Worker.prototype.postMessage;
 	Worker.prototype.postMessage = function (message, ...options) {
 		if (message.type === 'initialize') {
-			const element = elementsByCanvas.get(message.canvas);
-			const frames = { initialized: Promise.withResolvers(), lastRequested: null };
+			const frames = framesByCanvas.get(message.canvas);
 			framesByWorker.set(this, frames);
-			framesByElement.set(element, frames);
-			this.addEventListener('message', ({ data }) => {
-				if (data.type === 'ready') frames.initialized.resolve();
-				else if (data.type === 'frameComplete') element.dispatchEvent(new CustomEvent('test-frame-complete', { detail: frames.lastRequested }));
-			});
-			this.addEventListener('error', ({ message }) => element.dispatchEvent(new CustomEvent('test-renderer-error', { detail: message })));
-		} else if (message.type === 'frame') framesByWorker.get(this).lastRequested = message.frame;
+			this.addEventListener('message', ({ data }) => handleObservation(frames, data));
+			this.addEventListener('error', ({ message }) => frames.element.dispatchEvent(new CustomEvent('test-renderer-error', { detail: message })));
+		}
+		const frames = framesByWorker.get(this);
+		if (frames != null) frames.requests++;
 		return postMessage.call(this, message, ...options);
+	};
+	const terminate = Worker.prototype.terminate;
+	Worker.prototype.terminate = function () {
+		const frames = framesByWorker.get(this);
+		if (frames != null) frames.disposed = true;
+		return terminate.call(this);
 	};
 	globalThis.portableNodesEffectFrames = framesByElement;
 }
@@ -53,19 +113,23 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	});
 	await buildPortableNodesEffectCatalog(catalog);
 	const artifacts = new Map();
-	async function add(name, input) {
+	async function add(name, input, executionTarget = 'worker') {
 		const prepared = preparePortableNodesEffect(input, { fill, image, symbols, clickGradient, clickRipple, colorRamp, cursorRipples, vectorChromaticAberration });
-		const runtime = await buildPortableNodesEffectRuntime(catalog, prepared.runtimeRequirements);
+		const runtime = await buildPortableNodesEffectRuntime(catalog, { ...prepared.runtimeRequirements, executionTarget });
 		const tagName = `gs-nodes-effect-${name}`;
 		const archive = createPortableNodesEffectFiles(await encodePortableNodesEffect(prepared, 'zip'), runtime, tagName);
 		artifacts.set(`/${name}/artwork.js`, archive.javascript);
 		for (const { path, contents } of archive.assetFiles) artifacts.set(`/${name}/${path}`, Buffer.from(await contents.arrayBuffer()));
-		if (name === 'standalone' || name === 'symbols' || name === 'image' || name === 'ripple') {
+		if (name === 'standalone' || name === 'symbols' || name === 'image' || name === 'ripple' || name === 'mainimage') {
 			const standalone = createPortableNodesEffectFiles(await encodePortableNodesEffect(prepared, 'html'), runtime, tagName);
 			artifacts.set(`/${name}.html`, standalone.html);
 		}
 	}
 	await add('test', fixture());
+	const clock = fixture();
+	clock.nodesEffect.nodes[0].params.color.expression = '[TIME, 0, 0, 1]';
+	await add('clock', clock);
+	await add('mainclock', clock, 'mainThread');
 	const scaled = fixture();
 	scaled.settings.resolutionScale = 0.5;
 	scaled.initialParameters.level = 0.5;
@@ -164,6 +228,7 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	imageInput.nodesEffect.nodes[0] = { ...imageInput.nodesEffect.nodes[0], effectSource: { type: 'nativeEffect', id: 'image' }, resolution: { mode: 'auto', scale: 1 },
 		staticSettings: { [Object.keys(image.staticSettingDefs)[0]]: 'image' }, params: Object.fromEntries(Object.entries(image.paramDefs).map(([key, def]) => [key, createDefaultParameterBinding(def)])) };
 	await add('image', imageInput);
+	await add('mainimage', imageInput, 'mainThread');
 	const symbolInput = fixture();
 	symbolInput.nodesEffect.paramDefs = { iconset: { ...parameter('enum', 'symbols', 'iconset'), dataType: symbols.paramDefs.iconset.dataType } };
 	symbolInput.nodesEffect.nodes[0] = { ...symbolInput.nodesEffect.nodes[0], effectSource: { type: 'nativeEffect', id: 'symbols' },
@@ -192,8 +257,8 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 	dangerous.name = '<!--<script></script><script>throw new Error("injected")</script>';
 	await add('standalone', dangerous);
 	const harness = await readFile(new URL('./helpers/browser.mjs', import.meta.url), 'utf8');
-	// 配布物にはテスト用APIを設けず、親ページと単一HTMLでWorkerの内部完了通知を観測する。
-	const frameObservationScript = `<script>(${observePortableNodesEffectFrames})();</script>`;
+	// 配布物に観測用の通知を設けず、テストでCanvasの描画と解放を両方の実行先から観測する。
+	const frameObservationScript = `<script>(${observePortableNodesEffectFrames})(${observeCanvasFrames});</script>`;
 	let resolveResult;
 	const result = new Promise(resolve => { resolveResult = resolve; });
 	const requests = [];
@@ -205,7 +270,8 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 			request.on('end', () => { response.end('OK'); resolveResult(JSON.parse(body)); });
 			return;
 		}
-		response.setHeader('Content-Security-Policy', "script-src 'self' 'unsafe-inline'; worker-src blob:; style-src 'unsafe-inline'; connect-src 'self'");
+		const workerPolicy = request.url === '/mainimage.html' ? "'none'" : 'blob:';
+		response.setHeader('Content-Security-Policy', `script-src 'self' 'unsafe-inline'; worker-src ${workerPolicy}; style-src 'unsafe-inline'; connect-src 'self'`);
 		if (request.url === '/harness.js') { response.setHeader('Content-Type', 'text/javascript'); response.end(harness); }
 		else if (artifacts.has(request.url)) {
 			const content = artifacts.get(request.url);
@@ -231,7 +297,7 @@ test('runs exported artifacts with responsive pixels independent inputs and reco
 		assert.ok(output.passed.length >= 15);
 		t.diagnostic(output.passed.join('\n'));
 		assert.equal(requests.filter(url => url === '/image/assets/1.PNG').length, 1);
-		assert.ok(requests.every(url => /^\/(?:result|harness\.js|[a-z]+\/artwork\.js|image\/assets\/1\.PNG|[a-z]+\.html|favicon\.ico)?$/.test(url)), requests.join(', '));
+		assert.ok(requests.every(url => /^\/(?:result|harness\.js|[a-z]+\/artwork\.js|(?:main)?image\/assets\/1\.PNG|[a-z]+\.html|favicon\.ico)?$/.test(url)), requests.join(', '));
 	} finally {
 		clearTimeout(timer);
 		if (browser != null && browser.exitCode == null) {

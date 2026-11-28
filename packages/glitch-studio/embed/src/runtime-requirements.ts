@@ -15,6 +15,12 @@ export type PortableNodesEffectRuntimeRequirements = {
 	parameterFeatures: PortableNodesEffectParameterFeature[];
 };
 
+export type PortableNodesEffectExecutionTarget = 'worker' | 'mainThread';
+
+export type PortableNodesEffectRuntimeBuildRequest = PortableNodesEffectRuntimeRequirements & {
+	executionTarget: PortableNodesEffectExecutionTarget;
+};
+
 /**
  * 式から動的に参照されるCUSTOMの値も扱えるよう、スナップショットに含む全配置を調べる。
  * 同じ登録のNodes Effectの内部は一度で十分だが、各配置の入力は個別に調べる。

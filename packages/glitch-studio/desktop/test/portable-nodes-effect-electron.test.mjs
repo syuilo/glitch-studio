@@ -43,6 +43,9 @@ test('builds portable runtimes in a real Electron utility process', { skip: proc
 			const runtime = await build('complete', requirements);
 			assert.doesNotMatch(runtime.workerSource, /AiScript|VideoSampleSink|fn gs_fragment/);
 			assert.ok(runtime.workerSource.length > 1000);
+			const mainThread = await build('main-thread', { ...requirements, executionTarget: 'mainThread' });
+			assert.equal(mainThread.workerSource, null);
+			assert.match(mainThread.elementSource, /requestAnimationFrame/);
 			// Native Effectを含まない作品でもShader用の入口と式評価器を配布資材から解決できる。
 			const shader = await build('shader', { effectIds: [], requiresExpressions: true, requiresCustomShaderEffects: true, parameterFeatures: ['noise'] });
 			assert.match(shader.workerSource, /fn gs_fragment/);

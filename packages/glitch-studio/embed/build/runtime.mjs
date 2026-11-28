@@ -5,15 +5,17 @@ import { portableParameterDefines } from '../src/parameter-features.ts';
 
 /** パス・ソースコード・ビルド設定は受け取らず、同梱カタログ内の機能だけを選ぶ。 */
 export function validatePortableNodesEffectRuntimeRequirements(requirements, effectIds) {
+	const executionTarget = requirements?.executionTarget ?? 'worker';
 	if (requirements == null || !Array.isArray(requirements.effectIds)
 		|| requirements.effectIds.some(id => typeof id !== 'string' || !effectIds.includes(id))
 		|| !Array.isArray(requirements.parameterFeatures)
 		|| requirements.parameterFeatures.some(feature => typeof feature !== 'string' || !Object.hasOwn(portableParameterDefines, feature))
-		|| ['requiresExpressions', 'requiresCustomShaderEffects'].some(key => typeof requirements[key] !== 'boolean')) {
+		|| ['requiresExpressions', 'requiresCustomShaderEffects'].some(key => typeof requirements[key] !== 'boolean')
+		|| (executionTarget !== 'worker' && executionTarget !== 'mainThread')) {
 		throw new Error('Invalid portable Nodes Effect runtime requirements');
 	}
 	return { effectIds: [...new Set(requirements.effectIds)].sort(), requiresExpressions: requirements.requiresExpressions,
-		requiresCustomShaderEffects: requirements.requiresCustomShaderEffects, parameterFeatures: new Set(requirements.parameterFeatures) };
+		requiresCustomShaderEffects: requirements.requiresCustomShaderEffects, parameterFeatures: new Set(requirements.parameterFeatures), executionTarget };
 }
 
 /** 開発用workspaceやViteを参照せず、配布されたES Modulesだけから成果物を作る。 */
@@ -38,12 +40,24 @@ export async function buildPortableNodesEffectRuntime(catalogDirectory, requeste
 		if (result.outputFiles.length !== 1) throw new Error('Portable runtime must be a self-contained JavaScript bundle');
 		return result.outputFiles[0].text;
 	};
-	const elementSource = await bundle("export { registerNodesEffectElement } from './element.js';", 'GlitchStudioNodesEffectEmbed');
 	const imports = requirements.effectIds.map((id, index) => `
 		import definition${index} from ${JSON.stringify(`./effects/${id}/definition.js`)};
 		import implementation${index} from ${JSON.stringify(`./effects/${id}/implementation.js`)};
 	`).join('\n');
 	const registry = prefix => `{ ${requirements.effectIds.map((id, index) => `[${JSON.stringify(id)}]: ${prefix}${index}`).join(',')} }`;
+	if (requirements.executionTarget === 'mainThread') {
+		const elementSource = await bundle(`
+			import { registerMainThreadNodesEffectElement } from './main-thread-element.js';
+			${imports}
+			const definitions = ${registry('definition')};
+			const implementations = ${registry('implementation')};
+			export function registerNodesEffectElement(tagName, artwork, artworkModuleUrl) {
+				registerMainThreadNodesEffectElement(tagName, artwork, artworkModuleUrl, definitions, implementations);
+			}
+		`, 'GlitchStudioNodesEffectEmbed');
+		return { elementSource, workerSource: null };
+	}
+	const elementSource = await bundle("export { registerWorkerNodesEffectElement as registerNodesEffectElement } from './worker-element.js';", 'GlitchStudioNodesEffectEmbed');
 	const workerSource = await bundle(`
 		import { startPortableNodesEffectWorker } from './worker.js';
 		${imports}

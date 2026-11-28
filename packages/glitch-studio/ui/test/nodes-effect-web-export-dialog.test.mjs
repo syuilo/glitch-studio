@@ -42,7 +42,11 @@ function fixture(t, fileData = new Blob(['asset'])) {
 	let chunks = [];
 	const desktop = {
 		async chooseExportSaveFile(value) { name = value; calls.push('choose'); return { id: 'target', name }; },
-		async buildPortableNodesEffect(id, requirements) { calls.push(['build', id, requirements]); return { elementSource: 'var GlitchStudioNodesEffectEmbed = { registerNodesEffectElement: capture };', workerSource: '// test worker' }; },
+		async buildPortableNodesEffect(id, request) {
+			calls.push(['build', id, request]);
+			return { elementSource: 'var GlitchStudioNodesEffectEmbed = { registerNodesEffectElement: capture };',
+				workerSource: request.executionTarget === 'mainThread' ? null : '// test worker' };
+		},
 		async cancelPortableNodesEffect(id) { calls.push(['cancel', id]); },
 		async beginExportFile() { chunks = []; calls.push('begin'); },
 		async appendExportFile(_id, chunk) { chunks.push(chunk); },
@@ -108,6 +112,7 @@ test('validates handwritten public JSON while preserving HDR colors and nested v
 // 自動を0fpsとして扱わず、カスタムの入力エラーはそのモードだけで書き出しを止める。
 test('defaults to automatic pacing and retains the custom limit across mode changes', t => {
 	const f = fixture(t);
+	assert.equal(f.input.executionTarget, 'worker');
 	assert.equal(f.input.fpsMode, 'auto');
 	assert.equal(f.input.settings.fpsLimit, null);
 	f.input.fpsMode = 'custom';
@@ -124,7 +129,7 @@ test('defaults to automatic pacing and retains the custom limit across mode chan
 });
 
 // 【非同期の素材読み出し中の操作は、開始済みの書き出し内容や形式を変えない】
-// 保存ボタンの再実行で二重に保存せず、公開値・倍率・形式を一貫したスナップショットとして配布する。
+// 保存ボタンの再実行で二重に保存せず、公開値・倍率・形式・描画の実行先を一貫したスナップショットとして配布する。
 test('saves one HTML snapshot despite edits and duplicate requests during asset reading', async t => {
 	const started = Promise.withResolvers();
 	const released = Promise.withResolvers();
@@ -132,12 +137,14 @@ test('saves one HTML snapshot despite edits and duplicate requests during asset 
 		async arrayBuffer() { started.resolve(); await released.promise; return super.arrayBuffer(); }
 	}(['original asset']));
 	f.input.format = 'html';
+	f.input.executionTarget = 'mainThread';
 	f.input.initialParameters = '{"speed":2}';
 	f.input.resolutionScale = 0.5;
 	const downloading = f.input.download();
 	await started.promise;
 	assert.equal(applicationActivity.isExporting.value, true);
 	f.input.format = 'zip';
+	f.input.executionTarget = 'worker';
 	f.input.initialParameters = '{"speed":9}';
 	f.input.resolutionScale = 0.25;
 	f.input.fpsMode = 'custom';
@@ -149,11 +156,14 @@ test('saves one HTML snapshot despite edits and duplicate requests during asset 
 	assert.equal(f.downloads.length, 1);
 	assert.equal(f.downloads[0].name, 'Nodes Effect.html');
 	const html = await f.downloads[0].blob.text();
+	assert.doesNotMatch(html, /test worker/);
 	const artwork = readArtwork(html.match(/<script type="module">([\s\S]*?)<\/script>/)[1]);
 	assert.deepEqual({ ...artwork.settings }, { resolutionScale: 0.5, fpsLimit: null });
 	assert.equal(artwork.initialParameters.speed, 2);
 	assert.equal(Buffer.from(artwork.assets[0].fileDataBase64, 'base64').toString(), 'original asset');
-	assert.equal(f.calls.filter(call => Array.isArray(call) && call[0] === 'build').length, 1);
+	const buildCalls = f.calls.filter(call => Array.isArray(call) && call[0] === 'build');
+	assert.equal(buildCalls.length, 1);
+	assert.equal(buildCalls[0][2].executionTarget, 'mainThread');
 	assert.deepEqual(f.calls.find(call => Array.isArray(call) && call[0] === 'build')[2].parameterFeatures, ['keyframes']);
 	assert.deepEqual(f.calls.slice(-2), ['finish', 'release']);
 });

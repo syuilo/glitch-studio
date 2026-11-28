@@ -279,8 +279,8 @@ test('rejects missing direct and transitive dependencies in a packaged applicati
 
 // 【配布対象の実ソースと画像をASARに詰め、起動時に必要なファイルをすべて解決できることを確認する】
 // main.mjsに実装を追加しても配布対象への追加を忘れると、開発環境だけ起動できて配布版が起動不能になる。
-// 実際のelectron-builder設定とソースを使い、別の手書きファイル一覧との比較では見逃す追加漏れを検出する。
-test('packages every local Nodes Effect and resource required by the actual application and preload', async t => {
+// 生成したWeb書き出しカタログも使い、両方の実行先の入口が実際のafterPackを通ることを確認する。
+test('verifies the packaged application and both portable renderer targets with afterPack', async t => {
 	const temporaryRoot = path.resolve(os.tmpdir());
 	const directory = await fs.mkdtemp(path.join(temporaryRoot, 'glitch-runtime-package-test-'));
 	t.after(async () => {
@@ -291,9 +291,10 @@ test('packages every local Nodes Effect and resource required by the actual appl
 	const desktopDirectory = fileURLToPath(new URL('../', import.meta.url));
 	// クリーンなcheckoutでも、配布用の生成ファイルを実際のビルド処理で用意する。
 	const { buildDesktopPortableNodesEffect } = await import('../build-portable-nodes-effect.mjs');
-	const generatedDirectory = path.join(directory, 'generated');
-	await buildDesktopPortableNodesEffect(generatedDirectory);
-	const configuration = createRequire(import.meta.url)('../electron-builder.config.cjs');
+	await buildDesktopPortableNodesEffect(directory);
+	const require = createRequire(import.meta.url);
+	const configuration = require('../electron-builder.config.cjs');
+	const { Arch } = require('electron-builder');
 	const manifest = JSON.parse(await fs.readFile(path.join(desktopDirectory, 'package.json'), 'utf8'));
 	const source = path.join(directory, 'app');
 	await fs.mkdir(source);
@@ -302,11 +303,20 @@ test('packages every local Nodes Effect and resource required by the actual appl
 	for (const file of configuration.files) {
 		const destination = path.join(source, file);
 		await fs.mkdir(path.dirname(destination), { recursive: true });
-		await fs.copyFile(file.startsWith('dist/') ? path.join(generatedDirectory, file.slice('dist/'.length)) : path.join(desktopDirectory, file), destination);
+		await fs.copyFile(file.startsWith('dist/') ? path.join(directory, file.slice('dist/'.length)) : path.join(desktopDirectory, file), destination);
 	}
+	// afterPackが検査するバンドラーの配置とバージョンを小さいファイルで用意する。
+	for (const packageName of ['esbuild', '@esbuild/win32-x64']) {
+		const packageDirectory = path.join(source, 'node_modules', packageName);
+		await fs.mkdir(packageDirectory, { recursive: true });
+		await fs.writeFile(path.join(packageDirectory, 'package.json'), JSON.stringify({ version: '1.0.0' }));
+	}
+	await fs.writeFile(path.join(source, 'node_modules/@esbuild/win32-x64/esbuild.exe'), 'test bundler');
 	const archive = path.join(directory, 'app.asar');
-	await asar.createPackage(source, archive);
-	assert.doesNotThrow(() => verifyPackagedApplication(archive, configuration.files));
+	await asar.createPackageWithOptions(source, archive, { unpack: '**/esbuild.exe' });
+	await configuration.afterPack({
+		appOutDir: directory, packager: { getResourcesDir: outputDirectory => outputDirectory }, electronPlatformName: 'win32', arch: Arch.x64,
+	});
 });
 
 // 【ASAR内のエントリ・推移的なimport・動的import・preloadのrequireの欠落を検出する】

@@ -11,6 +11,15 @@
 		>
 			<template #label>{{ i18n.ts._NodesEffect.WebExportFormat }}</template>
 		</GsSelect>
+		<GsSelect
+			v-model="executionTarget"
+			large
+			:items="executionTargets"
+			:disabled="exporting"
+			data-test-web-export-execution-target
+		>
+			<template #label>{{ i18n.ts._NodesEffect.WebExportExecutionTarget }}</template>
+		</GsSelect>
 		<GsInput
 			v-model="resolutionScale"
 			type="number"
@@ -77,6 +86,7 @@ import GsInput from './common/GsInput.vue';
 import GsTextarea from './common/GsTextarea.vue';
 import GsButton from './common/GsButton.vue';
 import type { preparePortableNodesEffect } from '@gs/glitch-studio_embed/export.ts';
+import type { PortableNodesEffectExecutionTarget } from '@gs/glitch-studio_embed/runtime-requirements.ts';
 import { applicationActivity } from '@/application-activity.ts';
 import { i18n } from '@/i18n.ts';
 import { parseNodesEffectWebExportParameters } from '@/utility/nodes-effect-web-export-parameters.ts';
@@ -88,6 +98,11 @@ const format = ref<'html' | 'zip'>('zip');
 const formats = [
 	{ value: 'zip', label: i18n.ts._NodesEffect.WebExportZip },
 	{ value: 'html', label: i18n.ts._NodesEffect.WebExportHtml },
+];
+const executionTarget = ref<PortableNodesEffectExecutionTarget>('worker');
+const executionTargets = [
+	{ value: 'worker', label: i18n.ts._NodesEffect.WebExportWorker },
+	{ value: 'mainThread', label: i18n.ts._NodesEffect.WebExportMainThread },
 ];
 // 開いた時点の設定を編集する。外側のプロジェクト編集には追従させない。
 const resolutionScale = ref(props.prepared.settings.resolutionScale);
@@ -149,6 +164,7 @@ async function download() {
 			initialParameters: parseNodesEffectWebExportParameters(props.prepared.nodesEffect, initialParameters.value),
 		};
 		const selectedFormat = format.value;
+		const selectedExecutionTarget = executionTarget.value;
 		saveFile = await desktop.chooseExportSaveFile(`${snapshot.name}.${selectedFormat}`, selectedFormat);
 		signal.throwIfAborted();
 		if (saveFile == null) return;
@@ -161,6 +177,7 @@ async function download() {
 		const runtime = await desktop.buildPortableNodesEffect(buildRequestId, {
 			...snapshot.runtimeRequirements, effectIds: [...snapshot.runtimeRequirements.effectIds],
 			parameterFeatures: [...snapshot.runtimeRequirements.parameterFeatures],
+			executionTarget: selectedExecutionTarget,
 		});
 		buildRequestId = null;
 		signal.throwIfAborted();

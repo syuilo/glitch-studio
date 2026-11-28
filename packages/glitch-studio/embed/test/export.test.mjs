@@ -151,7 +151,8 @@ test('round trips script-like strings through standalone HTML without executing 
 	let captured;
 	runInNewContext(script, { capture: (...args) => { captured = args; } });
 	assert.equal(captured[1].name, input.name);
-	assert.equal(captured[2], runtime.workerSource);
+	assert.equal(captured[2], null);
+	assert.equal(captured[3], runtime.workerSource);
 	assert.equal((files.html.match(/<script /g) ?? []).length, 1);
 });
 

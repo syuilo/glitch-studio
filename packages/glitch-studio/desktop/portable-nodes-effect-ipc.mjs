@@ -31,7 +31,8 @@ export function registerPortableNodesEffectIpc(ipcMain, utilityProcess, workerPa
 			child.stderr?.resume();
 			child.once('message', message => {
 				if (message.error != null) finish(new Error(message.error));
-				else if (typeof message.runtime?.elementSource !== 'string' || typeof message.runtime?.workerSource !== 'string') finish(new Error('Invalid runtime build result'));
+				else if (typeof message.runtime?.elementSource !== 'string'
+					|| (message.runtime.workerSource !== null && typeof message.runtime.workerSource !== 'string')) finish(new Error('Invalid runtime build result'));
 				else finish(null, message.runtime);
 			});
 			child.once('exit', code => finish(new Error(`Runtime builder exited before completing (${code})`)));

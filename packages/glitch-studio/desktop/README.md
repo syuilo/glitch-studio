@@ -18,7 +18,7 @@ desktopのパッケージ名は`@gs/glitch-studio_desktop`です。electron-buil
 
 ## Nodes EffectのWeb書き出し
 
-HTML/JavaScriptの書き出しはElectron版限定です。UIで作品と素材を確定し、`portable-nodes-effect-ipc.mjs`が要求元ごとに一つのUtilityProcessを起動します。必要な機能の一覧だけをビルド処理へ渡し、生成結果をUIへ返します。キャンセル・画面破棄・プロセス異常で受付を解放します。HTML・ZIPの保存は既存のExportFilesによる一時保存と確定を使います。
+HTML/JavaScriptの書き出しはElectron版限定です。UIで作品と素材を確定し、`portable-nodes-effect-ipc.mjs`が要求元ごとに一つのUtilityProcessを起動します。選択した描画の実行先と必要な機能の一覧をビルド処理へ渡し、生成結果をUIへ返します。キャンセル・画面破棄・プロセス異常で受付を解放します。HTML・ZIPの保存は既存のExportFilesによる一時保存と確定を使います。
 
 `pnpm build:desktop`と`pnpm dev:desktop`は、`build-portable-nodes-effect.mjs`でESMカタログと専用Workerを生成します。開発中にランタイム・エフェクトを変更した場合は、デスクトップ開発プロセスを再起動するか、`pnpm --dir packages/glitch-studio/desktop build:portable`を実行します。カタログはネイティブバンドラーが読めるようASAR外に配置し、esbuildの実行ファイルもunpackします。Workerには実体パスを`ESBUILD_BINARY_PATH`で渡します。
 

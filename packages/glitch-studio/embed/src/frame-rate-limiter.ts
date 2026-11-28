@@ -1,4 +1,4 @@
-/** rAFの時刻で描画の可否を決める。作品の時計とWorkerの処理中状態は呼び出し側が所有する。 */
+/** rAFの時刻で描画の可否を決める。作品の時計と描画の処理中状態は呼び出し側が所有する。 */
 export class PortableNodesEffectFrameRateLimiter {
 	private nextFrameTimestamp: number | null = null;
 	private previousFpsLimit: number | null = null;
